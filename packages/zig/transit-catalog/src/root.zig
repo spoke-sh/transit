@@ -6,6 +6,7 @@ pub const fuze = @import("transit_fuze");
 pub const Model = @import("Model.zig");
 pub const Records = @import("Records.zig");
 pub const Inspection = @import("Inspection.zig");
+pub const DirectBranch = @import("DirectBranch.zig");
 pub const DirectCatalog = @import("DirectCatalog.zig");
 pub const DirectCatalogRoots = @import("DirectCatalogRoots.zig");
 pub const DirectCatalogWalk = @import("DirectCatalogWalk.zig");
@@ -119,6 +120,7 @@ test {
     _ = LogAuthority;
     _ = KVAuthority;
     _ = DocumentAuthority;
+    _ = DirectBranch;
     _ = DirectLog;
     _ = DirectStreamMutation;
     _ = DirectStream;

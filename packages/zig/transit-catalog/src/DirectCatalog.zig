@@ -1299,6 +1299,7 @@ pub fn directRecord(self: *Self, allocator: std.mem.Allocator, request: c.Direct
     };
     // The cut is server-owned evidence. Generic caller records only check
     // CONNECT and cannot bypass its complete current Table disclosure checks.
+    if (format == c.DirectBranch.format) return error.BranchOperationRequired;
     if (format == c.DirectTransaction.Acquired.format or c.DirectTransactionWorkspace.reserved(format)) return error.TransactionOperationRequired;
     const result: c.DirectRecord.Result = switch (request) {
         .stage => |value| blk: {
@@ -1320,6 +1321,7 @@ pub fn directRecord(self: *Self, allocator: std.mem.Allocator, request: c.Direct
 fn intentGuard(self: *Self, allocator: std.mem.Allocator, reference: c.DirectIntent.Reference, policy: Policy) !P.Guard {
     try reference.validate();
     return switch (reference) {
+        .branch => |value| self.branchGuard(allocator, value, policy, false),
         .transaction, .transaction_call => self.guard(allocator, policy, null, null, .database),
         .external => self.guard(allocator, policy, null, null, .database),
         .table => |value| self.operationGuard(allocator, value.binding, value.namespace, policy),
@@ -1369,7 +1371,7 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
     }
     const binding = request.bind;
     const reference = binding.intent;
-    const current = try self.intentGuard(arena.allocator(), reference, policy);
+    const current = if (reference == .branch) try self.branchGuard(arena.allocator(), reference.branch, policy, true) else try self.intentGuard(arena.allocator(), reference, policy);
     try check(current);
     if (self.store.root.client_token_count >= self.options.client_token_quota) return error.ClientTokenCapacity;
     const usage = (try self.store.clientUsage(self.store.root, key)) orelse c.DirectClientToken.Usage.initial(binding.budget.limits);
@@ -1384,6 +1386,10 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
     // A token claims the complete original identity before accepting its
     // reference; this is independent of data admission and execution.
     switch (reference) {
+        .branch => |value| {
+            try self.prepareBranchAdmission(value, policy);
+            try c.OperationBinding.claimBranchInTree(self.allocator, &self.store.index, value);
+        },
         .transaction => |value| {
             if (value.begin.catalog.partition != self.config().partition or value.begin.catalog.next_lsn != self.store.root.next_lsn)
                 return error.TransactionCatalogChanged;
@@ -1464,6 +1470,7 @@ pub fn clientProgress(self: *Self, request: c.DirectClientToken.ProgressRequest,
     // Transaction workspace, cancellation and settlement belong to the
     // transaction owner. Generic client bookkeeping cannot replace that state
     // or manufacture a cancellation request while the original attempt lives.
+    if (state.receipt.binding.intent == .branch) return error.BranchOperationRequired;
     if (state.receipt.binding.intent == .transaction or state.receipt.binding.intent == .transaction_call) return error.TransactionOperationRequired;
     const value = request.update;
     if (state.pending == value.pending and state.cancel == value.cancel and std.meta.eql(state.record, value.record)) return .{ .state = state };
@@ -1491,6 +1498,7 @@ pub fn clientProgress(self: *Self, request: c.DirectClientToken.ProgressRequest,
 }
 fn requireClientTerminal(self: *Self, reference: c.DirectIntent.Reference, policy: Policy) anyerror!void {
     switch (reference) {
+        .branch => return error.BranchOperationRequired,
         .transaction => return error.ClientOperationPending,
         .transaction_call => return error.TransactionOperationRequired,
         // External owners interpret their own progress. No external completion
@@ -3852,6 +3860,7 @@ pub fn retainHistory(self: *Self, object: d.Object, owner: d.Operation, expected
 }
 
 fn pinRowsChecked(self: *Self, object: d.Object, owner: d.Operation, expected: d.Position, interpretation: ?d.Definition, retention: P.Retention, policy: Policy) !P.SnapshotHandle {
+    try self.requireUnreservedBranchPin(owner);
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
     var access = try self.snapshotAccess(arena.allocator(), object, owner, policy, false);
@@ -4009,6 +4018,7 @@ pub fn scanFiltered(self: *Self, allocator: std.mem.Allocator, object: d.Object,
 }
 
 pub fn releaseRows(self: *Self, object: d.Object, handle: P.SnapshotHandle, policy: Policy) !void {
+    try self.requireUnreservedBranchPin(handle.owner);
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
     var access = try self.snapshotAccess(arena.allocator(), object, handle.owner, policy, true);
@@ -4075,4 +4085,185 @@ pub fn settle(self: *Self, binding: d.Binding, policy: Policy) !Observation {
     const current = try self.requestGuard(arena.allocator(), policy, request.value, &view, false);
     try self.terminal(operation, .settled, .none, current);
     return observed;
+}
+
+fn branchGuard(self: *Self, allocator: std.mem.Allocator, intent: c.DirectBranch.Intent, policy: Policy, create: bool) !P.Guard {
+    try intent.validate();
+    if (!intent.connection.matches(self.config()) or intent.connection.principal != policy.subject.principal()) return error.CatalogDenied;
+    var access = try self.readAccess(allocator, intent.source.interpretation.object, policy, false);
+    defer access.view.deinit();
+    if (access.view.properties.namespace != intent.namespace) return error.BranchIdentityConflict;
+    const namespace = try self.authorizationSchema(intent.namespace);
+    var requested = try self.requirements(policy, namespace, access.view.properties.target(intent.source.interpretation.object.object), .read);
+    if (create) requested = try requested.merge(try self.requirements(policy, try self.schema(intent.namespace), null, .create_table));
+    return policy.make_guard(policy.context, allocator, requested, null);
+}
+
+fn prepareBranchAdmission(self: *Self, intent: c.DirectBranch.Intent, policy: Policy) !void {
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    try check(try self.branchGuard(scratch.allocator(), intent, policy, true));
+    if (try self.store.tree().get(self.store.root.branch_names, try r.nameKey(intent.namespace, intent.name)) != null) return error.BranchNameConflict;
+    var access = try self.snapshotAccess(scratch.allocator(), intent.source.interpretation.object, intent.identity(), policy, false);
+    defer access.view.deinit();
+    const root = access.view.table.root;
+    if (root.retired or root.transaction != null or !std.meta.eql(root.interpretation, intent.source.interpretation) or
+        root.partition != intent.source.accepted.partition or root.next_lsn != intent.source.accepted.next_lsn) return error.BranchSourceChanged;
+    // An unrelated pin using this identity cannot be adopted as branch work.
+    if ((try access.view.table.pinState(intent.identity(), access.current)).handle != null) return error.DataIdentityConflict;
+}
+
+fn requireUnreservedBranchPin(self: *Self, owner: d.Operation) !void {
+    try self.requireInitialized();
+    try owner.validate();
+    if (!std.meta.eql(owner.scope, self.config().scope)) return error.DataIdentityConflict;
+    if (try self.store.tree().get(self.store.root.branch_owners, try r.operationKey(owner)) != null) return error.BranchRetentionOwned;
+}
+
+fn branchProgress(self: *Self, key: c.DirectClientToken.Key, policy: Policy) !?c.DirectClientToken.Progress {
+    const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return null;
+    if (progress.receipt.binding.intent != .branch) return error.BranchOperationRequired;
+    return progress;
+}
+fn branchStatus(self: *Self, progress: c.DirectClientToken.Progress) !c.DirectBranch.Status {
+    return .{ .receipt = progress.receipt, .revision = progress.revision, .state = try c.DirectBranch.State.load(self.allocator, self.store.objects, progress) };
+}
+
+/// Host excludes database publication for creation/advance/cancel, as for
+/// transaction cut acquisition. Admission reserves only the name and identity.
+pub fn createBranch(self: *Self, request: @FieldType(c.DirectBranch.Request, "create"), policy: Policy) !c.DirectBranch.Status {
+    const binding: c.DirectClientToken.Binding = .{ .key = request.key, .fingerprint = try request.intent.digest(), .intent = .{ .branch = request.intent }, .budget = request.budget };
+    _ = try self.clientToken(.{ .bind = binding }, policy);
+    return self.advanceBranch(request.key, false, policy);
+}
+
+fn publishBranchState(self: *Self, progress: *c.DirectClientToken.Progress, state: c.DirectBranch.State, current: P.Guard) !void {
+    var next = self.store.root;
+    next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
+    var updated = progress.*;
+    updated.revision = .{ .partition = self.config().partition, .next_lsn = next.next_lsn };
+    updated.pending = state.phase == .admitted or state.phase == .abandoning;
+    updated.cancel = state.phase == .abandoning or state.phase == .cancelled;
+    updated.record = try state.stage(self.store.objects, updated);
+    var batch: s.TreeStore.Batch = .{};
+    try self.store.index.beginBatch(self.options.index_work_bytes, &batch);
+    defer self.store.index.end();
+    try self.store.clientIndices(&next, updated);
+    try self.store.publish(next, .{ .client_token = updated }, current);
+    progress.* = updated;
+}
+
+pub fn advanceBranch(self: *Self, key: c.DirectClientToken.Key, cancel_requested: bool, policy: Policy) !c.DirectBranch.Status {
+    var progress = try self.branchProgress(key, policy) orelse return error.ClientOperationMissing;
+    var state = (try self.branchStatus(progress)).state;
+    if (state.phase == .published or state.phase == .cancelled) return self.branchStatus(progress);
+    const intent = progress.receipt.binding.intent.branch;
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    const current = try self.branchGuard(scratch.allocator(), intent, policy, !cancel_requested and state.phase != .abandoning);
+    try check(current);
+    if (cancel_requested and state.phase == .admitted) {
+        state.phase = .abandoning;
+        try self.publishBranchState(&progress, state, current);
+    }
+    var access = try self.snapshotAccess(scratch.allocator(), intent.source.interpretation.object, intent.identity(), policy, false);
+    defer access.view.deinit();
+    const pin_state = try access.view.table.pinState(intent.identity(), access.current);
+    access.view.table.lose_reply = self.lose_table_reply;
+    if (state.phase == .abandoning) {
+        if (pin_state.handle) |pin| if (!pin_state.released) try access.view.table.releaseSnapshot(pin, current);
+        state.phase = .cancelled;
+        try self.publishBranchState(&progress, state, current);
+        try check(current);
+        return self.branchStatus(progress);
+    }
+    var epoch: ?P.Guard.Fence = null;
+    var fenced: CutFence = .{ .underlying = current, .epoch = &epoch };
+    const pin = if (pin_state.handle) |pin| blk: {
+        if (pin_state.released) return error.TableSnapshotReleased;
+        break :blk pin;
+    } else try access.view.table.pin(intent.identity(), intent.source.accepted, fenced.guard());
+    var frozen = try access.view.table.inspectSnapshot(self.allocator, pin, fenced.guard());
+    defer frozen.deinit();
+    const source: d.SourceCut = .{ .interpretation = frozen.root.interpretation, .manifest = null, .checkpoint_lsn = 0, .accepted = frozen.position() };
+    if (frozen.root.retired or !std.meta.eql(source, intent.source)) return error.BranchSourceChanged;
+    var directory = try s.BranchSnapshot.init(self.allocator, self.data_objects, state.branch, intent.identity(), 1, self.options.resident_pages, self.options.index_work_bytes);
+    defer directory.deinit();
+    try directory.put(.{ .source = source, .pin = pin });
+    const reference = try directory.stageManifest(.{
+        .definition = p.Growth.current_definition,
+        .identity = state.branch,
+        .version = 1,
+        // An explicit single-Table projection has no claim to a complete main
+        // branch history. Its genesis retains the exact source attribution.
+        .kind = .genesis,
+        .mode = intent.mode,
+        .catalog = progress.receipt.position,
+        .objects = try directory.seal(),
+        .retention_owner = intent.identity(),
+        .parent = null,
+        .merge_parent = null,
+        .restored_from = null,
+    });
+    state.phase = .published;
+    state.head = .{ .reference = reference, .generation = 1 };
+    try self.publishBranchState(&progress, state, fenced.guard());
+    try check(fenced.guard());
+    return self.branchStatus(progress);
+}
+
+pub fn inspectBranch(self: *Self, key: c.DirectClientToken.Key, policy: Policy) !?c.DirectBranch.Status {
+    return try self.branchStatus(try self.branchProgress(key, policy) orelse return null);
+}
+pub fn lookupBranch(self: *Self, namespace: u64, name: a.Name, policy: Policy) !?c.DirectBranch.Status {
+    try self.requireInitialized();
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    const current = try self.guard(scratch.allocator(), policy, try self.authorizationSchema(namespace), null, .schema);
+    try check(current);
+    const value = try self.store.tree().get(self.store.root.branch_names, try r.nameKey(namespace, name)) orelse {
+        try check(current);
+        return null;
+    };
+    const progress = try self.store.branchByDigest(value);
+    const intent = progress.receipt.binding.intent.branch;
+    if (intent.namespace != namespace or !std.meta.eql(intent.name, name)) return error.InvalidBranchState;
+    const checked = try self.branchProgress(progress.receipt.binding.key, policy) orelse return error.InvalidBranchState;
+    const observed = try self.branchStatus(checked);
+    try check(current);
+    return if (observed.state.phase == .published) observed else null;
+}
+
+pub const BranchRead = struct {
+    access: SnapshotAccess,
+    entry: s.BranchSnapshot.Entry,
+    mode: p.Branch.Mode,
+    pub fn deinit(self: *BranchRead) void {
+        self.access.view.deinit();
+    }
+};
+/// The head is exact and current rights apply to the original source object.
+/// No branch grant, execution binding or newer source is inferred from a name.
+pub fn openBranch(self: *Self, scratch: std.mem.Allocator, head: p.Branch.Head, policy: Policy) !BranchRead {
+    try self.requireInitialized();
+    try head.validate();
+    try head.reference.identity.requireScope(self.config().scope);
+    const progress = try self.store.branchById(head.reference.identity.branch) orelse return error.BranchNotFound;
+    const intent = progress.receipt.binding.intent.branch;
+    const checked = try self.branchProgress(progress.receipt.binding.key, policy) orelse return error.InvalidBranchState;
+    const observed = try self.branchStatus(checked);
+    try (observed.state.head orelse return error.BranchNotPublished).requireSame(head);
+    const manifest = try s.BranchSnapshot.loadManifest(self.data_objects, head.reference);
+    if (manifest.kind != .genesis or manifest.mode != intent.mode or !std.meta.eql(manifest.catalog, progress.receipt.position) or !std.meta.eql(manifest.retention_owner, intent.identity())) return error.InvalidBranchState;
+    var directory = try s.BranchSnapshot.init(self.allocator, self.data_objects, observed.state.branch, intent.identity(), 1, self.options.resident_pages, self.options.index_work_bytes);
+    defer directory.deinit();
+    try directory.restore(manifest.objects);
+    const entry_value = try directory.get(intent.source.interpretation.object.object) orelse return error.IncompleteBranchDirectory;
+    if (directory.root.count != 1 or !std.meta.eql(entry_value.source, intent.source)) return error.InvalidBranchState;
+    try directory.verifyEntry(self.allocator, entry_value);
+    var access = try self.snapshotAccess(scratch, intent.source.interpretation.object, intent.identity(), policy, false);
+    errdefer access.view.deinit();
+    var pinned = try access.view.table.inspectSnapshot(self.allocator, entry_value.pin, access.current);
+    defer pinned.deinit();
+    return .{ .access = access, .entry = entry_value, .mode = intent.mode };
 }

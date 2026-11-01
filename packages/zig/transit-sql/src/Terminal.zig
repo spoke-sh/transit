@@ -41,6 +41,7 @@ pub fn validate(self: Self) !void {
 }
 pub fn fromReference(reference: g.IntentReference.Reference, result: w.Result) !?Self {
     try reference.validate();
+    if (reference == .branch) return error.BranchOperationRequired;
     if (reference == .external) return error.ExternalOperationOwnerRequired;
     if (reference == .transaction or reference == .transaction_call) return error.TransactionOperationRequired;
     if (reference == .table) return fromResult(reference.table.binding, result);

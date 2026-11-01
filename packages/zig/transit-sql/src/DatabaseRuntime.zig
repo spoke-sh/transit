@@ -283,7 +283,7 @@ fn advance(self: *Self, source: *g.Client.Source, state: c.DirectClientToken.Pro
     try self.checkFence(source.client);
     if (!state.pending) return false;
     const reference = state.receipt.binding.intent;
-    if (reference == .external) return false;
+    if (reference == .external or reference == .branch) return false;
     const caller = source.direct(state);
     if (reference == .transaction_call) {
         return transactionPending(try g.TransactionWork.advance(caller, state, state.cancel));

@@ -89,6 +89,7 @@ const DocumentIndexKind = enum { pages_only, documents, revisions, replicas, ope
 
 pub const Work = union(enum) {
     catalog_history: c.DirectCatalogRoots,
+    branch: struct { root: r.Root, progress: c.DirectClientToken.Progress },
     transaction: struct { root: r.Root, progress: c.DirectClientToken.Progress, slot: u8 = 0 },
     transaction_walk: struct { walk: c.DirectCatalogWalk, head: W.Head, scope: c.DirectRecord.Scope, tables: bool },
     transaction_intent: W.Request,
@@ -373,6 +374,8 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             try workspace.enqueue(.{ .catalog_root = .{ .root = record.root } });
             if (record.action == .operation) try workspace.enqueue(.{ .catalog_intent = .{ .configuration = record.root.configuration, .operation = record.action.operation } });
             if (record.action == .log) try workspace.enqueue(.{ .log_operation = .{ .configuration = record.root.configuration, .operation = record.action.log } });
+            if (record.action == .client_token and record.action.client_token.receipt.binding.intent == .branch and !record.action.client_token.pending and !record.action.client_token.cancel)
+                try workspace.enqueue(.{ .branch = .{ .root = record.root, .progress = record.action.client_token } });
             if (record.action == .client_token and record.action.client_token.receipt.binding.intent == .transaction_call) {
                 const call = record.action.client_token.receipt.binding.intent.transaction_call;
                 if (call.work == .statement) try workspace.enqueue(.{ .transaction_intent = call.work.statement.request });
@@ -388,6 +391,24 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
                     try workspace.enqueue(.{ .transaction = .{ .root = walk.cut.root, .progress = record.action.client_token } });
             }
             return false;
+        },
+        .branch => |value| {
+            const state = try c.DirectBranch.State.load(allocator, index.store, value.progress);
+            const head = state.head orelse return error.InvalidBranchState;
+            const intent = value.progress.receipt.binding.intent.branch;
+            const manifest = try s.BranchSnapshot.loadManifest(index.store, head.reference);
+            if (manifest.kind != .genesis or manifest.mode != intent.mode or !std.meta.eql(manifest.catalog, value.progress.receipt.position) or !std.meta.eql(manifest.retention_owner, intent.identity())) return error.InvalidBranchState;
+            var directory = try s.BranchSnapshot.init(allocator, index.store, state.branch, intent.identity(), 1, 0, 1);
+            defer directory.deinit();
+            try directory.restore(manifest.objects);
+            const entry = try directory.get(intent.source.interpretation.object.object) orelse return error.IncompleteBranchDirectory;
+            if (directory.root.count != 1 or !std.meta.eql(entry.source, intent.source)) return error.InvalidBranchState;
+            try directory.verifyEntry(allocator, entry);
+            try markContent(workspace, try s.BranchSnapshot.objectKey(head.reference.content, &key_buffer), head.reference.content);
+            try markContent(workspace, try s.BranchSnapshot.objectKey(manifest.objects.content, &key_buffer), manifest.objects.content);
+            // Table live-pin traversal retains the data/archive closure. This
+            // additional root protects the branch's own paged source directory.
+            try workspace.enqueue(.{ .catalog_walk = try .init(value.root, .{ .reference = directory.root.entries.?, .kind = .pages_only }) });
         },
         .transaction => |*value| {
             const progress = value.progress;
@@ -548,7 +569,7 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
         },
         .catalog_root => |*value| {
             const root = value.root;
-            const directories = [_]?s.TreeStore.pages.Reference{ root.schemas, root.schema_names, root.namespace_claims, root.namespace_pending, root.objects, root.names, root.operations, root.pending, root.native_allocations, root.dependents, root.dependencies, root.client_tokens, root.client_operations, root.client_pending, root.client_accounts };
+            const directories = [_]?s.TreeStore.pages.Reference{ root.schemas, root.schema_names, root.namespace_claims, root.namespace_pending, root.objects, root.names, root.operations, root.pending, root.native_allocations, root.dependents, root.dependencies, root.client_tokens, root.client_operations, root.client_pending, root.client_accounts, root.branches, root.branch_names, root.branch_owners };
             if (value.slot > directories.len) return error.InvalidDirectCatalogHistory;
             if (value.slot == directories.len) return true;
             const slot = value.slot;

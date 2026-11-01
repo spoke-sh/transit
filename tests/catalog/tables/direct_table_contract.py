@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "d819613421eddad994752d367fa40948abe9914ffc0f10ee13b18c2b875d3e8e"
+definition = "b8b54b17dfbab67a11e6e48a011d7cb0337ccaaf4f643944d7aaf251c810269c"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -237,6 +237,24 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
     queue_fixture["release_request"] = queue_release_request
     queue_fixture["release_intent_digest"] = list(hashlib.sha256(b"transit.catalog.queue.operation.v1\0" + bytes.fromhex(definition) + canonical(queue_release_work)).digest())
 
+    branch_intent = {
+        "connection": request_input["connection"], "namespace": 1,
+        "operation": 2**64 - 1, "name": native_name("trial"),
+        "source": {"interpretation": source_definition, "manifest": None,
+                   "checkpoint_lsn": 0, "accepted": {"partition": 9, "next_lsn": 2**64 - 1}},
+        "mode": "full_data",
+    }
+    branch_key = {"definition": definition, "connection": request_input["connection"],
+                  "account": [19] * 32, "token": [23] * 16}
+    branch_input = {**request_input, "action": {"branch": {"create": {
+        "key": branch_key, "intent": branch_intent,
+        "budget": {"limits": {"operations": 1000000, "bytes": 4294967296, "pending": 1024}, "bytes": 4608},
+    }}}}
+    branch_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(branch_input)).digest())}
+    branch_request = {**branch_input, "proof": {"claim": branch_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(branch_claim)).digest())}}
+    branch_fixture = {"request": branch_request, "public_key": public_key,
+                      "intent_digest": list(hashlib.sha256(b"transit.catalog.table-branch.v1\0" + canonical(branch_intent)).digest())}
+
 request = {**request_input, "proof": {"claim": claim, "signature": signature}}
 fixture = {
     "request": request,
@@ -246,6 +264,11 @@ fixture = {
 }
 validator = jsonschema.Draft202012Validator({**schema, "$ref": "#/$defs/Request"})
 validator.validate(request)
+validator.validate(branch_request)
+for field in ("connection", "namespace", "operation", "name", "source", "mode"):
+    invalid = copy.deepcopy(branch_request)
+    del invalid["action"]["branch"]["create"]["intent"][field]
+    assert not validator.is_valid(invalid), field
 validator.validate(wait_request)
 validator.validate(delegated_request)
 validator.validate(borrowed_request)
@@ -324,6 +347,8 @@ def persist(path, content):
 
 
 persist(root / "contracts/direct-table-v1.schema.json", raw)
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-branch-v1.json",
+        (json.dumps(branch_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-stream-v1.json",
         (json.dumps(stream_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-queue-v1.json",

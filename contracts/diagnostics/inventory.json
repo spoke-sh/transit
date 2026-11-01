@@ -4239,6 +4239,58 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectBranch.zig": {
+      "errors": {
+        "BranchIdentityConflict": 2,
+        "IncompatibleDefinition": 1,
+        "InvalidBranchCreation": 1,
+        "InvalidBranchResponse": 14,
+        "InvalidBranchState": 3,
+        "InvalidTableReadBudget": 1
+      },
+      "outcomes": {
+        "Phase": [
+          "admitted",
+          "published",
+          "abandoning",
+          "cancelled"
+        ],
+        "Request": [
+          "create",
+          "inspect",
+          "advance",
+          "cancel",
+          "lookup",
+          "source",
+          "scan"
+        ],
+        "Result": [
+          "status",
+          "source",
+          "page"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Intent.digest()": "<inferred>",
+        "Intent.validate()": "<inferred>",
+        "Request.validate()": "<inferred>",
+        "State.load()": "<inferred>",
+        "State.stage()": "<inferred>",
+        "State.validate()": "<inferred>",
+        "call()": "<inferred>",
+        "validateResult()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 47,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DirectCallerCodes.zig": {
       "errors": {
         "CatalogDirectoryChanged": 1,
@@ -4284,7 +4336,14 @@
     "packages/zig/transit-catalog/src/DirectCatalog.zig": {
       "errors": {
         "AccessDenied": 2,
-        "CatalogDenied": 59,
+        "BranchIdentityConflict": 1,
+        "BranchNameConflict": 1,
+        "BranchNotFound": 1,
+        "BranchNotPublished": 1,
+        "BranchOperationRequired": 4,
+        "BranchRetentionOwned": 1,
+        "BranchSourceChanged": 2,
+        "CatalogDenied": 60,
         "CatalogHistoryMissing": 1,
         "CatalogIdentityConflict": 7,
         "CatalogKindMismatch": 4,
@@ -4296,17 +4355,19 @@
         "CatalogObservationChanged": 1,
         "CatalogRegistrationRequired": 9,
         "ClientOperationConflict": 2,
-        "ClientOperationMissing": 14,
+        "ClientOperationMissing": 15,
         "ClientOperationPending": 6,
         "ClientTokenCapacity": 1,
         "ClientTokenConflict": 1,
         "ConflictingRetry": 1,
-        "DataIdentityConflict": 5,
+        "DataIdentityConflict": 7,
         "DuplicatePrimaryKey": 1,
         "Forbidden": 7,
         "IbmHfpOverflow": 1,
         "IbmHfpUnderflow": 1,
+        "IncompleteBranchDirectory": 1,
         "IncompleteTransactionCut": 2,
+        "InvalidBranchState": 5,
         "InvalidCatalogConfiguration": 1,
         "InvalidCatalogCursor": 2,
         "InvalidCatalogDependency": 8,
@@ -4353,7 +4414,7 @@
         "TableRetired": 2,
         "TableSchemaChanged": 1,
         "TableSnapshotNotPinned": 1,
-        "TableSnapshotReleased": 3,
+        "TableSnapshotReleased": 4,
         "TransactionAuthorityChanged": 1,
         "TransactionCatalogChanged": 1,
         "TransactionConflict": 7,
@@ -4421,6 +4482,7 @@
         "admitLog()": "<inferred>",
         "admitRows()": "<inferred>",
         "admitTransactionStatement()": "<inferred>",
+        "advanceBranch()": "<inferred>",
         "applyRows()": "<inferred>",
         "assertName()": "<inferred>",
         "assertionCondition()": "<inferred>",
@@ -4432,6 +4494,9 @@
         "available()": "<inferred>",
         "beginTransaction()": "<inferred>",
         "beginTransactionBounded()": "<inferred>",
+        "branchGuard()": "<inferred>",
+        "branchProgress()": "<inferred>",
+        "branchStatus()": "<inferred>",
         "cancel()": "<inferred>",
         "cancelRows()": "<inferred>",
         "candidate()": "<inferred>",
@@ -4442,6 +4507,7 @@
         "clientProgress()": "<inferred>",
         "clientToken()": "<inferred>",
         "clientTokenSelected()": "<inferred>",
+        "createBranch()": "<inferred>",
         "currentReadAuthority()": "<inferred>",
         "dependencyAdministration()": "<inferred>",
         "dependencyEdge()": "<inferred>",
@@ -4465,6 +4531,7 @@
         "historyRead()": "<inferred>",
         "init()": "<inferred>",
         "initialize()": "<inferred>",
+        "inspectBranch()": "<inferred>",
         "inspectLogDefinition()": "<inferred>",
         "inspectNamespace()": "<inferred>",
         "inspectStorage()": "<inferred>",
@@ -4485,6 +4552,7 @@
         "logRecord()": "<inferred>",
         "logRegistration()": "<inferred>",
         "logRequest()": "<inferred>",
+        "lookupBranch()": "<inferred>",
         "maintenanceNext()": "<inferred>",
         "maintenanceOpen()": "<inferred>",
         "namedRecord()": "<inferred>",
@@ -4498,6 +4566,7 @@
         "observe()": "<inferred>",
         "observeTransactionCall()": "anyerror",
         "open()": "<inferred>",
+        "openBranch()": "<inferred>",
         "openTransaction()": "<inferred>",
         "operationGuard()": "<inferred>",
         "original()": "<inferred>",
@@ -4510,6 +4579,7 @@
         "pinRowsChecked()": "<inferred>",
         "pinRowsDefined()": "<inferred>",
         "pinState()": "<inferred>",
+        "prepareBranchAdmission()": "<inferred>",
         "prepareLogDefinition()": "<inferred>",
         "prepareResourceAllocation()": "<inferred>",
         "preview()": "<inferred>",
@@ -4518,6 +4588,7 @@
         "previewNamespace()": "<inferred>",
         "previewResource()": "<inferred>",
         "previewRows()": "<inferred>",
+        "publishBranchState()": "<inferred>",
         "publishTransactionCall()": "<inferred>",
         "publishTransactionControl()": "<inferred>",
         "publishTransactionWorkspace()": "<inferred>",
@@ -4539,6 +4610,7 @@
         "requireClientLease()": "<inferred>",
         "requireClientTerminal()": "anyerror",
         "requireInitialized()": "<inferred>",
+        "requireUnreservedBranchPin()": "<inferred>",
         "requirements()": "<inferred>",
         "resolve()": "<inferred>",
         "resolveLog()": "<inferred>",
@@ -4592,7 +4664,7 @@
       },
       "open_error_set_uses": 11,
       "propagation": {
-        "try": 1316,
+        "try": 1392,
         "catch": 20
       },
       "imports": [
@@ -5010,15 +5082,17 @@
     },
     "packages/zig/transit-catalog/src/DirectCatalogStore.zig": {
       "errors": {
+        "BranchNameConflict": 1,
         "CatalogHistoryMissing": 11,
         "CatalogRecordTooLarge": 1,
         "CatalogRecoveryRequired": 1,
-        "DataIdentityConflict": 14,
+        "DataIdentityConflict": 15,
         "IncompatibleDefinition": 1,
+        "InvalidBranchState": 2,
         "InvalidClientToken": 8,
         "InvalidDirectCatalogHistory": 8,
         "InvalidDirectCatalogOperation": 16,
-        "InvalidDirectCatalogTransition": 109,
+        "InvalidDirectCatalogTransition": 117,
         "InvalidLogCatalogOperation": 2,
         "InvalidPartitionLease": 1,
         "LostAcknowledgement": 1
@@ -5028,6 +5102,10 @@
       "error_returns": {
         "assertion()": "<inferred>",
         "assertionAt()": "<inferred>",
+        "branchByDigest()": "<inferred>",
+        "branchById()": "<inferred>",
+        "branchIndices()": "<inferred>",
+        "branchTransition()": "<inferred>",
         "clientIndices()": "<inferred>",
         "clientOperation()": "<inferred>",
         "clientPage()": "<inferred>",
@@ -5074,7 +5152,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 216,
+        "try": 251,
         "catch": 1
       },
       "imports": [
@@ -5122,7 +5200,7 @@
         "ClientBudgetConflict": 1,
         "ClientTokenBudget": 1,
         "ClientTokenCapacity": 1,
-        "ClientTokenConflict": 1,
+        "ClientTokenConflict": 2,
         "DataIdentityConflict": 3,
         "IncompatibleDefinition": 1,
         "InvalidClientToken": 12,
@@ -5175,7 +5253,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 43,
+        "try": 44,
         "catch": 0
       },
       "imports": [
@@ -5255,6 +5333,7 @@
     },
     "packages/zig/transit-catalog/src/DirectIntent.zig": {
       "errors": {
+        "BranchOperationRequired": 2,
         "CatalogIdentityConflict": 2,
         "DataIdentityConflict": 2,
         "ExternalOperationOwnerRequired": 2,
@@ -5264,6 +5343,7 @@
       },
       "outcomes": {
         "Reference": [
+          "branch",
           "transaction",
           "transaction_call",
           "external",
@@ -5978,6 +6058,8 @@
         "CatalogHistoryMissing": 1,
         "DocumentHistoryUnavailable": 3,
         "DocumentStateObjectMissing": 1,
+        "IncompleteBranchDirectory": 1,
+        "InvalidBranchState": 3,
         "InvalidClientToken": 2,
         "InvalidDataIndexObject": 1,
         "InvalidDirectCatalogHistory": 1,
@@ -6026,6 +6108,7 @@
         ],
         "Work": [
           "catalog_history",
+          "branch",
           "transaction",
           "transaction_walk",
           "transaction_intent",
@@ -6099,7 +6182,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 424,
+        "try": 437,
         "catch": 1
       },
       "imports": [
@@ -6440,6 +6523,7 @@
     },
     "packages/zig/transit-catalog/src/DirectTableDispatch.zig": {
       "errors": {
+        "InvalidBranchCursor": 1,
         "InvalidCatalogCursor": 5,
         "LogCatalogExecutionUnavailable": 1,
         "NamedResourceNativeUnavailable": 1,
@@ -6459,6 +6543,7 @@
         "Execution.stream()": "anyerror",
         "apply()": "anyerror",
         "applySelected()": "anyerror",
+        "branch()": "<inferred>",
         "encodeDefinition()": "<inferred>",
         "historySource()": "<inferred>",
         "requireSource()": "<inferred>",
@@ -6466,7 +6551,7 @@
       },
       "open_error_set_uses": 8,
       "propagation": {
-        "try": 180,
+        "try": 195,
         "catch": 0
       },
       "imports": [
@@ -6631,6 +6716,7 @@
       },
       "outcomes": {
         "Action": [
+          "branch",
           "transaction",
           "client_token",
           "client_progress",
@@ -6733,6 +6819,7 @@
           "snapshot"
         ],
         "Result": [
+          "branch",
           "transaction",
           "record",
           "client_token",
@@ -6827,7 +6914,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 164,
+        "try": 165,
         "catch": 3
       },
       "imports": [
@@ -6916,7 +7003,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 199,
+        "try": 200,
         "catch": 10
       },
       "imports": [
@@ -7957,6 +8044,7 @@
       },
       "outcomes": {
         "Stored": [
+          "branch",
           "transaction_call",
           "transaction_savepoint",
           "transaction_attempt",
@@ -7980,6 +8068,7 @@
         "claim()": "<inferred>",
         "claimAssertion()": "<inferred>",
         "claimAssertionInTree()": "<inferred>",
+        "claimBranchInTree()": "<inferred>",
         "claimDependency()": "<inferred>",
         "claimDependencyInTree()": "<inferred>",
         "claimExternal()": "<inferred>",
@@ -8498,6 +8587,7 @@
         "DeclarativeIngress.zig",
         "DelegationAndSecrets.zig",
         "DirectAuthorizationSql.zig",
+        "DirectBranch.zig",
         "DirectCatalog.zig",
         "DirectCatalogAdministration.zig",
         "DirectCatalogDependencies.zig",
@@ -18658,7 +18748,7 @@
           "deadline"
         ],
         "Definition": [
-          "d819613421eddad994752d367fa40948abe9914ffc0f10ee13b18c2b875d3e8e"
+          "b8b54b17dfbab67a11e6e48a011d7cb0337ccaaf4f643944d7aaf251c810269c"
         ],
         "Effect.phase": [
           "pending",
@@ -27364,6 +27454,7 @@
     },
     "packages/zig/transit-sql/src/IntentReference.zig": {
       "errors": {
+        "BranchOperationRequired": 1,
         "ExternalOperationOwnerRequired": 1,
         "TransactionOperationRequired": 1
       },
@@ -27664,6 +27755,7 @@
     },
     "packages/zig/transit-sql/src/Terminal.zig": {
       "errors": {
+        "BranchOperationRequired": 1,
         "ExternalOperationOwnerRequired": 1,
         "GatewayIdentityConflict": 1,
         "InvalidGatewayTerminal": 18,

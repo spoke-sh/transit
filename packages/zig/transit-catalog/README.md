@@ -60,6 +60,15 @@ makes a definition visible; catalog settlement records completion without
 inventing another data commit. Row operations use the Table's own operation
 index. A rejected or interrupted statement never exposes a successful prefix.
 
+`DirectBranch` creates named immutable branches of one explicitly selected
+Table through signed or typed direct calls. `DirectCatalog` reserves the name
+and original client token, acquires the exact Table pin and publishes the head
+and terminal result together. Reads retain unflushed rows and the original
+schema while the source advances; current source authorization still applies.
+Cancellation durably releases unpublished preparation. See the
+[installed branch contract](../../../contracts/BRANCH_V1.md#installed-immutable-table-branches)
+for recovery, retention, caller ownership and profile limits.
+
 `BranchLifecycle` and `BranchMergeRestore` are bounded in-memory models outside
 the direct catalog execution path. Their stored cuts borrow caller data;
 `validateAndPublishThreeWayMerge` additionally requires caller-owned `MergeRows`

@@ -98,7 +98,7 @@ fn recoverSinceOptions(self: *Self, prior: ?RecoveryState, retain_cache: bool) !
         next = record.root;
         chain = r.hash(frame.payload);
     }
-    for ([_]?pages.Reference{ next.schemas, next.schema_names, next.namespace_claims, next.namespace_pending, next.objects, next.names, next.operations, next.pending, next.native_allocations, next.dependents, next.dependencies, next.client_tokens, next.client_operations, next.client_pending, next.client_accounts }) |slot| if (slot) |reference| {
+    for ([_]?pages.Reference{ next.schemas, next.schema_names, next.namespace_claims, next.namespace_pending, next.objects, next.names, next.operations, next.pending, next.native_allocations, next.dependents, next.dependencies, next.client_tokens, next.client_operations, next.client_pending, next.client_accounts, next.branches, next.branch_names, next.branch_owners }) |slot| if (slot) |reference| {
         _ = try self.index.load(reference);
     };
     self.root = next;
@@ -205,6 +205,7 @@ fn operationAt(self: *Self, basis: r.Root, binding: p.DataLifecycle.Binding) !?r
 
 fn operationTransition(self: *Self, before: r.Root, record: r.Record) !void {
     if (record.action == .client_token) return self.clientTokenTransition(before, record);
+    if (!std.meta.eql(before.branches, record.root.branches) or !std.meta.eql(before.branch_names, record.root.branch_names) or !std.meta.eql(before.branch_owners, record.root.branch_owners)) return error.InvalidDirectCatalogTransition;
     if (!std.meta.eql(before.client_tokens, record.root.client_tokens) or before.client_token_count != record.root.client_token_count or !std.meta.eql(before.client_operations, record.root.client_operations) or !std.meta.eql(before.client_pending, record.root.client_pending) or !std.meta.eql(before.client_accounts, record.root.client_accounts)) return error.InvalidDirectCatalogTransition;
     if (record.action != .resource and !std.meta.eql(before.native_allocations, record.root.native_allocations)) return error.InvalidDirectCatalogTransition;
     if (record.action == .dependency) return self.dependencyTransition(before, record);
@@ -329,6 +330,7 @@ pub fn clientUsage(self: *Self, basis: r.Root, key: c.DirectClientToken.Key) !?c
 }
 pub fn clientIndices(self: *Self, next: *r.Root, state: c.DirectClientToken.Progress) !void {
     const key = state.receipt.binding.key;
+    if (state.receipt.binding.intent == .branch) try self.branchIndices(next, state);
     const prior = try self.clientTokenAt(self.root, key);
     const usage = (try self.clientUsage(self.root, key)) orelse c.DirectClientToken.Usage.initial(state.receipt.binding.budget.limits);
     const updated = try usage.transition(prior, state);
@@ -367,6 +369,12 @@ fn clientTokenTransition(self: *Self, before: r.Root, record: r.Record) !void {
         }
     }
     var unchanged = record.root;
+    try self.branchTransition(before, record);
+    if (accepted.receipt.binding.intent == .branch) {
+        unchanged.branches = before.branches;
+        unchanged.branch_names = before.branch_names;
+        unchanged.branch_owners = before.branch_owners;
+    }
     unchanged.next_lsn = before.next_lsn;
     unchanged.client_tokens = before.client_tokens;
     unchanged.client_token_count = before.client_token_count;
@@ -708,4 +716,64 @@ fn assertionAt(self: *Self, basis: r.Root, binding: c.NameAssertion.Binding) !?c
     if (!std.meta.eql(record.root.configuration, basis.configuration)) return error.InvalidDirectCatalogOperation;
     try record.action.assertion.binding.requireSame(binding);
     return record.action.assertion;
+}
+
+/// Branch IDs are accepted catalog positions, never caller-chosen or reused.
+/// All directories point to the existing client-token owner.
+pub fn branchByDigest(self: *Self, digest: pages.Value) !c.DirectClientToken.Progress {
+    const progress = try self.tokenFromIndexValue(self.root, digest);
+    if (progress.receipt.binding.intent != .branch) return error.InvalidBranchState;
+    return progress;
+}
+pub fn branchById(self: *Self, id: u64) !?c.DirectClientToken.Progress {
+    const value = try self.tree().get(self.root.branches, try r.idKey(id)) orelse return null;
+    const progress = try self.branchByDigest(value);
+    if (progress.id() != id or progress.receipt.binding.intent != .branch) return error.InvalidBranchState;
+    return progress;
+}
+fn branchIndices(self: *Self, next: *r.Root, progress: c.DirectClientToken.Progress) !void {
+    const intent = progress.receipt.binding.intent.branch;
+    const prior = try self.clientTokenAt(self.root, progress.receipt.binding.key);
+    const state = try c.DirectBranch.State.load(self.allocator, self.objects, progress);
+    const name = try r.nameKey(intent.namespace, intent.name);
+    if (prior == null) {
+        if (try self.tree().get(next.branch_names, name) != null) return error.BranchNameConflict;
+        if (try self.tree().get(next.branch_owners, try r.operationKey(intent.identity())) != null) return error.DataIdentityConflict;
+        const digest = try pages.Value.init(&try progress.receipt.binding.key.digest());
+        next.branches = try self.tree().put(next.branches, try r.idKey(progress.id()), digest);
+        next.branch_owners = try self.tree().put(next.branch_owners, try r.operationKey(intent.identity()), digest);
+        next.branch_names = try self.tree().put(next.branch_names, name, digest);
+    } else if (state.phase == .cancelled) {
+        next.branch_names = try self.tree().remove(next.branch_names, name);
+    }
+}
+fn branchTransition(self: *Self, before: r.Root, record: r.Record) !void {
+    const progress = record.action.client_token;
+    if (progress.receipt.binding.intent != .branch) {
+        if (!std.meta.eql(before.branches, record.root.branches) or !std.meta.eql(before.branch_names, record.root.branch_names) or !std.meta.eql(before.branch_owners, record.root.branch_owners)) return error.InvalidDirectCatalogTransition;
+        return;
+    }
+    const intent = progress.receipt.binding.intent.branch;
+    const state = try c.DirectBranch.State.load(self.allocator, self.objects, progress);
+    const prior = try self.clientTokenAt(before, progress.receipt.binding.key);
+    const name = try r.nameKey(intent.namespace, intent.name);
+    const owner = try r.operationKey(intent.identity());
+    if (prior) |old| {
+        const known = try c.DirectBranch.State.load(self.allocator, self.objects, old);
+        const valid = switch (known.phase) {
+            .admitted => state.phase == .published or state.phase == .abandoning,
+            .abandoning => state.phase == .cancelled,
+            .published, .cancelled => false,
+        };
+        if (!valid or !std.meta.eql(before.branches, record.root.branches) or !std.meta.eql(before.branch_owners, record.root.branch_owners)) return error.InvalidDirectCatalogTransition;
+        if (state.phase != .cancelled and !std.meta.eql(before.branch_names, record.root.branch_names)) return error.InvalidDirectCatalogTransition;
+    } else {
+        if (state.phase != .admitted or try self.tree().get(before.branch_names, name) != null or try self.tree().get(before.branch_owners, owner) != null or try self.tree().get(before.branches, try r.idKey(progress.id())) != null) return error.InvalidDirectCatalogTransition;
+    }
+    const expected = try pages.Value.init(&try progress.receipt.binding.key.digest());
+    if (!std.meta.eql(@as(?pages.Value, expected), try self.tree().get(record.root.branches, try r.idKey(progress.id()))) or !std.meta.eql(@as(?pages.Value, expected), try self.tree().get(record.root.branch_owners, owner))) return error.InvalidDirectCatalogTransition;
+    const named = try self.tree().get(record.root.branch_names, name);
+    if (state.phase == .cancelled) {
+        if (named != null) return error.InvalidDirectCatalogTransition;
+    } else if (!std.meta.eql(@as(?pages.Value, expected), named)) return error.InvalidDirectCatalogTransition;
 }

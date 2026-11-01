@@ -8,10 +8,65 @@ coverage and forward publication decisions. The `branch` group of the reflected
 [data lifecycle schema](data-lifecycle-v1.schema.json) uses these public types.
 
 These validators perform no I/O, authorization, retention, candidate computation
-or publication. They do not enable writable branches, SQL commands, remote
-transfer or transaction participation. The installed direct Table and transaction
-profiles continue to require branch one. An alleged reference, validation result
-or decision is not evidence that its owner accepted or verified it.
+or publication. The installed immutable single-Table profile below supplies a
+durable owner for creation and reads. Writable branches, SQL commands, remote
+transfer and branch transaction participation remain unavailable. Ordinary
+direct Table and transaction operations continue to require branch one. An
+alleged reference, validation result or decision is not evidence that its owner
+accepted or verified it.
+
+## Installed immutable Table branches
+
+[`DirectBranch`](../packages/zig/transit-catalog/src/DirectBranch.zig) exposes
+`create`, `inspect`, `advance`, `cancel`, `lookup`, `source` and `scan` through
+the signed direct Table service and typed local dispatch. `DirectBranch.call`
+uses `DirectTableClient`; returned schema/row bytes live until the parsed
+response is deinitialized. All requests still address the configured main
+catalog connection. Branch reads supply an exact published `Head` separately.
+
+Creation explicitly selects one Table's exact definition and accepted physical
+frontier. Its `SourceCut` has null `manifest` and zero `checkpoint_lsn`; the owner
+acquires a durable Table pin, including accepted unflushed WAL rows. This is a
+coherent single-Table projection, not a catalog-wide snapshot. The resulting
+one-entry directory has a `genesis` manifest with source provenance and no
+invented main-branch ancestry. Full-data reads retain the original rows and
+schema as the parent advances. Schema-only reads expose the original schema
+and zero rows; this initial profile conservatively retains the same source pin.
+
+`create` binds the original account/client token to the entire intent, including
+source, mode, namespace and name. A paged catalog directory reserves the name
+and a nonreused branch ID derived from the catalog admission position. The
+operation is `admitted` before a head exists. A single catalog acceptance records
+both the immutable published head and the original operation's terminal result.
+Exact retries return that result. A changed intent cannot reuse the token.
+`lookup` returns only published heads; `inspect` observes the original operation.
+
+Loss of a pin or publication reply leaves the outcome uncertain. Inspect or
+advance the original token; never issue a fresh operation to resolve it.
+An acquired pin survives parent advancement and disk reopen. If the parent
+changes before pin acquisition, advance refuses the stale source without
+substituting a newer cut; the admitted operation stays pending until cancelled.
+There is no background branch sweeper. `cancel` records `abandoning`, releases
+any original pin, then records `cancelled` and frees the name. Interrupted
+cleanup resumes with `advance` or `cancel`. Cancel after publication returns the
+original published result. Neither the operation identity nor the branch ID is
+reused; ordinary snapshot release cannot release a branch-owned pin.
+
+Creation/publication require current database CONNECT, namespace USAGE and
+CREATE, and source Table SELECT. Inspection, reads and cleanup require the
+original principal and current source access; possession of a name or head is
+not authorization. Current native policy is checked again before disclosure,
+including buffered pages, schema and empty results. No grant, credential,
+execution right or effect-control record is copied into the branch.
+
+Scan pages obey the existing Table row/byte budgets and carry the exact head,
+source, total row count and continuation cursor. The caller must consume the
+entire original cursor sequence and verify its terminal row count before
+claiming complete coverage. A missing page or failure is not completion.
+Catalog directories and source pins participate in physical collection;
+published branches have unlimited retention. There is no published branch drop,
+write, fork, merge, restore, SQL adapter or whole-catalog inclusion operation in
+this profile. The bounded in-memory branch models do not extend this service.
 
 ## Identities and retained interpretation
 
