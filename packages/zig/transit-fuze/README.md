@@ -55,6 +55,18 @@ using them. Its primary-key footer is a sorted resident directory, not a paged
 B-tree. The host must verify object identity/range integrity, retain the source
 and check current authorization; the reader supplies none of those authorities.
 
+Encoded predicates use `PhysicalCodecs.evaluateColumnPage`, also used by the
+Table reader. Dictionary execution validates and evaluates each physical entry
+once, then reads cached outcomes by code; collation-equivalent spellings may have
+distinct codes. FSST equality, ordering and prefix predicates stream symbol bytes
+under binary/ASCII case-folding order without allocating decoded strings. They
+still validate every token, decoded length and UTF-8 scalar after a decision is
+known. CP037 and complex patterns use the bounded shared decoder. Selected
+projection uses that same decoder and preserves raw bytes and conflict details;
+unselected corrupt values or details cannot be hidden by filtering. Per-page
+counters distinguish streamed and materialized FSST predicate values. No new
+codec, dictionary format, SQL `IN` syntax or search index lifecycle is introduced.
+
 `TDel.DeletionVector` stores a segment's deleted row offsets in canonical shared
 Roaring containers. A sorted sparse directory selects high-16-bit prefixes;
 point reads use validated container views. `initBounded` reserves a sidecar byte

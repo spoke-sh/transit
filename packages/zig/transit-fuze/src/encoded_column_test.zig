@@ -60,7 +60,7 @@ test "encoded column outcomes preserve eager five-state semantics across every c
     };
     for (cases) |case| {
         const column: Schema.Column = .{ .id = 1, .name = "v", .type = case.kind, .encoding = case.encoding };
-        const cells = [_]Values.Cell{ .{ .value = .{ .atom = case.atom } }, .null, .missing, .{ .conflict = &.{.{ .counter = 1, .replica = 2, .value = .null }} }, .{ .type_error = .binary }, .{ .value = .{ .atom = case.atom } } };
+        const cells = [_]Values.Cell{ .{ .value = .{ .atom = case.atom } }, .null, .missing, .{ .conflict = &.{ .{ .counter = 1, .replica = 2, .value = .null }, .{ .counter = 2, .replica = 2, .value = .null } } }, .{ .type_error = .binary }, .{ .value = .{ .atom = case.atom } } };
         var bytes: [8192]u8 = undefined;
         const encoded = try Codecs.encodeColumnPage(t.allocator, column, &cells, &bytes);
         var arena = std.heap.ArenaAllocator.init(t.allocator);

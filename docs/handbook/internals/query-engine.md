@@ -1139,6 +1139,35 @@ layouts and ownership limits. The symbol-table codec is Transit-owned and does
 not claim upstream FSST format compatibility. SIMD mainframe conversion is a
 separate extension, not a consequence of an encoding name.
 
+Finite `Batch` execution stores text and binary lanes in lossless 16-byte
+[`StringVector.Value`](../../../packages/zig/transit-fuze/src/StringVector.zig)
+headers. Values through 12 bytes retain original bytes inline. Longer values
+retain a declared-collation prefix and an immutable payload pointer. Short
+comparisons normalize inline bytes; long comparisons can decide from cached
+prefixes, with full collation comparison on ties. Keeping original bytes avoids
+changing projected case or trailing spaces when comparison keys normalize them.
+Owned append detaches long payloads and conflict alternatives into the bounded
+batch reservation. Borrowed append requires the source to survive consumption;
+all views, including inline slices, expire on reset. Column/state/selection
+arrays begin at 64-byte boundaries. External lookup slices are compared only
+within their actual allocation; short SIMD inputs use initialized stack padding.
+None of these transient headers is a wire or stored value representation.
+
+The same production physical decoder serves encoded filtering and selected
+projection. Dictionary predicates cache one outcome per physical entry and
+then consume codes; different spellings with equal collation keys remain valid
+entries. FSST comparisons and prefix predicates under binary/ASCII case-folding
+order stream decoded symbol bytes without retaining a decoded string. Validation
+continues after a comparison decision, including UTF-8 scalars spanning symbols,
+token bounds and total decoded length. CP037 and complex patterns use bounded
+decoding. Selected projection still validates the complete page and detaches
+selected raw values; its memory budget includes unselected validation scratch.
+The decoder reports streamed/materialized predicate-value counts. These counters
+describe kernel work, not storage I/O or end-to-end speed. The independent
+[string execution oracle](../../../tests/query/logical/string_execution.py)
+compares real Batch/codec outcomes and projections against Python byte and CP037
+ordering; separate reader tests preserve page, budget and eager-failure gates.
+
 For valid text in an admitted collation, the implementation must establish
 $u \preceq_\kappa v$ if and only if
 `memcmp(sort_key(u, κ), sort_key(v, κ)) <= 0`. `Collation` uses the same CP037

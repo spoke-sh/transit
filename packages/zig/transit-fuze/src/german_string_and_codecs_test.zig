@@ -152,58 +152,132 @@ test "A1 & P3 compressed-domain .dictionary and .fsst string predicates and late
             var page_buf: [8192]u8 = undefined;
             const page = try PhysicalCodecs.encodeColumnPage(std.testing.allocator, col, &raw_values, &page_buf);
 
-            // Seal allocator with AllocationProbe to verify zero steady-state heap allocations!
             var probe: memory.AllocationProbe = .{ .parent = std.testing.allocator };
-            probe.begin(true);
-
-            var outcomes_buf: [raw_values.len]ColumnPredicate.Outcome = undefined;
-            for (predicates) |pred| {
-                var stats: PhysicalCodecs.CompressedStringStats = .{};
-                const outcomes = try PhysicalCodecs.evaluateCompressedStringPage(
-                    col,
-                    page,
-                    pred,
-                    &outcomes_buf,
-                    &stats,
-                );
-                for (raw_values, outcomes) |cell, actual_outcome| {
-                    const expected_outcome = try pred.evaluate(col, cell);
-                    try std.testing.expectEqual(expected_outcome, actual_outcome);
+            var workspace = std.heap.ArenaAllocator.init(probe.allocator());
+            defer workspace.deinit();
+            for (0..2) |pass| {
+                for (predicates) |pred| {
+                    _ = workspace.reset(.retain_capacity);
+                    const a = workspace.allocator();
+                    const result = try PhysicalCodecs.evaluateColumnPage(a, a, col, page, pred);
+                    for (raw_values, result.outcomes) |cell, actual| try std.testing.expectEqual(try pred.evaluate(col, cell), actual);
+                    if (encoding == .dictionary) try std.testing.expectEqual(@as(usize, 5), result.evaluated_values);
+                    if (encoding == .fsst and (pred == .compare or pred == .starts_with)) {
+                        try std.testing.expectEqual(@as(usize, 5), result.streamed_strings);
+                        try std.testing.expectEqual(@as(usize, 0), result.materialized_strings);
+                    }
                 }
-                if (encoding == .dictionary and (pred == .compare and pred.compare.op == .eq)) {
-                    try std.testing.expectEqual(@as(u32, 1), stats.dictionary_perfect_hash_probes);
-                }
+                _ = workspace.reset(.retain_capacity);
+                const a = workspace.allocator();
+                const selected = [_]u32{ 1, 2, 4, 6 };
+                const materialized = try PhysicalCodecs.decodeColumnPageSelected(a, a, col, page, &selected);
+                try std.testing.expectEqual(@as(usize, 4), materialized.cells.len);
+                try std.testing.expectEqualStrings(raw_values[1].value.atom.bytes, materialized.cells[0].value.atom.bytes);
+                try std.testing.expect(materialized.cells[1] == .null);
+                try std.testing.expect(materialized.cells[2] == .type_error);
+                try std.testing.expectEqualStrings(raw_values[6].value.atom.bytes, materialized.cells[3].value.atom.bytes);
+                if (pass == 0) probe.begin(true) else try probe.verify();
             }
-
-            // Verify late materialization of selected rows `[1, 2, 4, 6]` into GermanCell + StringArena
-            var str_backing: [2048]u8 = undefined;
-            var str_arena = try StringArena.init(&str_backing);
-            var late_cells: [4]GermanCell = undefined;
-            var late_stats: PhysicalCodecs.CompressedStringStats = .{};
-            const selected = [_]u32{ 1, 2, 4, 6 };
-            const mat = try PhysicalCodecs.lateMaterializeSelectedGermanStrings(
-                col,
-                page,
-                &selected,
-                &str_arena,
-                &late_cells,
-                &late_stats,
-            );
-            try std.testing.expectEqual(@as(usize, 4), mat.len);
-            try std.testing.expectEqual(@as(u32, 2), late_stats.late_materialized_rows);
-            try std.testing.expectEqual(@as(u32, 3), late_stats.skipped_unselected_rows);
-            try std.testing.expectEqual(Types.State.value, mat[0].state);
-            try std.testing.expectEqual(Types.State.null, mat[1].state);
-            try std.testing.expectEqual(Types.State.type_error, mat[2].state);
-            try std.testing.expectEqual(Types.State.value, mat[3].state);
-
-            const profile = Collation.Profile.fromCollation(collation);
-            const exp_row1 = try GermanString.init("transit://accounts/beta/queue", profile, &str_arena);
-            const exp_row6 = try GermanString.init("transit://system/catalog/manifest", profile, &str_arena);
-            try std.testing.expect(try mat[0].string.eql(exp_row1, profile, &str_arena));
-            try std.testing.expect(try mat[3].string.eql(exp_row6, profile, &str_arena));
-
-            try probe.verify();
         }
+    }
+}
+
+fn fsstPage(buffer: []u8, decoded_len: u32, symbol: []const u8, tokens: []const u8) ![]const u8 {
+    var writer: std.Io.Writer = .fixed(buffer);
+    try writer.writeAll("TCP1");
+    try writer.writeAll(&@import("transit_protocol").Growth.definition_bytes);
+    try writer.writeByte(@backingInt(TableSchema.Encoding.fsst));
+    try writer.writeInt(u32, 1, .little);
+    try writer.writeByte(0); // One value row.
+    try writer.writeByte(1);
+    try writer.writeByte(@intCast(symbol.len));
+    try writer.writeAll(symbol);
+    try writer.writeInt(u32, decoded_len, .little);
+    try writer.writeInt(u32, @intCast(tokens.len), .little);
+    try writer.writeAll(tokens);
+    return writer.buffered();
+}
+
+test "FSST streaming validates malformed suffixes and unicode across symbol boundaries" {
+    var workspace = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer workspace.deinit();
+    const a = workspace.allocator();
+    const col: TableSchema.Column = .{ .id = 1, .name = "text", .type = .utf8, .encoding = .fsst, .collation = .ascii_ci };
+    const predicate: ColumnPredicate.Predicate = .{ .compare = .{ .op = .eq, .value = .{ .bytes = "not-a-match" } } };
+    var bytes: [1024]u8 = undefined;
+    const valid = try fsstPage(&bytes, 2, "\xc3", &.{ 0, 0xff, 0xa9 });
+    const result = try PhysicalCodecs.evaluateColumnPage(a, a, col, valid, predicate);
+    try std.testing.expectEqual(ColumnPredicate.Outcome.no, result.outcomes[0]);
+    try std.testing.expectEqual(@as(usize, 1), result.streamed_strings);
+    const invalid_cases = .{
+        .{ @as(u32, 2), &[_]u8{ 0xff, 'a', 0xfe }, error.InvalidFsstStream },
+        .{ @as(u32, 2), &[_]u8{ 0xff, 'a', 0xff }, error.InvalidFsstStream },
+        .{ @as(u32, 1), &[_]u8{ 0xff, 'a', 0xff, 'b' }, error.InvalidFsstStream },
+        .{ @as(u32, 3), &[_]u8{ 0xff, 'a', 0xff, 'b' }, error.InvalidFsstStream },
+        .{ @as(u32, 2), &[_]u8{ 0xff, 0xc0, 0xff, 0x80 }, error.InvalidUtf8 },
+        .{ @as(u32, 1), &[_]u8{0}, error.InvalidUtf8 },
+    };
+    inline for (invalid_cases) |case| {
+        const page = try fsstPage(&bytes, case[0], "\xc3", case[1]);
+        try std.testing.expectError(case[2], PhysicalCodecs.evaluateColumnPage(a, a, col, page, predicate));
+        // An empty projection must not hide malformed unselected values either.
+        try std.testing.expectError(case[2], PhysicalCodecs.decodeColumnPageSelected(a, a, col, page, &.{}));
+    }
+    var binary = col;
+    binary.type = .binary;
+    binary.collation = .none;
+    const arbitrary = try fsstPage(&bytes, 1, "\xff", &.{0});
+    try std.testing.expectEqual(ColumnPredicate.Outcome.yes, (try PhysicalCodecs.evaluateColumnPage(a, a, binary, arbitrary, .all)).outcomes[0]);
+}
+
+test "compressed pages preserve collation-equivalent dictionary codes and large FSST values" {
+    var workspace = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer workspace.deinit();
+    const a = workspace.allocator();
+    var page_buffer: [65536]u8 = undefined;
+    var col: TableSchema.Column = .{ .id = 1, .name = "text", .type = .utf8, .encoding = .dictionary, .collation = .ascii_ci };
+    const equal = [_]Values.Cell{ .{ .value = .{ .atom = .{ .bytes = "A" } } }, .{ .value = .{ .atom = .{ .bytes = "a" } } } };
+    const duplicate_page = try PhysicalCodecs.encodeColumnPage(a, col, &equal, &page_buffer);
+    const matches = try PhysicalCodecs.evaluateColumnPage(a, a, col, duplicate_page, .{ .compare = .{ .op = .eq, .value = .{ .bytes = "a" } } });
+    try std.testing.expectEqualSlices(ColumnPredicate.Outcome, &.{ .yes, .yes }, matches.outcomes);
+    try std.testing.expectEqual(@as(usize, 2), matches.evaluated_values);
+    var values: [1025]Values.Cell = undefined;
+    var names: [1025][4]u8 = undefined;
+    for (&values, &names, 0..) |*value, *name, i| {
+        _ = try std.fmt.bufPrint(name, "{d:0>4}", .{i});
+        value.* = .{ .value = .{ .atom = .{ .bytes = name } } };
+    }
+    const large_dictionary = try PhysicalCodecs.encodeColumnPage(a, col, &values, &page_buffer);
+    const many = try PhysicalCodecs.evaluateColumnPage(a, a, col, large_dictionary, .{ .starts_with = "10" });
+    try std.testing.expectEqual(@as(usize, 1025), many.evaluated_values);
+    for (many.outcomes, 0..) |out, i| try std.testing.expectEqual(if (i >= 1000) ColumnPredicate.Outcome.yes else .no, out);
+    col.encoding = .fsst;
+    const long: [8192]u8 = @splat('A');
+    const input = [_]Values.Cell{.{ .value = .{ .atom = .{ .bytes = &long } } }};
+    const long_page = try PhysicalCodecs.encodeColumnPage(a, col, &input, &page_buffer);
+    const streamed = try PhysicalCodecs.evaluateColumnPage(a, a, col, long_page, .{ .starts_with = "aa" });
+    try std.testing.expectEqual(ColumnPredicate.Outcome.yes, streamed.outcomes[0]);
+    try std.testing.expectEqual(@as(usize, 1), streamed.streamed_strings);
+    try std.testing.expectEqual(@as(usize, 0), streamed.materialized_strings);
+    const selected = try PhysicalCodecs.decodeColumnPageSelected(a, a, col, long_page, &.{0});
+    try std.testing.expectEqualStrings(&long, selected.cells[0].value.atom.bytes);
+}
+
+test "compressed predicates and empty selections validate unselected conflict details" {
+    var workspace = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer workspace.deinit();
+    const a = workspace.allocator();
+    const alternatives = [_]Values.Alternative{
+        .{ .counter = 1, .replica = 1, .value = .null },
+        .{ .counter = 2, .replica = 1, .value = .null },
+    };
+    const cells = [_]Values.Cell{.{ .conflict = &alternatives }};
+    var buffer: [256]u8 = undefined;
+    for ([_]TableSchema.Encoding{ .dictionary, .fsst }) |encoding| {
+        const col: TableSchema.Column = .{ .id = 1, .name = "text", .type = .utf8, .encoding = encoding, .collation = .utf8_binary };
+        const page = try PhysicalCodecs.encodeColumnPage(a, col, &cells, &buffer);
+        @memset(buffer[44..52], 0); // Invalid zero counter with otherwise valid framing.
+        try std.testing.expectError(error.InvalidConflict, PhysicalCodecs.evaluateColumnPage(a, a, col, page, .all));
+        try std.testing.expectError(error.InvalidConflict, PhysicalCodecs.decodeColumnPageSelected(a, a, col, page, &.{}));
     }
 }

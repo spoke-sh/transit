@@ -14034,25 +14034,27 @@
     },
     "packages/zig/transit-fuze/src/PhysicalCodecs.zig": {
       "errors": {
-        "BufferTooSmall": 2,
-        "ColumnEncodingMismatch": 5,
-        "ColumnPageRowLimitExceeded": 4,
+        "BufferTooSmall": 1,
+        "CharacterLimitExceeded": 2,
+        "ColumnEncodingMismatch": 1,
+        "ColumnPageRowLimitExceeded": 2,
         "Comp3Overflow": 2,
         "Comp4Overflow": 3,
         "IncompatibleColumnEncoding": 3,
-        "IncompatibleDefinition": 3,
+        "IncompatibleDefinition": 1,
         "InvalidBitpackedPage": 3,
-        "InvalidColumnPage": 30,
-        "InvalidColumnSelection": 2,
+        "InvalidColumnPage": 12,
+        "InvalidColumnSelection": 1,
         "InvalidComp3Length": 1,
         "InvalidComp4Length": 1,
-        "InvalidDictionaryCode": 6,
-        "InvalidFsstStream": 7,
-        "InvalidFsstTable": 6,
+        "InvalidDictionaryCode": 2,
+        "InvalidFsstStream": 9,
+        "InvalidFsstTable": 2,
         "InvalidRlePage": 3,
+        "InvalidUtf8": 3,
         "InvalidZonedLength": 1,
-        "UnsupportedComparison": 3,
         "UnsupportedPlainColumn": 1,
+        "ValueBudgetExceeded": 1,
         "ZonedOverflow": 2
       },
       "outcomes": {},
@@ -14090,27 +14092,23 @@
         "encodeRleValues()": "<inferred>",
         "encodeZoned()": "<inferred>",
         "evaluateColumnPage()": "<inferred>",
-        "evaluateCompressedStringPage()": "<inferred>",
-        "lateMaterializeSelectedGermanStrings()": "<inferred>",
-        "readCanonicalBytesSlice()": "<inferred>",
         "readCanonicalValue()": "<inferred>",
-        "tryFsstCompressedShortCircuit()": "<inferred>",
+        "streamFsstPredicate()": "<inferred>",
         "u64ToScalarCell()": "<inferred>",
+        "validatePhysicalCell()": "<inferred>",
         "validateValue()": "<inferred>",
         "writeCanonicalValue()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 205,
-        "catch": 10
+        "try": 150,
+        "catch": 12
       },
       "imports": [
         "Collation.zig",
         "ColumnPredicate.zig",
         "Ebcdic037.zig",
-        "GermanString.zig",
         "IbmHfp.zig",
-        "PerfectHash.zig",
         "PlainColumnBuffers.zig",
         "TableSchema.zig",
         "Types.zig",
@@ -16026,6 +16024,21 @@
         "StandardsLedger.zig"
       ]
     },
+    "packages/zig/transit-fuze/src/StringVector.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 3
+      },
+      "imports": [
+        "Collation.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/TDel.zig": {
       "errors": {
         "CorruptDeletionVector": 1,
@@ -17651,6 +17664,7 @@
         ],
         "Storage": [
           "words",
+          "strings",
           "values",
           "states_only"
         ],
@@ -17662,6 +17676,7 @@
         ],
         "View.flat.data": [
           "words",
+          "strings",
           "values",
           "states_only"
         ]
@@ -17673,16 +17688,16 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 5,
-        "catch": 9
+        "try": 6,
+        "catch": 2
       },
       "imports": [
         "Collation.zig",
         "ColumnRows.zig",
         "Finite.zig",
-        "GermanString.zig",
         "LogicalQuery.zig",
         "Scalar.zig",
+        "StringVector.zig",
         "Types.zig",
         "VectorCpu.zig",
         "std"
