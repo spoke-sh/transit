@@ -9,6 +9,87 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Stream and Queue declaration SQL — 2026-10-31
+
+Commits `2edbae87a` and `7ed31b3e7` add dedicated declaration syntax, shared
+Catalog admission, exact named inspection and paged listings. The
+[SQL reference](../../handbook/reference/sql/streaming.md#stream-and-queue-declarations)
+owns syntax, defaults, permissions and limits. Declaration bodies use the
+existing current definition
+`ef37b3e1d667c952bd655f98ae8af50fc2e88eca05c95e05deaaa569af70b655`.
+The question here is whether actual callers preserve those semantics across
+service replacement and metadata delivery, rather than only accepting grammar.
+
+The installed [declaration driver](../../../tests/interfaces/sql_sessions/logs.py)
+passes at clean source `e268608059aec269cfc5551cbde8caf7da76a101` on Linux
+x86_64 with local disk, ReleaseSafe and Zig `0.17.0-dev.2267+48abf1a34`.
+It runs through the existing SQL wire installation driver with `sessions-log`:
+
+- Native SQL rejects invalid primary keys, duplicate options and excessive claim
+  limits with typed diagnostics. It creates a two-partition Stream, kills and
+  replaces the SQL service, then recovers the unchanged saved client token and
+  original operation identity.
+- A 40-column description returns 32 and 8 rows with exact definition evidence.
+  A 35-name listing returns 32 and 3 rows with independent Catalog observations.
+  Repeated batches are identical; filtered empty Queue listings complete with
+  zero rows. Listings never claim an atomic data snapshot.
+- Queue creation binds FIFO routing, lease policy and the exact DLQ definition.
+  ALTER preserves unspecified policy; RENAME preserves object identity. Another
+  session's ALTER invalidates buffered and prepared metadata. Revocation denies
+  named, paged and empty buffered results, including terminal repetitions.
+- Real PostgreSQL and MySQL consumers create, inspect, list and drop objects.
+  The real console executes CREATE, SHOW, DESCRIBE, ALTER and DROP through the
+  shared SQL client. Native readback confirms its DROP, and both console row
+  results carry verified completion.
+
+The gateway was rebuilt from `1dd8a5d69` production sources; subsequent changes
+extend only the driver. Unchanged native setup artifacts and the console were
+reused from the declaration branch. This is an installed workspace run, not a
+clean co-built lane. Gateway SHA-256 is
+`00529473c4cdbc9773f8fe5d650c9a0bfe9b0a3d32d66d156e6c40ff0fe03a17`;
+node SHA-256 is
+`c7222a99bf726d4764ea8a41979a213f386ee498b0c8bd2c786f7ec0598ce0f2`;
+console SHA-256 is
+`7bc73e16dff2460852e96f12a873667b47551869ff5de44da7999ca44f3fa050`.
+The installed output `/var/tmp/transit-m6-log-listing-installed2.log` has SHA-256
+`74679917b21726bcac1ba3692a98d15a9b0173d03870e7dbac26ab7b489a777b`.
+
+Selected workspace checks also pass: 35 declaration/compiler tests, 301 SQL
+declaration cases with 257 exact comparisons, 12 settings/listing tests, 10 SQL
+runtime tests, 11 SQL service tests, 58 fast checks and the full handbook check.
+The grammar check covers 174 SELECT ASTs, 32 syntax exclusions, 42 extensions,
+33 relational ASTs, 22 relational exclusions and 132 documentation examples.
+These are separate runs, not one complete suite:
+
+| Output | SHA-256 |
+| --- | --- |
+| `/var/tmp/transit-m6-log-ddl-parser4.log` | `9ed9cd90b030f43f17f6c82b9ff943ad24923e396b0082709785e92cea47b019` |
+| `/var/tmp/transit-m6-log-ddl-corpus2.log` | `c7bac82cf7eda0ce572edf96add4e8d978833bffc10d788d55e77a258094c435` |
+| `/var/tmp/transit-m6-log-sql-unit-final.log` | `72151bbe6a472732baafd45db0f32e52170a64ec6bed34f659920af1ebcdb01f` |
+| `/var/tmp/transit-m6-log-listing-query.log` | `379f71b8f94ed173f1e3fc4cceb8015ae6a171bc22c34f2b90be49b9942a34d7` |
+| `/var/tmp/transit-m6-log-listing-service-final2.log` | `3183984d2a65d4302732525239d67234242932de416a89b2ee30ce298e3c857c` |
+| `/var/tmp/transit-m6-log-listing-grammar2.log` | `243d4558dc09d5cb78e4442fba3ae41217d89bafd88d00b5dc214edf2771c0ae` |
+| `/var/tmp/transit-m6-log-listing-fast3.log` | `49b255e21834d9b041e6147814e748e551c77112f2e85d16a15d67be7d02784a` |
+| `/var/tmp/transit-m6-log-listing-docs.log` | `89ed933aed4657473b76b5238592bacc6f03c49d9ff768317e530c42b61931c9` |
+
+Earlier installed attempts failed on a fixture import shadowing its process-log
+list, an incorrect command-result assertion, and an attempted ALTER in a session
+with an active result. The corrected two-session schedule then exposed a real
+wire mismatch: the new metadata used unsigned 32-bit fields outside the common
+database adapter matrix. The portable log metadata schemas and their regression
+test fix that mismatch. The new grammar also initially reported an ambiguity
+between plural listings and setting keys; contextual identifiers now preserve
+ordinary name usage without that ambiguity. An outdated diagnostic inventory
+failed a fast run and was regenerated after the deadline check changed. The
+superseded listing build was interrupted before installed execution; it did not
+pass. Failed private installations and their original saved requests remain
+available outside Git.
+
+This record establishes neither workload SQL verbs, finite `STREAM_SLICE`, mixed
+transaction SQL, automatic DLQ scheduling, Station composition, clean dependent
+lanes nor performance budgets. Incidental codec timings from build prerequisites
+are not Stream, Queue, Station-turn or Table service latency baselines.
+
 ## Typed local SQL dispatch and installed co-hosting — 2026-10-29
 
 This selected [M8](../../roadmap/08-gateway-architecture-and-protocol-ingress.md)
