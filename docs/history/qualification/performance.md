@@ -80,6 +80,26 @@ The retained installation's `m6-replay-investigation.stdout` has SHA-256
 `13775cc3d56403301438f1bac4c610928a8a0404fe18eff77017d90731cce42f`,
 and `m6-replay-investigation.json` records matching runtime/caller attribution.
 
+A second read-only follow-up applies only the
+[verified-page cache change](storage.md#queue-replay-cache-provenance--2026-11-01)
+to the original matching runtime: source
+`8925ddf1f04287e404583034f54e83151424e161` on `1c4106d54`, retaining the
+same `8e441…` definition and caller above. Its node hash is
+`de1ff98f308965d52c67951e1a54a53521068b39bb0c4b5d77ad060d33cb4f0a`.
+This follow-up also **fails** the unchanged 30-second logical budget. Ten
+256-frame responses reach partition 5 position 2,561 before
+`OwnerRecoveryBudget`; the original operation is still `1200001`, with no
+mutation attempted. No owned builds or fault checks overlap; starting host load
+is 5.746/6.904/8.463. Different host conditions and an incomplete read do not
+establish a matched speedup. The cache change alone does not close recovery.
+
+The retained installation's `m6-cache-replay-investigation.stdout` has SHA-256
+`90fad9e2ec9f804c2dbff54beccd97f4ab95c0bc8b94bba060639feb4070ee33`;
+`m6-cache-replay-investigation.json` has SHA-256
+`f652ebf8b8693eb73a3cd2b4cc9d565b8b4c450454f89b1412c400dce7bca0f4`.
+The failed read and cleanly joined node are diagnostic evidence, not a passing
+baseline or permission to resubmit the original mutation.
+
 ## Installed Stream/Queue partial baseline and clock refusal — 2026-11-01
 
 The six-profile [installed log workload](../../../tests/performance/storage/log_runtime.md)
