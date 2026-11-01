@@ -33,7 +33,7 @@ row identities, byte budgets and exact cursor advance. The signed `queue` action
 and `DirectQueueClient` expose standalone operations through the native service.
 Saved work preserves the exact original mutation and payload commitment. The
 local node performs bounded automatic lease expiry through catalog maintenance.
-SQL Stream/Queue statements and DLQ transfer remain unavailable.
+SQL Stream/Queue statements and automatic DLQ transfer scheduling remain unavailable.
 
 Typed transactions can select Stream/Queue partitions as read dependencies
 alongside Table/KV state. The common cut retains original log pins, checks
@@ -41,7 +41,10 @@ current READ rights and validates logical frontiers for serializable completion.
 Read-only completion preserves its old cut after later writes. Typed log
 statements share state statements' sequence, pending slot and savepoints. Their
 paged action directories compose append, authenticated offset commit and fenced
-ACK with Table/KV changes in the common decision. `DirectTransactionClient`
+ACK and paired dead-letter transfer with Table/KV changes in the common decision.
+Transfers reserve both operation identities, open one temporary Queue owner at a
+time, verify the original source row against the destination encoding, and check
+current source and destination rights. `DirectTransactionClient`
 exposes staging, admission, evaluation and original outcome inspection. Prepared
 data verification traverses the owning graph with a metered depth-first stack;
 the final lease/retention check uses trusted host time immediately before the

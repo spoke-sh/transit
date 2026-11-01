@@ -17,6 +17,7 @@ test "transaction fixture preserves scoped identities and distinct log positions
     try value.statement.validate();
     try value.prepared.validate();
     try value.log_action.validate(logGuard(value));
+    try value.terminal_receipt.requireTransfer(value.terminal_receipt.transfer);
     try value.observation.validate();
     try t.expectEqual(std.math.maxInt(u64), value.begin.identity.begin.operation);
     try t.expectEqual(@as(u64, 3), value.begin.catalog.partition);

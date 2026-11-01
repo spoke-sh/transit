@@ -1839,6 +1839,12 @@ const TransactionVerification = struct {
     owner: *Stream,
     policy: *Policy,
     time_check: ?s.LogTransaction.DecisionTime = null,
+    fn heldFence(raw: *anyopaque) !s.PublicationGuard.Fence {
+        const self: *@This() = @ptrCast(@alignCast(raw));
+        try t.expect(self.policy.held);
+        return .{ .writer_epoch = self.policy.epoch, .policy_epoch = self.policy.epoch };
+    }
+    fn releaseHeld(_: *anyopaque) void {}
     fn participant(raw: *anyopaque, selected: p.Transaction.Participant) !void {
         const self: *@This() = @ptrCast(@alignCast(raw));
         try t.expect(self.policy.held);
@@ -1848,7 +1854,7 @@ const TransactionVerification = struct {
     fn prepared(raw: *anyopaque, value: p.Transaction.Prepared) !void {
         const self: *@This() = @ptrCast(@alignCast(raw));
         try t.expect(self.policy.held);
-        self.time_check = try self.owner.verifyPrepared(value);
+        self.time_check = try self.owner.verifyPrepared(value, .{ .context = self, .acquire = heldFence, .release = releaseHeld });
     }
     fn beforeDecision(raw: *anyopaque) !void {
         const self: *@This() = @ptrCast(@alignCast(raw));

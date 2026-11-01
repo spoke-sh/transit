@@ -538,7 +538,7 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             try request.validate();
             if (try c.DirectTransactionLogWork.loadPayload(allocator, index.store, request.work)) |bytes| {
                 defer allocator.free(bytes);
-                const content = request.work.append.payload;
+                const content = request.work.appendPayload().?.payload;
                 try markContent(workspace, try s.LogTransactionActions.payloadKey(content, &key_buffer), content);
             }
         },
@@ -958,8 +958,8 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             const at = s.LogTransactionActions.cursor(entry.work);
             const content = try actions.entryContent(at);
             try markContent(workspace, try s.LogTransactionActions.objectKey(content, &key_buffer), content);
-            if (entry.work.action == .append) {
-                const payload = entry.work.action.append.payload;
+            if (s.LogTransactionActions.append(entry.work)) |appended| {
+                const payload = appended.payload;
                 const bytes = try allocator.alloc(u8, @intCast(payload.bytes));
                 defer allocator.free(bytes);
                 _ = try actions.readPayload(entry.work, bytes);

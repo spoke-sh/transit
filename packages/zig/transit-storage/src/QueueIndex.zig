@@ -281,6 +281,36 @@ pub fn expire(self: Self, before: Root, offset: u64, policy: p.StreamQueueDeclar
     return next;
 }
 
+/// Archive one exact source and release its canonical FIFO successor privately.
+/// Destination durability and common-decision publication belong to the caller.
+pub fn transfer(self: Self, before: Root, request: p.Transaction.TerminalTransfer, policy: p.StreamQueueDeclaration.Queue, now: @import("LogTime.zig").Sample, accepted: p.DataLifecycle.Position, canonical_key: ?[]const u8) !Root {
+    try before.validate();
+    try request.validate();
+    const offset = switch (request.source) {
+        .nack => |lease| lease.offset,
+        .exhausted => |item_value| item_value.offset,
+    };
+    const previous = try self.item(before, offset);
+    const original = (try self.sidecar(before, previous)).target;
+    const target = request.target();
+    if (target.partition != original.partition or !std.meta.eql(target.interpretation.object, original.interpretation.object) or
+        target.interpretation.revision < original.interpretation.revision or
+        (target.interpretation.revision == original.interpretation.revision and !std.meta.eql(target, original))) return error.LogPartitionConflict;
+    const state_value = try self.state(before, previous);
+    const change = try previous.transfer(state_value, request, policy, now);
+    var next = before;
+    if (state_value == .acquired) {
+        try self.removeDeadline(&next, previous);
+        next.active -= 1;
+    } else next.blocked -= 1;
+    try self.changeState(&next, previous, state_value, .archived, accepted);
+    next.terminal = try std.math.add(u64, next.terminal, 1);
+    if (policy.ordering == .key_fifo) try self.advanceHead(&next, previous, canonical_key orelse return error.InvalidQueueHead);
+    try self.putItem(&next, change.item);
+    try next.validate();
+    return next;
+}
+
 /// One bounded append batch constructs every offset, state bit, and FIFO link.
 /// Equal keys use canonical collation bytes, never hashes or truncated prefixes.
 pub fn enqueue(self: Self, before: Root, declaration: *const Declaration.Owned, receipt: q.AppendReceipt, payload: []const u8) !Root {

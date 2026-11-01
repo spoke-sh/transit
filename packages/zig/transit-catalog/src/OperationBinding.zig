@@ -142,7 +142,10 @@ pub fn claimTransactionStatement(allocator: std.mem.Allocator, objects: Objects.
     return claimStored(allocator, objects, .{ .transaction_statement = request });
 }
 pub fn claimTransactionLogStatement(allocator: std.mem.Allocator, objects: Objects.ObjectStore, request: c.DirectTransactionLogWork.Request) !void {
-    return claimStored(allocator, objects, .{ .transaction_log_statement = try request.binding() });
+    try claimStored(allocator, objects, .{ .transaction_log_statement = try request.binding() });
+    // Either immutable reservation may survive a failed attempt. Retrying the
+    // same complete request repairs the pair; neither identity is reusable.
+    if (try request.destinationBinding()) |destination| try claimStored(allocator, objects, .{ .transaction_log_statement = destination });
 }
 /// A read-only operation lookup may disclose an actual published receipt for
 /// this exact work. This neither releases its reservation nor permits autocommit;
@@ -153,7 +156,7 @@ pub fn transactionLogObservation(allocator: std.mem.Allocator, objects: Objects.
     if (stored != .transaction_log_statement) return false;
     const reservation = stored.transaction_log_statement;
     if (!std.meta.eql(reservation.operation, work.operation()) or !std.meta.eql(reservation.target, work.target()) or
-        !std.mem.eql(u8, &reservation.statement.intent, &try work.digest())) return error.DataIdentityConflict;
+        !std.mem.eql(u8, &reservation.operation_intent, &try work.digest())) return error.DataIdentityConflict;
     return true;
 }
 pub fn claimTransactionCall(allocator: std.mem.Allocator, objects: Objects.ObjectStore, request: c.DirectTransactionCall) !void {

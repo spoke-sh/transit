@@ -53,8 +53,10 @@ roots, canonical full-key FIFO heads, eligibility and fenced deadline indexes.
 Only the head of each FIFO key enters eligibility; its delay, active lease and
 retry block its successors while other keys can advance. ACK moves that head;
 exhaustion retains an available but blocked source. Its DLQ reason retains the
-exact destination definition; it does not publish that destination or make the
-source terminal. Old roots remain independently readable.
+exact destination definition and accepted exhaustion time; exhaustion alone does
+not publish that destination or make the source terminal. A paired transaction
+archives the source and advances its FIFO head only with the destination append.
+Old roots remain independently readable.
 
 `QueueAffinity` accelerates FIFO head lookup using the exact immutable key root
 and full canonical key. The Queue owner preallocates 64 hash buckets by default
@@ -77,7 +79,9 @@ owner concurrent, and a hit provides no lease, retention pin or current-grant au
 producer receipts to one fenced WAL record. Claims publish acquired state,
 exact leases and deadlines together; settlement and expiry publish their full
 successor state through that same owner. Bounded resident timing caches accelerate
-the accepted paged schedule; DLQ transfer remains unavailable.
+the accepted paged schedule. Dead-letter transfer evaluates private source and
+destination successors; their mirrored action bindings require one common
+decision. Standalone terminal WAL records reject during publication and replay.
 
 `QueueSelection` retains a nonempty claim's exact leases and payload placement
 cut in a bounded immutable artifact. It keeps original offsets, epochs and
@@ -514,17 +518,18 @@ and the catalog's retained dependency graph.
   journal. Their [integration contract](docs/transaction-decisions.md) requires
   catalog admission, preparation/common-decision visibility and retained graph
   ownership. The catalog composes Table and direct KV participants through these
-  owners; SQL transaction selection remains Table-only.
+  owners alongside Stream/Queue log work; SQL transaction selection remains Table-only.
 - `LogTransactionActions.zig`: Private paged append/settlement intents with
   separate payload objects, stable statement/ordinal and operation identities,
   and explicit action/payload quotas. Its
   [storage interface](docs/transaction-decisions.md#private-log-actions) does not
-  reserve offsets, accept input settlement or enable log transaction execution.
+  reserve offsets or accept input settlement by itself. The catalog composes
+  these directories with retained pins, preparation and the shared decision.
 - `LogTransaction.zig`: Immutable retained partition cuts with paged live pins,
   exact retry and release, private evaluation, durable preparation barriers and
   actual-journal resolution. Current lease checks and storage-graph retention
   preserve accepted work. [Log cut acquisition](docs/transaction-decisions.md#retained-log-transaction-cuts)
-  remains a storage component; public log transaction execution is unavailable.
+  is composed by the native catalog transaction API.
 - `TableWorkspace.zig`: Private typed row and predicate DML over an authorized
   retained Table pin, using the existing Table evaluator and immutable indexes.
   Read-your-writes and private rollback preserve consumed statement identities;

@@ -107,8 +107,8 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 
 ## Current native definition
 
-The catalog log statement cutover replaces the shared definition with
-`edcac1ee9f98bce6a0cb6d93c14d38566b33af3a48ef8282fa6024ea8bb964b9`.
+The atomic Queue transfer cutover replaces the shared definition with
+`840c402d628b33eaca53001138fdababf605d5d82b94e95731748b72fe8b8a24`.
 Log partition records and recovery baselines require explicit logical-change,
 transaction-pin and preparation-reference fields. Immutable transaction sources
 bind the exact old root and original begin identity; earlier log roots cannot
@@ -121,6 +121,15 @@ lifecycle. Workspace and savepoint records require their log action directory;
 pending and completed statements distinguish state and log work. Permanent log
 operation reservations bind the complete frozen request. Earlier builds that
 cannot interpret that accepted work reject under the replaced definition.
+
+Queue items and lease observations require explicit nullable `blocked_after_ms`;
+blocked items retain the accepted exhaustion time without a current-clock default.
+Transaction log work adds paired terminal-transfer actions and source receipts.
+The source and destination share one statement and common decision; source
+terminalization cannot be replayed as a standalone operation. Permanent log
+reservations require an operation-specific observation digest, including the
+destination append's identity. Earlier workspaces, operation reservations and
+Queue formats reject under this definition rather than acquiring these semantics.
 
 Catalog intents require an explicit Table/KV kind. Named KV uses database-owned
 partitions, typed direct requests and KV policy; the native resource declaration

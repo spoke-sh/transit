@@ -151,7 +151,7 @@ fn authorize(guard: s.PublicationGuard) !void {
 }
 fn receipt(record: s.LogEvidence.Record) !Receipt {
     return switch (record.outcome) {
-        .claim, .settlement, .queue_release => error.LogOperationConflict,
+        .claim, .settlement, .terminal, .queue_release => error.LogOperationConflict,
         .append => |value| .{ .append = value },
         .assignment => |value| .{ .assign = value },
         .read => |value| .{ .consume = value },

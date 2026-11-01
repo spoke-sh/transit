@@ -8,7 +8,8 @@ Its pure validators do not create a Queue, claim a message, authenticate a recei
 or commit state. The signed [Queue action](DIRECT_TABLE_V1.md#queue-payloads-claims-and-settlements)
 composes standalone enqueue, claim, original payload reads and settlements.
 SQL `CREATE QUEUE`, `ENQUEUE`, `CLAIM`, `ACK`, `NACK` and `EXTEND LEASE` remain
-unavailable. Queue transaction participants continue to reject before acceptance.
+unavailable. Native [transactional log work](DIRECT_TABLE_V1.md#transactional-stream-and-queue-work)
+composes enqueue, fenced ACK and paired dead-letter transfer with Table/KV state.
 
 The [typed catalog lifecycle](DIRECT_TABLE_V1.md#stream-and-queue-lifecycle)
 publishes Queue declarations separately from payload execution. It verifies
@@ -41,8 +42,9 @@ physical maintenance publishes resumable merges and stale-event sweeps without
 changing logical lease state or requiring a clock. Its frozen inputs and Queue
 basis remain retained until accepted progress releases them; recovery rederives
 each complete successor. The [storage contract](TRANSIT_STORAGE_V1.md#private-scheduling-source-composition)
-defines these bounds and publication rules. DLQ transfer
-and mixed transaction publication remain unimplemented.
+defines these bounds and publication rules. Explicit dead-letter transfers use
+the same native transaction decision; automatic blocked-item transfer scheduling
+remains unimplemented.
 
 The shared [Stream contract](STREAM_V1.md) owns partition and append attribution.
 The [data lifecycle schema](data-lifecycle-v1.schema.json) and
@@ -118,6 +120,13 @@ keeps the source available but blocked, with its FIFO successor still blocked.
 A configured DLQ records its exact destination definition with the blocked
 reason, not the source's terminal state. Later policy edits cannot redirect it.
 The common transaction must establish destination durability before transfer.
+Stored items and public lease observations require nullable `blocked_after_ms`:
+it is present exactly when blocked, and records the accepted NACK upper bound or
+expiry deadline. Missing fields never default to the current clock. Exhausted
+transfer binds this value, current epoch and attempt; the decision's trusted
+lower time bound must reach it. Source terminalization and the destination append
+are published only through a verified paired transaction decision. Recovery
+preserves that decision without requiring a clock or dispatching effects.
 
 ## Claim selection and original results
 
@@ -245,7 +254,7 @@ DROP and quota pressure never substitute for terminal state or retention policy.
 The `.tack` directory lookup resolves the exact batch's accepted state vector.
 Its four cardinalities provide a constant-time terminal check after the bounded
 paged lookup; every item must be ACKed or durably archived. This profile currently
-publishes ACK terminalization; transactional DLQ transfer is still unavailable.
+publishes ACK terminalization and transactionally archived DLQ sources.
 The owner revalidates policy, time, original append and terminal state, removes
 only that batch's current placement entries, and records the new retained lower
 boundary. Queue replay reconstructs both successor directories exactly, refusing

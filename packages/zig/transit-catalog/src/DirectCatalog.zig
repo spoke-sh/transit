@@ -2037,6 +2037,42 @@ fn transactionStatementBounded(self: *Self, progress: c.DirectClientToken.Progre
 
 const TransactionLogWork = c.DirectTransactionLogWork;
 
+const TransactionTransferAccess = struct {
+    definition: L.Definition,
+    read: CutFence,
+    write: CutFence,
+    fn checkCurrent(self: *@This()) !void {
+        try check(self.read.guard());
+        try check(self.write.guard());
+    }
+};
+fn transactionTransferAccess(self: *Self, scratch: std.mem.Allocator, work: TransactionLogWork.Work, policy: Policy, epoch: *?P.Guard.Fence) !?TransactionTransferAccess {
+    if (work != .queue_transfer) return null;
+    const target = work.queue_transfer.destination.target;
+    const read = try self.logAuthorization(scratch, .queue, target, .read, policy);
+    const write = try self.logAuthorization(scratch, .queue, target, .append, policy);
+    var result: TransactionTransferAccess = .{ .definition = read.definition, .read = .{ .underlying = read.guard, .epoch = epoch }, .write = .{ .underlying = write.guard, .epoch = epoch } };
+    try result.checkCurrent();
+    return result;
+}
+fn transactionTransferSource(sources: *s.TransactionDirectory, work: TransactionLogWork.Work) !@FieldType(s.TransactionDirectory.Entry, "source") {
+    const target = work.queue_transfer.destination.target;
+    const source = (try sources.get(.{ .object = target.interpretation.object, .kind = .queue, .partition = target.partition }) orelse return error.TransactionObjectNotSelected).source;
+    if (source.guard != .log) return error.InvalidTransactionCut;
+    try target.requireSame(source.guard.log.source.target);
+    return source;
+}
+fn validateTransactionTransfer(self: *Self, sources: *s.TransactionDirectory, access: *TransactionTransferAccess, work: TransactionLogWork.Work, payload: ?[]const u8, unchanged: bool) !void {
+    const source = try transactionTransferSource(sources, work);
+    var destination = try self.transactionLogView(access.definition, work.queue_transfer.destination.target.partition, access.read.guard());
+    defer destination.deinit();
+    const frozen = try destination.inspect(source.pin, access.read.guard());
+    if (!std.meta.eql(try frozen.guard(), source.guard.log)) return error.InvalidTransactionCut;
+    if (unchanged) try source.guard.log.requireUnchanged(try destination.basis());
+    try destination.validatePayload(work, payload);
+    try access.checkCurrent();
+}
+
 fn authenticateTransactionLog(self: *Self, work: TransactionLogWork.Work) !void {
     if (work == .stream_offset) {
         const environment = self.log_environment orelse return error.InvalidStreamReadAuthority;
@@ -2080,24 +2116,29 @@ fn stageTransactionLogBounded(self: *Self, progress: c.DirectClientToken.Progres
     var write_fence: CutFence = .{ .underlying = write.guard, .epoch = &epoch };
     try check(read_fence.guard());
     try check(write_fence.guard());
-    var view = try self.transactionLogView(read.definition, work.target().partition, read_fence.guard());
-    defer view.deinit();
     var sources = try s.TransactionDirectory.init(self.allocator, self.data_objects, begin.identity, .sources, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
     defer sources.deinit();
     try sources.restore(head.acquired.cut.sources);
     const target: p.Transaction.Target = .{ .object = work.target().interpretation.object, .kind = if (work.kind() == .stream) .stream else .queue, .partition = work.target().partition };
     const source = (try sources.get(target) orelse return error.TransactionObjectNotSelected).source;
     if (source.guard != .log) return error.InvalidTransactionCut;
-    const frozen = try view.inspect(source.pin, read_fence.guard());
-    if (!std.meta.eql(try frozen.guard(), source.guard.log)) return error.InvalidTransactionCut;
-    try source.guard.log.requireUnchanged(try view.basis());
+    var transfer_access = try self.transactionTransferAccess(scratch.allocator(), work, policy, &epoch);
     const request: TransactionLogWork.Request = .{ .statement = .{ .transaction = begin.identity, .sequence = sequence, .intent = try work.digest() }, .basis = basis, .guard = source.guard.log, .work = work };
     try request.validate();
     var staging: TransactionWorkspace.Staging = .{ .underlying = self.data_objects, .used = head.charged_bytes, .limit = begin.limits.workspace_bytes };
-    try view.validatePayload(work, payload);
+    {
+        var view = try self.transactionLogView(read.definition, work.target().partition, read_fence.guard());
+        defer view.deinit();
+        const frozen = try view.inspect(source.pin, read_fence.guard());
+        if (!std.meta.eql(try frozen.guard(), source.guard.log)) return error.InvalidTransactionCut;
+        try source.guard.log.requireUnchanged(try view.basis());
+        if (work == .queue_transfer) try view.validateTransferPayload(work.queue_transfer, read_fence.guard()) else try view.validatePayload(work, payload);
+    }
+    if (transfer_access) |*access| try self.validateTransactionTransfer(&sources, access, work, payload, true);
     try TransactionLogWork.stagePayload(staging.objects(), work, payload);
     try check(read_fence.guard());
     try check(write_fence.guard());
+    if (transfer_access) |*access| try access.checkCurrent();
     return request;
 }
 
@@ -2137,6 +2178,7 @@ fn transactionLogStatementBounded(self: *Self, progress: c.DirectClientToken.Pro
     var write_fence: CutFence = .{ .underlying = write.guard, .epoch = &epoch };
     try check(read_fence.guard());
     try check(write_fence.guard());
+    var transfer_access = try self.transactionTransferAccess(scratch.allocator(), request.work, policy, &epoch);
     var staging: TransactionWorkspace.Staging = .{ .underlying = self.data_objects, .used = head.charged_bytes, .limit = begin.limits.workspace_bytes };
     var index = try s.TreeStore.init(self.allocator, staging.objects(), self.options.resident_pages);
     defer index.deinit();
@@ -2148,6 +2190,7 @@ fn transactionLogStatementBounded(self: *Self, progress: c.DirectClientToken.Pro
         if (stored != .log or !std.meta.eql(request, stored.log.request)) return error.TransactionStatementConflict;
         try check(read_fence.guard());
         try check(write_fence.guard());
+        if (transfer_access) |*access| try access.checkCurrent();
         return stored.log.outcome;
     }
     if (begin.mode == .read_only) return error.ReadOnlyTransaction;
@@ -2171,16 +2214,19 @@ fn transactionLogStatementBounded(self: *Self, progress: c.DirectClientToken.Pro
     const objects = self.data_objects;
     self.data_objects = staging.objects();
     defer self.data_objects = objects;
-    var view = try self.transactionLogView(read.definition, target.partition.?, read_fence.guard());
-    defer view.deinit();
-    const frozen = try view.inspect(source.pin, read_fence.guard());
-    if (!std.meta.eql(try frozen.guard(), request.guard)) return error.InvalidTransactionCut;
     const payload = try TransactionLogWork.loadPayload(self.allocator, self.data_objects, request.work);
     defer if (payload) |bytes| self.allocator.free(bytes);
-    try view.validatePayload(request.work, payload);
     if (!evaluate) {
         try self.authenticateTransactionLog(request.work);
-        try request.guard.requireUnchanged(try view.basis());
+        {
+            var view = try self.transactionLogView(read.definition, target.partition.?, read_fence.guard());
+            defer view.deinit();
+            const frozen = try view.inspect(source.pin, read_fence.guard());
+            if (!std.meta.eql(try frozen.guard(), request.guard)) return error.InvalidTransactionCut;
+            try request.guard.requireUnchanged(try view.basis());
+            if (request.work == .queue_transfer) try view.validateTransferPayload(request.work.queue_transfer, read_fence.guard()) else try view.validatePayload(request.work, payload);
+        }
+        if (transfer_access) |*access| try self.validateTransactionTransfer(&sources, access, request.work, payload, true);
         staging.used = try std.math.add(u64, staging.used, if (payload) |bytes| bytes.len else 0);
         if (staging.used > staging.limit) return error.TransactionWorkspaceLimit;
         try c.OperationBinding.claimTransactionLogStatement(self.allocator, self.data_objects, request);
@@ -2188,6 +2234,7 @@ fn transactionLogStatementBounded(self: *Self, progress: c.DirectClientToken.Pro
         head.last_statement = request.statement.sequence;
         try self.publishTransactionWorkspace(progress, &head, &staging, write_fence.guard());
         try check(read_fence.guard());
+        if (transfer_access) |*access| try access.checkCurrent();
         return null;
     }
     var logs = try s.TransactionDirectory.init(self.allocator, self.data_objects, begin.identity, .participants, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
@@ -2198,12 +2245,11 @@ fn transactionLogStatementBounded(self: *Self, progress: c.DirectClientToken.Pro
     defer actions.deinit();
     if (previous) |directory| try actions.restore(directory);
     const action_entry = request.work.entry(request.statement);
-    if (action_entry.offset_cursor) |cursor| try actions.putOffset(action_entry.work, cursor) else try actions.put(action_entry.work, payload);
+    if (action_entry.offset_cursor) |cursor| try actions.putOffset(action_entry.work, cursor) else try actions.put(action_entry.work, if (request.work == .queue_transfer) null else payload);
     const directory = try actions.seal();
-    const environment = if (self.log_environment) |value| value.* else c.DirectTransactionLog.Environment{};
-    view.clock(environment.clock);
+    var destination: ?TransactionTransferAdvance = null;
     const outcome: TransactionLogWork.Outcome = evaluated: {
-        _ = view.evaluate(source.pin, directory, TransactionLogWork.evaluationLimits(begin, head.last_statement), environment.authority, write_fence.guard()) catch |err| {
+        destination = self.evaluateTransactionLogStatement(read.definition, &sources, &logs, &transfer_access, request, begin, directory, payload, write_fence.guard()) catch |err| {
             const reason: TransactionLogWork.Outcome.Reason = switch (err) {
                 error.TransactionConflict => .conflict,
                 error.QueueLeaseExpired => .lease_expired,
@@ -2218,6 +2264,7 @@ fn transactionLogStatementBounded(self: *Self, progress: c.DirectClientToken.Pro
     };
     if (outcome == .provisional) {
         try logs.advanceLog(request.guard, previous, directory);
+        if (destination) |next| try logs.advanceLog(next.guard, next.previous, next.directory);
         head.logs = try logs.seal();
     }
     const completed: TransactionWorkspace.StatementCompletion = .{ .log = .{ .request = request, .outcome = outcome } };
@@ -2226,9 +2273,42 @@ fn transactionLogStatementBounded(self: *Self, progress: c.DirectClientToken.Pro
     head.statements = try TransactionWorkspace.put(&index, head.statements, request.statement.sequence, result_record, self.options.index_work_bytes);
     head.pending = null;
     try check(read_fence.guard());
+    if (transfer_access) |*access| try access.checkCurrent();
     try self.publishTransactionWorkspace(progress, &head, &staging, write_fence.guard());
     try check(read_fence.guard());
+    if (transfer_access) |*access| try access.checkCurrent();
     return outcome;
+}
+
+const TransactionTransferAdvance = struct { guard: p.Transaction.LogGuard, previous: ?p.Transaction.Directory, directory: p.Transaction.Directory };
+fn evaluateTransactionLogStatement(self: *Self, definition: L.Definition, sources: *s.TransactionDirectory, logs: *s.TransactionDirectory, transfer_access: *?TransactionTransferAccess, request: TransactionLogWork.Request, begin: p.Transaction.Begin, directory: p.Transaction.Directory, payload: ?[]const u8, guard_value: P.Guard) !?TransactionTransferAdvance {
+    const environment = if (self.log_environment) |value| value.* else c.DirectTransactionLog.Environment{};
+    const limits = TransactionLogWork.evaluationLimits(begin, request.statement.sequence);
+    {
+        const target = (p.Transaction.Guard{ .log = request.guard }).target();
+        const source = (try sources.get(target) orelse return error.TransactionObjectNotSelected).source;
+        var view = try self.transactionLogView(definition, target.partition.?, guard_value);
+        defer view.deinit();
+        view.clock(environment.clock);
+        _ = try view.evaluate(source.pin, directory, limits, environment.authority, guard_value);
+    }
+    if (transfer_access.*) |*access| {
+        const source = try transactionTransferSource(sources, request.work);
+        const target = source.guard.target();
+        const previous = if (try logs.get(target)) |item| item.participant.log.actions else null;
+        var actions = try s.LogTransactionActions.init(self.allocator, self.data_objects, begin.identity, source.guard.log, begin.limits.statements, begin.limits.workspace_bytes, self.options.resident_pages, self.options.index_work_bytes);
+        defer actions.deinit();
+        if (previous) |prior| try actions.restore(prior);
+        try actions.put(request.work.destinationEntry(request.statement).?.work, payload);
+        const next = try actions.seal();
+        var destination = try self.transactionLogView(access.definition, target.partition.?, access.read.guard());
+        defer destination.deinit();
+        destination.clock(environment.clock);
+        _ = try destination.evaluate(source.pin, next, limits, environment.authority, access.write.guard());
+        try access.checkCurrent();
+        return .{ .directory = next, .previous = previous, .guard = source.guard.log };
+    }
+    return null;
 }
 
 pub fn publishTransactionWorkspace(self: *Self, prior: c.DirectClientToken.Progress, head: *TransactionWorkspace.Head, staging: *TransactionWorkspace.Staging, current: P.Guard) !void {
@@ -2411,7 +2491,6 @@ pub fn transactionLogOutcome(self: *Self, key: c.DirectClientToken.Key, request:
 }
 
 fn transactionLogOutcomeBounded(self: *Self, progress: c.DirectClientToken.Progress, request: TransactionLogWork.Request, policy: Policy) !?TransactionLogWork.Outcome {
-    const head = try self.transactionObservationHead(progress) orelse return null;
     var scratch = std.heap.ArenaAllocator.init(self.allocator);
     defer scratch.deinit();
     const read = try self.logAuthorization(scratch.allocator(), request.work.kind(), request.work.target(), .read, policy);
@@ -2421,14 +2500,21 @@ fn transactionLogOutcomeBounded(self: *Self, progress: c.DirectClientToken.Progr
     var write_fence: CutFence = .{ .underlying = write.guard, .epoch = &epoch };
     try check(read_fence.guard());
     try check(write_fence.guard());
-    var index = try s.TreeStore.init(self.allocator, self.data_objects, self.options.resident_pages);
-    defer index.deinit();
-    const stored = try TransactionWorkspace.get(TransactionWorkspace.StatementCompletion, self.allocator, &index, head.statements, request.statement.sequence, progress.receipt.binding.key.scope(), TransactionWorkspace.statement_format) orelse return null;
-    try stored.validate();
-    if (stored != .log or !std.meta.eql(stored.log.request, request)) return error.TransactionStatementConflict;
+    var transfer_access = try self.transactionTransferAccess(scratch.allocator(), request.work, policy, &epoch);
+    var outcome: ?TransactionLogWork.Outcome = null;
+    if (try self.transactionObservationHead(progress)) |head| {
+        var index = try s.TreeStore.init(self.allocator, self.data_objects, self.options.resident_pages);
+        defer index.deinit();
+        if (try TransactionWorkspace.get(TransactionWorkspace.StatementCompletion, self.allocator, &index, head.statements, request.statement.sequence, progress.receipt.binding.key.scope(), TransactionWorkspace.statement_format)) |stored| {
+            try stored.validate();
+            if (stored != .log or !std.meta.eql(stored.log.request, request)) return error.TransactionStatementConflict;
+            outcome = stored.log.outcome;
+        }
+    }
     try check(read_fence.guard());
     try check(write_fence.guard());
-    return stored.log.outcome;
+    if (transfer_access) |*access| try access.checkCurrent();
+    return outcome;
 }
 
 pub fn transactionSavepointOutcome(self: *Self, key: c.DirectClientToken.Key, request: c.DirectTransactionSavepoint.Request, policy: Policy) anyerror!?c.DirectTransactionSavepoint.Result {
@@ -2962,6 +3048,8 @@ fn authorizeTransactionStatements(self: *Self, control: TransactionControl.State
                 const authorized = try self.logAuthorization(scratch.allocator(), work.kind(), work.target(), work.access(), policy);
                 var write: CutFence = .{ .underlying = authorized.guard, .epoch = epoch };
                 try check(write.guard());
+                var transfer_access = try self.transactionTransferAccess(scratch.allocator(), work, policy, epoch);
+                if (transfer_access) |*access| try access.checkCurrent();
                 continue;
             }
             const completed = stored.state;
@@ -2988,6 +3076,7 @@ const TransactionVerification = struct {
     floor_ms: ?u64 = null,
     lease_expires_ms: ?u64 = null,
     append_expires_ms: ?u64 = null,
+    transfer_not_before_ms: ?u64 = null,
     clock_required: bool = false,
     // Journal callbacks execute only while the common publication guard is held.
     // Reusing that fence avoids recursively entering the service policy lock.
@@ -3035,13 +3124,14 @@ const TransactionVerification = struct {
             defer view.deinit();
             const environment = if (self.catalog.log_environment) |capabilities| capabilities.* else c.DirectTransactionLog.Environment{};
             view.clock(environment.clock);
-            const checked = try view.verifyPrepared(value);
+            const checked = try view.verifyPrepared(value, guard_value);
             const preparation = try s.LogTransaction.loadPreparation(self.catalog.data_objects, checked.reference);
             try self.binding.requireSame(preparation.binding);
             try c.DirectTransactionGraph.verifyLog(self.catalog.allocator, self.catalog.data_objects, self.catalog.data_log, preparation);
             if (checked.floor_ms) |floor| self.floor_ms = @max(self.floor_ms orelse 0, floor);
             if (checked.lease_expires_ms) |expires| self.lease_expires_ms = @min(self.lease_expires_ms orelse std.math.maxInt(u64), expires);
             if (checked.append_expires_ms) |expires| self.append_expires_ms = @min(self.append_expires_ms orelse std.math.maxInt(u64), expires);
+            if (checked.transfer_not_before_ms) |after| self.transfer_not_before_ms = @max(self.transfer_not_before_ms orelse 0, after);
             self.clock_required = self.clock_required or value.predecessor.log.kind == .queue;
             return;
         }
@@ -3056,7 +3146,7 @@ const TransactionVerification = struct {
     }
     fn beforeDecision(raw: *anyopaque) !void {
         const self: *@This() = @ptrCast(@alignCast(raw));
-        if (!self.clock_required and self.floor_ms == null and self.lease_expires_ms == null and self.append_expires_ms == null) return;
+        if (!self.clock_required and self.floor_ms == null and self.lease_expires_ms == null and self.append_expires_ms == null and self.transfer_not_before_ms == null) return;
         const environment = self.catalog.log_environment orelse return error.LogTimeUnavailable;
         const now = (try s.LogTime.bounds(environment.clock, self.floor_ms, true)).?;
         if (self.lease_expires_ms) |expires| {
@@ -3064,6 +3154,7 @@ const TransactionVerification = struct {
             if (now.latest_ms >= expires) return error.QueueTimeUnavailable;
         }
         if (self.append_expires_ms) |expires| if (now.latest_ms >= expires) return error.LogRetentionWindowElapsed;
+        if (self.transfer_not_before_ms) |after| if (now.earliest_ms < after) return error.QueueTimeUnavailable;
     }
 };
 

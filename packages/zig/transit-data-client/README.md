@@ -77,7 +77,10 @@ pages. Closing the client or output arena performs no ACK, NACK or renewal.
 Wait timeout accepts no empty claim. Save the underlying claim before waiting;
 its original identity survives cancellation, lost replies and changed wait duration.
 The [Queue action contract](../../../contracts/DIRECT_TABLE_V1.md#queue-payloads-claims-and-settlements)
-owns current limits, grants and remaining DLQ/transaction limitations.
+owns current standalone limits and grants. The shared
+[`DirectTransactionClient`](../transit-catalog/src/DirectTransactionClient.zig)
+composes Queue ACK/enqueue and explicit DLQ transfers with other native transaction
+participants. Automatic blocked-transfer scheduling remains unfinished.
 
 Pass a separate output arena. Successful results and their strings/collections
 belong to that arena and remain valid across subsequent calls and client close.

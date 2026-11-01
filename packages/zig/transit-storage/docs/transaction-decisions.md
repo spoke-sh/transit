@@ -111,8 +111,8 @@ retry and release checks current authorization. Release uses the control reserve
 publication failures retain the original identity and ordinary WAL uncertainty.
 
 Source metadata is bounded to 64 KiB and decoded with fixed scratch buffers.
-Pin cardinality is independent of the page cache. These are storage components;
-the public catalog still refuses log transaction selection. A pin alone neither
+Pin cardinality is independent of the page cache. The public native catalog
+selects and retains these sources alongside state participants. A pin alone neither
 reserves append offsets nor settles a lease or consumer offset.
 
 ## Log evaluation, preparation and resolution
@@ -122,7 +122,10 @@ live source pin and a sealed `LogTransactionActions` directory. `QueuePartition`
 uses the same owner internally. Evaluation applies the existing append,
 authenticated offset-commit and fenced ACK validators in statement/ordinal order.
 It rejects already accepted operation identities, changed source data, forged
-coverage and expired leases. Terminal/DLQ transfers remain unsupported.
+coverage and expired leases. Terminal transfers privately archive a live leased
+or exactly identified exhausted source, after verifying its original logical row
+under the recorded destination definition. The destination owner's mirrored
+action evaluates the append. Public roots remain unchanged during either check.
 
 Each proposed batch is sealed to immutable segments; several batches share the
 prospective preparation position and retain distinct original offsets and content
@@ -163,7 +166,8 @@ indexes in bounded steps. Missing dependencies leave that traversal incomplete.
 Log writes require the journal's `before_decision` callback. After every potentially
 slow participant/availability check, this callback calls `verifyDecisionTime` for
 every collected owner under the same publication guard. It allocates nothing and
-rechecks the collected ACK and append-retention deadlines immediately before the
+rechecks the collected ACK/live-transfer and append-retention deadlines, plus
+exhausted-transfer time bounds, immediately before the
 conditional decision append. Missing callbacks, expired deadlines or intervals
 spanning lease expiry leave the transaction preparing. A descriptor or callback
 that skips these checks does not establish a qualified transaction host.
@@ -179,8 +183,14 @@ publication fence across common-cut acquisition and resolution; independent read
 are not a new atomic snapshot API.
 
 These checks qualify storage components, including disk reopen and lost replies.
-Public catalog selection/staging, aggregate transaction quotas, complete mixed
-state/log installation proof and terminal/DLQ transfer remain outstanding.
+The native catalog composes selection/staging, aggregate transaction quotas and
+paired DLQ actions. `TransactionDecisionLog` verifies both transfer directions by
+exact operation lookup, statement and complete transfer equality. A destination
+mirror cannot be shared by two sources. This check uses paged directories rather
+than a resident set growing with transfers. Queue replay refuses a standalone
+terminal operation even when its envelope and candidate state are valid; only a
+verified common decision can publish that successor. Installed proof coverage and
+its remaining limits belong to the [qualification ledger](../../../../docs/history/qualification/transactions.md).
 
 ## Private Table and KV evaluation
 

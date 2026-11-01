@@ -99,14 +99,15 @@ pub fn clock(self: *Self, source: ?s.LogTime.Source) void {
     }
 }
 pub fn validatePayload(self: *Self, work: c.DirectTransactionLogWork.Work, payload: ?[]const u8) !void {
-    if ((work == .append) != (payload != null)) return error.InvalidStreamPayload;
+    const append = work.appendPayload();
+    if ((append != null) != (payload != null)) return error.InvalidStreamPayload;
     if (payload) |bytes| switch (self.owner) {
         inline else => |*owner_value| {
             const owner = if (@TypeOf(owner_value.*) == s.QueuePartition) &owner_value.owner else owner_value;
             if (bytes.len > owner.options.batch_bytes) return error.LogAppendLimitExceeded;
             var declaration = try s.LogDeclaration.load(owner.allocator, owner.objects, self.definition.stored);
             defer declaration.deinit();
-            try s.LogBatch.validate(bytes, &declaration, work.append, &owner.scratch, owner.key_buffer);
+            try s.LogBatch.validate(bytes, &declaration, append.?, &owner.scratch, owner.key_buffer);
         },
     };
 }
@@ -116,15 +117,19 @@ pub fn evaluate(self: *Self, handle: x.Pin, actions: x.Directory, limits: s.LogT
         .queue => |*owner| owner.evaluateTransaction(handle, actions, limits, guard_value),
     };
 }
+pub fn validateTransferPayload(self: *Self, request: x.TerminalTransfer, guard_value: s.PublicationGuard) !void {
+    if (self.owner != .queue) return error.InvalidTransactionTransfer;
+    try self.owner.queue.owner.validateTransferPayload(request, guard_value);
+}
 pub fn prepare(self: *Self, binding: s.TransactionDecisionLog.Binding, coordination: u64, expected: x.LogGuard, handle: x.Pin, actions: x.Directory, limits: s.LogTransaction.EvaluationLimits, authority: ?s.LogRead.Authority, guard_value: s.PublicationGuard) !x.Prepared {
     return switch (self.owner) {
         .stream => |*owner| owner.prepareTransaction(binding, coordination, expected, handle, actions, limits, authority, guard_value),
         .queue => |*owner| owner.prepareTransaction(binding, coordination, expected, handle, actions, limits, guard_value),
     };
 }
-pub fn verifyPrepared(self: *Self, expected: x.Prepared) !s.LogTransaction.DecisionTime {
+pub fn verifyPrepared(self: *Self, expected: x.Prepared, held_guard: s.PublicationGuard) !s.LogTransaction.DecisionTime {
     return switch (self.owner) {
-        inline else => |*owner| owner.verifyPrepared(expected),
+        inline else => |*owner| owner.verifyPrepared(expected, held_guard),
     };
 }
 pub fn resolve(self: *Self, guard_value: s.PublicationGuard) !?x.Decision {

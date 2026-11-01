@@ -83,7 +83,7 @@ pub const Request = union(enum) {
             .stage_log => |value| {
                 try value.basis.validate();
                 try value.work.validate();
-                if (value.basis.next_lsn == 0 or value.sequence == 0 or (value.work == .append) != (value.payload != null)) return error.InvalidTransactionWork;
+                if (value.basis.next_lsn == 0 or value.sequence == 0 or (value.work.appendPayload() != null) != (value.payload != null)) return error.InvalidTransactionWork;
                 try value.key.connection.owner(value.work.operation());
             },
             inline .statement, .statement_outcome, .log_statement, .log_outcome => |value| {

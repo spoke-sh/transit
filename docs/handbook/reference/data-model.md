@@ -31,10 +31,10 @@ plane-separation analysis.
 | Representation | Meaning | Definition and access |
 | --- | --- | --- |
 | [Table](tables.md) | Typed records with declared columns, nullability, defaults and optional primary keys | A configured direct catalog owns names and immutable definitions; each Table has its own acceptance partition. Use SQL or typed direct callers. |
-| [Key-value resource](state.md) | Keys and values whose encoding is selected by the application | Native client/resource operations; a query additionally needs an explicit decoder and projection |
+| [Key-value object](state.md) | Keys and typed values with an application-selected logical value type | Typed direct callers declare named objects, publish atomic batches, read retained versions and compose mutations in native transactions. |
 | [Document](documents.md) | Structured maps, lists and collaborative text with accepted revisions and explicit conflicts | Document services and callers own initialization, edits and reads; queries select an accepted projection |
 | [Stream](streams.md#stream-payloads-and-consumer-progress) | Schema-bound partitioned event history with retention and optional key compaction policy | Typed callers declare, append, read finite retained ranges and explicitly manage consumer progress; SQL verbs remain unavailable. |
-| [Queue](streams.md#queue-payloads-and-leased-work) | Schema-bound work with ordering, lease, retry and DLQ policy | Typed callers declare, enqueue, recover original claims and explicitly settle exact leases; automatic scheduling, DLQ transfer, mixed transactions and SQL verbs remain unfinished. |
+| [Queue](streams.md#queue-payloads-and-leased-work) | Schema-bound work with ordering, lease, retry and DLQ policy | Typed callers declare, enqueue, wait for work, recover original claims and settle exact leases. Native transactions compose ACK, enqueue and explicit DLQ transfer with Table/KV state and Stream progress. Automatic DLQ scheduling and SQL verbs remain unfinished. |
 
 Choose the representation for the meaning of the data. A Document field can be
 missing or conflicted; an ordinary Table cell is a typed value or SQL NULL; a
@@ -180,7 +180,7 @@ interfaces provide different portions of that experience:
 | Declaration | Available today | Remaining public lifecycle |
 | --- | --- | --- |
 | [Tables and schemas](tables.md) | Direct CREATE/ALTER/RENAME/DROP, read-only preview, frozen DML intents, atomic point/bulk acceptance, retained reads and supported physical codecs through configured SQL and typed callers; explicit exact-definition dependency registration and DROP RESTRICT; namespace lifecycle with RESTRICT over live/pending Tables; automatic bounded local point flushing | Automatic tiering; text relational joins/grouping and broader transaction sessions |
-| [KV](state.md) | Typed direct declaration, atomic batches, point reads, retained pins, original-operation recovery, rename and DROP; scoped policy and dependency restrictions | Executable console SQL publication and shared Table transaction participation |
+| [KV](state.md) | Typed direct declaration, atomic batches, point reads, retained pins, original-operation recovery, rename and DROP; scoped policy and dependency restrictions; native mixed transaction participation | Executable console SQL publication and query syntax |
 | [Documents](documents.md) | Typed named-resource admission, original caller allocation, actual writer initialization, publication, rename, logical DROP and inspection; exact dependency registration and DROP RESTRICT; offline SQL definition compilation | Executable console SQL publication and automatic dependency reconciliation |
 | [Named captured/maintained relations](queries.md#relational-boundary) | Immutable definitions, saved exact source registrations, separate authorization and explicit activation through typed Zig owners; definition retirement, original result/revision attribution and actual source-vector freshness | Atomic cross-owner publication/reconciliation; SQL view/subscription adapters and automatic service-managed scheduling |
 | [Connections, connector sources and sinks](connectors.md) | Recorded connector operations and explicit application source bindings | Executable SQL declarations and shared dependency administration |

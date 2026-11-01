@@ -1303,8 +1303,10 @@ dependencies. One bounded work item follows each edge; typed visited marks avoid
 repeating the same interpretation. A later rename, policy edit or retirement
 cannot substitute a different definition. Missing or invalid destinations stop
 closure. This is a retention dependency, not append authority or proof of an
-atomic transfer. Source payloads remain nonterminal until a supported transaction
-can establish their destination outcome.
+atomic transfer. A paired native transaction keeps the source nonterminal until
+one decision accepts its archived successor and the exact destination append.
+The retained graph follows pending transfer payloads and both owners' preparation
+graphs. Automatic scheduling of blocked transfers remains separate work.
 
 The mark frontier is a durable paged FIFO plus one owned active item. A checkpoint
 publishes those coordinates with all changed mark roots. A failed step discards

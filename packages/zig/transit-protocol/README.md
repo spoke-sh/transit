@@ -23,9 +23,10 @@ it does not add a native route or implement a storage cutover.
 [`Transaction`](src/Transaction.zig) freezes explicit scoped object/partition
 targets and kind-specific state/log guards. Appends and settlements for one log
 partition share an action directory and one preparation. Its neutral membership
-and terminal-transfer types do not enable log runtime participation; the
+and terminal-transfer types describe evidence without executing it. The native
+catalog owns log participation and paired DLQ publication; the
 [transaction contract](../../../contracts/DATA_LIFECYCLE_V1.md#transaction-bindings-and-evidence)
-states the remaining owner and publication obligations.
+states its owner and publication obligations.
 
 [`Branch`](src/Branch.zig) supplies exact branch identities, immutable manifest
 references, frozen merge/restore attempts, complete-validation bindings and

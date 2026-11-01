@@ -63,8 +63,8 @@ pub fn evaluateTransaction(self: *Self, pin: p.Transaction.Pin, directory: p.Tra
 pub fn prepareTransaction(self: *Self, binding: @import("TransactionDecisionLog.zig").Binding, coordination: u64, basis: p.Transaction.LogGuard, pin: p.Transaction.Pin, directory: p.Transaction.Directory, limits: @import("LogTransaction.zig").EvaluationLimits, guard: Guard) !p.Transaction.Prepared {
     return self.owner.prepareTransaction(binding, coordination, basis, pin, directory, limits, null, guard);
 }
-pub fn verifyPrepared(self: *Self, expected: p.Transaction.Prepared) !@import("LogTransaction.zig").DecisionTime {
-    return self.owner.verifyPrepared(expected);
+pub fn verifyPrepared(self: *Self, expected: p.Transaction.Prepared, held_guard: Guard) !@import("LogTransaction.zig").DecisionTime {
+    return self.owner.verifyPrepared(expected, held_guard);
 }
 pub fn verifyDecisionTime(self: *Self, check: @import("LogTransaction.zig").DecisionTime) !void {
     return self.owner.verifyDecisionTime(check);

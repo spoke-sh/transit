@@ -1,6 +1,6 @@
 {
   "begin": {
-    "definition": "edcac1ee9f98bce6a0cb6d93c14d38566b33af3a48ef8282fa6024ea8bb964b9",
+    "definition": "840c402d628b33eaca53001138fdababf605d5d82b94e95731748b72fe8b8a24",
     "identity": {
       "begin": {
         "scope": {
@@ -69,7 +69,7 @@
   },
   "cut": {
     "begin": {
-      "definition": "edcac1ee9f98bce6a0cb6d93c14d38566b33af3a48ef8282fa6024ea8bb964b9",
+      "definition": "840c402d628b33eaca53001138fdababf605d5d82b94e95731748b72fe8b8a24",
       "identity": {
         "begin": {
           "scope": {
@@ -293,7 +293,7 @@
   },
   "prepared": {
     "attempt": {
-      "definition": "edcac1ee9f98bce6a0cb6d93c14d38566b33af3a48ef8282fa6024ea8bb964b9",
+      "definition": "840c402d628b33eaca53001138fdababf605d5d82b94e95731748b72fe8b8a24",
       "transaction": {
         "begin": {
           "scope": {
@@ -550,7 +550,7 @@
   "observation": {
     "decided": {
       "attempt": {
-        "definition": "edcac1ee9f98bce6a0cb6d93c14d38566b33af3a48ef8282fa6024ea8bb964b9",
+        "definition": "840c402d628b33eaca53001138fdababf605d5d82b94e95731748b72fe8b8a24",
         "transaction": {
           "begin": {
             "scope": {
@@ -792,7 +792,7 @@
     "action": {
       "append": {
         "target": {
-          "definition": "edcac1ee9f98bce6a0cb6d93c14d38566b33af3a48ef8282fa6024ea8bb964b9",
+          "definition": "840c402d628b33eaca53001138fdababf605d5d82b94e95731748b72fe8b8a24",
           "interpretation": {
             "object": {
               "scope": {
@@ -891,6 +891,182 @@
           ]
         }
       }
+    }
+  },
+  "terminal_receipt": {
+    "transfer": {
+      "operation": {
+        "scope": {
+          "realm": 1,
+          "resource": 2,
+          "catalog": 3
+        },
+        "principal": 0,
+        "operation": 103
+      },
+      "source": {
+        "exhausted": {
+          "target": {
+            "definition": "840c402d628b33eaca53001138fdababf605d5d82b94e95731748b72fe8b8a24",
+            "interpretation": {
+              "object": {
+                "scope": {
+                  "realm": 1,
+                  "resource": 2,
+                  "catalog": 3
+                },
+                "branch": 1,
+                "object": 42
+              },
+              "revision": 1,
+              "digest": [
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5
+              ]
+            },
+            "partition": 0
+          },
+          "offset": 3,
+          "lease_epoch": 4,
+          "attempt": 2,
+          "not_before_ms": 100
+        }
+      },
+      "destination": {
+        "target": {
+          "definition": "840c402d628b33eaca53001138fdababf605d5d82b94e95731748b72fe8b8a24",
+          "interpretation": {
+            "object": {
+              "scope": {
+                "realm": 1,
+                "resource": 2,
+                "catalog": 3
+              },
+              "branch": 1,
+              "object": 43
+            },
+            "revision": 1,
+            "digest": [
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5,
+              5
+            ]
+          },
+          "partition": 0
+        },
+        "operation": {
+          "scope": {
+            "realm": 1,
+            "resource": 2,
+            "catalog": 3
+          },
+          "principal": 0,
+          "operation": 101
+        },
+        "kind": "queue",
+        "producer": null,
+        "rows": 1,
+        "payload": {
+          "bytes": 128,
+          "sha256": [
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4
+          ]
+        }
+      }
+    },
+    "accepted": {
+      "partition": 91,
+      "next_lsn": 15
     }
   }
 }

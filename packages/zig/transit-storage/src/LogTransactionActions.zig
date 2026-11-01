@@ -67,7 +67,15 @@ pub fn cursor(action: x.LogAction) Cursor {
 }
 pub fn operation(action: x.LogAction) d.Operation {
     return switch (action.action) {
+        .queue_transfer_append => |value| value.destination.operation,
         inline else => |value| value.operation,
+    };
+}
+pub fn append(action: x.LogAction) ?p.StreamQueue.Append {
+    return switch (action.action) {
+        .append => |value| value,
+        .queue_transfer_append => |value| value.destination,
+        else => null,
     };
 }
 fn entryKey(value: Cursor) !pages.Key {
@@ -173,6 +181,18 @@ pub fn get(self: *Self, at: Cursor) !?Entry {
     const key = try entryKey(at);
     return try self.loadEntry(key, try self.tree().get(self.root.entries, key) orelse return null);
 }
+/// One exact operation lookup in the immutable owner's directory. No resident
+/// set grows with the number of statements or transfer participants.
+pub fn byOperation(self: *Self, identity: d.Operation) !?Entry {
+    try identity.validate();
+    var bytes: [8]u8 = undefined;
+    std.mem.writeInt(u64, &bytes, identity.operation, .big);
+    const at = try self.tree().get(self.root.operations, try pages.Key.init(&bytes)) orelse return null;
+    const key = try pages.Key.init(at.slice());
+    const entry = try self.loadEntry(key, try self.tree().get(self.root.entries, key) orelse return error.InvalidTransactionActions);
+    if (!std.meta.eql(operation(entry.work), identity)) return error.TransactionIdentityConflict;
+    return entry;
+}
 /// Append in statement order. Exact repeats may name any earlier entry; they
 /// cannot change its bytes or reuse an operation at another private sequence.
 /// The embedding statement owner proves completeness across partition owners.
@@ -185,8 +205,9 @@ pub fn putOffset(self: *Self, action: x.LogAction, issued: p.StreamRead.Cursor) 
 fn putEntry(self: *Self, entry: Entry, payload: ?[]const u8) !void {
     try self.requireEntry(entry);
     const action = entry.work;
-    if ((action.action == .append) != (payload != null)) return error.InvalidStreamPayload;
-    if (payload) |bytes| if (!std.meta.eql(@import("LogBatch.zig").content(bytes), action.action.append.payload)) return error.LogPayloadConflict;
+    const appended = append(action);
+    if ((appended != null) != (payload != null)) return error.InvalidStreamPayload;
+    if (payload) |bytes| if (!std.meta.eql(@import("LogBatch.zig").content(bytes), appended.?.payload)) return error.LogPayloadConflict;
     const key = try entryKey(cursor(action));
     if (try self.get(cursor(action))) |original| {
         if (!std.meta.eql(original, entry)) return error.TransactionIdentityConflict;
@@ -202,7 +223,7 @@ fn putEntry(self: *Self, entry: Entry, payload: ?[]const u8) !void {
     const payload_bytes = try std.math.add(u64, self.root.payload_bytes, if (payload) |bytes| bytes.len else 0);
     if (payload_bytes > self.payload_limit) return error.TransactionWorkspaceLimit;
     if (payload) |bytes| {
-        const content = action.action.append.payload;
+        const content = appended.?.payload;
         var name: [96]u8 = undefined;
         const stored = try self.objects.putImmutable(try payloadKey(content, &name), bytes, content.sha256);
         if (stored.size != content.bytes or !std.mem.eql(u8, &stored.sha256, &content.sha256)) return error.LogPayloadConflict;
@@ -232,8 +253,7 @@ pub fn page(self: *Self, after: ?Cursor) !Page {
 }
 pub fn readPayload(self: *Self, action: x.LogAction, output: []u8) ![]const u8 {
     try self.requireAction(action);
-    if (action.action != .append) return error.InvalidStreamPayload;
-    const content = action.action.append.payload;
+    const content = (append(action) orelse return error.InvalidStreamPayload).payload;
     var name: [96]u8 = undefined;
     const path = try payloadKey(content, &name);
     if (output.len < content.bytes) return error.TransactionMemoryLimit;
@@ -266,7 +286,7 @@ pub fn verify(self: *Self) !void {
                         (action.ordinal <= previous.cursor.ordinal or !std.mem.eql(u8, &action.statement.intent, &previous.intent)))) return error.InvalidTransactionActions;
             }
             last = .{ .cursor = cursor(action), .intent = action.statement.intent };
-            if (action.action == .append) payload_bytes = try std.math.add(u64, payload_bytes, action.action.append.payload.bytes);
+            if (append(action)) |value| payload_bytes = try std.math.add(u64, payload_bytes, value.payload.bytes);
         };
         after = batch.next orelse break;
     }

@@ -137,8 +137,10 @@ payload/status pages and explicit fenced settlements through the
 Claim pages need current read and acquire rights even after acceptance. Queue
 owners share the resident budgets below; they retain neither request proofs nor
 time callbacks. Native maintenance expires at most one accepted lease per Queue
-unit under trusted time. Terminal payload cleanup and DLQ/common transaction
-publication remain unfinished.
+unit under trusted time and expires opted-in, fully terminal payload prefixes.
+The native transaction API composes Queue ACK, enqueue and explicit paired DLQ
+transfer with Table/KV state and Stream progress. Automatic scheduling of blocked
+DLQ transfers remains unfinished.
 
 Retained owners and their private work share a 256 MiB ordinary allowance and a
 separate 64 MiB control allowance, with per-owner limits of 128 MiB and 64 MiB,
