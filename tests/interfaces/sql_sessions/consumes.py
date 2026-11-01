@@ -53,7 +53,9 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
     saved.write_text(json.dumps(original))
     operation = submit(sql, original['token'])
     assert operation['command'] == 'consume' and operation['result_kind'] == 'rows'
-    assert operation['matched'] is None and operation['changed'] is None
+    # Session operation envelopes reserve zero placeholders for commands whose
+    # shared completion has no applicable matched/changed counts.
+    assert operation['matched'] == operation['changed'] == 0, operation
     original['identity'] = operation['identity']
     saved.write_text(json.dumps(original))
     original_bytes = saved.read_bytes()
