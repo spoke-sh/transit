@@ -3,7 +3,21 @@ const std = @import("std");
 const g = @import("root.zig");
 const sql = g.fuze.Sql;
 const Selector = g.catalog.DirectHistory.Selector;
-pub const Selected = struct { statement: []const u8, snapshot: ?g.catalog.protocol.DataLifecycle.Snapshot };
+pub const Selected = struct {
+    statement: []const u8,
+    snapshot: ?g.catalog.protocol.DataLifecycle.Snapshot,
+    namespace: ?g.catalog.TableAuthority.Name = null,
+
+    /// Resolve only inside the already published selection. The returned stable
+    /// namespace is frozen into the prepared binding, never a live search path.
+    pub fn resolveNamespace(self: Selected, client: g.catalog.DirectTableClient, fallback: u64) !u64 {
+        const name = self.namespace orelse return fallback;
+        const snapshot = self.snapshot orelse return error.InvalidHistoricalSelector;
+        const response = try g.catalog.DirectHistory.call(client, .{ .namespace = .{ .snapshot = snapshot, .name = name } });
+        defer response.deinit();
+        return (response.value.result.historical_catalog.namespace orelse return error.HistoricalObjectNotSelected).id;
+    }
+};
 fn word(token: sql.Token, expected: []const u8) bool {
     return token.tag == .word and std.ascii.eqlIgnoreCase(token.text, expected);
 }
@@ -33,6 +47,20 @@ pub fn select(text: []const u8, dialect: sql.Dialect) !Selected {
         if (literal.tag != .string) return error.InvalidHistoricalSelector;
         const snapshot = try Selector.decode(literal.text[1 .. literal.text.len - 1]);
         var end = try suffix.next();
+        var namespace: ?g.catalog.TableAuthority.Name = null;
+        if (word(end, "IN")) {
+            // Reuse identifier folding/unquoting with a bounded scratch owner.
+            // No arbitrary statement-sized allocation is needed for one name.
+            var bytes: [512]u8 = undefined;
+            var scratch = std.heap.FixedBufferAllocator.init(&bytes);
+            var parser = try g.fuze.SqlTyped.initDialect(scratch.allocator(), text[suffix.start..], null, false, dialect);
+            try parser.requireWord("IN");
+            try parser.requireWord("SCHEMA");
+            if (parser.token.text.len > bytes.len) return error.InvalidCatalogName;
+            namespace = try .init(try parser.name());
+            try parser.finish();
+            return .{ .statement = text[0..start], .snapshot = snapshot, .namespace = namespace };
+        }
         if (end.tag == .semi) end = try suffix.next();
         if (end.tag != .eof) return error.InvalidHistoricalSelector;
         return .{ .statement = text[0..start], .snapshot = snapshot };
@@ -50,6 +78,20 @@ test "historical SQL selector is canonical and cannot be a comment string or new
     const result = try select(query, .transit);
     try t.expectEqualDeep(snapshot, result.snapshot.?);
     try t.expectEqualStrings("SELECT id FROM events WHERE id=$1 LIMIT 2 ", result.statement);
+    for ([_]struct { name: []const u8, expected: []const u8 }{
+        .{ .name = "PUBLIC", .expected = "public" },
+        .{ .name = "\"Old Schema\"", .expected = "Old Schema" },
+        .{ .name = "\"old\"\"name\"", .expected = "old\"name" },
+    }) |case| {
+        const named = try std.fmt.allocPrint(t.allocator, "SELECT id FROM events AS OF SNAPSHOT '{s}' IN SCHEMA {s}; -- retained namespace", .{ encoded, case.name });
+        defer t.allocator.free(named);
+        const selected = try select(named, .transit);
+        try t.expectEqualStrings(case.expected, selected.namespace.?.slice());
+        try t.expectEqualDeep(snapshot, selected.snapshot.?);
+    }
+    const duplicate = try std.fmt.allocPrint(t.allocator, "SHOW TABLES AS OF SNAPSHOT '{s}' IN SCHEMA public IN SCHEMA other", .{encoded});
+    defer t.allocator.free(duplicate);
+    try t.expectError(error.UnsupportedConstruct, select(duplicate, .transit));
     for ([_][]const u8{ "SELECT 'AS OF SNAPSHOT' FROM events", "SELECT id FROM events /* AS OF SNAPSHOT 'bad' */", "SELECT id AS snapshot FROM events" }) |text| try t.expect((try select(text, .transit)).snapshot == null);
     for ([_][]const u8{ "SET @@session.autocommit = ON", "SET NAMES 'utf8mb4' COLLATE 'utf8mb4_0900_bin'", "SET @@session.sql_mode = 'ANSI_QUOTES,NO_BACKSLASH_ESCAPES'" }) |text| {
         const setup = try select(text, .mysql);

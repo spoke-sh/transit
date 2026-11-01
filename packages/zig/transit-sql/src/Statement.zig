@@ -101,6 +101,7 @@ fn prepareInner(allocator: std.mem.Allocator, client: *c.DirectTableClient, name
     if (profile == .inspection and !tokenIs(first, "SELECT")) return error.UnsupportedGatewayStatement;
     if (first.tag != .word) return error.UnsupportedGatewayStatement;
     if (selected_catalog.snapshot != null and !tokenIs(first, "SELECT")) return error.HistoricalReadOnly;
+    const selected_namespace = try selected_catalog.resolveNamespace(client.*, namespace);
     const owned = try allocator.dupe(u8, original_text);
     errdefer allocator.free(owned);
     var plan: @FieldType(Self, "plan") = undefined;
@@ -129,8 +130,8 @@ fn prepareInner(allocator: std.mem.Allocator, client: *c.DirectTableClient, name
             const clients: [f.Relational.max_sources]c.DirectTableClient = @splat(client.*);
             var selected = options;
             selected.dialect = dialect;
-            plan = .{ .relational = try g.direct.DirectRelationalCompilation.prepareAt(allocator, clients[0..syntax.targets.len], namespace, text, .interactive, selected, location, if (profile == .inspection) .inspect else .read, selected_catalog.snapshot) };
-        } else plan = .{ .select = try g.direct.DirectTablePrepared.prepareAt(allocator, client.*, namespace, text, dialect, detail, if (profile == .inspection) .inspect else .read, selected_catalog.snapshot) };
+            plan = .{ .relational = try g.direct.DirectRelationalCompilation.prepareAt(allocator, clients[0..syntax.targets.len], selected_namespace, text, .interactive, selected, location, if (profile == .inspection) .inspect else .read, selected_catalog.snapshot) };
+        } else plan = .{ .select = try g.direct.DirectTablePrepared.prepareAt(allocator, client.*, selected_namespace, text, dialect, detail, if (profile == .inspection) .inspect else .read, selected_catalog.snapshot) };
     } else if (std.ascii.eqlIgnoreCase(first.text, "INSERT") or std.ascii.eqlIgnoreCase(first.text, "UPDATE") or std.ascii.eqlIgnoreCase(first.text, "DELETE")) {
         plan = .{ .dml = try c.DirectTablePreparedDml.prepare(allocator, client.*, namespace, text, dialect, location) };
     } else if (std.ascii.eqlIgnoreCase(first.text, "CREATE") or (profile == .native and (std.ascii.eqlIgnoreCase(first.text, "ALTER") or std.ascii.eqlIgnoreCase(first.text, "DROP")))) {

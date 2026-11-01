@@ -13828,19 +13828,21 @@
         "Plan.outputField()": "<inferred>",
         "Plan.outputSchema()": "<inferred>",
         "Plan.sumType()": "<inferred>",
+        "Plan.traits()": "<inferred>",
         "Plan.validate()": "<inferred>",
         "Plan.validateOutput()": "<inferred>",
         "Plan.validateShape()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 55,
+        "try": 54,
         "catch": 11
       },
       "imports": [
         "FileValueDiagnostic.zig",
         "Finite.zig",
         "LogicalPredicate.zig",
+        "OperatorTraits.zig",
         "PredicateMachine.zig",
         "QueryCollations.zig",
         "ScalarProgram.zig",
@@ -13943,7 +13945,9 @@
       ]
     },
     "packages/zig/transit-fuze/src/OperatorTraits.zig": {
-      "errors": {},
+      "errors": {
+        "InvalidColumnCount": 1
+      },
       "outcomes": {
         "ChangeMode": [
           "explanation_zero_work",
@@ -13970,18 +13974,24 @@
       },
       "error_sets": {},
       "error_returns": {
+        "forCheck()": "<inferred>",
         "forLogicalPlan()": "<inferred>",
-        "forRelationalPlan()": "<inferred>"
+        "forRelationalPlan()": "<inferred>",
+        "forTableDmlPlan()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 2,
+        "try": 9,
         "catch": 0
       },
       "imports": [
         "Collation.zig",
         "LogicalQuery.zig",
         "Relational.zig",
+        "TableConstraints.zig",
+        "TableDml.zig",
+        "TableSchema.zig",
+        "TableSchemaProjection.zig",
         "std"
       ]
     },
@@ -14612,8 +14622,10 @@
         "Plan.fingerprint()": "<inferred>",
         "Plan.outputSchema()": "<inferred>",
         "Plan.resolveColumn()": "<inferred>",
+        "Plan.traits()": "<inferred>",
         "Plan.validate()": "<inferred>",
         "Plan.validatePredicate()": "<inferred>",
+        "Plan.validateShape()": "<inferred>",
         "Plan.write()": "<inferred>",
         "groupOrder()": "<inferred>",
         "joinMatches()": "<inferred>",
@@ -14625,10 +14637,11 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 66,
+        "try": 67,
         "catch": 0
       },
       "imports": [
+        "OperatorTraits.zig",
         "RelationalValues.zig",
         "TableRow.zig",
         "TableSchema.zig",
@@ -16743,7 +16756,9 @@
       },
       "error_sets": {},
       "error_returns": {
+        "CheckConstraint.traits()": "<inferred>",
         "CheckConstraint.validate()": "<inferred>",
+        "CheckConstraint.validateExpression()": "<inferred>",
         "CheckConstraint.validateShape()": "<inferred>",
         "ForeignKeyConstraint.checkWriteAdmission()": "<inferred>",
         "ForeignKeyConstraint.validateAgainstSchemas()": "<inferred>",
@@ -16767,11 +16782,12 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 123,
+        "try": 124,
         "catch": 2
       },
       "imports": [
         "Collation.zig",
+        "OperatorTraits.zig",
         "TableEvolution.zig",
         "TableSchema.zig",
         "TableSchemaProjection.zig",
@@ -16912,7 +16928,9 @@
         "Plan.fingerprint()": "<inferred>",
         "Plan.matches()": "<inferred>",
         "Plan.primaryKeyEquality()": "<inferred>",
+        "Plan.traits()": "<inferred>",
         "Plan.validate()": "<inferred>",
+        "Plan.validateShape()": "<inferred>",
         "Syntax.bind()": "<inferred>",
         "Syntax.bindParameters()": "<inferred>",
         "Value.bind()": "<inferred>",
@@ -16931,11 +16949,12 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 99,
+        "try": 100,
         "catch": 5
       },
       "imports": [
         "LogicalPredicate.zig",
+        "OperatorTraits.zig",
         "PredicateMachine.zig",
         "Sql.zig",
         "SqlLogicalPredicate.zig",
@@ -17337,6 +17356,7 @@
         "catch": 1
       },
       "imports": [
+        "OperatorTraits.zig",
         "TableSchema.zig",
         "Types.zig",
         "std"
@@ -29170,7 +29190,7 @@
     },
     "packages/zig/transit-sql-service/src/SessionInspection.zig": {
       "errors": {
-        "CatalogIdentityConflict": 2,
+        "CatalogIdentityConflict": 4,
         "CatalogKindMismatch": 1,
         "CatalogNameNotFound": 3,
         "Forbidden": 1,
@@ -29194,7 +29214,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 73,
+        "try": 74,
         "catch": 0
       },
       "imports": [
@@ -29501,17 +29521,20 @@
     },
     "packages/zig/transit-sql/src/HistoricalSql.zig": {
       "errors": {
-        "InvalidHistoricalSelector": 2,
+        "HistoricalObjectNotSelected": 1,
+        "InvalidCatalogName": 1,
+        "InvalidHistoricalSelector": 3,
         "InvalidSqlSyntax": 1
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "Selected.resolveNamespace()": "<inferred>",
         "select()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 9,
+        "try": 16,
         "catch": 0
       },
       "imports": [
@@ -29819,7 +29842,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 34,
+        "try": 35,
         "catch": 1
       },
       "imports": [
@@ -38898,7 +38921,7 @@
     "contracts/sql/TransitExtensions.g4": {
       "statement": "( historicalStatement | selectStatement | mutationStatement | extensionStatement | transactionStatement ) SEMI ? EOF",
       "historicalStatement": "( selectStatement | SHOW TABLES | DESCRIBE identifier | EXPLAIN selectStatement ) snapshotClause",
-      "snapshotClause": "AS OF SNAPSHOT STRING",
+      "snapshotClause": "AS OF SNAPSHOT STRING ( IN SCHEMA identifier ) ?",
       "transactionStatement": "( BEGIN ( WORK | TRANSACTION ) ? | START TRANSACTION ) transactionOptions ? | COMMIT ( WORK | TRANSACTION ) ? | ROLLBACK ( WORK | TRANSACTION ) ? ( TO SAVEPOINT ? identifier ) ? | SAVEPOINT identifier | RELEASE SAVEPOINT ? identifier",
       "transactionOptions": "ISOLATION LEVEL SERIALIZABLE transactionAccess ? | transactionAccess ( ISOLATION LEVEL SERIALIZABLE ) ?",
       "transactionAccess": "READ ( ONLY | WRITE )",

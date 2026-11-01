@@ -221,3 +221,16 @@ tokens, content digests and selectors use canonical lowercase hexadecimal.
 Namespace and native authorization IDs keep their existing safe-integer bounds.
 List cursors bind the exact selector, namespace and directory; changing any part
 rejects. An empty page with a continuation is not complete coverage.
+
+### Explicit historical namespace selection
+
+The SQL suffix `AS OF SNAPSHOT 'selector' IN SCHEMA schema_name` optionally
+resolves a namespace through `historical_catalog.namespace` in that published
+selection before binding any Table name. Identifier folding and quoting use the
+existing dialect rules. No current-name fallback or session search-path change
+is permitted. The prepared binding retains the resolved stable namespace ID;
+current namespace and object rights are checked through the historical owner.
+The clause applies equally to SELECT, SHOW TABLES, DESCRIBE and EXPLAIN. Metadata
+observations report the resolved namespace, and EXPLAIN performs only metadata
+reads. The historical directory contains selected namespaces, so an unselected
+name refuses even if a current namespace has that name.

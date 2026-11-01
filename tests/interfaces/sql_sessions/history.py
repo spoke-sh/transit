@@ -23,7 +23,7 @@ def selector(snapshot):
             + struct.pack('<6Q', scope['realm'], scope['resource'], scope['catalog'], owner['principal'], owner['operation'], snapshot['branch'])
             + struct.pack('<Q', content['bytes']) + bytes(content['sha256'])
             + struct.pack('<Q', sources['bytes']) + bytes(sources['sha256'])
-            + struct.pack('<QBQQ', snapshot['source_count'], 1 if single else 2, position['partition'], position['next_lsn'])).hex()
+            + struct.pack('<QBQQ', snapshot['source_count'], 1 if single else 2, position['partition'], position['next_lsn']) + bytes(104)).hex()
 
 
 def raw(client, sql):
@@ -129,6 +129,23 @@ def run(root, port, postgres, mysql_options, restart, catalog, faults):
     old_object = source['interpretation']['object']['object']
     prepared = first.call(dict(prepare=dict(sql=query)))['described']['statement']
 
+    # A historical schema name resolves inside the selected catalog, even when
+    # that live spelling is reused for a different namespace.
+    scoped = suffix + ' IN SCHEMA public'
+    scoped_query = 'SELECT id, amount FROM historical_values' + scoped
+    command(first, 'ALTER SCHEMA public RENAME TO history_live')
+    command(first, 'CREATE SCHEMA public')
+    assert rows(first, scoped_query) == (original, basis)
+    first.call(dict(execute=dict(sql='SHOW TABLES' + suffix + ' IN SCHEMA history_live')), error='HistoricalObjectNotSelected')
+    described, scoped_metadata = raw(first, 'DESCRIBE historical_values' + scoped)
+    assert len(described) == 2 and scoped_metadata['metadata']['namespace'] == 1
+    with faults.metadata_only() as calls:
+        explained, scoped_metadata = raw(first, 'EXPLAIN ' + scoped_query)
+    assert calls.get('historical_catalog.namespace', 0) > 0, calls
+    assert json.loads(text(explained[0][0]))['executed'] is False
+    assert scoped_metadata['metadata']['namespace'] == 1
+    assert len(raw(first, 'SHOW TABLES' + scoped)[0]) == 1
+
     command(first, 'UPDATE historical_values SET amount=99 WHERE id=1')
     command(first, 'ALTER TABLE historical_values ADD COLUMN later INT64 DEFAULT 7')
     command(first, 'ALTER TABLE historical_values RENAME TO historical_renamed')
@@ -171,13 +188,17 @@ def run(root, port, postgres, mysql_options, restart, catalog, faults):
     first = Client(root, port).open()
     assert rows(first, query) == (original, basis)
     assert catalog('history-inspect', 900001) == retained
+    assert rows(first, scoped_query) == (original, basis)
     with psycopg.connect(**postgres) as pg:
-        assert sorted(pg.execute(query).fetchall()) == [(1, 10), (2, 20)]
+        assert sorted(pg.execute(scoped_query).fetchall()) == [(1, 10), (2, 20)]
     with mysql.connector.connect(**mysql_options) as connection:
         cursor = connection.cursor()
-        cursor.execute(query)
+        cursor.execute(scoped_query)
         assert sorted(cursor.fetchall()) == [(1, 10), (2, 20)]
         cursor.close()
+
+    command(first, 'DROP SCHEMA public')
+    command(first, 'ALTER SCHEMA history_live RENAME TO public')
 
     # Independent cuts are never relabeled as an atomic cross-table snapshot.
     pair = catalog('history-retain', 900002, 'historical_values', 'historical_renamed')
@@ -226,6 +247,6 @@ def run(root, port, postgres, mysql_options, restart, catalog, faults):
     first.close()
     print(json.dumps(dict(profile='installed_historical_catalog', source=provenance(ROOT),
                          original_object=old_object, rename_recreate=True, current_authority=True,
-                         prepared_and_restart=True, native_postgres_mysql=True,
+                         prepared_and_restart=True, native_postgres_mysql=True, historical_namespace_reuse=True,
                          independent_multi_source=True, paged_metadata=True, buffered_revocation=True, explicit_release=True,
                          limits='Local disk, gateway replacement and finite selected sets; not host power loss or global atomicity.')), flush=True)

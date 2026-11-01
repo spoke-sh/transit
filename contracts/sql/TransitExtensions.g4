@@ -6,7 +6,7 @@ options { caseInsensitive = true; }
 statement: (historicalStatement | selectStatement | mutationStatement | extensionStatement | transactionStatement) SEMI? EOF;
 // The SQL service binds this exact catalog before compiling the inner query.
 historicalStatement: (selectStatement | SHOW TABLES | DESCRIBE identifier | EXPLAIN selectStatement) snapshotClause;
-snapshotClause: AS OF SNAPSHOT STRING;
+snapshotClause: AS OF SNAPSHOT STRING (IN SCHEMA identifier)?;
 // Session controls lower to the Catalog-owned local Table transaction contract.
 transactionStatement
     : (BEGIN (WORK | TRANSACTION)? | START TRANSACTION) transactionOptions?

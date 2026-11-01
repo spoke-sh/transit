@@ -464,7 +464,9 @@ specified in [Application schema and data migration v1](MIGRATION_V1.md).
 The [historical catalog contract](HISTORICAL_CATALOG_V1.md) owns selection,
 original-operation acquisition, publication, current disclosure and bounded
 release. It reuses `DataLifecycle.Snapshot` and the direct Table authority.
-SQL `AS OF SNAPSHOT` binds that catalog before names and schemas; historical
+SQL `AS OF SNAPSHOT` binds that catalog before names and schemas; optional
+`IN SCHEMA name` resolves the namespace within that retained catalog and freezes
+its stable ID without changing session settings; historical
 SELECT observations carry its immutable identity and exact source evidence.
 Metadata observations retain catalog attribution without claiming row execution.
 An independent source vector is not an atomic cross-Table cut.

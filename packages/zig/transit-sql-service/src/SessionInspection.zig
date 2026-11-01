@@ -13,6 +13,7 @@ log_metadata: ?struct { connection: c.DirectTableProtocol.Connection, definition
 statement: ?g.Statement = null,
 source: bool = false,
 historical_list: ?c.protocol.DataLifecycle.Snapshot = null,
+historical_namespace: ?u64 = null,
 storage: bool = false,
 node_storage: bool = false,
 kind: @FieldType(g.results.Observation.Metadata, "kind") = .catalog,
@@ -78,15 +79,16 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
         };
         return .{ .arena = arena, .name = name, .log_metadata = .{ .connection = host.table.connection, .definition = definition }, .rows = rows, .output = if (inspection.describe) &log_describe_fields else &log_fields };
     }
+    const selected_namespace = if (selection.snapshot != null) try selection.resolveNamespace(host.table, host.namespace) else host.namespace;
     if (try parser.takeWord("SHOW")) {
         if (selection.snapshot) |snapshot| {
             try parser.requireWord("TABLES");
             try parser.finish();
             // Read one page to check publication/current namespace permission.
             // Preparation retains no list rows or data handles.
-            const response = try c.DirectHistory.call(host.table, .{ .list = .{ .snapshot = snapshot, .namespace = host.namespace, .after = null } });
+            const response = try c.DirectHistory.call(host.table, .{ .list = .{ .snapshot = snapshot, .namespace = selected_namespace, .after = null } });
             defer response.deinit();
-            return .{ .arena = arena, .historical_list = snapshot, .rows = &.{}, .output = &historical_list_fields };
+            return .{ .arena = arena, .historical_list = snapshot, .historical_namespace = selected_namespace, .rows = &.{}, .output = &historical_list_fields };
         }
         if (!(try parser.takeWord("STORAGE"))) {
             arena.deinit();
@@ -112,14 +114,14 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
     if (try parser.takeWord("DESCRIBE")) {
         const name = try c.TableMetadata.Name.init(try parser.name());
         try parser.finish();
-        const response = if (selection.snapshot) |snapshot| try c.DirectHistory.resolve(host.table, snapshot, host.namespace, name.slice(), false) else try host.table.call(.{ .lookup = .{ .namespace = host.namespace, .name = name.slice() } });
+        const response = if (selection.snapshot) |snapshot| try c.DirectHistory.resolve(host.table, snapshot, selected_namespace, name.slice(), false) else try host.table.call(.{ .lookup = .{ .namespace = host.namespace, .name = name.slice() } });
         defer response.deinit();
         const binding = if (selection.snapshot != null) try c.DirectTableBinding.initCatalog(host.table.connection, response.value.result.historical_catalog.source) else try c.DirectTableBinding.init(host.table.connection, response.value.result.lookup orelse return error.CatalogNameNotFound);
         const schema = if (selection.snapshot != null) response.value.result.historical_catalog.source.schema else response.value.result.lookup.?.schema;
         var owned_schema = try f.TableSchema.decode(a, try schema.decode(a, f.TableSchema.max_bytes));
         defer owned_schema.deinit();
         const rows = try describeRows(a, owned_schema.schema);
-        return .{ .arena = arena, .name = name, .metadata = binding, .rows = rows, .output = &describe_fields };
+        return .{ .arena = arena, .name = name, .metadata = binding, .historical_namespace = if (selection.snapshot != null) selected_namespace else null, .rows = rows, .output = &describe_fields };
     }
     if (try parser.takeWord("EXPLAIN")) {
         var statement = try g.Statement.prepare(host.allocator, &host.table, host.namespace, sql[parser.lexer.start..], host.dialect, .inspection, g.Session.read_options);
@@ -157,7 +159,7 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
         };
         const rows = try a.alloc([]const f.Types.Values.Cell, 1);
         rows[0] = try a.dupe(f.Types.Values.Cell, &.{text(plan)});
-        return .{ .arena = arena, .statement = statement, .kind = .plan, .rows = rows, .output = &explain_fields };
+        return .{ .arena = arena, .statement = statement, .historical_namespace = if (selection.snapshot != null) selected_namespace else null, .kind = .plan, .rows = rows, .output = &explain_fields };
     }
     arena.deinit();
     return null;
@@ -177,7 +179,7 @@ fn describeRows(a: std.mem.Allocator, schema: f.TableSchema.Schema) ![]const []c
 }
 pub fn validate(self: *Self, host: *g.Session) !void {
     if (self.historical_list) |snapshot| {
-        const response = try c.DirectHistory.call(host.table, .{ .list = .{ .snapshot = snapshot, .namespace = host.namespace, .after = null } });
+        const response = try c.DirectHistory.call(host.table, .{ .list = .{ .snapshot = snapshot, .namespace = self.historical_namespace orelse return error.CatalogIdentityConflict, .after = null } });
         defer response.deinit();
     }
     if (self.node_storage) try validateNode(host);
@@ -187,7 +189,7 @@ pub fn validate(self: *Self, host: *g.Session) !void {
         _ = try source.client.describe(source.definition);
     }
     if (self.metadata) |binding| {
-        if (host.namespace != binding.namespace) return error.CatalogIdentityConflict;
+        if ((self.historical_namespace orelse host.namespace) != binding.namespace) return error.CatalogIdentityConflict;
         _ = try binding.require(host.table, .inspect);
     }
     if (self.log_metadata) |binding| {
@@ -249,7 +251,7 @@ pub const Read = struct {
             if (self.complete()) return null;
             if (self.historical_requests >= 10000) return error.QueryPageBudget;
             self.historical_requests += 1;
-            const response = try c.DirectHistory.call(self.host.table, .{ .list = .{ .snapshot = snapshot, .namespace = self.host.namespace, .after = self.historical_after } });
+            const response = try c.DirectHistory.call(self.host.table, .{ .list = .{ .snapshot = snapshot, .namespace = self.prepared.historical_namespace orelse return error.CatalogIdentityConflict, .after = self.historical_after } });
             defer response.deinit();
             const page = response.value.result.historical_catalog.listing;
             @memcpy(self.historical_entries[0..page.entries.len], page.entries);

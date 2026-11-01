@@ -83,7 +83,10 @@ def check():
         assert accepted == case['postgres'], case['id']
     for sql in data['extensions']:
         tree(sql)
-    tree("SELECT id FROM items AS OF SNAPSHOT 'selector'")
+    for statement in ('SELECT id FROM items', 'SHOW TABLES', 'DESCRIBE items', 'EXPLAIN SELECT id FROM items'):
+        tree(statement + " AS OF SNAPSHOT 'selector'")
+        tree(statement + " AS OF SNAPSHOT 'selector' IN SCHEMA public")
+        tree(statement + " AS OF SNAPSHOT 'selector' IN SCHEMA \"Old Schema\"")
     for invalid in ('FOR SYSTEM_TIME AS OF 240', "DELETE FROM items AS OF SNAPSHOT 'selector'"):
         try: tree(invalid)
         except ValueError: pass

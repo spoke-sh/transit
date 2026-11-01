@@ -167,6 +167,7 @@ pub const Read = struct {
                 const prepared = inspection.prepared;
                 metadata.kind = prepared.kind;
                 metadata.historical = prepared.historical_list;
+                metadata.namespace = prepared.historical_namespace orelse self.host.namespace;
                 metadata.consistency = if (prepared.storage or prepared.node_storage) .independent_observations else .exact_definitions;
                 if (prepared.metadata) |binding| {
                     metadata.definitions = try allocator.dupe(p.DataLifecycle.Definition, &.{binding.interpretation.interpretation});
@@ -179,8 +180,9 @@ pub const Read = struct {
                         metadata.historical = statement.plan.select.binding.catalog;
                     } else if (statement.plan == .relational) {
                         metadata.historical = statement.plan.relational.catalog;
-                        const definitions = try allocator.alloc(p.DataLifecycle.Definition, statement.plan.relational.bindings.len);
-                        for (statement.plan.relational.bindings, definitions) |binding, *definition| definition.* = binding.interpretation.interpretation;
+                        const bindings = statement.plan.relational.bindings[0..statement.plan.relational.plan.sources.len];
+                        const definitions = try allocator.alloc(p.DataLifecycle.Definition, bindings.len);
+                        for (bindings, definitions) |binding, *definition| definition.* = binding.interpretation.interpretation;
                         metadata.definitions = definitions;
                     }
                 }

@@ -591,6 +591,18 @@ current policy at every protected disclosure, including M8's delayed output
 slices. Early close/cancellation/failure releases owned transient reads without
 destroying a separately retained basis or converting a prefix into completion.
 
+Historical namespace selection now accepts the optional `IN SCHEMA name` suffix
+and resolves it only inside the published selection. SELECT and metadata bindings
+freeze the stable namespace ID; metadata observations retain it independently of
+the session namespace. The SQL and service package suites pass (13 and 11 tests),
+and the independent grammar check accepts all four statement forms, including
+quoted names. The installed history scenario now covers namespace rename/reuse
+and restart; that expanded scenario remains pending final execution. Shared
+CHECK/DML validation and resolved schema projections also derive OperatorTraits;
+the Fuze suite passes 508 tests and ten focused catalog projection tests pass.
+These checks do not close the outstanding explicit projection, captured-query,
+versioned-definition or final qualification gates.
+
 #### P6 — Bind views and multi-model interpretation
 
 Publish immutable view definitions, output identities and exact dependencies

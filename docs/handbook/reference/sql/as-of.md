@@ -14,9 +14,16 @@ SELECT ... [LIMIT ...] AS OF SNAPSHOT 'selector';
 DESCRIBE table_name AS OF SNAPSHOT 'selector';
 SHOW TABLES AS OF SNAPSHOT 'selector';
 EXPLAIN SELECT ... AS OF SNAPSHOT 'selector';
+SELECT ... AS OF SNAPSHOT 'selector' IN SCHEMA schema_name;
 ```
 
-The suffix applies to the entire statement. `selector` must be the exact
+The suffix applies to the entire statement. Its optional `IN SCHEMA` resolves
+that schema's name inside the selected catalog before resolving any Table name.
+It applies to SELECT, SHOW TABLES, DESCRIBE and EXPLAIN. A live schema rename or
+reuse of its old spelling cannot redirect this lookup. Without it, the session's
+stable namespace ID is used. This is a Transit extension, not a temporal clause.
+
+`selector` must be the exact
 594-character lowercase hexadecimal value produced from a published snapshot.
 The grammar checks its placement; the SQL service verifies its canonical shape,
 current Transit definition, actual publication and current access.

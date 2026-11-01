@@ -9,7 +9,8 @@ syntax. Column `COLLATE UTF8_BINARY`, `ASCII_CI`, `EBCDIC_CP037`,
 `EBCDIC_037_PAD` and `EBCDIC_1047_NOPAD` clauses
 belong to the checked Table grammar. Proposed graph, foreign-relation, physical
 encoding (`ENCODING`), expression collation and branching examples remain outside
-this checked grammar. `AS OF SNAPSHOT` is a statement-level suffix over the
+this checked grammar. `AS OF SNAPSHOT` optionally selects a retained namespace
+with `IN SCHEMA name`; it is a statement-level suffix over the
 exact retained catalog; its quoted selector is validated by `HistoricalSql`
 before names are resolved. The former ambiguous integer system-time fragment
 is removed. `FOR SYSTEM_TIME` remains reserved for temporal-table semantics.
