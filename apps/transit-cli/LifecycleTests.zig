@@ -12,6 +12,7 @@ test {
     _ = @import("Style.zig");
     _ = @import("server/Gateway.zig");
     _ = @import("server/Config.zig");
+    _ = @import("server/ArtifactHash.zig");
     _ = @import("server/Process.zig");
     _ = @import("server/Applications.zig");
     _ = @import("server/Hosts.zig");

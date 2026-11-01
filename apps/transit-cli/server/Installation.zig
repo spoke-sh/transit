@@ -103,7 +103,7 @@ pub fn save(self: *Self) !void {
     };
 }
 pub fn query(self: *Self, kind: @FieldType(g.Query, "kind")) !g.Response {
-    const response = try Startup.measure(self.startup, .native_query, q.wire.Client.query, .{ self.wire, g.Query{ .realm = self.config.realm, .principal = 0, .kind = kind }, self.root });
+    const response = try Startup.measure(self.startup, Startup.query(kind), q.wire.Client.query, .{ self.wire, g.Query{ .realm = self.config.realm, .principal = 0, .kind = kind }, self.root });
     if (response.position < self.record.position) return error.AuthorityRollback;
     if (response.position > self.record.position or !self.record.genesis_observed) {
         self.record.position = response.position;
@@ -114,7 +114,7 @@ pub fn query(self: *Self, kind: @FieldType(g.Query, "kind")) !g.Response {
 }
 pub fn flush(self: *Self) !void {
     const pending = self.record.pending orelse return;
-    const receipt = try Startup.measure(self.startup, .native_submit, q.wire.Client.submit, .{ self.wire, pending.signed });
+    const receipt = try Startup.measure(self.startup, Startup.submission(pending.signed.request.command), q.wire.Client.submit, .{ self.wire, pending.signed });
     switch (pending.effect) {
         .provision => self.record.provision[pending.index] = receipt.position,
         .initialize => self.record.initialized[pending.index] = true,
@@ -143,7 +143,7 @@ pub fn flush(self: *Self) !void {
 pub fn submit(self: *Self, principal: u64, command: g.Command, effect: @FieldType(Pending, "effect"), index: u8) !void {
     if (self.record.pending != null) return error.UnresolvedProvisioning;
     const key = if (principal == 0) self.root else self.caller_key;
-    const basis = try Startup.measure(self.startup, .native_query, q.wire.Client.query, .{ self.wire, g.Query{ .realm = self.config.realm, .principal = principal, .kind = .{ .capabilities = {} } }, key });
+    const basis = try Startup.measure(self.startup, .native_capabilities, q.wire.Client.query, .{ self.wire, g.Query{ .realm = self.config.realm, .principal = principal, .kind = .{ .capabilities = {} } }, key });
     if (basis.position < self.record.position) return error.AuthorityRollback;
     if (command == .rotate_worker and !basis.body.capabilities.worker_rotation) return error.UnsupportedWorkerRotation;
     self.record.position = basis.position;

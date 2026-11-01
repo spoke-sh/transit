@@ -236,7 +236,8 @@ pub fn digest(init: std.process.Init, path: []const u8) ![32]u8 {
     defer file.close(init.io);
     const stat = try file.stat(init.io);
     if (stat.kind != .file or stat.size == 0 or stat.size > 256 * 1024 * 1024 or stat.permissions.toMode() & 0o6000 != 0 or stat.permissions.toMode() & 0o111 == 0) return error.InvalidExecutable;
-    var hash = std.crypto.hash.sha2.Sha256.init(.{});
+    var hash = try @import("ArtifactHash.zig").init();
+    defer hash.deinit();
     var storage: [65536]u8 = undefined;
     var reader = file.reader(init.io, &storage);
     while (true) {
@@ -244,10 +245,10 @@ pub fn digest(init: std.process.Init, path: []const u8) ![32]u8 {
             if (err == error.EndOfStream) break;
             return err;
         };
-        hash.update(bytes);
+        try hash.update(bytes);
         reader.interface.toss(bytes.len);
     }
-    return hash.finalResult();
+    return try hash.final();
 }
 pub fn preflight(self: Self, io: std.Io, ui: bool, diagnostic: *Diagnostic) !void {
     var listeners: [12]?std.Io.net.Server = @splat(null);

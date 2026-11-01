@@ -1284,6 +1284,27 @@
         "transit_query"
       ]
     },
+    "apps/transit-cli/server/ArtifactHash.zig": {
+      "errors": {
+        "ArtifactHashFailed": 3,
+        "OutOfMemory": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "final()": "<inferred>",
+        "init()": "<inferred>",
+        "update()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "std"
+      ]
+    },
     "apps/transit-cli/server/AuthorizationProfile.zig": {
       "errors": {},
       "outcomes": {},
@@ -1358,13 +1379,14 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 42,
+        "try": 45,
         "catch": 18
       },
       "imports": [
         "../Diagnostic.zig",
         "../RuntimeRole.zig",
         "../Settings.zig",
+        "ArtifactHash.zig",
         "Files.zig",
         "Hosts.zig",
         "Logging.zig",
@@ -1775,6 +1797,7 @@
         "beginInitialization()": "<inferred>",
         "configuration()": "<inferred>",
         "create()": "<inferred>",
+        "discoverAccounts()": "<inferred>",
         "hostCall()": "<inferred>",
         "prepare()": "<inferred>",
         "recover()": "<inferred>",
@@ -1788,7 +1811,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 88,
+        "try": 89,
         "catch": 7
       },
       "imports": [
@@ -1801,6 +1824,7 @@
         "SqlJournal.zig",
         "SqlSettings.zig",
         "SqlTrust.zig",
+        "Startup.zig",
         "std",
         "transit_query",
         "transit_sql_client",
@@ -1957,9 +1981,25 @@
           "artifact_validation",
           "journal_checkpoint",
           "native_query",
+          "native_capabilities",
           "native_submit",
+          "authorization_query",
+          "authorization_begin",
+          "authorization_advance",
+          "authorization_publish",
+          "authorization_abandon",
           "worker_spawn",
-          "worker_registration"
+          "worker_registration",
+          "sql_administrator",
+          "sql_account_prepare",
+          "sql_account_provision",
+          "sql_account_discovery",
+          "sql_catalog_access",
+          "sql_enrollment",
+          "sql_initialization",
+          "sql_activation",
+          "sql_host_start",
+          "sql_trust"
         ]
       },
       "error_sets": {},

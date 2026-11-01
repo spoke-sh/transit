@@ -381,6 +381,141 @@ sample count. Freeze numeric queue, control-latency and regression budgets
 against the measured host before scheduler selection. The existing absolute
 latency objectives below remain unchanged.
 
+#### Follow-up performance delivery — 2026-11-01
+
+**Status: In Progress within M8.** The plan's source
+basis is merge `a000b8d18449fdee7901955d0c94417ceeab32eb` of
+[PR #302](https://github.com/spoke-sh/transit/pull/302). The intended outcome is
+that an application can start Transit, use its declared data through a console
+or SDK, observe a complete result and recover original accepted work within
+measured latency and resource budgets. This plan coordinates the existing M8
+P0–P6 and startup S0–S6 obligations with
+[M9's SDK performance sequence](09-client-foundation-and-language-apis.md#sdk-performance-implementation-sequence--2026-11-01);
+it neither adds a milestone nor completes the broader gateway/client work.
+
+The first implementation packet adds nested authorization/SQL startup attribution,
+accelerates full executable SHA-256 verification and introduces the installed SDK
+driver. The [source-attributed evidence](../history/qualification/performance.md#executable-hashing-and-installed-sdk-measurement--2026-11-01)
+records exploratory restart reductions and the remaining failures. Fresh durable
+publication, owner I/O/wait counters, complete debug attribution within telemetry
+bounds, retained SQL work and the final sample schedule remain open. In particular,
+the passing SDK lane does not resolve the Station/WAL recovery failure or qualify
+the maintenance profile.
+
+**Delivered and still unqualified.** PR #302 implements S1 worker rotation,
+unchanged derived-file reuse from S2 and private-page/file-barrier batching from
+S3a. The [frozen probes](../history/qualification/performance.md#installed-startup-publication-reduction--2026-10-31)
+measured fresh readiness at 21.707 s headless / 22.836 s embedded UI and retained
+restart at 3.208 s / 2.666 s. Fresh provisioning still consumed about 13 s;
+retained worker activation fell to about 0.5 s. These are medians from five
+fresh and ten restart samples per arm/profile, before integration with main,
+not measurements of this merge. Do not reimplement S1 or attribute a whole-start
+10× improvement to its worker phase. The targets in the
+[startup plan](#installed-startup-reduction-plan--2026-10-31) and
+[SQL scorecard](#performance-objectives-and-experiment-design) remain open.
+
+**PR boundaries and dependencies.** Each row is a reviewable change or an
+explicitly split series. Start the reliability/attribution work and M9 SDK
+harness independently; serialize disk-heavy qualification and timed campaigns.
+After the baseline, fresh provisioning and retained-start work can proceed
+independently. Rebase and remeasure their combination before claiming cumulative
+gains. Each implementation PR includes owner documentation, focused proofs and
+a matched probe; the final campaign does not replace per-change validation.
+
+| Delivery | Existing obligation / owner | Implementation and dependency | Exit evidence |
+| --- | --- | --- | --- |
+| Reliability reproductions and fixes | S0 / native local maintenance, installation and SQL lifecycle | Reproduce the retained failures below on the merged source; split fixes by the failing owner and preserve original work | Deterministic or controlled reproducer, explained failure, focused regression and passing affected clean lane; unchanged deadlines and recovery gates |
+| Current baseline and missing attribution | S0, P0/P5 / `Startup`, `Installation`, `Sql`, backend and performance runners | Extend existing spans/counters and reporters; establish default/headless startup and persistent-console controls | Frozen artifacts, complete attempted-run denominator, phase/cost inventory, baseline report and predeclared regression budgets |
+| Fresh provisioning publication | S3a, P2 / installation/SQL journals and native local publication | Use the baseline to select repeated checkpoints or remaining independent barriers; evaluate a bounded durable journal only if checkpoint replacement dominates | Fewer counted publications and lower full fresh-start time; request-before-dispatch and receipt-before-dependent-use preserved through crash/reply-loss proofs |
+| Retained validation and SQL setup | S2 / `Config`, `Files`, `SqlEnrollment`, `Sql` | Separate artifact stripping/hash acceleration from retained SQL preparation into independently measured PRs | Full executable verification, fewer repeated reads/parses/writes, correct disabled-account recovery and lower restart/first-result time |
+| Conditional bootstrap operation | S3b / native authorization contracts and shared core/client | Only if post-S3a serial operations still prevent the fresh target: first specify bounded identities, dependencies and outcome semantics, then implement the shared operation | Contract/rejection fixtures, exact crash recovery and measured operation/publication reduction; no installer-only authority |
+| Startup dependency overlap | S4 / server cycle, Table activation, SQL, applications | After identifying durable dependencies and principal sequencing, overlap independent preparation/launch with separate clients, arenas and bounded slots; add owned readiness notifications | Shorter measured critical path; blocked/failed children, cancellation and lost notifications cannot produce premature readiness or lose pending work |
+| Statement read and publication reductions | P2a/P2b, #211 W5b/W6/W7 / SQL service, direct catalog and Table owner | Separate fresh-read preparation/cache work from durable-write publication changes; coordinate account token/commit semantics with M6 R9 | Paired verified reads/writes against SQL targets, original token uniqueness, revocation and retained-cut proofs, bounded maintenance debt |
+| Protocol continuations and scheduling | P4 core then P3 / wire engines, SQL host and `transit-io` | Follow the existing event-contract and resumable-engine sequence before reducing workers; socket deadline work can start separately | No per-command timer races, core-bounded workers and bounded control latency under blocked peers, with real protocol/failure/allocation proofs |
+| History growth and integrated acceptance | S5/S6, P5/P6 / recovery owners and existing runners | Add aged/interrupted/unclean fixtures early; qualify the combined committed source after affected fixes and optimizations | Passing clean lanes, matched full-outcome scorecards, bounded recovery memory and executable regression gates for each claimed profile |
+
+**First implementation packet: reliability and attribution.** Retain the failed
+installations and original operation identities from the recorded qualification.
+Investigate the maintenance timeout leading to owner recovery and
+`AuthorityUnavailable`, the Station launcher connection refusal/closure, the
+final read after explicit TLS replacement, and `ALTER TABLE` returning
+`SqlOutcomeUnknown`. Correlate admission waits, publication and recovery with
+listener/activation transitions. A later successful attempt does not explain
+any of these failures. If a failure cannot be reproduced, record that limit
+and keep its qualification gate open; instrumentation and independent SDK
+baseline work can still land. Complete the interrupted core lane and the
+unreached storage/UI tasks as part of their affected acceptance.
+
+Extend the existing startup runner, persistent statement runner and bounded
+owner telemetry rather than adding a competing launcher. The baseline packet
+must contain:
+
+- Separate fresh and retained runs for headless role binaries and the normal
+  embedded Board/application profile. Record each launch attempt/backoff,
+  readiness, first independently verified SQL result, CPU, peak RSS and settled
+  idle activity. Configured PostgreSQL/MySQL/TLS are explicit additional profiles.
+- Hash bytes/CPU; installation and SQL journal writes; native queries/mutations;
+  authorization begin/advance/publish; Table DDL; SQL enrollment, retained-account
+  validation, recovery and listener activation. Split queue/lock waits, file and
+  directory sync calls, WAL appends and physical I/O. Count nested work without
+  adding overlapping elapsed spans; unexplained time remains visible.
+- Persistent-console first/empty/warm reads, fresh reads after another session
+  commits, single-row and existing 67-row INSERT, changed/no-op/zero-match
+  UPDATE/DELETE, retained readers and explicit transactions. Verify exact values,
+  counts and completion before admitting a timing sample as successful.
+- Source/definition, binary and driver hashes, pinned toolchain, build mode,
+  machine/filesystem, services, data/history size, resource limits, maintenance,
+  warmup/cache conditions and host load. Default info-level timing and debug
+  attribution are separate experiments. Establish instrumentation overhead.
+
+**Optimization decisions.** Prioritize the measured critical path, not the
+number of functions changed. Fresh provisioning is the current leading candidate;
+the merged-source measurement must confirm its share. S2 must measure hash and
+retained SQL costs before selecting either. S3a chooses publication work before
+S3b changes accepted semantics. Any journal/bootstrap/commit-envelope cutover
+needs its owning contract first and follows the current-v1 replacement policy.
+Do not combine it with a scheduler rewrite. Keep the measured 0.310-s initial
+node restart low priority unless new attribution changes that decision.
+
+Preserve current grants, fencing, complete results, mandatory durability barriers
+and the original readiness gates. A lone writer must progress without a partner
+to fill a batch. Shared storage changes must improve or remain within frozen
+budgets for foreground statements, maintenance and recovery as well as startup.
+Parallel launch cannot share mutable signing/client state or advance dependent
+work before the required receipt is durable. SDK optimization remains with the
+shared client and language owners; it does not justify another SQL/data protocol.
+
+**Acceptance and regression delivery.** Treat the existing startup intermediate
+p50 targets (15 s fresh / 3 s restart) as the first checkpoint, followed by final
+p50 5 s / 1 s and empirical p95 10 s / 2 s. Track first verified result and freeze
+its allowed readiness-to-result gap from the baseline; moving work after ready
+cannot meet the goal. Keep small INSERT p50 190 ms and then 19 ms, warm SELECT
+10–20 ms and fresh read-after-write 20–50 ms as separate SQL objectives. Report
+both historical-target progress and ratios against a newly matched control;
+those SQL targets do not define an SDK speedup.
+
+Use the startup S6 sample schedule and the SQL schedule above for acceptance,
+with M9's own SDK schedule. Include aged history beyond the configured cache/page
+capacity at a fixed memory budget, pending work in disabled accounts, crashes
+at changed publication boundaries, slow/blocked clients and current revocation.
+Freeze concrete history sizes, recovery deadlines, resource/control budgets and
+allowed regression tolerances in the baseline manifest before candidate testing;
+do not choose them after seeing a result. Preserve failed/incomplete runs and
+their denominators, report maxima and retries, and make no p99 claim from these
+sample counts. No competing owned builds or heavy proof runs during measurements.
+
+Run affected committed-source clean lanes (`core`, `storage-query`,
+`installation-ui`, selected `interfaces-*` and `sdks-*`) using the current CI
+selector and owner checks. Require all claimed lanes/profiles to pass on the
+combined source before closing this follow-up. Put raw reports in ignored/CI
+artifacts, executed results in qualification history and supported limits in the
+server/performance/SDK owners. Add fast report/oracle/allocation controls to
+ordinary CI and full timings on a controlled performance runner with periodic
+and release qualification; a timing job that does not run leaves the gate open.
+Budget changes require a new attributed comparison, not accepting the last run
+as the new baseline. Full M8/M9 completion still requires their other placement,
+service, API and data-kind obligations.
+
 #### Installed startup reduction plan — 2026-10-31
 
 **Status: In Progress.** Make declared data and configured services usable quickly
@@ -604,9 +739,10 @@ One failed lane remains failed. Only after qualified campaigns meet the budgets
 should the startup regression gate and current measured limits be promoted into
 the server/performance references and qualification history.
 
-Start implementation with **S0 attribution/reliability and S1 worker rotation**;
-follow with the independently measurable S2 changes and the measured S3 publication
-work. Scheduler and topology changes follow evidence from those reductions.
+S1 is implemented by PR #302. Continue with **S0 attribution/reliability and the
+remaining S2/S3 work**, using the
+[follow-up delivery sequence](#follow-up-performance-delivery--2026-11-01).
+Scheduler and topology changes follow evidence from those reductions.
 
 #### 2. Close the measured installed read/write path
 
