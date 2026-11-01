@@ -9,6 +9,30 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Original workload projection preparation — 2026-11-01
+
+Commit `cc70915c7309f0176f310cd83bef0f31c594762d` adds Fuze's pure
+`WorkloadProjection` compiler and restorer. The caller supplies verified frozen
+metadata. Stable column IDs, selected system fields, the exact schema and original
+native binding determine its source basis; the existing FQP1 codec retains the
+projection, aliases, predicate and collation vector without saved SQL text.
+
+In the pinned shell, `zig build test -Dtest-filter='workload projection'
+-Doptimize=ReleaseSafe --summary all` from `packages/zig/transit-fuze` passes
+**116/116 selected and transitive tests**, and root `just check fast` passes
+**60/60**. The added schedule destroys the compiled plan before restoring it,
+overwrites the encoded input after restoration, and verifies retained aliases,
+literals, types and collations. Changed native operation, ordered layout or
+collation rejects. Projection limits, aggregation and post-acquisition claim
+filtering are refused; a claim projection cannot hide an acquired lease row.
+
+Raw logs are `/var/tmp/transit-m6-workload-projection-fuze1.log`
+(SHA-256 `a2ec5f30c19498c114e3ce75bc13c5f53f3c04f6366078057a8623266270f7f3`)
+and `/var/tmp/transit-m6-workload-projection-fast1.log`
+(`5f9e3465e1309e8166babb155d4bfabd8f5c676bf9ef80d3fa49ee627695b44b`).
+This is preparation-only evidence. The module is not yet wired into persisted
+workload intents, SQL admission or result recovery, and enables no workload SQL.
+
 ## Managed finite Table lifecycle — 2026-11-01
 
 The selected installed slice declares one ordinary Table input and an existing,
