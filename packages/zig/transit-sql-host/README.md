@@ -21,7 +21,17 @@ completion through the database owner, including COMMIT or DROP whose execution
 attachment may have ended. The installed driver still drains requests with its
 existing blocking worker/deadline orchestration; this change does not reduce
 worker counts or remove timer tasks. Authentication input and TLS upgrades also
-retain their host orchestration.
+retain those deadlines.
+
+The pure `StartupSession` engines emit input, output, TLS upgrade, credential,
+verification and final admission requests through `Wire.Startup`. The host
+performs credential reads, randomness, SCRAM/password verification and TLS, and
+rechecks the credential before creating the shared session. Command state and
+input buffers are reserved before it acknowledges final admission. Failure
+releases partial admission without a successful login; an I/O or TLS failure
+closes without retrying output or falling back to plaintext. Startup borrows stay
+alive until the connection task joins, and credential/password storage is erased
+on cleanup. The same adapter serves local and standalone placement.
 
 Command input uses the codecs' incremental continuations. Each connection starts
 with at most 8 KiB from its existing admitted session reserve, grows to a checked

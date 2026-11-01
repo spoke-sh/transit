@@ -18405,6 +18405,52 @@
         "std"
       ]
     },
+    "packages/zig/transit-mysql/src/StartupSession.zig": {
+      "errors": {
+        "GatewayDatabaseDenied": 1,
+        "InvalidAuthentication": 3,
+        "TlsRequired": 3,
+        "WireSessionClosed": 1
+      },
+      "outcomes": {
+        "State": [
+          "greeting",
+          "header",
+          "body",
+          "response",
+          "upgrade",
+          "lookup",
+          "selected",
+          "password_header",
+          "password",
+          "verified",
+          "admit",
+          "admitted",
+          "output",
+          "failed",
+          "done"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "advance()": "<inferred>",
+        "complete()": "<inferred>",
+        "fail()": "<inferred>",
+        "init()": "<inferred>",
+        "input()": "<inferred>",
+        "poll()": "<inferred>",
+        "send()": "<inferred>"
+      },
+      "open_error_set_uses": 3,
+      "propagation": {
+        "try": 44,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-mysql/src/root.zig": {
       "errors": {},
       "outcomes": {},
@@ -18423,6 +18469,7 @@
         "Handshake.zig",
         "Scalar.zig",
         "Session.zig",
+        "StartupSession.zig",
         "transit_sql_protocol"
       ]
     },
@@ -18749,6 +18796,65 @@
         "std"
       ]
     },
+    "packages/zig/transit-postgres/src/StartupSession.zig": {
+      "errors": {
+        "GatewayConnectionCapacity": 1,
+        "InvalidAuthentication": 2,
+        "TlsRequired": 1,
+        "UnsupportedStartupSetting": 1,
+        "WireSessionClosed": 1
+      },
+      "outcomes": {
+        "State": [
+          "start",
+          "header",
+          "startup",
+          "upgrade",
+          "upgraded",
+          "lookup",
+          "selected",
+          "mechanisms",
+          "initial_header",
+          "initial_body",
+          "challenge",
+          "final_header",
+          "final_body",
+          "verified",
+          "admission",
+          "admitted",
+          "final",
+          "ok",
+          "parameters",
+          "key",
+          "ready",
+          "output",
+          "cancelled",
+          "failed",
+          "done"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "advance()": "<inferred>",
+        "complete()": "<inferred>",
+        "fail()": "<inferred>",
+        "init()": "<inferred>",
+        "input()": "<inferred>",
+        "passwordBody()": "<inferred>",
+        "passwordHeader()": "<inferred>",
+        "poll()": "<inferred>",
+        "send()": "<inferred>"
+      },
+      "open_error_set_uses": 3,
+      "propagation": {
+        "try": 63,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-postgres/src/root.zig": {
       "errors": {},
       "outcomes": {},
@@ -18767,6 +18873,7 @@
         "Scalar.zig",
         "Session.zig",
         "Startup.zig",
+        "StartupSession.zig",
         "transit_sql_protocol"
       ]
     },
@@ -26445,23 +26552,6 @@
         "std"
       ]
     },
-    "packages/zig/transit-sql-host/src/MysqlInput.zig": {
-      "errors": {},
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "read()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 4,
-        "catch": 0
-      },
-      "imports": [
-        "std",
-        "transit_mysql"
-      ]
-    },
     "packages/zig/transit-sql-host/src/Native.zig": {
       "errors": {
         "EndOfStream": 1,
@@ -26518,40 +26608,6 @@
         "std"
       ]
     },
-    "packages/zig/transit-sql-host/src/PostgresInput.zig": {
-      "errors": {},
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "read()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 4,
-        "catch": 0
-      },
-      "imports": [
-        "std",
-        "transit_postgres"
-      ]
-    },
-    "packages/zig/transit-sql-host/src/PostgresStartup.zig": {
-      "errors": {},
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "read()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 4,
-        "catch": 0
-      },
-      "imports": [
-        "std",
-        "transit_postgres"
-      ]
-    },
     "packages/zig/transit-sql-host/src/Shutdown.zig": {
       "errors": {},
       "outcomes": {},
@@ -26606,19 +26662,17 @@
         "Cancelled": 2,
         "FreshOwnershipRequired": 1,
         "GatewayActivationSyncFailed": 1,
-        "GatewayConnectionCapacity": 3,
-        "GatewayCredentialChanged": 2,
-        "GatewayDatabaseDenied": 1,
+        "GatewayConnectionCapacity": 2,
+        "GatewayCredentialChanged": 1,
         "GatewayDeadline": 4,
         "GatewayDraining": 3,
         "GatewayOwnerUnavailable": 1,
-        "InvalidAuthentication": 8,
+        "InvalidAuthentication": 5,
         "InvalidCancelRequest": 1,
         "PathAlreadyExists": 1,
         "Timeout": 2,
         "TlsMemoryCapacity": 1,
-        "TlsRequired": 6,
-        "UnsupportedStartupSetting": 1,
+        "TlsRequired": 1,
         "WireSessionExhausted": 1
       },
       "outcomes": {
@@ -26646,6 +26700,10 @@
       },
       "error_sets": {},
       "error_returns": {
+        "Authentication.admit()": "<inferred>",
+        "Authentication.deny()": "anyerror",
+        "Authentication.drive()": "<inferred>",
+        "Authentication.perform()": "<inferred>",
         "Output.writeAll()": "<inferred>",
         "Server.acquire()": "<inferred>",
         "Server.authenticationDeadline()": "anyerror",
@@ -26667,19 +26725,16 @@
         "serve()": "<inferred>",
         "workerReserveFailures()": "<inferred>"
       },
-      "open_error_set_uses": 21,
+      "open_error_set_uses": 23,
       "propagation": {
-        "try": 163,
-        "catch": 20
+        "try": 108,
+        "catch": 25
       },
       "imports": [
         "Connection.zig",
         "Deployment.zig",
         "FrameInput.zig",
-        "MysqlInput.zig",
         "Native.zig",
-        "PostgresInput.zig",
-        "PostgresStartup.zig",
         "Shutdown.zig",
         "WireSessionDriver.zig",
         "builtin",
@@ -26925,6 +26980,7 @@
         "WireLimits.zig",
         "WireReadBatch.zig",
         "WireSession.zig",
+        "WireStartup.zig",
         "WireType.zig",
         "root.zig"
       ]
@@ -27085,6 +27141,71 @@
       },
       "imports": [
         "Wire.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql-protocol/src/WireStartup.zig": {
+      "errors": {
+        "InvalidAuthentication": 1,
+        "InvalidWireDrain": 1,
+        "InvalidWireGeneration": 1,
+        "InvalidWireMessage": 1,
+        "InvalidWireOutput": 1,
+        "StaleWireCompletion": 1,
+        "UnexpectedWireCompletion": 3,
+        "WireCompletionMissing": 1,
+        "WireRequestPending": 1,
+        "WireSessionExhausted": 1
+      },
+      "outcomes": {
+        "Method": [
+          "trust",
+          "password"
+        ],
+        "Request": [
+          "input",
+          "output",
+          "upgrade",
+          "lookup",
+          "scram_start",
+          "scram_finish",
+          "password",
+          "admit",
+          "cancel"
+        ],
+        "Result": [
+          "ok",
+          "received",
+          "written",
+          "method",
+          "challenge",
+          "proof",
+          "failed"
+        ],
+        "Tls": [
+          "disabled",
+          "optional",
+          "required"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Continuation.advance()": "<inferred>",
+        "Continuation.complete()": "<inferred>",
+        "Continuation.event()": "<inferred>",
+        "Continuation.init()": "<inferred>",
+        "Continuation.issue()": "<inferred>",
+        "Continuation.ok()": "<inferred>",
+        "Continuation.take()": "<inferred>",
+        "Name.set()": "<inferred>"
+      },
+      "open_error_set_uses": 3,
+      "propagation": {
+        "try": 3,
+        "catch": 0
+      },
+      "imports": [
+        "WireSession.zig",
         "std"
       ]
     },

@@ -28,7 +28,7 @@ parameter: usize = 0,
 failure: ?anyerror = null,
 pub fn init(allocator: std.mem.Allocator, options: Options) !Self {
     var result: Self = .{ .options = options, .continuation = try .init(options.generation), .backend = .{ .allocator = allocator, .maximum = 8192 } };
-    try result.backend.bytes.ensureTotalCapacity(allocator, 2048);
+    result.backend.bytes = try .initCapacity(allocator, 2048);
     return result;
 }
 pub fn deinit(self: *Self) void {

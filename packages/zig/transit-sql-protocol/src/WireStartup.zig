@@ -148,3 +148,20 @@ test "startup input and output fence partial, duplicate and cancelled completion
         try t.expectError(error.Cancelled, c.event());
     }
 }
+
+test "startup host effects cannot complete after cancellation or slot replacement" {
+    const t = std.testing;
+    const requests = [_]Request{ .upgrade, .{ .lookup = .{ .account = "alice", .database = "tables" } }, .{ .scram_start = "initial" }, .{ .scram_finish = "final" }, .{ .password = "secret" }, .admit, .{ .cancel = @splat(0) } };
+    for (requests) |request| {
+        var old = try Continuation.init(9);
+        try old.issue(request);
+        const event = (try old.event()).?;
+        old.abort(error.Cancelled);
+        try t.expectError(error.StaleWireCompletion, old.complete(event.token, .{ .failed = error.AccessDenied }));
+        try t.expectError(error.Cancelled, old.event());
+        var replacement = try Continuation.init(10);
+        try replacement.issue(request);
+        try t.expectError(error.StaleWireCompletion, replacement.complete(event.token, .{ .failed = error.AccessDenied }));
+        try t.expectEqual(@as(u64, 10), (try replacement.event()).?.token.generation);
+    }
+}

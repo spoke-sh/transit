@@ -170,6 +170,21 @@ test "lookup and session-admission failures cannot publish login success" {
         try authenticationCodes(peer.output[0..peer.len], &.{});
     }
 }
+test "SCRAM failures never publish a proof or authentication success" {
+    const first = try startup(t.allocator);
+    defer t.allocator.free(first);
+    const bytes = try passwordInput(t.allocator, first);
+    defer t.allocator.free(bytes);
+    for ([_]std.meta.Tag(w.Request){ .scram_start, .scram_finish }) |failure| {
+        var session = try pg.StartupSession.init(t.allocator, options);
+        defer session.deinit();
+        var peer: Peer = .{ .input = bytes, .method = .password, .fail = failure };
+        try t.expectError(error.AccessDenied, peer.run(&session));
+        try authenticationCodes(peer.output[0..peer.len], if (failure == .scram_start) &.{10} else &.{ 10, 11 });
+        try t.expectEqual(@as(usize, 0), peer.admits);
+        try t.expect(std.mem.allEqual(u8, &session.bytes, 0));
+    }
+}
 test "cancellation startup, partial EOF and oversized lengths never admit SQL" {
     var config = options;
     config.cancellation_only = true;

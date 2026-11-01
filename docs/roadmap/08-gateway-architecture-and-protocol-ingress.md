@@ -246,6 +246,26 @@ latency acceptance. No direct data-kind capability or broader wire profile is
 added. Component event/allocation tests do not establish installed performance
 or complete the separate lifecycle and recovery gates.
 
+### Connection startup continuations — 2026-11-01
+
+PostgreSQL/MySQL connection startup now joins the delivered command engines at
+the sans-I/O boundary. `Wire.Startup` carries token-fenced input/output, TLS,
+credential selection, verification, cancellation and final admission requests.
+`StartupSession` owns bounded protocol state; the shared host owns credential
+files, cryptography, TLS and native admission. It reserves command resources
+before acknowledging admission and emitting a successful login. The old
+host-only startup readers are removed. The current boundary and lifetimes are in
+the [gateway contract](../../contracts/SQL_GATEWAY_V1.md#in-process-connection-and-command-continuations)
+and [host guide](../../packages/zig/transit-sql-host/README.md).
+
+This closes the PG/MySQL authentication-state portion of change 3 below. It
+does not close P4: native HTTP and Flight/Serving composition remain. Worker
+sizing, `authenticationDeadline`/`connectionDeadline`/`boundedHandle`, socket and
+non-socket deadline propagation, coarse remote SQL and owner-qualified M6/M7
+routes retain their separate gates. No new wire capability, authority or durable
+definition is introduced. Codec allocation checks do not establish installed
+latency or host/TLS allocation guarantees.
+
 ### Implementation plan — 2026-11-01
 
 **Source basis:** fetched `origin/main` at
