@@ -132,7 +132,20 @@ test "historical observations bind selected source cardinality scope and self-jo
     try t.expectError(error.InvalidHistoricalObservation, validate(metadata));
     metadata.metadata.definitions = &.{};
     metadata.metadata.historical.?.source_count = 0;
+    // Retained decoder/graph definitions can describe no Table data sources.
+    // Their metadata remains exact; it cannot establish a data observation.
+    try validate(metadata);
+    metadata.metadata.definitions = &.{source.interpretation};
+    try validate(metadata);
+    metadata.metadata.consistency = .independent_observations;
     try t.expectError(error.InvalidHistoricalObservation, validate(metadata));
+    aliases[1] = source;
+    var empty_data = observation;
+    empty_data.data.historical.snapshot.source_count = 0;
+    try t.expectError(error.InvalidHistoricalObservation, validate(empty_data));
+    empty_data.data.historical.snapshot = snapshot;
+    empty_data.data.historical.sources = &.{};
+    try t.expectError(error.InvalidHistoricalObservation, validate(empty_data));
 }
 pub fn fingerprint(allocator: std.mem.Allocator, value: Value) ![32]u8 {
     try validate(value);
