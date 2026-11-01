@@ -364,8 +364,8 @@ validates accepted evidence with the storage owner and keeps receipt-storage
 failure separate from the known service outcome. The installed KV schedule now
 kills the caller after acceptance and before reply delivery, removes the old
 standalone fixture save, and replaces both caller and node before recovery from
-the store. Its executed results belong in the qualification record; adding the
-schedule alone does not establish a pass.
+the store. The [executed qualification](../history/qualification/sdk.md#bounded-admission-and-direct-kv-recovery--2026-11-01)
+records the passing scoped checks and failed/incomplete broad lanes separately.
 
 P0/P2/P4/P5 remain **In Progress**. Direct data requests use domain operation
 identities and signed proofs, so they do not consume or allocate native principal
