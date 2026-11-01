@@ -63,6 +63,54 @@ passing evidence. The installed signed transfer schedule and common-revision
 clean qualification remain open, as do SQL/Station composition and performance
 measurements. No test duration is treated as a latency baseline.
 
+### Installed recovery and bounded evaluation
+
+At clean revision `d8cbca24bbc1f0ef634f0fa018faf10bbf0fb8c0`, all three
+installed ReleaseSafe schedules pass using the same node and caller binaries
+and the `840c402d…` definition above. Each schedule corrupts two accepted
+responses, kills and restarts the node after each loss, then checks the original
+saved identities and outcomes through the public signed interface:
+
+| Schedule | Signed requests | Lost replies | Verified result |
+| --- | ---: | --- | --- |
+| Queue terminal transfer | 30 | `643006`, `643101` | Original paired transfer and common decision; destination payload and source FIFO successor |
+| Table/KV/Stream/Queue | 85 | `642016`, `642101` | Private state, original statements, common decision and public visibility |
+| Table/KV | 33 | `642012`, `642101` | Private KV read, original mutation and common decision |
+
+The node SHA-256 is
+`f3e95af8ec41b506557b05bb1d38a04b0ba787f5c678703110574e559186b171`;
+the caller SHA-256 is
+`7b319133263038f594348a50686b7a5b55736282f38a3c44c7cd267638574ee9`.
+Local outputs are `/var/tmp/transit-m6-transfer-buffer-queue-transfer.log`
+(`b78c5b35f6e5119179bb81ab9bb5b82f72ed4f97df07daa953dbf6b789239b0e`),
+`/var/tmp/transit-m6-transfer-buffer-mixed-transaction.log`
+(`674c75a38976eb71419a89bcb5103bb5d94c92ab126cf91216e8b37ae9404823`),
+and `/var/tmp/transit-m6-transfer-buffer-state-transaction.log`
+(`e383ef956f1be2610f9b8b3fdca50d8407e32dc5bc664b9f0a0005e72d70c85c`).
+
+The installed mixed schedule first exposed overlapping transaction metadata
+caches at private Queue ACK evaluation. Commit `611bf4c1a` closes those caches
+before opening the partition owner. A later transfer run at `31120457a`, with
+request-memory diagnostics enabled, still failed `TransactionMemoryLimit`.
+Both failed installations preserve the original signed requests privately.
+A disk component using the default 16 metadata pages and FIFO source and
+destination reproduced that second failure. Commit `d8cbca24b` sizes private
+append scratch from the verified action payload and reuses the partition's
+encoding buffer for transfers. It keeps the existing 16 MiB transaction budget.
+
+The corrected component selection passes **12/12 catalog tests**, and the
+storage transaction selection passes **17/17 tests**, including cold-segment
+transfer reads and decision replay. All **58 fast checks** pass. Outputs are
+`/var/tmp/transit-m6-transfer-budget-fifo-green.log`
+(`70654fc14fefff9b3530274eb85629f4528caf2955d4ee9c8cf92dc74a4560ac`),
+`/var/tmp/transit-m6-transfer-buffer-storage.log`
+(`e37a60692d0ab0b7009158e571364246533b3e3ef48ab8b9acfe75e3f7a26c8d`),
+and `/var/tmp/transit-m6-transfer-buffer-fast.log`
+(`2a0a1938fcb6f26f71da2f1bfeda521e9e1370d73f07eaafceeadbbec6ee9789`).
+The earlier failures remain failed attempts; passing later schedules does not
+settle their retained accepted work. Automatic DLQ scheduling, the full fault
+matrix, clean dependent lanes and performance measurements remain open.
+
 ## Native mixed state and log statements — 2026-10-31
 
 Implementation `95428fd6b0a1ff79a6c11ff7eca755005b274f9a` admits Stream
