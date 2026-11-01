@@ -121,6 +121,11 @@ installed language APIs, and each M6/M7 public handoff. The source inventory bel
 records the pre-implementation audit; the ordered work packages remain the
 completion gates.
 
+[Executed qualification](../history/qualification/sdk.md#catalog-context-and-sql-submission-persistence--2026-10-31)
+records the component and native checks, the reproduced baseline CLI diagnostic
+failure and the SQL source-provisioning timeout. Neither clean lane is a complete
+pass.
+
 The first installed outcome remains a Linux x86_64 application using the public
 Zig, Python sync/async or TypeScript/Node client to declare a Table, inspect its
 definition, write typed values, stream SQL results, commit a local multi-Table

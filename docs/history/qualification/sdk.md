@@ -9,6 +9,65 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Catalog context and SQL submission persistence — 2026-10-31
+
+This slice checks bounded local ownership and persistence ordering, without
+changing Catalog acceptance or SQL settlement. The final code source is
+`79c11936e23103c7e75b5b129c2ca99e8b578704`; the SQL implementation is identical
+to the separately tested `7c70480aa92257465ff0f4c10df276a1ca6c9b87`.
+Checks use the pinned Nix shells and Zig `0.17.0-dev.2267+48abf1a34`.
+[PR #298](https://github.com/spoke-sh/transit/pull/298) records commands,
+retained local report locations and validation blockers.
+
+Both client packages pass their standalone `zig build test` and `zig build check`.
+Context tests cover constructor allocation failures, wrong/stale handles, separate
+data/control capacity, 4096 admission cycles without new directory allocations,
+close timeout/cancellation, Table retention control admission and arena-owned
+output surviving close. The SQL test uses real loopback HTTP with a scripted
+peer: persistence precedes execute, storage failure/cancellation prevents execute,
+scope replacement and context denial refuse submission, and a lost reply causes
+observation of the same token with exactly one execute. Saved values exclude the
+secret session handle; missing/foreign definitions and mismatched recovery
+identities reject. The store in this test is memory owned by the fixture, not a
+disk-durability or process-replacement proof.
+
+The clean core run at `79c11936e` passes 58 fast checks, 19 contract checks and
+the full native check, then fails the CLI diagnostic prefix assertion: startup
+telemetry precedes `error:`. A separate checkout of base `b60f12154` reproduces
+that same failure; the CLI and diagnostic test are unchanged by this slice.
+The remaining core tasks were not reached. An earlier core run at `7c70480aa`
+was intentionally stopped after the Table retention admission correction and
+is incomplete, not passed.
+
+The clean SQL lane at `7c70480aa` passes TLS, result allocations and the installed
+gateway/CLI schedule. Unix, HTTP and HTTPS each report zero warm memory events
+for the existing allocation workload. The session task then fails its 1800-second
+`session-sources` provisioning deadline, before session assertions; the lane does
+not reach its transaction task. These failures remain qualification blockers.
+Documentation build, local links, version pins and whitespace checks pass.
+
+A separate `zig build test-sql-wire-gateway -Doptimize=ReleaseSafe -- sessions-basic`
+run in the retained SQL checkout passes the basic native-session profile: TLS and
+independent SCRAM, concurrent sessions, wide logical values, storage/EXPLAIN
+inspection, buffered disclosure and original-token recovery after restart. This
+profile excludes the legacy source fixtures and does not convert the full-lane
+timeout into a pass.
+
+The independent `just test::sql-transactions` run also passes in that unchanged
+SQL checkout: common cuts, private reads/joins, original savepoint retry,
+write-skew prevention, retained read-only cuts, one lost commit reply, gateway
+restart reattachment and PostgreSQL/MySQL status projection. Its lifetime profile
+checks two private batches/40 rows, delayed-reader cuts, session-expiry attachment,
+statement/savepoint limits and explicit cleanup. These are Table transaction
+results, not mixed KV/Document/Stream/Queue participant qualification.
+
+Current ownership and limits belong to the
+[Catalog context](../../../packages/zig/transit-data-client/docs/context.md) and
+[SQL persistence API](../../../packages/zig/transit-sql-client/README.md#persisting-an-original-attempt).
+This evidence does not qualify a durable recovery store, fair queued admission,
+principal coordination, shared SQL/context ownership, a foreign-language data
+host or the installed SDK matrix, and does not complete M9.
+
 ## Installed C and C++ direct lifecycle — 2026-10-24
 
 `nix develop .#bindings -c zig build test-direct-catalog-c -Doptimize=ReleaseSafe`
