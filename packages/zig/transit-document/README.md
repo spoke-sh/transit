@@ -53,3 +53,13 @@ concurrent delivery permutations, candidate failure, detached descendants,
 deleted anchors and original duplicate revisions. Station's own tests exercise
 its real immutable-index adapter and service recovery. These are separate
 boundaries; the volatile fixture establishes no disk durability.
+
+`LogicalChange` and `CausalTree(Index)` supply the integrated causal map-tree
+storage slice. Changes borrow request bytes and use full 128-bit document/replica
+identities, operation ordinals and length-delimited fields/values. The evaluator
+stores assignment evidence, active registers and chunked names/values through an
+immutable index supplied by its owner. It has no Station, clock, authorization or
+I/O dependency. It returns private state; the storage partition decides acceptance.
+See the [canonical format and limits](../../../contracts/DOCUMENT_V1.md#integrated-causal-map-tree-storage-slice).
+The installed `Model`/`Document` evaluator remains the existing Station contract;
+this addition does not migrate its callers or claim BP/subcolumn integration.

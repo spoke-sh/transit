@@ -128,3 +128,133 @@ Cursor creation requires the exact recorded read receipt. Release must name the
 same logical target as the retained source, as well as its owning principal.
 Every fetch checks current authorization before reading and before disclosure,
 including repeated cursors and empty terminal observations.
+
+## Integrated causal map-tree storage slice
+
+`DocumentPartition.applyCausal` is a storage-component operation, not an installed
+Document service or another selectable public engine. It evaluates the canonical
+change below, seals `DocumentIndex` records in `.tseg`, and submits the derived
+root and conflict count through the partition's single fenced WAL append. The
+opaque `applyMutation` receipt-owner seam cannot introduce or replace a logical
+root. Opaque checkpoints cannot replace logical roots either. Existing installed
+Station operations retain their current contract until their coordinated cutover.
+
+### Canonical input
+
+`LogicalChange` owns the allocation-free encoder and borrowed decoder. A frame
+contains the following fields in order; integers are unsigned little endian
+unless stated otherwise. Native struct padding is never serialized.
+
+| Field | Width / representation |
+| --- | --- |
+| Magic | Eight bytes `DCHANGE1` |
+| Definition | Mandatory current shared definition, 32 bytes |
+| Logical document | 16 nonzero identity bytes, distinct from the catalog object |
+| Merge epoch | `u64`, positive |
+| Replica | 16 nonzero identity bytes |
+| Sequence / predecessor | Two `u64`; sequence positive, predecessor exactly sequence minus one |
+| Operation count | Positive `u16`, exactly the number of encoded operations |
+| Each operation | Object dot; `u32` field-name length and UTF-8 bytes; `u16` observed count and dots; value tag and optional value body |
+
+A dot is **26 bytes**: replica bytes, big-endian `u64` sequence, big-endian `u16`
+zero-based operation ordinal. The all-zero dot denotes the root map only. Other
+dots require nonzero replica and sequence. Observed dots must be strictly ordered
+by these complete bytes, without duplicates. Operations may reference existing
+assignments or earlier operations in the same change; missing dependencies refuse
+the whole candidate. Dependency evidence survives removal and map replacement.
+
+Tags are `null_value=0`, `boolean=1`, `signed=2`, `unsigned=3`, `float=4`,
+`string=5`, `binary=6`, `map=7`, and remove `255`. Remove has no body; every other
+tag has a `u32` byte length followed by that many bytes. Null and map bodies are
+empty; boolean is one byte, zero or one; signed/unsigned numbers are eight-byte
+little-endian integers; float is a finite IEEE-754 binary64 bit pattern in little
+endian. Strings must be UTF-8. Unknown tags, invalid lengths, noncanonical observed
+sets, foreign definitions, truncated input and trailing bytes refuse. No decoder
+substitutes the current definition for a missing field.
+
+The frame's document, epoch, replica, sequence, predecessor and operation count
+must exactly match the outer `Mutation`. The outer current interpretation,
+`causal_crdt` profile and payload length/digest are also checked. This slice rejects
+raw provenance and merge-parent requests; profile parsers, raw-part bindings,
+versioned merges and sequence editing require their own integration.
+
+### Evaluation and identity
+
+Fields use exact UTF-8 names; string payloads retain their declared logical kind
+and bytes. This path does not perform collation-dependent comparison or pruning.
+Field hashes are addresses: existing complete field-name chunks must compare
+equal before the evaluator uses the register. Replacing a map assigns a new dot,
+so its old descendants stay detached. Remove clears only observed assignments;
+unobserved concurrent assignments survive, ordered by complete dot bytes. An
+explicit null differs from a missing register. Path traversal through a scalar
+reports `type_error`; an unresolved register reports `conflict`. The stored
+conflict count is the number of extra active alternatives across retained
+registers, including detached objects; it is not a visible-tree field count.
+
+Client-operation recovery and causal-change identity are separate. The paged
+history maps `(replica, sequence)` within one logical document/epoch to the first
+operation and canonical payload digest. Reusing that identity with different
+payload or lineage refuses. An exact duplicate under another operation appends
+only the new operation's receipt: its revision and state remain the first accepted
+ones, while its `accepted` position records this new receipt's WAL decision. It
+does not advance the document head, replica frontier or revision directory.
+Replaying either operation returns its own original receipt.
+
+### Persistent representation and budgets
+
+`DLOG0001` state objects contain the mandatory shared definition, exact target,
+epoch, derived conflict count and a validated `DocumentIndex.Root`. The binary
+prefix includes the shared definition before the canonical JSON descriptor.
+State descriptors are at most 4,096 bytes. The root binds immutable ordered-key
+and record-location directories. Record locations identify shared `.tseg`
+key/value rows, validated against the declared object/definition and epoch.
+
+Assignment records retain parent object dot, field hash, logical kind, value
+length and depth. Field metadata stores active count and complete-name length.
+Names and values occupy **240-byte chunks**; active dots occupy separate indexed
+records. Active vectors compact on update, so removing a field repeatedly does
+not make evaluation scan its entire tombstone history. Logical collection size
+and retained revision history do not determine resident array sizes. This is an
+explicit causal record tree, **not** the final BP topology, adaptive subcolumn or
+span-edit representation.
+
+The default partition workspace reserves 512 pending records, a 256 KiB segment
+buffer, 2 MiB segment scratch and eight logical-index cache pages. The existing
+`DocumentIndex.Store.Options` supplies explicit deployment overrides and validates
+its bounds; exceeding a candidate/segment/scratch/index-work budget refuses before
+WAL acceptance. One owner serializes one active candidate. Declaration limits bound
+change bytes, operations, depth and extra conflict alternatives. `read_steps` also
+bounds logical-index operations during this initial evaluator slice. Values may
+span many records, but a single change still fits the admitted request and private
+candidate budgets. This does not claim arbitrary-size streaming ingestion or zero
+heap allocations for the complete storage path.
+
+`DirectStorageGraph` follows logical state descriptors into both directories and
+all referenced `.tseg` segments. Sealed candidates have no acceptance authority;
+unreferenced segments remain collectible. Logical checkpoint/epoch advancement
+refuses until its evaluator and graph semantics are integrated. Retention does not
+expire data to accommodate capacity pressure.
+
+### Pinned path pages
+
+`causalCursor` requires an exact recorded read receipt with one selected revision.
+The cursor binds its retained handle, revision, full path digest, alternative,
+byte offset, cumulative steps/bytes and completion through a separate HMAC domain
+and the owner's nonzero persistent signing key. A path contains nonempty UTF-8
+components within declared depth and cumulative change-byte limits.
+
+`readCausalPage` returns an inline-owned page of at most 240 value bytes, the
+five-state path status, selected assignment/kind, complete value length and byte
+offset. Conflict alternatives are traversed in full-dot order. A byte page may
+split a UTF-8 scalar; it does not assert a complete string. Map/null/empty values
+still return an explicit terminal page. Only the authenticated completion flag
+establishes exhaustion; budget refusal never means completion. Logical-index
+steps and disclosed value bytes accumulate across calls. Descriptor and directory
+lookup add bounded per-page overhead. Every call checks the live pin and current
+authority before reading and again before disclosure, including missing and
+terminal results. Successful pages retain no pointer into scratch or caches.
+
+These storage-component cursors do not replace the shared installed caller ABI.
+Collection scans, list/text editing, BP navigation, adaptive shredding, versioned
+merge, logical checkpoints, Document transaction participants and installed
+catalog/client/SQL/Station exposure remain separate gates.

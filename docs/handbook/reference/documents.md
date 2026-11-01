@@ -100,3 +100,14 @@ SDK targets support Document changes and reads. The service runs locally, in
 Compose and in the reference deployment. It uses the Transit Document format;
 external CRDT wire formats are unsupported. See [the package](../../../packages/zig/transit-station-document/README.md)
 for exact APIs.
+
+The storage library also has an integrated causal map-tree component:
+`DocumentPartition.applyCausal` derives accepted state from canonical changes and
+persists it in bounded `.tseg` records. It supports full document/replica identities,
+nested map assignments, observed removals and paged large string/binary values;
+exact causal retries retain their first revision. Pinned path pages distinguish
+value, null, missing, type error and conflict and recheck authority before
+disclosure. See the [partition guide](../../../packages/zig/transit-storage/docs/document-partitions.md#evaluated-causal-map-trees)
+for its format, bounds and exclusions. This component does not change the installed
+Document API described above or provide list/text editing, versioned merges,
+logical checkpoints, succinct tree/subcolumn integration or Document transactions.

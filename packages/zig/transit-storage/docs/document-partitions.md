@@ -81,3 +81,35 @@ without advancing the current record, recovers the original mutation receipt,
 and rejects an invalid hash chain during open without leaking or double-freeing
 the page store. This isolates replay memory behavior; it is not additional disk
 durability, zero-allocation, process-death or power-loss evidence.
+
+## Evaluated causal map trees
+
+`applyCausal(mutation, canonical_bytes, guard)` evaluates a `LogicalChange` frame
+and publishes its derived immutable root through one WAL append. It never accepts
+supplied logical state or a supplied conflict count. Full document/replica IDs,
+nested map assignments, observed removals, explicit nulls and chunked strings or
+binary values are supported. Field-name and value size follow request/candidate
+budgets instead of the installed Station scalar ceiling. The
+[exact format and bounds](../../../../contracts/DOCUMENT_V1.md#integrated-causal-map-tree-storage-slice)
+identify the narrower component profile and remaining operations.
+
+An exact causal duplicate arriving under a new operation obtains a durable receipt
+for the first revision; it does not apply the change twice. Original-operation
+replay retains its own accepted WAL position. Reopen reads the same immutable
+`.tseg` roots, and the retained graph marks their directory and segment dependencies.
+The existing opaque `applyMutation` seam cannot overwrite these logical roots.
+Logical checkpoints currently refuse rather than accepting caller-computed state.
+
+For bounded path reads, first call `beginRead` with one exact revision, then
+`causalCursor(receipt, path, guard)` and `readCausalPage(cursor, path, guard)`.
+Each page owns up to 240 bytes inline, includes the value's total length and byte
+offset, and returns a signed continuation. Preserve the original path and cursor;
+a page can split a UTF-8 scalar. The page's completion flag, followed by a verified
+terminal call, distinguishes complete coverage from a budget refusal. Missing,
+null, type-error and conflict results stay distinct. Releasing the pin invalidates
+all continuations. Current authority is checked again after buffering.
+
+This is a library/storage integration. Installed Document lifecycle, native client
+and Station behavior still use their existing contract. It does not establish
+versioned merge, list/text editing, succinct BP layout, adaptive shredding,
+collection scans or mixed Document transactions.
