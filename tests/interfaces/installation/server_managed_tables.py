@@ -10,6 +10,8 @@ import time
 from interfaces.installation.server_direct_tables import LifecycleFixture as Fixture
 from interfaces.cli.table_console import records
 from harness.sql_placement import Probe
+from interfaces.sql_sessions.local import Client
+from interfaces.sql_sessions.storage import text
 
 
 def rows(fixture):
@@ -22,17 +24,32 @@ def observation(fixture, name="managed_projection"):
     return json.loads(result[0]['dataflow'])
 
 
-def await_revision(fixture, revision, expected):
+def await_head(fixture, name, ready):
+    # Keep one session while watching. The independent decoder verifies the
+    # schema, observation and terminal count of every distinct SHOW result.
+    client = Client(fixture.console_config(), fixture.record()['definition']).open()
     deadline = time.monotonic() + 180
-    while True:
-        current = observation(fixture)
-        head = current['observation']['head']
-        assert head['blocked'] == 'none', current
-        if head['revision'] >= revision and head['pending'] is None:
-            assert rows(fixture) == [{'id': str(value)} for value in expected]
-            return current
-        assert time.monotonic() < deadline, current
-        time.sleep(.1)
+    try:
+        while True:
+            batch = client.concurrent_read(f'SHOW DATAFLOW {name}')['batch']
+            assert batch['complete'] and batch['completion']['rows'] == 1
+            current = json.loads(text(batch['rows'][0][0]))
+            client.call(dict(close_result=batch['cursor']))
+            if ready(current['observation']['head']):
+                return current
+            assert time.monotonic() < deadline, current
+            time.sleep(.1)
+    finally:
+        client.close()
+
+
+def await_revision(fixture, revision, expected):
+    def ready(head):
+        assert head['blocked'] == 'none', head
+        return head['revision'] >= revision and head['pending'] is None
+    current = await_head(fixture, 'managed_projection', ready)
+    assert rows(fixture) == [{'id': str(value)} for value in expected]
+    return current
 
 
 def run(cli, node, host, board, gateway):
@@ -78,13 +95,7 @@ def run(cli, node, host, board, gateway):
         fixture.console('RETIRE DATAFLOW managed_projection;\n')
         assert observation(fixture)['observation']['head']['control']['state'] == 'retired'
         fixture.console('CREATE TABLE failed_input (id BIGINT NOT NULL);\nCREATE TABLE failed_output (id BIGINT PRIMARY KEY);\nINSERT INTO failed_input (id) VALUES (1),(1);\nCREATE DATAFLOW failed_projection INTO failed_output AS SELECT id FROM failed_input;\nAUTHORIZE DATAFLOW failed_projection;\nACTIVATE DATAFLOW failed_projection;\n')
-        deadline = time.monotonic() + 180
-        while True:
-            failed = observation(fixture, 'failed_projection')['observation']['head']
-            if failed['blocked'] == 'execution_failed' and failed['pending'] is None:
-                break
-            assert time.monotonic() < deadline, failed
-            time.sleep(.1)
+        failed = await_head(fixture, 'failed_projection', lambda head: head['blocked'] == 'execution_failed' and head['pending'] is None)['observation']['head']
         assert failed['revision'] == 0
         assert records(fixture.console('SELECT id FROM failed_output;\n')[-1]) == []
         fixture.console('RETIRE DATAFLOW failed_projection;\n')
