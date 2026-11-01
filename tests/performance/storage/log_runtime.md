@@ -23,6 +23,11 @@ page per native page cache. The catalog and log owners have separate configured
 caches; the caller records their compiled defaults under `owner_budgets` in each
 phase, including index-work, tail and Queue candidate/scheduling bounds. These
 are configuration limits, not measured memory use. Restart must preserve them.
+The report also records the actual native cache, server timeout and configured
+clock-error allowance from the private node configuration. This fixture starts
+the bare node without automatic maintenance. Its 10,000-ms clock allowance
+governs the local Stream/Queue time envelope; it does not extend the 60-second
+lease or the caller's 30-second timeout.
 The node stores accepted history on local disk. The driver copies
 matching ReleaseSafe binaries before creating a private installation and uses
 the public signed client directly, without the fault proxy in the measured path.

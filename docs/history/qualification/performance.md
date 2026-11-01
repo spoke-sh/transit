@@ -9,6 +9,72 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Installed Stream/Queue partial baseline and clock refusal — 2026-11-01
+
+The six-profile [installed log workload](../../../tests/performance/storage/log_runtime.md)
+**failed** on clean source `91d217cbd37bde345639f5be033eca554c7019c1`,
+definition `88f775c8616770581cd647680929e7352ca239d43ecb51c9552da5d660c3ec65`.
+The first three profiles completed three warmup and twenty measured iterations,
+then verified every original receipt, retained selection and payload after a
+SIGTERM restart. Their independent oracles cover 23 single-row Stream payloads,
+2,944 payloads in 128-row Stream appends and 23 single-row Queue payloads.
+These completed profiles supply initial observations; they do not make the
+six-profile run a pass.
+
+| Completed profile operation | Samples | p50 / p95 (ms) |
+| --- | ---: | ---: |
+| Stream single-row append | 20 | 667.687 / 1,363.635 |
+| Stream 128-row append | 20 | 796.223 / 1,665.209 |
+| Single-row Stream page | 20 | 5.983 / 7.798 |
+| 128-row Stream page | 20 | 15.313 / 21.005 |
+| Queue single-row enqueue | 20 | 569.677 / 2,117.166 |
+| Queue single-row claim | 20 | 630.019 / 1,421.354 |
+| Queue single-row ACK | 20 | 457.285 / 1,051.735 |
+
+The fourth profile stopped during warmup with native cause `ClockRollback` on
+ACK operation `1200177`. Its 188 attempted calls include 187 successes and one
+unknown outcome, with no terminal rejection. The two FIFO profiles did not run.
+Reopening the retained installation with the matching node and inspecting the
+saved original request returned a null receipt; that observation does not prove
+rejection. No mutation was resubmitted. The private installation
+`/var/tmp/transit-table-log-baseline-bj2j4lpz` retains the original request, node
+log, inspection output and inspection report. Clock samples were not captured
+at the failed call, so its precise cause cannot be reconstructed from this run.
+
+The run uses ReleaseSafe binaries, local disk, 128-byte payloads, one sequential
+caller, unlimited retention, 60-second leases, a 30-second client timeout and
+10,000-ms configured clock-error allowance. The native cache has one page;
+catalog and partition caches each have sixteen. Per-phase `owner_budgets`
+records the separate index, tail, candidate and scheduling limits. Automatic
+maintenance is absent. The Linux 6.17.0-41 x86_64 host exposes 48 logical CPUs;
+starting load averages were 32.041 / 33.395 / 39.315. No agent-owned heavy build
+or fault suite overlapped measurement; other host work was uncontrolled.
+
+```sh
+just test::log-runtime-baseline \
+  --output .cache/performance/log-baseline-batched-1 --warmup 3 --repeat 20
+```
+
+The ignored report has SHA-256
+`d99736bc271f8140ba4b9397bcb413556664e865f936d656e290f069396cb8de`.
+Matching node/caller SHA-256 values are
+`da782babf971422c6a4b53764102d9091050797fcd9e7197f0f183d9f1370085` and
+`036cb5fae86ca59da1153298bba523fbe8c9861357cad84e93e0cc201533c8d3`.
+Raw JSONL, per-phase allocation counts, node usage and restart results remain
+beside the report. p99, server allocations, CPU cycles and storage IOPS remain
+unmeasured. Sealed/cold reads, groups, waits, delays, expiry and concurrent load
+remain outside these completed profiles.
+
+An earlier 128-row Queue correctness smoke at clean `f41050b9a` passed one
+warmup and one measured iteration, all 256 payload checks and restart recovery;
+its one measured enqueue took 15,320.271 ms. That is not enqueue percentile
+evidence. `.cache/performance/log-batched-smoke-1/report.json` has SHA-256
+`c6b9e852e57cb866129920191d7b1d4e58ea07a5bcb96060b38cd8c4d9c65537`.
+Before private candidate/index batching, the corresponding run timed out on
+enqueue `1200001`; inspection of its original private installation also found
+no receipt. Different populations and host conditions prevent a matched speedup
+claim. Both failed runs remain failures, independent of later improvements.
+
 ## Installed Station handler baseline — 2026-11-01
 
 The [handler workload](../../../tests/performance/load/station_turn.md) passed

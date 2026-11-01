@@ -165,6 +165,11 @@ def exercise(node, caller, root, profile_path, url, settings_path, restart, owne
     destination = Path(settings['output'])
     report = settings['report']
     report['definition'] = json.loads(profile_path.read_text())['definition']
+    configuration = json.loads((root / 'node.json').read_text())
+    report['fixture'] = dict(native_resident_pages=configuration['resident_pages'],
+                            server_timeout_ms=configuration['request_timeout_ms'],
+                            max_clock_error_ms=configuration['genesis']['max_clock_error_ms'],
+                            automatic_maintenance=False)
     # Binary files are frozen by main before setup. The endpoint goes directly
     # to the owner; the correctness fault proxy is not in the timing path.
     for profile in settings['profiles']:
