@@ -9,6 +9,49 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Fenced Queue lease descriptor codec — 2026-11-01
+
+`ec68e4da5d477d3bed8d191459cbdd4b31338541` adds `QueueLeaseHandle`, the allocation-free
+168-byte `QLH1` encoding of an exact native lease. It requires the explicit current
+definition, exact length and native lease validation. It establishes neither an
+accepted claim nor current authority or liveness. SQL projection and settlement
+remain unimplemented. See the [format contract](../../../contracts/QUEUE_V1.md#opaque-lease-descriptor-codec).
+
+The isolated helper `d1875c2fe0f01d72d40c77dd17dda3e95f7649c0` passed all
+**113/113 protocol tests in ReleaseSafe**, including independent fixed byte
+positions, every truncated length, trailing bytes, foreign definition, invalid
+epoch/domain, full-width unsigned fields and preserved expiry/fencing checks.
+Its protocol package tree `bd98d2a3fc4325ad195f4e7174dd5c2176808b7f` is identical to the main implementation's
+package tree. `just contract::generate` passed and left all generated declarations
+unchanged: the new helper changes no existing wire/ABI or stored native request.
+The current definition remains `aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7`.
+
+| Check | Result | Log SHA-256 |
+| --- | --- | --- |
+| Protocol (`protocol1`) | 113/113 | `09b366342f47a93a58841f80afbd0b27232e752098030f8b8ce81321fb97ffb7` |
+| Contract generation (`contract1`) | Passed; no generated drift | `4641dc2c0ffd53d35bcffec99c18e6642e10f786b4162a839657950f0bbd48c4` |
+| Combined branch fast checks (`main-fast1`) | 61 passed; 159 package pins aligned | `f7dd32ab3a0bea9bc6df92867880250d96bbce91b383d60a35087a803b0e0b86` |
+| Helper documentation (`docs1`) | 10103 links / 710 files | `67003f6848a3231731b1f85b573dcc195ca15ba6705b830b54a51e1baafb6723` |
+
+Logs use `/var/tmp/transit-m6-queue-handles-<name>.log`. This qualifies the
+codec and its shape/fence checks, not installed handle delivery or settlement.
+
+### Integration with origin main
+
+The feature branch was rebased onto `1b047eb62bfba71b7431bb7db8b4aa1c962c628c`.
+All 103 existing commits were retained. Range comparison identifies only two
+manual resolutions: preserving both SDK and M6 performance task registrations,
+and preserving both sets of qualification history. No runtime source conflict
+required a manual resolution. The rebased source `d96ebb452648e7db77959d842c08e715c66a6c9a`
+passed 61 fast checks and 10284 documentation links across 719 files before the
+codec addition. Installed claim qualification is building from that frozen source.
+Earlier installed evidence retains its original attribution; this rebase does not
+establish a new common-revision runtime, performance or whole-M6 pass.
+
+- Range comparison SHA-256: `ab2972851d19fd609f91975c3f7a62c75afe980372b9889564fe29e5ebf80871`.
+- Rebased fast log SHA-256: `558e37a80a1926239204d89762882cb5553bdd92161c08f51c1a3dae12fe0707`.
+- Rebased documentation log SHA-256: `4ca7a5ca2a5cf4f484b9fbeefbe380594746ead3fdd00e4f4826b1132d42da84`.
+
 ## Partition-routed SQL Queue claims — 2026-11-01
 
 `00244c553bbbdedf7d7e85dcd3f9260275b7d801` (clean qualification helper
