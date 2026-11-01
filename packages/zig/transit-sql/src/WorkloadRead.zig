@@ -50,7 +50,8 @@ pub const Prepared = struct {
     }
     pub fn limits(self: *const Prepared) native.Limits {
         const declared = self.reference.source.declaration.limits;
-        return .{ .rows = @min(g.session_protocol.max_rows, declared.read_rows), .encoded_bytes = @min(1024 * 1024, declared.read_bytes), .scanned_rows = 65536 };
+        const page: c.storage.StreamPartition.ReadLimits = .{ .rows = @min(g.session_protocol.max_rows, declared.read_rows), .encoded_bytes = @min(1024 * 1024, declared.read_bytes) };
+        return .{ .rows = page.rows, .encoded_bytes = page.encoded_bytes, .scanned_rows = page.scanned_rows };
     }
     pub fn open(self: *const Prepared, caller: c.DirectTableClient) !c.DirectWorkloadResultProtocol.Opened {
         const response = try caller.call(.{ .workload_result = .{ .open = .{ .intent = self.reference, .limits = self.limits() } } });
@@ -198,7 +199,7 @@ test "workload reader retains projected cells and original coverage through lost
                         .{ .consume = self.receipt } } };
                 },
                 .workload_result => |query| blk: {
-                    const reference: native.Reference = .{ .intent = self.reference, .selection = .{ .consume = self.receipt }, .limits = .{ .rows = 1, .encoded_bytes = 8192, .scanned_rows = 65536 } };
+                    const reference: native.Reference = .{ .intent = self.reference, .selection = .{ .consume = self.receipt }, .limits = .{ .rows = 1, .encoded_bytes = 8192, .scanned_rows = 4096 } };
                     if (query == .open) break :blk .{ .workload_result = .{ .opened = .{ .reference = reference, .position = .{ .consume = self.cursor(0) }, .source = self.intent.parsed.value.source } } };
                     try reference.requireSame(query.page.reference);
                     self.pages += 1;

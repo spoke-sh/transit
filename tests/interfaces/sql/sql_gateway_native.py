@@ -20,8 +20,9 @@ def run(node, catalog, gateway):
     node, catalog, gateway = [str(Path(p).resolve()) for p in (node, catalog, gateway)]
     with tempfile.TemporaryDirectory(prefix='transit-sql-database-', dir='/var/tmp', delete=False) as directory:
         root = Path(directory)
-        (root/'identity.json').write_text(json.dumps(dict(source=provenance(ROOT),
-            binaries=[identity(Path(binary)) for binary in (node, catalog, gateway)])))
+        installation_identity = dict(source=provenance(ROOT),
+            binaries=[identity(Path(binary)) for binary in (node, catalog, gateway)])
+        (root/'identity.json').write_text(json.dumps(installation_identity))
         http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         port = free_port()
         direct = f'http://127.0.0.1:{port}'
@@ -312,7 +313,7 @@ def run(node, catalog, gateway):
             assert sends == turns == 0, 'SQL database work dispatched Station messages or turns'
             assert capacity_repeats == 1, capacity_repeats
             assert not failures, failures
-            print(json.dumps(dict(profile='native_sql_database', exact_token_recovery=True,
+            print(json.dumps(dict(profile='native_sql_database', identity=installation_identity, exact_token_recovery=True,
                                   committed_reply_timeout_crashes=2,
                                   fenced_replacements=2, direct_outcome_recovered=recovered,
                                   explicit_execute_repeated=repeated, saved_receipt_recoveries=saved_recoveries,

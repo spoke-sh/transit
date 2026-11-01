@@ -35,6 +35,9 @@ and completion evidence. Returned rows are borrowed until the next pull: a batch
 owner must copy them and recheck disclosure after buffering, including repeated
 or empty terminal responses. Closing only releases local memory. The session
 service uses this adapter to reopen existing workload tokens.
+Native pages use the Stream reader's default 4,096-row scan budget and respect
+the declaration's row/byte limits. A SQL batch may span multiple native pages;
+filtered rows still contribute to original consumption coverage.
 `WorkloadOperations` projects native receipts and recorded closures and advances
 the same frozen work through Catalog's terminal settlement gate. Workload SQL
 admission remains unimplemented; native group assignment and read-release tokens
