@@ -46,10 +46,13 @@ pub fn fromReference(reference: g.IntentReference.Reference, result: w.Result) !
     if (reference == .transaction or reference == .transaction_call) return error.TransactionOperationRequired;
     if (reference == .table) return fromResult(reference.table.binding, result);
     if (reference == .log) {
-        if (result != .log_operation) return error.InvalidGatewayTerminal;
-        const evidence = switch (result.log_operation) {
-            .not_observed => return null,
-            .operation => |value| value,
+        const evidence = switch (result) {
+            .log_admitted => |value| value,
+            .log_operation => |observed| switch (observed) {
+                .not_observed => return null,
+                .operation => |value| value,
+            },
+            else => return error.InvalidGatewayTerminal,
         };
         try evidence.validate();
         const binding = reference.log.binding;
@@ -231,9 +234,11 @@ test "log declaration projection preserves pending and rejected original evidenc
     var evidence: c.DirectLog.Operation = .{ .binding = binding, .intent = .{ .bytes = 100, .sha256 = @splat(5) }, .kind = .queue, .namespace = 1, .name = try .init("work"), .owner = 0, .position = .{ .partition = 1, .next_lsn = 8 }, .phase = .admitted, .reason = .none, .first_partition = 11, .partition_count = 2, .initialized = 0, .resulting = null };
     try t.expect(try fromReference(reference, .{ .log_operation = .not_observed }) == null);
     try t.expect(try fromReference(reference, .{ .log_operation = .{ .operation = evidence } }) == null);
+    try t.expect(try fromReference(reference, .{ .log_admitted = evidence }) == null);
     evidence.phase = .rejected;
     evidence.reason = .name_conflict;
     const terminal = (try fromReference(reference, .{ .log_operation = .{ .operation = evidence } })).?;
+    try t.expectEqualDeep(terminal, (try fromReference(reference, .{ .log_admitted = evidence })).?);
     try t.expectEqual(.rejected, terminal.state);
     const completion_value = try terminal.completion(try g.IntentReference.commandKind(reference), .{ .account = @splat(8), .id = 99 });
     try t.expectEqual(.create_queue, completion_value.kind);
