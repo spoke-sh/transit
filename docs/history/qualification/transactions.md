@@ -7,6 +7,54 @@ Current semantics belong to the [transaction reference](../../handbook/reference
 [direct Table contract](../../../contracts/DIRECT_TABLE_V1.md). This record keeps
 finite models, component recovery and installed histories separate.
 
+## Mixed disk decisions and frozen DLQ plans — 2026-11-01
+
+Committed source `f3c6f162b0b02b10b418989891b545276c66d574`, definition
+`8e441078693f1373d69323bfeadd5cfe8c7024ec2015819bacfb2b04eaea3865`, passes
+all **13 tests** in this local catalog-package invocation:
+
+```sh
+cd packages/zig/transit-catalog
+zig build test \
+  -Dtest-filter='mixed transaction reopens' \
+  -Dtest-filter='Queue transfer plan' \
+  -Dtest-filter='transaction log source cuts' \
+  -Dtest-filter='transaction log statements' \
+  -Dtest-filter='transaction log terminal transfers' \
+  -Doptimize=ReleaseSafe --summary all
+```
+
+The new mixed schedule combines a 512-byte KV value, a Table row, Stream append
+and authenticated offset settlement, and Queue enqueue and ACK. It also retains
+one read-only Stream partition in the common cut. The commit path encounters
+**38 injected failures**, alternating refusal before the next WAL append and
+reply loss after its durable acceptance; abort after a prepared prefix encounters
+**22**. Each path reopens disk owners at every failure and reaches all seven
+logs: Catalog, decision and five participants. The test checks the changed WAL
+tail independently, retains the original transaction/statement identities, and
+verifies values, offsets, lease state and original receipts after cleanup.
+Decision recovery has no clock or old cursor-signing authority. A later abort
+cannot replace the committed decision, and cleanup releases the account's
+transaction reservation. These are injected append failures with orderly owner
+reopen, not process-kill or power-loss schedules.
+
+The separate `DirectQueueTransferPlan` checks preserve a global exhausted-source
+key across caller/account and policy changes while committing the complete
+original plan to a different digest. They exercise sorted two-Queue selection,
+identity conflicts, immutable disk reopen, scope substitution, noncanonical
+bytes and missing/foreign definitions. This descriptor supplies neither the
+automatic scheduler nor its required catalog admission and source binding.
+
+The raw log `/var/tmp/transit-m6-mixed-and-plan6.log` has SHA-256
+`f55cd4532c2df5ab2744d9d2b21b9620f1189cb4ac4a3b5ec14be0659cf8d1a1`.
+Execution took three minutes with 38 MB reported peak RSS; compilation took one
+minute with 2 GB reported peak RSS. The same committed source also passes all
+60 fast checks and 19 contract checks. This local invocation is not a clean-clone
+CI lane or installed-caller qualification. Earlier runs exposed two test issues:
+an injector left armed during the independent readback, and a foreign-definition
+negative expecting the inner enum error instead of the shared JSON refusal.
+Those failed runs remain failures; the command above is the completed rerun.
+
 ## Mixed workspace replay after PR #303 — 2026-11-01
 
 Committed source `8f1c2afb781cb309325e85b8b1dd43ac50b6d76d` passes
