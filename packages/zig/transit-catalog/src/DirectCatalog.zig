@@ -3831,6 +3831,7 @@ pub fn pinRowsDefined(self: *Self, interpretation: d.Definition, owner: d.Operat
 /// The native caller and executor checks remain the service's responsibility.
 pub fn captureRowsDefined(self: *Self, interpretation: d.Definition, owner: d.Operation, minimum: d.Position, policy: Policy) !P.SnapshotHandle {
     try interpretation.validate();
+    try self.requireUnreservedBranchPin(interpretation.object, owner);
     try minimum.validate();
     if (minimum.next_lsn == 0) return error.InvalidTableBasis;
     var arena = std.heap.ArenaAllocator.init(self.allocator);
@@ -3860,7 +3861,7 @@ pub fn retainHistory(self: *Self, object: d.Object, owner: d.Operation, expected
 }
 
 fn pinRowsChecked(self: *Self, object: d.Object, owner: d.Operation, expected: d.Position, interpretation: ?d.Definition, retention: P.Retention, policy: Policy) !P.SnapshotHandle {
-    try self.requireUnreservedBranchPin(owner);
+    try self.requireUnreservedBranchPin(object, owner);
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
     var access = try self.snapshotAccess(arena.allocator(), object, owner, policy, false);
@@ -4018,7 +4019,7 @@ pub fn scanFiltered(self: *Self, allocator: std.mem.Allocator, object: d.Object,
 }
 
 pub fn releaseRows(self: *Self, object: d.Object, handle: P.SnapshotHandle, policy: Policy) !void {
-    try self.requireUnreservedBranchPin(handle.owner);
+    try self.requireUnreservedBranchPin(object, handle.owner);
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
     var access = try self.snapshotAccess(arena.allocator(), object, handle.owner, policy, true);
@@ -4114,11 +4115,15 @@ fn prepareBranchAdmission(self: *Self, intent: c.DirectBranch.Intent, policy: Po
     if ((try access.view.table.pinState(intent.identity(), access.current)).handle != null) return error.DataIdentityConflict;
 }
 
-fn requireUnreservedBranchPin(self: *Self, owner: d.Operation) !void {
+fn requireUnreservedBranchPin(self: *Self, object: d.Object, owner: d.Operation) !void {
     try self.requireInitialized();
     try owner.validate();
     if (!std.meta.eql(owner.scope, self.config().scope)) return error.DataIdentityConflict;
-    if (try self.store.tree().get(self.store.root.branch_owners, try r.operationKey(owner)) != null) return error.BranchRetentionOwned;
+    const value = try self.store.tree().get(self.store.root.branch_owners, try r.operationKey(owner)) orelse return;
+    const progress = try self.store.branchByDigest(value);
+    // Ordinary multi-source readers can use one owner on several Tables.
+    // Only this branch's original source pin belongs to its retention owner.
+    if (std.meta.eql(object, progress.receipt.binding.intent.branch.source.interpretation.object)) return error.BranchRetentionOwned;
 }
 
 fn branchProgress(self: *Self, key: c.DirectClientToken.Key, policy: Policy) !?c.DirectClientToken.Progress {

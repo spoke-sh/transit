@@ -5149,7 +5149,14 @@ test "direct branch cancellation recovers pin cleanup and preserves nonreused id
     _ = try catalog.admit(create, access.policy());
     _ = try catalog.perform(create.binding, access.policy());
     _ = try insertSelectedTable(&catalog, &access, "events", 100);
+    const other = try creation(8, 2, "other");
+    _ = try catalog.admit(other, access.policy());
+    _ = try catalog.perform(other.binding, access.policy());
     const request = try branchRequest(&catalog, &access, 200, 1, "trial", .full_data);
+    var view = (try resolve(&catalog, &access, "other")).?;
+    const other_position: p.DataLifecycle.Position = .{ .partition = view.table.root.partition, .next_lsn = view.table.root.next_lsn };
+    view.deinit();
+    const unrelated = try catalog.pinRows(other.binding.target, request.intent.identity(), other_position, access.policy());
     catalog.lose_table_reply = true;
     try t.expectError(error.LostAcknowledgement, catalog.createBranch(request, access.policy()));
     const original = (try catalog.inspectBranch(request.key, access.policy())).?;
@@ -5157,6 +5164,10 @@ test "direct branch cancellation recovers pin cleanup and preserves nonreused id
     try t.expectError(error.BranchNameConflict, catalog.createBranch(conflict, access.policy()));
     try t.expectError(error.LostAcknowledgement, catalog.advanceBranch(request.key, true, access.policy()));
     catalog.lose_table_reply = false;
+    // The branch owns only its selected source. Another retained source with
+    // the same reader operation must still be independently releasable.
+    try catalog.releaseRows(other.binding.target, unrelated, access.policy());
+    try t.expect((try catalog.pinState(other.binding.target, request.intent.identity(), access.policy())).released);
     catalog.deinit();
     catalog = try owner(&wal, &objects);
     const cancelled = try catalog.advanceBranch(request.key, false, access.policy());
@@ -5193,6 +5204,7 @@ test "direct branch admission never retargets a stale unpinned source" {
     access.deny_create = false;
     // Crash boundary after durable name/token admission, before Table pinning.
     _ = try catalog.clientToken(.{ .bind = .{ .key = request.key, .fingerprint = try request.intent.digest(), .intent = .{ .branch = request.intent }, .budget = request.budget } }, access.policy());
+    try t.expectError(error.BranchRetentionOwned, catalog.captureRowsDefined(request.intent.source.interpretation, request.intent.identity(), request.intent.source.accepted, access.policy()));
     _ = try insertSelectedTable(&catalog, &access, "events", 999);
     catalog.deinit();
     catalog = try owner(&wal, &objects);
