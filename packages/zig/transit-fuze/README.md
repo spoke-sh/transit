@@ -532,6 +532,11 @@ PyArrow. The package tests exercise shared Arrow/compute types, ownership and
 output failure, and the compatible upstream compute suite. PyArrow is a test
 dependency; no C++ query engine is linked into Fuze.
 
+The `fuze-types`, `table-schema`, `relational` and `fuze-sources` recipes also run
+the package test graph after their independent oracles. Logical types and row
+validation share the declared protocol, memory and Arrow modules; compiling
+those source files as dependency-free test roots does not exercise that graph.
+
 [Integration notes](docs/integration.md) record pins, compatibility changes and
 measured limits. [Tables](../../../docs/handbook/reference/tables.md) owns transaction and result
 semantics; [Arrow](../../../docs/handbook/reference/arrow.md) owns Arrow interchange.

@@ -967,7 +967,7 @@ vortex-profile profile:
 # Independent logical type fixtures, allocation failures and exact codecs.
 fuze-types:
     python3 -B tests/runner/launch.py tests/query/logical/fuze_types.py
-    zig test packages/zig/transit-fuze/src/Types.zig
+    cd packages/zig/transit-fuze && zig build test
 
 # General Table schema identities, row constraints and independent byte oracle.
 table-schema:
@@ -975,20 +975,17 @@ table-schema:
     python3 -B tests/runner/launch.py tests/catalog/tables/table_schema.py
     python3 -B tests/runner/launch.py tests/storage/local/table_storage.py
     python3 -B tests/runner/launch.py tests/catalog/tables/table_catalog.py
-    zig test packages/zig/transit-fuze/src/TableRow.zig
-    zig test packages/zig/transit-fuze/src/TableEvolution.zig
-    zig test packages/zig/transit-fuze/src/SqlTypes.zig
+    cd packages/zig/transit-fuze && zig build test
 
 # Relational contracts, bounded executor and independent finite semantics.
 relational:
     python3 -B tests/runner/launch.py tests/query/execution/relational.py
-    zig test packages/zig/transit-fuze/src/Relational.zig
-    cd packages/zig/transit-fuze && zig build test-relational -Doptimize=ReleaseSafe
+    cd packages/zig/transit-fuze && zig build test test-relational -Doptimize=ReleaseSafe
 
 # Independent CSV/JSONL records, schema binding, denial and allocation schedules.
 fuze-sources:
     python3 -B tests/runner/launch.py tests/query/logical/fuze_sources.py
-    zig test packages/zig/transit-fuze/src/FileSource.zig
+    cd packages/zig/transit-fuze && zig build test
 
 # Real file/stdin/gzip query host, independent codecs and constrained process memory.
 file-query:
