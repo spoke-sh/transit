@@ -73,7 +73,21 @@ keys and requires every row to reach the same partition; cross-partition work
 requires the transaction owner and is refused before publication here. Declared
 row/byte budgets and the existing encoded record bound apply. Native token
 acceptance and dispatch retain current write authorization, and result opening
-retains current read authorization. SQL session admission is still unwired.
+retains current read authorization. SQL sessions reuse this adapter for append admission.
+
+`DirectLogPreparedConsume` binds the typed consumption compiler to an exact
+Catalog Stream definition for positional preparation. It freezes one native read
+and its owned projection without uploading, accepting or retaining a read.
+Metadata constraints must select one declared partition (a one-partition Stream
+can omit them); Boolean alternatives use a conservative enclosure. The lower
+offset is a positional source boundary. It neither traverses earlier offsets nor
+advances a group checkpoint. The upper cut is chosen once by the native owner at
+acceptance; upper-offset comparisons remain row predicates within that cut.
+The complete predicate retains Fuze's eager evaluation for traversed rows.
+LIMIT stays in the logical plan and never becomes an offset span. Contradictory
+metadata selections, named groups and waits are refused by this preparation
+profile until their admission owners are supplied. SQL `CONSUME` admission
+remains unavailable.
 
 `createProjected` additionally freezes a Fuze projection and ordered input layout
 in that body. Validation binds the encoded plan to the exact operation and schema;

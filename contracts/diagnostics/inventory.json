@@ -5874,6 +5874,40 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectLogPreparedConsume.zig": {
+      "errors": {
+        "CatalogDefinitionChanged": 2,
+        "CatalogIdentityConflict": 2,
+        "CatalogKindMismatch": 1,
+        "CatalogNameNotFound": 1,
+        "InvalidLogPartitioning": 2,
+        "InvalidWorkloadProjection": 1,
+        "LogPartitionRequired": 1,
+        "QueryTypeError": 1,
+        "UnsupportedConstruct": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "TestFixture.init()": "<inferred>",
+        "bindPrepared()": "<inferred>",
+        "bounds()": "<inferred>",
+        "freeze()": "<inferred>",
+        "init()": "<inferred>",
+        "prepare()": "<inferred>",
+        "testOwned()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 46,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DirectLogPreparedDdl.zig": {
       "errors": {
         "CatalogDefinitionChanged": 1,
@@ -9333,6 +9367,7 @@
         "DirectLogClient.zig",
         "DirectLogIntent.zig",
         "DirectLogPreparedAppend.zig",
+        "DirectLogPreparedConsume.zig",
         "DirectLogPreparedDdl.zig",
         "DirectLogProtocol.zig",
         "DirectMigration.zig",
