@@ -71,6 +71,17 @@ deployment assumptions; reading a clock does not prove them. Controlled-clock
 tests prove the deadline rules. The `--maintain` mode hosts background expiry,
 closure, checkpoint/trim and eligible payload deletion in a separate process.
 
+Stream and Queue owners use a fixed interval around each trusted UTC sample:
+the configured `genesis.max_clock_error_ms` on each side. The kernel-reported
+error must fit inside that envelope. Keeping its width fixed prevents a normal
+decrease in reported synchronization error from looking like a regressing upper
+clock floor. Actual UTC regression still fails the native and persisted partition
+floor checks; restart never resets those floors. Visibility and expiry use the
+lower bound, while append timestamps and lease deadlines use the upper bound.
+A larger configured error allowance therefore makes timed eligibility more
+conservative; it is not just a health threshold. Missing or untrusted time still
+refuses time-dependent work.
+
 ## Service diagnostics
 
 `LOG_LEVEL` / `LOG_FORMAT` select bounded stderr diagnostics; see

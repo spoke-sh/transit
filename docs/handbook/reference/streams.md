@@ -14,6 +14,10 @@ An age policy requires trusted UTC within the deployment's configured clock
 uncertainty bound. Append records a conservative upper timestamp; expiry needs
 a later lower bound proving the declared age has elapsed. Missing or regressing
 time refuses fresh timed work while original receipts remain inspectable.
+The local node uses `genesis.max_clock_error_ms` as a fixed envelope around
+trusted UTC for both bounds. A larger allowance makes timed visibility and
+expiry more conservative. The kernel-reported error must remain within it;
+changes to that reported error do not reset or relax accepted time floors.
 
 Preview writes nothing. Admission freezes the original request and reserves its
 name and partition identities. Bounded execution registers the permission object
