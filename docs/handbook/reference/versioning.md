@@ -108,7 +108,7 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`f6b5c8f378a74fe653cc9d6f3e472229289cc299a62f856551962bd76e321880`.
+`22ddc953c1268d7f6a785c40860c62c727050223f8916e052f626b434974cb10`.
 It binds direct KV, mixed state/log transactions and frozen Stream/Queue
 declaration intents together with retained Table branches and installed worker
 rotation. Catalog roots require branch identity, name and retention-owner
@@ -117,6 +117,11 @@ owner. Installation records require per-worker enrollment receipts and the last
 accepted public key. Restart conditionally rotates that key and ownership
 without re-granting permissions. Earlier installations cannot synthesize these
 fields and reject before starting authority.
+
+This definition also integrates managed-computation operation identities, logical
+Document storage, and compact string results. Managed computations and database
+workloads have distinct SQL operation tags; a saved identifier from an earlier
+build cannot be reinterpreted as the other operation kind.
 
 Frozen workload projections include binary Queue lease receipts. Queue ACK
 retains the original exact lease, while its preparation metadata can describe a
@@ -153,9 +158,9 @@ intent and exact native position separately from output row count. The
 replacement definition rejects earlier frame layouts before interpretation.
 SQL operation messages also distinguish workload command completion from retained
 rows and carry original native receipt/closure evidence. The session service can
-inspect/recover these tokens and open their frozen projections. SQL append
-admission is implemented; other workload verbs remain unavailable. Missing native evidence cannot establish a
-terminal workload operation.
+inspect/recover these tokens and open their frozen projections. SQL append, positional consumption, routed claim and ACK admission use these
+shared workload operations. Missing native evidence cannot establish a terminal
+workload operation.
 
 The signed direct service also exposes original workload result opening and
 paging. Mandatory references bind the frozen intent, accepted selection and

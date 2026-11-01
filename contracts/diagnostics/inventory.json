@@ -4819,7 +4819,7 @@
       },
       "open_error_set_uses": 11,
       "propagation": {
-        "try": 1697,
+        "try": 1703,
         "catch": 25
       },
       "imports": [
@@ -6722,7 +6722,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 507,
+        "try": 517,
         "catch": 1
       },
       "imports": [
@@ -21078,7 +21078,7 @@
           "deadline"
         ],
         "Definition": [
-          "f6b5c8f378a74fe653cc9d6f3e472229289cc299a62f856551962bd76e321880"
+          "@\"22ddc953c1268d7f6a785c40860c62c727050223f8916e052f626b434974cb10\""
         ],
         "Effect.phase": [
           "pending",
@@ -29585,6 +29585,8 @@
           "savepoint",
           "release_savepoint",
           "rollback_to_savepoint",
+          "create_dataflow",
+          "control_dataflow",
           "produce",
           "consume",
           "commit_offset",
@@ -29599,6 +29601,7 @@
           "configuration",
           "captured",
           "transaction",
+          "dataflow",
           "workload"
         ],
         "Outcome": [
@@ -29913,6 +29916,7 @@
         "InvalidSqlAction": 2,
         "InvalidSqlCursor": 2,
         "InvalidSqlOperationReference": 3,
+        "ManagedControlCancellationUnsupported": 1,
         "MissingGatewayOperation": 1,
         "OutOfMemory": 1,
         "QueryDenied": 3,
@@ -29963,7 +29967,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 129,
+        "try": 133,
         "catch": 9
       },
       "imports": [
@@ -30038,6 +30042,7 @@
         "LogAppendLimitExceeded": 1,
         "LogPartitionKeyMismatch": 1,
         "LogPartitionRequired": 1,
+        "ManagedTableRequiresNativeSession": 1,
         "MissingGatewayTerminal": 2,
         "MissingResultObservation": 1,
         "NullNotAllowed": 1,
@@ -30106,6 +30111,7 @@
           "inspection",
           "source",
           "captured",
+          "managed",
           "workload"
         ],
         "Read.value": [
@@ -30154,7 +30160,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 121,
+        "try": 126,
         "catch": 9
       },
       "imports": [
@@ -30490,8 +30496,8 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 118,
-        "catch": 13
+        "try": 123,
+        "catch": 15
       },
       "imports": [
         "root.zig",
@@ -30738,6 +30744,7 @@
           "configuration",
           "captured",
           "transaction",
+          "dataflow",
           "workload"
         ]
       },
@@ -40086,7 +40093,8 @@
   },
   "grammars": {
     "contracts/sql/TransitExtensions.g4": {
-      "statement": "( selectStatement | mutationStatement | logAppendCommand | logConsumeCommand | logClaimCommand | logSettlementCommand | extensionStatement | transactionStatement ) SEMI ? EOF",
+      "statement": "( selectStatement | mutationStatement | logAppendCommand | logConsumeCommand | logClaimCommand | logSettlementCommand | extensionStatement | transactionStatement | managedCommand ) SEMI ? EOF",
+      "managedCommand": "CREATE DATAFLOW identifier INTO identifier AS relationalSelect | ( AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE ) DATAFLOW identifier | SHOW DATAFLOW identifier | EXPLAIN CREATE DATAFLOW identifier INTO identifier AS relationalSelect",
       "transactionStatement": "( BEGIN ( WORK | TRANSACTION ) ? | START TRANSACTION ) transactionOptions ? | COMMIT ( WORK | TRANSACTION ) ? | ROLLBACK ( WORK | TRANSACTION ) ? ( TO SAVEPOINT ? identifier ) ? | SAVEPOINT identifier | RELEASE SAVEPOINT ? identifier",
       "transactionOptions": "ISOLATION LEVEL SERIALIZABLE transactionAccess ? | transactionAccess ( ISOLATION LEVEL SERIALIZABLE ) ?",
       "transactionAccess": "READ ( ONLY | WRITE )",
@@ -40200,6 +40208,13 @@
       "identifier": "settingIdentifier | STREAMS | QUEUES | DATAFLOW | AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE",
       "settingIdentifier": "legacyIdentifier | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER",
       "legacyIdentifier": "IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | INSERT | UPDATE | DELETE | SET | VALUES | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS | COLLATE | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | ROLLBACK | SAVEPOINT | RELEASE | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE | STREAM | QUEUE | PARTITION | PARTITIONS | HASH | PRODUCE | ENQUEUE | PRODUCER | ID | EPOCH | SEQUENCE | VISIBLE_AT | RETURNING | CONSUME | CLAIM | LEASE | WAIT | ACK | EXTEND | RECEIPT",
+      "DATAFLOW": "'DATAFLOW'",
+      "AUTHORIZE": "'AUTHORIZE'",
+      "ACTIVATE": "'ACTIVATE'",
+      "SUSPEND": "'SUSPEND'",
+      "RESUME": "'RESUME'",
+      "REFRESH": "'REFRESH'",
+      "RETIRE": "'RETIRE'",
       "BEGIN": "'BEGIN'",
       "STREAM": "'STREAM'",
       "QUEUE": "'QUEUE'",

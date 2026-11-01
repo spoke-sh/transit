@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "definition": "f6b5c8f378a74fe653cc9d6f3e472229289cc299a62f856551962bd76e321880",
+  "definition": "22ddc953c1268d7f6a785c40860c62c727050223f8916e052f626b434974cb10",
   "routes": {
     "method": "POST",
     "data": "/v1/sql/session",
@@ -44,7 +44,7 @@
       "T2": {
         "type": "string",
         "enum": [
-          "f6b5c8f378a74fe653cc9d6f3e472229289cc299a62f856551962bd76e321880"
+          "22ddc953c1268d7f6a785c40860c62c727050223f8916e052f626b434974cb10"
         ]
       },
       "T3": {
@@ -596,6 +596,7 @@
           "configuration",
           "captured",
           "transaction",
+          "dataflow",
           "workload"
         ]
       },
@@ -805,7 +806,7 @@
       "T2": {
         "type": "string",
         "enum": [
-          "f6b5c8f378a74fe653cc9d6f3e472229289cc299a62f856551962bd76e321880"
+          "22ddc953c1268d7f6a785c40860c62c727050223f8916e052f626b434974cb10"
         ]
       },
       "T3": {
@@ -1379,6 +1380,7 @@
           "configuration",
           "captured",
           "transaction",
+          "dataflow",
           "workload"
         ]
       },
@@ -1424,6 +1426,8 @@
           "savepoint",
           "release_savepoint",
           "rollback_to_savepoint",
+          "create_dataflow",
+          "control_dataflow",
           "produce",
           "consume",
           "commit_offset",
@@ -4497,7 +4501,7 @@
       "T11": {
         "type": "string",
         "enum": [
-          "f6b5c8f378a74fe653cc9d6f3e472229289cc299a62f856551962bd76e321880"
+          "22ddc953c1268d7f6a785c40860c62c727050223f8916e052f626b434974cb10"
         ]
       },
       "T12": {
@@ -5694,7 +5698,7 @@
       "T16": {
         "type": "string",
         "enum": [
-          "f6b5c8f378a74fe653cc9d6f3e472229289cc299a62f856551962bd76e321880"
+          "22ddc953c1268d7f6a785c40860c62c727050223f8916e052f626b434974cb10"
         ]
       },
       "T17": {
