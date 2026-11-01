@@ -299,7 +299,7 @@ test("retained catalog inspection is bounded and clears revoked coverage", async
   const interpretation = page.getByRole("region", { name: "Retained interpretation", exact: true });
   await expect(interpretation).toContainText("145 retained rows");
   await expect(interpretation).toContainText("physical column");
-  await interpretation.getByLabel("Coverage", { exact: true }).selectOption("locations");
+  await interpretation.getByRole("combobox", { name: "Coverage", exact: true }).selectOption("locations");
   await expect(interpretation).toContainText("Partial directory coverage");
   await expect(interpretation).toContainText(
     "Payload verification and query completion are separate",
