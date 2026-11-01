@@ -78,6 +78,8 @@ test "queue schedule seals pending chunks and resumes size-tier merges on disk" 
         }
         // Private merge output must never hide unprocessed source events.
         try t.expectEqualDeep(event(254, 0), (try schedule.nextEvent(root, event(253, 0), basis, 2048, Even{})).?);
+        try t.expect(try schedule.contains(root, event(254, 0), basis, 2048, Even{}));
+        try t.expect(!try schedule.contains(root, event(253, 0), basis, 2048, Even{}));
         if (units % 7 == 0) {
             tree.deinit();
             objects.deinit();
@@ -102,6 +104,49 @@ test "queue schedule seals pending chunks and resumes size-tier merges on disk" 
     try t.expect(try schedule.maintain(root, basis, 17, Even{}) == null);
     try t.expectEqual(puts, objects.puts);
     std.debug.print("Queue schedule: {d} bounded units, two retained levels, exact reads across reopen.\n", .{units});
+}
+
+test "queue schedule membership stops only after verifying the exact live event" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "membership");
+    defer objects.deinit();
+    var tree = try s.TreeStore.init(t.allocator, objects.objectStore(), 1);
+    defer tree.deinit();
+    var scratch = std.heap.ArenaAllocator.init(t.allocator);
+    defer scratch.deinit();
+    const workspace = try t.allocator.create(Schedule.Workspace);
+    defer t.allocator.destroy(workspace);
+    const schedule: Schedule = .{ .store = &tree, .scratch = &scratch, .workspace = workspace, .seed = seed(), .kind = .visible };
+    var root: Schedule.Root = .empty;
+    for (0..259) |i| {
+        try tree.begin(1024 * 1024);
+        defer tree.end();
+        root = try schedule.append(root, event(i, 0));
+    }
+    try t.expectEqual(@as(u64, 1), root.pending_chunks);
+    try t.expectEqual(@as(u16, 3), root.active_rows);
+    tree.clearCache();
+    const reads = objects.range_reads;
+    try t.expect(try schedule.contains(root, event(256, 0), basis, 1, Even{}));
+    // One verified buffer is sufficient to establish this exact membership.
+    // No pending directory, run, or unrelated item's bitmap is consulted.
+    try t.expectEqual(reads + 1, objects.range_reads);
+    try t.expectError(error.QueueTimerReadBudget, schedule.nextEvent(root, event(255, 0), basis, 1, Even{}));
+    try t.expectError(error.InvalidQueueTimerBudget, schedule.contains(root, event(256, 0), basis, 0, Even{}));
+    // A stale occurrence or a different later live event proves no membership.
+    try t.expect(!try schedule.contains(root, event(257, 0), basis, 64, Even{}));
+    var absent = event(256, 0);
+    absent.epoch = 1;
+    try t.expect(!try schedule.contains(root, absent, basis, 64, Even{}));
+    try t.expectError(error.QueueTimerReadBudget, schedule.contains(root, event(254, 0), basis, 1, Even{}));
+    try t.expect(try schedule.contains(root, event(254, 0), basis, 64, Even{}));
+    // A descriptor alone is insufficient: the matching source must be read
+    // and verified even after an earlier successful observation.
+    var name: [96]u8 = undefined;
+    const key = try s.QueueTimeBuffer.key(root.active.?, &name);
+    try objects.objectStore().delete(key);
+    try t.expectError(error.QueueTimeBufferMissing, schedule.contains(root, event(256, 0), basis, 1, Even{}));
 }
 
 test "queue schedule pages pending fan-in and seeks far buckets within a small read budget" {

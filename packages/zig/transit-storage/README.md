@@ -315,10 +315,13 @@ both inputs and every partial output through the storage graph.
 
 `QueueSchedule` composes those artifacts in private scheduling roots. Full deltas
 seal into paged pending chunks; size-tiered runs merge through resumable frozen
-inputs, and a finite stale-entry sweep stops when its basis is unchanged. Reads
-check all possibly earlier sources under an explicit work budget, including
-both inputs of an unfinished merge. Budget exhaustion refuses instead of
-reporting an empty schedule. Pending cardinality remains on disk; a fixed fan-in
+inputs, and a finite stale-entry sweep stops when its basis is unchanged. Earliest
+event selection checks all possibly earlier sources under an explicit work budget,
+including both inputs of an unfinished merge. Exact membership checks stop after
+reading and verifying that event and its current eligibility. A missing or stale
+occurrence does not prove membership, and an incomplete search cannot prove
+absence. Budget exhaustion refuses instead of reporting an empty schedule.
+Pending cardinality remains on disk; a fixed fan-in
 array cannot limit accepted settlement. The accepted Queue root contains separate
 visibility and lease schedules plus the next maintenance kind. Reads use
 `Options.queue_timer_read_work` (default 4,096; 1–65,536) to bound source discovery,

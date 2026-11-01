@@ -353,6 +353,13 @@ fn inspectRun(self: Self, run: Directory.Root, after: ?Run.Event, basis: Merge.B
 /// have been checked. Directory entries, chunk decodes and examined candidates
 /// consume work; exhaustion refuses rather than reporting an empty schedule.
 pub fn nextEvent(self: Self, root: Root, after: ?Run.Event, basis: Merge.Basis, work: u32, filter: anytype) !?Run.Event {
+    return self.findEvent(root, after, basis, work, filter, null);
+}
+
+/// Membership needs one verified, currently eligible occurrence. Once that
+/// exact event is found, unrelated sources cannot change the answer. Ordered
+/// selection still checks every source that could contain an earlier event.
+fn findEvent(self: Self, root: Root, after: ?Run.Event, basis: Merge.Basis, work: u32, filter: anytype, exact: ?Run.Event) !?Run.Event {
     try self.require(root);
     try basis.validate();
     if (work == 0) return error.InvalidQueueTimerBudget;
@@ -367,7 +374,11 @@ pub fn nextEvent(self: Self, root: Root, after: ?Run.Event, basis: Merge.Basis, 
             break;
         }
     }
-    if (root.work) |merge| for (merge.merge.sources) |run| try self.inspectRun(run, after, basis, &budget, &best, filter);
+    if (exact != null and std.meta.eql(best, exact)) return best;
+    if (root.work) |merge| for (merge.merge.sources) |run| {
+        try self.inspectRun(run, after, basis, &budget, &best, filter);
+        if (exact != null and std.meta.eql(best, exact)) return best;
+    };
     const first_bucket = if (after) |event| event.bucket() else 0;
     var pending_after: ?pages.Key = null;
     if (first_bucket != 0) {
@@ -386,6 +397,7 @@ pub fn nextEvent(self: Self, root: Root, after: ?Run.Event, basis: Merge.Basis, 
         const chunk = try self.decodePending(entry);
         if (!beforeBest(chunk.first, best)) break;
         try self.inspectChunk(chunk, after, basis, &budget, &best, filter);
+        if (exact != null and std.meta.eql(best, exact)) return best;
         pending_after = entry.key;
     }
     var level_after: ?pages.Key = if (first_bucket == 0) null else try (Slot{ .bucket = first_bucket - 1, .level = 63 }).key();
@@ -401,6 +413,7 @@ pub fn nextEvent(self: Self, root: Root, after: ?Run.Event, basis: Merge.Basis, 
         if (best != null and slot.bucket > best.?.bucket()) break;
         const run = try self.decodeLevel(slot, entry.value);
         try self.inspectRun(run, after, basis, &budget, &best, filter);
+        if (exact != null and std.meta.eql(best, exact)) return best;
         level_after = entry.key;
     }
     return best;
@@ -416,5 +429,5 @@ pub fn contains(self: Self, root: Root, event: Run.Event, basis: Merge.Basis, wo
         .{ .at_ms = event.at_ms - 1, .offset = std.math.maxInt(u64), .epoch = std.math.maxInt(u64) }
     else
         null;
-    return std.meta.eql(try self.nextEvent(root, before, basis, work, filter), @as(?Run.Event, event));
+    return std.meta.eql(try self.findEvent(root, before, basis, work, filter, event), @as(?Run.Event, event));
 }
