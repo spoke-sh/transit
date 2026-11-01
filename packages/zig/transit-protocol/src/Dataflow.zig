@@ -9,7 +9,7 @@ pub const Consumer = enum { finite_recomputation, net_relation_changes, complete
 pub const Resume = enum { replay_history, recompute_snapshot };
 pub const State = enum { published, authorized, active, suspended, retired };
 pub const Command = enum { authorize, activate, suspend_computation, resume_computation, refresh, retire };
-pub const Blocked = enum { none, authorization, source_changed, history_expired, storage_unavailable, budget, lease_fenced, unresolved_transaction };
+pub const Blocked = enum { none, authorization, source_changed, history_expired, storage_unavailable, budget, execution_failed, lease_fenced, unresolved_transaction };
 
 /// Counts are durable cardinalities, never resident array capacities.
 pub const Directory = p.Transaction.Directory;

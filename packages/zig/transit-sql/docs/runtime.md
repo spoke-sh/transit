@@ -132,3 +132,13 @@ accepted work under current rights. A new statement without the original token
 creates new work. Status, inventory, metadata preparation and source inspection
 never dispatch work. Caller rights, accepted identity, owner completion and
 transport delivery remain separate observations.
+
+Managed Table reconciliation scans paged declaration tokens, advances one work
+unit per computation and rotates through configured database routes. The finite
+query unit has explicit work/memory/spill/output budgets; output statements and
+common decision cleanup advance separately. Coalesced local publication hints
+wake reconciliation after Table/KV/catalog or policy mutations. Hints carry no
+authority or cursor and may be duplicated; restart discovery uses durable heads.
+Settled computations park without polling, and shutdown joins the hint waiter.
+The [managed Table profile](../../../../docs/handbook/reference/queries.md#managed-table-computations)
+distinguishes control acceptance, first result, blocked work and retirement.

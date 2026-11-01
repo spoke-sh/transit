@@ -11,9 +11,9 @@ pub const Window = @import("Window.zig");
 pub const Progress = @import("Progress.zig");
 pub const Transaction = @import("Transaction.zig");
 pub const Observation = @import("Observation.zig");
-pub const Command = enum { empty, select, insert, update, delete, create_table, alter_table, drop_table, create_schema, alter_schema, drop_schema, create_stream, alter_stream, drop_stream, create_queue, alter_queue, drop_queue, set, show, discard_all, reset, reload, capture, begin, commit, rollback, savepoint, release_savepoint, rollback_to_savepoint };
+pub const Command = enum { empty, select, insert, update, delete, create_table, alter_table, drop_table, create_schema, alter_schema, drop_schema, create_stream, alter_stream, drop_stream, create_queue, alter_queue, drop_queue, set, show, discard_all, reset, reload, capture, begin, commit, rollback, savepoint, release_savepoint, rollback_to_savepoint, create_dataflow, control_dataflow };
 pub const Outcome = enum { provisional, applied, unchanged, rejected, cancelled, partial };
-pub const Operation = struct { account: [32]u8, id: u64, kind: enum { table, configuration, captured, transaction } = .table };
+pub const Operation = struct { account: [32]u8, id: u64, kind: enum { table, configuration, captured, transaction, dataflow } = .table };
 pub const Counts = struct {
     matched: u64,
     changed: u64,
@@ -54,9 +54,9 @@ pub const CommandCompletion = struct {
         };
         if (self.operation) |operation| {
             if (operation.id == 0) return error.InvalidCommandCompletion;
-            const expected: @FieldType(Operation, "kind") = if (self.transaction != null) .transaction else if (counted) .table else if (self.kind == .reload) .configuration else if (self.kind == .capture) .captured else return error.InvalidCommandCompletion;
+            const expected: @FieldType(Operation, "kind") = if (self.transaction != null) .transaction else if (counted) .table else if (self.kind == .reload) .configuration else if (self.kind == .capture) .captured else if (self.kind == .create_dataflow or self.kind == .control_dataflow) .dataflow else return error.InvalidCommandCompletion;
             if (operation.kind != expected) return error.InvalidCommandCompletion;
-        } else if (self.transaction != null or counted or self.kind == .reload or self.kind == .capture) return error.InvalidCommandCompletion;
+        } else if (self.transaction != null or counted or self.kind == .reload or self.kind == .capture or self.kind == .create_dataflow or self.kind == .control_dataflow) return error.InvalidCommandCompletion;
     }
 };
 /// Only a verified terminal outcome supplies this count. It is not a scan count.

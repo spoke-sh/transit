@@ -3,7 +3,7 @@ const std = @import("std");
 const g = @import("root.zig");
 const c = g.catalog;
 const p = c.protocol;
-pub const Kind = enum(u8) { table = 1, configuration = 2, captured = 3, transaction = 4 };
+pub const Kind = enum(u8) { table = 1, configuration = 2, captured = 3, transaction = 4, dataflow = 5 };
 pub const Reference = struct {
     pub const magic = "GSR1";
     id: u64,

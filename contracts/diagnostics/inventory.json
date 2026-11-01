@@ -4435,6 +4435,7 @@
         "QueueTimeUnavailable": 2,
         "ReadOnlyTransaction": 4,
         "StaleClientLease": 2,
+        "StorageBudgetExceeded": 1,
         "TableDataChanged": 3,
         "TableDefinitionChanged": 11,
         "TableNotCreated": 1,
@@ -4600,6 +4601,7 @@
         "lookupBranch()": "<inferred>",
         "maintenanceNext()": "<inferred>",
         "maintenanceOpen()": "<inferred>",
+        "managedDependencyAllowed()": "<inferred>",
         "namedRecord()": "<inferred>",
         "namespaceDependencies()": "<inferred>",
         "namespaceGuard()": "<inferred>",
@@ -4727,7 +4729,7 @@
       },
       "open_error_set_uses": 11,
       "propagation": {
-        "try": 1624,
+        "try": 1630,
         "catch": 24
       },
       "imports": [
@@ -5350,7 +5352,8 @@
           "captured",
           "maintained",
           "stream",
-          "queue"
+          "queue",
+          "managed"
         ],
         "Observation": [
           "not_observed",
@@ -9618,6 +9621,7 @@
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "Changes.wait()": "<inferred>",
         "Invocation.request()": "<inferred>",
         "Invocation.requestPtr()": "<inferred>",
         "Invocation.respond()": "<inferred>",
@@ -9627,7 +9631,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 8,
+        "try": 10,
         "catch": 0
       },
       "imports": [
@@ -19144,6 +19148,101 @@
         "std"
       ]
     },
+    "packages/zig/transit-protocol/src/Dataflow.zig": {
+      "errors": {
+        "DataflowCoverageGap": 2,
+        "DataflowIdentityConflict": 3,
+        "DataflowLeaseFenced": 1,
+        "DataflowRetired": 1,
+        "DataflowSourceChanged": 1,
+        "IncompatibleDefinition": 3,
+        "IncompleteDataflowCoverage": 1,
+        "InvalidDataflowCandidate": 1,
+        "InvalidDataflowCompletion": 2,
+        "InvalidDataflowConsumer": 1,
+        "InvalidDataflowControl": 1,
+        "InvalidDataflowDefinition": 1,
+        "InvalidDataflowLease": 1,
+        "InvalidDataflowLimits": 1,
+        "InvalidDataflowTransition": 5
+      },
+      "outcomes": {
+        "Blocked": [
+          "none",
+          "authorization",
+          "source_changed",
+          "history_expired",
+          "storage_unavailable",
+          "budget",
+          "execution_failed",
+          "lease_fenced",
+          "unresolved_transaction"
+        ],
+        "Command": [
+          "authorize",
+          "activate",
+          "suspend_computation",
+          "resume_computation",
+          "refresh",
+          "retire"
+        ],
+        "Consumer": [
+          "finite_recomputation",
+          "net_relation_changes",
+          "complete_ordered_changes"
+        ],
+        "Kind": [
+          "materialized_view",
+          "dataflow",
+          "subscription"
+        ],
+        "Resume": [
+          "replay_history",
+          "recompute_snapshot"
+        ],
+        "Source.kind": [
+          "table",
+          "kv",
+          "document",
+          "stream",
+          "queue"
+        ],
+        "State": [
+          "published",
+          "authorized",
+          "active",
+          "suspended",
+          "retired"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Candidate.validate()": "<inferred>",
+        "Completion.requireDecision()": "<inferred>",
+        "Completion.validate()": "<inferred>",
+        "Control.apply()": "<inferred>",
+        "Control.validate()": "<inferred>",
+        "ControlAttempt.requireSame()": "<inferred>",
+        "ControlAttempt.validate()": "<inferred>",
+        "Coverage.requireComplete()": "<inferred>",
+        "Coverage.validate()": "<inferred>",
+        "Definition.validate()": "<inferred>",
+        "Lease.requireCurrent()": "<inferred>",
+        "Lease.validate()": "<inferred>",
+        "Limits.validate()": "<inferred>",
+        "Source.requireSuccessor()": "<inferred>",
+        "Source.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 37,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-protocol/src/Diagnostic.zig": {
       "errors": {
         "DiagnosticCapacity": 4,
@@ -19640,7 +19739,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc\""
+          "@\"998c6b0de0349968b747469bc4b8f60e6a6bded6efdc4e2885804ba1e0181195\""
         ],
         "Effect.phase": [
           "pending",
@@ -20803,6 +20902,7 @@
         "Blocks.zig",
         "Branch.zig",
         "DataLifecycle.zig",
+        "Dataflow.zig",
         "Diagnostic.zig",
         "DocumentDeclaration.zig",
         "DocumentOperation.zig",
@@ -21052,6 +21152,83 @@
         "std"
       ]
     },
+    "packages/zig/transit-query-direct/src/ManagedTable.zig": {
+      "errors": {
+        "AccessDenied": 2,
+        "CatalogDenied": 2,
+        "ClientOperationMissing": 1,
+        "DataflowIdentityConflict": 5,
+        "DataflowLeaseFenced": 1,
+        "DataflowSourceChanged": 5,
+        "IncompatibleDefinition": 3,
+        "IncompleteDataflowCoverage": 3,
+        "InvalidManagedTableHead": 2,
+        "InvalidManagedTableRecord": 8,
+        "InvalidTransactionRead": 1,
+        "KVBuildBudget": 1,
+        "ManagedTableCleanupPending": 1,
+        "ManagedTableConflict": 3,
+        "ManagedTableInitializationPending": 2,
+        "ManagedTableResultBudget": 3,
+        "ManagedTableSchemaMismatch": 2,
+        "Rejected": 2,
+        "RelationalOutputBudget": 1,
+        "RelationalResidentBudget": 1,
+        "RelationalSpillBudget": 1,
+        "RelationalWorkBudget": 1,
+        "TableDefinitionChanged": 2,
+        "TableNotFound": 7,
+        "TransactionMemoryLimit": 1,
+        "TransactionStatementLimit": 1,
+        "TransactionWorkLimit": 1,
+        "UnsupportedManagedTable": 1
+      },
+      "outcomes": {
+        "Work.phase": [
+          "acquiring",
+          "evaluating",
+          "staging",
+          "checkpoint",
+          "deciding",
+          "complete"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Declaration.digest()": "<inferred>",
+        "Declaration.interpretation()": "<inferred>",
+        "Declaration.validate()": "<inferred>",
+        "Head.validate()": "<inferred>",
+        "abort()": "<inferred>",
+        "applyControl()": "<inferred>",
+        "evaluate()": "<inferred>",
+        "find()": "<inferred>",
+        "initialize()": "<inferred>",
+        "inspect()": "<inferred>",
+        "load()": "<inferred>",
+        "mutation()": "<inferred>",
+        "prepare()": "<inferred>",
+        "prepareControl()": "<inferred>",
+        "privateClient()": "<inferred>",
+        "progressWork()": "<inferred>",
+        "publish()": "<inferred>",
+        "put()": "<inferred>",
+        "start()": "<inferred>",
+        "startInner()": "<inferred>",
+        "step()": "<inferred>",
+        "stepInner()": "<inferred>",
+        "store()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 148,
+        "catch": 5
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-query-direct/src/RelationalBridge.zig": {
       "errors": {
         "IncompatibleDefinition": 2,
@@ -21222,6 +21399,7 @@
         "DirectRelationalTables.zig",
         "DirectTablePrepared.zig",
         "DirectTableQuery.zig",
+        "ManagedTable.zig",
         "RelationalBridge.zig",
         "RelationalSpill.zig",
         "TableChangeReader.zig",
@@ -26669,8 +26847,8 @@
       },
       "open_error_set_uses": 21,
       "propagation": {
-        "try": 163,
-        "catch": 20
+        "try": 164,
+        "catch": 21
       },
       "imports": [
         "Connection.zig",
@@ -27605,13 +27783,16 @@
           "rollback",
           "savepoint",
           "release_savepoint",
-          "rollback_to_savepoint"
+          "rollback_to_savepoint",
+          "create_dataflow",
+          "control_dataflow"
         ],
         "Operation.kind": [
           "table",
           "configuration",
           "captured",
-          "transaction"
+          "transaction",
+          "dataflow"
         ],
         "Outcome": [
           "provisional",
@@ -27834,6 +28015,42 @@
         "std"
       ]
     },
+    "packages/zig/transit-sql-service/src/ManagedOperations.zig": {
+      "errors": {
+        "CatalogNameNotFound": 2,
+        "DataflowSourceChanged": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidManagedTableRecord": 2,
+        "ManagedTableConflict": 1,
+        "ManagedTableRequiresCohostedService": 1,
+        "SqlOperationBindingChanged": 1,
+        "UnsupportedManagedTable": 1
+      },
+      "outcomes": {
+        "Request.action": [
+          "publish",
+          "control"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "admit()": "<inferred>",
+        "apply()": "<inferred>",
+        "read()": "<inferred>",
+        "resumeOperation()": "<inferred>",
+        "status()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 39,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-sql-service/src/OperatorConfiguration.zig": {
       "errors": {},
       "outcomes": {},
@@ -27884,11 +28101,12 @@
         "InvalidSqlAction": 2,
         "InvalidSqlCursor": 2,
         "InvalidSqlOperationReference": 1,
+        "ManagedControlCancellationUnsupported": 1,
         "MissingGatewayOperation": 1,
         "OutOfMemory": 1,
         "QueryDenied": 3,
         "ResultIdentityChanged": 1,
-        "SqlAdmissionTokenRequired": 4,
+        "SqlAdmissionTokenRequired": 5,
         "SqlInstanceChanged": 1,
         "SqlMessageTooLarge": 1,
         "SqlOperationBindingChanged": 1,
@@ -27934,7 +28152,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 123,
+        "try": 127,
         "catch": 9
       },
       "imports": [
@@ -27997,6 +28215,7 @@
         "InvalidTransactionRead": 1,
         "InvalidWireCompletion": 3,
         "InvalidWireValue": 1,
+        "ManagedTableRequiresNativeSession": 1,
         "MissingResultObservation": 1,
         "NullNotAllowed": 1,
         "OutOfMemory": 1,
@@ -28056,7 +28275,8 @@
           "settings",
           "inspection",
           "source",
-          "captured"
+          "captured",
+          "managed"
         ],
         "Read.value": [
           "single",
@@ -28098,7 +28318,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 102,
+        "try": 107,
         "catch": 9
       },
       "imports": [
@@ -28112,11 +28332,12 @@
       "errors": {
         "CatalogIdentityConflict": 2,
         "CatalogKindMismatch": 1,
-        "CatalogNameNotFound": 3,
+        "CatalogNameNotFound": 4,
         "Forbidden": 1,
         "TableDefinitionChanged": 1,
         "UnknownSqlSource": 1,
-        "UnsupportedConstruct": 1
+        "UnsupportedConstruct": 1,
+        "UnsupportedManagedTable": 2
       },
       "outcomes": {},
       "error_sets": {},
@@ -28130,7 +28351,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 64,
+        "try": 86,
         "catch": 0
       },
       "imports": [
@@ -28153,7 +28374,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 14,
+        "try": 15,
         "catch": 1
       },
       "imports": [
@@ -28292,6 +28513,7 @@
         "CapturedRecovery.zig",
         "Configuration.zig",
         "ConfigurationOperations.zig",
+        "ManagedOperations.zig",
         "OperatorConfiguration.zig",
         "ReadSources.zig",
         "Registry.zig",
@@ -28370,8 +28592,8 @@
     "packages/zig/transit-sql/src/DatabaseRuntime.zig": {
       "errors": {
         "AccessDenied": 2,
-        "Canceled": 2,
-        "Cancelled": 2,
+        "Canceled": 3,
+        "Cancelled": 3,
         "CatalogIdentityConflict": 1,
         "ClientOperationConflict": 1,
         "GatewayCatalogDenied": 1,
@@ -28382,6 +28604,7 @@
         "GatewayWaitCancelled": 1,
         "InvalidGatewayConfiguration": 1,
         "InvalidGatewayTerminal": 1,
+        "InvalidManagedTableRecord": 1,
         "InvalidSqlReadRecovery": 1,
         "MissingGatewayOperation": 1,
         "MissingGatewayTerminal": 2,
@@ -28410,6 +28633,8 @@
         "initEndpoint()": "<inferred>",
         "lookup()": "<inferred>",
         "lookupState()": "<inferred>",
+        "managedOne()": "<inferred>",
+        "managedStep()": "<inferred>",
         "project()": "<inferred>",
         "recoverOne()": "<inferred>",
         "requireRoute()": "<inferred>",
@@ -28426,8 +28651,8 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 106,
-        "catch": 12
+        "try": 112,
+        "catch": 13
       },
       "imports": [
         "root.zig",
@@ -28454,6 +28679,31 @@
       },
       "imports": [
         "root.zig"
+      ]
+    },
+    "packages/zig/transit-sql/src/ManagedSql.zig": {
+      "errors": {
+        "InvalidSqlSyntax": 3,
+        "UnsupportedManagedTable": 1
+      },
+      "outcomes": {
+        "Statement": [
+          "create",
+          "control"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "parse()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 16,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
       ]
     },
     "packages/zig/transit-sql/src/MigrationRunner.zig": {
@@ -28646,7 +28896,8 @@
           "table",
           "configuration",
           "captured",
-          "transaction"
+          "transaction",
+          "dataflow"
         ]
       },
       "error_sets": {},
@@ -28892,6 +29143,7 @@
         "DatabaseAccount.zig",
         "DatabaseRuntime.zig",
         "IntentReference.zig",
+        "ManagedSql.zig",
         "MigrationRunner.zig",
         "OperationRecords.zig",
         "Probe.zig",
@@ -37790,7 +38042,8 @@
   },
   "grammars": {
     "contracts/sql/TransitExtensions.g4": {
-      "statement": "( selectStatement | mutationStatement | extensionStatement | transactionStatement ) SEMI ? EOF",
+      "statement": "( selectStatement | mutationStatement | extensionStatement | transactionStatement | managedCommand ) SEMI ? EOF",
+      "managedCommand": "CREATE DATAFLOW identifier INTO identifier AS relationalSelect | ( AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE ) DATAFLOW identifier | SHOW DATAFLOW identifier | EXPLAIN CREATE DATAFLOW identifier INTO identifier AS relationalSelect",
       "transactionStatement": "( BEGIN ( WORK | TRANSACTION ) ? | START TRANSACTION ) transactionOptions ? | COMMIT ( WORK | TRANSACTION ) ? | ROLLBACK ( WORK | TRANSACTION ) ? ( TO SAVEPOINT ? identifier ) ? | SAVEPOINT identifier | RELEASE SAVEPOINT ? identifier",
       "transactionOptions": "ISOLATION LEVEL SERIALIZABLE transactionAccess ? | transactionAccess ( ISOLATION LEVEL SERIALIZABLE ) ?",
       "transactionAccess": "READ ( ONLY | WRITE )",
@@ -37882,9 +38135,16 @@
       "describeStatement": "DESCRIBE logKind ? identifier",
       "explainStatement": "EXPLAIN selectStatement",
       "asOfClause": "FOR SYSTEM_TIME AS OF INTEGER",
-      "identifier": "settingIdentifier | STREAMS | QUEUES",
+      "identifier": "settingIdentifier | STREAMS | QUEUES | DATAFLOW | AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE",
       "settingIdentifier": "legacyIdentifier | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER",
       "legacyIdentifier": "IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | INSERT | UPDATE | DELETE | SET | VALUES | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS | COLLATE | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | ROLLBACK | SAVEPOINT | RELEASE | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE | STREAM | QUEUE | PARTITION | PARTITIONS | HASH",
+      "DATAFLOW": "'DATAFLOW'",
+      "AUTHORIZE": "'AUTHORIZE'",
+      "ACTIVATE": "'ACTIVATE'",
+      "SUSPEND": "'SUSPEND'",
+      "RESUME": "'RESUME'",
+      "REFRESH": "'REFRESH'",
+      "RETIRE": "'RETIRE'",
       "BEGIN": "'BEGIN'",
       "STREAM": "'STREAM'",
       "QUEUE": "'QUEUE'",

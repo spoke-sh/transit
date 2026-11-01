@@ -37,3 +37,12 @@ Run `zig build check` and `zig build test` from this directory in `nix develop`.
 The [query reference](../../../docs/handbook/reference/queries.md) describes
 supported SQL and source semantics; the [SQL service](../transit-sql/README.md)
 owns sessions, operation recovery and read-pin cleanup.
+
+`ManagedTable` composes immutable catalog records, named direct KV control and
+common Table/KV transactions for finite recomputation. Save the complete
+`Declaration` before `publish`, and save `prepareControl` bytes before
+`applyControl`; retries use those original bytes. `inspect` returns lifecycle,
+source coverage and the committed transaction decision. The service drives
+`start`/`step` with bounded workers and an owned spill directory. Hosts serialize
+a work token and retain it until completion. See [managed Table computations](../../../docs/handbook/reference/queries.md#managed-table-computations)
+for supported SQL, current-policy checks and retention limits.

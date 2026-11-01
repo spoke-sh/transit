@@ -45,6 +45,25 @@ the selected interface. Grammar-only connection, source and sink families
 report that their submitted syntax has not been validated. An incomplete `SHOW`
 requires a catalog name; it is not evidence that a named catalog is unsupported.
 
+Cohosted native sessions also support [managed Table computations](queries.md#managed-table-computations):
+`CREATE DATAFLOW ... INTO ... AS SELECT ...`, explicit lifecycle controls,
+`SHOW DATAFLOW` and metadata-only `EXPLAIN CREATE DATAFLOW`. Publication and
+activation command completion are distinct from the first completed output.
+
+```sql
+CREATE DATAFLOW projection INTO output AS SELECT id FROM input;
+AUTHORIZE DATAFLOW projection;
+ACTIVATE DATAFLOW projection;
+SHOW DATAFLOW projection;
+SUSPEND DATAFLOW projection;
+RESUME DATAFLOW projection;
+REFRESH DATAFLOW projection;
+RETIRE DATAFLOW projection;
+EXPLAIN CREATE DATAFLOW preview INTO output AS SELECT id FROM input;
+```
+
+Here `input` and `output` are existing Tables with matching projected schemas.
+
 ## Statement outcomes
 
 A statement returns a typed command completion or a logical result set. Command

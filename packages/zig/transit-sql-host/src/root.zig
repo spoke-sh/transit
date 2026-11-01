@@ -606,6 +606,11 @@ fn serve(init: std.process.Init, diagnostics: *telemetry.Runtime, config: *const
     for (runtimes.items, config.accounts) |runtime, account| try g.ReadSources.attach(runtime, activation, account.sources);
     defer for (&tasks) |*task| if (task.*) |*future| future.cancel(init.io);
     for (runtimes.items, 0..) |runtime, i| tasks[i] = try init.io.concurrent(runAccount, .{ runtime, diagnostics });
+    var publications: ?std.Io.Future(void) = null;
+    defer if (publications) |*task| task.cancel(init.io);
+    if (endpoint) |local| if (local.changes) |changes| {
+        publications = try init.io.concurrent(watchPublications, .{ init.io, changes, runtimes.items });
+    };
     const started = std.Io.Clock.awake.now(init.io);
     while (true) {
         if (shutdown.stopping()) return;
@@ -737,4 +742,14 @@ test "wire frame reserves reuse independently of cancellation capacity" {
         try t.expectEqualStrings("slow reader frame", retained);
     }
     try probe.verify();
+}
+
+/// Publication is only a hint. Each account reconciles its durable definitions
+/// under current authority; the initial generation covers writes before startup.
+fn watchPublications(io: std.Io, changes: *LocalEndpoint.Changes, runtimes: []const *g.DatabaseRuntime) void {
+    var previous: u64 = 0;
+    while (true) {
+        previous = changes.wait(io, previous) catch return;
+        for (runtimes) |runtime| runtime.notify();
+    }
 }

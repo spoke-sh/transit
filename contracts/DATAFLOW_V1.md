@@ -16,7 +16,7 @@ owner and budgets. Directory counts are durable cardinalities; owners page them
 under bounded resident memory. A digest alone is not a retention pin.
 
 The catalog owner must reject dependency cycles and unsupported source, operator
-and consumer combinations before acceptance. Publication registers dependencies
+and consumer combinations before successful publication. Publication registers dependencies
 and retains the declaration before making it discoverable. Partially initialized
 work remains attached to the original accepted operation for recovery or explicit
 closure. Dependencies protect DROP but grant neither access nor execution rights.
@@ -113,18 +113,52 @@ release source pins or private roots only after their original decision and
 recovery obligations are closed; denial remains observable. Quota pressure never
 authorizes expiry, silent cancellation or discarding accepted work.
 
-## Current implementation boundary
+## Installed finite Table profile
 
-The neutral validation and independent fixtures are executable. The existing
-`ManagedDataflow`, `FuzeDelta`, `AnalyticalSql`, `BitemporalAndTvf` and `VectorUdf`
-component helpers do not establish this service lifecycle. In particular, resident
-assignment is not durable atomic publication, an arrangement run counter is not
-segment storage, and a shared join helper is not an independent finite oracle.
-The [SQL capability ledger](sql/standards-ledger.json) records public runtime
-coverage separately from those components.
+`transit-query-direct.ManagedTable` owns `DFD1` declarations, `DFW1` work and
+`DFP1` immutable row pages. A named direct binary KV owns the current control,
+pending original work reference and paged completed revision keys. The logical
+computation definition hashes the declaration; it is distinct from the KV
+storage definition. The catalog's `managed` dependency kind validates that
+storage identity and protects source/output DROP. Under the same catalog CAS,
+registration excludes output chaining and multiple managed writers, including
+concurrent declarations in either registration order.
 
-Existing captured and host-driven maintained relational execution retain their
-own [named relational contract](NAMED_RELATIONAL_V1.md). Adding these neutral
-types does not migrate accepted work or remove captured definitions. An installed
-replacement must migrate persisted records, caller adapters and fixtures together
-under the [current definition policy](../docs/handbook/reference/versioning.md).
+A work record is staged before its reference can enter the guarded head. Only
+that accepted head admits the work token. Recovery can recreate a missing token
+from the exact retained reference. The pending reference survives output commit
+until original transaction cleanup and work bookkeeping complete. A suspension
+changes the same KV that the output transaction reads/writes, so the common
+serializable decision enforces the control fence. Replacement resumes that exact
+accepted work under the service's existing activation fence.
+
+The output Table, source read guard, head and completed revision key share one
+common transaction. Completion inspection reads its committed decision; neither
+an individual participant LSN nor a work phase establishes completion. Private
+row staging and incomplete execution expose no output. A deterministic output
+constraint rejection blocks with `execution_failed` and preserves the last
+complete output; it does not schedule an unbounded retry loop. A rejected transaction
+can be followed by a new finite attempt only after the original decision closes.
+No source LSN is compared with another partition's clock.
+
+The native cohosted SQL service accepts `CREATE DATAFLOW name INTO output AS
+SELECT ...`, AUTHORIZE/ACTIVATE/SUSPEND/RESUME/REFRESH/RETIRE DATAFLOW, SHOW
+DATAFLOW and metadata-only EXPLAIN CREATE DATAFLOW. SQL operation kind `dataflow`
+and command kinds `create_dataflow`/`control_dataflow` preserve the original
+saved request and typed completion. Closing a session is not retirement.
+Cancellation of an accepted control is unsupported; use lifecycle controls and
+inspect its original outcome. Standalone and database-wire declarations reject.
+
+The [query reference](../docs/handbook/reference/queries.md#managed-table-computations)
+owns supported operators, quotas, inspection, current grants and retention limits.
+This profile uses complete finite recomputation over one Table. It does not
+implement the neutral contract's ordered/net-change consumers or history handoff,
+SQL joins, incremental arrangements or sink effects. Immutable saved records
+remain outside the direct object collector's authority and retain indefinitely;
+common transaction cleanup releases its source pins and preparation barriers.
+
+Captured and host-driven maintained execution retain their
+[named relational contract](NAMED_RELATIONAL_V1.md). Existing helper modules are
+not service executors. The [capability ledger](sql/standards-ledger.json) records
+these separate boundaries. Stored records and caller contracts use the single
+current definition under the [versioning policy](../docs/handbook/reference/versioning.md).

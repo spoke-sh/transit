@@ -78,7 +78,7 @@ pub fn require(host: *g.Session, prepared: *const g.Session.Prepared) !void {
     if (host.transaction.failed) return error.SqlTransactionFailed;
     switch (prepared.*) {
         .native => |statement| if (statement.plan != .select and statement.plan != .relational and statement.plan != .dml) return error.UnsupportedTransactionStatement,
-        .source, .captured => return error.UnsupportedTransactionStatement,
+        .source, .captured, .managed => return error.UnsupportedTransactionStatement,
         .settings => |settings| if (settings.plan.statement == .reload or settings.plan.statement == .set or settings.plan.statement == .reset) return error.UnsupportedTransactionStatement,
         .probe => |probe| if (probe.kind == .set) return error.UnsupportedTransactionStatement,
         .inspection => {},

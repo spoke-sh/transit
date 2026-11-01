@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
+  "definition": "998c6b0de0349968b747469bc4b8f60e6a6bded6efdc4e2885804ba1e0181195",
   "routes": {
     "method": "POST",
     "data": "/v1/sql/session",
@@ -44,7 +44,7 @@
       "T2": {
         "type": "string",
         "enum": [
-          "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+          "998c6b0de0349968b747469bc4b8f60e6a6bded6efdc4e2885804ba1e0181195"
         ]
       },
       "T3": {
@@ -595,7 +595,8 @@
           "table",
           "configuration",
           "captured",
-          "transaction"
+          "transaction",
+          "dataflow"
         ]
       },
       "T27": {
@@ -804,7 +805,7 @@
       "T2": {
         "type": "string",
         "enum": [
-          "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+          "998c6b0de0349968b747469bc4b8f60e6a6bded6efdc4e2885804ba1e0181195"
         ]
       },
       "T3": {
@@ -1371,7 +1372,8 @@
           "table",
           "configuration",
           "captured",
-          "transaction"
+          "transaction",
+          "dataflow"
         ]
       },
       "T29": {
@@ -1415,7 +1417,9 @@
           "rollback",
           "savepoint",
           "release_savepoint",
-          "rollback_to_savepoint"
+          "rollback_to_savepoint",
+          "create_dataflow",
+          "control_dataflow"
         ]
       },
       "T31": {
@@ -3679,7 +3683,7 @@
       "T21": {
         "type": "string",
         "enum": [
-          "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+          "998c6b0de0349968b747469bc4b8f60e6a6bded6efdc4e2885804ba1e0181195"
         ]
       },
       "T22": {

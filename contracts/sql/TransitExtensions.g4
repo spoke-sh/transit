@@ -3,7 +3,14 @@
 grammar TransitExtensions;
 options { caseInsensitive = true; }
 
-statement: (selectStatement | mutationStatement | extensionStatement | transactionStatement) SEMI? EOF;
+statement: (selectStatement | mutationStatement | extensionStatement | transactionStatement | managedCommand) SEMI? EOF;
+// Native cohosted SQL lowers these forms to the direct managed Table owner.
+managedCommand
+    : CREATE DATAFLOW identifier INTO identifier AS relationalSelect
+    | (AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE) DATAFLOW identifier
+    | SHOW DATAFLOW identifier
+    | EXPLAIN CREATE DATAFLOW identifier INTO identifier AS relationalSelect
+    ;
 // Session controls lower to the Catalog-owned local Table transaction contract.
 transactionStatement
     : (BEGIN (WORK | TRANSACTION)? | START TRANSACTION) transactionOptions?
@@ -314,7 +321,7 @@ asOfClause
     : FOR SYSTEM_TIME AS OF INTEGER
     ;
 
-identifier: settingIdentifier | STREAMS | QUEUES;
+identifier: settingIdentifier | STREAMS | QUEUES | DATAFLOW | AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE;
 settingIdentifier: legacyIdentifier | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER;
 legacyIdentifier
     : IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN
@@ -330,6 +337,14 @@ legacyIdentifier
     | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE
     | STREAM | QUEUE | PARTITION | PARTITIONS | HASH
     ;
+
+DATAFLOW: 'DATAFLOW';
+AUTHORIZE: 'AUTHORIZE';
+ACTIVATE: 'ACTIVATE';
+SUSPEND: 'SUSPEND';
+RESUME: 'RESUME';
+REFRESH: 'REFRESH';
+RETIRE: 'RETIRE';
 
 // ---- Lexer rules --------------------------------------------------------
 BEGIN: 'BEGIN';

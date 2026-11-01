@@ -4054,7 +4054,7 @@ fn dependentDefinition(self: *Self, dependent: Dependency.Dependent) !bool {
         return known.phase == .complete and !value.stored.retired and
             (dependent.kind == .queue) == (value.kind() == .queue) and std.meta.eql(dependent.interpretation, value.stored.declaration.interpretation);
     }
-    if (dependent.kind == .kv) {
+    if (dependent.kind == .kv or dependent.kind == .managed) {
         const target = try self.entry(object.object) orelse return false;
         if (target.seed == null or target.seed.?.kind != .kv) return false;
         var view = try self.open(self.allocator, target, false);
@@ -4157,6 +4157,33 @@ pub fn dependencyState(self: *Self, edge: Dependency.Edge, policy: Policy) !Depe
     return result;
 }
 
+/// The initial managed profile excludes output chaining and multiple writers.
+/// Checking under the catalog publication CAS makes this also a cycle guard:
+/// no managed output can be another computation's input in either order.
+/// Scan resident memory is one page; admission work uses the index byte budget.
+fn managedDependencyAllowed(self: *Self, edge: Dependency.Edge) !bool {
+    const prefix = try r.idKey(edge.source.object.object);
+    var after = prefix;
+    var bytes: usize = 0;
+    while (true) {
+        const page = try self.store.tree().scan(self.store.root.dependents, after);
+        var found = false;
+        for (page.entries) |slot| {
+            const item = slot orelse return true;
+            if (!std.mem.startsWith(u8, item.key.slice(), prefix.slice())) return true;
+            bytes = try std.math.add(usize, bytes, @sizeOf(pages.Value));
+            if (bytes > self.options.index_work_bytes) return error.StorageBudgetExceeded;
+            const other = try r.fromValue(Dependency.Edge, self.allocator, item.value);
+            try other.validate();
+            if (other.dependent.kind == .managed and !std.meta.eql(other, edge) and
+                ((other.privileges | edge.privileges) & (a.insert | a.delete) != 0)) return false;
+            after = item.key;
+            found = true;
+        }
+        if (!found) return true;
+    }
+}
+
 /// One bounded catalog acceptance updates both directions and its exact receipt.
 /// Register requires current source actions and dependent metadata write access.
 /// Remove/cancel can close an explicitly known edge after source rights change;
@@ -4198,6 +4225,9 @@ pub fn dependencyOperation(self: *Self, binding: Dependency.Binding, command: De
         if (!value.live or !std.meta.eql(value.interpretation, binding.edge.source) or !try self.dependentDefinition(binding.edge.dependent)) {
             outcome.phase = .rejected;
             outcome.reason = .stale_definition;
+        } else if (binding.edge.dependent.kind == .managed and !try self.managedDependencyAllowed(binding.edge)) {
+            outcome.phase = .rejected;
+            outcome.reason = .source_busy;
         } else if (try self.pending(binding.edge.source.object.object, current)) {
             outcome.phase = .rejected;
             outcome.reason = .source_busy;

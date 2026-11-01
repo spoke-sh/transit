@@ -70,7 +70,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "998c6b0de0349968b747469bc4b8f60e6a6bded6efdc4e2885804ba1e0181195"
           ]
         },
         "T2": {
@@ -6397,7 +6397,8 @@
             "captured",
             "maintained",
             "stream",
-            "queue"
+            "queue",
+            "managed"
           ]
         },
         "T207": {
@@ -9950,7 +9951,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "998c6b0de0349968b747469bc4b8f60e6a6bded6efdc4e2885804ba1e0181195"
           ]
         },
         "T2": {
@@ -15018,7 +15019,8 @@
             "captured",
             "maintained",
             "stream",
-            "queue"
+            "queue",
+            "managed"
           ]
         },
         "T179": {
@@ -18259,7 +18261,7 @@
         "T316": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "998c6b0de0349968b747469bc4b8f60e6a6bded6efdc4e2885804ba1e0181195"
           ]
         },
         "T317": {
@@ -20217,7 +20219,7 @@
         "T397": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "998c6b0de0349968b747469bc4b8f60e6a6bded6efdc4e2885804ba1e0181195"
           ]
         },
         "T398": {
@@ -20787,7 +20789,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "998c6b0de0349968b747469bc4b8f60e6a6bded6efdc4e2885804ba1e0181195"
           ]
         },
         "T2": {
@@ -22963,7 +22965,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "998c6b0de0349968b747469bc4b8f60e6a6bded6efdc4e2885804ba1e0181195"
           ]
         },
         "T2": {
@@ -23979,7 +23981,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "998c6b0de0349968b747469bc4b8f60e6a6bded6efdc4e2885804ba1e0181195"
           ]
         },
         "T2": {
@@ -24580,7 +24582,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "998c6b0de0349968b747469bc4b8f60e6a6bded6efdc4e2885804ba1e0181195"
           ]
         },
         "T2": {
@@ -25074,7 +25076,7 @@
         "T6": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "998c6b0de0349968b747469bc4b8f60e6a6bded6efdc4e2885804ba1e0181195"
           ]
         },
         "T7": {
@@ -26705,7 +26707,8 @@
             "captured",
             "maintained",
             "stream",
-            "queue"
+            "queue",
+            "managed"
           ]
         },
         "T67": {
@@ -31221,7 +31224,7 @@
           ],
           "x-transit-defaults": {
             "version": 1,
-            "definition": "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc",
+            "definition": "998c6b0de0349968b747469bc4b8f60e6a6bded6efdc4e2885804ba1e0181195",
             "max_columns": 128,
             "max_rows": 1024,
             "max_sql_bytes": 4096,
@@ -31241,7 +31244,7 @@
         "T4": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "998c6b0de0349968b747469bc4b8f60e6a6bded6efdc4e2885804ba1e0181195"
           ]
         },
         "T5": {
@@ -33248,7 +33251,7 @@
                 "definition": {
                   "type": "string",
                   "enum": [
-                    "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+                    "998c6b0de0349968b747469bc4b8f60e6a6bded6efdc4e2885804ba1e0181195"
                   ]
                 },
                 "realm": {
@@ -35325,7 +35328,7 @@
                                                     "definition": {
                                                       "type": "string",
                                                       "enum": [
-                                                        "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+                                                        "998c6b0de0349968b747469bc4b8f60e6a6bded6efdc4e2885804ba1e0181195"
                                                       ]
                                                     },
                                                     "realm": {
@@ -36659,7 +36662,7 @@
                                                         "definition": {
                                                           "type": "string",
                                                           "enum": [
-                                                            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+                                                            "998c6b0de0349968b747469bc4b8f60e6a6bded6efdc4e2885804ba1e0181195"
                                                           ]
                                                         },
                                                         "realm": {
@@ -38336,7 +38339,8 @@
             "captured",
             "maintained",
             "stream",
-            "queue"
+            "queue",
+            "managed"
           ]
         },
         "T87": {
@@ -42868,7 +42872,7 @@
         "T2": {
           "type": "string",
           "enum": [
-            "82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc"
+            "998c6b0de0349968b747469bc4b8f60e6a6bded6efdc4e2885804ba1e0181195"
           ]
         },
         "T3": {

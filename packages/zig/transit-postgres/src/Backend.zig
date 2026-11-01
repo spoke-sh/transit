@@ -142,6 +142,8 @@ pub fn complete(self: *Self, kind: Completion, count: u64) ![]const u8 {
     errdefer self.bytes.clearRetainingCapacity();
     var buffer: [64]u8 = undefined;
     const value = switch (kind) {
+        .create_dataflow => "CREATE DATAFLOW",
+        .control_dataflow => "CONTROL DATAFLOW",
         .select => try std.fmt.bufPrint(&buffer, "SELECT {d}", .{count}),
         .insert => try std.fmt.bufPrint(&buffer, "INSERT 0 {d}", .{count}),
         .update => try std.fmt.bufPrint(&buffer, "UPDATE {d}", .{count}),
