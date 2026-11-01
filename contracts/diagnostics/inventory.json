@@ -2496,7 +2496,7 @@
         "InvalidStorageGraph": 1,
         "NoStorageFence": 3,
         "OutOfMemory": 1,
-        "StorageMaintenanceBudget": 2,
+        "StorageMaintenanceBudget": 3,
         "WalHistoryTrimmed": 1
       },
       "outcomes": {
@@ -2523,8 +2523,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 59,
-        "catch": 3
+        "try": 60,
+        "catch": 4
       },
       "imports": [
         "Backend.zig",
@@ -34871,6 +34871,7 @@
         "head()": "<inferred>",
         "init()": "<inferred>",
         "persist()": "<inferred>",
+        "persistBatch()": "<inferred>",
         "persistSelected()": "<inferred>",
         "put()": "<inferred>",
         "reset()": "<inferred>",
@@ -34878,7 +34879,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 8,
+        "try": 10,
         "catch": 0
       },
       "imports": [
@@ -35892,6 +35893,7 @@
         "InvalidLogTransaction": 5,
         "InvalidQueueAffinityBudget": 1,
         "InvalidQueueClaimBudget": 1,
+        "InvalidQueueCursor": 1,
         "InvalidQueueDestination": 1,
         "InvalidQueueExpiration": 2,
         "InvalidQueueHead": 1,
@@ -35899,7 +35901,7 @@
         "InvalidQueueSchedule": 1,
         "InvalidQueueScheduleBudget": 2,
         "InvalidQueueSelection": 2,
-        "InvalidQueueTimerBudget": 2,
+        "InvalidQueueTimerBudget": 3,
         "InvalidStreamBudget": 3,
         "InvalidStreamCompaction": 16,
         "InvalidStreamCompactionBudget": 3,
@@ -35910,7 +35912,7 @@
         "InvalidTransactionActions": 6,
         "InvalidTransactionDecision": 1,
         "InvalidTransactionLimits": 1,
-        "InvalidTransactionTransfer": 1,
+        "InvalidTransactionTransfer": 2,
         "InvalidWalEpoch": 1,
         "LogAppendLimitExceeded": 1,
         "LogAppendUncertain": 2,
@@ -35940,7 +35942,7 @@
         "LogTransactionSourceNotPinned": 4,
         "LogTransactionSourceReleased": 2,
         "OutstandingTailBorrows": 1,
-        "PrivateLogWorkspace": 5,
+        "PrivateLogWorkspace": 7,
         "QueueClaimMissing": 2,
         "QueueDestinationSchemaMismatch": 1,
         "QueueItemMissing": 6,
@@ -35948,6 +35950,7 @@
         "QueueNotEligible": 1,
         "QueueReadBudgetExceeded": 1,
         "QueueReadReleased": 3,
+        "QueueStateConflict": 3,
         "QueueTimeUnavailable": 7,
         "StalePolicyEpoch": 1,
         "StaleWriterEpoch": 1,
@@ -36007,9 +36010,12 @@
         "Owner().<return>.compactionProgress()": "<inferred>",
         "Owner().<return>.compactionRows()": "<inferred>",
         "Owner().<return>.compactionSource()": "<inferred>",
+        "Owner().<return>.deadLetterNext()": "<inferred>",
+        "Owner().<return>.deadLetterWork()": "<inferred>",
         "Owner().<return>.decodeFrame()": "<inferred>",
         "Owner().<return>.decodeValue()": "<inferred>",
         "Owner().<return>.deinit()": "<inferred>",
+        "Owner().<return>.encodeTransferPayload()": "<inferred>",
         "Owner().<return>.evaluateTransaction()": "<inferred>",
         "Owner().<return>.evaluateTransactionBounded()": "<inferred>",
         "Owner().<return>.expirationObservation()": "<inferred>",
@@ -36095,7 +36101,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 848,
+        "try": 867,
         "catch": 20
       },
       "imports": [
@@ -36914,6 +36920,8 @@
         "claim()": "<inferred>",
         "claimNonempty()": "<inferred>",
         "claimReadiness()": "<inferred>",
+        "deadLetterNext()": "<inferred>",
+        "deadLetterWork()": "<inferred>",
         "deinit()": "<inferred>",
         "enqueue()": "<inferred>",
         "evaluateTransaction()": "<inferred>",
