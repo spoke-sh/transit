@@ -32,7 +32,9 @@ The account's operation, byte and pending budgets are fixed by its first
 accepted binding. New acceptance checks and charges them in the same Catalog
 WAL transition. A Table operation reserves 4608 bytes of account recovery content;
 complete data intent bytes have their separate `intent_bytes` bound and storage
-owner. External operations reserve their declared recovery budget. Settlement
+owner. Stream/Queue workload operations additionally charge their complete frozen
+body to the account's recovery-byte budget; native payload/result storage keeps
+its own quotas. External operations reserve their declared recovery budget. Settlement
 releases pending capacity; retained identities and byte charges remain. A quota
 refusal never expires accepted work. The node's catalog-wide token quota is an
 independent upper bound, including internal recovery accounts.

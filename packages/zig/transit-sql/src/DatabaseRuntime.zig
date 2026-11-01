@@ -525,7 +525,11 @@ fn admitWithWake(self: *Self, allocator: std.mem.Allocator, observer: *g.Client,
     defer intent.deinit();
     if (try intent.workBytes() > self.execution.configuration.intent_bytes) return error.GatewayRecordTooLarge;
     const reference = try self.available(observer, deadline, g.Statement.Write.stage, .{ &intent, table.*, statement.namespace, self.execution.configuration.account });
-    const binding: c.DirectClientToken.Binding = .{ .key = .{ .definition = p.Growth.current_definition, .connection = table.connection, .account = self.execution.configuration.account, .token = nonce }, .fingerprint = expected_fingerprint orelse try reference.digest(), .intent = reference, .budget = self.execution.configuration.budget(self.execution.configuration.reservation()) };
+    // Workload recovery retains the complete frozen body as well as its
+    // reference. Charge the owner's required reservation without changing the
+    // account quota or the separate per-intent body-size limit above.
+    const reserved = if (reference == .workload) try reference.workload.reservationBytes() else self.execution.configuration.reservation();
+    const binding: c.DirectClientToken.Binding = .{ .key = .{ .definition = p.Growth.current_definition, .connection = table.connection, .account = self.execution.configuration.account, .token = nonce }, .fingerprint = expected_fingerprint orelse try reference.digest(), .intent = reference, .budget = self.execution.configuration.budget(reserved) };
     // A lost bind response can leave work accepted even without an observed ID.
     errdefer self.notify();
     const receipt = self.available(observer, deadline, c.DirectClientToken.bind, .{ table.*, binding }) catch |err| {
