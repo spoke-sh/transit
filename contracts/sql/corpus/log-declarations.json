@@ -1,0 +1,478 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "sql": "CREATE STREAM events (id BIGINT NOT NULL, payload TEXT)",
+      "log": {
+        "kind": "stream",
+        "action": "create",
+        "name": "events",
+        "rename": null,
+        "configured": {
+          "configuration": {
+            "partitioning": {
+              "count": 1,
+              "key_column": null,
+              "hash": "sha256_64"
+            },
+            "retention": {
+              "max_age_ms": null
+            },
+            "policy": {
+              "stream": {
+                "compact_key_column": null,
+                "timestamp_column": null
+              }
+            }
+          },
+          "limits": {
+            "append_rows": 128,
+            "append_bytes": 1048576,
+            "claim_rows": 16,
+            "read_rows": 128,
+            "read_bytes": 1048576,
+            "active_leases": 64,
+            "waiters": 64,
+            "timer_steps": 64
+          },
+          "destination": {
+            "unchanged": {}
+          }
+        }
+      }
+    },
+    {
+      "sql": "CREATE QUEUE work (id BIGINT, payload JSON)",
+      "log": {
+        "kind": "queue",
+        "action": "create",
+        "name": "work",
+        "rename": null,
+        "configured": {
+          "configuration": {
+            "partitioning": {
+              "count": 1,
+              "key_column": null,
+              "hash": "sha256_64"
+            },
+            "retention": {
+              "max_age_ms": null
+            },
+            "policy": {
+              "queue": {
+                "ordering": "unordered",
+                "key_column": null,
+                "lease_ms": 30000,
+                "maximum_lease_ms": 30000,
+                "maximum_attempts": 5,
+                "backoff": {
+                  "initial_ms": 1000,
+                  "maximum_ms": 60000,
+                  "multiplier": 2
+                },
+                "dead_letter": null
+              }
+            }
+          },
+          "limits": {
+            "append_rows": 128,
+            "append_bytes": 1048576,
+            "claim_rows": 16,
+            "read_rows": 128,
+            "read_bytes": 1048576,
+            "active_leases": 64,
+            "waiters": 64,
+            "timer_steps": 64
+          },
+          "destination": {
+            "unchanged": {}
+          }
+        }
+      }
+    },
+    {
+      "sql": "CREATE STREAM events (tenant TEXT NOT NULL COLLATE ASCII_CI, payload JSON) PARTITION BY HASH (tenant) PARTITIONS 4 WITH (retention='7d', compaction='key', append_rows=512)",
+      "log": {
+        "kind": "stream",
+        "action": "create",
+        "name": "events",
+        "rename": null,
+        "configured": {
+          "configuration": {
+            "partitioning": {
+              "count": 4,
+              "key_column": 1,
+              "hash": "sha256_64"
+            },
+            "retention": {
+              "max_age_ms": 604800000
+            },
+            "policy": {
+              "stream": {
+                "compact_key_column": 1,
+                "timestamp_column": null
+              }
+            }
+          },
+          "limits": {
+            "append_rows": 512,
+            "append_bytes": 1048576,
+            "claim_rows": 16,
+            "read_rows": 128,
+            "read_bytes": 1048576,
+            "active_leases": 64,
+            "waiters": 64,
+            "timer_steps": 64
+          },
+          "destination": {
+            "unchanged": {}
+          }
+        }
+      }
+    },
+    {
+      "sql": "CREATE STREAM manual (id BIGINT) PARTITIONS 2",
+      "log": {
+        "kind": "stream",
+        "action": "create",
+        "name": "manual",
+        "rename": null,
+        "configured": {
+          "configuration": {
+            "partitioning": {
+              "count": 2,
+              "key_column": null,
+              "hash": "sha256_64"
+            },
+            "retention": {
+              "max_age_ms": null
+            },
+            "policy": {
+              "stream": {
+                "compact_key_column": null,
+                "timestamp_column": null
+              }
+            }
+          },
+          "limits": {
+            "append_rows": 128,
+            "append_bytes": 1048576,
+            "claim_rows": 16,
+            "read_rows": 128,
+            "read_bytes": 1048576,
+            "active_leases": 64,
+            "waiters": 64,
+            "timer_steps": 64
+          },
+          "destination": {
+            "unchanged": {}
+          }
+        }
+      }
+    },
+    {
+      "sql": "CREATE QUEUE work (entity BIGINT NOT NULL) PARTITION BY HASH (entity) PARTITIONS 8 WITH (mode='key_fifo', lease_duration='5s', max_attempts=7, dead_letter_queue='failures')",
+      "log": {
+        "kind": "queue",
+        "action": "create",
+        "name": "work",
+        "rename": null,
+        "configured": {
+          "configuration": {
+            "partitioning": {
+              "count": 8,
+              "key_column": 1,
+              "hash": "sha256_64"
+            },
+            "retention": {
+              "max_age_ms": null
+            },
+            "policy": {
+              "queue": {
+                "ordering": "key_fifo",
+                "key_column": 1,
+                "lease_ms": 5000,
+                "maximum_lease_ms": 30000,
+                "maximum_attempts": 7,
+                "backoff": {
+                  "initial_ms": 1000,
+                  "maximum_ms": 60000,
+                  "multiplier": 2
+                },
+                "dead_letter": null
+              }
+            }
+          },
+          "limits": {
+            "append_rows": 128,
+            "append_bytes": 1048576,
+            "claim_rows": 16,
+            "read_rows": 128,
+            "read_bytes": 1048576,
+            "active_leases": 64,
+            "waiters": 64,
+            "timer_steps": 64
+          },
+          "destination": {
+            "name": "failures"
+          }
+        }
+      }
+    },
+    {
+      "sql": "ALTER QUEUE work SET (max_attempts=9, retention='2h')",
+      "log": {
+        "kind": "queue",
+        "action": "alter",
+        "name": "work",
+        "rename": null,
+        "configured": {
+          "configuration": {
+            "partitioning": {
+              "count": 1,
+              "key_column": null,
+              "hash": "sha256_64"
+            },
+            "retention": {
+              "max_age_ms": 7200000
+            },
+            "policy": {
+              "queue": {
+                "ordering": "unordered",
+                "key_column": null,
+                "lease_ms": 30000,
+                "maximum_lease_ms": 30000,
+                "maximum_attempts": 9,
+                "backoff": {
+                  "initial_ms": 1000,
+                  "maximum_ms": 60000,
+                  "multiplier": 2
+                },
+                "dead_letter": null
+              }
+            }
+          },
+          "limits": {
+            "append_rows": 128,
+            "append_bytes": 1048576,
+            "claim_rows": 16,
+            "read_rows": 128,
+            "read_bytes": 1048576,
+            "active_leases": 64,
+            "waiters": 64,
+            "timer_steps": 64
+          },
+          "destination": {
+            "unchanged": {}
+          }
+        }
+      },
+      "basis": "CREATE QUEUE work (id BIGINT)"
+    },
+    {
+      "sql": "ALTER QUEUE work SET (dead_letter_queue=NULL)",
+      "log": {
+        "kind": "queue",
+        "action": "alter",
+        "name": "work",
+        "rename": null,
+        "configured": {
+          "configuration": {
+            "partitioning": {
+              "count": 1,
+              "key_column": null,
+              "hash": "sha256_64"
+            },
+            "retention": {
+              "max_age_ms": null
+            },
+            "policy": {
+              "queue": {
+                "ordering": "unordered",
+                "key_column": null,
+                "lease_ms": 30000,
+                "maximum_lease_ms": 30000,
+                "maximum_attempts": 5,
+                "backoff": {
+                  "initial_ms": 1000,
+                  "maximum_ms": 60000,
+                  "multiplier": 2
+                },
+                "dead_letter": null
+              }
+            }
+          },
+          "limits": {
+            "append_rows": 128,
+            "append_bytes": 1048576,
+            "claim_rows": 16,
+            "read_rows": 128,
+            "read_bytes": 1048576,
+            "active_leases": 64,
+            "waiters": 64,
+            "timer_steps": 64
+          },
+          "destination": {
+            "clear": {}
+          }
+        }
+      },
+      "basis": "CREATE QUEUE work (id BIGINT)"
+    },
+    {
+      "sql": "ALTER STREAM events SET (retention='unlimited')",
+      "log": {
+        "kind": "stream",
+        "action": "alter",
+        "name": "events",
+        "rename": null,
+        "configured": {
+          "configuration": {
+            "partitioning": {
+              "count": 1,
+              "key_column": null,
+              "hash": "sha256_64"
+            },
+            "retention": {
+              "max_age_ms": null
+            },
+            "policy": {
+              "stream": {
+                "compact_key_column": null,
+                "timestamp_column": null
+              }
+            }
+          },
+          "limits": {
+            "append_rows": 128,
+            "append_bytes": 1048576,
+            "claim_rows": 16,
+            "read_rows": 128,
+            "read_bytes": 1048576,
+            "active_leases": 64,
+            "waiters": 64,
+            "timer_steps": 64
+          },
+          "destination": {
+            "unchanged": {}
+          }
+        }
+      },
+      "basis": "CREATE STREAM events (id BIGINT)"
+    },
+    {
+      "sql": "ALTER STREAM old RENAME TO new",
+      "log": {
+        "kind": "stream",
+        "action": "rename",
+        "name": "old",
+        "rename": "new",
+        "configured": null
+      }
+    },
+    {
+      "sql": "DROP STREAM old",
+      "log": {
+        "kind": "stream",
+        "action": "drop",
+        "name": "old",
+        "rename": null,
+        "configured": null
+      }
+    },
+    {
+      "sql": "ALTER QUEUE old RENAME TO new",
+      "log": {
+        "kind": "queue",
+        "action": "rename",
+        "name": "old",
+        "rename": "new",
+        "configured": null
+      }
+    },
+    {
+      "sql": "DROP QUEUE old",
+      "log": {
+        "kind": "queue",
+        "action": "drop",
+        "name": "old",
+        "rename": null,
+        "configured": null
+      }
+    },
+    {
+      "sql": "CREATE STREAM \"Queue\" (queue BIGINT)",
+      "log": {
+        "kind": "stream",
+        "action": "create",
+        "name": "Queue",
+        "rename": null,
+        "configured": {
+          "configuration": {
+            "partitioning": {
+              "count": 1,
+              "key_column": null,
+              "hash": "sha256_64"
+            },
+            "retention": {
+              "max_age_ms": null
+            },
+            "policy": {
+              "stream": {
+                "compact_key_column": null,
+                "timestamp_column": null
+              }
+            }
+          },
+          "limits": {
+            "append_rows": 128,
+            "append_bytes": 1048576,
+            "claim_rows": 16,
+            "read_rows": 128,
+            "read_bytes": 1048576,
+            "active_leases": 64,
+            "waiters": 64,
+            "timer_steps": 64
+          },
+          "destination": {
+            "unchanged": {}
+          }
+        }
+      }
+    },
+    {
+      "sql": "CREATE STREAM s (id BIGINT PRIMARY KEY)",
+      "error": "UnsupportedLogPrimaryKey"
+    },
+    {
+      "sql": "CREATE STREAM s (id BIGINT) WITH (other=1)",
+      "error": "UnsupportedLogOption"
+    },
+    {
+      "sql": "CREATE QUEUE q (id BIGINT) WITH (mode='key_fifo', key_column='id')",
+      "error": "InvalidLogKeyColumn"
+    },
+    {
+      "sql": "CREATE STREAM s (id BIGINT) WITH (retention='0s')",
+      "error": "InvalidLogOption"
+    },
+    {
+      "sql": "CREATE STREAM s (id BIGINT) WITH (retention='1s', RETENTION='2s')",
+      "error": "DuplicateLogOption"
+    },
+    {
+      "sql": "CREATE QUEUE q (id BIGINT) WITH (claim_rows=65)",
+      "error": "InvalidLogLimits"
+    },
+    {
+      "sql": "CREATE STREAM IF NOT EXISTS s (id BIGINT)",
+      "error": "UnsupportedConstruct",
+      "reference_reject": true
+    },
+    {
+      "sql": "ALTER QUEUE q ADD COLUMN value BIGINT",
+      "error": "InvalidSqlSyntax",
+      "reference_reject": true
+    }
+  ]
+}

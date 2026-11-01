@@ -133,6 +133,9 @@ extensionStatement
     | createTable
     | alterTable
     | dropTable
+    | createLog
+    | alterLog
+    | dropLog
     | createDocument
     | createKv
     | grantStatement
@@ -143,6 +146,16 @@ extensionStatement
     | describeStatement
     | explainStatement
     ;
+
+// Dedicated log declarations share logical columns, never Table DML semantics.
+createLog: CREATE logKind identifier LPAREN tableElement (COMMA tableElement)* RPAREN
+    logPartitioning? (WITH logOptions)?;
+alterLog: ALTER logKind identifier (SET logOptions | RENAME TO identifier);
+dropLog: DROP logKind identifier;
+logKind: STREAM | QUEUE;
+logPartitioning: (PARTITION BY HASH LPAREN identifier RPAREN)? PARTITIONS INTEGER;
+logOptions: LPAREN logOption (COMMA logOption)* RPAREN;
+logOption: identifier EQ literal;
 
 // CREATE CONNECTION kafka_conn TO HTTP (endpoint = 'https://...', token = SECRET('...'));
 createConnection
@@ -257,7 +270,7 @@ privilege
 // ALL and bare STORAGE are contextual identifiers parsed by settingKey;
 // execution reserves them for settings listing and node storage inspection.
 showStatement
-    : SHOW (catalogKind | settingKey | STORAGE FOR identifier)
+    : SHOW (catalogKind | settingKey | STORAGE FOR identifier | logKind identifier)
     ;
 settingKey: identifier (DOT identifier)*;
 sessionSettingStatement
@@ -282,7 +295,7 @@ catalogKind
     ;
 
 describeStatement
-    : DESCRIBE identifier
+    : DESCRIBE logKind? identifier
     ;
 
 explainStatement
@@ -312,10 +325,16 @@ legacyIdentifier
     | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN
     | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | ROLLBACK | SAVEPOINT | RELEASE
     | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE
+    | STREAM | QUEUE | PARTITION | PARTITIONS | HASH
     ;
 
 // ---- Lexer rules --------------------------------------------------------
 BEGIN: 'BEGIN';
+STREAM: 'STREAM';
+QUEUE: 'QUEUE';
+PARTITION: 'PARTITION';
+PARTITIONS: 'PARTITIONS';
+HASH: 'HASH';
 START: 'START';
 TRANSACTION: 'TRANSACTION';
 WORK: 'WORK';

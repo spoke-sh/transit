@@ -15,6 +15,9 @@ const Case = struct { sql: []const u8, basis: ?[]const u8 = null };
 fn emit(init: std.process.Init, out: *std.Io.Writer, case: Case, index: usize) !void {
     var names = try f.SqlTyped.init(init.arena.allocator(), case.sql, null);
     const creating = try names.takeWord("CREATE");
+    var header = names;
+    if (!creating) _ = (try header.takeWord("ALTER")) or (try header.takeWord("DROP"));
+    if (header.word("STREAM") or header.word("QUEUE")) return emitLog(init, out, case, index);
     if (creating and !names.word("TABLE")) {
         const definition = try f.Declaration.compile(case.sql);
         var buffer: [4096]u8 = undefined;
@@ -39,6 +42,20 @@ fn emit(init: std.process.Init, out: *std.Io.Writer, case: Case, index: usize) !
         },
         .drop => |value| try std.json.Stringify.value(.{ .index = index, .kind = "drop", .name = value.name, .if_exists = value.if_exists, .object = value.object }, .{}, out),
     }
+}
+fn emitLog(init: std.process.Init, out: *std.Io.Writer, case: Case, index: usize) !void {
+    var result = try f.LogDdl.compile(init.gpa, case.sql, .transit, null);
+    defer result.deinit();
+    const statement = result.statement;
+    var original: ?f.LogDdl.Owned = if (case.basis) |text| try f.LogDdl.compile(init.gpa, text, .transit, null) else null;
+    defer if (original) |*value| value.deinit();
+    const schema: ?f.TableSchema.Schema = if (statement.action == .create) try statement.action.create.bind(7) else if (original) |value| try value.statement.action.create.bind(7) else null;
+    const basis: ?f.LogDdl.Basis = if (original) |value| blk: {
+        const configured = try value.statement.configure(null, schema.?);
+        break :blk .{ .schema = schema.?, .configuration = configured.configuration, .limits = configured.limits };
+    } else null;
+    const configured: ?f.LogDdl.Configured = if (statement.action == .create or statement.action == .alter) try statement.configure(basis, schema orelse return error.TableSchemaRequired) else null;
+    try std.json.Stringify.value(.{ .index = index, .kind = @tagName(statement.kind), .action = @tagName(statement.action), .name = statement.name, .rename = if (statement.action == .rename) statement.action.rename else @as(?[]const u8, null), .configured = configured }, .{}, out);
 }
 pub fn main(init: std.process.Init) !void {
     const allocator = init.arena.allocator();

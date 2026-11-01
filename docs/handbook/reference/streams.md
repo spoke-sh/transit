@@ -41,8 +41,9 @@ Historical Queue dependency edges remain retained pending the Queue closure owne
 
 Lookup and listing recheck current metadata rights. Each bounded listing page
 has its own catalog observation position; it is not an atomic data snapshot.
-Payload operations use the separate typed calls below. SQL Stream/Queue verbs
-and Station composition remain unavailable. The existing mailbox delivery
+Payload operations use the separate typed calls below. SQL supports
+[declaration and named inspection](sql/streaming.md#stream-and-queue-declarations);
+workload verbs and Station composition remain unavailable. The existing mailbox delivery
 profile below remains separate.
 See the [caller package](../../../packages/zig/transit-data-client/README.md) and
 [exact lifecycle contract](../../../contracts/DIRECT_TABLE_V1.md#stream-and-queue-lifecycle).

@@ -9,6 +9,7 @@ const Self = @This();
 arena: std.heap.ArenaAllocator,
 name: ?c.TableMetadata.Name = null,
 metadata: ?c.DirectTableBinding = null,
+log_metadata: ?struct { connection: c.DirectTableProtocol.Connection, definition: c.DirectLog.Definition } = null,
 statement: ?g.Statement = null,
 source: bool = false,
 storage: bool = false,
@@ -24,6 +25,11 @@ const describe_fields = [_]f.Types.Field{
     .{ .name = "column_id", .type = .uint64 },
 };
 const explain_fields = [_]f.Types.Field{.{ .name = "plan", .type = .utf8 }};
+const log_fields = [_]f.Types.Field{
+    .{ .name = "object", .type = .uint64 },     .{ .name = "definition_revision", .type = .uint64 },
+    .{ .name = "partitions", .type = .uint32 }, .{ .name = "configuration", .type = .utf8 },
+    .{ .name = "limits", .type = .utf8 },
+};
 fn text(bytes: []const u8) f.Types.Values.Cell {
     return .{ .value = .{ .atom = .{ .bytes = bytes } } };
 }
@@ -38,7 +44,35 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
     var arena: std.heap.ArenaAllocator = .init(host.allocator);
     errdefer arena.deinit();
     const a = arena.allocator();
-    var parser = try f.SqlTyped.init(a, sql, null);
+    var parser = try f.SqlTyped.initDialect(a, sql, null, false, host.dialect);
+    var log_header = parser;
+    const show_log = try log_header.takeWord("SHOW");
+    const describe_log = if (!show_log) try log_header.takeWord("DESCRIBE") else false;
+    var log_name = log_header;
+    const log_kind = (try log_name.takeWord("STREAM")) or (try log_name.takeWord("QUEUE"));
+    if ((show_log or describe_log) and log_kind and log_name.token.tag != .eof and log_name.token.tag != .semi) {
+        const kind: c.DirectLog.Kind = if (try log_header.takeWord("STREAM")) .stream else blk: {
+            try log_header.requireWord("QUEUE");
+            break :blk .queue;
+        };
+        const name = try c.TableMetadata.Name.init(try log_header.named(.source));
+        try log_header.finish();
+        const response = try host.table.call(.{ .log_lookup = .{ .namespace = host.namespace, .name = name.slice() } });
+        defer response.deinit();
+        const metadata = response.value.result.log_lookup orelse return error.CatalogNameNotFound;
+        const definition = metadata.declaration;
+        if (definition.kind() != kind) return error.CatalogKindMismatch;
+        const rows = if (show_log) blk: {
+            const rows = try a.alloc([]const f.Types.Values.Cell, 1);
+            rows[0] = try a.dupe(f.Types.Values.Cell, &.{ unsigned(definition.stored.declaration.interpretation.object.object), unsigned(definition.stored.declaration.interpretation.revision), unsigned(definition.count()), text(try c.protocol.Json.valueAlloc(a, definition.stored.declaration.configuration)), text(try c.protocol.Json.valueAlloc(a, definition.stored.declaration.limits)) });
+            break :blk rows;
+        } else blk: {
+            var owned = try f.TableSchema.decode(a, try metadata.schema.decode(a, f.TableSchema.max_bytes));
+            defer owned.deinit();
+            break :blk try describeRows(a, owned.schema);
+        };
+        return .{ .arena = arena, .name = name, .log_metadata = .{ .connection = host.table.connection, .definition = definition }, .rows = rows, .output = if (show_log) &log_fields else &describe_fields };
+    }
     if (try parser.takeWord("SHOW")) {
         if (!(try parser.takeWord("STORAGE"))) {
             arena.deinit();
@@ -70,17 +104,7 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
         const binding = try c.DirectTableBinding.init(host.table.connection, definition);
         var owned_schema = try f.TableSchema.decode(a, try definition.schema.decode(a, f.TableSchema.max_bytes));
         defer owned_schema.deinit();
-        const schema = owned_schema.schema;
-        const rows = try a.alloc([]const f.Types.Values.Cell, schema.columns.len);
-        for (schema.columns, rows) |column, *row| {
-            var type_text: std.Io.Writer.Allocating = .init(a);
-            try f.LogicalDisplay.typeName(&type_text.writer, column.type);
-            row.* = try a.dupe(f.Types.Values.Cell, &.{
-                text(try a.dupe(u8, column.name)),                                                                                                          text(type_text.written()),                                     boolean(column.nullable), boolean(std.mem.indexOfScalar(u64, schema.primary_key, column.id) != null),
-                if (column.default) |cell| text(try std.json.Stringify.valueAlloc(a, try f.LogicalJson.foreignCell(a, cell, column.type), .{})) else .null, if (column.max_characters) |limit| unsigned(limit) else .null, unsigned(schema.object),  unsigned(schema.revision),
-                unsigned(column.id),
-            });
-        }
+        const rows = try describeRows(a, owned_schema.schema);
         return .{ .arena = arena, .name = name, .metadata = binding, .rows = rows, .output = &describe_fields };
     }
     if (try parser.takeWord("EXPLAIN")) {
@@ -124,6 +148,19 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
     arena.deinit();
     return null;
 }
+fn describeRows(a: std.mem.Allocator, schema: f.TableSchema.Schema) ![]const []const f.Types.Values.Cell {
+    const rows = try a.alloc([]const f.Types.Values.Cell, schema.columns.len);
+    for (schema.columns, rows) |column, *row| {
+        var type_text: std.Io.Writer.Allocating = .init(a);
+        try f.LogicalDisplay.typeName(&type_text.writer, column.type);
+        row.* = try a.dupe(f.Types.Values.Cell, &.{
+            text(try a.dupe(u8, column.name)),                                                                                                          text(type_text.written()),                                     boolean(column.nullable), boolean(std.mem.indexOfScalar(u64, schema.primary_key, column.id) != null),
+            if (column.default) |cell| text(try std.json.Stringify.valueAlloc(a, try f.LogicalJson.foreignCell(a, cell, column.type), .{})) else .null, if (column.max_characters) |limit| unsigned(limit) else .null, unsigned(schema.object),  unsigned(schema.revision),
+            unsigned(column.id),
+        });
+    }
+    return rows;
+}
 pub fn validate(self: *Self, host: *g.Session) !void {
     if (self.node_storage) try validateNode(host);
     if (self.source) {
@@ -134,6 +171,10 @@ pub fn validate(self: *Self, host: *g.Session) !void {
     if (self.metadata) |binding| {
         if (host.namespace != binding.namespace) return error.CatalogIdentityConflict;
         _ = try binding.require(host.table, .inspect);
+    }
+    if (self.log_metadata) |binding| {
+        if (host.namespace != binding.definition.properties.namespace or !std.meta.eql(host.table.connection, binding.connection)) return error.CatalogIdentityConflict;
+        try c.DirectLogClient.requireCurrent(host.table, binding.definition);
     }
     if (self.statement) |*statement| try statement.validate(&host.table);
 }

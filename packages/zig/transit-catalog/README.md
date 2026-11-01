@@ -42,6 +42,12 @@ recovery resumes the existing declaration owner without resolving a new name or
 recompiling a proposal. Accepted work remains pending through incomplete partition
 initialization; only the owner's actual terminal observation permits settlement.
 
+`DirectLogPreparedDdl` binds the shared `LogDdl` compiler to current Catalog
+metadata and resolves named DLQ references to exact definitions. Native preview
+checks current declaration and destination rights before staging.
+`DirectLogClient.requireCurrent` revalidates a cached named definition for SQL
+metadata and prepared declaration disclosure.
+
 Typed transactions can select Stream/Queue partitions as read dependencies
 alongside Table/KV state. The common cut retains original log pins, checks
 current READ rights and validates logical frontiers for serializable completion.

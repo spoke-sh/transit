@@ -218,6 +218,10 @@ sql-gateway:
 sql-sessions:
     nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe -- sessions
 
+# Native, PostgreSQL and MySQL declarations, metadata and original token recovery.
+sql-log-declarations:
+    nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe -- sessions-log
+
 # Installed common cuts, private statements, decisions and Table outbox histories.
 sql-transactions:
     nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe -- transactions

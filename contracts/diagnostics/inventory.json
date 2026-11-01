@@ -5570,6 +5570,7 @@
     },
     "packages/zig/transit-catalog/src/DirectLogClient.zig": {
       "errors": {
+        "CatalogDefinitionChanged": 2,
         "IncompatibleDefinition": 1,
         "InvalidLogCatalogIntent": 1,
         "InvalidTableResponse": 1
@@ -5597,11 +5598,12 @@
         "Saved.validate()": "<inferred>",
         "apply()": "<inferred>",
         "load()": "<inferred>",
+        "requireCurrent()": "<inferred>",
         "save()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 11,
+        "try": 14,
         "catch": 0
       },
       "imports": [
@@ -5634,6 +5636,32 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 30,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectLogPreparedDdl.zig": {
+      "errors": {
+        "CatalogDefinitionChanged": 1,
+        "CatalogIdentityConflict": 2,
+        "CatalogKindMismatch": 1,
+        "CatalogNameNotFound": 1,
+        "InvalidDataOperation": 1,
+        "InvalidQueueDestination": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "bindPrepared()": "<inferred>",
+        "prepare()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 18,
         "catch": 0
       },
       "imports": [
@@ -8906,6 +8934,7 @@
         "DirectLog.zig",
         "DirectLogClient.zig",
         "DirectLogIntent.zig",
+        "DirectLogPreparedDdl.zig",
         "DirectLogProtocol.zig",
         "DirectMigration.zig",
         "DirectNamespace.zig",
@@ -12534,6 +12563,88 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/LogDdl.zig": {
+      "errors": {
+        "CatalogKindMismatch": 1,
+        "DuplicateLogOption": 1,
+        "InvalidLogCatalogIntent": 1,
+        "InvalidLogKeyColumn": 1,
+        "InvalidLogOption": 12,
+        "InvalidLogPartitioning": 2,
+        "InvalidQueuePolicy": 2,
+        "InvalidStreamPolicy": 2,
+        "InvalidStreamTimestampColumn": 1,
+        "UnknownColumn": 1,
+        "UnsupportedConstruct": 1,
+        "UnsupportedLogOption": 9,
+        "UnsupportedLogPrimaryKey": 2,
+        "UnsupportedStatement": 3
+      },
+      "outcomes": {
+        "Configured.destination": [
+          "unchanged",
+          "clear",
+          "name"
+        ],
+        "Statement.action": [
+          "create",
+          "alter",
+          "rename",
+          "drop"
+        ],
+        "Tag": [
+          "retention",
+          "compaction",
+          "timestamp_column",
+          "key_column",
+          "mode",
+          "lease_duration",
+          "max_lease_duration",
+          "max_attempts",
+          "backoff_initial",
+          "backoff_maximum",
+          "backoff_multiplier",
+          "dead_letter_queue",
+          "append_rows",
+          "append_bytes",
+          "claim_rows",
+          "read_rows",
+          "read_bytes",
+          "active_leases",
+          "waiters",
+          "timer_steps"
+        ],
+        "compile().verb": [
+          "create",
+          "alter",
+          "drop"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Statement.configure()": "<inferred>",
+        "column()": "<inferred>",
+        "compile()": "<inferred>",
+        "duration()": "<inferred>",
+        "integer()": "<inferred>",
+        "options()": "<inferred>",
+        "string()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 55,
+        "catch": 3
+      },
+      "imports": [
+        "PerfectHash.zig",
+        "Sql.zig",
+        "SqlTyped.zig",
+        "TableDdl.zig",
+        "TableSchema.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-fuze/src/LogicalArrow.zig": {
       "errors": {
         "ArrowShapeTooLarge": 4,
@@ -15550,6 +15661,7 @@
         "Syntax.bind()": "<inferred>",
         "alter()": "<inferred>",
         "column()": "<inferred>",
+        "columnDefinitions()": "<inferred>",
         "compile()": "<inferred>",
         "compileContext()": "<inferred>",
         "compileDialect()": "<inferred>",
@@ -17156,6 +17268,7 @@
         "FuzeDelta.zig",
         "GermanString.zig",
         "HybridSearch.zig",
+        "LogDdl.zig",
         "LogicalArrow.zig",
         "LogicalCodec.zig",
         "LogicalDisplay.zig",
@@ -27345,6 +27458,8 @@
         "CatalogDefinitionChanged": 2,
         "CatalogDenied": 1,
         "CatalogIdentityConflict": 2,
+        "CatalogKindMismatch": 1,
+        "CatalogNameNotFound": 1,
         "CellTooLarge": 1,
         "ConfigurationDenied": 1,
         "ConfigurationReloadRejected": 1,
@@ -27352,6 +27467,7 @@
         "ConfigurationSnapshotChanged": 1,
         "ConfigurationSortRequiresBoundedLimit": 1,
         "Conflict": 5,
+        "DuplicateLogOption": 1,
         "DuplicateWirePortal": 1,
         "DuplicateWireStatement": 1,
         "EmptyWireQuery": 1,
@@ -27367,10 +27483,21 @@
         "GatewayRecordTooLarge": 1,
         "GatewayWaitCancelled": 1,
         "InvalidAuthentication": 3,
+        "InvalidLogKeyColumn": 1,
+        "InvalidLogLimits": 1,
+        "InvalidLogOption": 1,
+        "InvalidLogPartitioning": 1,
+        "InvalidLogRetention": 1,
+        "InvalidQueueBackoff": 1,
+        "InvalidQueueDestination": 1,
+        "InvalidQueuePartitionKey": 1,
+        "InvalidQueuePolicy": 1,
         "InvalidResultBudget": 1,
         "InvalidSettingUnit": 1,
         "InvalidSettingValue": 1,
         "InvalidSqlSyntax": 1,
+        "InvalidStreamPolicy": 1,
+        "InvalidStreamTimestampColumn": 1,
         "InvalidTransactionObservation": 2,
         "InvalidTransactionRead": 1,
         "InvalidWireValue": 1,
@@ -27409,6 +27536,11 @@
         "UnknownWireStatement": 1,
         "UnsupportedExecutionCycle": 1,
         "UnsupportedGatewayStatement": 1,
+        "UnsupportedLogKeyChange": 1,
+        "UnsupportedLogOption": 1,
+        "UnsupportedLogPrimaryKey": 1,
+        "UnsupportedLogRepartition": 1,
+        "UnsupportedLogTimestampChange": 1,
         "UnsupportedTransactionIsolation": 1,
         "UnsupportedTransactionStatement": 1,
         "UnsupportedWireType": 1,
@@ -27469,7 +27601,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 96,
+        "try": 97,
         "catch": 9
       },
       "imports": [
@@ -27481,8 +27613,9 @@
     },
     "packages/zig/transit-sql-service/src/SessionInspection.zig": {
       "errors": {
-        "CatalogIdentityConflict": 1,
-        "CatalogNameNotFound": 2,
+        "CatalogIdentityConflict": 2,
+        "CatalogKindMismatch": 1,
+        "CatalogNameNotFound": 3,
         "Forbidden": 1,
         "TableDefinitionChanged": 1,
         "UnknownSqlSource": 1,
@@ -27492,6 +27625,7 @@
       "error_sets": {},
       "error_returns": {
         "Read.next()": "<inferred>",
+        "describeRows()": "<inferred>",
         "prepare()": "<inferred>",
         "prepareSource()": "<inferred>",
         "validate()": "<inferred>",
@@ -27499,7 +27633,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 52,
+        "try": 71,
         "catch": 0
       },
       "imports": [
@@ -28045,13 +28179,13 @@
     },
     "packages/zig/transit-sql/src/Statement.zig": {
       "errors": {
-        "CatalogIdentityConflict": 4,
+        "CatalogIdentityConflict": 5,
         "ExpectedGatewayWrite": 1,
         "ExpectedRelationalSelect": 1,
         "ExpectedSingleTableSelect": 1,
         "InvalidCatalogIdentity": 1,
         "UnsupportedGatewayStatement": 4,
-        "WireParameterCountMismatch": 3
+        "WireParameterCountMismatch": 4
       },
       "outcomes": {
         "Kind": [
@@ -28070,6 +28204,7 @@
         ],
         "Write": [
           "table",
+          "log",
           "name_assertion",
           "namespace_change"
         ],
@@ -28077,6 +28212,7 @@
           "select",
           "dml",
           "ddl",
+          "log_ddl",
           "relational",
           "namespace_change"
         ]
@@ -28097,7 +28233,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 30,
+        "try": 34,
         "catch": 1
       },
       "imports": [
@@ -37184,7 +37320,14 @@
       "assignment": "columnReference EQ mutationValue",
       "mutationValue": "DEFAULT | literal",
       "mutationRow": "LPAREN mutationValue ( COMMA mutationValue ) * RPAREN",
-      "extensionStatement": "createConnection | createSource | createSink | createTable | alterTable | dropTable | createDocument | createKv | grantStatement | revokeStatement | showStatement | sessionSettingStatement | configurationSelect | describeStatement | explainStatement",
+      "extensionStatement": "createConnection | createSource | createSink | createTable | alterTable | dropTable | createLog | alterLog | dropLog | createDocument | createKv | grantStatement | revokeStatement | showStatement | sessionSettingStatement | configurationSelect | describeStatement | explainStatement",
+      "createLog": "CREATE logKind identifier LPAREN tableElement ( COMMA tableElement ) * RPAREN logPartitioning ? ( WITH logOptions ) ?",
+      "alterLog": "ALTER logKind identifier ( SET logOptions | RENAME TO identifier )",
+      "dropLog": "DROP logKind identifier",
+      "logKind": "STREAM | QUEUE",
+      "logPartitioning": "( PARTITION BY HASH LPAREN identifier RPAREN ) ? PARTITIONS INTEGER",
+      "logOptions": "LPAREN logOption ( COMMA logOption ) * RPAREN",
+      "logOption": "identifier EQ literal",
       "createConnection": "CREATE CONNECTION identifier TO connectorKind connectionOptions",
       "createSource": "CREATE SOURCE identifier FROM connectorKind CONNECTION identifier ( WITH ? connectionOptions ) ?",
       "createSink": "CREATE SINK identifier INTO connectorKind CONNECTION identifier ( WITH ? connectionOptions ) ?",
@@ -37209,17 +37352,22 @@
       "grantStatement": "GRANT privilegeList ON authorizationObject TO grantee grantOption ? | GRANT identifier TO authorizationRole ( WITH membershipOption ( COMMA membershipOption ) * ) ?",
       "revokeStatement": "REVOKE ( GRANT OPTION FOR ) ? privilegeList ON authorizationObject FROM grantee revokeBehavior ? | REVOKE ( ( ADMIN | INHERIT | SET ) OPTION FOR ) ? identifier FROM authorizationRole revokeBehavior ?",
       "privilege": "CONNECT | USAGE | CREATE | SELECT | INSERT | UPDATE | DELETE",
-      "showStatement": "SHOW ( catalogKind | settingKey | STORAGE FOR identifier )",
+      "showStatement": "SHOW ( catalogKind | settingKey | STORAGE FOR identifier | logKind identifier )",
       "settingKey": "identifier ( DOT identifier ) *",
       "sessionSettingStatement": "SET settingKey ( EQ | TO ) ( STRING | INTEGER | DEFAULT ) | RESET settingKey",
       "configurationSelect": "SELECT TRANSIT_RELOAD_CONF LPAREN RPAREN | SELECT projection FROM ( TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS ) LPAREN RPAREN whereClause ? ( ORDER BY identifier ( ASC | DESC ) ? ) ? limitClause ?",
       "catalogKind": "TABLES | DATABASES | SCHEMAS | SOURCES | SINKS | CONNECTIONS",
-      "describeStatement": "DESCRIBE identifier",
+      "describeStatement": "DESCRIBE logKind ? identifier",
       "explainStatement": "EXPLAIN selectStatement",
       "asOfClause": "FOR SYSTEM_TIME AS OF INTEGER",
       "identifier": "legacyIdentifier | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER",
-      "legacyIdentifier": "IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | INSERT | UPDATE | DELETE | SET | VALUES | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS | COLLATE | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | ROLLBACK | SAVEPOINT | RELEASE | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE",
+      "legacyIdentifier": "IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | INSERT | UPDATE | DELETE | SET | VALUES | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS | COLLATE | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | ROLLBACK | SAVEPOINT | RELEASE | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE | STREAM | QUEUE | PARTITION | PARTITIONS | HASH",
       "BEGIN": "'BEGIN'",
+      "STREAM": "'STREAM'",
+      "QUEUE": "'QUEUE'",
+      "PARTITION": "'PARTITION'",
+      "PARTITIONS": "'PARTITIONS'",
+      "HASH": "'HASH'",
       "START": "'START'",
       "TRANSACTION": "'TRANSACTION'",
       "WORK": "'WORK'",

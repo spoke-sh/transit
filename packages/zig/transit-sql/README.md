@@ -6,6 +6,12 @@ SQL database execution over the public Catalog and direct query interfaces.
 original owner outcomes. This package and its transitive dependencies contain
 no Station modules, actor turns, private KV ledger, or storage-provider access.
 
+Stream/Queue DDL uses `DirectLogPreparedDdl` and the Catalog's immutable
+`DirectLogIntent` token reference. It preserves typed declaration completions
+and original accepted identities through the same database runtime as Table
+writes. The [SQL profile](../../../docs/handbook/reference/sql/streaming.md#stream-and-queue-declarations)
+defines supported syntax, policy defaults and inspection results.
+
 The [database runtime](docs/runtime.md) describes admission, fencing, quotas,
 snapshot caching and recovery. The [direct contract](../../../contracts/DIRECT_TABLE_V1.md)
 owns token records and partition operations. The [query package](../transit-query-direct/README.md)

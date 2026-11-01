@@ -11,12 +11,17 @@ connection: c.DirectTableProtocol.Connection,
 namespace: u64,
 dialect: f.Sql.Dialect,
 inspection: bool = false,
-plan: union(enum) { select: g.direct.DirectTablePrepared, dml: c.DirectTablePreparedDml, ddl: c.DirectTablePreparedDdl, relational: *g.direct.DirectRelationalCompilation, namespace_change: c.DirectAuthorizationSql.NamespacePlan },
+plan: union(enum) { select: g.direct.DirectTablePrepared, dml: c.DirectTablePreparedDml, ddl: c.DirectTablePreparedDdl, log_ddl: c.DirectLogPreparedDdl, relational: *g.direct.DirectRelationalCompilation, namespace_change: c.DirectAuthorizationSql.NamespacePlan },
 output: ?f.Types.Decoded,
 pub const Kind = enum { select, insert, update, delete, create, alter, drop };
 pub fn kind(self: *const Self) Kind {
     return switch (self.plan) {
         .select, .relational => .select,
+        .log_ddl => |value| switch (value.compiled.statement.action) {
+            .create => .create,
+            .alter, .rename => .alter,
+            .drop => .drop,
+        },
         .ddl => |value| switch (value.compiled.statement) {
             .create => .create,
             .alter => .alter,
@@ -97,10 +102,14 @@ fn prepareInner(allocator: std.mem.Allocator, client: *c.DirectTableClient, name
     errdefer allocator.free(owned);
     var plan: @FieldType(Self, "plan") = undefined;
     var declaration = lexer;
-    const namespace_change = (std.ascii.eqlIgnoreCase(first.text, "CREATE") or std.ascii.eqlIgnoreCase(first.text, "ALTER") or std.ascii.eqlIgnoreCase(first.text, "DROP")) and tokenIs(try declaration.next(), "SCHEMA");
+    const declaring = tokenIs(first, "CREATE") or tokenIs(first, "ALTER") or tokenIs(first, "DROP");
+    const subject = if (declaring) try declaration.next() else first;
+    const namespace_change = declaring and tokenIs(subject, "SCHEMA");
     if (namespace_change) {
         if (profile != .native) return error.UnsupportedGatewayStatement;
         plan = .{ .namespace_change = try c.DirectAuthorizationSql.prepareNamespace(client.*, namespace, text, .{}, location) };
+    } else if (declaring and (tokenIs(subject, "STREAM") or tokenIs(subject, "QUEUE"))) {
+        plan = .{ .log_ddl = try c.DirectLogPreparedDdl.prepare(allocator, client.*, namespace, text, dialect, location) };
     } else if (std.ascii.eqlIgnoreCase(first.text, "SELECT")) {
         // Parameterized relational syntax is outside this profile. Parameter
         // tokens belong to the shared single-Table compiler; strings/comments
@@ -168,28 +177,36 @@ pub fn validate(self: *const Self, client: *c.DirectTableClient) !void {
         .relational => |value| try value.validate(client.*),
         .namespace_change => |value| try value.validate(client.*, self.namespace, .{}),
         .ddl => |*value| try value.validate(client.*),
+        .log_ddl => |*value| try value.validate(client.*),
     }
 }
 pub const Write = union(enum) {
     table: c.DirectTableIntent,
+    log: c.DirectLogIntent,
     name_assertion: c.NameAssertion.Binding,
     namespace_change: g.IntentReference.NamespaceChange,
     pub fn deinit(self: *Write) void {
         if (self.* == .table) self.table.deinit();
+        if (self.* == .log) self.log.deinit();
         self.* = undefined;
     }
     pub fn workBytes(self: *const Write) !u64 {
         return switch (self.*) {
             .table => |value| value.bytes.len,
+            .log => |value| value.bytes.len,
             .name_assertion => |value| (g.IntentReference.Reference{ .name_assertion = value }).workBytes(),
             .namespace_change => |value| (g.IntentReference.Reference{ .namespace_change = value }).workBytes(),
         };
     }
     /// Staging an inline assertion is pure. Database recovery dispatches only
     /// the complete reference accepted by the Catalog's client-token binding.
-    pub fn stage(self: *const Write, client: c.DirectTableClient, namespace: u64) !g.IntentReference.Reference {
+    pub fn stage(self: *const Write, client: c.DirectTableClient, namespace: u64, account: [32]u8) !g.IntentReference.Reference {
         return switch (self.*) {
             .table => |*value| .{ .table = try value.stage(client, namespace) },
+            .log => |*value| blk: {
+                if (value.parsed.value.work.namespace != namespace) return error.CatalogIdentityConflict;
+                break :blk .{ .log = try value.stage(client, account) };
+            },
             .name_assertion => |value| blk: {
                 try value.validate();
                 if (!std.meta.eql(value.connection, client.connection) or value.namespace != namespace) return error.CatalogIdentityConflict;
@@ -211,6 +228,10 @@ pub fn bindWritePrepared(self: *const Self, allocator: std.mem.Allocator, client
     const fresh = fresh_prepared.*;
     fresh_prepared.* = false;
     if (operation == 0 or operation > c.protocol.max_counter) return error.InvalidCatalogIdentity;
+    if (self.plan == .log_ddl) {
+        if (values.len != 0) return error.WireParameterCountMismatch;
+        return .{ .log = try self.plan.log_ddl.bindPrepared(allocator, client.*, operation, fresh) };
+    }
     if (self.plan == .ddl) {
         if (values.len != 0) return error.WireParameterCountMismatch;
         const prepared = &self.plan.ddl;

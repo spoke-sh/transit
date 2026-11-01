@@ -20,6 +20,16 @@ Table statements share `TableDdl`, `TableDml`, `TableSelect`, typed literals and
 logical descriptors; the source-bound logical query plan uses canonical `FQP1`
 bytes. Runtime authorization and storage publication remain separate from parsing.
 
+`LogDdl` owns dedicated Stream/Queue CREATE, policy ALTER, RENAME and DROP
+compilation, sharing the logical column grammar with `TableDdl`. The independent
+`corpus/log-declarations.json` cases cover defaults, routing, retention, FIFO,
+limits and unsupported options through `just test::table-ddl-sql`. Named
+`SHOW STREAM/QUEUE` and `DESCRIBE STREAM/QUEUE` use the ordinary SQL metadata
+result lifecycle. The [executable profile](../../docs/handbook/reference/sql/streaming.md#stream-and-queue-declarations)
+lists exact options and limits; payload verbs and plural SQL listings remain
+outside that profile. `just test::sql-log-declarations` exercises actual native,
+PostgreSQL and MySQL sessions, original-token recovery and buffered denial.
+
 Table schemas and projections admit up to 128 columns. Logical types, parameter
 bounds, row budgets and operator/transport capabilities are checked by their
 owning compiler and runtime. Reference grammar acceptance alone does not enable

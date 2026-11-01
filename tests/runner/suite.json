@@ -139,6 +139,7 @@
       "test::sql-result-allocations",
       "test::sql-wire-gateway",
       "test::sql-sessions",
+      "test::sql-log-declarations",
       "test::sql-transactions"
     ],
     "interfaces-relational": [

@@ -11,6 +11,10 @@ BASIS='CREATE TABLE people (id INTEGER PRIMARY KEY, name VARCHAR(200), active BO
 
 
 def expected(case):
+    if 'log' in case:
+        extension=tree(case['sql']).extensionStatement()
+        assert extension.createLog() or extension.alterLog() or extension.dropLog()
+        return case['log']
     extension=tree(case['sql']).extensionStatement()
     if extension.createTable():
         value=create(case['sql']); value['schema_hex']=schema_bytes(value['schema']).hex(); return value
@@ -43,6 +47,8 @@ def expected(case):
 def check(binary):
     data=json.loads((ROOT/'contracts/sql/corpus/declarations.json').read_text()); assert data['version']==1
     cases=list(data['cases'])
+    logs=json.loads((ROOT/'contracts/sql/corpus/log-declarations.json').read_text()); assert logs['version']==1
+    cases.extend(logs['cases'])
     # Omitted/null/not-null remains a semantic Cartesian product, now admitting
     # the general schema instead of imposing a positional key/value restriction.
     for kt,vt,kn,vn in itertools.product(TYPES,TYPES,('', ' NULL',' NOT NULL'),('', ' NULL',' NOT NULL')):
@@ -92,7 +98,7 @@ def check(binary):
             assert response==dict(err=case['error']),(case,response)
         else:
             wanted=expected(case); assert response==wanted,(case,wanted,response); successful+=1
-    print(f'General DDL: {len(cases)} independent grammar/compiler cases; {successful} exact schema/identity/type/default/evolution comparisons, canonical FTS1 bytes and offline KV/Document formatting. No publication claim.')
+    print(f'General DDL: {len(cases)} independent grammar/compiler cases; {successful} exact schema/identity/type/default/evolution and Stream/Queue policy comparisons, canonical FTS1 bytes and offline KV/Document formatting. No publication claim.')
 
 
 if __name__ == '__main__':
