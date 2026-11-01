@@ -807,8 +807,11 @@ qualification is pending.
 R5c adds executable Table/KV composition through the existing workspace and
 decision owner. Its component checks include private KV reads, current rights,
 savepoint identity preservation, commit/abort replacement and retained graph
-traversal. It still needs installed qualification, log retention pins, durable
-action directories/reservations and log participant adapters. Shape validation and neutral directory membership are not evidence
+traversal. Its installed Table/KV proof passes at `4771f5698`: 33 signed requests,
+two withheld replies and two node replacements recover the same private statement
+and committed decision. Clean integrated qualification, log retention pins,
+durable action directories/reservations and log participant adapters remain open.
+Shape validation and neutral directory membership are not evidence
 of a completed mixed transaction or DLQ transfer.
 
 R5b can progress alongside R5c after R5a fixes their shared interface. For DLQ,
