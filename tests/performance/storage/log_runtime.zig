@@ -304,6 +304,25 @@ fn run(comptime kind: Kind, init: std.process.Init, client: c.DirectTableClient,
         (try client.call(.initialize)).deinit();
         try write(init, state_path, try runner.measure(owner));
     }
+    // LocalTableHost uses these defaults independently of the native page-cache
+    // setting in node.json. These are configured bounds, not observed usage.
+    const catalog_options: c.DirectCatalog.Options = .{};
+    const limits = if (kind == .stream) catalog_options.logs.stream else catalog_options.logs.queue;
+    try emit(init, out, .{ .event = "owner_budgets", .profile = config.id, .limits = .{
+        .catalog_pages = catalog_options.resident_pages,
+        .catalog_index_work_bytes = catalog_options.index_work_bytes,
+        .partition_pages = limits.resident_pages,
+        .partition_index_work_bytes = limits.index_work_bytes,
+        .tail_slots = limits.tail.slots,
+        .tail_borrow_slots = limits.tail.borrow_slots,
+        .tail_slot_bytes = limits.tail.slot_bytes,
+        .tail_resident_bytes = limits.tail.resident_bytes,
+        .queue_candidate_objects = if (kind == .queue) limits.queue_candidate_objects else null,
+        .queue_candidate_resident_bytes = if (kind == .queue) limits.queue_candidate_resident_bytes else null,
+        .queue_deadline_rows = if (kind == .queue) limits.queue_deadline_rows else null,
+        .queue_visibility_rows = if (kind == .queue) limits.queue_visibility_rows else null,
+        .queue_affinity_rows = if (kind == .queue) limits.queue_affinity_rows else null,
+    } });
     try emit(init, out, .{ .event = "complete", .profile = config.id, .recovery = recover, .build_mode = @tagName(@import("builtin").mode) });
 }
 pub fn execute(init: std.process.Init, client: c.DirectTableClient, owner: u64, path: []const u8, recover: bool, out: *std.Io.Writer) !void {

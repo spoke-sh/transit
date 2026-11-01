@@ -58,6 +58,7 @@ def validate(records, profile, recovery):
     attempts, completed, readback = {}, {}, defaultdict(list)
     recovery_steps = Counter()
     terminal = []
+    owner_budgets = []
     measured = defaultdict(list)
     allocation = defaultdict(Counter)
     for record in records:
@@ -98,12 +99,28 @@ def validate(records, profile, recovery):
         elif event == 'readback':
             require(record['sha256'] == oracle(record['offsets']), 'Payload digest mismatch')
             readback[record['stage']].extend(record['offsets'])
+        elif event == 'owner_budgets':
+            limits = record['limits']
+            common = {'catalog_pages', 'catalog_index_work_bytes', 'partition_pages',
+                      'partition_index_work_bytes', 'tail_slots', 'tail_borrow_slots',
+                      'tail_slot_bytes', 'tail_resident_bytes'}
+            queue = {'queue_candidate_objects', 'queue_candidate_resident_bytes',
+                     'queue_deadline_rows', 'queue_visibility_rows', 'queue_affinity_rows'}
+            require(set(limits) == common | queue, 'Missing owner budget')
+            for key, value in limits.items():
+                if key in queue and profile['kind'] == 'stream':
+                    require(value is None, 'Queue budget attributed to Stream')
+                else:
+                    minimum = 0 if key in ('catalog_pages', 'partition_pages') else 1
+                    require(type(value) is int and value >= minimum, 'Invalid owner budget')
+            owner_budgets.append(limits)
         elif event == 'complete':
             terminal.append(record)
         else:
             raise ValueError(f'Failed or unknown measurement event: {event}')
     require(attempts and attempts.keys() == completed.keys(), 'Missing attempt outcome')
     require(len(terminal) == 1 and records[-1] == terminal[0], 'Missing unique terminal completion')
+    require(len(owner_budgets) == 1, 'Missing unique owner budgets')
     require(terminal[0]['recovery'] == recovery and terminal[0]['build_mode'] == 'safe', 'Wrong recovery/build profile')
     warm_rows = profile['warmup'] * profile['batch']
     total = warm_rows + profile['repeat'] * profile['batch']
@@ -120,6 +137,7 @@ def validate(records, profile, recovery):
                 http_calls=sum(record['http_calls'] for record in completed.values()),
                 recovery_steps=sum(recovery_steps.values()),
                 rows=total, distributions={key: distribution(values) for key, values in measured.items()},
+                owner_budgets=owner_budgets[0],
                 client_backing={key: dict(values) for key, values in allocation.items()})
 
 
@@ -173,6 +191,9 @@ def exercise(node, caller, root, profile_path, url, settings_path, restart, owne
                 execution.check_returncode()
                 records = [json.loads(line) for line in prefix.with_suffix('.stdout').read_text().splitlines()]
                 result['verification'] = validate(records, profile, phase == 'recover')
+                if phase == 'recover':
+                    require(result['verification']['owner_budgets'] == item['phases'][0]['verification']['owner_budgets'],
+                            'Owner budgets changed during restart')
                 result['node_after'] = process_usage(owner())
                 before, after = result['node_before'], result['node_after']
                 require((before['pid'], before['start_ticks']) == (after['pid'], after['start_ticks']), 'Owner changed during measurement')
@@ -217,7 +238,8 @@ def main():
                   machine=dict(platform=platform.platform(), cpu_count=os.cpu_count(), affinity=sorted(os.sched_getaffinity(0)), load=os.getloadavg()),
                   method=dict(payload_bytes=128, worker_count=1, offered_load='sequential',
                               storage='local disk TWAL1 and object store', cache='warm process; no OS cache eviction',
-                              lease_ms=60000, resident_pages=1, active_leases=64, waiters=64, timer_steps=64,
+                              lease_ms=60000, native_resident_pages=1, active_leases=64, waiters=64, timer_steps=64,
+                              owner_budget_source='compiled catalog/log defaults used by the fixture host; per-phase owner_budgets',
                               retention='unlimited', client_timeout_ms=30000,
                               allocation_scope='public client, transport and output arena; per call after output reset',
                               storage_iops='unmeasured', server_allocations='unmeasured', cpu_cycles='unmeasured',

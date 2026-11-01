@@ -19,7 +19,11 @@ builds, fault suites and other load on the same host.
 Each schema contains an int64 offset, a deterministic 128-byte binary payload
 and an int64 entity key. Runs use one sequential caller, one logical partition,
 unlimited retention, 60-second leases, at most 64 active leases and one resident
-catalog page. The node stores accepted history on local disk. The driver copies
+page per native page cache. The catalog and log owners have separate configured
+caches; the caller records their compiled defaults under `owner_budgets` in each
+phase, including index-work, tail and Queue candidate/scheduling bounds. These
+are configuration limits, not measured memory use. Restart must preserve them.
+The node stores accepted history on local disk. The driver copies
 matching ReleaseSafe binaries before creating a private installation and uses
 the public signed client directly, without the fault proxy in the measured path.
 Declaration and request-file writes are outside individual operation timing.

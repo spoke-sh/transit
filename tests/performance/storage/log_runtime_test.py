@@ -17,6 +17,13 @@ def sample():
     records = [dict(event='attempt', profile=1, serial=1, stage='measured', action='append'),
                dict(event='sample', profile=1, serial=1, stage='measured', action='append', http_calls=1, ns=17, backing=counts),
                dict(event='readback', profile=1, stage='measured', offsets=[0], sha256=hashlib.sha256(bytes(8) + payload).hexdigest()),
+               dict(event='owner_budgets', profile=1, limits=dict(
+                   catalog_pages=16, catalog_index_work_bytes=64 * 1024 * 1024,
+                   partition_pages=16, partition_index_work_bytes=8 * 1024 * 1024,
+                   tail_slots=2, tail_borrow_slots=16, tail_slot_bytes=1024 * 1024,
+                   tail_resident_bytes=3 * 1024 * 1024,
+                   queue_candidate_objects=None, queue_candidate_resident_bytes=None,
+                   queue_deadline_rows=None, queue_visibility_rows=None, queue_affinity_rows=None)),
                dict(event='complete', profile=1, recovery=False, build_mode='safe')]
     profile = dict(driver.PROFILES[0], warmup=0, repeat=1)
     return records, profile
@@ -91,6 +98,19 @@ class Reports(unittest.TestCase):
         self.assertEqual(19, driver.distribution(list(range(1, 21)))['p95_ns'])
         self.assertIsNone(driver.distribution(list(range(1, 100)))['p99_ns'])
         self.assertEqual(99, driver.distribution(list(range(1, 101)))['p99_ns'])
+
+    def test_owner_budgets_cannot_be_missing_duplicated_or_attributed_to_another_owner(self):
+        records, profile = sample()
+        for variant in (records[:3] + records[4:], records[:4] + records[3:]):
+            with self.assertRaises(ValueError):
+                driver.validate(variant, profile, False)
+        for key, value in (('catalog_index_work_bytes', 0), ('tail_slots', True), ('queue_candidate_objects', 4)):
+            changed = copy.deepcopy(records)
+            changed[3]['limits'][key] = value
+            with self.assertRaises(ValueError):
+                driver.validate(changed, profile, False)
+        records[3]['limits']['catalog_pages'] = records[3]['limits']['partition_pages'] = 0
+        self.assertEqual(0, driver.validate(records, profile, False)['owner_budgets']['catalog_pages'])
 
     def test_unknown_is_not_rejection_or_omitted(self):
         records = [dict(event='attempt', serial=i) for i in range(5)]
