@@ -8032,7 +8032,7 @@
         "CatalogDenied": 1,
         "ClientOperationPending": 5,
         "InvalidWorkloadResultBudget": 3,
-        "WorkloadResultConflict": 3,
+        "WorkloadResultConflict": 6,
         "WorkloadResultGroupRequired": 1,
         "WorkloadResultIncomplete": 1,
         "WorkloadResultRowTooLarge": 1,
@@ -8040,6 +8040,11 @@
       },
       "outcomes": {
         "Page": [
+          "append",
+          "consume",
+          "claim"
+        ],
+        "Position": [
           "append",
           "consume",
           "claim"
@@ -8060,6 +8065,7 @@
         "Limits.validate()": "<inferred>",
         "Native.queue()": "anyerror",
         "Native.stream()": "anyerror",
+        "Position.validate()": "<inferred>",
         "Reference.requireSame()": "<inferred>",
         "Reference.validate()": "<inferred>",
         "Selection.binding()": "<inferred>",
@@ -8068,11 +8074,12 @@
         "observe()": "<inferred>",
         "offsetWork()": "<inferred>",
         "open()": "<inferred>",
-        "reopen()": "<inferred>"
+        "reopen()": "<inferred>",
+        "seek()": "<inferred>"
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 47,
+        "try": 53,
         "catch": 0
       },
       "imports": [

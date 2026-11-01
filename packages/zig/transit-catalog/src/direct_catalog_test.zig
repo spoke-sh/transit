@@ -7601,12 +7601,12 @@ test "workload results reopen original payload and selections without mutation a
                     var result = try Result.open(t.allocator, &catalog, frozen, limits, access.policy(), native);
                     defer result.deinit();
                     reference.* = result.reference;
-                    const page = try result.next(&scratch, &output, &catalog, access.policy(), native);
+                    const page = try result.next(&scratch, output.allocator(), &catalog, access.policy(), native);
                     try expectWorkloadPage(page, 0, false, .live);
                     var second_output: std.heap.ArenaAllocator = .init(t.allocator);
                     defer second_output.deinit();
                     _ = scratch.reset(.retain_capacity);
-                    const second = try result.next(&scratch, &second_output, &catalog, access.policy(), native);
+                    const second = try result.next(&scratch, second_output.allocator(), &catalog, access.policy(), native);
                     try expectWorkloadPage(second, 1, false, .live);
                     try expectWorkloadPage(page, 0, false, .live);
                     const first_encoded = switch (page) {
@@ -7631,16 +7631,28 @@ test "workload results reopen original payload and selections without mutation a
                     for (0..3) |index| {
                         if (index == 1) {
                             const before = result.cursor;
+                            for (0..3) |failure_index| {
+                                var failing = std.testing.FailingAllocator.init(t.allocator, .{ .fail_index = failure_index });
+                                try t.expectError(error.OutOfMemory, result.next(&scratch, failing.allocator(), &catalog, access.policy(), native));
+                                try t.expectEqualDeep(before, result.cursor);
+                            }
+                            var resumed = try Result.reopen(t.allocator, &catalog, reference, access.policy(), native);
+                            defer resumed.deinit();
+                            try resumed.seek(result.position());
+                            const resumed_page = try resumed.next(&scratch, t.allocator, &catalog, access.policy(), native);
+                            defer resumed_page.deinit(t.allocator);
+                            try expectWorkloadPage(resumed_page, index, false, .expired);
+                            try t.expectEqualDeep(before, result.cursor);
                             owners.revoke_after = authorization;
                             owners.revoke_page_only = reference.selection != .append;
-                            try t.expectError(error.CatalogDenied, result.next(&scratch, &output, &catalog, access.policy(), native));
+                            try t.expectError(error.CatalogDenied, result.next(&scratch, t.allocator, &catalog, access.policy(), native));
                             try t.expectEqualDeep(before, result.cursor);
                             owners.revoke_after = null;
                             access.denied_privileges = null;
                         }
                         _ = scratch.reset(.retain_capacity);
                         _ = output.reset(.retain_capacity);
-                        const page = try result.next(&scratch, &output, &catalog, access.policy(), native);
+                        const page = try result.next(&scratch, output.allocator(), &catalog, access.policy(), native);
                         _ = scratch.reset(.retain_capacity);
                         try expectWorkloadPage(page, index, index == 2, .expired);
                         const encoded = switch (page) {
@@ -7662,12 +7674,13 @@ test "workload results reopen original payload and selections without mutation a
                     const prior = result.cursor;
                     owners.revoke_after = authorization;
                     owners.revoke_page_only = reference.selection != .append;
-                    try t.expectError(error.CatalogDenied, result.next(&scratch, &output, &catalog, access.policy(), native));
+                    try t.expectError(error.CatalogDenied, result.next(&scratch, t.allocator, &catalog, access.policy(), native));
                     try t.expectEqualDeep(prior, result.cursor);
                     owners.revoke_after = null;
                     access.denied_privileges = null;
                     // Empty terminal disclosure still requires authority.
-                    const terminal = try result.next(&scratch, &output, &catalog, access.policy(), native);
+                    const terminal = try result.next(&scratch, t.allocator, &catalog, access.policy(), native);
+                    defer terminal.deinit(t.allocator);
                     switch (terminal) {
                         .append => |page| try t.expect(page.complete and page.rows.len == 0),
                         .consume => |page| try t.expect(page.cursor.coverage.complete and page.rows.len == 0),
@@ -7689,13 +7702,13 @@ test "workload results reopen original payload and selections without mutation a
                         var bounded = try Result.reopen(t.allocator, &catalog, tiny, access.policy(), native);
                         defer bounded.deinit();
                         const before = bounded.cursor;
-                        try t.expectError(error.WorkloadResultRowTooLarge, bounded.next(&scratch, &output, &catalog, access.policy(), native));
+                        try t.expectError(error.WorkloadResultRowTooLarge, bounded.next(&scratch, output.allocator(), &catalog, access.policy(), native));
                         try t.expectEqualDeep(before, bounded.cursor);
                     }
                 }
                 var empty_result = try Result.reopen(t.allocator, &catalog, empty_reference, access.policy(), native);
                 defer empty_result.deinit();
-                const empty_page = try empty_result.next(&scratch, &output, &catalog, access.policy(), native);
+                const empty_page = try empty_result.next(&scratch, output.allocator(), &catalog, access.policy(), native);
                 switch (empty_page) {
                     .append => return error.TestUnexpectedResult,
                     .consume => |page| try t.expect(page.cursor.coverage.complete and page.cursor.coverage.rows == 0 and page.rows.len == 0),

@@ -68,9 +68,12 @@ composition. Its reference binds the frozen workload, actual append/consume/clai
 receipt and delivery limits. Append/enqueue rows come from the verified saved
 payload; consume and claim pages use the native retained selection. Opening,
 paging and empty completion recheck current original-operation and READ rights.
-The caller supplies separate scratch/output arenas; cursor advancement occurs
-only after disclosure checks, and returned rows survive scratch resets. Delivery
-pages are bounded to 128 rows and 1 MiB of encoded rows, within the source's read
+The caller supplies separate scratch and output allocation; cursor advancement
+occurs only after disclosure checks, and returned rows survive scratch resets.
+`Page.deinit` releases owned output; failed reads free partial output. Saved
+delivery positions can reopen the same selection; append positions
+use bounded ordinal seeking, while native Stream pages authenticate their cursors.
+Delivery pages are bounded to 128 rows and 1 MiB of encoded rows, within the source's read
 limits. Closing frees local buffers without releasing the shared durable read
 dependency or changing leases/group progress. `offsetWork` prepares a separate
 settlement from the authenticated completed cursor and the original group; save

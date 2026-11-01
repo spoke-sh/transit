@@ -72,10 +72,47 @@ pub const Native = struct {
 };
 
 pub const AppendRow = struct { offset: u64, ordinal: u32, visible_ms: u64, tombstone: bool, encoded: w.Binary };
+pub const AppendPage = struct {
+    pub const json_schema_sequence_bounds = .{ .rows = 128 };
+    source: c.DirectLogProtocol.Definition,
+    rows: []const AppendRow,
+    next: u32,
+    complete: bool,
+    encoded_bytes: u32,
+};
 pub const Page = union(enum) {
-    append: struct { rows: []const AppendRow, next: u32, complete: bool, encoded_bytes: u32 },
+    append: AppendPage,
     consume: c.DirectStream.Page,
     claim: c.DirectQueue.Page,
+    pub fn deinit(self: Page, allocator: std.mem.Allocator) void {
+        switch (self) {
+            .append => |page| {
+                allocator.free(page.source.schema.base64);
+                for (page.rows) |row| allocator.free(row.encoded.base64);
+                allocator.free(page.rows);
+            },
+            .consume => |page| (c.DirectStream.Result{ .page = page }).deinit(allocator),
+            .claim => |page| (c.DirectQueue.Result{ .page = page }).deinit(allocator),
+        }
+    }
+};
+
+/// Delivery position, separate from operation completion. Only the native
+/// Stream owner can authenticate a supplied coverage cursor; shape validation
+/// here cannot turn a caller-supplied position into settlement authority.
+pub const Position = union(enum) {
+    append: u32,
+    consume: p.StreamRead.Cursor,
+    claim: p.QueueRead.Cursor,
+    pub fn validate(self: Position, reference: Reference) !void {
+        try reference.validate();
+        if (!std.mem.eql(u8, @tagName(self), @tagName(reference.selection))) return error.WorkloadResultConflict;
+        switch (self) {
+            .append => |ordinal| if (ordinal > reference.selection.append.append.rows) return error.WorkloadResultConflict,
+            .consume => |cursor| try cursor.requireReceipt(reference.selection.consume),
+            .claim => |cursor| try cursor.requireReceipt(reference.selection.claim),
+        }
+    }
 };
 
 allocator: std.mem.Allocator,
@@ -135,6 +172,32 @@ pub fn reopen(allocator: std.mem.Allocator, catalog: *c.DirectCatalog, expected:
     return self;
 }
 
+pub fn position(self: *const Self) Position {
+    return switch (self.cursor) {
+        .append => |iterator| .{ .append = iterator.ordinal },
+        .consume => |cursor| .{ .consume = cursor },
+        .claim => |cursor| .{ .claim = cursor },
+    };
+}
+
+/// Select a position in the same original result. Append seeking is bounded by
+/// the frozen 4-MiB workload; it never trusts an external byte offset. Native
+/// pages still verify pin/selection retention and authenticated Stream coverage.
+pub fn seek(self: *Self, at: Position) !void {
+    try at.validate(self.reference);
+    switch (at) {
+        .append => |ordinal| {
+            var iterator = self.cursor.append;
+            iterator.ordinal = 0;
+            iterator.at = s.LogBatch.header_bytes;
+            while (iterator.ordinal < ordinal) _ = try iterator.next() orelse return error.WorkloadResultConflict;
+            self.cursor = .{ .append = iterator };
+        },
+        .consume => |cursor| self.cursor = .{ .consume = cursor },
+        .claim => |cursor| self.cursor = .{ .claim = cursor },
+    }
+}
+
 /// Frees local delivery resources only. Explicit native read release remains a
 /// separate durable operation; closing cannot release another reader's retained
 /// selection, ACK a message or advance a consumer group.
@@ -166,19 +229,20 @@ pub fn offsetWork(self: *const Self, operation: p.DataLifecycle.Operation) !p.Lo
 /// Every page (including repeated empty completion) checks original outcome and
 /// current payload rights after buffering. Cursor advancement is transactional
 /// with disclosure: failure leaves the local cursor unchanged. Output is owned
-/// by the caller and must be distinct from scratch; neither arena is retained.
-pub fn next(self: *Self, scratch_arena: *std.heap.ArenaAllocator, output_arena: *std.heap.ArenaAllocator, catalog: *c.DirectCatalog, policy: c.DirectCatalog.Policy, native: Native) !Page {
-    if (scratch_arena == output_arena) return error.InvalidWorkloadResultBudget;
+/// by the caller and must be distinct from scratch; neither allocator is retained.
+/// Free a successful page with Page.deinit; failures free partial output.
+pub fn next(self: *Self, scratch_arena: *std.heap.ArenaAllocator, output: std.mem.Allocator, catalog: *c.DirectCatalog, policy: c.DirectCatalog.Policy, native: Native) !Page {
     const scratch = scratch_arena.allocator();
-    const output = output_arena.allocator();
+    if (scratch.ptr == output.ptr) return error.InvalidWorkloadResultBudget;
     try authorize(scratch, catalog, self.intent.parsed.value.work, policy);
     if (!std.meta.eql(self.reference.selection, try observe(scratch, catalog, self.intent, policy, native))) return error.WorkloadResultConflict;
     const limits = self.reference.limits;
     var cursor = self.cursor;
     const result: Page = switch (cursor) {
         .append => |*iterator| blk: {
-            const rows = try output.alloc(AppendRow, limits.rows);
+            var rows: [128]AppendRow = undefined;
             var length: usize = 0;
+            errdefer for (rows[0..length]) |row| output.free(row.encoded.base64);
             var encoded_bytes: u32 = 0;
             while (length < limits.rows) {
                 var advanced = iterator.*;
@@ -193,11 +257,16 @@ pub fn next(self: *Self, scratch_arena: *std.heap.ArenaAllocator, output_arena: 
                 encoded_bytes += bytes;
                 iterator.* = advanced;
             }
-            break :blk .{ .append = .{ .rows = rows[0..length], .next = iterator.ordinal, .complete = iterator.ordinal == iterator.count, .encoded_bytes = encoded_bytes } };
+            const owned_rows = try output.dupe(AppendRow, rows[0..length]);
+            errdefer output.free(owned_rows);
+            var source = self.intent.parsed.value.source;
+            source.schema.base64 = try output.dupe(u8, source.schema.base64);
+            break :blk .{ .append = .{ .source = source, .rows = owned_rows, .next = iterator.ordinal, .complete = iterator.ordinal == iterator.count, .encoded_bytes = encoded_bytes } };
         },
         .consume => |prior| blk: {
             const request: c.DirectStream.Request = .{ .page = .{ .cursor = prior, .limits = .{ .rows = limits.rows, .encoded_bytes = limits.encoded_bytes, .scanned_rows = limits.scanned_rows } } };
             const value = try native.stream(native.context, output, catalog, policy, request);
+            errdefer value.deinit(output);
             try c.DirectStreamResponse.validate(scratch, self.reference.intent.connection, request, value);
             if (value == .recovering) return error.ClientOperationPending;
             try value.page.cursor.requireReceipt(self.reference.selection.consume);
@@ -207,6 +276,7 @@ pub fn next(self: *Self, scratch_arena: *std.heap.ArenaAllocator, output_arena: 
         .claim => |prior| blk: {
             const request: c.DirectQueue.Request = .{ .page = .{ .cursor = prior, .limits = .{ .rows = limits.rows, .encoded_bytes = limits.encoded_bytes } } };
             const value = try native.queue(native.context, output, catalog, policy, request);
+            errdefer value.deinit(output);
             try c.DirectQueueResponse.validate(scratch, self.reference.intent.connection, request, value);
             if (value == .recovering) return error.ClientOperationPending;
             try value.page.cursor.requireReceipt(self.reference.selection.claim);
@@ -214,6 +284,7 @@ pub fn next(self: *Self, scratch_arena: *std.heap.ArenaAllocator, output_arena: 
             break :blk .{ .claim = value.page };
         },
     };
+    errdefer result.deinit(output);
     try authorize(scratch, catalog, self.intent.parsed.value.work, policy);
     self.cursor = cursor;
     return result;
