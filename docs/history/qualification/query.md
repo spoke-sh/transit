@@ -9,6 +9,45 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Installed SQL Queue claim deadline failure — 2026-11-01
+
+The `sessions-log` installed profile **failed** on clean source
+`29fa45dcc6c0fa25cb5c8d684b70392848dea169`, with definition
+`aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7`.
+The original 65-row, one-second CLAIM remained ready without a terminal outcome
+for the unchanged 90-second client wait. Its account operation is 299. Nine
+native Queue attempts returned `ClockUnavailable`, each taking approximately
+7.6–14.3 seconds. A failed observation establishes neither acceptance nor
+rejection. The original SQL and token were saved before dispatch; no fresh
+identity was submitted to replace them.
+
+The failed installation remains private at
+`/var/tmp/transit-direct-sql-wire-ac4wnap1`. Its node has SHA-256
+`042f6f89350e89f860a786ac4aac11bc43abb4a08df13c9012247c247c160ced`;
+the SQL gateway has
+`1041fc506064a48e508b1f6dfcb0da97752dcac32a74f50ab78bbc31280b7614`.
+The complete seven-binary manifest, driver output, original request and node/
+gateway logs are copied under the restored worktree's ignored
+`.cache/qualification/claim-clock-failure-20261101/`. Driver-output SHA-256 is
+`8d392ac562c99def2676b3df21e1589d7e2ebad5a2a6107537a6a8e193259d80`;
+the manifest is
+`e5317c1c9ac225ebc76356214f523219d04ab2677a3c4d10668a50f55ca55de4`;
+the node log is
+`a918df27f625669d095922fa905779e58a9935e7b20ef5996288b830f340802e`.
+This failure does not qualify original claim result recovery or the later
+`f6b5c8…` receipt/ACK cutover.
+
+The preceding installed build initially failed because the configuration probe
+did not link its OpenSSL hashing dependency. Commit
+`3324deed2ed609328a9def92e5d415916ed8b809` adds the same explicit crypto linkage
+as the other installed CLI/probe artifacts. Its repeated build passed all 22
+steps before this failed run. A concurrent workspace cleanup subsequently
+removed the `/var/tmp` source worktrees and most earlier raw logs; committed
+source survived in Git. Work resumed at
+`/home/alex/workspace/spoke-sh/transit-m6-completion` on the original feature
+branch. Removed logs are unavailable for fresh inspection; historical records
+retain their original source attribution and do not become new qualifications.
+
 ## SQL Queue receipts and ACK — 2026-11-01
 
 `9bb06504a6c67b38d6e98e2b5ccd9429f179a725` exposes binary `_receipt_handle`
