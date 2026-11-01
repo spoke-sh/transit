@@ -1,6 +1,6 @@
 # 12. Managed computations and WAL-activated dataflows
 
-[Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** In Progress ([implementation plan](#implementation-plan--2026-10-30); [delivered evidence](#delivered-implementation-evidence--2026-10-30))
+[Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** In Progress ([remaining implementation plan](#implementation-plan-for-remaining-work--2026-11-01); [component delivery record](#delivered-implementation-evidence--2026-10-30))
 
 Let an application declare a derived result, apply it, and inspect the definition,
 source basis, completed revision and pending or blocked work while Transit owns
@@ -221,7 +221,508 @@ accepted work. Exercise pause, revocation and retirement without reporting a
 partial successor as a complete result. Measure freshness lag and control
 latency under load separately from correctness.
 
+## Implementation plan for remaining work — 2026-11-01
+
+Deliver an installed, database-owned computation lifecycle first: an application
+publishes an exact definition, explicitly authorizes and activates it, observes
+the first complete result, and sees successors advance from committed source
+history after a disconnect or node replacement. Build incremental execution and
+the remaining analytical SQL on that durable path. Finite recomputation is an
+explicit initial execution profile and the correctness oracle; it does not close
+the milestone's incremental-performance or analytical-language gates.
+
+**Source basis:** fetched `origin/main` at
+`c8d060cb2dfcf3bc531ef2e41fcdf7d4f172c2d5`. The earlier `P0`–`P9` plan below
+retains the full feature scope and original component record. `R0`–`R10` here
+replace its implementation order and source assessment. Milestone 12 remains
+**In Progress**. These are implementation and qualification requirements, not
+new executable SQL or new runtime proof.
+
+### Current implementation and evidence boundaries
+
+| Boundary | Present at this source | Remaining implementation |
+| --- | --- | --- |
+| Durable maintained queries | [`RelationalMaintenance`](../../packages/zig/transit-query/src/RelationalMaintenance.zig), [`RelationalHistory`](../../packages/zig/transit-query/src/RelationalHistory.zig) and [`NamedRelational`](../../packages/zig/transit-station-app/src/NamedRelational.zig) retain host-driven activation, finite recomputation, complete revisions and original attribution under the [current public contract](../handbook/reference/queries.md#maintained-table-revisions) | Replace the Station progress/publication mechanism with a direct owner while preserving accepted identity, source retention, ordered errors, verified result coverage and cleanup. Existing independent Table vectors do not establish M5 common-cut semantics |
+| Dataflow lifecycle components | [`ManagedDataflow`](../../packages/zig/transit-catalog/src/ManagedDataflow.zig) has five-state transitions, source bindings, caller-supplied WAL records/decision labels and inspection helpers | No installed scheduler or durable dataflow owner uses this component. Pending records and outbox intents each have 64 resident slots; endpoint declarations have 32. Its single maximum LSN is copied to every source. Replace these representations with durable paged state and exact per-partition progress; never treat a supplied `committed_cut` tag as a verified transaction decision |
+| Incremental algebra | [`FuzeDelta`](../../packages/zig/transit-fuze/src/FuzeDelta.zig) supplies weighted bags, join cross terms, group helpers and watermark cases | Z-sets have 256 resident entries. Arrangement run counts do not write `.tseg` objects. The finite join helper shares the join implementation; the widened aggregate total does not establish equivalence with canonical ordered checked SUM. Supply durable arrangements and independent semantic oracles |
+| Analytical operators and spill | [`AnalyticalSql`](../../packages/zig/transit-fuze/src/AnalyticalSql.zig) and [`PerfectHashIn`](../../packages/zig/transit-fuze/src/PerfectHashIn.zig) provide bounded typed-array cases | These are not wired into the production SQL planner. `SpillTracker` counts bytes/runs without disk I/O. Extend the actual plan/executor and reuse [`RelationalSpill`](../../packages/zig/transit-query-direct/src/RelationalSpill.zig); component counters cannot qualify larger-than-RAM execution |
+| Temporal, changes and MERGE | [`BitemporalAndTvf`](../../packages/zig/transit-fuze/src/BitemporalAndTvf.zig) evaluates caller-provided history/Stream/target arrays | No retained catalog binding or transaction publication follows from these helpers. The AS OF helper scans right history for each left probe; it does not establish the proposed merge-sweep complexity. Build real source adapters, SQL lowering and atomic mutations |
+| Functions | [`VectorUdf`](../../packages/zig/transit-fuze/src/VectorUdf.zig) validates macro trees and a small caller-built `WasmInstr` stack machine with fuel/memory counters | This is not a general Wasm binary loader, persisted function catalog or SQL function service. Validate the actual admitted module format, memory isolation and vector ABI before exposing Wasm UDFs |
+| Neutral contract, SQL and callers | Existing [lifecycle](../../contracts/DATA_LIFECYCLE_V1.md), [relational](../../contracts/RELATIONAL_V1.md), [naming](../../contracts/NAMED_RELATIONAL_V1.md) and [result](../../contracts/SQL_RESULTS_V1.md) contracts remain the owners | `contracts/DATAFLOW_V1.md` and the proposed protocol lifecycle codec do not exist at this source. SQL service/direct-query runtime has no integration with the new helper modules. Author the contract before public adapters; update capability claims from actual compiler/service tests |
+| Verification | Zig component tests and [`managed_dataflows.py`](../../tests/catalog/tables/managed_dataflows.py) exist | The Python check regenerates fixture descriptions and checks source symbols; it does not drive a Zig runtime or kill a node. T5/T8 production correspondence, A3 mechanization and the common-revision installed dataflow journey remain open |
+
+The [query qualification ledger](../history/qualification/query.md) and
+[verification limits](../handbook/reference/verification.md) remain the basis for
+existing captured/maintained guarantees. Reuse their executable schedules and
+record the new owner separately; neither a helper's comment nor a passing fixture
+drift check expands the public profile.
+
+### Recent milestones and incoming gates
+
+| Owner and progress on this baseline | Reuse in M12 | Gate that remains with the owner |
+| --- | --- | --- |
+| [M1–M2](02-storage-and-query-performance.md), Completed; [M3](03-live-storage-and-sql-cutover.md), In Progress | Stable object/definition identities, direct catalog dependencies, WAL-inclusive Table pins, retained logical history, local flushing/archival/checkpoint/collection and installed direct callers | Register every new dataflow, arrangement, preparation and cleanup root with the existing storage graph. M3's remaining installed/performance qualification is not completed by M12 |
+| [M4](04-statement-results-and-consumption.md), Completed | Command outcomes, `ResultSet`, terminal coverage, current disclosure checks and original-attempt settlement | Use the existing result protocol for finite result/revision reads and metadata; a continuous interest has its own durable progress, not an indefinitely incomplete finite SELECT |
+| [M5](05-transactions-and-atomic-composition.md), Completed for local Tables | Serializable Table decisions, common cuts, private workspaces, savepoints and original decision recovery | Extend through M6's participant owner. A transaction cut descriptor is not a retained change-feed lease or a global ordering of unrelated partition LSNs |
+| [M6 R5/R6](06-streams-queues-and-durable-runtime.md#r5-extend-the-transaction-owner-and-deliver-direct-kv), In Progress; PR #303 merged | Named direct KV, native Table/KV plus Stream/Queue append/settlement transactions, explicit log read dependencies, Queue waits and declaration/inspection SQL. The [installed mixed proof](../history/qualification/transactions.md#installed-mixed-state-output-and-input-settlement--2026-10-31) records lost-response and node-replacement recovery | Full preparation/finalization faults and clean qualification remain open; workload SQL, finite `STREAM_SLICE`, automatic DLQ and Station/effect migration are unfinished. Consume qualified native transactions now; do not wait for all of Station or implement a second coordinator |
+| [M7](07-document-storage-and-station-decoupling.md#implementation-plan-for-remaining-work), In Progress; PR #300 merged | Document contracts, partition/recovery foundations, retained-read budgets and exact receipt bindings | Canonical evaluation, persisted tree/subcolumn integration, public direct owner, transaction participant and consumer migration remain gates. A `DocumentPartition` type alone cannot admit a managed Document source |
+| [M8](08-gateway-architecture-and-protocol-ingress.md), In Progress; PRs #295/#299/#302 merged | Node-cohosted SQL/direct dispatch, event-driven recovery, wire/resumable-session foundations and installed startup work | Use one database-side scheduler and bounded host workers. Complete remote placement, Flight/Serving composition and broader scheduling/performance remain M8 work; add no per-dataflow polling service |
+| [M9](09-client-foundation-and-language-apis.md#remaining-implementation-plan--2026-10-31), In Progress; PR #298 merged | Independent `transit-data-client.Catalog`, neutral values/direct readers, bounded contexts, frozen SQL submission and local recovery storage | Principal coordination, ordinary settlement, result/transaction handles and independent data bindings remain active work. M12 supplies its minimal typed operations and migrates affected callers without waiting for every language redesign |
+| [M10](10-standards-and-catalogs.md#delivered-implementation-evidence--2026-10-30), In Progress | Generated standards ledger, operator traits, EXPLAIN integration, collation/timezone/range helpers and historical-cut components | Stored companion types, constraints and durable historical catalog/SQL binding are not delivered by helpers. Gate period types and bitemporal knowledge cuts on their actual owners; do not adopt a private manifest namespace |
+| [M11](11-indexing-and-access-paths.md), Planned | Index lifecycle contracts and existing bounded ordered storage primitives | Full secondary indexes, phased rewrites and finer conflict tracking remain M11. Start on bounded scans/paged arrangements; consume index coverage when qualified. M11 builds must not depend on M12 scheduling, avoiding a circular prerequisite |
+| [M19](19-branches-merges-and-restore.md#local-table-branch-increment), In Progress; PR #301 merged | Durable immutable single-Table branches with exact retained interpretation and protected pins | This does not supply writable branches, whole-catalog cuts or live branch dataflows. Begin M12 in the qualified local branch-one domain and preserve explicit branch identity for later extension |
+
+### Delivery profile and decisions
+
+The first installed profile uses direct Tables in one local catalog/branch and
+the already executable relational operator subset. It includes multiple sources
+only through a verified common-cut acquisition. Cross-domain vectors remain
+explicitly independent; requests for unsupported atomicity reject before
+admission. Add Stream inputs using M6's retained readers and native transaction
+participants. Add KV/Document projections only after their query/change adapters
+establish the same contracts. These increments do not remove any of the full
+M12 analytical, temporal, UDF, connector or interface completion requirements.
+
+1. **Preserve ownership and dependency direction.** `transit-protocol` owns neutral bindings;
+   `transit-catalog` owns names, definitions, current policy, operations and
+   conditional lifecycle controls; `transit-storage` owns durable roots, pins and
+   recovery. Fuze owns pure plans/operators, `transit-query-direct` owns retained
+   source/result execution, and the cohosted database runtime owns scheduling.
+   Station/connectors consume recorded effects. No database package imports
+   Station to implement the new lifecycle.
+2. **Persist the computation independently of its worker.** Freeze scope, object and
+   definition, bound plan/function digests, exact source identities/columns,
+   consumer mode, output identity, execution principal, policy references and
+   budgets. Store desired lifecycle revision separately from observed worker
+   lease, pending successor and last complete result. Names, worker slots and
+   notifications cannot supply identity or authority.
+3. **Publish one successor decision.** Use the M5/M6 transaction owner for
+   checkpoint metadata in direct KV, materialized Table/output state and optional
+   Stream/Queue outbox appends. Immutable arrangement/result roots must be durable
+   and reachable through that same accepted decision before source progress moves.
+   Add the necessary definition/control-epoch and retained-root guards to this
+   owner; do not approximate atomicity with sequential commits or an in-memory
+   assignment. A new generic participant is justified only by an obligation the
+   existing participants cannot represent, and must satisfy the same protocol.
+4. **Bind positions to their domains.** A checkpoint is a paged vector of exact
+   source/partition positions, definitions and verified common-decision evidence.
+   A physical WAL LSN, logical change position, Stream offset, manifest version
+   and transaction identity are different coordinates. Never take their maximum
+   to manufacture a global watermark. A completed result is `Q(B)` for its
+   recorded basis `B`; freshness compares that basis with separately authorized
+   observations, with their observation times and coverage visible.
+5. **Make consumer mode enforceable.** Complete ordered capture retains every
+   committed transition, including no-op coverage where promised and `A → B → A`.
+   Net changes may consolidate only within their declared completed-cut interval.
+   Finite recomputation evaluates an explicitly selected basis. Missing retained
+   logical history blocks ordered capture; a snapshot reset requires a profile
+   that permits it and an explicit new basis. Physical WAL trim is not a gap when
+   complete archived logical history still covers the range.
+6. **Fence lifecycle races at publication.** `Published` starts no work;
+   `Authorized` records an explicit binding but never substitutes for current
+   rights. `ACTIVATE`/`RESUME` acquire fenced execution; `SUSPEND` closes new
+   progress and outbox staging at its accepted control boundary. `REFRESH`
+   records a bounded original request with a fixed target and preserves the last
+   complete revision. `RETIRE` permanently prevents new activation of that
+   definition. Specify every transition and exact retry in R0, including
+   outstanding refreshes, definition replacement and accepted sink work.
+   Suspend/retire cannot recall an already dispatched remote request; dispatch
+   cancellation and unknown outcomes remain connector semantics.
+7. **Preserve meaning across optimization and evolution.** Keep logical types,
+   collations/rounding/timezones and physical codecs separate. Preserve bag
+   multiplicity, stable contributor identity/order, five-state errors and
+   canonical failure witnesses. Compatible source projection needs verified
+   interpretation evidence; it cannot rewrite an accepted definition in place.
+   Incompatible type/collation changes and incomplete phased rewrites block the
+   successor while authorized readers retain the old complete result.
+
+### Work packages and dependencies
+
+| Package | Reviewable outcome | Start gate | Exit evidence |
+| --- | --- | --- | --- |
+| R0 | Neutral contract, transition/coverage rules and honest capability inventory | Audited main | Reflected types/fixtures, negative compiler cases, owner and cutover inventory agreed |
+| R1 | Durable declarations, progress roots, leases and cleanup | R0 | Disk reopen, exact operation retry, paged growth and storage-graph reachability |
+| R2 | Verified source cuts and snapshot-to-history handoff | R0; R1 for durable cursors | No gap/duplicate application across writes, archive/trim and delayed transaction participants |
+| R3 | First installed managed Table journey using finite recomputation | R1/R2; M6 state/output decision seam | Declare/activate/read/update/suspend/resume/restart through typed and SQL callers; atomic complete successors |
+| R4 | Durable incremental execution and event-time semantics | R2/R3; qualified finite operator oracle | Independent finite equivalence, persistent arrangements, bounded spill/recovery |
+| R5 | Production analytical planner and executor | R0; proceeds alongside R1–R3 | Actual SQL multi-way/subquery/CTE/set/window/aggregate execution with typed results and resource limits |
+| R6 | Retained change/Stream SQL, bitemporal execution and MERGE | R2; R5 as each operator requires; M6/M10/M11 owner gates | Real retained-source TVFs, exact historical interpretation and one original MERGE decision |
+| R7 | Catalog-bound SQL macro and real sandboxed Wasm UDFs | R0/R5; descriptor/type gates from M10 | Module/function binding, fuel/memory isolation, recovery and actual SQL/maintained invocation |
+| R8 | Governed connections/sources/sinks and durable effect outbox | R1/R3; M6 mixed transactions and connector consumer seam | Atomic progress/output/intent decision, independent dispatch policy and uncertain-outcome recovery |
+| R9 | Complete caller migration, inspection and current-v1 cutover | Starts with R0/R3; finishes after exposed R4–R8 slices | Shared SQL/native/SDK/Flight/Board contracts, installed caller proofs and removed superseded paths |
+| R10 | Formal correspondence, integrated faults and qualification | Begins with R0; closes after R1–R9 | One committed revision with required evidence, public documentation and explicit limits |
+
+The first useful path is **R0 → R1/R2 → R3**. R5 develops independently after
+R0; each new operator enters R4 only after its finite semantics are qualified.
+R6 splits by feature rather than waiting for all temporal and mutation work.
+R8 can consume the recomputation profile before every incremental operator is
+ready. R9 and R10 accompany each slice; neither is a final documentation-only
+exercise. Full milestone closure still requires all R0–R10 exit gates.
+
+#### R0 — Freeze contracts and the migration inventory
+
+Author the proposed `contracts/DATAFLOW_V1.md` and protocol-owned types before
+storage or adapters. Extend the existing [direct operation contract](../../contracts/DIRECT_TABLE_V1.md)
+and [result contract](../../contracts/SQL_RESULTS_V1.md) where their owners need
+new typed operations/observations. Define exact dependency registrations,
+publication expectations, authorization/activation controls, lease fencing,
+consumer modes, source-history retention grants, revision completeness and
+original-attempt recovery. Specify recursive/cyclic dependency rejection before
+admission; later recursive SQL is bounded computation, not implicit scheduling
+of a cyclic dataflow graph.
+
+Resolve the control/transaction boundary explicitly: source bindings and result
+identity, internal state/output participants, prepared root retention, current
+source/output rights, definition/control epoch validation and final decision
+ordering. Freeze suspend/refresh/retire race outcomes and retained-result access;
+result retention, computation retirement and physical collection are separate.
+Specify named captured-definition migration as well as maintained definitions:
+deleting all of `NamedRelational` would otherwise remove supported captured
+publication and original result attribution.
+
+Audit [`standards-ledger.json`](../../contracts/sql/standards-ledger.json) against
+the actual parser, lowering, execution, recovery and transport paths. Correct
+overstated helper coverage with positive and negative service cases. Grammar-only
+forms stay labelled as such; fixture declarations are not execution evidence.
+Reserve the new record formats only after their full identities and ownership
+are defined. Use the shared current-v1 definition cutover, not a parallel legacy
+service or a permissive decoder.
+
+**Exit:** generated contracts and rejection fixtures bind complete content;
+unsupported source/type/operator/consumer combinations reject before acceptance;
+an inventory names every affected captured/maintained caller and persisted
+artifact. T5/T8/A3 assertions are assigned to production owners now.
+
+#### R1 — Persist the control lifecycle and retained graph
+
+Implement paged declarations, immutable definition revisions, conditional name
+heads, dependency edges, original operations, control epochs, pending work and
+completed revision directories in the catalog/storage owners. Reuse direct
+client-token deduplication. Allocate durable progress and output objects with
+recoverable initialization; publication failure cannot leave unowned live work.
+Keep grant evaluation separate from worker ownership and check current metadata
+and source visibility for inspection, including empty listings.
+
+Register definition bundles, source/history pins, arrangement manifests, result
+segments, pending preparations, receipts and cleanup continuations in the
+retained graph. Cleanup is paged, idempotent and separately authorized; denied
+cleanup remains visible. Disk pressure must block admission or progress without
+expiring accepted history. Bound resident caches and active workers independently
+of the number of definitions, revisions, dependencies and queued successors.
+
+**Exit:** reopen after every acceptance/publication boundary, recover lost
+responses by original identity, preserve DROP restrictions, and exceed the old
+32/64/256 component capacities with a one-page resident cache. Prove reachable
+objects survive real collection and abandoned private objects become collectible
+only after their recovery obligations close.
+
+#### R2 — Build source adapters and a durable handoff
+
+Extend [`TableChangeReader`](../../packages/zig/transit-query-direct/src/TableChangeReader.zig)
+and the owning retained-history operations. Each adapter supplies a frozen
+definition, source cut, exact snapshot/history pin, bounded records, terminal
+coverage, original cursor and current authorization. Acquire history protection
+before concurrent changes can escape the initial retained snapshot. Persist the
+handoff basis and resume point before backfill; consume after the exact logical
+acceptance boundary, including unflushed WAL rows. A notification is only a wake
+hint: reconcile from durable history after duplicate/lost notifications or restart.
+
+Join participant evidence to the real M5/M6 decision and selected common cut.
+Do not publish until every relevant participant is known committed and covered;
+abort/private records contribute no rows. Persist pending transaction references
+and page them under a work budget rather than buffering arbitrary payloads in
+RAM. A later ready transaction must not advance a checkpoint over earlier
+unresolved required input. Distinguish source logical changes, accepted no-ops
+and physical flush/compaction records according to the consumer contract.
+
+Stream adapters consume M6's retained partition/offset bounds without advancing
+consumer groups for finite reads. Direct KV/Document require their own qualified
+change/projection adapters. Do not route the new database executor through a
+Station source merely to make those kinds appear supported.
+
+**Exit:** disk-backed snapshot-to-tail tests cover writes during backfill,
+duplicate delivery, archived history after trim, true history gaps, independent
+LSN domains, aborted work and delayed participants of one mixed transaction.
+Every-change cases preserve oscillations and insert/delete within one flush;
+net-change cases prove exactly the permitted consolidation.
+
+#### R3 — Ship the first installed computation lifecycle
+
+Compose a service-owned scheduler with `DatabaseRuntime` and the existing
+cohosted node lifecycle. Reconcile durable work in bounded pages on activation,
+then wait on source/control generations and real lease deadlines. Use bounded
+fair worker slots, per-computation morsels and reserved control/recovery capacity;
+idle computations must not poll storage or each create an OS thread. Shutdown
+joins active tasks and leaves accepted progress recoverable.
+
+For the initial profile, evaluate the existing finite relational plan at the
+verified R2 basis. Stage output and delta coverage privately. Commit the new
+checkpoint, result manifest, retained roots and completion receipt through the
+common state/output decision. Revalidate current source/output grants and the
+dataflow definition/control/lease guards at that decision. If a reply is lost,
+resolve the same operation; if a worker is replaced, resume its accepted work.
+Never publish partial pages or silently recapture a different basis.
+
+Deliver typed publication/control/inspection and a small SQL adapter through the
+shared compiler and result lifecycle. This slice includes metadata-only
+EXPLAIN, first-result pending state, last-completed reads and explicit blocked
+reasons. A command's accepted activation is distinct from its first completed
+result. Closing a client result or session does not retire the computation.
+
+**Exit:** installed typed/SQL callers publish, activate, read, mutate sources,
+observe a successor, suspend/resume/refresh, replace the node, revoke rights and
+retire. Kill before/after output staging, prepare, decision and finalization;
+fresh readers see the previous or new complete revision and the original
+decision. A stale lease never publishes after an accepted suspension.
+
+#### R4 — Replace recomputation with qualified incremental operators
+
+Keep the existing finite executor as the reference semantics and add an
+independent small interpreter/property oracle. Convert `FuzeDelta` into typed
+batch operators with checked multiplicities, durable indexed arrangements,
+bounded consolidation, actual segment I/O and separately bounded local spill.
+Retained arrangement roots are checkpoint data; disposable scratch is not.
+Reuse the shared paged/segment structures and integrate M11 access paths only
+when their coverage and interpretation match the requested cut.
+
+Start with filter/projection/UNION ALL, then joins with both-side cross terms,
+outer/semi/anti match-count transitions, distinct/set multiplicities and groups.
+Add windows, subquery/temporal and UDF operators as their finite contracts land.
+For ordered checked SUM, `[MAX_INT64, 1, -1]` must still fail at its original
+overflow witness even though a widened final total fits. Preserve contributor
+order/error evidence or explicitly use the admitted finite-recomputation mode;
+do not advertise an unproved incremental aggregate. Compare complete results,
+ordered deltas where promised, errors and completion at every committed basis.
+
+Define event timestamps, per-input watermarks, idle-input policy, allowed
+lateness, late corrections and finality before admitting event-time windows.
+Persist them with the operator checkpoint. A watermark may permit disposal of
+reconstructible working state under that contract; it is not retention consent
+for accepted input, results or effect receipts.
+
+**Exit:** randomized insert/update/delete/retraction histories and adversarial
+five-state/collation/overflow cases match independent finite evaluation. Workloads
+exceed RAM, restart from actual arrangement objects, hit disk/memory/work quotas
+without corrupting the last result, and meet measured allocation and catch-up
+budgets. Unsupported incremental profiles reject explicitly.
+
+#### R5 — Integrate analytical SQL into the real planner
+
+Replace the fixed two-source plan boundary through one current-v1 plan/codec
+cutover. Use a bounded typed operator DAG with source bindings and explicit
+scratch/output lifetimes. Integrate, in separately reviewable slices:
+
+- Multi-way inner/outer/cross/range joins, semi/anti joins, scalar/quantified and
+  LATERAL subqueries through dependent-join lowering. Verify decorrelation over
+  duplicate correlation keys, NULL/unknown states, empty inner inputs and scalar
+  cardinality failures. Do not infer universal unnesting from an equality helper.
+- Nonrecursive CTE sharing, bounded recursive fixpoints with cycle/work limits,
+  UNION/INTERSECT/EXCEPT bag semantics, DISTINCT, HAVING and ORDER/LIMIT/OFFSET.
+- Ranking/navigation and aggregate windows with ROWS/RANGE/GROUPS, peer groups,
+  exclusions and QUALIFY; rich numeric, boolean, ordered-set and collection
+  aggregates. Define empty/all-null, overflow, approximation and output-byte rules.
+- Temporal arithmetic over M10's admitted descriptors and pinned timezone data;
+  collation-correct constant-set predicates using M14's shared hashing/string
+  owners rather than a competing keyword or comparison implementation.
+
+Use real external sort/join/group/window spill files with byte/work quotas,
+integrity checks and deterministic close/failure cleanup. Explain the selected
+plan and limits without data reads, pins or execution. Do not promise linear
+join work for arbitrary predicates or constant-time arbitrary window frames;
+record the supported algorithm and measured worst cases.
+
+**Exit:** actual SQL compilation, service execution and shared result readers
+agree with independent logical cases, including empty/multi-batch results,
+scratch reuse, early close and buffered revocation. Spill tests verify actual
+I/O and peak resident memory rather than tracker counters. Promote capability
+entries only for the tested path/type/transport.
+
+#### R6 — Compose retained history, temporal SQL and atomic MERGE
+
+Deliver `CHANGES` over R2 with explicit all-change/net-change mode, finite lower
+and upper bounds, row/transaction/source-definition provenance and verified
+terminal coverage. The [M6 finite Stream bridge](06-streams-queues-and-durable-runtime.md#r6-expose-sql-and-shared-caller-operations)
+owns executable `STREAM_SLICE`; share its grammar, source reader and result
+adapter rather than build another bridge. M12 composes that reader in joins,
+bitemporal queries and managed plans. Timestamp selection must state its index,
+scan budget and exact offset coverage; it never commits consumer progress.
+
+Deliver period descriptors only with M10's stored type/schema contract. Bind
+system-time selection to the actual durable historical catalog and data owner,
+then implement ordered AS OF execution with defined ties, nulls, tolerance,
+period endpoints and unmatched rows. Include sorting/spill cost in measurements.
+Backfilled corrections must remain invisible at earlier knowledge cuts.
+M17 supplies trajectory interpolation later; a callback does not qualify it.
+
+Implement SQL MERGE through the existing transaction workspace: freeze source
+and target definitions, evaluate predicates/cardinality/constraints, stage all
+mutations, then recover one original decision. Prepared plans cannot silently
+rebind accepted work after rename, definition change or revocation. Distinguish
+future preparation from already accepted execution. This is DML, not M19 branch
+merge; M10/M11 own constraint and index enforcement prerequisites.
+
+**Exit:** retained history/Stream service queries preserve cuts and complete
+coverage under trim/denial; temporal backfill tests use actual stored versions;
+duplicate-match, constraint, savepoint, lost-response and restart cases establish
+all-or-none MERGE without resubmitting SQL as fresh work.
+
+#### R7 — Publish deterministic functions and isolate execution
+
+Add immutable catalog function definitions, exact module/body digests, argument
+and result schemas, dependencies, allowed effects and trap/budget policy. Plans
+and accepted computations retain those bindings through replacement/retirement.
+SQL macros use the actual typed AST with hygienic substitution and bounded
+expansion. Table functions have bounded streaming output and owned batch data.
+
+Select and document the supported Wasm binary subset and validation/runtime
+implementation before exposing it. Supply a real decoder/validator, deterministic
+execution, bounded linear memory, instruction fuel and a five-state vector ABI.
+Reject ambient clock/random/network/WASI imports and malformed or unsupported
+modules before acceptance. Borrowed host slices cannot survive batch reset or be
+modified outside the declared output. The current `WasmInstr` tests remain useful
+component cases but do not qualify arbitrary uploaded binaries.
+
+**Exit:** execute persisted SQL macro/scalar/table Wasm functions through actual
+finite and admitted maintained paths; prove module replacement attribution,
+malformed imports, loops, traps, memory growth, early close and restart behavior.
+No function dispatches through Station or an external connector.
+
+#### R8 — Govern connector declarations and atomic effect intents
+
+Persist CONNECTION/SOURCE/SINK objects through the common catalog/dependency
+owner, with conditional alteration, retirement, exact secret references and
+DROP restrictions. Compilation, publication, explanation and inspection open no
+external connection. Use the existing secret/policy owner; M26's broader OAuth,
+RLS/masking and workload governance are separate delivery gates. Credential
+unavailability records a durable blocked reason and retains progress; a rotation
+notification only wakes a fresh authorized check.
+
+Bind each outbox intent to computation/definition, completed revision, exact
+sink definition, trigger semantics and original operation identity. Commit it
+with source progress and output through M6's native mixed transaction owner.
+Preserve ordered versus net triggers: a retracted relation is not a retracted
+HTTP request. Connectors claim/dispatch under independently current authority,
+record outcomes and settle the original work. Unknown remote outcomes require
+the connector's explicit retry/idempotency/compensation policy; local atomicity
+does not provide external exactly-once delivery.
+
+**Exit:** crash before/after the common decision and connector attempt; recover
+one durable intent and preserve unknown remote outcomes. Exercise denied/full
+destinations, secret rotation, suspend/retire races and stale claims. Replay,
+EXPLAIN and result reads dispatch nothing. Consume M6's connector migration seam
+without making all Station migration a prerequisite of the core scheduler.
+
+#### R9 — Complete callers, inspection and the hard cutover
+
+Expose shared typed lifecycle commands and paged observations through
+`transit-data-client`, SQL submission/settlement through `transit-sql-client`,
+and finite result/revision consumption through the existing result owner. Report
+definition, desired/observed state, last complete basis, separately observed
+heads, pending successor, blocked reason, retained-history availability and
+budget usage. Counts/lag need units and coverage; unrelated LSNs cannot be
+subtracted into a global freshness claim. Recheck current rights for cached
+metadata, repeated/empty batches and terminal counts.
+
+Migrate existing captured and maintained naming consumers, ABI/ports, generated
+resources, SDKs, fixtures and examples together. Build ordinary data operations
+on M9's independent boundary; adding them to Station bindings is not the target
+architecture. Qualify SQL native/console and the applicable PG/MySQL adapters.
+Flight admits each new relational/type profile only through its actual gateway
+tests. Board inspection uses public read operations and never schedules or
+authorizes work. Broader new language/UI features remain M20/M29; affected
+existing APIs must migrate in M12's cutover.
+
+**Exit:** representative installed callers complete the R3/R8 journeys, retained
+results preserve old definition attribution, and foreign/missing definition IDs
+reject. Remove superseded execution paths when their replacement is qualified;
+do not retain a parallel decoder, silently reset old state or delete captured
+functionality with the maintained owner. Public references describe the precise
+new profile and its incompatible-artifact handling. Upgrade preflight detects
+incompatible outstanding work; resolve it with the original build before
+replacement instead of reinterpreting or resetting accepted history.
+
+#### R10 — Prove correspondence and qualify one revision
+
+Develop T5 handoff and T8 lifecycle/DDL models alongside R0–R3, in the current
+[`tests/verification/models`](../../tests/verification/models/README.md) owner.
+Model partition-scoped positions, history protection, the real commit decision,
+control/policy/lease races and permanent retirement. Replay exported state-graph
+edges against the production reducers with negative controls that remove each
+critical guard. For A3, mechanize the admitted Z-set laws and connect them to
+real operator traces; conditional mathematical laws cannot justify reordering
+fallible SQL arithmetic. Preserve all original model bounds and assumptions.
+
+| Qualification boundary | Required cases and forbidden outcome |
+| --- | --- |
+| Publication and recovery | Lost admission/control/decision responses and process death at staging, preparation and finalization; no new operation identity, partial successor or lost accepted work |
+| Source coverage | WAL-only rows, alias deduplication, two unrelated LSN domains, delayed/aborted participants, no-op commits, `A → B → A`, snapshot/tail races and archive/trim; no skipped committed change or invented common cut |
+| Authority and lifecycle | Suspend/refresh/retire/ALTER/revoke against an in-flight lease, denied source that contributes no rows, buffered/empty/terminal disclosure; no stale publication, resurrected definition or unauthorized cached read |
+| Operator truth | Independent finite versus incremental bags, prescribed order, duplicate weights, five cell states, collation and ordered-overflow witnesses; no numeric final-total shortcut or omitted failure |
+| Resources and storage | More durable objects/work than resident slots, larger-than-RAM joins/groups/windows, full spill disk, allocation/I/O faults, collection and restart; no truncation, unbounded queue or loss of retained roots |
+| External effects | Atomic checkpoint/output/intent, current dispatch rights, lost remote response and replay; no dispatch from compilation/read/recovery or claim of remote cancellation |
+| Caller completion | Native/SQL/SDK and admitted Flight/Board profiles, empty/multi-batch data, repeated fetch, incomplete EOF, early close and session loss; no finite completion inferred from transport closure |
+
+Measure source-acceptance-to-complete-revision lag separately from notification
+and connector latency. Record backlog/catch-up rate, cold restart work, control
+latency during saturation, steady-state allocations, peak resident bytes,
+spill/read/write bytes and retained amplification. Set numeric budgets from a
+matched baseline before optimization, then compare finite and incremental runs
+on the same workload, hardware, durability and semantics. Do not invent SLOs or
+an incremental speedup from component counters.
+
+Use the [task index](../../tasks/README.md) and
+[test inventory](../../tests/README.md) to select checks. In `nix develop`,
+package-local `zig build test` in the affected Fuze, catalog, storage, direct
+query, SQL and client owners provides component coverage; `just check contracts`
+and `just check fast` check generated definitions and drift. Add real service,
+fault and caller tasks to the existing runner before naming them as runnable
+qualification. Execute affected committed-HEAD clean lanes: `core`,
+`storage-query`, `interfaces-sql`, `interfaces-relational`, `formal`, and the
+connector, SDK and installation/UI lanes for their exposed changes. Run complete
+clean integration for milestone closure; selected lanes are not a full pass.
+
+Record executed evidence with source, definition, toolchain, topology, workload,
+logs, failures and omissions in [qualification history](../history/qualification/README.md).
+Promote supported behavior into the [data model](../handbook/reference/data-model.md),
+[queries](../handbook/reference/queries.md), [SQL inventory](../handbook/reference/sql/grammar-surface.md),
+[query internals](../handbook/internals/query-engine.md), storage/retention,
+connector and caller owners. Update milestone and index status together only
+when every scope and qualification gate is met.
+
+### Handoffs to upcoming milestones
+
+| Later owner | M12 supplies | Work that remains there |
+| --- | --- | --- |
+| [M13 performance](13-data-structures-and-performance.md) | Correct bounded operators, actual spill, allocation/catch-up baselines and per-morsel budget seams | Broader structures, statistics/costing, WCOJ, cache/metering integration and comparative scorecards. M12 cannot defer boundedness or recovery to M13 |
+| [M14 strings/search](14-vectorized-strings-and-search.md), [M15 compilation](15-data-centric-compilation-and-specialization.md) | Typed/effect-aware finite and incremental plans with explicit lifetimes and independent oracles | Shared string/hash integration, search execution and later fusion/AOT/tier-up. Reuse delivered helpers without assuming every optimized path is integrated |
+| [M16 profiles](16-document-profiles-and-gateway-exchange-lifecycle.md), [M17 spatial](17-geospatial-and-spatio-temporal-computing.md), [M18 foreign relations](18-multi-model-and-foreign-relations.md) | Source/decoder definition bindings, function traits, arrangements, temporal joins and governed endpoints | Document/protocol parsers, spatial semantics/indexes, foreign formats, COPY and CDC ingress. Generic callbacks or descriptors do not establish those features |
+| [M19 branches](19-branches-merges-and-restore.md) | Branch-scoped computation identities and retained source/result roots | Writable branch computation, merge/restore decisions and execution discontinuities; SQL MERGE stays with M12 |
+| [M21 formal semantics](21-formal-semantics-and-correspondence.md) | T5/T8/A3 models, production correspondence and explicit proof limits | Broader composition/refinement. M12's selected proofs remain its own completion gate |
+| [M26 policy](26-control-and-policy-plane.md), [M29 Board](29-board-reimplementation.md), [M31 reactive context](31-reactive-context-and-agent-activation.md), [M34 SQL ergonomics](34-sql-grammar-and-dialect-ergonomics.md) | Current-policy execution/disclosure, inspectable complete revisions, exact change modes, blocked reasons and shared lifecycle verbs | Enterprise policy/authentication workflows, broader workbench editing, durable application interests/business triggers and dialect audits. Notifications do not prove an agent or external action completed |
+
+### First implementation changes
+
+1. Land R0's source/capability correction, neutral contract, transition matrix,
+   partition-scoped coverage and migration inventory, with negative admission
+   fixtures and initial T5/T8 schedules.
+2. Land R1's durable publication/control and retained-graph path, proving exact
+   retry, paging and disk reopen before adding automatic workers.
+3. Land R2's Table handoff and real multi-participant decision coverage, then
+   R3's installed finite-recomputation journey with SQL/typed inspection and
+   suspend/restart faults. Integrate the necessary M6 transaction guards in the
+   same reviewable slice, rather than declare sequential writes atomic.
+4. Extend durable arrangements and production analytical plans through R4/R5,
+   then the separately gated R6–R9 features. Carry R10 proof/performance evidence
+   with each increment and leave the milestone open until the full scope passes.
+
 ## Implementation plan — 2026-10-30
+
+This original plan preserves the feature scope, rationale and `P0`–`P9` labels
+used by the component record below. Its source audit, proposed filenames,
+commands and delivery order are historical. Use the
+[November 1 remaining-work plan](#implementation-plan-for-remaining-work--2026-11-01)
+for current dependencies, implementation order and evidence gates. In particular,
+component delivery did not complete these packages' installed-runtime exits.
 
 ### Plan basis and starting point
 
