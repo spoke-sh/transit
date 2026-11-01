@@ -350,8 +350,8 @@ presence flag, 20-byte row identity (zero if absent), and scanned-row u64.
 Document stores counter/replica u64 and traversal-phase u8. Total result bytes
 u64 and the ordered segment digest (32 bytes) finish the record. Integers are
 little-endian except the row identity's canonical big-endian encoding. Cursor
-ordinal is the progress page count. Maximum lengths are KV 222, Table 241 and
-Document 205 bytes, within the unchanged 256-byte KV value. Table scanned-row
+ordinal is the progress page count. Maximum lengths are KV 230, Table 249 and
+Document 213 bytes, within the unchanged 256-byte KV value. Table scanned-row
 counts can exceed selected/scanned execution counters when a finite LIMIT stops
 inside a fetched page, and can be smaller than eight times the page count when
 the direct page byte limit binds.

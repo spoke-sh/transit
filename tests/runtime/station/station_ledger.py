@@ -113,8 +113,15 @@ def query_result(value, requester, requester_resource, owner, resource, namespac
     job_id, destination, correlation = struct.unpack_from('<QQQ', job, 4)
     assert destination == requester and correlation == struct.unpack_from('<Q', status, 77)[0]
     assert checkpoint[:5] == b'UQC1\2' and struct.unpack_from('<Q', checkpoint, 5)[0] == resource
-    assert checkpoint[45:49] == b'FQS1' and checkpoint[170] == 1 and checkpoint[171] == 1
-    segments, rows = struct.unpack_from('<QQ', checkpoint, 145)
+    # UQC1's Table cut precedes the 134-byte FQS1 progress. The optional
+    # accumulator is now an i128 even for a non-aggregate query.
+    progress_offset = 4 + 1 + 8 + 32
+    progress_bytes = 4 + 32 + 32 + 6 * 8 + 1 + 16 + 1
+    progress = checkpoint[progress_offset:progress_offset + progress_bytes]
+    assert len(checkpoint) == 249 and progress[:4] == b'FQS1'
+    assert progress[-1] == 1 and checkpoint[progress_offset + progress_bytes] == 1
+    assert progress[116:133] == bytes(17), 'Row projection must not carry a SUM accumulator'
+    segments, rows = struct.unpack_from('<QQ', progress, 100)
     assert rows == len(expected) and segments > 0
     chain = hashlib.sha256(b'transit.query.result.v1\0').digest()
     actual, size = [], 0
