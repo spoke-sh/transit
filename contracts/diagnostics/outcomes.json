@@ -10324,7 +10324,7 @@
         },
         "CatalogRecordTooLarge": {
           "code": "catalog.record_too_large",
-          "category": "capacity",
+          "category": "limit",
           "actions": [
             "correct_input"
           ]

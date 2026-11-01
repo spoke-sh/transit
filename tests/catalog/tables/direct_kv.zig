@@ -10,17 +10,38 @@ const Client = c.DirectKVClient;
 const spec: c.storage.KVDeclaration.Spec = .{ .value_type = .binary, .nullable = false };
 const payload: [1024]u8 = @splat(0xa5);
 const Pin = struct { definition: p.Growth.Definition, request: @FieldType(K.Request, "pin") };
-fn callerFor(init: std.process.Init, client: c.DirectTableClient) !data.Catalog {
-    return data.Catalog.init(init.gpa, init.io, .{ .url = client.authority.url, .service_url = client.service.url, .connection = client.connection, .timeout_ms = 30000 }, client.key.secret_key.seed());
+const Caller = struct {
+    context: *data.Context,
+    handle: data.Context.Handle,
+    fn deinit(self: *Caller) void {
+        const allocator = self.context.allocator;
+        self.context.close(.none) catch unreachable;
+        self.context.deinit() catch unreachable;
+        allocator.destroy(self.context);
+    }
+    fn callKV(self: *Caller, output: *std.heap.ArenaAllocator, action: Client.Action) !data.Catalog.KVOutcome {
+        return self.context.callKV(self.handle, output, action);
+    }
+};
+fn callerFor(init: std.process.Init, client: c.DirectTableClient) !Caller {
+    const context = try init.gpa.create(data.Context);
+    errdefer init.gpa.destroy(context);
+    context.* = try data.Context.init(init.gpa, init.io, .{ .catalogs = 2, .active = .{ .data = 1, .control = 1 } });
+    errdefer {
+        context.close(.none) catch unreachable;
+        context.deinit() catch unreachable;
+    }
+    const handle = try context.openCatalog(.{ .url = client.authority.url, .service_url = client.service.url, .connection = client.connection, .timeout_ms = 30000 }, client.key.secret_key.seed());
+    return .{ .context = context, .handle = handle };
 }
-fn call(caller: *data.Catalog, output: *std.heap.ArenaAllocator, action: Client.Action) !Client.Result {
+fn call(caller: *Caller, output: *std.heap.ArenaAllocator, action: Client.Action) !Client.Result {
     const outcome = try caller.callKV(output, action);
     return switch (outcome.value) {
         .result => |value| value,
         .failure => |failure| failure.cause,
     };
 }
-fn unknown(caller: *data.Catalog, output: *std.heap.ArenaAllocator, action: Client.Action, identity: d.Operation) !void {
+fn unknown(caller: *Caller, output: *std.heap.ArenaAllocator, action: Client.Action, identity: d.Operation) !void {
     const outcome = try caller.callKV(output, action);
     try t.expect(outcome.value == .failure);
     try t.expectEqual(error.InvalidTableResponse, outcome.value.failure.cause);
@@ -28,14 +49,26 @@ fn unknown(caller: *data.Catalog, output: *std.heap.ArenaAllocator, action: Clie
     try t.expectEqualDeep(identity, outcome.attempt.mutation.?.identity.?);
     try t.expectEqual(.unknown, outcome.value.failure.diagnostic.?.outcome);
 }
-fn finish(caller: *data.Catalog, output: *std.heap.ArenaAllocator, declaration: K.Declaration) !void {
+fn finish(caller: *Caller, output: *std.heap.ArenaAllocator, declaration: K.Declaration) !void {
     _ = try call(caller, output, .{ .declaration = .{ .declaration = declaration, .command = .admit, .steps = 1 } });
     const found = try call(caller, output, .{ .declaration = .{ .declaration = declaration, .command = .execute, .steps = 64 } });
     try t.expect(found.declaration.operation == .committed);
 }
-fn mutation(init: std.process.Init, path: []const u8) !std.json.Parsed(Client.Saved) {
-    const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, path, init.arena.allocator(), .limited(c.DirectTableProtocol.max_request_bytes));
-    return Client.load(init.gpa, bytes);
+fn recoveryStore(init: std.process.Init, path: []const u8, config: data.LocalRecoveryStore.Config) !data.LocalRecoveryStore {
+    const parent = try std.Io.Dir.cwd().openDir(init.io, std.fs.path.dirname(path) orelse ".", .{});
+    defer parent.close(init.io);
+    const name = try std.fmt.allocPrint(init.arena.allocator(), "{s}.recovery", .{std.fs.path.basename(path)});
+    return data.LocalRecoveryStore.open(init.gpa, init.io, parent, name, config);
+}
+fn originalKey(client: c.DirectTableClient) !data.LocalRecoveryStore.Key {
+    return data.KVRecovery.key(.{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 641001 });
+}
+fn mutation(init: std.process.Init, client: c.DirectTableClient, path: []const u8) !data.KVRecovery.Loaded {
+    var store = try recoveryStore(init, path, .{});
+    defer store.deinit();
+    var adapter = try data.KVRecovery.init(init.gpa, &store, .{});
+    defer adapter.deinit();
+    return adapter.load(init.gpa, try originalKey(client));
 }
 fn pinPath(init: std.process.Init, path: []const u8) ![]const u8 {
     return std.fmt.allocPrint(init.arena.allocator(), "{s}.pin", .{path});
@@ -70,17 +103,41 @@ pub fn prepare(init: std.process.Init, client: c.DirectTableClient, role: u64, p
     }
     const work = try Client.prepareMutation(&output, binding, spec, &changes);
     try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = path, .data = try Client.save(init.arena.allocator(), client.connection, work) });
-    try unknown(&caller, &output, .{ .mutate = work }, work.binding.identity);
+    {
+        const small_path = try std.fmt.allocPrint(init.arena.allocator(), "{s}.small", .{path});
+        var small_store = try recoveryStore(init, small_path, .{ .record_bytes = 128 });
+        defer small_store.deinit();
+        var small = try data.KVRecovery.init(init.gpa, &small_store, .{});
+        defer small.deinit();
+        try t.expectError(error.RecoveryRecordCapacity, small.execute(caller.context, caller.handle, &output, work, .refuse));
+        try t.expect((try call(&caller, &output, .{ .operation = work.binding })).operation == null);
+    }
+    var store = try recoveryStore(init, path, .{});
+    defer store.deinit();
+    var adapter = try data.KVRecovery.init(init.gpa, &store, .{});
+    defer adapter.deinit();
+    // The proxy kills this caller after durable acceptance, before forwarding
+    // the reply. Neither normal cleanup nor a post-response save can help it.
+    _ = try adapter.execute(caller.context, caller.handle, &output, work, .refuse);
+    return error.ExpectedCallerTermination;
 }
 pub fn recover(init: std.process.Init, client: c.DirectTableClient, path: []const u8) !void {
-    const saved = try mutation(init, path);
+    var store = try recoveryStore(init, path, .{});
+    defer store.deinit();
+    var adapter = try data.KVRecovery.init(init.gpa, &store, .{});
+    defer adapter.deinit();
+    var saved = try adapter.load(init.gpa, try originalKey(client));
     defer saved.deinit();
+    try t.expect(saved.receipt == null);
     var caller = try callerFor(init, client);
     defer caller.deinit();
     var output: std.heap.ArenaAllocator = .init(init.gpa);
     defer output.deinit();
-    const work = saved.value.mutation;
-    const original = (try call(&caller, &output, .{ .operation = work.binding })).operation.?;
+    const work = saved.original.value.mutation;
+    const observed = try adapter.observe(caller.context, caller.handle, &output, saved.attempt.key, .refuse);
+    try t.expect(observed.persistence_failure == null);
+    try t.expect(!observed.outcome.mutationAttempted());
+    const original = observed.outcome.value.result.operation.?;
     try t.expectEqual(@as(u64, 8), original.outcome.affected);
     try t.expectEqualDeep(original, (try call(&caller, &output, .{ .mutate = work })).operation.?);
     for (0..8) |index| {
@@ -97,7 +154,7 @@ pub fn recover(init: std.process.Init, client: c.DirectTableClient, path: []cons
     try unknown(&caller, &output, .{ .pin = planned.request }, owner);
 }
 pub fn verify(init: std.process.Init, client: c.DirectTableClient, admin: anytype, path: []const u8) !void {
-    const saved = try mutation(init, path);
+    var saved = try mutation(init, client, path);
     defer saved.deinit();
     const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, try pinPath(init, path), init.arena.allocator(), .limited(8192));
     const planned = try p.Json.parseFromSliceOwned(Pin, init.gpa, bytes);
@@ -107,8 +164,9 @@ pub fn verify(init: std.process.Init, client: c.DirectTableClient, admin: anytyp
     defer caller.deinit();
     var output: std.heap.ArenaAllocator = .init(init.gpa);
     defer output.deinit();
-    const work = saved.value.mutation;
+    const work = saved.original.value.mutation;
     const original = (try call(&caller, &output, .{ .operation = work.binding })).operation.?;
+    try t.expectEqualDeep(original, saved.receipt.?);
     const retained = (try call(&caller, &output, .{ .pin_status = .{ .object = work.binding.target, .owner = planned.value.request.owner } })).pin_status.handle.?;
     try t.expectEqualDeep(retained, (try call(&caller, &output, .{ .pin = planned.value.request })).pin);
     const metadata = (try call(&caller, &output, .{ .observe = work.binding.target })).definition;
@@ -155,6 +213,11 @@ pub fn verify(init: std.process.Init, client: c.DirectTableClient, admin: anytyp
     try t.expectEqualDeep(original, (try call(&caller, &output, .{ .mutate = work })).operation.?);
     const after_drop = (try call(&caller, &output, .{ .get = .{ .object = work.binding.target, .key = &.{ 0, 0 }, .source = retained } })).value;
     try t.expectEqualSlices(u8, &payload, after_drop.value.?.value.atom.bytes);
+    caller.context.beginClose();
+    try t.expectError(error.ClientContextClosed, call(&caller, &output, .{ .mutate = work }));
+    // Original outcome observation and explicit cleanup retain control capacity
+    // while closing, without permitting another data mutation.
+    try t.expectEqualDeep(original, (try call(&caller, &output, .{ .operation = work.binding })).operation.?);
     _ = try call(&caller, &output, .{ .release = .{ .object = work.binding.target, .source = retained } });
     try t.expect((try call(&caller, &output, .{ .pin_status = .{ .object = work.binding.target, .owner = retained.owner } })).pin_status.released);
 }

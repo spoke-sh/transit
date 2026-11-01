@@ -1,8 +1,10 @@
 """Real local Table HTTP owner, public typed caller, reply fault and disk restart."""
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import hashlib
 import json
 import os
+import signal
 from pathlib import Path
 import subprocess
 import struct
@@ -51,6 +53,7 @@ def run(node, caller, mode="tables", *artifacts):
         authority = None
         proxy = None
         thread = None
+        kv_caller = None
 
         def start():
             child = subprocess.Popen([node, str(config), "--bootstrap"], stdout=log, stderr=subprocess.STDOUT)
@@ -263,6 +266,11 @@ def run(node, caller, mode="tables", *artifacts):
                                 parsed["context"][0] ^= 1
                                 data = json.dumps(parsed).encode()
                                 kv_faults.add(identity["operation"])
+                                if identity["operation"] == 641001:
+                                    assert kv_caller is not None and kv_caller.poll() is None
+                                    kv_caller.kill()
+                                    assert kv_caller.wait(timeout=15) == -signal.SIGKILL
+                                    return
                         log_admit = envelope["action"].get("log_admit")
                         queue = envelope["action"].get("queue", {}).get("mutate")
                         queue_wait = envelope["action"].get("queue", {}).get("wait")
@@ -468,8 +476,25 @@ def run(node, caller, mode="tables", *artifacts):
                     print(("Table/KV/Stream/Queue" if mixed else "Table/KV") + " transaction HTTP: original private statements and common decision recovered after two lost replies and SIGKILL/restarts, private KV read, public visibility and unchanged saved identities passed.")
                 return
             if mode == "kv":
-                subprocess.run([caller, endpoint, "kv-prepare", str(profile)], check=True, timeout=180)
+                kv_caller = subprocess.Popen([caller, endpoint, "kv-prepare", str(profile)])
+                assert kv_caller.wait(timeout=180) == -signal.SIGKILL
                 saved = Path(str(profile) + ".kv").read_bytes()
+                records = list(Path(str(profile) + ".kv.recovery").glob("*.rec"))
+                assert len(records) == 1
+                record = records[0].read_bytes()
+                assert record[:4] == b"TCR1" and struct.unpack_from("<Q", record, 68)[0] == 1
+                original_size, evidence_size = struct.unpack_from("<II", record, 76)
+                assert evidence_size == 0 and original_size == len(saved) and record[116:] == saved
+                assert record[84:116] == hashlib.sha256(record[:84] + record[116:]).digest()
+                original = json.loads(saved)
+                operation = original["mutation"]["binding"]["identity"]
+                scope = operation["scope"]
+                key = hashlib.sha256(b"transit.kv.mutation.v1\x00" + bytes.fromhex(original["definition"])
+                                     + struct.pack("<5Q", scope["realm"], scope["resource"], scope["catalog"], operation["principal"], operation["operation"])).hexdigest()
+                assert records[0].name == key + ".rec"
+                # The replacement must use the recovery store, not this old
+                # fixture's standalone saved-work file.
+                Path(str(profile) + ".kv").unlink()
                 assert kv_faults == {641001}
                 authority.kill()
                 authority.wait(timeout=15)
@@ -477,19 +502,25 @@ def run(node, caller, mode="tables", *artifacts):
                 subprocess.run([caller, endpoint, "kv-recover", str(profile)], check=True, timeout=180)
                 pin_saved = Path(str(profile) + ".kv.pin").read_bytes()
                 assert kv_faults == {641001, 641002}
-                assert Path(str(profile) + ".kv").read_bytes() == saved
+                recovered = records[0].read_bytes()
+                assert struct.unpack_from("<Q", recovered, 68)[0] == 2
+                assert recovered[116:116 + original_size] == saved
+                receipt = json.loads(recovered[116 + original_size:])
+                assert receipt["binding"] == json.loads(saved)["mutation"]["binding"]
+                assert receipt["outcome"]["affected"] == 8
                 authority.kill()
                 authority.wait(timeout=15)
                 authority = start()
                 subprocess.run([caller, endpoint, "kv-verify", str(profile)], check=True, timeout=180)
-                assert Path(str(profile) + ".kv").read_bytes() == saved
+                assert records[0].read_bytes() == recovered
                 assert Path(str(profile) + ".kv.pin").read_bytes() == pin_saved
                 assert set(fault["commands"]) <= {"authorization"}, fault["commands"]
                 print(json.dumps(dict(profile="direct_kv_original_recovery", source=provenance(ROOT),
                                       binaries=[identity(Path(path)) for path in (node, caller)],
                                       requests=fault["requests"], lost_replies=sorted(kv_faults),
+                                      caller_sigkill_before_reply=True, recovery_store_original_unchanged=True,
                                       passed=True)), flush=True)
-                print("Direct KV HTTP: eight-key 1 KiB values, original mutation and pin recovery after two lost replies and SIGKILL/restarts, retained reads after replacement and DROP, current read denial, rename and explicit pin release passed.", flush=True)
+                print("Direct KV HTTP: pre-send store refusal, caller SIGKILL before accepted reply, store-only original mutation and receipt recovery, pin recovery after lost reply and node SIGKILL/restarts, retained reads after replacement and DROP, current read denial, rename and explicit pin release passed.", flush=True)
                 return
             if mode == "queues":
                 subprocess.run([caller, endpoint, "queue-prepare", str(profile)], check=True, timeout=180)
@@ -959,6 +990,9 @@ def run(node, caller, mode="tables", *artifacts):
             sys.stderr.write(log.read()[-48000:])
             raise
         finally:
+            if kv_caller is not None and kv_caller.poll() is None:
+                kv_caller.kill()
+                kv_caller.wait(timeout=15)
             if proxy is not None:
                 proxy.shutdown()
                 proxy.server_close()

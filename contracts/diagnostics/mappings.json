@@ -5314,7 +5314,7 @@
         },
         "CatalogRecordTooLarge": {
           "code": "catalog.record_too_large",
-          "category": "capacity"
+          "category": "limit"
         },
         "UnsupportedHistoricalKind": {
           "code": "catalog.unsupported_historical_kind",

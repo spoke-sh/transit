@@ -1,4 +1,4 @@
-# 21. Formal semantics and implementation correspondence
+# 22. Formal semantics and implementation correspondence
 
 [Roadmap](README.md) · **Status:** In Progress
 
@@ -11,8 +11,8 @@ checks, clearer ownership and simpler recovery or transformation logic.
 
 ## Prerequisites and timing
 
-Close phase II after [service and SDK coverage](20-service-and-sdk-coverage.md),
-before [provider and concurrent-writer qualification](22-storage-providers-and-concurrency.md).
+Close phase II after [service and SDK coverage](21-service-and-sdk-coverage.md),
+before [provider and concurrent-writer qualification](23-storage-providers-and-concurrency.md).
 Consume the delivered [storage](02-storage-and-query-performance.md),
 [live cutover](03-live-storage-and-sql-cutover.md),
 [statement results](04-statement-results-and-consumption.md),
@@ -27,7 +27,7 @@ Consume the delivered [storage](02-storage-and-query-performance.md),
 [Document profiles and exchange lifecycle](16-document-profiles-and-gateway-exchange-lifecycle.md),
 [geospatial and spatio-temporal computing](17-geospatial-and-spatio-temporal-computing.md),
 [foreign relations](18-multi-model-and-foreign-relations.md) and
-[branches](19-branches-merges-and-restore.md).
+[branches](20-branches-merges-and-restore.md).
 
 Entry requires settled owning contracts, executable operations and focused
 failure evidence for each selected family. In particular, let statement-result
@@ -174,7 +174,7 @@ transaction support or a proof for arbitrary histories.
 Candidate: the discussion's `TransactionSSI.tla`, renamed for the chosen protocol.
 The initial planned local profile in [Milestone 5](05-transactions-and-atomic-composition.md)
 selects whole-object optimistic validation, while [Milestone 11](11-indexing-and-access-paths.md)
-and [Milestone 22](22-storage-providers-and-concurrency.md) escalate read-write
+and [Milestone 23](23-storage-providers-and-concurrency.md) escalate read-write
 concurrency to fine-grained key-range and predicate-level Serializable Snapshot
 Isolation (SSI / index-range `rw-antidependency` tracking). Model begin/read/private write,
 absent-key, index-range or predicate dependencies, cross-table `FOREIGN KEY` and
@@ -229,7 +229,7 @@ movement, withdrawal, reviewer revocation and duplicate execution. Approval must
 match the exact candidate and target expectation and satisfy the chosen current
 policy at publication. It is not a reservation. Human-only approval and delegated
 actor checks wait for the enterprise identity contract. Keep that extension with
-[reviewed collaboration](28-reviewed-data-collaboration.md); local branch-model
+[reviewed collaboration](29-reviewed-data-collaboration.md); local branch-model
 completion does not depend on that later experience.
 
 ### T7. Provider fencing, replication and failover
@@ -256,7 +256,7 @@ stop-the-world global mutex, model the coupled state machines of **schema/index
 evolution** ([Milestone 10](10-standards-and-catalogs.md),
 [Milestone 11](11-indexing-and-access-paths.md)) and **five-state managed
 computations/dataflows** ([Milestone 12](12-sql-and-dataflows.md),
-[Milestone 34](34-sql-grammar-and-dialect-ergonomics.md)) interleaving with
+[Milestone 35](35-sql-grammar-and-dialect-ergonomics.md)) interleaving with
 concurrent transactions, `TransitLog` (`TWAL1`) compaction, policy revocations
 and worker replacement:
 
@@ -347,12 +347,14 @@ domains, output/error meaning and complete input-transaction boundaries.
 Distinguish linear operators from bilinear joins and nonlinear operators.
 For a bilinear join, with `A` and `B` denoting the old inputs, include all three
 terms `dA join B + A join dB + dA join dB` (including
-[Milestone 17's](17-geospatial-and-spatio-temporal-computing.md) `INTERIOR` /
+[Milestone 17's](17-geospatial-and-spatio-temporal-computing.md) and
+[Milestone 19's](19-game-asset-pipelines-and-simulation-streaming.md) `INTERIOR` /
 `BOUNDARY` `S2` and `OCT_CELL` covering joins, oriented 2D half-edge `ST_Union`
 ($\partial_2(A \cup B) = \partial_2 A + \partial_2 B$), 3D oriented face
 `ST_3DUnion` ($\partial_3(V_1 \cup V_2) = \partial_3 V_1 + \partial_3 V_2$,
-$\partial_2 \circ \partial_3 = 0$), and Discrete Divergence Theorem linear 3D
-volume/centroid/inertia aggregates).
+$\partial_2 \circ \partial_3 = 0$), Discrete Divergence / Stokes Theorem linear 3D
+volume/centroid/inertia aggregates and 2-cochain interior face-flux cancellation
+($(+\Phi_f) + (-\Phi_f) = 0$) in control-volume conservation views).
 
 Left joins need match-count/zero-crossing reasoning, and grouping/deletion need
 their own state and multiplicity laws. Ordered checked SUM is not automatically
@@ -395,6 +397,14 @@ silently manufacture a value. Distinguish value-domain and byte-format validity.
 If Roaring-style containers are selected, relate array/bitmap/run representations
 to sets and prove conversions and union/intersection/difference laws across
 container combinations, including the nine pairings for three representations.
+For error-bounded scientific float blocks (`.float_zfp` under $\kappa_{\text{numeric}}$),
+prove the pointwise $L_\infty$ reconstruction bound
+($\|\hat{u} - u\|_\infty \le \varepsilon_{\text{abs}}$) and exact 0th-coefficient
+block mean preservation; for biological sequences (`.seq_2bit`, `.cram_ref_delta`,
+`.fm_bwt`), chemical Morgan fingerprints (`(fp_mol & fp_query) == fp_query`), and
+audio waveforms (`.wave_lpc_pyramid`), prove lossless round-trip, `LF`-mapping
+bijection, zero-false-negative substructure screening, and `(min_peak, max_peak, rms)`
+envelope zone-map pruning soundness.
 Keep algorithm selection with the structure owner. Use independent byte fixtures,
 allocation bounds and fuzzing to cover implementation behavior outside the
 formal encoding functions.
@@ -476,16 +486,17 @@ inherit a proof whose assumptions the new profile violates.
 | --- | --- |
 | [Managed computations and dataflows](12-sql-and-dataflows.md) | T5/T8 and A3: 5-state dataflow lifecycle (`Published`, `Authorized`, `Active`, `Suspended`, `Retired`), phased DDL interaction, `on_resume` watermark handoff and incremental delta equivalence |
 | [Geospatial and spatio-temporal computing](17-geospatial-and-spatio-temporal-computing.md) | A2/A3/A5: 2D/3D MBR and `S2`/`OCT_CELL` Hilbert covering pruning soundness, Shewchuk exact `orient2d`/`orient3d` sign invariance, `.mesh_edgebreaker` (`BP`/`CLERS`) and Roaring octree codec round-trips, and DBSP Z-set equivalence for topological half-edge `ST_Union`, 3D face `ST_3DUnion` ($\partial_2 \circ \partial_3 = 0$), Discrete Divergence Theorem volume aggregates and `INTERIOR`/`BOUNDARY` 2D/3D spatial/clash joins |
-| [Providers and concurrent writers](22-storage-providers-and-concurrency.md) | T1/T7: actual permission/epoch enforcement, conditional publication and complete object/log coverage for each provider |
-| [Replication and failover](23-replication-and-failover.md) | T4/T7: replicated decisions, object availability, catch-up, promotion, stale-writer fencing and remote/local incremental mirror boundaries |
-| [Operations and recovery](24-operations-and-recovery.md) | T1/T4/T7/T8: retained backup/PITR roots, consistent decisions, online DDL recovery and authority-safe restore/upgrade boundaries |
-| [Clustered execution](25-clustered-execution.md) | T3/T5/T7/T8 and A3 where applicable: placement ownership, distributed coverage and preserved query/error semantics |
-| [Enterprise identity](26-control-and-policy-plane.md) | A6 and temporal checks: actor/subject binding, delegation attenuation, membership freshness and revocation |
-| [Reviewed publication](28-reviewed-data-collaboration.md) | T6/A4/A6: exact candidate/target approval, remote/local proposal push, current reviewer authority and protected-destination enforcement |
-| [Reactive activation](31-reactive-context-and-agent-activation.md) | T5/T8: durable interests, meaningful change conditions, checkpoint recovery and explicit coverage |
-| [Recorded integrations](32-recorded-mcp-integrations.md) | T4's effect boundary: authorized attempts, uncertain remote outcomes, capture and network-free replay |
-| [SQL grammar and dialect ergonomics](34-sql-grammar-and-dialect-ergonomics.md) | T8 and A1/A4: byte-identical plan lowering for ergonomic SQL desugarings, 2-way/3-way `DIFF` / `DIFF_SCHEMA` equivalence and DDL lifecycle state transitions |
-| [Complete qualification](35-qualification-and-benchmarks.md) | Execute the selected local and later suites at one revision alongside installed workloads and physical failure evidence |
+| [Interactive 3D worlds, game asset pipelines and simulation streaming](19-game-asset-pipelines-and-simulation-streaming.md) | A2/A3/A5: meshlet cluster DAG screen-space-error cut monotonicity and crack-free boundary invariants, backface normal-cone and skinned `BBOX3D` bound inclusion, 2D/3D Morton virtual-texture tile addressing, and incremental DBSP `NavMesh` tile equivalence under `+row`/`-row` obstacle updates |
+| [Providers and concurrent writers](23-storage-providers-and-concurrency.md) | T1/T7: actual permission/epoch enforcement, conditional publication and complete object/log coverage for each provider |
+| [Replication and failover](24-replication-and-failover.md) | T4/T7: replicated decisions, object availability, catch-up, promotion, stale-writer fencing and remote/local incremental mirror boundaries |
+| [Operations and recovery](25-operations-and-recovery.md) | T1/T4/T7/T8: retained backup/PITR roots, consistent decisions, online DDL recovery and authority-safe restore/upgrade boundaries |
+| [Clustered execution](26-clustered-execution.md) | T3/T5/T7/T8 and A3 where applicable: placement ownership, distributed coverage and preserved query/error semantics |
+| [Enterprise identity](27-control-and-policy-plane.md) | A6 and temporal checks: actor/subject binding, delegation attenuation, membership freshness and revocation |
+| [Reviewed publication](29-reviewed-data-collaboration.md) | T6/A4/A6: exact candidate/target approval, remote/local proposal push, current reviewer authority and protected-destination enforcement |
+| [Reactive activation](32-reactive-context-and-agent-activation.md) | T5/T8: durable interests, meaningful change conditions, checkpoint recovery and explicit coverage |
+| [Recorded integrations](33-recorded-mcp-integrations.md) | T4's effect boundary: authorized attempts, uncertain remote outcomes, capture and network-free replay |
+| [SQL grammar and dialect ergonomics](35-sql-grammar-and-dialect-ergonomics.md) | T8 and A1/A4: byte-identical plan lowering for ergonomic SQL desugarings, 2-way/3-way `DIFF` / `DIFF_SCHEMA` equivalence and DDL lifecycle state transitions |
+| [Complete qualification](36-qualification-and-benchmarks.md) | Execute the selected local and later suites at one revision alongside installed workloads and physical failure evidence |
 
 ## Completion evidence
 
@@ -501,7 +512,7 @@ Document the concrete development benefit: an ambiguity resolved, ownership or
 recovery logic simplified, duplicated reasoning removed, or an optimization
 justified under exact semantics. A theorem over an unrelated abstraction or a
 passing model without implementation correspondence is insufficient. The
-[common-revision qualification](35-qualification-and-benchmarks.md) repeats this
+[common-revision qualification](36-qualification-and-benchmarks.md) repeats this
 evidence with later extensions; it does not replace this milestone's execution.
 No new runtime guarantee, model pass, SQL interface or algorithm selection is
 established by this planning change.

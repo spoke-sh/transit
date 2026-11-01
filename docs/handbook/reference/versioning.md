@@ -108,7 +108,7 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`d9c9be6cf8ac63f1003a2d98ab3076936e28cea6a7278e620fe8b869530fc4d4`.
+`ae5e85b8e21d8cd9ca81753a18ab12d10d6d2470dd9149f070f6dc3782fb387c`.
 It adds canonical range/multirange and unboxed vector values, their logical
 Arrow layouts, and mandatory neutral column semantics. Schema/layout identities
 bind decimal rounding, vector metrics, actual pinned TZif artifacts and reserved
@@ -121,6 +121,13 @@ column dependency indices and original-operation cleanup progress, including the
 schemas, SQL, query plans and language bindings. The Table schema definition is
 `transit.table.schema.v1.2026-11-01.semantics`; earlier schemas and shared definitions
 reject before execution. Existing CP037 NO PAD comparison is unchanged.
+
+Catalog roots also require the accepted interpretation index. Historical
+directories and acquisition progress count metadata definitions separately from
+Table pins; retained views, graph mappings and foreign decoders bind exact
+artifacts and dependencies. Earlier roots and host descriptions cannot synthesize
+those fields. Retained branch records use `TBR1`, separate from browser `BRC1`;
+the former shared record tag is rejected under this definition.
 
 It also binds direct KV, mixed state/log transactions and frozen Stream/Queue
 declaration intents together with retained Table branches and installed worker
@@ -240,6 +247,15 @@ not an automatically computed source hash or a substitute for verification.
 Authorization operation records retain the original admission public key and
 canonical request digest. Recovery requires both fields; records from earlier
 definitions cannot acquire admission identity from the current credential.
+
+The current definition separates browser control records (`BRC1`) from retained
+Table branch records (`TBR1`). The earlier shared tag made the branch record
+protection reject browser declaration/session writes. Generic branch record
+access remains refused; the correction does not weaken that policy. Definitions
+`82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc`
+and `04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6`
+are rejected. Preserve their installations and matching binaries for recovery;
+no offline conversion or reinterpretation of old branch records is supplied.
 
 The current definition includes direct Table acceptance, immutable schema and
 metadata identities, CREATE/ALTER/DROP lifecycle, exact typed DML recovery,

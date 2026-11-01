@@ -279,12 +279,12 @@ does not resolve the original failed installation or qualify current `main`.
 | [M4](04-statement-results-and-consumption.md), [M5](05-transactions-and-atomic-composition.md) — Completed for their stated profiles | `StatementResult`/`ResultSet`, verified completion, common Table cuts, provisional counts, savepoints and original transaction decisions | All placements use these implemented contracts. Do not reintroduce console-only results or treat non-Table transaction tags as executable participants. |
 | [M6](06-streams-queues-and-durable-runtime.md) — In Progress | Direct SQL independence, Stream/Queue typed owners and notifications; emerging direct KV | Integrate qualified primitive routes and waits. M6 R5–R8 own mixed decisions, SQL verbs and Station/connector migration; M6 R9 and M8 jointly close #211's token/publication work. Core M8 Table work need not wait for them. |
 | [M7](07-document-storage-and-station-decoupling.md) — In Progress | D0–D4 storage and neutral Document foundation | Consume D5's accepted-revision, disclosure, transaction and caller boundary. No public route to private candidates; no separate gateway merge implementation. Full data-kind closure waits for this handoff. |
-| [M9](09-client-foundation-and-language-apis.md), [M20](20-service-and-sdk-coverage.md) | Existing `transit-data-client`, shared values, direct readers and SQL `Executor`/`ResultSet` | Publish the host/coarse-service and buffer-lifetime contracts early. M9 context/store extraction can proceed independently; migrate affected existing consumers with each cutover, leaving broader language/service parity to its owner. |
+| [M9](09-client-foundation-and-language-apis.md), [M21](21-service-and-sdk-coverage.md) | Existing `transit-data-client`, shared values, direct readers and SQL `Executor`/`ResultSet` | Publish the host/coarse-service and buffer-lifetime contracts early. M9 context/store extraction can proceed independently; migrate affected existing consumers with each cutover, leaving broader language/service parity to its owner. |
 | [M10](10-standards-and-catalogs.md), [M11](11-indexing-and-access-paths.md) | Current standards ledger, inspection-only EXPLAIN traits and schema/definition guards; historical/type helpers remain partly unintegrated | Carry exact schema, collation, observation and capability evidence without adapter guesses. Recheck prepared definitions after ALTER/rename/DROP; future historical cuts/constraints/indexes require their owners, not parser acceptance. |
 | [M12](12-sql-and-dataflows.md) | Finite SQL/query contracts and component analytical/dataflow work | Bounded host cancellation and result interfaces that can carry later qualified plans. `STREAM_SLICE`, CDC, maintained views and durable dataflow activation remain owner-gated; helper arrays and model fixtures do not establish installed execution. |
 | [M13](13-data-structures-and-performance.md), [M14](14-vectorized-strings-and-search.md), [M15](15-data-centric-compilation-and-specialization.md) | Bounded memory/I/O foundations, existing logical/physical separation and selected string helpers | Gateway allocation/queue/cancellation measurements and execution yield points. General buffer-pool redesign, optimizer/search/AOT work stays there; M8 cannot defer its present ingress or #211 gates to those milestones. |
 | [M16](16-document-profiles-and-gateway-exchange-lifecycle.md) | Future Document profile and exchange-lifecycle contracts | Pure byte/event seams with explicit ownership, suitable for future parsers. Do not implement the Document Type Library or redirect effect capture into unqualified Document storage in M8. |
-| [M21](21-formal-semantics-and-correspondence.md), [M25](25-clustered-execution.md) | Finite-model/correspondence discipline; later clustered placement contracts | Scheduler/buffer/accepted-work traces and a coarse remote placement with explicit failure semantics. A remote frontend does not add replication, cross-host transactions or automatic failover. |
+| [M22](22-formal-semantics-and-correspondence.md), [M26](26-clustered-execution.md) | Finite-model/correspondence discipline; later clustered placement contracts | Scheduler/buffer/accepted-work traces and a coarse remote placement with explicit failure semantics. A remote frontend does not add replication, cross-host transactions or automatic failover. |
 
 The new [browser contract](../../contracts/BROWSER_V1.md) is an immediate
 regression boundary, regardless of later governance or Board roadmap work.
@@ -834,10 +834,10 @@ from application call counts.
 | #211 W5a | Bounded native/direct page groups share directory barriers; later single-chunk sidecar elision, allocation batching and pipelining also landed. Keep each recorded sync count scoped to its revision/object profile; installed latency closure remains open. |
 | #211 W5b/W6 | Make coordination/index/outcome state reconstructible where justified; define an account-wide token/commit envelope. Co-hosting preserves today's separate decisions until that contract lands. |
 | #211 W7 / M13 | Reduce fresh-cut cost and allocations after attribution. Preserve exact open-result cuts and bound deferred maintenance. |
-| M9 / M20 | Reuse coarse execution and typed transport for language/service consumers; do not duplicate settlement, decoding or result protocols. |
+| M9 / M21 | Reuse coarse execution and typed transport for language/service consumers; do not duplicate settlement, decoding or result protocols. |
 | M16 | Pure protocol/Document transformations use shared ingress; durable capture uses separately qualified Document/effect owners. A codec neither accesses storage nor dispatches effects. |
-| M21 / #211 IO-1–IO-6 | Compose framing, buffer, recovery, database and publication obligations; replay failures against production owners. Evaluate io_uring, direct I/O, mmap and partition affinity after attribution/safety gates. |
-| M25 / packaging and Board | Preserve remote placement, the combined `transit` distribution and standalone roles. Board remains a public-client read-only inspector. |
+| M22 / #211 IO-1–IO-6 | Compose framing, buffer, recovery, database and publication obligations; replay failures against production owners. Evaluate io_uring, direct I/O, mmap and partition affinity after attribution/safety gates. |
+| M26 / packaging and Board | Preserve remote placement, the combined `transit` distribution and standalone roles. Board remains a public-client read-only inspector. |
 
 ### Accepted architectural decisions
 
@@ -1242,12 +1242,12 @@ M8 closure requires evidence for each selected capability:
 ## Later owners and execution gates
 
 [Shared clients](09-client-foundation-and-language-apis.md) and
-[service/SDK coverage](20-service-and-sdk-coverage.md) consume qualified boundaries.
+[service/SDK coverage](21-service-and-sdk-coverage.md) consume qualified boundaries.
 [M13](13-data-structures-and-performance.md),
 [strings/search](14-vectorized-strings-and-search.md) and
 [compilation](15-data-centric-compilation-and-specialization.md) extend workload
 scorecards. [Document profiles/exchange lifecycle](16-document-profiles-and-gateway-exchange-lifecycle.md)
 add pure grammars and qualified capture over the Document owner.
-[Clustered execution](25-clustered-execution.md) extends placement/lease handoff
+[Clustered execution](26-clustered-execution.md) extends placement/lease handoff
 with its own failure evidence. Sharing the gateway host confers neither broader
 support nor performance guarantees.

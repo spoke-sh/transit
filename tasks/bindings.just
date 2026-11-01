@@ -64,6 +64,10 @@ go-check:
     test -z "$(gofmt -l sdks/go tests/sdk/consumers/go/go_client_sdk examples/go-client)"
     (cd sdks/go && GOTOOLCHAIN=local GOWORK=off go vet ./...)
     (cd sdks/go && TRANSIT_GO_TEST_NATIVE_DIRECTORY="$native_prefix/lib" GOTOOLCHAIN=local GOWORK=off GOEXPERIMENT=cgocheck2 go test -race ./...)
+    # The additive Serving process port has its own Nix closure, independent
+    # of the portable raw-client/Station library publication above.
+    serving_prefix=$(nix build --no-link --print-out-paths .#transit-serving-client)
+    (cd sdks/go && TRANSIT_SERVING_CLIENT="$serving_prefix/bin/transit-serving-client" GOTOOLCHAIN=local GOWORK=off go test -race -tags serving_native ./serving)
 
 # Compile an installed external Go consumer and run the shared disk-backed proof.
 go-sdk-test: go-build go-check

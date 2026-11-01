@@ -144,7 +144,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     var station_controller: *std.Build.Step.Compile = undefined;
     var station_host: *std.Build.Step.Compile = undefined;
     var client_host: *std.Build.Step.Compile = undefined;
-    for ([_][]const u8{ "transit-node", "transit-admin", "transit-runtime-controller", "transit-delivery", "transit-station-controller", "transit-station-host", "transit-client-host" }) |name| {
+    for ([_][]const u8{ "transit-node", "transit-admin", "transit-runtime-controller", "transit-delivery", "transit-station-controller", "transit-station-host", "transit-client-host", "transit-serving-client" }) |name| {
         const app = b.addExecutable(.{ .name = name, .root_module = b.addModule(name, .{
             .root_source_file = b.path(b.fmt("apps/{s}/main.zig", .{name})),
             .target = target,
@@ -188,6 +188,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
             client_host = app;
             app.root_module.addImport("client_abi", client.module("client_abi"));
         }
+        if (std.mem.eql(u8, name, "transit-serving-client")) app.root_module.addImport("transit_serving", serving.module("transit_serving"));
         if (std.mem.eql(u8, name, "transit-node") and target.result.os.tag == .linux) {
             const clock_c = b.addTranslateC(.{ .root_source_file = b.path("apps/transit-node/clock.h"), .target = target, .optimize = optimize });
             app.root_module.addImport("clock_c", clock_c.createModule());

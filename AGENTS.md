@@ -66,19 +66,26 @@ established behavior, limits and reasoning into the public owner with the change
   and completion. A common catalog and service-managed reconciliation are planned
   extensions, not assumptions about current behavior.
 - Keep logical types ($\tau$: scalars, `RANGE<T>`/`MULTIRANGE<T>`, unboxed
-  `VECTOR(dim, T)`, `GEOMETRY`/`GEOGRAPHY`/`BBOX`/`S2_CELL`/`H3_CELL`/`TRAJECTORY`),
+  `VECTOR(dim, T)`, `BIO_SEQ`/`MOLECULE`/`SPARSE_MATRIX`, `GEOMETRY`/`GEOGRAPHY`/`MESH3D`/`SOLID3D`/`SCENE3D`/`POINTCLOUD`/`RASTER2D`/`COCHAIN_FIELD`/`BBOX`/`S2_CELL`/`H3_CELL`/`OCT_CELL`/`TRAJECTORY`,
+  and game/simulation/signal assets `TEXTURE2D`/`VOLUME_GRID`/`SPLAT3D`/`SKELETON3D`/`ANIMATION_CLIP`/`WAVEFORM`/`AUDIO_CUE`/`NAVMESH`),
   physical codecs ($\epsilon$: bitpacking, RLE, dictionary, FSST, mainframe
-  `COMP-3`, `ZONED`, `COMP`/`COMP-4`, `IBM_HFP`, `EBCDIC`, and spatial `.geoarrow`,
-  `.twkb_delta`, `.topo_arc`, `.s2_roaring`), and semantic/ordering rules
-  ($\kappa$: text collations `UTF8_BINARY`, `ASCII_CI`, `EBCDIC_CP037`,
-  `ICU:<locale>`; spatial reference/manifold/precision descriptors
+  `COMP-3`, `ZONED`, `COMP`/`COMP-4`, `IBM_HFP`, `EBCDIC`, bio/chem/signal `.seq_2bit`,
+  `.cram_ref_delta`, `.fm_bwt`, `.geno_pbwt`, `.mol_graph`, `.sparse_bcsr`,
+  `.wave_lpc_pyramid`, `.audio_fingerprint`, spatial/3D/continuum `.geoarrow`,
+  `.twkb_delta`, `.mesh_edgebreaker`, `.topo_arc`, `.topo_face`, `.s2_roaring`,
+  `.octree_roaring`, `.raster_morton`, `.float_zfp`, `.layout_manhattan`, and interactive asset `.mesh_cluster_dag`,
+  `.tex_mip_morton`, `.vdb_hierarchy`, `.splat_hilbert`, `.skin_weights`, `.anim_acl`),
+  and semantic/ordering rules ($\kappa$: text collations `UTF8_BINARY`, `ASCII_CI`,
+  `EBCDIC_CP037`, `ICU:<locale>`; reference genome and chemical canonicalization rules
+  $\kappa_{\text{genome}}$ / $\kappa_{\text{chem}}$; spatial reference/manifold/precision descriptors
   $\kappa_{\text{spatial}}$ with SRID, `PLANAR`/`GEODESIC`, snap-rounding grid
-  $\delta_{\text{grid}}$, Shewchuk exact predicates and `S2_HILBERT`/`H3` order;
-  vector metrics $\kappa_{\text{metric}}$; deterministic decimal rounding
-  $\kappa_{\text{numeric}}$; and manifest-pinned IANA `tzdb` versions
+  $\delta_{\text{grid}}$, Shewchuk exact predicates and `S2_HILBERT`/`H3`/`HILBERT_3D`/`RCM`
+  order; asset/navigation/signal target profiles $\kappa_{\text{asset}}$ / $\kappa_{\text{nav}}$;
+  vector metrics $\kappa_{\text{metric}}$; deterministic decimal rounding and
+  error-bounded float tolerances $\kappa_{\text{numeric}}$; and manifest-pinned IANA `tzdb` versions
   $\kappa_{\text{tz}}$) orthogonal in query and storage design. Zone maps
-  (including 2D/3D bounding-box and `S2`/`H3` cell summaries) and B-tree/R-tree
-  sort keys must respect the declared $\kappa$ descriptor so pruning is sound.
+  (including 2D/3D bounding-box, waveform `(min_peak, max_peak, rms)` and `S2`/`H3`/`OCT_CELL` cell summaries) and
+  B-tree/R-tree sort keys must respect the declared $\kappa$ descriptor so pruning is sound.
 - Keep Transit-owned package versions and exact internal dependency pins aligned
   with the root `VERSION`; follow the [release workflow](build/README.md#changing-the-release-version).
   Run `python3 -B tasks/version.py` after changing manifests. Keep release SemVer,
@@ -390,19 +397,22 @@ operator, or AOT query compiler already exists in current builds.
   bitpacked posting blocks with block-max BM25 impact weights (`MAXSCORE` /
   Block-Max WAND pruning, SIMD relational/`.tdel` bitmask intersection and late
   materialization) first without locking text or code search into a
-  bag-of-words model. Mirror the 16-byte string header for 2D/3D geospatial and
-  volumetric vectors in
-  [Milestone 17](docs/roadmap/17-geospatial-and-spatio-temporal-computing.md)
+  bag-of-words model. Mirror the 16-byte string header for 2D/3D geospatial,
+  volumetric and interactive world vectors in
+  [Milestone 17](docs/roadmap/17-geospatial-and-spatio-temporal-computing.md) and
+  [Milestone 19](docs/roadmap/19-game-asset-pipelines-and-simulation-streaming.md)
   with a 16-byte inline spatial header (`[subtype_and_flags: u16][srid_id: u16][hilbert_s2_or_oct_prefix: u32][quantized_mbr_or_inline_xy: 8B]`),
   and pair `.tseg` topological shared-arc/face (`.topo_arc`, `.topo_face`),
-  `<2 bpt` Edgebreaker mesh (`.mesh_edgebreaker`), `INTERIOR`/`BOUNDARY`
-  `S2`/`H3`/`OCT_CELL` Roaring coverings (`.s2_roaring`, `.octree_roaring`),
-  instanced `.scene_dag`, `.pcloud_hilbert` and 4D/6-DoF kinematic trajectory
-  compression with DBSP Z-set incremental `ST_Union` ($\partial_2$ half-edge
-  cancellation $(+\vec{e}) + (-\vec{e}) = 0$), `ST_3DUnion` ($\partial_3$ face
-  cancellation $(+\vec{f}) + (-\vec{f}) = 0$), Discrete Divergence Theorem
-  linear 3D volume/inertia aggregates and `INTERIOR`-short-circuited 2D/3D
-  spatial and clash joins.
+  `<2 bpt` Edgebreaker mesh (`.mesh_edgebreaker`), virtualized meshlet cluster
+  DAGs (`.mesh_cluster_dag`), Morton virtual-texture mip pyramids
+  (`.tex_mip_morton`), `INTERIOR`/`BOUNDARY` `S2`/`H3`/`OCT_CELL` Roaring
+  coverings (`.s2_roaring`, `.octree_roaring`), instanced `.scene_dag`,
+  skeletal `.skin_weights`/`.anim_acl`, `.pcloud_hilbert` and 4D/6-DoF kinematic
+  trajectory compression with DBSP Z-set incremental `ST_Union` ($\partial_2$
+  half-edge cancellation $(+\vec{e}) + (-\vec{e}) = 0$), `ST_3DUnion` ($\partial_3$
+  face cancellation $(+\vec{f}) + (-\vec{f}) = 0$), Discrete Divergence Theorem
+  linear 3D volume/inertia aggregates, incremental `NavMesh`/`HLOD` Derived Data
+  Cache (DDC) cooking and `INTERIOR`-short-circuited 2D/3D spatial and clash joins.
 - **Compile-time (`comptime`) and immutable-artifact perfect hashing with wide SIMD comparisons:**
   Use pure-Zig `comptime` perfect hash maps (`slot = (len + asso[key[i]] + asso[key[j]]) & mask`)
   for closed compile-time keyword, header and directive sets instead of linear

@@ -117,7 +117,7 @@ universal UCA, type, direction or five-state support.
 
 Target selected SQL:2023, SQL/JSON, SQL/PGQ and SQL/MED features explicitly.
 GQL, Cypher and PGQL need separate frontend/compatibility evidence; the later
-[SQL grammar, standards comparison and dialect ergonomics milestone](34-sql-grammar-and-dialect-ergonomics.md)
+[SQL grammar, standards comparison and dialect ergonomics milestone](35-sql-grammar-and-dialect-ergonomics.md)
 audits the complete pre-release SQL grammar against industry dialects (PostgreSQL,
 DuckDB, Snowflake, ClickHouse, GoogleSQL and Materialize/Flink) and qualifies
 compile-time ergonomic desugarings (`FROM`-first queries, `GROUP BY ALL`,
@@ -320,6 +320,15 @@ open with the other P3/P5/P6/P7 work.
 
 ### Recent foundations and upcoming handoffs
 
+The implementation integrates `origin/main` at `f49a3da65`, including M9's fair
+admission waits and direct KV recovery, distinct browser/retained-branch record
+tags, and the inserted game-asset milestone. The original audit basis remains
+recorded above; the references below follow the current sequence. The combined
+current definition is
+`ae5e85b8e21d8cd9ca81753a18ab12d10d6d2470dd9149f070f6dc3782fb387c`.
+Both preceding branch definitions reject, and the combined consumer fixtures
+require fresh qualification.
+
 | Owner and roadmap status | Progress to consume | M10 dependency or handoff |
 | --- | --- | --- |
 | [M1](01-declarative-data-lifecycle.md), [M2](02-storage-and-query-performance.md), Completed | Scoped object/definition identities, explicit snapshot consistency, WAL/object durability, retained roots and physical codecs | Extend `DataLifecycle` and storage owners. Do not introduce another catalog ID allocator, in-memory manifest authority or mandatory global CAS for ordinary writes. |
@@ -328,14 +337,14 @@ open with the other P3/P5/P6/P7 work.
 | [M6](06-streams-queues-and-durable-runtime.md), In Progress | Database independence, Stream/Queue declarations and typed payloads, bounded Queue waits, named direct KV, native mixed state/append/settlement and explicit DLQ transfer have landed; installed mixed proof is recorded [here](../history/qualification/transactions.md#installed-mixed-state-output-and-input-settlement--2026-10-31) | Account for new object kinds, prepared roots and decision dependencies in retention and cutover tests. Dedicated workload SQL, automatic DLQ scheduling and transactional Station replacement remain open. Do not repeat the older Table-only participant assessment. |
 | [M7](07-document-storage-and-station-decoupling.md), In Progress | Document contracts, algebra, shredder, partition and authority/graph foundations; [remaining plan](07-document-storage-and-station-decoupling.md#implementation-plan-for-remaining-work) separates these from installed lifecycle | Bind exact projection/merge/decoder descriptors now; direct Document execution waits for owner-derived state, public dispatch, transaction and consumer gates. Never route new database history through Station turns. |
 | [M8](08-gateway-architecture-and-protocol-ingress.md), In Progress | Co-hosted direct execution, event-driven recovery, neutral wire framing and resumable PostgreSQL/MySQL command engines | Carry historical observations through the shared service and host disclosure guards. Socket scheduling, remote SQL and Flight/Serving expansion are separate gates; no new per-row gateway requests. |
-| [M9](09-client-foundation-and-language-apis.md), In Progress | Bounded Catalog/SQL context leases, frozen SQL submissions and local recovery storage | Put typed historical calls and owned values in existing shared data/SQL clients; coordinate the data ABI extraction. Managed handles, principal coordination and installed language composition remain unfinished. |
+| [M9](09-client-foundation-and-language-apis.md), In Progress | Bounded Catalog/SQL context leases, fair admission waits, frozen SQL submissions, direct KV composition and original KV mutation recovery | Put typed historical calls and owned values in existing shared data/SQL clients; coordinate the data ABI extraction. Managed handles, principal coordination and installed language composition remain unfinished. |
 | [M11](11-indexing-and-access-paths.md), Planned | Offline index lifecycle descriptors; maintained indexes and online builds remain future work | Supply exact comparison/constraint bindings, coverage requirements and rewrite classifications. M11 owns index-backed FK enforcement, fine-grained range conflict tracking and recoverable physical rewrites. No circular dependency on those implementations for M10 metadata or CHECK. |
 | [M12](12-sql-and-dataflows.md), In Progress | Analytical, temporal, delta and managed-dataflow helpers have component evidence, with runtime integration still open | Supply immutable view/dependency bindings, range order and operator effects. Temporal joins, managed activation and incremental execution do not follow from historical selection. |
 | [M13](13-data-structures-and-performance.md), [M14](14-vectorized-strings-and-search.md), In Progress; [M15](15-data-centric-compilation-and-specialization.md), Planned | Memory accounting, collation prefixes, German strings, compressed predicates and search helpers already exist | Reuse exact comparator/key rules; compare optimized paths against scalar meaning. Bind compiled-plan/cache identity to the complete interpretation. Their helpers do not qualify every persisted collation or index profile. |
 | [M16](16-document-profiles-and-gateway-exchange-lifecycle.md), [M17](17-geospatial-and-spatio-temporal-computing.md), [M18](18-multi-model-and-foreign-relations.md), Planned | Future Document profiles, spatial execution and foreign/graph relations | Deliver versioned decoder/layout and spatial descriptor bindings with explicit rejection for unavailable execution. File paths/URIs are not immutable foreign inputs. |
-| [M19](19-branches-merges-and-restore.md), In Progress | [Immutable single-Table branches](19-branches-merges-and-restore.md#local-table-branch-increment) now retain definitions and WAL-only data through the existing catalog token/pin owner | Reuse that publication and protected-pin lifecycle. A selected Table branch is not a whole-catalog snapshot or writable branch history. M19 owns divergence, merge, restore and broader branch lifetime. |
-| [M21](21-formal-semantics-and-correspondence.md), [M26](26-control-and-policy-plane.md), [M27](27-published-resources-and-investigations.md), [M29](29-board-reimplementation.md), In Progress | Scoped formal models, policy/publication/investigation contracts and operator UI work | Supply independent collation/DDL correspondence and retained provenance. Current native rights remain authority; policy/investigation helpers cannot grant historical access. Board consumes public read surfaces. |
-| [M20](20-service-and-sdk-coverage.md), In Progress; [M34](34-sql-grammar-and-dialect-ergonomics.md), Planned | Existing SDK/transport profiles and future full dialect audit | M10 migrates every affected consumer and records per-surface support; M20 adds breadth, M34 audits broader syntax/standards. No blanket SQL conformance claim. |
+| [M20](20-branches-merges-and-restore.md), In Progress | [Immutable single-Table branches](20-branches-merges-and-restore.md#local-table-branch-increment) now retain definitions and WAL-only data through the existing catalog token/pin owner | Reuse that publication and protected-pin lifecycle. A selected Table branch is not a whole-catalog snapshot or writable branch history. M20 owns divergence, merge, restore and broader branch lifetime. |
+| [M22](22-formal-semantics-and-correspondence.md), [M27](27-control-and-policy-plane.md), [M28](28-published-resources-and-investigations.md), [M30](30-board-reimplementation.md), In Progress | Scoped formal models, policy/publication/investigation contracts and operator UI work | Supply independent collation/DDL correspondence and retained provenance. Current native rights remain authority; policy/investigation helpers cannot grant historical access. Board consumes public read surfaces. |
+| [M21](21-service-and-sdk-coverage.md), In Progress; [M35](35-sql-grammar-and-dialect-ergonomics.md), Planned | Existing SDK/transport profiles and future full dialect audit | M10 migrates every affected consumer and records per-surface support; M21 adds breadth, M35 audits broader syntax/standards. No blanket SQL conformance claim. |
 
 ### Contract decisions before runtime exposure
 
@@ -349,7 +358,7 @@ entry point land together.
    transaction owner. Keep catalog publication sequence, partition LSN, schema
    revision, content digest and application revision distinct. The notation
    `manifest/v{N}` describes a publication sequence, not a second protocol version.
-   Reuse M19 branch IDs and heads rather than allocating a competing namespace.
+   Reuse M20 branch IDs and heads rather than allocating a competing namespace.
 2. **Freeze an accepted catalog and its selected source closure.** The control
    WAL contains reservations and pending work as well as completed operations;
    a historical root is insufficient unless the accepted object declaration is
@@ -361,7 +370,7 @@ entry point land together.
    whole-catalog atomicity or force independent DML through the catalog WAL.
 3. **Separate selection, projection and time.** First expose typed immutable
    snapshot/catalog selection, with a branch selector only for its qualified
-   M19 scope. Resolve mutable heads once before compilation. `AS OF SNAPSHOT`
+   M20 scope. Resolve mutable heads once before compilation. `AS OF SNAPSHOT`
    and explicit projection require grammar and typed-operation contracts;
    `PROJECTING TO` is a proposed spelling, not executable syntax. Match stable
    ColumnIds and freeze the target definition, including a requested `CURRENT`.
@@ -580,9 +589,9 @@ unpublished. Once admitted, execution cannot silently retry against another cut.
 
 For selected multi-Table common cuts, reuse the transaction owner and explicitly
 coordinate catalog interpretation with that selected closure; do not relabel an
-ordinary independent vector. M6's mixed preparations and M19's operation-to-branch
+ordinary independent vector. M6's mixed preparations and M20's operation-to-branch
 pin transfer must remain reachable during collection. Reuse immutable Table
-branch bindings for that scope; whole-catalog branch histories remain M19 work.
+branch bindings for that scope; whole-catalog branch histories remain M20 work.
 
 Integrate pins, release/abandonment and metadata/artifact roots into
 `DirectStorageGraph`, checkpoint/trim and collection. Retention stays unlimited
@@ -676,7 +685,7 @@ or restoring definitions.
 The versioned-definition increment implements atomic metadata/dependency
 publication, exact retained view expansion, graph mappings and captured foreign
 decoder inputs. Metadata-only selections have independent consistency and zero
-Table sources. The shared current definition is
+Table sources. This increment used the shared definition
 `d9c9be6cf8ac63f1003a2d98ab3076936e28cea6a7278e620fe8b869530fc4d4`;
 generated native, host, SDK and Board descriptions move together. The owner is
 the [catalog interpretation contract](../../contracts/CATALOG_DEFINITIONS_V1.md).
@@ -703,7 +712,7 @@ exact identities through JSON/ABI/Arrow and reject unsupported transport/type
 profiles. M8 gateways adapt these operations without owning historical semantics.
 Qualify native SQL and public Zig first, representative Python/TypeScript data
 facets with M9, and regression coverage for every affected existing binding.
-Additional new coverage stays with M20.
+Additional new coverage stays with M21.
 
 Board inspection consumes those same authorized public reads, with bounded pages
 and visible incomplete coverage. It acquires no raw storage access or independent
@@ -720,7 +729,7 @@ installed fault schedules and formal correspondence separate. Feed independent
 canonical fixtures to actual Zig owners and compare observations, not source
 symbol presence or regenerated copies of the same expected answers.
 
-With M21, connect comparator/key/prefix/pruning and codec cases to A2/A5, and
+With M22, connect comparator/key/prefix/pruning and codec cases to A2/A5, and
 CHECK/projection/DDL transitions to A1/T8 where their scoped models apply.
 Include negative controls and implementation replay where claimed. Abstract
 proofs do not establish correctness of every concrete collation, SIMD path or

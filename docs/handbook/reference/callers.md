@@ -26,6 +26,8 @@ per-call mutation evidence. Preparation, staging, admission and settlement
 remain explicit; this interface does not supply automatic recovery or a shared
 SQL session. Its optional [client context](../../../packages/zig/transit-data-client/docs/context.md)
 bounds scoped Catalog/SQL facets and concurrent calls with separate data/control capacity.
+Direct KV uses the same context. Optional finite admission waits use bounded queues
+and oldest-eligible ordering within each lane; the default refuses immediately.
 SQL leases own explicit negotiation and must outlive their executor/results.
 Close joins local work without cancelling durable operations; timeout or
 cancellation of close leaves ownership intact. Existing foreign-language Catalog APIs retain their current
@@ -36,9 +38,11 @@ can invoke an application persistence callback before its first execute send.
 It supplies the original token and nonsecret scope/content; separately
 authenticated recovery observes that token without replaying SQL. Saving an
 attempt does not establish acceptance. The data client's optional
-[local recovery store and SQL adapter](../../../packages/zig/transit-data-client/docs/recovery.md)
+[local recovery store and domain adapters](../../../packages/zig/transit-data-client/docs/recovery.md)
 persist original submissions and command evidence on Linux. Receipt-storage
-failure remains separate from a known command outcome; recovery never replays SQL.
+failure remains separate from a known command outcome. The KV adapter saves exact
+mutations before dispatch and observes their original binding under current rights.
+Neither adapter resubmits work when an outcome is missing.
 
 Catalog descriptions carry six authorization domain identifiers: database,
 schema, table, stream, queue and KV. Each must be a positive native counter, and all
