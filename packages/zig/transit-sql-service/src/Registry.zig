@@ -298,7 +298,9 @@ pub fn request(self: *Self, allocator: std.mem.Allocator, working: std.mem.Alloc
         const state = if (host.sql_diagnostic) |value| switch (value.kind) {
             .syntax => "42601".*,
             .unsupported, .grammar_only, .interface => "0A000".*,
-            .binding => "22023".*,
+            // Compiler location is additional evidence. Preserve a specific
+            // owner SQLSTATE (including CHECK/NULL failures) during binding.
+            .binding => if (std.mem.eql(u8, &info.state, "XX000")) "22023".* else info.state,
             .limit => "54000".*,
         } else info.state;
         return self.response(allocator, .{ .err = .{ .code = @errorName(err), .sqlstate = state, .message = info.message, .diagnostic = diagnostic, .retry = if (input.action == .execute and input.action.execute.token != null and slot.acceptance_possible and err != error.SqlTokenConflict and diagnostic == null) .control else .never } });
