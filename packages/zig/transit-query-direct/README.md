@@ -44,5 +44,10 @@ common Table/KV transactions for finite recomputation. Save the complete
 `applyControl`; retries use those original bytes. `inspect` returns lifecycle,
 source coverage and the committed transaction decision. The service drives
 `start`/`step` with bounded workers and an owned spill directory. Hosts serialize
-a work token and retain it until completion. See [managed Table computations](../../../docs/handbook/reference/queries.md#managed-table-computations)
+a work token and retain it until completion. On activation, page pending tokens
+with `DirectClientToken.list(client, ManagedTable.workAccount(), after, true)`
+and resume their exact `step` calls before discovering new work with `start`.
+A prepared control participant can refuse `inspect` or `start`; recovery must
+not depend on reading that participant to discover its pending transaction.
+See [managed Table computations](../../../docs/handbook/reference/queries.md#managed-table-computations)
 for supported SQL, current-policy checks and retention limits.

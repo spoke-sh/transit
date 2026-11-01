@@ -540,7 +540,9 @@ MySQL and standalone remote gateways do not execute these declarations.
 
 Each successor acquires one serializable common cut of source, output and control
 KV. Rows remain private until a single transaction commits the complete output,
-checkpoint and revision record. Readers see the previous or new complete Table,
+checkpoint and revision record. A pending prepared decision can temporarily
+refuse inspection with `Conflict`; the service resumes its original work from
+a separate durable directory and settles the decision before reading the head. Readers see the previous or new complete Table,
 including an empty successor. Source/control conflicts cannot publish a stale
 candidate. Interrupted execution resumes its original transaction and retained
 cut. It never joins a prefix from one snapshot to rows from another. Suspension
