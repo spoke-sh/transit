@@ -9,6 +9,37 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Combined read-path cold recovery follow-up — 2026-11-01
+
+A read-only restart of the original private installation with clean matching
+source `f1e66d5cbfc9169d7d2e8aa6bc4c8336d85e0fac` still **fails** the unchanged
+30-second logical deadline. This runtime ports verified-page retention, exact
+Queue timer membership and bounded whole-object reads onto the original
+`8e441078693f1373d69323bfeadd5cfe8c7024ec2015819bacfb2b04eaea3865`
+definition. It does not open that installation with a newer definition.
+
+The original operation `1200001` advances through ten 256-frame recovery
+responses to partition 5 position 2,561, then returns `OwnerRecoveryBudget`.
+One logical read was attempted, zero completed and no mutation was submitted.
+No agent-owned heavy build or fault suite overlapped; host load changed from
+3.293/5.374/6.317 to 3.629/5.235/6.235. This diagnostic supplies neither a
+successful recovery nor a matched speedup measurement. The original requests,
+receipts and installation remain retained.
+
+The matching node SHA-256 is
+`0553d1dd147abe15428a6d9f6303cd815ca21d75cb1b1ae706750748099f5ef9`;
+the progress-only caller is
+`4c76e93d8e8592bd79dc98ec159a8410be955b90f07df38cc0611c3de6520db6`.
+The external driver is `/var/tmp/transit-m6-inspect-original-fused.py`.
+Under `/var/tmp/transit-table-log-baseline-ak_56n_u/`, the report
+`m6-fused-replay-investigation.json` hashes to
+`20235137e549c909c3194da24697b69f75ee7bdf3ae64e4320b61a140404b5cd`;
+its stdout/stderr hashes are
+`90fad9e2ec9f804c2dbff54beccd97f4ab95c0bc8b94bba060639feb4070ee33`
+and `96d82bd3bb184530b450b22c51a32390c3c6e739a5395cadb333fabcbc4ac77b`.
+The wrapper's zero exit means that it retained its report; the recorded caller
+exit is one and the recovery gate remains failed.
+
 ## Installed Stream/Queue baseline and cold recovery deadline — 2026-11-01
 
 The six-profile installed workload **failed** on clean source

@@ -9,6 +9,19 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Combined bounded reads and Queue scheduling — 2026-11-01
+
+On clean source `ed290f0ab`, the whole-object, bounded-range, private-candidate,
+paged-bitmap, derived-page, Queue schedule/partition and log transaction
+selections pass **44/44** in ReleaseSafe. This combines the read-path changes,
+exact membership lookup and shared canonical request types. Execution reports
+44 seconds and 31 MB peak RSS; compilation reports one minute and 1 GB.
+The command is the whole-object selection below with
+`-Dtest-filter='queue schedule'` added. The raw log
+`/var/tmp/transit-m6-combined-storage-test.log` has SHA-256
+`35a70724072499287926862cc0f91010b0e61ef2f01b0cbc97db348f54838b53`.
+This pass does not close the separately recorded installed cold recovery failure.
+
 ## Bounded whole-object reads — 2026-11-01
 
 Implementation `25710d9be` combines descriptor and payload retrieval for bounded
