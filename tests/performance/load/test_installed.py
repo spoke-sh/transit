@@ -3,7 +3,7 @@ import copy
 import unittest
 
 from performance.load.installed import admission_refusal, integers
-from performance.load.report import compare, summarize
+from performance.load.report import compare, inventory, summarize
 
 
 def campaign():
@@ -43,6 +43,29 @@ class InstalledReportTest(unittest.TestCase):
         for malformed in ([['01']], [['0300']], [['030000000000000000', '030000000000000000']]):
             with self.assertRaises(AssertionError):
                 integers(malformed)
+
+    def test_connection_refusal_requires_evidence(self):
+        records = campaign()[:2]
+        records[1]['profile'] = 'connections'
+        for case, index in sorted(inventory(records[1])):
+            row = dict(phase='sample', case=case, index=index, outcome='complete', verified=True, elapsed_ns=100)
+            if case == 'startup':
+                row['definition'] = 'e'*64
+            if case.endswith('_idle_peer'):
+                row.update(admitted=False, sqlstate='28000', refusal_basis='sqlstate')
+            records.append(row)
+        records += [dict(phase='resources', case=case, processes=[dict(pid=1)])
+                    for case in ('before_peers', 'postgres_idle', 'mysql_idle', 'after_peers')]
+        records.append(dict(phase='campaign', outcome='complete'))
+        control = summarize(copy.deepcopy(records))
+        self.assertEqual(compare(control, control)['postgres_idle_peer'], 1)
+        peer = next(r for r in records if r.get('case') == 'postgres_idle_peer')
+        peer.update(sqlstate=None, refusal_basis='postgres_fatal_message')
+        with self.assertRaises(ValueError):
+            compare(control, summarize(records))
+        peer['refusal_basis'] = 'unknown'
+        with self.assertRaises(ValueError):
+            summarize(records)
 
     def test_complete_and_matched(self):
         report = summarize(campaign())

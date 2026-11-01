@@ -64,12 +64,19 @@ def summarize(records):
             if type(record.get('rows')) is not int or record['rows'] != target or not record.get('foreground_ns'):
                 raise ValueError('incomplete managed result')
             integer(record['revision'], 1)
-        if key[0].endswith('_idle_peer') and type(record.get('admitted')) is not bool:
-            raise ValueError('missing admission outcome')
+        if key[0].endswith('_idle_peer'):
+            if type(record.get('admitted')) is not bool:
+                raise ValueError('missing admission outcome')
+            if not record['admitted']:
+                basis, state = record.get('refusal_basis'), record.get('sqlstate')
+                typed = basis == 'sqlstate' and state in ('53000', '53300', '28000', '28P01')
+                diagnostic = basis == 'postgres_fatal_message' and state is None and key[0] == 'postgres_idle_peer'
+                if not (typed or diagnostic):
+                    raise ValueError('missing refusal evidence')
         samples[key] = record
     if samples.keys() != expected:
         raise ValueError('missing workload samples')
-    resources = {'settled'} if manifest['profile'] == 'managed' else {'postgres_idle', 'mysql_idle', 'after_peers'}
+    resources = {'settled'} if manifest['profile'] == 'managed' else {'before_peers', 'postgres_idle', 'mysql_idle', 'after_peers'}
     if resource_cases != resources:
         raise ValueError('missing resource phases')
     definition = samples['startup', 0].get('definition')
@@ -96,6 +103,11 @@ def compare(control, candidate):
             'build_mode', 'tls', 'client_versions', 'sql_limits')
     if control['definition'] != candidate['definition'] or any(control['manifest'][key] != candidate['manifest'][key] for key in keys):
         raise ValueError('incomparable campaigns')
+    def admissions(report):
+        return sorted((s['case'], s['index'], s['admitted'], s.get('refusal_basis'), s.get('sqlstate'))
+                      for s in report['samples'] if s['case'].endswith('_idle_peer'))
+    if admissions(control) != admissions(candidate):
+        raise ValueError('incomparable admission evidence')
     ratios = {}
     for case, value in candidate['cases'].items():
         # Changing the admission outcome changes the workload, not just latency.

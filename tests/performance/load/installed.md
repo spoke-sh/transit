@@ -82,7 +82,8 @@ exhaustion proof or cancellation qualification. Existing wire fault schedules
 remain the authority for those guarantees.
 
 Linux procfs snapshots record the complete stable installation process tree,
-threads, RSS/PSS and virtual bytes outside timed samples. CPU uses process ticks
+threads, RSS/PSS and virtual bytes before the connection workload, with each
+protocol's idle peers, and after cleanup, outside timed samples. CPU uses process ticks
 and includes all threads. Sampling can miss peaks; RSS is not an allocation count.
 Allocator and copy counters remain explicitly unavailable. SDK text measurements
 and encoded string reader measurements have separate owners.

@@ -237,6 +237,7 @@ def connections(fixture, args, recorder, configured):
             assert cursor.fetchall() == [(1,)]
     native = Client(fixture.console_config(), fixture.record()['definition']).open()
     try:
+        recorder.emit(dict(phase='resources', case='before_peers', processes=process_snapshot(fixture)))
         for protocol, connect in factories.items():
             for index in range(args.repeat):
                 with recorder.sample(protocol + '_connect', index, fixture) as sample:
