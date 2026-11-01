@@ -92,9 +92,19 @@ pub const Projection = struct {
     plan: w.Binary,
 
     pub fn restore(self: Projection, allocator: std.mem.Allocator, source: c.fuze.WorkloadProjection.Source) !c.fuze.LogicalPlanCodec.Owned {
-        const bytes = try self.plan.decode(allocator, c.fuze.LogicalPlanCodec.max_bytes);
+        const bytes = self.plan.decode(allocator, c.fuze.LogicalPlanCodec.max_bytes) catch |err| return refusal(err);
         defer allocator.free(bytes);
-        return c.fuze.WorkloadProjection.restore(allocator, source, self.fields, bytes);
+        return c.fuze.WorkloadProjection.restore(allocator, source, self.fields, bytes) catch |err| return refusal(err);
+    }
+
+    // This boundary only decodes and validates caller-supplied data. Preserve
+    // allocation failure and source conflicts; malformed layouts/plans are not
+    // temporary owner failures and must never invite a recovery retry.
+    fn refusal(err: anyerror) anyerror {
+        return switch (err) {
+            error.OutOfMemory, error.SourceChanged, error.WorkloadProjectionSourceChanged => err,
+            else => error.InvalidWorkloadProjection,
+        };
     }
 };
 

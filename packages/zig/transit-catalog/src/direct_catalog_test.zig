@@ -7591,6 +7591,19 @@ test "workload results reopen original payload and selections without mutation a
                         const plan = try c.DirectTableProtocol.Binary.encode(t.allocator, try c.fuze.WorkloadProjection.encode(projection_source, &fields, compiled.plan, t.allocator, &plan_buffer));
                         defer t.allocator.free(plan.base64);
                         const projection: c.DirectWorkloadIntent.Projection = .{ .fields = &fields, .plan = plan };
+                        const Projection = c.DirectWorkloadIntent.Projection;
+                        try t.expectError(error.InvalidWorkloadProjection, (Projection{ .fields = &.{ .offset, .offset }, .plan = plan }).restore(t.allocator, projection_source));
+                        try t.expectError(error.InvalidWorkloadProjection, (Projection{ .fields = &.{.{ .column = 999 }}, .plan = plan }).restore(t.allocator, projection_source));
+                        try t.expectError(error.InvalidWorkloadProjection, (Projection{ .fields = &fields, .plan = .{ .base64 = "!" } }).restore(t.allocator, projection_source));
+                        const truncated = try c.DirectTableProtocol.Binary.encode(t.allocator, "FQP1");
+                        defer t.allocator.free(truncated.base64);
+                        try t.expectError(error.InvalidWorkloadProjection, (Projection{ .fields = &fields, .plan = truncated }).restore(t.allocator, projection_source));
+                        plan_buffer[4] ^= 1;
+                        const foreign = try c.DirectTableProtocol.Binary.encode(t.allocator, plan_buffer[0..36]);
+                        defer t.allocator.free(foreign.base64);
+                        try t.expectError(error.InvalidWorkloadProjection, (Projection{ .fields = &fields, .plan = foreign }).restore(t.allocator, projection_source));
+                        var failing = std.testing.FailingAllocator.init(t.allocator, .{ .fail_index = 0 });
+                        try t.expectError(error.OutOfMemory, projection.restore(failing.allocator(), projection_source));
                         var changed = work;
                         switch (changed) {
                             .stream => |*value| switch (value.work) {

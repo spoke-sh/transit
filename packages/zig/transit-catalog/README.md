@@ -60,13 +60,16 @@ reference under current original-operation rights and reserves its native global
 identity. Use `Reference.reservationBytes()` for the minimum retained-work byte
 reservation. Clearing pending requires a matching terminal receipt from the host's
 normal Stream/Queue owner. Bounded recovery, missing receipts and the sticky
-cancel flag supply no completion. SQL result recovery is not wired to this owner
-yet. Catalog storage traversal verifies the body and retains its source declaration.
+cancel flag supply no completion. SQL result recovery uses this original owner.
+Catalog storage traversal verifies the body and retains its source declaration.
 `createProjected` additionally freezes a Fuze projection and ordered input layout
 in that body. Validation binds the encoded plan to the exact operation and schema;
 restoration owns its aliases and literals without a new catalog lookup or SQL
 parse. Every body explicitly carries a projection or `null`; older missing fields
-reject. Native result delivery continues to expose the original encoded rows.
+reject. Malformed projection layouts, encodings and foreign plan definitions
+refuse as invalid requests; source mismatches remain conflicts and allocation
+failure remains a resource failure. Native result delivery continues to expose
+the original encoded rows.
 
 `DirectWorkloadResult` owns original-result reads for service composition.
 `DirectWorkloadResultProtocol` exposes `open` and `page` through the signed
@@ -85,8 +88,9 @@ dependency or changing leases/group progress. `offsetWork` prepares a separate
 settlement from the authenticated completed cursor and the original group; save
 it as a workload intent before dispatch. It cannot derive coverage from a caller's
 numeric offset or result row count. The native owner still authenticates the cursor
-and rechecks current rights/assignment. SQL projection preparation, result reopening
-and finite-consumption handoff still need their SQL service wiring.
+and rechecks current rights/assignment. The SQL service restores frozen projections
+and opens original results through this owner; workload SQL text admission and
+the SQL finite-consumption handoff remain unavailable.
 
 `DirectLogPreparedDdl` binds the shared `LogDdl` compiler to current Catalog
 metadata and resolves named DLQ references to exact definitions. Native preview

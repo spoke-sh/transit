@@ -352,12 +352,15 @@ plan. Validation binds it to the exact native operation, source schema (includin
 collations), stable column IDs and selected metadata fields. The canonical body
 owns the plan, aliases and literals independently of compiler buffers. Restoration
 decodes the saved plan without reparsing SQL or resolving a current source name.
+Malformed layouts, truncated encodings and foreign plan definitions refuse as
+invalid requests; source mismatches remain conflicts. Allocation failure is
+preserved separately and never establishes invalid caller data.
 Current projections support application columns, partition and offset, plus
 original lease epoch and attempt for claims. They cannot aggregate or impose a
 result limit; native acquisition and coverage retain their own bounds. Predicates
 are supported only for Stream consumption; claim filtering must precede lease
-acquisition. The native result action still returns raw original rows. SQL
-projection execution and result delivery are separate unfinished consumers.
+acquisition. The native result action returns raw original rows; the SQL service
+evaluates the frozen projection through its shared original-result reader.
 Its reference binds connection, namespace, canonical workload binding, original
 stored declaration and the account-scoped record. The shared helper loads that
 body before inspect/execute/cancel and checks the complete reference again.
@@ -380,8 +383,8 @@ current rights after buffering the outcome and at Catalog publication. A sticky
 cancellation flag records caller intent only; it neither closes a workload nor
 rolls back an accepted mutation. Native cancellation uses the saved request.
 An exact repeated settled update returns the retained bookkeeping state without
-re-executing the operation. SQL workload syntax and result reopening remain
-separate, unfinished consumers of this shared owner.
+re-executing the operation. SQL operation recovery and result reopening use this
+shared owner. SQL workload text admission remains unavailable.
 
 ### Original workload result delivery
 
@@ -421,8 +424,8 @@ separate saved operation and can make future delivery unavailable. Stream
 coverage and the original group generation. Save that exact handoff before
 dispatch; the native owner still authenticates it and checks current assignment
 and settlement rights. A requested numeric offset or SQL output count cannot
-replace it. Workload SQL and SQL result reopening remain unimplemented consumers
-of this native result boundary.
+replace it. SQL result reopening uses this native boundary; workload SQL text
+admission and its finite-consumption handoff remain unavailable.
 
 An optional signed request `lease` contains a token key and exact recovery
 revision. Its scope/principal/audience must match the request. The local host
