@@ -9,6 +9,76 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## SQL Queue receipts and ACK — 2026-11-01
+
+`9bb06504a6c67b38d6e98e2b5ccd9429f179a725` exposes binary `_receipt_handle`
+from the original claim and admits `ACK ON QUEUE ... RECEIPT` through the shared
+workload token, native settlement and original-outcome paths. The prepared helper
+source was committed as `0a385d600853fd2eff73e6983a14b077d76186ca`; its production
+and test trees match the main commit (only earlier qualification prose differs).
+The [SQL reference](../../../docs/handbook/reference/sql/streaming.md#acknowledge-queue-work)
+and [Queue contract](../../../contracts/QUEUE_V1.md) own current semantics.
+
+The current-v1 cutover is
+`f6b5c8f378a74fe653cc9d6f3e472229289cc299a62f856551962bd76e321880`, SHA-256 of
+`transit.v1.queue-sql-receipts.2026-11-01`. It replaces the frozen projection
+vocabulary and saved control-source validation together. Appends, consumption
+and acquisition retain exact interpretation checks. Settlement/read-closure
+intents may pair an older exact receipt with later preparation metadata for the
+same stable object; current native authority, compatibility and lease/time checks
+remain separate. Same-revision digest mismatch, future revision, foreign object,
+wrong claimant, malformed receipt and missing/foreign definition refuse.
+
+Prepared-source component checks exercise binary output ownership after projector
+buffer reuse, value-owned receipt binding, old-lease/current-metadata WLI restore,
+negative source substitutions, allocation failure, typed parameters and exact
+frozen operation identity. The pure extension compiler checks positive duration
+arithmetic against the recorded expiry, including overflow. Extension execution
+remains disabled until it can return a usable updated receipt through the shared
+result lifecycle. No NACK SQL, payload selector, WAIT or mixed SQL is enabled here.
+
+| Check | Result | Log SHA-256 |
+| --- | --- | --- |
+| Fuze (`fuze3`) | 28 focused tests; compute dependency cached | `9fbdca3288c12fdc973211c7d56e5d58c752a350ea805f80df6ab58ecdb70648` |
+| Catalog (`catalog3`) | 7 tests including allocation-failure schedules | `93cb9ae07b89551496b5825222218c5309f1870445c4541facacc43f9ea5a6cc` |
+| SQL (`sql1`) | 13 tests | `17afe71653617da945e00455047f9467cdd8c7ab2e853a3bed1be458b1aa2589` |
+| SQL service (`service2`) | 11 tests including receipt error mapping | `0ad32d2873ca9e7f52c4fdc902d557fa1a1d1318959d564f47f078983fab665a` |
+| PostgreSQL (`postgres1`) | 17 tests | `34932527e0be2e2906b058ce46c98bea772f6a9102b963fd0e7aa6442eb042bd` |
+| Protocol (`protocol1`) | 113 tests | `29008ef848f1d142a5615bbab45cade74883d0f04241a964e69aadfec602c914` |
+| Reflected contracts (`contracts1`) | 15/15 build steps; schema/signing/ABI drift checks passed | `925daed517f5ebf23b244b1f6b3bd7ba130d726a36a95b2a88bebfb9ea0a68d2` |
+| Diagnostic grammar (`grammar2`) | 581 cases; 853 obligations | `eabbf4c9cfa8793dc600654ce1489b47f9c7eb36aa538c281840d4204864af52` |
+| Fast checks (`fast3`) | 61 checks; 159 package pins aligned | `d88d426a18347beba3a0b9f652c94cc9eba655dec9ac2e4f017a97f336a30bd4` |
+| Reference/docs (`fast2`) | 139 SQL examples; 10288 links / 719 files | `5bc6d3268ef4f8911c6ba6a183752707183b0c172665019816136b145e47cfcc` |
+
+Package checks used `zig build test -Doptimize=ReleaseSafe --summary all` in
+the owning package inside the pinned `nix develop` shell. Fuze filters were
+`log settlement SQL`, `workload projections` and `log claim SQL`; Catalog filters
+were `log settlement Catalog` and `log claim Catalog`. Root checks used
+`zig build check-contracts -j2 --summary all`, `just check fast`,
+`just test::table-dml-sql`, `just test::diagnostic-grammar`,
+`just test::sql-grammar` and `python3 -B tests/runner/docs.py`.
+
+Logs use `/var/tmp/transit-m6-queue-receipts-<name>.log`. The first grammar run
+passed the independent DML (44), append (28), consume (24), claim (21) and new
+settlement (11) corpora, then failed because one reviewed native-grammar case used
+MySQL's `?` placeholder. It was corrected to `$1`; the compiler's separate MySQL
+parameter test remains. The first fast run failed the semantic-mapping manifest;
+three explicit mappings and executable owner coverage were added. These failures
+remain in `grammar1` and `fast1`, respectively. Prototype Fuze/Catalog builds
+also failed on a shadowed local name before any tests; the corrected builds pass.
+
+`grammar1`: `1a354da7f817b27de7f6d10ed2cbb434e6b65a5fd0d4730a9a493cd6248299b4`; `fast1`: `9956711ca9ed93d0e6802e5fddbcefd1756773f7089e69cc490bba6e24b6fa25`.
+Cutover generation: `767e332627f342a8408413e42776e34347e294467aa15f70dc753be4793cc333`; extra independent fixtures: `74bd106301e39d91849f350c80f4ced72327fedf6b1c7527a3b55a7975a5cfcd`.
+
+The installed receipt/ACK profile is registered in the existing `sessions-log`
+schedule but has **not run** for this definition. It includes native, PostgreSQL,
+MySQL and console receipts/ACK, original payload delivery after ACK, fresh ACK
+after compatible ALTER, duplicate-ACK rejection, current status revocation, and
+original ACK recovery after DROP and gateway replacement. Those are planned
+checks here, not passing evidence. Earlier installed claims/consumption at
+`aefd3830…` do not qualify this replacement. Native-node replacement, lost ACK
+reply, expiry races, resource saturation and the common M6 revision remain open.
+
 ## Fenced Queue lease descriptor codec — 2026-11-01
 
 `ec68e4da5d477d3bed8d191459cbdd4b31338541` adds `QueueLeaseHandle`, the allocation-free

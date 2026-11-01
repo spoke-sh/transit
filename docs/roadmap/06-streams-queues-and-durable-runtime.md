@@ -1443,8 +1443,12 @@ analytical bridge, mixed SQL and the remaining installed fault matrix are open.
 It separates the acquisition maximum from result delivery without enabling
 native selection predicates. `00244c553` subsequently admits partition-routed
 SQL CLAIM with [passing component checks](../history/qualification/query.md#partition-routed-sql-queue-claims--2026-11-01);
-its installed caller profile is pending. Payload selection, waits, receipt handles
-and SQL settlement remain open. The batch and milestone remain in progress.
+its installed caller profile is pending. `9bb06504a` adds binary receipt projection
+and ACK through the shared workload runtime, with
+[passing component, contract and grammar checks](../history/qualification/query.md#sql-queue-receipts-and-ack--2026-11-01).
+Its replacement-definition installed profile is pending. Payload selection,
+waits, NACK, renewal with updated receipts and the remaining SQL/qualification
+slices remain open. The batch and milestone remain in progress.
 
 | Slice | Implementation | Required proof |
 | --- | --- | --- |
