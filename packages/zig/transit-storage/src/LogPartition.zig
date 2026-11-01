@@ -678,6 +678,64 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         }
         pub const ClaimReadiness = struct { available: bool, wake_after_ms: ?u64 };
 
+        pub const DeadLetterCandidate = struct {
+            source: @FieldType(@FieldType(p.Transaction.TerminalTransfer, "source"), "exhausted"),
+            destination: d.Definition,
+        };
+        /// A finite metadata sweep, not a retained snapshot. Each call observes
+        /// current state. A newly blocked earlier offset belongs to the next
+        /// sweep; later appends cannot extend this sweep's fixed upper bound.
+        pub const DeadLetterCursor = struct {
+            target: q.Partition,
+            until: u64,
+            next: u64,
+            pub fn complete(self: DeadLetterCursor) bool {
+                return self.next == self.until;
+            }
+        };
+        pub const DeadLetterPage = struct {
+            observed: q.Cut,
+            cursor: DeadLetterCursor,
+            scanned: u16,
+            candidate: ?DeadLetterCandidate,
+        };
+
+        /// Returns at most one blocked item's exact accepted exhaustion and
+        /// destination. Discovery writes nothing, claims no lease and supplies
+        /// no transfer authority. The caller must retain an original attempt
+        /// before dispatch and use the common paired transaction decision.
+        pub fn deadLetterNext(self: *Self, declared: Declaration.Stored, after: ?DeadLetterCursor, maximum: u16, guard: Guard) !DeadLetterPage {
+            if (maximum == 0 or maximum > 256 or maximum > declared.declaration.limits.timer_steps) return error.InvalidQueueTimerBudget;
+            try authorize(guard);
+            try self.requireReady();
+            if (self.private_position != null) return error.PrivateLogWorkspace;
+            const observed = try self.root.retainedCut(declared);
+            var cursor = after orelse DeadLetterCursor{ .target = observed.target, .until = observed.next, .next = 0 };
+            try cursor.target.requireSame(observed.target);
+            if (cursor.next > cursor.until or cursor.until > observed.next) return error.InvalidQueueCursor;
+            var result: DeadLetterPage = .{ .observed = observed, .cursor = cursor, .scanned = 0, .candidate = null };
+            const root = self.root.queue.?;
+            if (root.blocked == 0) cursor.next = cursor.until;
+            var bitmap: Bitmap = undefined;
+            const index = self.queueIndex(&bitmap);
+            while (!cursor.complete() and result.scanned < maximum) {
+                const item = try index.item(root, cursor.next);
+                try item.validate();
+                cursor.next += 1;
+                result.scanned += 1;
+                if (item.blocked != .dead_letter) continue;
+                if (try index.state(root, item) != .available or item.offset < observed.retained_from) return error.QueueStateConflict;
+                result.candidate = .{
+                    .source = .{ .target = observed.target, .offset = item.offset, .lease_epoch = item.epoch, .attempt = item.attempts, .not_before_ms = item.blocked_after_ms.? },
+                    .destination = item.blocked.dead_letter,
+                };
+                break;
+            }
+            result.cursor = cursor;
+            try authorize(guard);
+            return result;
+        }
+
         /// No operation binding, selection artifact or WAL record is published.
         /// Hosts serialize this probe with the subsequent claim. Running the
         /// actual selection also preserves budget, capacity and time refusals.

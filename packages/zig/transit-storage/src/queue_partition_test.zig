@@ -824,6 +824,100 @@ test "queue partition settlement rechecks time at publication and keeps exhauste
     try t.expect(try queue.firstEligible(owner.owner.root.queue.?, 100000) == null);
 }
 
+test "queue partition dead letter discovery bounds sweeps preserves recorded destinations and rechecks disclosure" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var base = try declaration();
+    defer base.deinit();
+    var definition = base.definition;
+    var destination = (try base.stored()).declaration.interpretation;
+    destination.object.object = 9;
+    destination.digest = @splat(9);
+    definition.configuration.policy.queue.maximum_attempts = 1;
+    definition.configuration.policy.queue.dead_letter = destination;
+    var declared = try s.LogDeclaration.prepare(t.allocator, definition);
+    defer declared.deinit();
+    var policy: Policy = .{};
+    var clock: Clock = .{ .value = .exact(1000) };
+    var configured = options;
+    configured.clock = clock.source();
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declared);
+    var owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+    const empty = try owner.deadLetterNext(initial.declared, null, 1, policy.guard());
+    try t.expect(empty.cursor.complete() and empty.candidate == null);
+    try t.expectEqual(@as(u16, 0), empty.scanned);
+    var bytes: [8192]u8 = undefined;
+    const appended = try request(&declared, 2, &bytes);
+    _ = try owner.enqueue(initial.declared, appended.append, appended.payload, policy.guard());
+    const claim = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(3), .maximum = 2, .lease_ms = 100 }, policy.guard());
+    const lease = try selectedLease(objects.objectStore(), claim, 0);
+    try t.expectEqual(@as(u64, 0), lease.offset);
+    _ = try owner.settle(initial.declared, .{ .operation = operation(4), .lease = lease, .action = .{ .nack = .{ .visible_ms = 0 } } }, policy.guard());
+    const first = try owner.deadLetterNext(initial.declared, null, 1, policy.guard());
+    try t.expectEqual(@as(u16, 1), first.scanned);
+    try t.expectEqual(@as(u64, 3), first.cursor.until);
+    try t.expectEqual(@as(u64, 1), first.cursor.next);
+    const found = first.candidate.?;
+    try t.expectEqualDeep(destination, found.destination);
+    try t.expectEqual(lease.epoch, found.source.lease_epoch);
+    try t.expectEqual(lease.attempt, found.source.attempt);
+    try t.expectEqual(@as(u64, 1000), found.source.not_before_ms);
+    // Later appends extend live state, never this finite sweep.
+    var later = try request(&declared, 5, &bytes);
+    later.append.producer = null;
+    _ = try owner.enqueue(initial.declared, later.append, later.payload, policy.guard());
+    const before = owner.owner.root;
+    const second = try owner.deadLetterNext(initial.declared, first.cursor, 1, policy.guard());
+    try t.expect(second.candidate == null and !second.cursor.complete());
+    const last = try owner.deadLetterNext(initial.declared, second.cursor, 1, policy.guard());
+    try t.expect(last.candidate == null and last.cursor.complete());
+    try t.expectEqual(@as(u64, 3), last.cursor.until);
+    try t.expectEqual(@as(u64, 6), last.observed.next);
+    const terminal = try owner.deadLetterNext(initial.declared, last.cursor, 1, policy.guard());
+    try t.expect(terminal.cursor.complete() and terminal.candidate == null);
+    try t.expectEqual(@as(u16, 0), terminal.scanned);
+    try t.expectError(error.InvalidQueueTimerBudget, owner.deadLetterNext(initial.declared, null, 0, policy.guard()));
+    var invalid = first.cursor;
+    invalid.next = invalid.until + 1;
+    try t.expectError(error.InvalidQueueCursor, owner.deadLetterNext(initial.declared, invalid, 1, policy.guard()));
+    policy.deny_at = policy.calls + 2;
+    try t.expectError(error.PermissionDenied, owner.deadLetterNext(initial.declared, null, 1, policy.guard()));
+    policy.deny_at = std.math.maxInt(usize);
+    owner.owner.private_position = before.position();
+    try t.expectError(error.PrivateLogWorkspace, owner.deadLetterNext(initial.declared, null, 1, policy.guard()));
+    owner.owner.private_position = null;
+    try t.expectEqualDeep(before, owner.owner.root);
+    try t.expectEqual(before.next_lsn, try wal.log().tail(initial.partition));
+    // Catalog policy edits may change future exhaustion, not this disposition.
+    definition.revision = 2;
+    definition.configuration.policy.queue.dead_letter.?.object.object = 10;
+    definition.configuration.policy.queue.dead_letter.?.digest = @splat(10);
+    var edited = try s.LogDeclaration.prepare(t.allocator, definition);
+    defer edited.deinit();
+    const edited_stored = try s.LogDeclaration.stage(objects.objectStore(), &edited);
+    const after_edit = try owner.deadLetterNext(edited_stored, null, 1, policy.guard());
+    try t.expectEqualDeep(destination, after_edit.candidate.?.destination);
+    try t.expectError(error.LogPartitionConflict, owner.deadLetterNext(edited_stored, first.cursor, 1, policy.guard()));
+    try owner.deinit();
+    objects.deinit();
+    wal.deinit();
+    wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    configured.clock = null;
+    owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    while (!(try owner.recoverStep(policy.guard(), 2)).complete) {}
+    const recovered = try owner.deadLetterNext(initial.declared, null, 1, policy.guard());
+    try t.expectEqualDeep(found, recovered.candidate.?);
+    try t.expectEqualDeep(before, owner.owner.root);
+    try t.expectEqual(before.next_lsn, try wal.log().tail(initial.partition));
+}
+
 test "queue partition expiry fences renewed deadlines and records bounded retries across downtime" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();

@@ -70,6 +70,17 @@ not publish that destination or make the source terminal. A paired transaction
 archives the source and advances its FIFO head only with the destination append.
 Old roots remain independently readable.
 
+`QueuePartition.deadLetterNext` reads at most the requested bounded number of
+item metadata entries and returns at most one blocked DLQ candidate. Its cursor
+fixes a finite upper offset; later appends cannot prolong the sweep. Each page
+observes current state and rechecks the supplied guard before disclosure. A
+changed definition rejects the old cursor. This is not an atomic snapshot: an
+earlier offset that becomes blocked during a sweep belongs to the next sweep.
+The candidate preserves the accepted destination, epoch, attempt and exhaustion
+time across later policy edits and reopen. Discovery neither writes nor checks
+the current clock, acquires a lease or dispatches a transfer. Automatic scheduling
+still needs a durable original attempt and the paired transaction owner.
+
 `QueueAffinity` accelerates FIFO head lookup using the exact immutable key root
 and full canonical key. The Queue owner preallocates 64 hash buckets by default
 (`Options.queue_affinity_rows`, 1–4,096) and twice as many replacement slots.

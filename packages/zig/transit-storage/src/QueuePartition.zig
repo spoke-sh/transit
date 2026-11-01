@@ -23,6 +23,9 @@ pub const ClaimReadLimits = Owner.ClaimReadLimits;
 pub const ClaimReadRow = Owner.ClaimReadRow;
 pub const ClaimReadPage = Owner.ClaimReadPage;
 pub const ClaimReadiness = Owner.ClaimReadiness;
+pub const DeadLetterCandidate = Owner.DeadLetterCandidate;
+pub const DeadLetterCursor = Owner.DeadLetterCursor;
+pub const DeadLetterPage = Owner.DeadLetterPage;
 
 owner: Owner,
 
@@ -44,6 +47,10 @@ pub fn recoveryState(self: *Self) !RecoveryState {
 }
 pub fn observe(self: *Self, declared: Declaration.Stored, guard: Guard) !p.StreamQueue.Cut {
     return self.owner.observe(declared, guard);
+}
+
+pub fn deadLetterNext(self: *Self, declared: Declaration.Stored, after: ?DeadLetterCursor, maximum: u16, guard: Guard) !DeadLetterPage {
+    return self.owner.deadLetterNext(declared, after, maximum, guard);
 }
 pub fn transactionPinState(self: *Self, owner: p.DataLifecycle.Operation, guard: Guard) !@import("LogTransaction.zig").PinState {
     return self.owner.transactionPinState(owner, guard);
