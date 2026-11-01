@@ -143,6 +143,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
     const expected: std.meta.Tag(w.Result) = switch (request.action) {
         .stream => .stream,
         .queue => .queue,
+        .branch => .branch,
         .transaction => .transaction,
         .record => .record,
         .client_token => .client_token,
@@ -201,6 +202,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
     switch (response.result) {
         .stream => |value| try c.DirectStreamResponse.validate(allocator, request.connection, request.action.stream, value),
         .queue => |value| try c.DirectQueueResponse.validate(allocator, request.connection, request.action.queue, value),
+        .branch => |value| try c.DirectBranch.validateResult(allocator, request.connection, request.action.branch, value),
         .transaction => |value| try c.DirectTransactionRequest.validateResult(request.action.transaction, value),
         .record => |value| {
             try value.reference.validate();

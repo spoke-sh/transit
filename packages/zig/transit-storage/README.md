@@ -27,6 +27,12 @@ verify live retention, acquire a coherent catalog/data cut, recheck current
 authority and accept publication. Staging these artifacts does not publish a
 branch, acquire pins or make them reachable to the storage collector.
 
+The installed catalog's `DirectBranch` owner composes these artifacts with
+durable Table pins for immutable single-Table branches. Its accepted token/head
+decision roots the branch directory in `DirectStorageGraph`; the protected live
+pin retains the source's data/archive closure. This composition is separate from
+standalone staging. See the [branch contract](../../../contracts/BRANCH_V1.md#installed-immutable-table-branches).
+
 `BranchAncestry` visits exact stored manifests in bounded steps and stages its
 frontier and visited sets in paged private indexes. Exhaustive parent/merge-parent
 traversal distinguishes a unique maximal common ancestor, unrelated histories

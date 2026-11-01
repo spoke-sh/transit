@@ -107,10 +107,10 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 
 ## Current native definition
 
-The declarative browser cutover replaces the shared definition with
-`d819613421eddad994752d367fa40948abe9914ffc0f10ee13b18c2b875d3e8e`.
-Browser placement extends the retained configuration descriptor layout; typed
-browser catalog records and request resources are definition-bound. Earlier
+The durable Table branch cutover replaces the shared definition with
+`b8b54b17dfbab67a11e6e48a011d7cb0337ccaaf4f643944d7aaf251c810269c`.
+Catalog roots require branch identity, name and retention-owner directories;
+typed branch operations share the original client-token decision owner. Earlier
 checkpoints, signed requests and histories reject rather than being silently
 extended or interpreted with new defaults. Preserve old storage and resolve
 accepted work with its matching build. This change provides no in-place import

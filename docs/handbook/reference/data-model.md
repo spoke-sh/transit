@@ -171,6 +171,11 @@ history do not expose general historical SQL, writable branches or arbitrary
 cross-resource transactions. The [historical-read reference](sql/as-of.md) and
 [query consistency model](queries.md#relational-boundary) specify those limits.
 
+The direct Table owner also supports [named immutable Table branches](tables.md#immutable-table-branches).
+Each branch retains one explicitly selected definition/data cut, including
+unflushed rows, while its parent advances. This does not establish a whole-catalog
+snapshot or branch write, merge or restore support.
+
 ## Declarations and current interfaces
 
 The product direction is to describe data, computation and policies together,

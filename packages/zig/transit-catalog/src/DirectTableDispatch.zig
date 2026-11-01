@@ -83,6 +83,7 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
 
 fn applySelected(comptime action_tag: std.meta.Tag(w.Action), allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action: *const w.Action, delegation: ?c.DirectReadDelegation, execution: Execution) anyerror!w.Result {
     switch (action_tag) {
+        .branch => return .{ .branch = try branch(allocator, catalog, policy, action.branch) },
         .queue => {
             const run = execution.queue orelse return error.QueueServiceUnavailable;
             return .{ .queue = try run(execution.context, allocator, catalog, policy, action.queue) };
@@ -591,4 +592,48 @@ fn applySelected(comptime action_tag: std.meta.Tag(w.Action), allocator: std.mem
             return .released;
         },
     }
+}
+
+fn branch(output: std.mem.Allocator, catalog: *D, policy: D.Policy, request: c.DirectBranch.Request) !c.DirectBranch.Result {
+    switch (request) {
+        .create => |value| return .{ .status = try catalog.createBranch(value, policy) },
+        .inspect => |key| return .{ .status = try catalog.inspectBranch(key, policy) },
+        .advance => |key| return .{ .status = try catalog.advanceBranch(key, false, policy) },
+        .cancel => |key| return .{ .status = try catalog.advanceBranch(key, true, policy) },
+        .lookup => |value| return .{ .status = try catalog.lookupBranch(value.namespace, value.name, policy) },
+        .source, .scan => {},
+    }
+    const head = if (request == .source) request.source else request.scan.head;
+    var scratch = std.heap.ArenaAllocator.init(catalog.allocator);
+    defer scratch.deinit();
+    var selected = try catalog.openBranch(scratch.allocator(), head, policy);
+    defer selected.deinit();
+    var definition = try selected.access.view.table.inspectSnapshot(catalog.allocator, selected.entry.pin, selected.access.current);
+    defer definition.deinit();
+    const current = selected.access.current;
+    const result: c.DirectBranch.Result = if (request == .source) .{ .source = .{
+        .head = head,
+        .source = selected.entry.source,
+        .mode = selected.mode,
+        .interpretation = definition.root.declared(),
+        .rows = if (selected.mode == .schema_only) 0 else definition.root.live_rows,
+        .schema = try schema(output, catalog.allocator, definition.schema.schema),
+    } } else result: {
+        const read = request.scan;
+        if (selected.mode == .schema_only) {
+            if (read.after != null) return error.InvalidBranchCursor;
+            break :result .{ .page = .{ .head = head, .source = selected.entry.source, .total_rows = 0, .rows = &.{}, .encoded_bytes = 0, .next = null } };
+        }
+        var page = try selected.access.view.table.scanSnapshot(catalog.allocator, selected.entry.pin, read.after, read.limits, current);
+        defer page.deinit();
+        const rows = try output.alloc(w.Binary, page.count);
+        const buffer = try catalog.allocator.alloc(u8, c.fuze.TableRow.max_bytes);
+        defer catalog.allocator.free(buffer);
+        for (rows, 0..) |*row, i| row.* = try w.Binary.encode(output, try page.rows[i].?.row().encode(definition.schema.schema, buffer));
+        break :result .{ .page = .{ .head = head, .source = selected.entry.source, .total_rows = page.total_rows, .rows = rows, .encoded_bytes = page.encoded_bytes, .next = page.next } };
+    };
+    // Includes buffered rows, schema, and genuinely empty terminal results.
+    _ = try current.acquire(current.context);
+    current.release(current.context);
+    return result;
 }

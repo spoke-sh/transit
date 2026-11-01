@@ -45,6 +45,36 @@ refresh a revoked caller proof or select newer data. See the
 for the allowed operations and recovery rules. Captured-query owners retain
 the grant through admission, worker replacement and explicit pin cleanup.
 
+## Immutable Table branches
+
+The direct Table service can create a named, read-only branch of one explicitly
+selected Table. Supply the exact definition and accepted position from Table
+lookup, a branch name, `full_data` or `schema_only`, and an original account/client
+token through the `DirectBranch.Request.create` action. The shared Zig caller uses
+`DirectBranch.call(client, request)` and the existing signed `/table/v1` endpoint.
+SQL branch commands and additional language convenience wrappers are unavailable.
+
+Inspect the original token to observe `admitted`, `published`, `abandoning` or
+`cancelled`. A published head identifies immutable schema and data, including
+rows accepted before flushing. Parent writes and later physical collection do
+not change its rows. Use `source` to inspect schema and `scan` to read bounded
+pages; retain each response until its bytes have been consumed. Complete coverage
+requires the original cursor sequence and its terminal row count.
+
+After an uncertain reply, inspect or advance the same token. If the parent
+advanced before pin acquisition, cancel the pending operation and deliberately
+choose a fresh source for new work. Cancellation releases unpublished preparation
+before freeing its name; it cannot remove a published branch. Published branches
+have unlimited retention. Schema-only branches return zero rows but currently
+retain the full source pin as well as its schema.
+
+Creation requires source SELECT and namespace CREATE; later inspection and
+reads still require the original principal's current source access. A branch
+name or retained head grants no access. See the
+[installed branch contract](../../../contracts/BRANCH_V1.md#installed-immutable-table-branches)
+for exact recovery and lifetime rules. Writable branches, whole-catalog cuts,
+merge, restore and published branch deletion remain unavailable.
+
 ## Schemas and identities
 
 Tables contain 1–128 ordered named columns with the shared

@@ -150,11 +150,12 @@ pub const Page = struct { entries: [8]?Reference = @splat(null), next: ?u64 = nu
 pub fn list(execution: g.DatabaseAccount, source: *g.Client.Source, after_id: u64, pending: bool) !Page {
     var states: [64]?c.DirectClientToken.Progress = @splat(null);
     var count: usize = 0;
-    var more = false;
+    var through: ?u64 = null;
     for (execution.configuration.bindings) |binding| {
         const page = try c.DirectClientToken.list(source.client.table(binding), execution.configuration.account, after_id, pending);
-        more = more or page.next != null;
+        if (page.next) |next| through = if (through) |previous| @min(previous, next) else next;
         for (page.entries) |slot| if (slot) |state| {
+            if (state.receipt.binding.intent == .branch) continue;
             if (state.receipt.binding.intent == .external and state.receipt.binding.intent.external.record.format != initial_format) continue;
             for (states[0..count]) |other| if (other.?.id() == state.id()) break else continue else {
                 states[count] = state;
@@ -167,8 +168,36 @@ pub fn list(execution: g.DatabaseAccount, source: *g.Client.Source, after_id: u6
             return lhs.?.id() < rhs.?.id();
         }
     }.less);
-    var result: Page = .{};
-    for (states[0..@min(count, 8)], 0..) |state, i| result.entries[i] = try projection(source, state.?);
-    if ((count > 8 or more) and count != 0) result.next = result.entries[@min(count, 8) - 1].?.id;
+    var ids: [64]u64 = undefined;
+    for (states[0..count], 0..) |state, i| ids[i] = state.?.id();
+    const selected = pageWindow(ids[0..count], through);
+    var result: Page = .{ .next = selected.next };
+    for (states[0..selected.count], 0..) |state, i| result.entries[i] = try projection(source, state.?);
     return result;
+}
+
+// Do not skip unseen SQL work behind another binding's filtered page. An empty
+// output page still advances the shared database cursor through excluded work.
+fn pageWindow(ids: []const u64, through: ?u64) struct { count: usize, next: ?u64 } {
+    var count: usize = 0;
+    while (count < @min(ids.len, 8) and (through == null or ids[count] <= through.?)) : (count += 1) {}
+    return .{ .count = count, .next = if (count == 8 and (ids.len > 8 or through != null)) ids[7] else through };
+}
+
+test "SQL recovery pagination crosses excluded branch pages without skipping another binding" {
+    const t = std.testing;
+    const empty = pageWindow(&.{}, 17);
+    try t.expectEqual(0, empty.count);
+    try t.expectEqual(@as(?u64, 17), empty.next);
+    // One binding scanned through 17; another supplied 10, 20, 30. The latter
+    // two must wait until the former's as-yet-unseen SQL work has been read.
+    const partial = pageWindow(&.{ 10, 20, 30 }, 17);
+    try t.expectEqual(1, partial.count);
+    try t.expectEqual(@as(?u64, 17), partial.next);
+    const final = pageWindow(&.{ 18, 20, 30 }, null);
+    try t.expectEqual(3, final.count);
+    try t.expectEqual(@as(?u64, null), final.next);
+    const bounded = pageWindow(&.{ 1, 2, 3, 4, 5, 6, 7, 8, 9 }, null);
+    try t.expectEqual(8, bounded.count);
+    try t.expectEqual(@as(?u64, 8), bounded.next);
 }

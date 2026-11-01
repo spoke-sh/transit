@@ -87,7 +87,7 @@ pub fn warm(self: *Self, engine: *backend.DataAuthority.Engine) !void {
 }
 fn exclusive(action: w.Action) bool {
     return switch (action) {
-        .transaction => true,
+        .branch, .transaction => true,
         .client_token => |value| value == .bind,
         .client_progress => |value| value == .update,
         .initialize, .admit_ddl, .log_admit, .check_set, .name_assertion, .name_preview => true,

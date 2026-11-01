@@ -5,9 +5,9 @@ pub const version = 1;
 /// Contract-set fingerprint, independent of the public version label. Replace
 /// this identifier on an incompatible pre-1.0 cutover, including changed stored
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
-/// SHA-256 of transit.v1.declarative-browser-checkpoints.2026-10-30.
+/// SHA-256 of transit.v1.retained-table-branches.2026-10-31.
 pub const Definition = enum {
-    d819613421eddad994752d367fa40948abe9914ffc0f10ee13b18c2b875d3e8e,
+    b8b54b17dfbab67a11e6e48a011d7cb0337ccaaf4f643944d7aaf251c810269c,
 
     fn spelling(bytes: []const u8) !Definition {
         if (!std.mem.eql(u8, bytes, @tagName(current_definition))) return error.InvalidEnumTag;
@@ -848,6 +848,8 @@ test "native responses require the current contract definition even with a v1 la
         "d5cad2104285ea53f190c0c090bb3ab40db2f6555970d251bfa5361b2ffaf964",
         // Before mandatory scoped read delegations and executor authentication.
         "f2f9eecaf384f4ef6dde55ad0af62bf368ff17e76cfe0877665d1070a8460982",
+        // Before durable Table branch directory and retention ownership.
+        "d819613421eddad994752d367fa40948abe9914ffc0f10ee13b18c2b875d3e8e",
         // Before lossless column codecs and mandatory physical page definitions.
         "dbeaf8ee99483d030ed06e8779be25af19f74d7c794591e180c8906a55b456dd",
         // Before mandatory binary storage definitions and keyless row identity.

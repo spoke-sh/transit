@@ -680,6 +680,54 @@ requires repository link/fence and whitespace checks; runtime evidence stays ope
    the resulting common revision, without treating M28's future approvals as an
    existing authorization mechanism.
 
+## Local Table branch increment
+
+Implemented on top of `b60f12154`, this R1/R2 slice delivers a named,
+immutable branch of one explicitly selected Table, reached through typed direct
+callers. It retains the original definition and data frontier, including unflushed
+WAL rows, and recovers the original outcome while the parent advances.
+
+This slice uses the existing `DirectCatalog` client-token owner for admission,
+name reservations, nonreused branch IDs and publication. One accepted catalog
+successor records both the branch head and terminal operation outcome. A durable
+Table pin belongs to that operation before publication and to its published
+branch afterward; ordinary release cannot take it away. Cancellation records
+abandonment before releasing the original pin and freeing the name.
+
+A single selected Table supplies a coherent definition/data cut through its
+existing acceptance owner. It is an explicitly scoped projection, not an atomic
+snapshot of the whole main catalog or a fabricated main-branch ancestry chain.
+The installed profile remains read-only. Full-data and schema-only results retain
+source attribution; schema-only exposes no rows and initially retains the same
+source pin. Writable roots, whole-catalog cuts, branch fork history and published
+branch deletion remain R2/R3 work.
+
+The focused catalog suite (`zig build test -Dtest-filter="direct branch"` in
+`transit-catalog`) passes independent signed-intent verification, disk reopen
+after lost pin/publication replies, parent advancement against copied rows,
+name conflicts/reuse, protected pin ownership, recoverable cancellation,
+stale-source refusal, missing-artifact refusal and 137 published branches with
+one resident page. The signed and typed service schedules
+(`zig build transit-node test-local-catalog -Dlocal-catalog-filter=branch -j2`)
+pass real collection after parent writes/flushing and current-policy denial
+after buffering rows, schema and empty output. Each collection completed 370
+steps and reclaimed its independently witnessed orphan. `transit-sql` tests also
+pass recovery pagination across excluded branch work without hiding later SQL
+operations. These are local component/service proofs, not full qualification.
+
+The implementation performs the coordinated current-v1 cutover to
+`b8b54b17dfbab67a11e6e48a011d7cb0337ccaaf4f643944d7aaf251c810269c`,
+regenerates reflected resources and independent signing fixtures, and rejects
+foreign definitions. `just check contracts`, `just check fast`, formatting and
+diagnostic mappings pass. The [qualification record](../history/qualification/catalog.md#immutable-single-table-branches--2026-10-31)
+records committed-source component, service and SDK results alongside the failed
+and incomplete core, storage-growth, browser, SQL-session and installation
+attempts.
+
+R1/R2 remain open for complete branch histories and whole-catalog cuts. R3 still
+requires writable isolation, published deletion and concurrent lifetime/GC races;
+R4–R10 retain their existing scope. This increment does not close the milestone.
+
 ## Foundation increment — 2026-10-31
 
 The first implementation increment adds these owners without enabling branch

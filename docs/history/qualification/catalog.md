@@ -9,6 +9,124 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Immutable single-Table branches — 2026-10-31
+
+The implementation through `5ebdc096d`, based on `b60f12154`, supplies the
+[installed immutable Table branch profile](../../../contracts/BRANCH_V1.md#installed-immutable-table-branches).
+It does not qualify writable branches, whole-catalog cuts, published branch
+deletion, diff, merge or restore. The pinned Nix environment supplies Zig
+`0.17.0-dev.2267+48abf1a34`; the following checks use local disk stores.
+
+At clean `5ebdc096d`, `zig build test -Dtest-filter="direct branch" --summary all`
+in `transit-catalog` passes all eight tests. They cover independent signatures,
+lost pin/publication replies and disk reopen, thirteen unflushed rows compared
+with an independent copy after parent advancement, exact retries, cancellation,
+name reuse without identity reuse, schema-only reads, current rights, stale
+sources and missing artifacts. The retained source pin cannot be captured or
+released by ordinary readers; an unrelated Table pin with the same reader owner
+remains releasable. The growth schedule publishes 137 branches with one resident
+page and reopens without its recovery hint. Raw output is
+`/tmp/transit-m19-clean-branch-focus.log`.
+
+On the same clean source, `zig build transit-node test-local-catalog
+-Dlocal-catalog-filter=branch -j2 --summary all` passes three tests. Signed
+service dispatch and the public `DirectBranch.call` through the resident typed
+host preserve response ownership and frozen reads after parent writes/flushing.
+Both physical collection schedules complete 370 steps and reclaim an
+independently staged orphan while retaining the branch. Revocation after
+buffering rejects row, schema and empty-result disclosure. Raw output is
+`/tmp/transit-m19-clean-branch-service.log`. These are local service/component
+checks, not a distributed ownership or performance qualification.
+
+`just ci clean --lane storage-query` at `bcffc7081` passes its first 23 targets,
+including the complete local-catalog suite, installed Table/Queue service,
+maintenance, catalog ABI, native concurrency, physical collection, Document
+recovery, public query, publication and finite-capture boundary checks. The final
+catalog target passes its fixture, dependency recovery, 139-edge dependency
+growth and named-resource recovery subproofs. Its 139-resource growth setup then
+exceeds the unchanged 5,400-second limit while processing resource 94. The
+subsequent growth recovery checks do not run; the catalog target and overall
+lane are failed, not passed. Raw output is `/tmp/transit-m19-final-storage.log`;
+CI metadata remains under `/var/tmp/transit-ci-_v4riilc`, and the failed private
+installation is retained at `/var/tmp/transit-table-resource-growth-v3l97n93`.
+This run predates the source-pin scope correction in `5ebdc096d`; the final
+focused catalog/service checks above cover that correction. An earlier
+superseded storage attempt was interrupted and is preserved in
+`/tmp/transit-m19-clean-storage.log`, not counted as a pass.
+
+`just ci clean --lane core` at `bcffc7081` passes fast checks, generated contracts and
+the complete native component target, then fails `test::cli-diagnostics`:
+startup logs precede the expected `error:` stderr prefix. The unchanged
+`b60f12154` baseline reproduces that assertion. Raw outputs are
+`/tmp/transit-m19-final-core.log` and `/tmp/transit-m19-baseline-cli.log`;
+source-attributed CI metadata remains under `/var/tmp/transit-ci-_lo3g2ap`.
+The lane stopped at `check::core`; its later tasks did not run. An earlier
+superseded core attempt found stale encoded/signing fixtures, corrected by
+`e8451ca73` before this run; `/tmp/transit-m19-clean-core.log` preserves that
+incomplete attempt.
+
+The initial `just ci clean` setup (`/tmp/transit-m19-clean.log`) failed because
+Playwright's `--with-deps` host-package installation required unavailable sudo
+authentication. The clean checkout then
+used `just transit-board::browser-install` and the pinned Chromium without that
+privileged host setup. At `5ebdc096d`, `transit-board::browser` passes, and the
+query test's native lost-reply/capacity controls pass. Its interactive query
+fails the unchanged 120-second completion deadline in two runs. The source
+worker continues accepting progress; neither run establishes query completion.
+Two separate unchanged-main comparisons pass. This difference remains
+unexplained and is not classified as a baseline failure.
+
+Raw browser outputs are `/tmp/transit-m19-final-browser.log`,
+`/tmp/transit-m19-browser-query-retry.log`,
+`/tmp/transit-m19-baseline-browser.log` and
+`/tmp/transit-m19-baseline-browser-repeat.log`. Failed private installations
+remain at `/var/tmp/transit-storage-fp1g2d58` and
+`/var/tmp/transit-storage-dtkwbeix`; traces remain in the clean browser checkout
+`/var/tmp/transit-ci-0i4kqh5p/src/.cache/`, including
+`m19-browser-head-failure`. The browser lane stopped at its second task; the
+remaining six tasks did not run. An earlier attempt at `a5e4a8007` failed during
+native query upload with capacity/authority timeouts, preserved in
+`/tmp/transit-m19-clean-browser.log`. No deadline or assertion was relaxed.
+
+`just ci clean --lane interfaces-sql` at `5ebdc096d` passes TLS, result allocation
+and the installed PostgreSQL/MySQL gateway target. Those checks include current
+role/metadata/terminal authorization, uncertain-write recovery, large values,
+schema invalidation and bounded cancellation. The session target then times out
+after 1,800 seconds while provisioning session sources; the native
+owner continues committing turns, but setup does not finish. Session and
+transaction qualification are not established. Raw output is
+`/tmp/transit-m19-clean-interfaces-sql.log`, CI metadata is under
+`/var/tmp/transit-ci-lsjusmrp`, and the private installation remains at
+`/var/tmp/transit-direct-sql-wire-_dtencsk`.
+
+`just ci clean --lane installation-ui` at documentation-only successor
+`606f27e24` passes Board checks, documentation, Node bindings, observability and
+server logging. The default single-executable workflow also passes DDL/DML,
+lazy ALTER and exact values after restart. The later packaged Board recovery
+scenario fails: an additional source `HttpConnectionClosing` during recovery
+consumes one of the three restart allowances, so the final deliberate requester
+failure exhausts the manager's budget. The overall single-executable target is
+failed, and the remaining ten lane tasks did not run. Raw output is
+`/tmp/transit-m19-clean-installation-ui.log`; metadata and the private
+installation remain at `/var/tmp/transit-ci-dkrrwt01` and
+`/var/tmp/transit-server-proof-xisgzoih` respectively.
+
+`just ci clean --lane sdks-conformance` passes all seven targets at `606f27e24`:
+generated contracts, native bindings, logical values, installed cross-language
+interoperability, SQL, gRPC faults and connector preparation. The preparation
+proof preserves the original field/cause after lost admitted-input replies,
+corrected configuration, worker/node/store restart, denial and retirement,
+without creating an intent or sending externally. Raw output is
+`/tmp/transit-m19-clean-sdks-conformance.log`; source/binary provenance and
+completion records are retained in
+`.cache/ci/clean/606f27e24e71-transit-ci-8szrjhrc` in the implementation worktree.
+This successor changes documentation only; the runtime source remains
+`5ebdc096d`.
+
+The formal, launcher, relational/connector interface and individual SDK language
+lanes were not run. These selected attempts do not establish complete CI or
+milestone qualification.
+
 ## Bounded public Queue claim waits — 2026-10-31
 
 Storage readiness is implemented in `b890907b2`, the signed Queue wait and native

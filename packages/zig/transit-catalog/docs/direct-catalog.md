@@ -23,6 +23,17 @@ settlements. Both share current native policy and declaration serialization.
 The local node schedules bounded Queue expiry under its maintenance authority.
 DLQ transfer, mixed transactions and Stream/Queue SQL remain unavailable.
 
+`DirectBranch` adds named immutable single-Table cuts through the same service.
+The paged `branches`, `branch_names` and `branch_owners` catalog directories point
+to the original client-token owner. Admission reserves identity/name; one later
+catalog acceptance publishes the exact head and terminal outcome. The Table pin
+is protected from ordinary release. Explicit cancellation records abandonment,
+releases preparation and then frees its name. Published heads retain their data
+and interpretation under current source authorization. See the
+[branch contract](../../../../contracts/BRANCH_V1.md#installed-immutable-table-branches)
+and [Table guide](../../../../docs/handbook/reference/tables.md#immutable-table-branches)
+for caller recovery and the read-only profile's limits.
+
 The internal `maintenanceNext` traversal inspects one current object entry per
 step under a host-supplied native maintenance guard. A pass fixes the largest
 accepted object ID at its start; later insertions beyond that boundary wait for

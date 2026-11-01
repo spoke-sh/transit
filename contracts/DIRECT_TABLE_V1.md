@@ -11,6 +11,14 @@ and shared SQL runtime. Captured-source and SDK migration remain incomplete. The
 
 ## Requests and authority
 
+The `branch` action and result use `DirectBranch.Request` and `DirectBranch.Result`
+for named immutable single-Table branches. Creation, publication, cancellation,
+source reads and paged scans share this endpoint and the typed local owner.
+The [installed branch contract](BRANCH_V1.md#installed-immutable-table-branches)
+defines original-token recovery, exact source cuts, current authorization,
+retention and scope limits. General Table requests still target branch one;
+branch scans carry their exact published head explicitly.
+
 A request contains the mandatory current shared definition, connection, nonce,
 action, nullable delegation, nullable closure authorization, nullable borrowed-read
 authorization and transport proof. A null delegation
