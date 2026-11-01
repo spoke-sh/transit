@@ -4394,10 +4394,19 @@ const TransactionLogFault = struct {
 };
 
 fn selectTransactionLogs(catalog: *D, access: *Access, mode: p.Transaction.Mode) !c.DirectClientToken.Receipt {
+    return selectTransactionLogsWithQueue(catalog, access, mode, false);
+}
+fn selectTransactionLogsWithQueue(catalog: *D, access: *Access, mode: p.Transaction.Mode, fifo: bool) !c.DirectClientToken.Receipt {
     const table = try creation(10, 1, "rows");
     _ = try catalog.admit(table, access.policy());
     _ = try catalog.perform(table.binding, access.policy());
-    for ([_]c.DirectLog.Request{ try logCreation(.stream, 11, 2, "events", 2), try logCreation(.queue, 12, 3, "work", 1) }) |request| {
+    var queue = try logCreation(.queue, 12, 3, "work", 1);
+    if (fifo) {
+        queue.intent.action.create.configuration.policy.queue.ordering = .key_fifo;
+        queue.intent.action.create.configuration.policy.queue.key_column = 1;
+        queue.binding.intent = try queue.intent.digest(t.allocator);
+    }
+    for ([_]c.DirectLog.Request{ try logCreation(.stream, 11, 2, "events", 2), queue }) |request| {
         _ = try catalog.admitLog(request, access.policy());
         for (0..request.intent.action.create.configuration.partitioning.count) |_| _ = try catalog.logOperation(request.binding, .execute, access.policy());
     }
@@ -4531,7 +4540,7 @@ test "transaction log statements atomically enqueue and ACK with lost decision r
             return .{ .context = self, .read = read };
         }
     };
-    for ([_]bool{ false, true }) |expire| {
+    for ([_]bool{ false, true }) |fifo| for ([_]bool{ false, true }) |expire| {
         var tmp = t.tmpDir(.{});
         defer tmp.cleanup();
         var access: Access = .{ .exclusive = true };
@@ -4547,12 +4556,13 @@ test "transaction log statements atomically enqueue and ACK with lost decision r
             defer objects.deinit();
             var catalog = try owner(&wal, &objects);
             defer catalog.deinit();
+            catalog.options.resident_pages = (D.Options{}).resident_pages;
             var clock: QueueClock = .{};
             var cached: ?c.DirectQueue.Cached = null;
             defer if (cached) |*value| value.deinit();
             if (restart == 0) {
                 try catalog.initialize(access.policy());
-                receipt = try selectTransactionLogs(&catalog, &access, .serializable);
+                receipt = try selectTransactionLogsWithQueue(&catalog, &access, .serializable, fifo);
                 const declaration = (try catalog.resolveLog(1, try .init("work"), access.policy())).?;
                 target = .{ .definition = p.Growth.current_definition, .interpretation = declaration.stored.declaration.interpretation, .partition = 0 };
                 const operation: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 600 };
@@ -4616,7 +4626,7 @@ test "transaction log statements atomically enqueue and ACK with lost decision r
                 try t.expectEqual(@as(u64, if (expire) 0 else 1), rows.table.root.live_rows);
             }
         }
-    }
+    };
 }
 
 test "transaction log terminal transfers preserve both owners through denial rollback expiry and disk replacement" {
@@ -4796,6 +4806,8 @@ test "transaction log statements retain exact offset cursors through lost admiss
     defer objects.deinit();
     var catalog = try owner(&wal, &objects);
     defer catalog.deinit();
+    // Match the installed service cache profile within the unchanged transaction budget.
+    catalog.options.resident_pages = (D.Options{}).resident_pages;
     var access: Access = .{ .exclusive = true };
     try catalog.initialize(access.policy());
     const receipt = try selectTransactionLogs(&catalog, &access, .serializable);
