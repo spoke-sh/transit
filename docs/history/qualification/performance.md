@@ -9,6 +9,43 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Final-response deadline control and installed driver check — 2026-11-01
+
+Clean revision `a43c275fe7ae72806764c958d431563416e63355`, current definition
+`befd3999375f040599091d9e91793e16b274e32388cf8dc47d74813a2a706ddd`, fixes
+a measurement gap: the final successful response now has to arrive before the
+same 30-second logical deadline as incomplete replay responses. A late mutation
+receipt is retained before reporting `CallBudget`. The independent report oracle
+rejects late samples, and failure accounting distinguishes a failed measurement
+with a known outcome from unresolved work. Deadlines and owner budgets are unchanged.
+
+The reporting control suite passes **11/11**, including exact deadline boundaries,
+final completion after replay progress, and known/unknown mutation accounting.
+The clean ReleaseSafe node/proof-caller build passes **10/10 steps**. Running
+`tests/performance/storage/log_runtime.py` through `tests/runner/launch.py` with
+`--profiles 1 3 --warmup 1 --repeat 1` passes both Stream and Queue correctness
+profiles: each verifies two rows, eight foreground calls and ten restart calls.
+Each original receipt and retained selection is checked; no accepted request is
+replaced to complete the run.
+
+This is driver correctness evidence only. Unrelated build activity was present
+on the host, and one measured iteration cannot establish a tail percentile or
+regression budget. No artificial delay was injected into an installed response;
+the deadline boundaries are independent report controls. The larger Queue cold
+recovery failure below remains open.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Node | `4ae3d25db73fc32337cd5ba137976ed488fbeddf1aa1d30da998a8d81e7988d1` |
+| Proof caller | `74956f5948101b385c1eab0752cd38fa259efa3d05ac62689331d0eb1d25d09c` |
+| `/var/tmp/transit-m6-log-deadline-controls1.log` | `4c3b3b2f85f7f81206f2731efca1a5c61f58b2f6c54d820b4003b988757b84ec` |
+| `/var/tmp/transit-m6-log-deadline-build1.log` | `fb1674a866970702b98a549477a58ac429de1a6b4fa7a0f5897feb5a0d517c43` |
+| `/var/tmp/transit-m6-log-deadline-smoke1.log` | `2f6db6fb4c0a0dbc9f198a556dc3005d21af46d889092e96630223760a2ef15a` |
+| `.cache/performance/m6-log-deadline-smoke-1/report.json` in the clean checkout | `bd263fda2cf47a005e084e00b1611fff953a78849968cc68e74ce5e90561e7fe` |
+
+The private installation is `/var/tmp/transit-table-log-baseline-xa1gwke1`;
+the clean checkout is `/var/tmp/transit-m6-log-deadline`.
+
 ## Combined read-path cold recovery follow-up — 2026-11-01
 
 A read-only restart of the original private installation with clean matching
