@@ -183,6 +183,10 @@ eligible; a complete mark, native epoch/time fences and exact allocation identit
 are still required before removal. Paged private work and deletion progress
 resume after reopen. See [direct-data collection](docs/maintenance.md#direct-table-and-catalog-collection)
 for invocation, memory limits and permanent saved-intent ownership.
+Each marking step reuses one eight-page immutable batch buffer within its
+existing 64 MiB memory budget. Each bounded graph unit flushes its private index
+pages before the collection checkpoint can publish their roots. Partial staging
+failure preserves the prior checkpoint and cannot authorize a sweep.
 
 Run `nix develop --command zig build test-local-native` from the repository root,
 or `zig build test` here inside the pinned development shell. The root unit task
