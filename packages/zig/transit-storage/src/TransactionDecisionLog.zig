@@ -83,7 +83,7 @@ fn participants(self: *Self) !Directory {
         for (page.entries) |entry| if (entry) |value| {
             count = try std.math.add(u64, count, 1);
             if (count > result.root.count) return error.InvalidTransactionDirectory;
-            try value.participant.requireLocalTable(self.binding.begin);
+            try value.participant.requireLocalState(self.binding.begin);
             if (value.participant.state.guard.source.accepted.partition == self.partition)
                 return error.InvalidTransactionPartition;
             writes += @intFromBool(value.participant.state.access == .write);

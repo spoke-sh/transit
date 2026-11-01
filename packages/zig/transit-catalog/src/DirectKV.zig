@@ -91,6 +91,19 @@ pub const Mutation = struct {
         if (self.binding.action != .insert or self.binding.expected_definition == null or self.changes.len == 0 or self.changes.len > KV.max_changes) return error.InvalidKVOperation;
         if (!std.mem.eql(u8, &self.binding.intent, &try self.digest(allocator))) return error.DataIdentityConflict;
     }
+
+    pub fn decodeChanges(self: Mutation, scratch: std.mem.Allocator, spec: s.KVDeclaration.Spec) ![]const KV.Change {
+        const changes = try scratch.alloc(KV.Change, self.changes.len);
+        const field: c.fuze.Types.Field = .{ .name = "value", .type = spec.typeOf(), .nullable = spec.nullable };
+        for (self.changes, changes) |change, *lowered| switch (change) {
+            .put => |value| {
+                const bytes = try value.value.decode(scratch, c.fuze.Types.Codec.max_bytes);
+                lowered.* = .{ .put = .{ .key = try keyBytes(scratch, value.key), .value = try c.fuze.Types.Codec.decodeBoundInto(scratch, field, bytes), .expect = value.expect } };
+            },
+            .remove => |key| lowered.* = .{ .remove = try keyBytes(scratch, key) },
+        };
+        return changes;
+    }
 };
 pub const Request = union(enum) {
     observe: d.Object,
@@ -156,6 +169,7 @@ pub const Read = struct {
     changed_lsn: u64,
     spec: s.KVDeclaration.Spec,
     source: ?s.TablePartition.SnapshotHandle,
+    workspace: ?p.Transaction.ReadView,
     encoded: ?w.Binary,
 };
 pub const Result = union(enum) {
@@ -197,16 +211,8 @@ pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.
             break :blk .{ .operation = try owner.observe(binding, guard) };
         },
         .mutate => |mutation| blk: {
-            const changes = try scratch.alloc(KV.Change, mutation.changes.len);
             const spec = (try s.KVDeclaration.fromPhysical(owner.storage.declaration.definition)).spec;
-            const field: c.fuze.Types.Field = .{ .name = "value", .type = spec.typeOf(), .nullable = spec.nullable };
-            for (mutation.changes, changes) |change, *lowered| switch (change) {
-                .put => |value| {
-                    const bytes = try value.value.decode(scratch, c.fuze.Types.Codec.max_bytes);
-                    lowered.* = .{ .put = .{ .key = try keyBytes(scratch, value.key), .value = try c.fuze.Types.Codec.decodeBoundInto(scratch, field, bytes), .expect = value.expect } };
-                },
-                .remove => |key| lowered.* = .{ .remove = try keyBytes(scratch, key) },
-            };
+            const changes = try mutation.decodeChanges(scratch, spec);
             try c.OperationBinding.claim(scratch, catalog.data_objects, mutation.binding);
             if (try owner.observe(mutation.binding, guard) == null) try catalog.kvReady(mutation.binding.target, guard);
             owner.storage.lose_reply = catalog.lose_table_reply;
@@ -218,7 +224,12 @@ pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.
         },
         .get => |value| blk: {
             const key = try keyBytes(scratch, value.key);
-            var basis: Read = .{ .interpretation = owner.storage.root.declared(), .position = .{ .partition = owner.storage.root.partition, .next_lsn = owner.storage.root.next_lsn }, .changed_lsn = owner.storage.root.changed_lsn, .spec = (try s.KVDeclaration.fromPhysical(owner.storage.declaration.definition)).spec, .source = value.source, .encoded = null };
+            var basis: Read = .{ .interpretation = owner.storage.root.declared(), .position = .{ .partition = owner.storage.root.partition, .next_lsn = owner.storage.root.next_lsn }, .changed_lsn = owner.storage.root.changed_lsn, .spec = (try s.KVDeclaration.fromPhysical(owner.storage.declaration.definition)).spec, .source = value.source, .workspace = owner.storage.workspace_read, .encoded = null };
+            if (basis.workspace) |view| {
+                if (value.source != null) return error.UnsupportedTransactionRead;
+                basis.position = view.source.source.accepted;
+                basis.changed_lsn = view.source.changed_lsn;
+            }
             if (value.source) |source| {
                 var retained = try owner.storage.inspectSnapshot(scratch, source, guard);
                 defer retained.deinit();

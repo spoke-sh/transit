@@ -137,6 +137,7 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just test::direct-named-query` | Qualify named captured definitions over direct Tables, separate activation, worker replacement, original attribution and verified results |
 | `just test::direct-dependencies` | Qualify exact dependency registration/removal, redacted DROP RESTRICT and original receipt recovery across abrupt node replacement; traverse 139 retained edges beyond resident caches |
 | `just test::direct-kv` | Qualify direct named KV declarations, eight-key batches with 1 KiB values, original mutation/pin recovery, current rights and retained reads through replacement and DROP |
+| `just test::direct-state-transaction` | Qualify private Table/KV changes and the common commit decision through original statement recovery, two lost replies and node replacement |
 | `just test::direct-named-resources` | Qualify named Document allocation, actual writer initialization, typed access and original receipts across lost replies and node replacement; retain 139 initialized objects beyond resident caches |
 | `just test::grpc-control` | Focus finite work expiry and bounded closure with an active blocked RPC; also included in `test::grpc-faults` |
 | `just test::sql-wire-contracts` | Check bounded PostgreSQL/MySQL framing, cycle admission, scalar type admission and SCRAM against independent credential derivation; included in core CI |

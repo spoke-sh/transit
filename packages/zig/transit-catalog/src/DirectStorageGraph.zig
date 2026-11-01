@@ -558,7 +558,7 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             if (value.kind != .preparations) return true;
             const page = try directory.page(value.after);
             const entry = page.entries[0] orelse return true;
-            _ = try entry.prepared.predecessor.requireTable();
+            _ = try entry.prepared.predecessor.requirePagedState();
             try workspace.enqueue(.{ .table_preparation = .{ .reference = .{ .content = entry.prepared.successor } } });
             value.after = entry.cursor();
             return false;

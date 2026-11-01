@@ -261,6 +261,12 @@ pub const Guard = union(enum) {
         if (self != .state or self.state.kind != .table) return error.UnsupportedTransactionParticipant;
         return self.state.basis;
     }
+
+    pub fn requirePagedState(self: Guard) !StateGuard {
+        try self.validate();
+        if (self != .state or self.state.kind == .document) return error.UnsupportedTransactionParticipant;
+        return self.state.basis;
+    }
 };
 
 /// One preparation per owner. Appends and settlements on the same log partition
@@ -316,6 +322,15 @@ pub const Participant = union(enum) {
             },
             else => return error.UnsupportedTransactionParticipant,
         }
+    }
+
+    /// The shared paged state owner implements Table and KV preparations.
+    /// Document and log owners must supply their own qualified preparation.
+    pub fn requireLocalState(self: Participant, begin: Begin) !void {
+        try begin.validate();
+        try self.validate(begin.identity);
+        if (self != .state or self.state.kind == .document) return error.UnsupportedTransactionParticipant;
+        if (begin.mode == .read_only and self.writes()) return error.ReadOnlyTransaction;
     }
 };
 

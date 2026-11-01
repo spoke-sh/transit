@@ -520,6 +520,25 @@ for field in ("object", "kind", "partition"):
     assert not validator.is_valid(invalid), field
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-transaction-begin-v1.json",
         (json.dumps({"request": selected_request, "public_key": public_key}, ensure_ascii=False, indent=2) + "\n").encode())
+
+# KV workspace admission binds the original mutation and its exact private
+# sequence to the same transaction token. The mutation digest is independently
+# computed above; signing cannot substitute a new operation after uncertainty.
+kv_stage = {"key": token_binding["key"], "basis": {"partition": 9, "next_lsn": 10},
+            "sequence": 2, "work": kv_mutation}
+kv_stage_input = {**request_input, "action": {"transaction": {"stage_kv": kv_stage}}}
+kv_stage_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(kv_stage_input)).digest())}
+with tempfile.TemporaryDirectory(prefix="transit-transaction-kv-contract-") as directory:
+    signing_key = Key(Path(directory), "public-test-key", 9)
+    kv_stage_request = {**kv_stage_input, "proof": {"claim": kv_stage_claim,
+        "signature": signing_key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(kv_stage_claim)).digest())}}
+validator.validate(kv_stage_request)
+for field in ("key", "basis", "sequence", "work"):
+    invalid = copy.deepcopy(kv_stage_request)
+    del invalid["action"]["transaction"]["stage_kv"][field]
+    assert not validator.is_valid(invalid), field
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-transaction-kv-v1.json",
+        (json.dumps({"request": kv_stage_request, "public_key": public_key}, ensure_ascii=False, indent=2) + "\n").encode())
 host_reference = copy.deepcopy(native_reference)
 host_reference["connection"]["scope"]["catalog"] = str(2**64 - 1)
 host_reference["connection"]["branch"] = "1"

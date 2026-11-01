@@ -746,7 +746,7 @@ and publication remain separate owners.
 ## Signed transaction controls
 
 `DirectTransactionClient` uses the shared signed `/table/v1` connection. `begin`
-freezes either sorted explicit Table IDs or the complete authorized catalog Table
+freezes either sorted explicit Table/KV targets or the complete authorized catalog Table
 selection. Persist its account/token and request fingerprint before sending it;
 a retry returns the original accepted begin even when the proposed operation or
 current catalog has changed. `acquire` records the original common cut.
@@ -756,7 +756,9 @@ INSERT/UPDATE/DELETE work for the next sequence;
 its returned `DirectTransactionWorkspace.Request` must be retained before
 `admit` or `execute`. Staging is not statement acceptance. `execute` recovers an
 admitted request or its original provisional outcome. Repeating a completed
-request does not consume another sequence or modify public Table data.
+request does not consume another sequence or modify public data. `stageKV` accepts
+the typed KV mutation and shares that same lifecycle, savepoints and commit
+decision. It preserves the KV authority domain; Table staging rejects KV targets.
 
 `inspect` reports the current catalog revision, begin, acquired-cut state,
 statement frontier, pending statement, original commit attempt, decision knowledge

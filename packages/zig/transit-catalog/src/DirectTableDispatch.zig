@@ -137,6 +137,7 @@ fn applySelected(comptime action_tag: std.meta.Tag(w.Action), allocator: std.mem
                 .acquire => |key| .{ .acquired = try catalog.acquireTransaction(key, policy) },
                 .inspect => |key| .{ .status = try catalog.inspectTransaction(key, policy) },
                 .stage => |value| .{ .staged = try catalog.stageTransactionStatement(value.key, value.basis, value.sequence, value.work, policy) },
+                .stage_kv => |value| .{ .staged = try catalog.stageTransactionKV(value.key, value.basis, value.sequence, value.work, policy) },
                 .statement => |value| .{ .statement = if (value.execute) try catalog.executeTransactionStatement(value.key, value.request, policy) else try catalog.admitTransactionStatement(value.key, value.request, policy) },
                 .statement_outcome => |value| .{ .statement = try catalog.transactionStatementOutcome(value.key, value.request, policy) },
                 .savepoint_outcome => |value| .{ .savepoint_outcome = try catalog.transactionSavepointOutcome(value.key, value.request, policy) },

@@ -113,7 +113,7 @@ pub fn inspectSelection(allocator: std.mem.Allocator, objects: c.storage.Transit
         for (page.entries) |slot| if (slot) |entry| {
             count = try std.math.add(u64, count, 1);
             if (count > directory.root.count) return error.InvalidTransactionDirectory;
-            try entry.participant.requireLocalTable(reference.begin);
+            try entry.participant.requireLocalState(reference.begin);
             if (entry.participant.state.access != .read) return error.InvalidTransactionBegin;
         };
         after = page.next orelse break;
@@ -166,4 +166,27 @@ test "transaction selection signature binds partition ordinals and rejects ambig
     targets[0] = selected[0];
     targets[1].kind = .stream;
     try t.expectError(error.InvalidTransactionBegin, changed.action.transaction.begin.validate());
+}
+
+test "transaction KV admission binds independent mutation bytes and private sequence" {
+    const t = std.testing;
+    const Fixture = struct { request: c.DirectTableProtocol.Request, public_key: [32]u8 };
+    const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-transaction-kv-v1.json"));
+    defer parsed.deinit();
+    const original = parsed.value.request;
+    try original.validate(t.allocator);
+    try original.proof.verify(parsed.value.public_key);
+    try original.action.transaction.stage_kv.work.validate(t.allocator);
+    var changed = original;
+    changed.action.transaction.stage_kv.sequence += 1;
+    try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
+    changed = original;
+    changed.action.transaction.stage_kv.basis.next_lsn += 1;
+    try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
+    changed = original;
+    changed.action.transaction.stage_kv.work.binding.identity.operation -= 1;
+    try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
+    changed = original;
+    changed.action.transaction.stage_kv.key.token[0] ^= 1;
+    try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
 }

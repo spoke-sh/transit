@@ -71,7 +71,14 @@ A dependency source uses these KV privileges, while registration/removal require
 the dependent's metadata authority. Neither a receipt, pin nor dependency grants
 access. Native resource grants do not authorize direct KV.
 
-Each batch commits in one KV partition. The Table transaction service still
-rejects KV participants before admission; independent Table/KV calls are not one
-atomic transaction. The [direct contract](../../../../contracts/DIRECT_TABLE_V1.md#direct-kv)
+Each ordinary batch commits in one KV partition. To compose it with Table or
+other KV state, begin an explicit typed transaction, acquire its common cut and
+use `DirectTransactionClient.stageKV` with the current revision and original
+mutation. Retain the returned request before execution. Statement counts remain
+provisional until the common decision; savepoints preserve consumed identities.
+Set `DirectTableClient.transaction` for a private KV `get` with no retained source.
+Its `workspace` evidence binds the exact active revision and separates the public
+source frontier from private evaluator progress. Current READ/WRITE checks use
+KV policy, including at commit and disclosure. SQL BEGIN still selects Tables.
+The [direct contract](../../../../contracts/DIRECT_TABLE_V1.md#direct-kv)
 defines exact request attribution and compatibility checks.

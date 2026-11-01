@@ -532,8 +532,11 @@ Named direct KV now has catalog declaration, signed mutation/read/pin operations
 rename/DROP and shared data-client support. The native writer-backed named KV
 path is removed; Documents retain that separate owner. Focused storage, signed
 dispatch, bounded-memory and cross-kind dependency checks pass. Installed
-current-definition KV recovery passes; clean qualification remains open. The common
-state/append/settlement decision, including atomic DLQ transfer, is outstanding. R6's dedicated SQL/shared
+current-definition KV recovery passes; clean qualification remains open. Table/KV
+transaction components now share private workspaces, current rights and one
+decision, with disk replacement and lost-reply tests. Installed qualification of
+that extension is pending. The common state/append/settlement decision, including
+atomic DLQ transfer, is outstanding. R6's dedicated SQL/shared
 caller/finite analytical surfaces, R0 model correspondence and final integrated
 qualification also remain open. Publishing declarations or neutral types does
 not complete these gates.
@@ -545,7 +548,7 @@ not complete these gates.
 | R2 | Implemented: catalog declarations, grants and inspectable lifecycles | R0; R1 initialization evidence before publication | [Typed create/alter/drop/inspect/recovery and native policy proof](../history/qualification/catalog.md#typed-stream-and-queue-catalog-lifecycle--2026-10-29) |
 | R3 | Partial: signed payload/read/group operations, bounded waits, local maintenance and sparse rewriting; common-revision qualification open | R1 and R2 | Disk reopen, original producer receipts, complete bounded reads and fenced offset progress through public callers |
 | R4 | Partial: claims, bounded waits, retries, delays, maintenance and retention delivered; atomic DLQ open | R3 payload storage and R0 lease contract; R5 for DLQ | Durable claim recovery, stale-lease refusal, per-key order, bounded waits/timers and atomic DLQ transfer |
-| R5 | Partial: named direct KV implemented; installed qualification and multi-kind participants open | R0 and M5; integrate R3/R4 as available | One decision publishes state, append and settlement with no partial visibility |
+| R5 | Partial: named KV installed recovery passes; Table/KV transaction components tested; log participants and clean qualification open | R0 and M5; integrate R3/R4 as available | One decision publishes state, append and settlement with no partial visibility |
 | R6 | SQL, shared client and finite analytical bridge | R2–R5 for each exposed operation | Real typed/native SQL/console/wire outcomes and authorization after buffering |
 | R7 | Station behaviors and durable services on database primitives | R4/R5 and public typed callers | Atomic turns, durable calls/timers/names/supervision and handler-free recovery |
 | R8 | Connector dispatch, consumer migration and courier removal | R7 and qualified waits | Recorded effects with unknown outcomes preserved; all existing affected callers use replacement owners |
@@ -798,12 +801,14 @@ The R5a implementation replaces object-only directory keys with scoped
 object/kind/logical-partition targets, kind-specific guards and owner-grouped
 preparations. Its ordered action vocabulary covers append, offset commit, ACK
 and terminal transfer, separating expired maintenance from live worker NACK.
-The current-v1 definition cutover migrates existing Table consumers; non-Table
-execution remains refused before admission. R5b implements named direct KV
+The current-v1 definition cutover migrates existing Table consumers. R5b implements named direct KV
 under a separate v1 cutover; its installed KV recovery gate passes and clean
 qualification is pending.
-R5c still needs log retention pins, durable action directories/reservations and
-participant adapters. Shape validation and neutral directory membership are not evidence
+R5c adds executable Table/KV composition through the existing workspace and
+decision owner. Its component checks include private KV reads, current rights,
+savepoint identity preservation, commit/abort replacement and retained graph
+traversal. It still needs installed qualification, log retention pins, durable
+action directories/reservations and log participant adapters. Shape validation and neutral directory membership are not evidence
 of a completed mixed transaction or DLQ transfer.
 
 R5b can progress alongside R5c after R5a fixes their shared interface. For DLQ,

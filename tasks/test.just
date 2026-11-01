@@ -150,6 +150,10 @@ direct-named-resources:
 direct-kv:
     zig build test-direct-kv -Doptimize=ReleaseSafe
 
+# Table/KV private writes and one decision across lost replies and replacement.
+direct-state-transaction:
+    zig build test-direct-table-service -Doptimize=ReleaseSafe -- state-transaction
+
 # Public retained direct Table capture with independent native progress and restart.
 direct-captured-query *args:
     zig build test-direct-captured-query -Doptimize=ReleaseSafe -- {{args}}

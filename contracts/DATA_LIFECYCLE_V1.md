@@ -84,8 +84,9 @@ logical-frontier publication remain unimplemented.
 log participant's optional `actions` is an immutable paged directory: null means
 a read dependency; a present directory is nonempty. One Queue partition's ACK
 and enqueue share this directory, one successor and one preparation. The write
-count counts owners, not actions. `requireLocalTable` accepts only Table state entries
-and rejects writes in read-only mode. Native KV/Document, Stream/Queue and native
+count counts owners, not actions. `requireLocalTable` restricts SQL selection to
+Table entries. `requireLocalState` accepts Table and direct KV state entries;
+both reject writes in read-only mode. Native KV/Document, Stream/Queue and native
 consumer participants remain unsupported. Typed outbox and checkpoint rows use
 ordinary Table mutations; an outbox record does not establish external delivery.
 No variant supplies authorization or a new storage owner.

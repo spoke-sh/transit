@@ -78,6 +78,10 @@ pub fn validate(allocator: std.mem.Allocator, request: K.Request, result: K.Resu
             try stored(value.interpretation, value.spec);
             try frontier(value.position, value.changed_lsn);
             if (!std.meta.eql(value.interpretation.interpretation.object, request.target()) or !std.meta.eql(value.source, request.get.source)) return error.InvalidKVResponse;
+            if (value.workspace) |view| {
+                try view.validate();
+                if (value.source != null or !std.meta.eql(view.source.source.interpretation, value.interpretation.interpretation) or !std.meta.eql(view.source.source.accepted, value.position) or view.source.changed_lsn != value.changed_lsn) return error.InvalidKVResponse;
+            }
             if (value.encoded) |binary| {
                 const bytes = try binary.decode(allocator, c.fuze.Types.Codec.max_bytes);
                 defer allocator.free(bytes);

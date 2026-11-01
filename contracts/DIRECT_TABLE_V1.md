@@ -126,7 +126,7 @@ owner. External records fix their connection, namespace, operation and immutable
 
 A transaction reference fixes the connection, selected namespace and
 `Transaction.Begin` descriptor. Initial acceptance checks the exact Catalog
-observation, the complete paged selection of read-only Table descriptors and
+observation, the complete paged selection of read-only Table/KV descriptors and
 configured limits. Admission accepts `explicit_objects`; it rejects the neutral
 `authorized_catalog_tables` variant until server-owned catalog discovery supplies
 that selection. Caller-supplied membership cannot certify complete authorized
@@ -144,8 +144,8 @@ The typed `transaction.begin` control accepts an ordered array of exact
 `Transaction.Target` values for `explicit_objects`, bounded by 100,000 and the
 requested participant limit. Each target includes the scoped object, kind and
 an explicit nullable logical partition ordinal. Duplicate or unordered targets,
-mixed kinds for one object and foreign scopes reject. Only Table targets execute
-in the current profile; other kinds reject before token admission. Server-owned
+mixed kinds for one object and foreign scopes reject. Table and direct KV targets
+execute in the current profile; other kinds reject before token admission. Server-owned
 `authorized_catalog_tables` discovery remains restricted to accessible Tables.
 
 `DirectCatalog.Options.transaction_limits` caps each requested limit: defaults
@@ -180,7 +180,7 @@ admission in that same catalog partition. Later workspace records preserve this
 original acquisition position separately from their current progress revision.
 No signed acquisition operation is exposed by this record format. The embedding
 host must hold the catalog/Table publication fence,
-and the owner checks current Table rights under the publication policy epoch.
+and the owner checks each selected kind's current READ rights under the publication policy epoch.
 This format is reserved: generic `record.stage` and `record.read` reject it with
 `TransactionOperationRequired`. CONNECT-only caller-record access cannot disclose
 server-owned cut evidence after a participant's read rights have been revoked.
@@ -189,7 +189,7 @@ HTTP maps `TransactionOperationRequired` to `400 InvalidRequest` and
 settle a previously uncertain token binding; inspect the original token.
 
 Catalog-owned private workspaces use canonical JSON `DirectRecord` formats
-`0x54585731` (head), `0x54585431` (private Table state) and `0x54584f31`
+`0x54585731` (head), `0x54585431` (private Table/KV state) and `0x54584f31`
 (completed statement), each at most 32 KiB. All are reserved from generic record
 stage/read. A head requires `definition`, original `acquired` evidence, catalog
 `revision`, nullable `tables` and `statements` B-tree roots, `last_statement`,
@@ -198,7 +198,14 @@ token progress; acquired evidence still binds the original receipt and cut.
 No missing persisted field receives a current-state default.
 
 A request binds `statement`, required workspace `basis` revision, exact Table `binding` and immutable DML `intent`
-content. Only bulk INSERT/UPDATE/DELETE without prerequisite authority participates.
+content. Table bulk INSERT/UPDATE/DELETE and direct KV put/remove batches without
+prerequisite authority participate. `transaction.stage_kv` takes the original
+typed KV mutation, basis and sequence; it validates the KV definition, value
+codec and batch bounds before lowering to the shared immutable private intent.
+Table staging cannot target a KV object. Both kinds share statement sequencing,
+savepoints, retained pins, preparation barriers and the common decision. Current
+KV READ and WRITE are checked separately from Table SELECT/DML privileges,
+including before the decision and when returning original statement outcomes.
 New admission requires the exact active workspace revision; stale work returns
 `TransactionReadChanged` without consuming a sequence. Original pending/completed
 requests retain their accepted basis and remain retryable. Statement sequences start at one, increase by one across Tables and are consumed
@@ -296,7 +303,7 @@ name and action in native field order, with fixed name-byte arrays encoded as
 strings including zero padding, under `transit.catalog.ddl.intent.v1` and a zero
 byte. The signed wire envelope encodes those arrays as JSON numbers. The ordinary catalog admission,
 registration, partition publication and reconciliation stages apply. KV ALTER
-is refused. Table row/read/transaction operations reject a KV interpretation;
+is refused. Table row/read operations reject a KV interpretation;
 similar column names never establish object kind.
 
 `DirectKV.Mutation` contains a data-lifecycle binding and 1–1024 changes. A put
@@ -314,8 +321,9 @@ rights still apply. A missing response does not establish rejection; callers
 preserve and inspect the identical binding. Saved mutations require a mandatory
 current definition, exact connection and digest, with no fallback decoding.
 
-`get` returns interpretation, physical position, last logical-change position,
-value specification, optional retained source and an optional encoded value.
+`get` returns interpretation, public source position, last logical-change position,
+value specification, optional retained source, mandatory nullable `workspace`
+and an optional encoded value.
 Absence carries the same basis as presence. NULL remains a logical value.
 `pin`, `pin_status` and `release` use the shared retained-snapshot owner identity.
 A retained read verifies the exact handle and current rights before disclosure,
@@ -327,9 +335,17 @@ Catalog CONNECT/namespace USAGE remain mandatory. `KVAuthority` separates
 INSPECT (metadata and receipts), READ (values and retained reads), WRITE (batch
 mutations), and ownership (rename/DROP). CREATE requires namespace CREATE and
 owner eligibility. Dependency registration uses KV source privileges and
-separate dependent metadata authority. Generic Table transaction begin still
-rejects KV participants before admission; the neutral participant shape alone
-does not establish mixed transaction execution.
+separate dependent metadata authority. Transaction begin accepts explicit Table
+and direct KV participants. Stream/Queue participation remains unavailable.
+
+A KV `get` may carry the envelope's original transaction context with an exact
+active revision and no retained `source`. It reads the private workspace and
+returns the same `Transaction.ReadView` evidence as Table private reads. Its
+public source frontier remains separate from the virtual `private_position`.
+The response must match the requested revision and carry a nonnull workspace;
+ordinary KV reads require null. Stale revisions, pending work, current READ
+denial and attempts to mutate or create/release pins through a read context
+reject. Private state never enters the ordinary resident owner cache.
 
 ### Named native resources
 

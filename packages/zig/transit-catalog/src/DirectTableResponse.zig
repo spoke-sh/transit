@@ -213,7 +213,10 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .stream => |value| try c.DirectStreamResponse.validate(allocator, request.connection, request.action.stream, value),
         .queue => |value| try c.DirectQueueResponse.validate(allocator, request.connection, request.action.queue, value),
         .branch => |value| try c.DirectBranch.validateResult(allocator, request.connection, request.action.branch, value),
-        .kv => |value| try c.DirectKVResponse.validate(allocator, request.action.kv, value),
+        .kv => |value| {
+            try c.DirectKVResponse.validate(allocator, request.action.kv, value);
+            if (value == .value) try workspace(request, value.value.workspace, value.value.interpretation.interpretation, value.value.position, value.value.changed_lsn, null);
+        },
         .kv_declaration => |value| try c.DirectKVResponse.declaration(allocator, request.action.kv_declaration, value),
         .kv_lookup => |maybe| if (maybe) |value| {
             try c.DirectKVResponse.definition(allocator, value);
