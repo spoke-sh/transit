@@ -37,20 +37,26 @@ text.clear; columns.clear
 check(schema.columns.first.name == 'id' && schema.columns.frozen? && schema.columns.first.name.frozen?)
 physical_wire = {'definition'=>M::DEFINITION, 'object'=>'7', 'revision'=>'2', 'next_column'=>'2',
   'columns'=>[{'id'=>'1', 'name'=>'text', 'type'=>{'utf8'=>{}}, 'nullable'=>true, 'default'=>nil,
-    'max_characters'=>nil, 'encoding'=>'ebcdic', 'collation'=>'ebcdic_cp037'}], 'primary_key'=>[]}
+    'max_characters'=>nil, 'encoding'=>'ebcdic', 'collation'=>'ebcdic_cp037',
+    'semantics'=>{'rounding'=>nil,'metric'=>nil,'timezone'=>nil,'spatial'=>nil}}], 'primary_key'=>[],
+  'integrity'=>{'next_id'=>1,'checks'=>[],'foreign_keys'=>[]}}
 physical = M.const_get(:Values).schema(physical_wire)
 check(physical.columns.first.encoding == :ebcdic && physical.columns.first.collation == :ebcdic_cp037)
 check(physical.wire == physical_wire)
 check(M::SetPhysical.new(column: 1, encoding: :fsst, collation: :ascii_ci).wire ==
-  {'physical'=>{'column'=>'1', 'encoding'=>'fsst', 'collation'=>'ascii_ci'}})
+  {'physical'=>{'column'=>'1', 'encoding'=>'fsst', 'collation'=>'ascii_ci', 'semantics'=>nil}})
 added = M::AddColumn.new(name: 'text', type: L::Scalar.new(kind: :utf8), encoding: :ebcdic, collation: :ebcdic_cp037).wire.fetch('add')
 check(added['encoding'] == 'ebcdic' && added['collation'] == 'ebcdic_cp037')
-%w[encoding collation].each do |field|
+%w[encoding collation semantics].each do |field|
   bad = clone_json(physical_wire); bad['columns'][0].delete(field)
   rejects(Transit::IncompatibleNative) { M.const_get(:Values).schema(bad) }
   bad['columns'][0][field] = 'invented'
   rejects(Transit::IncompatibleNative) { M.const_get(:Values).schema(bad) }
 end
+bad = clone_json(physical_wire); bad.delete('integrity')
+rejects(Transit::IncompatibleNative) { M.const_get(:Values).schema(bad) }
+bad = clone_json(physical_wire); bad['integrity']['next_id'] = 2
+rejects(Transit::IncompatibleNative) { M.const_get(:Values).schema(bad) }
 raw = +'\x00\xff'; value = atom(:binary, raw); raw.clear
 check(!value.value.value.empty? && value.value.value.frozen?)
 values = [atom(:signed, -(1 << 127)), atom(:unsigned, (1 << 128)-1), atom(:decimal, 123456789012345678901234567890),

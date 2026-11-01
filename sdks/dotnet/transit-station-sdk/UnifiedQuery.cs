@@ -89,9 +89,9 @@ public static class UnifiedQuery
         }
         internal override JsonObject Definition() {
             var rowType=new Logical.Structure(Schema.Columns.Select(c=>new Logical.Field(c.Name,c.Type,c.Nullable,false)).ToArray());
-            JsonArray collations=new(); foreach(var column in Schema.Columns)collations.Add(Logical.EnumName(column.Collation));
+            JsonArray collations=new(), semantics=new(); foreach(var column in Schema.Columns){collations.Add(Logical.EnumName(column.Collation));semantics.Add(V.Obj(("rounding",null),("metric",null),("timezone",null),("spatial",null)));}
             return V.Obj(("table",V.Obj(("scope",Scope.Wire()),("owner",Audience),("branch",Turn.Decimal(Branch)),("namespace",Namespace),("object",Turn.Decimal(Schema.ObjectId)),
-                ("interpretation",Interpretation.Wire()),("row_type",Logical.TypeWire(rowType)),("collations",collations))));
+                ("interpretation",Interpretation.Wire()),("row_type",Logical.TypeWire(rowType)),("collations",collations),("semantics",semantics))));
         }
     }
     public sealed record Tables {
@@ -154,7 +154,7 @@ public static class UnifiedQuery
             Projection=Copy(projection,128); if(Projection.Count==0) throw new ArgumentException("Expected query projection"); foreach(byte n in Projection) Index(n); Predicate=predicate??new All(); _=Name(aggregate); Aggregate=aggregate; Limit=limit;
             if(outputNames is not null){if(outputNames.Count!=Projection.Count)throw new ArgumentException("Output names must match the projection width");OutputNames=System.Array.AsReadOnly(outputNames.Select(n => n is null?null:ColumnName(n)).ToArray());}
         }
-        internal JsonObject Wire() { JsonArray p=new(); foreach(byte n in Projection) p.Add((uint)n); JsonArray? names=null;if(OutputNames is not null){names=new();foreach(var n in OutputNames)names.Add(n);} return V.Obj(("version",1),("projection",p),("output_names",names),("predicate",Predicate.Wire()),("aggregate",Name(Aggregate)),("limit",Limit is {} limit?Turn.Decimal(limit):null)); }
+        internal JsonObject Wire() { JsonArray p=new(); foreach(byte n in Projection) p.Add((uint)n); JsonArray? names=null;if(OutputNames is not null){names=new();foreach(var n in OutputNames)names.Add(n);} return V.Obj(("version",1),("scalar_program","00"),("projection",p),("output_names",names),("predicate",Predicate.Wire()),("aggregate",Name(Aggregate)),("limit",Limit is {} limit?Turn.Decimal(limit):null)); }
     }
     public sealed record Budgets(ulong Pages,ulong Segments,ulong ResultBytes) { internal JsonObject Wire() => V.Obj(("pages",Turn.Decimal(Positive(Pages))),("segments",Turn.Decimal(Positive(Segments))),("result_bytes",Turn.Decimal(Positive(ResultBytes)))); }
     public sealed record Bundle {

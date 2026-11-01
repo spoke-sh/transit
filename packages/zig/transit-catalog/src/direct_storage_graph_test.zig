@@ -743,3 +743,68 @@ test "direct graph retains prepared log successors actions and frozen decision d
     defer incomplete.deinit();
     try t.expectError(error.MissingTransactionPayload, Fixture.walk(&owner, wal.log(), &incomplete));
 }
+
+test "direct graph collection retains accepted projection origins after the live column is dropped" {
+    const Fixture = struct {
+        fn acquire(_: *anyopaque) !s.PublicationGuard.Fence {
+            return .{ .writer_epoch = 1, .policy_epoch = 1 };
+        }
+        fn release(_: *anyopaque) void {}
+        fn binding(table: *P, operation: u64, action: d.Action) d.Binding {
+            return .{ .definition = c.protocol.Growth.current_definition, .identity = .{ .scope = table.root.interpretation.object.scope, .principal = 1, .operation = operation }, .target = table.root.interpretation.object, .action = action, .expected_definition = if (action == .create) null else table.root.interpretation, .expected_data = null, .intent = @splat(7) };
+        }
+    };
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var context: u8 = 0;
+    const guard: s.PublicationGuard = .{ .context = &context, .acquire = Fixture.acquire, .release = Fixture.release };
+    const object: d.Object = .{ .scope = .{ .realm = 1, .resource = 2, .catalog = 3 }, .branch = 1, .object = 7 };
+    const schema: c.fuze.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }}, .primary_key = &.{1} };
+    var table = try P.init(t.allocator, 17, .{ .object = object, .revision = 1, .schema = schema, .properties = "" }, wal.log(), objects.objectStore(), .{ .resident_pages = 1 });
+    defer table.deinit();
+    try table.recover();
+    const create = Fixture.binding(&table, 1, .create);
+    const row: c.fuze.TableRow.Row = .{ .identity = try s.TableDmlIntent.insertIdentity(create.identity, 0), .cells = &.{.{ .value = .{ .atom = .{ .signed = 1 } } }} };
+    _ = try table.apply(create, &.{.{ .put = .{ .row = row, .expect = .absent } }}, .point, guard);
+    const pin = try table.pin(.{ .scope = object.scope, .principal = 1, .operation = 90 }, .{ .partition = 17, .next_lsn = table.root.next_lsn }, guard);
+    _ = try table.changeDefinition(Fixture.binding(&table, 2, .alter), .{ .alter = .{ .change = .{ .add = .{ .name = "score", .type = .int64, .default = .{ .value = .{ .atom = .{ .signed = 7 } } } } }, .properties = "" } }, guard);
+    const origins = table.root.column_origins.?;
+    _ = try table.changeDefinition(Fixture.binding(&table, 3, .alter), .{ .alter = .{ .change = .{ .default = .{ .column = 2, .value = .{ .value = .{ .atom = .{ .signed = 9 } } } } }, .properties = "" } }, guard);
+    const target = table.root.declared();
+    _ = try table.changeDefinition(Fixture.binding(&table, 4, .alter), .{ .alter = .{ .change = .{ .drop = 2 }, .properties = "" } }, guard);
+    try t.expectEqual(null, table.root.column_origins);
+    var orphan = try s.TableDeclaration.prepare(t.allocator, .{ .object = object, .revision = 999, .schema = schema, .properties = "unaccepted" });
+    defer orphan.deinit();
+    const unaccepted = try s.TableDeclaration.stage(objects.objectStore(), &orphan);
+    var workspace: Workspace = .{};
+    defer workspace.deinit();
+    try workspace.enqueue(.{ .table_root = .{ .root = table.root, .archive = table.root.archive, .role = .current } });
+    var at: usize = 0;
+    var steps: usize = 0;
+    while (at < workspace.jobs.items.len) : (at += 1) {
+        var work = workspace.jobs.items[at];
+        while (true) {
+            const jobs = workspace.jobs.items.len;
+            const done = try Graph.step(t.allocator, &table.index, wal.log(), &work, &workspace);
+            try t.expect(workspace.jobs.items.len - jobs <= 3);
+            steps += 1;
+            if (steps > 10000) return error.FixtureBudget;
+            if (done) break;
+        }
+    }
+    var key: [96]u8 = undefined;
+    try t.expect(workspace.marks.contains(try s.TreeStore.key(origins.location, &key)));
+    try t.expect(!workspace.marks.contains(try s.TableDeclaration.key(unaccepted.content, &key)));
+    at = 0;
+    while (at < objects.objects.items.len) {
+        const item = objects.objects.items[at];
+        if (Graph.collectible(item.key) and !workspace.marks.contains(item.key)) try objects.objectStore().delete(item.key) else at += 1;
+    }
+    table.index.clearCache();
+    var projected = try table.scanSnapshotProjected(t.allocator, pin, target, null, .{}, guard);
+    defer projected.deinit();
+    try t.expectEqual(@as(i128, 7), projected.page.rows[0].?.row().cells[1].value.atom.signed);
+    try t.expect(projected.page.next == null);
+}

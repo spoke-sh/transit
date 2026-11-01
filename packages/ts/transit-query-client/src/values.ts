@@ -64,7 +64,14 @@ function collationsValid(values: readonly string[], fields: LogicalField[]): boo
     values.every(
       (value, i) =>
         value === "none" ||
-        (["utf8_binary", "ascii_ci", "ebcdic_cp037"].includes(value) && "utf8" in fields[i]!.type),
+        ([
+          "utf8_binary",
+          "ascii_ci",
+          "ebcdic_cp037",
+          "ebcdic_037_pad",
+          "ebcdic_1047_nopad",
+        ].includes(value) &&
+          "utf8" in fields[i]!.type),
     )
   );
 }

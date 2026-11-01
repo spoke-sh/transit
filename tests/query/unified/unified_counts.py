@@ -42,11 +42,11 @@ def check(native, port, callers, root, invoke, restart, fault, kind):
                         assert checkpoint[:4] == b'UQC1'
                         # UQC1: magic, source kind, resource and its typed position.
                         # FQS1: magic, binding/plan digests, six u64 counters,
-                        # optional sum (tag + i64), finish tag.
+                        # optional sum (tag + i128), finish tag.
                         progress_offset = 4 + 1 + 8 + (32 if kind == 'table' else 8)
                         assert checkpoint[progress_offset:progress_offset + 4] == b'FQS1'
                         pages, scanned, selected, counted, segments, rows = struct.unpack_from('<6Q', checkpoint, progress_offset + 68)
-                        if selected and checkpoint[progress_offset + 125] == 0:
+                        if selected and checkpoint[progress_offset + 133] == 0:
                             assert pages and 0 < selected < 10 and counted == selected and segments == rows == 0
                             gate.update(armed=False, attempt=body, checkpoint=checkpoint,
                                         counters=(pages, scanned, selected, counted, segments, rows))

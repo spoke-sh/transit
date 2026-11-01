@@ -1,15 +1,150 @@
 """Installed Board over public catalog callers and shared SQL result readers."""
 import ctypes
+import base64
+import hashlib
 import json
 import os
 from pathlib import Path
 import shutil
 import subprocess
+import struct
 import sys
+from http.client import IncompleteRead, RemoteDisconnected
 
 from runner.paths import ROOT
 from interfaces.installation.server_board import Board
 from harness.local_installation import freeze_executables
+from interfaces.http.serving import compact
+from interfaces.installation.server_application_faults import ExistingKey, native, post
+from query.logical.fuze_types import descriptor
+
+UNCERTAIN_TRANSPORT = (ConnectionError, TimeoutError, IncompleteRead, RemoteDisconnected)
+
+
+def retained_metrics(fixture, definition, connection, seed, operation=900030):
+    """Provision through the signed owner, outside Board's read-only boundary."""
+    key = ExistingKey(fixture.root, seed)
+    port = fixture.config['ports']['node']
+    realm, principal = connection['scope']['realm'], connection['principal']
+    identity = post(port, '/v1/query', native(key, realm, principal,
+        dict(authorization=dict(role=None, kind=dict(identity={})))))['body']['authorization']['body']['identity']
+
+    def direct(action):
+        body = dict(definition=definition, connection=connection, nonce=[91]*16,
+                    action=action, delegation=None, closure=None,
+                    borrow=None, lease=None, transaction=None)
+        context = hashlib.sha256(b'transit.table.direct.request.v1\0' + compact(body)).digest()
+        claim = dict(definition=definition, realm=realm, principal=principal,
+                     credential_epoch=identity['credential_epoch'], role=None,
+                     audience=connection['audience'], context=list(context))
+        signature = key.sign(hashlib.sha256(b'transit.authorization.subject.v1\0' + compact(claim)).digest())
+        return post(port, '/table/v1', dict(body, proof=dict(claim=claim, signature=signature)))['result']
+
+    def call(action):
+        return direct(dict(historical_catalog=action))['historical_catalog']
+
+    owner = dict(scope=connection['scope'], principal=principal, operation=operation)
+    selected_names = [dict(len=7, bytes=list(b'metrics')+[0]*56)]
+    if operation == 900030:
+        # Real signed declarations populate two metadata pages. Board only
+        # receives the public read projection, never this provisioning identity.
+        content = direct(dict(descriptor=dict(stage_input=dict(namespace=1,
+            bytes=dict(base64=base64.b64encode(bytes.fromhex('123d')).decode())))))['descriptor']['input']
+        schema_definition = b'transit.table.schema.v1.2026-11-01.spatial-reference'
+        kind = descriptor('int64')
+        for index in range(5):
+            object_id = 900100 + index
+            name = f'decoder_{index}'.encode()
+            named = dict(len=len(name), bytes=list(name)+[0]*(63-len(name)))
+            schema = (b'FTS1' + bytes([len(schema_definition)]) + schema_definition
+                + struct.pack('<QQQH', object_id, 1, 2, 1)
+                + struct.pack('<QB', 1, 6) + b'amount'
+                + struct.pack('<H', len(kind)) + kind + struct.pack('<BIBH', 0, 0, 0, 0))
+            intent = dict(kind='foreign', namespace=1, name=named, action=dict(create=dict(owner=identity['login_role'],
+                payload=dict(schema=dict(base64=base64.b64encode(schema).decode()), sources=[],
+                    body=dict(foreign=dict(record_bytes=2, fields=[dict(column=1, offset=0, bytes=2, encoding='comp_3')],
+                        malformed='reject', input=dict(content=content, availability='retained', provenance='file:///never-refetched')))))))
+            binding = dict(definition=definition, identity=dict(owner, operation=object_id),
+                target=dict(scope=connection['scope'], branch=connection['branch'], object=object_id),
+                action='create', expected_definition=None, expected_data=None,
+                intent=list(hashlib.sha256(b'transit.catalog.interpretation.intent.v1\0'+compact(intent)).digest()), prerequisite=None)
+            saved = dict(binding=binding, intent=intent)
+            (fixture.root / f'definition-intent-{object_id}.json').write_text(json.dumps(saved))
+            for _ in range(32):
+                # Exercise bounded registration progress under the installed
+                # request deadline, retaining the same saved declaration.
+                try:
+                    result = direct(dict(descriptor=dict(declaration=dict(request=saved, command='accept', steps=1))))['descriptor']['observation']
+                except UNCERTAIN_TRANSPORT:
+                    # Acceptance may already be durable. The next bounded
+                    # attempt addresses this exact binding and intent.
+                    continue
+                if 'operation' in result:
+                    assert result['operation']['phase'] == 'applied', result
+                    break
+                assert result == {'registration_pending': {}}, result
+            else:
+                raise AssertionError('Metadata declaration did not settle')
+            selected_names.append(named)
+    # Declarations advance the namespace revision. Select only after provisioning
+    # finishes so the directory retains one exact namespace interpretation.
+    selection = dict(owner=owner, branch=connection['branch'], directory=None)
+    for named in selected_names:
+        selection = call(dict(select=dict(selection=selection, namespace=1, name=named)))['selection']
+    token = dict(definition=definition, connection=connection, account=[91]*32, token=list(operation.to_bytes(16, 'little')))
+    intent = dict(connection=connection, namespace=1, operation=owner['operation'],
+                  selection=selection['directory'], common=None)
+    # Save the exact acquisition before dispatch; every subsequent call addresses
+    # this identity. The test never reacquires a moving head after uncertainty.
+    (fixture.root / f'history-intent-{operation}.json').write_text(json.dumps(dict(key=token, intent=intent)))
+    acquisition = dict(acquire=dict(key=token, intent=intent,
+        budget=dict(limits=dict(operations=1000000, bytes=4294967296, pending=1024), bytes=4608)))
+
+    def settle(initial, terminal, pending):
+        action, status, uncertain = initial, None, 0
+        for _ in range(32):
+            try:
+                status = call(action)['status']
+            except UNCERTAIN_TRANSPORT:
+                # Inspect the saved operation after an incomplete reply. Never
+                # select a new frontier or assign a replacement acquisition.
+                uncertain += 1
+                action = dict(inspect=token)
+                continue
+            except AssertionError:
+                if status is not None:
+                    state = status['state']
+                    print(json.dumps(dict(profile='board_history_acquisition_failed', operation=operation,
+                        phase=state['phase'], inflight=state['inflight'], after=state['after'],
+                        descriptor_after=state['descriptor_after'])), flush=True)
+                raise
+            if status is None:
+                action = initial
+                continue
+            phase = status['state']['phase']
+            if phase == terminal:
+                if uncertain:
+                    print(json.dumps(dict(profile='board_history_original_recovery', operation=operation,
+                        phase=phase, uncertain_replies=uncertain)), flush=True)
+                return status
+            assert phase in pending, status
+            action = initial if terminal == 'released' and phase == 'published' else dict(advance=token)
+        raise AssertionError(f'Retained source did not reach {terminal} within its bounded schedule')
+
+    status = settle(acquisition, 'published', ('acquiring', 'verifying'))
+    snapshot = status['state']['snapshot']
+    content, sources = snapshot['catalog_root'], snapshot['sources_root']
+    position = snapshot['consistency']['single_partition']
+    scope = owner['scope']
+    selector = (b'THSNAP01' + bytes.fromhex(definition)
+        + struct.pack('<6Q', scope['realm'], scope['resource'], scope['catalog'], principal, owner['operation'], connection['branch'])
+        + struct.pack('<Q', content['bytes']) + bytes(content['sha256'])
+        + struct.pack('<Q', sources['bytes']) + bytes(sources['sha256'])
+        + struct.pack('<QBQQ', 1, 1, position['partition'], position['next_lsn']) + bytes(104)).hex()
+
+    def release():
+        settle(dict(release=token), 'released', ('published', 'releasing'))
+    return selector, release
 
 
 def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
@@ -80,6 +215,38 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
         entry = next(item for item in entries if item['name'] == 'metrics')
         table = request('catalog', dict(table=dict(namespace=1, name='metrics', expected=entry['interpretation'])))['table']
         assert table['metadata']['row_count'] == '145'
+        native_connection = dict(scope=catalog['scope'], branch=catalog['branch'], audience=catalog['audience'],
+                                 principal=account['principals']['table'], role=None)
+        selector, _ = retained_metrics(fixture, definition, native_connection, account_dir / 'table.seed')
+        def history(action, expected=200):
+            return request('catalog', dict(history=action), expected)
+        namespace = history(dict(namespace=dict(selector=selector, name='public')))['history']['namespace']
+        assert namespace['id'] == 1
+        metadata_page = request('catalog', dict(definitions=dict(list=dict(namespace=1, selector=selector, cursor=None))))['definitions']['page']
+        assert len([item for item in metadata_page['entries'] if item]) == 4 and metadata_page['next'] is not None
+        metadata_tail = request('catalog', dict(definitions=dict(list=dict(namespace=1, selector=selector, cursor=metadata_page['next']))))['definitions']['page']
+        assert len([item for item in metadata_tail['entries'] if item]) == 1 and metadata_tail['next'] is None
+        decoder = request('catalog', dict(definitions=dict(historical=dict(selector=selector, namespace=1, name='decoder_0'))))['definitions']['historical']
+        assert decoder['definition']['body']['foreign']['fields'][0]['encoding'] == 'comp_3'
+        assert decoder['definition']['schema']['columns'][0]['id'] == '1'
+        retained = history(dict(list=dict(selector=selector, namespace=1, after=None)))['history']['listing']
+        assert retained['snapshot']['selector'] == selector and retained['next'] is None
+        assert [item['name'] for item in retained['entries']] == ['metrics']
+        historical_object = retained['entries'][0]['declaration']['interpretation']['object']['object']
+        source = history(dict(source=dict(selector=selector, object=historical_object)))['history']['source']
+        assert source['rows'] == '145'
+        definitions = history(dict(definitions=dict(selector=selector, object=historical_object, after=None)))['history']['coverage']
+        assert definitions['total_rows'] == '145' and definitions['definitions']['rows'] == '145'
+        coverage_request = dict(selector=selector, object=historical_object, after=None)
+        locations = history(dict(locations=coverage_request))['history']['coverage']
+        assert len(locations['locations']) == 8 and locations['next'] is not None
+        next_locations = history(dict(locations=dict(coverage_request, after=locations['next'])))['history']['coverage']
+        assert len(next_locations['locations']) == 8 and next_locations['next'] != locations['next']
+        assert {json.dumps(item['identity'], sort_keys=True) for item in locations['locations']}.isdisjoint(
+            json.dumps(item['identity'], sort_keys=True) for item in next_locations['locations'])
+        # The Board request contract cannot carry retention controls or row scans.
+        for forbidden in ('select', 'acquire', 'advance', 'abandon', 'release', 'scan'):
+            history({forbidden: {}}, 400)
         first = run_sql(1, table['preview_sql'], binding=table['expected_definition'])['result']['view']
         assert len(first['rows']) == 100 and first['start'] == '0' and first['delivered'] == '100'
         assert first['complete_rows'] is None and first['stopped'] == 'row_limit'
@@ -119,19 +286,25 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
             screenshots = ROOT / '.cache/board-workbench'
             screenshots.mkdir(parents=True, exist_ok=True)
             env = dict(os.environ, BOARD_TEST_URL=fixture.board_url,
-                BOARD_SCREENSHOT=str(screenshots / 'workbench.png'))
+                BOARD_SCREENSHOT=str(screenshots / 'workbench.png'), BOARD_HISTORY_SELECTOR=selector)
             subprocess.run(['vp', 'exec', '--filter', '@transit/board-web', 'playwright', 'test',
                 'workbench.spec.ts'], cwd=ROOT, env=env, check=True)
+        released_selector, release_history = retained_metrics(fixture, definition, native_connection,
+                                                              account_dir / 'table.seed', operation=900031)
+        release_history()
+        assert history(dict(source=dict(selector=released_selector, object=historical_object)), 409)['err'] == 'QueryExpired'
         # A completed buffered result is not a continuing grant. Revoke its SQL
         # principal through the current public owner, then require no disclosure.
         run_sql(20, 'SELECT * FROM empty_metrics')
         fixture.revoke({'revoke': account['principals']['table']})
         assert request('sql-read', dict(observe=f'{20:032x}'), 403)['err'] == 'Forbidden'
         request('catalog', dict(tables=dict(namespace=1, cursor=None)), 403)
+        history(dict(source=dict(selector=selector, object=historical_object)), 403)
+        history(dict(locations=coverage_request), 403)
         close(20)
         fixture.stop()
         success = True
-        print('Board workbench: exact 145-row traversal, empty/metadata results, definition guards, read-only admission, capacity and terminal revocation passed.', flush=True)
+        print('Board workbench: exact 145-row traversal, empty/metadata results, definition guards, read-only admission, capacity, retained definitions/placement and terminal revocation passed.', flush=True)
     finally:
         fixture.cleanup()
         if success:

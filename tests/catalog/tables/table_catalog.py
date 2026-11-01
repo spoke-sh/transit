@@ -19,13 +19,13 @@ def main():
     # commitments and its logical descriptor. These synthetic commitments test
     # the descriptor wire format, independently of admission and schema codecs.
     contract = bytes.fromhex(definition)
-    types = b'transit.fuze.types.v1.2026-09-30'
+    types = b'transit.fuze.types.v1.2026-11-01.companions'
     logical = b'FTY1' + bytes([len(types)]) + types
     logical += b'\x16\x02\x02id\0\x0a\x07payload\x01\x19\x05\x01\x17\x01\x09'
     declaration = b'TQS1' + contract + struct.pack('<QQQQQQQQ', 1, 7, 2**64-1, 3, 1, 1, 2**64-1, 3)
     declaration += bytes([17])*32 + struct.pack('<Q', 200) + bytes([34])*32
-    declaration += struct.pack('<H', len(logical)) + logical + b'\0\0'
-    assert len(declaration) == 176 + len(logical)
+    declaration += struct.pack('<H', len(logical)) + logical + b'\0\0\0\0\0'
+    assert len(declaration) == 179 + len(logical)
     query = {'wire_hex': declaration.hex(), 'fingerprint_hex': hashlib.sha256(b'transit.table.query.declaration.v1\0' + declaration).hexdigest()}
     policies = []
     for tag, body in ((1, bytes.fromhex(query['fingerprint_hex'])), (2, struct.pack('<QQQQQ', 1, 7, 2**64-1, 3, 17))):

@@ -72,7 +72,9 @@ different [recovery behavior](../queries.md).
 | `PRODUCE INTO`, `ENQUEUE INTO` | **Implemented — single-partition execution** | [Typed VALUES, metadata and original-operation RETURNING](streaming.md#append-events-and-work) through native SQL, console, PostgreSQL and MySQL; cross-partition and attached-transaction appends are excluded |
 | `CONSUME ... FROM` | **Compiler only** | Typed projection, predicate, logical LIMIT and group/wait preparation; no SQL-service admission, group assignment, waiting or offset settlement |
 | `CREATE TABLE` | **Implemented — execution** | 1–128 columns, all logical families, explicit single/composite/no primary key, nullable defaults and deterministic typed defaults; authorized catalog routing |
-| `ALTER TABLE` | **Implemented — execution** | Add/drop/rename columns, rename Table, defaults, nullability and selected exact type changes; retained schema identity and atomic rewrite publication |
+| `ALTER TABLE` | **Implemented — execution** | Add/drop/rename columns, rename Table, defaults, nullability and constraints; lazy projection and bounded validation; populated physical rewrites reject pending the phased runtime |
+| Table-level `CHECK` | **Implemented — execution** | Bounded deterministic comparisons and NULL tests, new-write enforcement with optional NOT VALID, explicit bounded validation |
+| `FOREIGN KEY ... NOT ENFORCED` | **Implemented — staged declarations** | Exact parent definitions and primary-key columns with recoverable dependency protection; row enforcement and referential actions remain unavailable |
 | `DROP TABLE` | **Implemented — execution** | IF EXISTS and RESTRICT, explicit dependency checks, live-name retirement and safe name reuse; retained evidence remains separate from cleanup |
 | `CREATE KV`, `CREATE DOCUMENT` compilation | **Implemented — compilation** | Separate offline definitions and canonical review SQL |
 | `CREATE KV`, `CREATE DOCUMENT` publication | **Planned — checked grammar** | No catalog creation operation, provisioning or default decoder/replica follows from offline compilation |
@@ -140,8 +142,8 @@ Standard editions, application schema history and Transit's
 | SQL:2023 Foundation and SQL/JSON | **Planned — syntax undecided** beyond the implemented subset above | Audit selected relational/type features and explicit structured-value projections, including missing/null/error/conflict conversion |
 | SQL/PGQ: `CREATE PROPERTY GRAPH`, `GRAPH_TABLE` | **Planned — proposed syntax** | Catalog graph mappings over existing resources; finite, read-only, fixed-length patterns with stable element identity and bag multiplicity |
 | SQL/MED: `CREATE FOREIGN TABLE` | **Planned — proposed syntax** | Typed foreign relation over a recoverable immutable capture (`parquet`, `arrow_ipc`, `csv`, `jsonl`, or mainframe `fixed_record`/`variable_record` copybook layouts); filesystem and S3 bindings require explicit qualification |
-| Column `COLLATE` | **Implemented — Table declarations and finite predicates** | CREATE TABLE and ADD COLUMN accept `UTF8_BINARY`, `ASCII_CI`, `EBCDIC_CP037` on text columns; [Table semantics](../tables.md) bind prepared and retained queries to the declaration |
-| Expression collation and physical codec clauses (`ENCODING`) | **Planned — proposed syntax** | Expression overrides, PAD SPACE, versioned Unicode collations and physical codec clauses require explicit contracts |
+| Column `COLLATE` | **Implemented — Table declarations and finite predicates** | CREATE TABLE and ADD COLUMN accept `UTF8_BINARY`, `ASCII_CI`, `EBCDIC_CP037`, `EBCDIC_037_PAD`, `EBCDIC_1047_NOPAD` on text columns; [Table semantics](../tables.md) bind prepared and retained queries to the declaration |
+| Expression collation and physical codec clauses (`ENCODING`) | **Planned — proposed syntax** | Expression overrides, versioned Unicode collations and physical codec clauses require explicit contracts |
 | GQL frontend | **Outside selected profile** | Future frontend target over shared semantics; no accepted GQL grammar |
 | Cypher and PGQL | **Outside selected profile** | Named comparison/import dialects; independent compatibility evidence and explicit selection are required before support |
 
@@ -238,10 +240,11 @@ are not implied: writes require separately activated recorded effects.
 
 | Operation | Support | Required meaning |
 | --- | --- | --- |
-| `FOR SYSTEM_TIME AS OF integer` | **Planned — checked grammar fragment only** | A separately parsed token sequence, not a historical-query contract; reserve system-time spelling for SQL temporal semantics |
-| `AS OF SNAPSHOT ...`, `AS OF BRANCH ...` | **Planned — proposed syntax** | Typed catalog selectors, resolved once to immutable identities before name resolution |
+| `FOR SYSTEM_TIME AS OF ...` | **Reserved — rejected** | Temporal-table semantics; the ambiguous integer fragment is removed |
+| `AS OF SNAPSHOT ...` | **Implemented — selected direct Tables** | Exact published catalog selector, resolved before object/column names; [syntax and limits](as-of.md) |
+| `AS OF BRANCH ...` | **Planned — proposed syntax** | Resolve a branch head once to a qualified immutable basis |
 | Tag selector and exact resource-revision selector | **Planned — syntax undecided** | Keep tags, snapshot IDs, branch generations and resource-scoped journal revisions distinct |
-| Historical `DESCRIBE` and `SHOW TABLES` | **Planned — proposed syntax** | Inspect the selected historical definitions under current metadata rights; row rights remain separate |
+| Historical `DESCRIBE` and `SHOW TABLES` | **Implemented — selected direct Tables** | Inspect the selected historical definitions under current metadata rights; row rights remain separate |
 | `CREATE SNAPSHOT`, `CREATE BRANCH`, `USE BRANCH` | **Planned — proposed syntax** | Frozen catalog/data basis, isolated full-data or schema-only branches and explicit session defaults |
 | Projection into a different schema | **Planned — syntax undecided** | Stable identities or reviewed mappings, typed conversion/default/conflict policies; no silent rebinding |
 | Branch diff, three-way merge and schema-only promotion | **Planned — syntax undecided** | Frozen base/source/target, reviewable conflicts and constraints, conditional target-head publication; separate from SQL `MERGE INTO` |
@@ -273,10 +276,10 @@ resolves `name`, while the renamed head resolves `display_name`. Converting old
 data to a different schema requires an explicit projection. A moved branch or
 session default cannot change already accepted work.
 
-The [system-time fragment reference](as-of.md) explains the existing isolated
-parser rule. The intended implementation replaces its integer-revision ambiguity
-deliberately. No fallback interprets a temporal expression as a snapshot ID or
-resource revision. Timestamp convenience remains undecided until branch scope,
+The [historical selector reference](as-of.md) describes the implemented selected
+Table profile. Its canonical selector replaces the ambiguous integer fragment;
+`s42` above remains only a placeholder in this proposed branch workflow. No
+fallback interprets temporal expressions as snapshot IDs or resource revisions. Timestamp convenience remains undecided until branch scope,
 publication clock, ties and unavailable-history behavior have a contract.
 
 The branch model requires isolated catalog/data ownership and conditional head
@@ -296,7 +299,8 @@ pending inputs, jobs, subscriptions and uncertain remote outcomes.
 The [historical query model](../../internals/query-engine.md#historical-schemas-and-query-binding)
 and [branch/state model](../../internals/state-model.md#schema-history-and-branches)
 explain the intended mechanisms, alternatives and limits. Current retained-read
-handles and the declaration catalog do not implement these historical operations.
+handles and selected historical catalogs do not implement the whole-catalog
+branch, merge or restore workflows above.
 
 ## Evidence required to change a label
 
@@ -311,3 +315,48 @@ Maintain this inventory and each affected statement page together. The
 [verification reference](../verification.md) defines evidence boundaries and
 links executed results. Generated feature-level capability views are planned;
 this page is a reviewed source-revision inventory, not runtime negotiation.
+
+<!-- standards-ledger:start -->
+## Capability ledger
+
+This generated summary describes the selected production entry points,
+not the availability of internal helpers. Stage states are independent;
+an implemented compiler is not execution, recovery or transport evidence.
+Feature IDs and edition/clause references are inventory labels. References
+marked unverified have not been audited for standards conformance.
+
+The [neutral ledger](../../../../contracts/sql/standards-ledger.json)
+records owners, evidence sources, dependencies and compiler cases.
+Its compiler corpus is Transit-authored under MIT; it contains no copied
+standards text. Runtime and installed caller checks remain separate.
+
+| Feature | Parse | Lower | Execute | Recover | Transport | Reference | Scope and limits |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| E021-E051 | implemented | implemented | implemented | implemented | implemented | unverified | Selected scalar types and collations. DECIMAL arithmetic uses bounded explicit DECIMAL_* functions with declared result precision, scale and rounding; ordered SUM widens to DECIMAL(38,s). Frozen column semantics carry exact TZif artifacts for AT TIME ZONE, TIME_BUCKET and LOCAL_TO_UTC. General infix arithmetic and host timezone lookup are not admitted. Installed native SQL exercises stored values, scalar expressions, decimal SUM and gateway restart. PostgreSQL/MySQL expose admitted boolean/float results and explicitly refuse unsupported decimal result types. |
+| F031-F034 | implemented | implemented | implemented | implemented | implemented | unverified | Selected CREATE/ALTER/DROP operations, lazy projection and bounded validation scans. Populated physical rewrites reject pending the phased rewrite runtime. |
+| F491 | implemented | implemented | implemented | implemented | implemented | unverified | Table-level bounded AND comparisons and IS NULL predicates; stable IDs, NOT VALID new-write enforcement and bounded validation. OR, inline CHECK, subqueries and effects reject. |
+| F492 | implemented | implemented | staged | staged | staged | unverified | Explicit NOT ENFORCED declarations bind exact parent definitions and primary-key columns. Bounded recoverable column protection precedes publication; enforcement and referential actions require the maintained-index runtime. |
+| F111 | implemented | implemented | implemented | implemented | implemented | unverified | Admits SERIALIZABLE and READ ONLY common cuts; rejects weaker isolation levels. |
+| T181-X003 | implemented | implemented | implemented | implemented | implemented | unverified | Selected direct Table catalogs have paged acquisition, exact WAL/segment retention, original-operation recovery and explicit release. The SQL service binds canonical AS OF SNAPSHOT suffixes before names; raw Fuze relational parsing still rejects the suffix. Explicit forward schema projection binds an accepted CURRENT or snapshot-selected target separately from source evidence. Temporal syntax and historical graph/foreign execution are separate unfinished profiles; independent sources are not a common transaction cut. |
+| X001-RANGE | implemented | implemented | implemented | implemented | implemented | unverified | Schema-bound RANGE and MULTIRANGE values, Table row/page codecs, SQL declarations and string literals, neutral JSON and logical Arrow are implemented. RANGE_OVERLAPS, RANGE_CONTAINS, RANGE_ADJACENT and RANGE_COMPARE execute as bounded scalar projections; symbolic interval operators remain staged. |
+| X002-VECTOR | implemented | implemented | implemented | implemented | implemented | unverified | VECTOR descriptors and unboxed 64-byte-aligned values, Table row/page codecs, SQL declarations and string literals, persisted metrics, neutral JSON and logical Arrow are implemented. VECTOR_DISTANCE executes typed scalar projections using an explicit or persisted compatible metric. Zero-norm cosine refuses. |
+| G001-PGQ | rejected | rejected | rejected | rejected | rejected | unverified | CREATE PROPERTY GRAPH and traversal remain rejected SQL profiles. The separate Transit typed interpretation API persists versioned graph key/label/property bindings, protects exact Table dependencies and retains historical metadata; this does not qualify PGQ execution. |
+| M001-MED | rejected | rejected | rejected | rejected | rejected | unverified | CREATE FOREIGN TABLE and general foreign scans remain rejected SQL profiles. The separate Transit typed interpretation API persists exact layouts, captured input content/availability and decoder policy. Historical inspection never refetches provenance URIs; durable corruption is not a malformed value cell. |
+| X006-EXPLAIN | implemented | implemented | implemented | rejected | implemented | unverified | Native direct Table SELECT explanation reports typed traits under metadata-inspection rights; no data pins or scans. Results are session-local and must be prepared again after replacement. |
+| X004-GERMAN-STRING | implemented | implemented | implemented | staged | staged | unverified | Existing finite string comparisons use lossless inline raw bytes through 12 bytes, cached collation prefixes for longer values, and explicit owned/borrowed Batch lifetimes. Dictionary predicates cache one outcome per physical code; binary/ASCII_CI FSST comparisons stream and validate all tokens. This adds no string wire ABI. Retained relational keys and end-to-end performance/recovery qualification remain separate work. |
+| X005-SEARCH-WAND | rejected | rejected | rejected | rejected | rejected | unverified | Standalone search/index helpers. No production SEARCH SQL admission, durable index lifecycle or installed result transport. |
+| F401-JOIN | rejected | rejected | rejected | rejected | rejected | unverified | Standalone generalized join/unnesting helpers. The separate production relational profile admits one inner/left equijoin; it does not admit this multi-way/lateral/unnesting family. |
+| T611-WINDOW | rejected | rejected | rejected | rejected | rejected | unverified | Standalone window evaluator; no production OVER/QUALIFY compiler, durable cursor recovery or transport. |
+| T121-RECURSIVE-CTE | rejected | rejected | rejected | rejected | rejected | unverified | Standalone recursive/set evaluators; no production WITH RECURSIVE compiler or durable recursive execution. |
+| X007-PERFECT-HASH-IN | rejected | rejected | rejected | rejected | rejected | unverified | Internal perfect-hash IN evaluator; production SELECT does not lower IN/NOT IN into this helper. Keyword lookup is an independent implementation detail. |
+| X008-VECTOR-UDF | rejected | rejected | rejected | rejected | rejected | unverified | Standalone macro/vector UDF helpers; no production CREATE FUNCTION, SQL call binding or installed Wasm execution. |
+| T182-BITEMPORAL-AS-OF | rejected | rejected | rejected | rejected | rejected | unverified | Standalone temporal evaluator; no production temporal-table or AS OF JOIN admission. Snapshot selection is separate from temporal meaning. |
+| X009-CHANGES-STREAM-SLICE | rejected | rejected | rejected | rejected | rejected | unverified | Standalone array-backed TVF helpers; no production catalog-bound CHANGES/STREAM_SLICE source. |
+| F312-MERGE | rejected | rejected | rejected | rejected | rejected | unverified | Standalone merge evaluator; no production MERGE INTO admission or transactional publication. |
+| X011-DBSP-ZSET | rejected | rejected | rejected | rejected | rejected | unverified | Standalone delta algebra; existing maintained relational queries recompute finite results. No SQL DBSP lifecycle or durable arrangement integration. |
+| X010-DATAFLOW-LIFECYCLE | implemented | implemented | implemented | implemented | implemented | unverified | Cohosted native SQL supports finite one-Table recomputation into an existing schema-matched Table, durable lifecycle controls, publication wakeups and common Table/KV output/checkpoint decisions. Incremental or ordered change consumers, multi-source plans, dependent computation chains, PostgreSQL/MySQL and standalone gateways are rejected. |
+| X012-CONTROL-POLICY-PLANE | rejected | rejected | rejected | rejected | rejected | unverified | Component policy descriptors/evaluators; no production SQL lifecycle for this combined enterprise feature family. Existing native grants remain a separate implemented owner. |
+| X-CATALOG-DEFINITIONS | rejected | implemented | implemented | implemented | implemented | unverified | One control record publishes immutable definition, qualified name, original outcome and dependency replacement. Historical metadata retains exact artifacts separately from Table pins. Metadata-only catalogs have zero Table sources. |
+| X-HISTORICAL-VIEWS | implemented | implemented | implemented | implemented | implemented | unverified | View definitions admit one Table, projection and filter. Outer finite expressions/parameters/aggregates run after that filter. Joins, captured views, transactions and explicit view schema projections refuse. No view text is reparsed. |
+
+<!-- standards-ledger:end -->

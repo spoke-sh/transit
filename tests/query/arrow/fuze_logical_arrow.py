@@ -24,7 +24,7 @@ def payload_bytes(array, i, typ):
     kind, params = next(iter(typ.items()))
     scalar = array[i]
     assert scalar.is_valid
-    value = scalar.as_py() if kind not in ('date', 'time', 'timestamp', 'structure', 'list', 'array', 'map', 'tagged_union') else None
+    value = scalar.as_py() if kind not in ('date', 'time', 'timestamp', 'structure', 'list', 'array', 'map', 'tagged_union', 'range', 'multirange') else None
     if kind in ('int128', 'uint128', 'uuid'):
         assert pa.types.is_fixed_size_binary(array.type) and array.type.byte_width == 16
         return value
@@ -56,6 +56,22 @@ def payload_bytes(array, i, typ):
     if kind == 'interval':
         assert array.type == pa.month_day_nano_interval()
         return struct.pack('<iiq', value.months, value.days, value.nanoseconds)
+    if kind == 'vector':
+        widths = {'float32': 4, 'float16': 2, 'bfloat16': 2, 'int8': 1}
+        size = params['dimensions'] // 8 if params['element'] == 'binary' else params['dimensions'] * widths[params['element']]
+        assert array.type == pa.binary(size)
+        return value
+    if kind == 'range':
+        assert array.type.names == ['empty', 'lower', 'upper', 'lower_inclusive', 'upper_inclusive']
+        lower, upper = array.field('lower'), array.field('upper')
+        flags = int(array.field('empty')[i].as_py()) | (2 if lower[i].is_valid else 0) | (4 if upper[i].is_valid else 0)
+        flags |= 8 if array.field('lower_inclusive')[i].as_py() else 0
+        flags |= 16 if array.field('upper_inclusive')[i].as_py() else 0
+        return bytes([flags]) + b''.join(payload_bytes(bound, i, params) for bound in (lower, upper) if bound[i].is_valid)
+    if kind == 'multirange':
+        assert pa.types.is_list(array.type) and not array.type.value_field.nullable
+        start, end = array.offsets[i].as_py(), array.offsets[i+1].as_py()
+        return struct.pack('<I', end - start) + b''.join(payload_bytes(array.values, n, {'range': params}) for n in range(start, end))
     if kind == 'structure':
         return b''.join(arrow_cell(array.field(field['name']), i, field['type']) for field in params)
     if kind in ('list', 'array'):
@@ -106,7 +122,7 @@ def arrow_cell(array, i, typ):
 def read_stream(data):
     assert data.endswith(b'\xff\xff\xff\xff\0\0\0\0'), 'missing explicit end marker'
     reader = pa.ipc.open_stream(data)
-    assert reader.schema.metadata[b'transit.definition'] == b'transit.fuze.logical-arrow.v1.2026-09-30'
+    assert reader.schema.metadata[b'transit.definition'] == b'transit.fuze.logical-arrow.v1.2026-11-01.companions'
     batches = list(reader)
     for batch in batches:
         batch.validate(full=True)
@@ -138,6 +154,11 @@ def recursive_cases():
         ({'json': {}}, {'value': {'json': '{"n":9007199254740993,"id":"001"}'}}),
     ]
     cases.extend(({'int64': {}}, {'type_error': kind}) for kind in ('unknown', 'null_value', 'text', 'character'))
+    # Execute the independent fixed-tag fixture cases through the neutral ABI
+    # and PyArrow. Invalid fixtures are checked at the native/neutral admission
+    # boundary; they must never become a valid Arrow payload.
+    companion = json.loads((ROOT / 'packages/zig/transit-fuze/src/fixtures/companion-values.json').read_text())
+    cases.extend((case['field']['type'], case['cell']) for case in companion['cases'] if case['error'] is None)
     return cases
 
 

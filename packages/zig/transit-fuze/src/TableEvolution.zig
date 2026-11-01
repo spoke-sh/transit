@@ -5,13 +5,16 @@ const s = @import("TableSchema.zig");
 const t = @import("Types.zig");
 const Cell = t.Values.Cell;
 pub const Change = union(enum) {
-    add: struct { name: []const u8, type: t.Type, nullable: bool = true, default: ?Cell = null, max_characters: ?u32 = null, encoding: s.Encoding = .plain, collation: s.Collation = .none },
+    add: struct { name: []const u8, type: t.Type, nullable: bool = true, default: ?Cell = null, max_characters: ?u32 = null, encoding: s.Encoding = .plain, collation: s.Collation = .none, semantics: s.Semantics = .{} },
     drop: s.ColumnId,
     rename: struct { column: s.ColumnId, name: []const u8 },
     default: struct { column: s.ColumnId, value: ?Cell },
     nullable: struct { column: s.ColumnId, value: bool },
     type: struct { column: s.ColumnId, type: t.Type, max_characters: ?u32 = null },
-    physical: struct { column: s.ColumnId, encoding: s.Encoding = .plain, collation: s.Collation = .none },
+    physical: struct { column: s.ColumnId, encoding: s.Encoding = .plain, collation: s.Collation = .none, semantics: ?s.Semantics = null },
+    /// Complete captured source schema with only integrity replaced. The owner
+    /// checks the rest verbatim before advancing the schema revision.
+    integrity: s.Schema,
 };
 pub const Work = enum { metadata, validate_rows, rewrite_rows };
 pub const Transition = struct {
@@ -25,11 +28,7 @@ pub const Transition = struct {
     pub fn canProject(self: Transition) !bool {
         if (self.before.object != self.after.object or self.after.revision != try std.math.add(u64, self.before.revision, 1)) return error.InvalidSchemaTransition;
         if (self.rebuild_key) return false;
-        for (self.before.primary_key) |id| {
-            const before = self.before.columns[try self.before.index(id)];
-            const after = self.after.columns[try self.after.index(id)];
-            if (!std.mem.eql(u8, before.name, after.name)) return false;
-        }
+        if (self.work == .validate_rows) return false;
         const Projection = @import("TableSchemaProjection.zig");
         var initials: [s.max_columns]Projection.Initial = undefined;
         var count: usize = 0;
@@ -72,6 +71,13 @@ pub const Transition = struct {
             };
         }
         try self.after.validateRowDetailed(result, failure);
+        var violation: @import("TableConstraints.zig").CheckViolation = undefined;
+        self.after.integrity.validateExisting(self.after, result, &violation) catch |err| {
+            if (err == error.CheckConstraintViolation) if (failure) |column| {
+                column.* = violation.column_id;
+            };
+            return err;
+        };
         return result;
     }
 };
@@ -79,6 +85,7 @@ pub const Transition = struct {
 /// validation/rewrite, indexes, concurrent-write fence and conditional head swap.
 pub fn apply(before: s.Schema, change: Change, columns: *[s.max_columns]s.Column) !Transition {
     try before.validate();
+    try @import("TableConstraints.zig").validateChangeAgainstConstraints(before, change, before.integrity.checks, before.integrity.foreign_keys, &.{});
     var after = before;
     after.revision = try std.math.add(u64, before.revision, 1);
     @memcpy(columns[0..before.columns.len], before.columns);
@@ -86,10 +93,19 @@ pub fn apply(before: s.Schema, change: Change, columns: *[s.max_columns]s.Column
     var key_changed = false;
     var validate_rows = false;
     switch (change) {
+        .integrity => |value| {
+            try value.validate();
+            var basis = value;
+            basis.integrity = before.integrity;
+            if (!std.mem.eql(u8, &try basis.fingerprint(), &try before.fingerprint())) return error.InvalidSchemaTransition;
+            validate_rows = try @import("TableConstraints.zig").Integrity.evolution(before.integrity, value.integrity);
+            after.integrity = value.integrity;
+        },
         .add => |column| {
             if (count == columns.len) return error.InvalidColumnCount;
+            validate_rows = !column.nullable and column.default == null;
             after.next_column = try std.math.add(u64, before.next_column, 1);
-            columns[count] = .{ .id = before.next_column, .name = column.name, .type = column.type, .nullable = column.nullable, .default = column.default, .max_characters = column.max_characters, .encoding = column.encoding, .collation = column.collation };
+            columns[count] = .{ .id = before.next_column, .name = column.name, .type = column.type, .nullable = column.nullable, .default = column.default, .max_characters = column.max_characters, .encoding = column.encoding, .collation = column.collation, .semantics = column.semantics };
             count += 1;
         },
         .drop => |id| {
@@ -100,7 +116,11 @@ pub fn apply(before: s.Schema, change: Change, columns: *[s.max_columns]s.Column
         },
         .rename => |value| columns[try before.index(value.column)].name = value.name,
         .default => |value| columns[try before.index(value.column)].default = value.value,
-        .nullable => |value| columns[try before.index(value.column)].nullable = value.value,
+        .nullable => |value| {
+            const column = &columns[try before.index(value.column)];
+            validate_rows = column.nullable and !value.value;
+            column.nullable = value.value;
+        },
         .type => |value| {
             const column = &columns[try before.index(value.column)];
             if (!try castSupported(column.type, value.type)) return error.UnsupportedSchemaConversion;
@@ -108,7 +128,7 @@ pub fn apply(before: s.Schema, change: Change, columns: *[s.max_columns]s.Column
             for (before.primary_key) |id| if (id == column.id and !try column.type.eql(value.type)) {
                 key_changed = true;
             };
-            validate_rows = column.max_characters != value.max_characters;
+            validate_rows = if (value.max_characters) |limit| column.max_characters == null or limit < column.max_characters.? else false;
             column.type = value.type;
             column.max_characters = value.max_characters;
         },
@@ -119,12 +139,18 @@ pub fn apply(before: s.Schema, change: Change, columns: *[s.max_columns]s.Column
             };
             column.encoding = value.encoding;
             column.collation = value.collation;
+            if (value.semantics) |semantics| column.semantics = semantics;
         },
     }
     after.columns = columns[0..count];
     try after.validate();
     const physical_change = !std.mem.eql(u8, &try before.layoutFingerprint(), &try after.layoutFingerprint());
-    return .{ .before = before, .after = after, .work = if (physical_change) .rewrite_rows else if (validate_rows) .validate_rows else .metadata, .rebuild_key = key_changed };
+    const rewrite = switch (change) {
+        .physical => physical_change,
+        .type => |value| !try before.columns[try before.index(value.column)].type.eql(value.type),
+        else => false,
+    };
+    return .{ .before = before, .after = after, .work = if (rewrite) .rewrite_rows else if (validate_rows) .validate_rows else .metadata, .rebuild_key = key_changed };
 }
 /// Exact numeric casts only. A supported pair still requires per-value overflow
 /// and precision checks. No implicit text/temporal/nested conversion is admitted.

@@ -11,6 +11,14 @@ and shared SQL runtime. Captured-source and SDK migration remain incomplete. The
 
 ## Requests and authority
 
+The `descriptor` action publishes and inspects versioned views, property-graph
+mappings and foreign layouts through `DirectDefinition`. These metadata objects
+share stable catalog identities, namespace/name claims and current native Table
+permissions. Their original-operation outcomes and dependency replacements commit
+atomically in the catalog log. They allocate no data partition. See
+[catalog interpretations](CATALOG_DEFINITIONS_V1.md) for the exact publication,
+historical selection and execution profiles.
+
 The `branch` action and result use `DirectBranch.Request` and `DirectBranch.Result`
 for named immutable single-Table branches. Creation, publication, cancellation,
 source reads and paged scans share this endpoint and the typed local owner.
@@ -931,8 +939,12 @@ and conditional name assertions. A reused identity must match the entire saved
 binding, including authority. Transport credential replacement does not change it.
 
 An edge binds a source Table, Stream, Queue or named KV/Document's exact `DataLifecycle.Definition`, a dependent's
-kind (`kv`, `document`, `captured`, `maintained`, `stream`, `queue`) and exact definition, and a
-nonzero mask of required logical actions. Table sources accept Table action masks;
+kind (`kv`, `document`, `captured`, `maintained`, `stream`, `queue`, `table`) and exact definition, and a
+mask of required logical actions. Generic registrations require a nonzero mask.
+Table-owned staged foreign-key edges carry `foreign_key {constraint, column}`
+and zero privileges: protection requires metadata authority and grants no row
+access. Generic `dependency_operation` cannot register or remove these edges.
+Table sources accept Table action masks;
 direct KV sources use `KVAuthority` privileges; named Document sources accept
 SELECT only, mapped to native INSPECT and READ.
 Stream/Queue sources accept their own five-bit action masks; their dependents
@@ -994,11 +1006,31 @@ definitions and may leave a consumer stale; they do not rewrite it. Namespace
 DROP checks live/pending Table and named-resource membership. Neither registry discovers
 unregistered consumers or dependencies embedded in arbitrary payloads.
 
+Staged Table foreign keys are registered by the original admitted Table DDL.
+Each bounded step atomically records one referenced-column edge in both graph
+directions and advances `protected_columns`/`dependency_steps`. All required
+edges precede child visibility. Parent DROP and changes to a protected column's
+type, collation, physical encoding or membership reject with a generic dependency
+reason; compatible renames preserve bindings. A saved target definition remains
+unchanged by parent renames. Newly registered edges require the exact current
+parent definition and metadata rights, rechecked at publication.
+
+Table DDL with foreign keys records `requires_settlement`. After Table commit,
+`finalizing {evidence, operation}` exposes that durable outcome while bounded
+dependency cleanup remains pending. It is not a rejected or replayable new
+operation. Settlement records a closure before scanning one reverse edge per
+step; obsolete registrations are removed only against the original known Table
+outcome. Cancelled unpublished declarations release their acquired protection.
+Cleanup uses current child metadata authority and requires no parent grant.
+The object remains pending until settlement; retrying/cancelling a committed
+operation continues its original cleanup and cannot roll back the commit.
+`committed` is returned once this required settlement completes.
+
 `dependencies` selects `dependents` of a source object or `dependencies` of a
 dependent object, with an explicit authority and nullable cursor. Each call scans
 at most four edges; denied edges are omitted while scan progress advances.
 An empty page with `next` is incomplete. The cursor binds selection, authority,
-catalog position and the last scanned edge digest. A changed catalog position
+catalog position and the last scanned full index key. A changed catalog position
 returns HTTP 409 (`CatalogObservationChanged`), requiring a fresh traversal;
 pages from different observations cannot be joined into one complete graph.
 Durable graph cardinality is independent of resident cache and page size.
@@ -1012,10 +1044,13 @@ point observation does not certify data availability or a cross-catalog snapshot
 
 The edge key digest is SHA-256 over `transit.catalog.dependency.v1` and a zero
 byte, followed by 169 bytes: source definition, one-byte dependent kind (KV=1,
-Document=2, captured=3, maintained=4), dependent definition, and a big-endian
+Document=2, captured=3, maintained=4, Stream=5, Queue=6, Table=7), dependent definition, and a big-endian
 unsigned 64-bit privilege mask. Each 80-byte definition contains big-endian
 unsigned 64-bit realm/resource/catalog/branch/object/revision, then its 32-byte
-digest. Forward keys prefix the digest with the source's big-endian object ID.
+digest. Foreign-key digests append a big-endian u32 constraint ID and u64
+referenced ColumnId to that body. Forward keys contain the source's big-endian
+object ID, a one-byte kind (0 generic, 1 foreign key), the referenced big-endian
+ColumnId for kind 1, then the digest (41 or 49 bytes respectively).
 Reverse keys prefix it with SHA-256 over `transit.catalog.dependent.v1`, a zero
 byte and the dependent's five big-endian object fields. Full edge records must
 match when a key already exists. Persisted catalog roots require both graph
@@ -1145,7 +1180,7 @@ retained-read delegations and borrowed-read grants do not permit this action.
 
 ### Delegated retained reads
 
-`DirectReadDelegation.encode` retains the original grant in a canonical 311-byte
+`DirectReadDelegation.encode` retains the original grant in a canonical 433-byte
 `TRG1` record. It contains the four-byte magic, mandatory 32-byte current
 definition, connection scope (realm/resource/catalog), branch, audience,
 principal, role-present byte and role value, executor, object ID, definition
@@ -1154,6 +1189,18 @@ revision and 32-byte digest, partition and accepted frontier, pin operation, ret
 in that order. All integers are unsigned 64-bit little-endian except the
 one-byte role flag, retention tag (`snapshot = 0`, `history = 1`) and selection
 tag (`exact = 1`, `current = 2`).
+The signature is followed by a copy-present byte, 80 source-handle bytes,
+a projection-present byte, and 40 target-definition bytes. An absent optional
+value has a zero tag and zero-filled payload. A source handle contains its
+realm/resource/catalog, principal, operation and content length as little-endian
+u64s followed by its 32-byte digest. The projection contains a u64 revision and
+32-byte digest; its object must equal the original source object. A copy grant
+requires exact snapshot selection, a distinct destination owner, and the same
+catalog scope. The source definition and accepted frontier are checked before
+copy acceptance; retries verify the accepted copy even after source release.
+A projection grant authorizes only preparation of that exact source/target pair
+and projected scans of the query-owned copy. Discovery remains denied.
+
 An absent role has flag/value zero. Object and pin scope,
 pin principal and repeated claim fields must match the connection; decoding
 reconstructs only these constrained duplicates. Missing, foreign, truncated,
@@ -1207,7 +1254,7 @@ replaced shared definition rejects previous envelopes without a fallback.
 
 An explicit `DirectReadDelegation.Closure` authorizes cleanup after the original
 credential changes. Its context is SHA-256 of `transit.table.pin-closure.v1`, a
-zero byte and the exact 311-byte original `TRG1` grant, including its original
+zero byte and the exact 433-byte original `TRG1` grant, including its original
 signature. It carries a current credential epoch and a 64-byte signature; the
 remaining claim fields come from that original grant. Its compact encoding is
 little-endian uint64 epoch followed by the signature (72 bytes). The transport
@@ -1218,6 +1265,9 @@ The owner checks the current closure proof and executor proof together. Only
 Schema and row reads reject, and cleanup cannot replace execution authority or
 choose a newer cut. Exact-original acquisition may be needed to create a terminal
 release record for an uncertain request whose frontier has not advanced.
+For a copy grant, later live definitions/frontiers cannot prove acquisition
+impossible. Closure retries the original copy and releases it, or requires a
+qualified released-pin response that permanently excludes a delayed copy.
 
 `DirectReadDelegation.Borrow` grants another executor read access to one existing
 cut. Its `binding` contains, in order, an executor principal, a target
@@ -1225,7 +1275,7 @@ cut. Its `binding` contains, in order, an executor principal, a target
 It also carries the original caller's 64-byte signature. The claim retains the
 original grant's identity, role, audience and credential epoch; its context is
 SHA-256 of `transit.table.borrowed-read.v1`, a zero byte, the exact original
-311-byte `TRG1` grant and canonical JSON of the borrowed binding. Preparing this
+433-byte `TRG1` grant and canonical JSON of the borrowed binding. Preparing this
 proof after the caller's epoch changes rejects instead of renewing accepted work.
 
 The request carries both the original delegation and `borrow`. The transport
@@ -1558,6 +1608,45 @@ that retained root and its last returned canonical 20-byte row identity. Rows
 are strictly increasing by identity, independent of their current physical
 locators. It never substitutes the latest name or definition.
 
+### Retained projection coverage
+
+`projection_definitions` accepts `snapshot` and nullable `after` with the pin's
+`source` content and last physical `after` schema revision. It returns the exact
+pin, logical `TableDeclaration.Stored`, accepted position, total live rows, one
+nullable `entry` and nullable `next`. Each entry carries the physical stored
+definition, a separate `schema_revision`, its positive live locator count, and
+up to 128 logical column mappings. A mapping identifies the same stable physical
+ColumnId or the exact ADD-time definition and initial five-state tag. Default
+payloads are not returned. The definition revision and schema revision are
+distinct; a Table rename need not change the physical schema revision.
+
+`projection_locations` accepts `snapshot` and a nullable original identity
+cursor. It returns at most eight entries in strict row-identity order, with the
+same envelope and a continuation bound to the last returned identity. An entry
+carries the physical definition and schema revision plus either a WAL LSN,
+offset, byte length and row digest, or a segment ID, row ordinal and immutable
+content descriptor. These are retained locator references, not a successful
+payload-availability or checksum verification. Missing/corrupt payloads retain
+their ordinary errors when a read attempts to load them.
+
+The first operation requires current metadata visibility on the original Table;
+the second requires current SELECT. Both require the pin's original principal,
+recheck current rights before disclosure, and reject released pins. No latest
+lookup, pin acquisition, renewal, row decoding or mutation occurs. Reopening an
+owner may read its recovery WAL; inspection does not open segment payloads. Delegated
+read and active transaction overlays do not admit these operations. An empty
+first page is complete only for a zero-row source. A continuation cannot change
+its source; a caller must visit every page and account for the original total
+before claiming complete inspection. Inspection completion does not complete a
+query result or modify its initial observation evidence.
+
+The shared host catalog's `projection` action supplies `definitions` and
+`locations` inputs with an owned retention `snapshot` and nullable saved cursor.
+It returns an owned page and cursor. Counts, schema/definition/column IDs,
+positions and row identities retain full-width decimal strings; location cursor
+identities and digests use canonical lower-case hex. Each call performs one
+public read and leaves the retention lifecycle with its caller.
+
 `column_scan` accepts `snapshot`, `columns`, nullable `after` and `limits` and
 returns the same `page` envelope as `scan`. `columns` is a JSON array of 1–128
 unsigned integer ordinals, each in 0–127, strictly increasing without duplicates.
@@ -1776,6 +1865,15 @@ and settlement use reserved control capacity; other calls use data capacity.
 All transaction actions exclude database publication. Current scoped checks share
 one writer/policy epoch, checked again before disclosing a buffered response.
 
+The acquired result additionally requires nullable `catalog`: an immutable paged
+directory of the selected Tables' namespace/name/definition bindings, frozen
+under the cut's publication fence. It is null when no selected participant is a
+Table. KV and log participants remain in the complete transaction source
+directory. Historical acquisition can transfer this authenticated cut to its own
+retention through the [historical catalog owner](HISTORICAL_CATALOG_V1.md).
+A pending transfer defers original-pin cleanup; it does not undo a durable
+decision or turn incomplete cleanup into transaction rejection.
+
 ### Transactional Stream and Queue work
 
 Explicit transaction selections can combine Table/KV objects and declared
@@ -1961,3 +2059,13 @@ not replace the frozen command with abort, undo a decision or establish that a
 remote reply was never accepted. Explicit settle commands retain the original
 transaction attempt and the common decision owner. See [SQL sessions](SQL_SESSION_V1.md#table-transactions-and-recovery)
 for attachment and uncertainty behavior.
+
+## Selected historical catalogs
+
+The [historical catalog contract](HISTORICAL_CATALOG_V1.md) owns selection,
+original-operation acquisition, publication, current disclosure and bounded
+release. It reuses `DataLifecycle.Snapshot` and the direct Table authority.
+SQL `AS OF SNAPSHOT` binds that catalog before names and schemas; historical
+SELECT observations carry its immutable identity and exact source evidence.
+Metadata observations retain catalog attribution without claiming row execution.
+An independent source vector is not an atomic cross-Table cut.

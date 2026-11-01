@@ -76,6 +76,19 @@ int main() {
         "{\"value\":{\"atom\":{\"float_bits\":\"0000807f\"}}}", "{\"value\":{\"atom\":{\"binary\":\"FF\"}}}",
         "{\"value\":{\"atom\":{\"utf8\":\"\\ud800\"}}}", "{\"value\":{\"atom\":{\"utf8\":\"\\udc00\"}}}"};
     for (const auto &s : malformed) invalid([&] { Cell::decode(bytes(s)); });
+    // The C++ model has the same explicit companion-family refusal as its C
+    // owner, including nested descriptors and present cells. Empty cell states
+    // remain independent of a descriptor.
+    for (const auto &s : {R"({"range":{"int64":{}}})", R"({"multirange":{"int64":{}}})",
+                          R"({"vector":{"dimensions":3,"element":"float32"}})"}) {
+        invalid([&] { Type::decode(bytes(s)); });
+        invalid([&] { Type::decode(bytes(std::string("{\"list\":{\"type\":") + s + ",\"nullable\":true}}")); });
+    }
+    for (const auto &s : {R"({"value":{"range":{"is_empty":true,"lower":null,"upper":null}}})",
+                          R"({"value":{"multirange":[]}})", R"({"value":{"vector":"00000000"}})"}) {
+        invalid([&] { Cell::decode(bytes(s)); });
+        invalid([&] { Cell::decode(bytes(std::string("{\"value\":{\"list\":[") + s + "]}}")); });
+    }
     const auto valid = Cell::map({{Atom::utf8("\xf0\x9f\x98\x80"), present}}).encode();
     for (size_t i = 0; i < valid.size(); ++i) invalid([&] { Cell::decode(Bytes(valid.begin(), valid.begin() + i)); });
     round(Cell::decode(bytes("{\"value\":{\"atom\":{\"utf8\":\"\\ud83d\\ude00\"}}}")));

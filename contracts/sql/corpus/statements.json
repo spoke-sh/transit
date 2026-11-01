@@ -765,8 +765,8 @@
       }
     },
     {
-      "id": "utf8='it''s 東京'",
-      "sql": "SELECT * FROM items WHERE value = 'it''s 東京'",
+      "id": "utf8='it''s \u6771\u4eac'",
+      "sql": "SELECT * FROM items WHERE value = 'it''s \u6771\u4eac'",
       "schema": {
         "name": "items",
         "columns": [
@@ -801,8 +801,8 @@
       }
     },
     {
-      "id": "utf8<>'it''s 東京'",
-      "sql": "SELECT * FROM items WHERE value <> 'it''s 東京'",
+      "id": "utf8<>'it''s \u6771\u4eac'",
+      "sql": "SELECT * FROM items WHERE value <> 'it''s \u6771\u4eac'",
       "schema": {
         "name": "items",
         "columns": [
@@ -2351,6 +2351,8 @@
     "SAVEPOINT original",
     "RELEASE SAVEPOINT original",
     "RELEASE original",
+    "CREATE TABLE accounts (id TEXT COLLATE EBCDIC_037_PAD PRIMARY KEY)",
+    "CREATE TABLE codes (name TEXT COLLATE EBCDIC_1047_NOPAD)",
     "CREATE DATAFLOW projection INTO output AS SELECT id FROM input;",
     "AUTHORIZE DATAFLOW projection;",
     "ACTIVATE DATAFLOW projection;",

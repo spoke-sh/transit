@@ -14,6 +14,7 @@ pub fn commandKind(self: Reference) !g.results.Command {
     return switch (self) {
         .external => error.ExternalOperationOwnerRequired,
         .workload => error.WorkloadOperationRequired,
+        .history => error.HistoricalOperationRequired,
         .branch => error.BranchOperationRequired,
         .transaction => error.TransactionOperationRequired,
         .transaction_call => |call| g.TransactionWork.command(call),

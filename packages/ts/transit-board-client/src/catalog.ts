@@ -17,6 +17,19 @@ export type CatalogDependencies = Extract<
   { dependencies: unknown }
 >["dependencies"];
 
+type HistoryResult = Extract<CatalogResponse, { history: unknown }>["history"];
+export type HistoricalSource = Extract<HistoryResult, { source: unknown }>["source"];
+export type HistoricalTables = Extract<HistoryResult, { listing: unknown }>["listing"];
+export type HistoricalCoverage = Extract<HistoryResult, { coverage: unknown }>["coverage"];
+export type HistoricalRead = Extract<CatalogRequest["action"], { history: unknown }>["history"];
+
+type DefinitionsResult = Extract<CatalogResponse, { definitions: unknown }>["definitions"];
+export type CatalogDefinitions = Extract<DefinitionsResult, { page: unknown }>["page"];
+export type HistoricalDefinition = Extract<
+  DefinitionsResult,
+  { historical: unknown }
+>["historical"];
+
 /** Authorized, bounded metadata. None of these operations starts a data query. */
 export class DataCatalog {
   private async call(
@@ -32,6 +45,73 @@ export class DataCatalog {
         boundedQueryJson(value, 262144) && validResponse(value),
       { body, signal },
     );
+  }
+  async historical(action: HistoricalRead, signal?: AbortSignal): Promise<HistoryResult> {
+    const value = await this.call({ history: action }, signal);
+    if (!("history" in value)) throw new QueryError(0, "InvalidResponse");
+    return value.history;
+  }
+  async historicalTables(
+    selector: string,
+    namespace: number,
+    after: HistoricalTables["next"] = null,
+    signal?: AbortSignal,
+  ): Promise<HistoricalTables> {
+    const value = await this.historical({ list: { selector, namespace, after } }, signal);
+    if (!("listing" in value)) throw new QueryError(0, "InvalidResponse");
+    return value.listing;
+  }
+  async historicalSource(
+    selector: string,
+    object: string,
+    signal?: AbortSignal,
+  ): Promise<HistoricalSource> {
+    const value = await this.historical({ source: { selector, object } }, signal);
+    if (!("source" in value)) throw new QueryError(0, "InvalidResponse");
+    return value.source;
+  }
+  async historicalCoverage(
+    selector: string,
+    object: string,
+    kind: "definitions" | "locations",
+    after: HistoricalCoverage["next"] = null,
+    signal?: AbortSignal,
+  ): Promise<HistoricalCoverage> {
+    const input = { selector, object, after };
+    const value = await this.historical(
+      kind === "definitions" ? { definitions: input } : { locations: input },
+      signal,
+    );
+    if (!("coverage" in value)) throw new QueryError(0, "InvalidResponse");
+    return value.coverage;
+  }
+  async definitions(
+    namespace: number,
+    selector: string | null,
+    cursor: CatalogDefinitions["next"] = null,
+    signal?: AbortSignal,
+  ): Promise<CatalogDefinitions> {
+    const value = await this.call(
+      { definitions: { list: { namespace, selector, cursor } } },
+      signal,
+    );
+    if (!("definitions" in value) || !("page" in value.definitions))
+      throw new QueryError(0, "InvalidResponse");
+    return value.definitions.page;
+  }
+  async historicalDefinition(
+    selector: string,
+    namespace: number,
+    name: string,
+    signal?: AbortSignal,
+  ): Promise<HistoricalDefinition> {
+    const value = await this.call(
+      { definitions: { historical: { selector, namespace, name } } },
+      signal,
+    );
+    if (!("definitions" in value) || !("historical" in value.definitions))
+      throw new QueryError(0, "InvalidResponse");
+    return value.definitions.historical;
   }
   async describe(signal?: AbortSignal): Promise<CatalogDescription> {
     const value = await this.call({ describe: {} }, signal);

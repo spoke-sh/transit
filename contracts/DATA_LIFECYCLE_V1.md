@@ -404,6 +404,11 @@ array size. Its consistency is explicit:
 - `single_partition`: every source has exactly the same partition and accepted
   frontier. The owner must capture definitions and data at that same cut.
 - `independent`: each source is exact, with no promise of a global or causal cut.
+- `common_transaction`: the original transaction Operation, acquired catalog
+  position and complete source-directory content/count identify an authenticated
+  acquired cut. The selected historical Tables may be a subset of its mixed
+  participants. The publishing owner verifies membership and transfers independent
+  pin ownership; the descriptor alone proves neither membership nor retention.
 
 Do not relabel an independent vector as catalog-consistent. Cross-partition
 consistent acquisition needs its own coordination and evidence; ordinary
@@ -439,3 +444,21 @@ compatibility fields, unflushed coverage and inconsistent-cut rejection. They
 qualify descriptor validation only. Durable acceptance, interrupted pin
 acquisition, policy races, process crashes and installed caller behavior require
 the owning runtime's separate evidence in the [proof ledger](../docs/history/qualification/README.md).
+
+## Selected historical catalogs
+
+The [historical catalog contract](HISTORICAL_CATALOG_V1.md) owns selection,
+original-operation acquisition, publication, current disclosure and bounded
+release. It reuses `DataLifecycle.Snapshot` and the direct Table authority.
+SQL `AS OF SNAPSHOT` binds that catalog before names and schemas; historical
+SELECT observations carry its immutable identity and exact source evidence.
+Metadata observations retain catalog attribution without claiming row execution.
+An independent source vector is not an atomic cross-Table cut.
+
+Selected catalog interpretations also retain exact accepted view, property-graph
+and foreign-layout definitions. Their metadata directory and verification progress
+are separate from the Table-source directory. A metadata-only foreign catalog
+has zero Table sources and independent consistency. It binds the decoder and
+captured-input content without inventing a Table pin. See
+[versioned interpretations](CATALOG_DEFINITIONS_V1.md) for publication and dependency
+closure; the existing current-policy and release boundaries apply to every read.

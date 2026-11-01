@@ -6,6 +6,80 @@ const TableEvolution = @import("TableEvolution.zig");
 const TableSchemaProjection = @import("TableSchemaProjection.zig");
 const TableConstraints = @import("TableConstraints.zig");
 
+test "persisted integrity preserves NOT VALID checks across binary and neutral schemas" {
+    const testing = std.testing;
+    const columns = [_]s.Column{.{ .id = 1, .name = "balance", .type = .int64, .nullable = true }};
+    const checks = [_]TableConstraints.CheckConstraint{.{ .id = 7, .name = "positive_balance", .validated = false, .atoms = &.{.{ .compare_literal = .{ .column = 1, .op = .gte, .literal = .{ .signed = 0 } } }} }};
+    const schema: s.Schema = .{ .object = 90, .revision = 3, .next_column = 2, .columns = &columns, .integrity = .{ .next_id = 8, .checks = &checks } };
+    const previous = [_]v.Cell{.{ .value = .{ .atom = .{ .signed = -1 } } }};
+    try schema.validateRow(&previous);
+    try testing.expectError(error.CheckConstraintViolation, schema.validateWrite(&previous));
+    try schema.validateWrite(&.{.null});
+    try schema.validateWrite(&.{.{ .value = .{ .atom = .{ .signed = 0 } } }});
+    var bytes: [s.max_bytes]u8 = undefined;
+    var restored = try s.decode(testing.allocator, try schema.encode(&bytes));
+    defer restored.deinit();
+    try testing.expectEqual(@as(u32, 8), restored.schema.integrity.next_id);
+    try testing.expect(!restored.schema.integrity.checks[0].validated);
+    try testing.expectError(error.CheckConstraintViolation, restored.schema.validateWrite(&previous));
+    const json = try @import("TableSchemaJson.zig").encode(testing.allocator, restored.schema);
+    defer testing.allocator.free(json);
+    var neutral = try @import("TableSchemaJson.zig").decode(testing.allocator, json);
+    defer neutral.deinit();
+    try testing.expectEqual(try schema.fingerprint(), try neutral.schema.fingerprint());
+    const plan: @import("TableDml.zig").Plan = .{ .name = "balances", .schema = neutral.schema, .action = .{ .insert = &.{&previous} } };
+    try testing.expectError(error.CheckConstraintViolation, plan.validate());
+}
+
+test "persisted integrity rejects reused identities malformed literals and false FK enforcement" {
+    const testing = std.testing;
+    const columns = [_]s.Column{.{ .id = 1, .name = "code", .type = .utf8, .collation = .ebcdic_1047_nopad }};
+    var check: TableConstraints.CheckConstraint = .{ .id = 1, .name = "code_check", .atoms = &.{.{ .compare_literal = .{ .column = 1, .op = .eq, .literal = .{ .bytes = "\xe2\x82\xac" } } }} };
+    var schema: s.Schema = .{ .object = 90, .revision = 3, .next_column = 2, .columns = &columns, .integrity = .{ .next_id = 2, .checks = (&check)[0..1] } };
+    try testing.expectError(error.UnrepresentableEbcdic1047, schema.validate());
+    check.atoms = &.{.{ .is_not_null = 1 }};
+    schema.integrity.next_id = 1;
+    try testing.expectError(error.InvalidConstraintIdentity, schema.validate());
+    schema.integrity.next_id = 3;
+    schema.integrity.foreign_keys = &.{.{ .id = 2, .name = "fk", .local_columns = &.{1}, .target_object = 91, .target_revision = 1, .target_columns = &.{1}, .enforcement = .enforced }};
+    try testing.expectError(error.ForeignKeyIndexEnforcementUnavailable, schema.validate());
+}
+
+test "CHECK SQL binds later columns and keeps integrity identities through evolution" {
+    const testing = std.testing;
+    const ddl = @import("TableDdl.zig");
+    var created = try ddl.compile(testing.allocator, "CREATE TABLE limits (CONSTRAINT ordered CHECK (low <= high AND low >= 0), low BIGINT, high BIGINT)", null, null);
+    defer created.deinit();
+    const schema = try created.statement.create.bind(20);
+    try schema.validateWrite(&.{ .{ .value = .{ .atom = .{ .signed = 1 } } }, .{ .value = .{ .atom = .{ .signed = 2 } } } });
+    try testing.expectError(error.CheckConstraintViolation, schema.validateWrite(&.{ .{ .value = .{ .atom = .{ .signed = 3 } } }, .{ .value = .{ .atom = .{ .signed = 2 } } } }));
+    var columns: [s.max_columns]s.Column = undefined;
+    const evolution = @import("TableEvolution.zig");
+    try testing.expectError(error.ColumnReferencedByCheckConstraint, evolution.apply(schema, .{ .drop = 1 }, &columns));
+    var added = try ddl.compile(testing.allocator, "ALTER TABLE limits ADD CONSTRAINT ceiling CHECK (high < 100) NOT VALID", schema, null);
+    defer added.deinit();
+    const addition = try evolution.apply(schema, added.statement.alter.action.columns, &columns);
+    try testing.expect(try addition.canProject());
+    try testing.expect(!addition.after.integrity.checks[1].validated);
+    var validate = try ddl.compile(testing.allocator, "ALTER TABLE limits VALIDATE CONSTRAINT ceiling", addition.after, null);
+    defer validate.deinit();
+    var validation_columns: [s.max_columns]s.Column = undefined;
+    const validation = try evolution.apply(addition.after, validate.statement.alter.action.columns, &validation_columns);
+    try testing.expectEqual(evolution.Work.validate_rows, validation.work);
+    try testing.expect(!try validation.canProject());
+    var row: [2]v.Cell = undefined;
+    try testing.expectError(error.CheckConstraintViolation, validation.row(&.{ .{ .value = .{ .atom = .{ .signed = 1 } } }, .{ .value = .{ .atom = .{ .signed = 100 } } } }, &row));
+    var drop = try ddl.compile(testing.allocator, "ALTER TABLE limits DROP CONSTRAINT ceiling", addition.after, null);
+    defer drop.deinit();
+    var drop_columns: [s.max_columns]s.Column = undefined;
+    const dropped = try evolution.apply(addition.after, drop.statement.alter.action.columns, &drop_columns);
+    try testing.expectEqual(@as(u32, 3), dropped.after.integrity.next_id);
+    try testing.expectEqual(@as(usize, 1), dropped.after.integrity.checks.len);
+    var changed = addition.after.integrity;
+    changed.next_id = 2;
+    try testing.expectError(error.ReusedConstraintIdentity, TableConstraints.Integrity.evolution(dropped.after.integrity, changed));
+}
+
 test "5-state CHECK constraint evaluation passes value(true) and null and rejects false, missing, type_error, and conflict" {
     const columns = [_]s.Column{
         .{ .id = 1, .name = "id", .type = .{ .int64 = {} }, .nullable = false },
@@ -237,4 +311,41 @@ test "ALTER TABLE evolution classifier separates lazy projection from online pha
     try std.testing.expectEqual(@as(u16, 1), summary.omitted_dropped_columns);
     try std.testing.expectEqual(@as(u64, 750), summary.total_rows);
     try std.testing.expectEqual(@as(u64, 350), summary.lazily_projected_rows);
+}
+
+test "staged foreign key SQL freezes parent definitions and requires explicit non-enforcement" {
+    const testing = std.testing;
+    const ddl = @import("TableDdl.zig");
+    const Fixture = struct {
+        fn lookup(_: *anyopaque, _: std.mem.Allocator, name: []const u8) !ddl.ForeignKey.Resolver.Parent {
+            try testing.expectEqualStrings("parent", name);
+            return .{ .schema = .{ .object = 77, .revision = 3, .next_column = 10, .columns = &.{.{ .id = 9, .name = "id", .type = .int64, .nullable = false }}, .primary_key = &.{9} }, .definition = .{ .object = .{ .scope = .{ .realm = 1, .resource = 2, .catalog = 3 }, .branch = 1, .object = 77 }, .revision = 8, .digest = @splat(4) } };
+        }
+    };
+    var context: u8 = 0;
+    const resolver: ddl.ForeignKey.Resolver = .{ .context = &context, .lookup = Fixture.lookup };
+    const sql = "CREATE TABLE child (CONSTRAINT parent_id FOREIGN KEY (parent_id) REFERENCES parent (id) ON DELETE SET NULL NOT ENFORCED, parent_id BIGINT)";
+    try testing.expectError(error.ForeignKeyResolutionRequired, ddl.compile(testing.allocator, sql, null, null));
+    try testing.expectError(error.ForeignKeyIndexEnforcementUnavailable, ddl.compile(testing.allocator, "CREATE TABLE child (parent_id BIGINT, FOREIGN KEY (parent_id) REFERENCES parent (id))", null, null));
+    var compiled = try ddl.compileWithForeignKeys(testing.allocator, sql, null, null, .transit, resolver);
+    defer compiled.deinit();
+    const schema = try compiled.statement.create.bind(91);
+    const fk = schema.integrity.foreign_keys[0];
+    try testing.expectEqual(@as(u64, 3), fk.target_revision);
+    try testing.expectEqual(@as(u64, 8), fk.target_definition.?.revision);
+    try testing.expectEqual(@as(u64, 9), fk.target_columns[0]);
+    try schema.validateWrite(&.{.{ .value = .{ .atom = .{ .signed = 999 } } }});
+    var bytes: [s.max_bytes]u8 = undefined;
+    var restored = try s.decode(testing.allocator, try schema.encode(&bytes));
+    defer restored.deinit();
+    try testing.expectEqualDeep(fk, restored.schema.integrity.foreign_keys[0]);
+    const json = try @import("TableSchemaJson.zig").encode(testing.allocator, schema);
+    defer testing.allocator.free(json);
+    var neutral = try @import("TableSchemaJson.zig").decode(testing.allocator, json);
+    defer neutral.deinit();
+    try testing.expectEqualDeep(fk, neutral.schema.integrity.foreign_keys[0]);
+    var altered = try ddl.compileWithForeignKeys(testing.allocator, "ALTER TABLE child ADD CONSTRAINT another FOREIGN KEY (parent_id) REFERENCES parent (id) NOT ENFORCED", schema, null, .transit, resolver);
+    defer altered.deinit();
+    try testing.expectEqual(@as(usize, 2), altered.statement.alter.action.columns.integrity.integrity.foreign_keys.len);
+    try testing.expectError(error.ForeignKeySetNullRequiresNullableColumn, ddl.compileWithForeignKeys(testing.allocator, "CREATE TABLE child (parent_id BIGINT NOT NULL, FOREIGN KEY (parent_id) REFERENCES parent (id) ON DELETE SET NULL NOT ENFORCED)", null, null, .transit, resolver));
 }

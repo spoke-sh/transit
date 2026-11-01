@@ -24,13 +24,21 @@ resulting_revision: u64 = 0,
 
 pub fn validate(self: Self) !void {
     if (self.resource == 0 or self.resource > p.max_counter or self.principal > p.max_counter or self.operation == 0 or (self.object == 0 and self.kind != .catalog_assertion) or self.changed > self.matched or std.mem.allEqual(u8, &self.identity, 0)) return error.InvalidGatewayTerminal;
-    if ((self.state == .rejected) != (self.reason != 0) or self.reason > 6) return error.InvalidGatewayTerminal;
+    if ((self.state == .rejected) != (self.reason != 0)) return error.InvalidGatewayTerminal;
+    const valid_reason = switch (self.kind) {
+        .ddl => std.enums.fromInt(@FieldType(@FieldType(c.DirectCatalog.Observation, "rejected"), "reason"), self.reason) != null,
+        .dml => std.enums.fromInt(@FieldType(c.storage.TablePartition.Operation, "reason"), self.reason) != null,
+        .catalog_assertion => std.enums.fromInt(@FieldType(c.NameAssertion.Outcome, "reason"), self.reason) != null,
+        .namespace_change => std.enums.fromInt(c.DirectNamespace.Reason, self.reason) != null,
+        .log_declaration => std.enums.fromInt(c.DirectLog.Reason, self.reason) != null,
+    };
+    if (!valid_reason) return error.InvalidGatewayTerminal;
     if (self.kind == .namespace_change or self.kind == .log_declaration) {
-        if (self.state == .unchanged or self.reason > 4 or self.partition == 0 or self.next_lsn == 0 or (self.state == .applied) != (self.resulting_revision != 0) or self.matched != 0 or self.changed != 0) return error.InvalidGatewayTerminal;
+        if (self.state == .unchanged or self.partition == 0 or self.next_lsn == 0 or (self.state == .applied) != (self.resulting_revision != 0) or self.matched != 0 or self.changed != 0) return error.InvalidGatewayTerminal;
         return;
     }
     if (self.kind == .catalog_assertion) {
-        if (self.state == .applied or self.reason > 1 or self.partition == 0 or self.next_lsn == 0 or self.resulting_revision != 0 or self.matched != 0 or self.changed != 0) return error.InvalidGatewayTerminal;
+        if (self.state == .applied or self.partition == 0 or self.next_lsn == 0 or self.resulting_revision != 0 or self.matched != 0 or self.changed != 0) return error.InvalidGatewayTerminal;
         return;
     }
     if (self.state == .unchanged) return error.InvalidGatewayTerminal;
@@ -151,30 +159,33 @@ pub fn fromResult(binding: d.Binding, result: w.Result) !?Self {
     if ((value.kind == .ddl and result != .ddl) or (value.kind == .dml and result != .rows)) return error.InvalidGatewayTerminal;
     switch (result) {
         inline .ddl, .rows => |observation| switch (observation) {
-            .not_observed, .admitted => return null,
-            .committed => |evidence| {
-                try binding.requireSame(evidence.binding);
-                try evidence.resulting.validate();
-                try evidence.outcome.position.validate();
-                const expected_revision = switch (binding.action) {
-                    .create => @as(u64, 1),
-                    .alter, .rename, .drop => try std.math.add(u64, binding.expected_definition.?.revision, 1),
-                    else => binding.expected_definition.?.revision,
-                };
-                if (!std.meta.eql(binding.target, evidence.resulting.interpretation.object) or evidence.resulting.interpretation.revision != expected_revision or evidence.resulting.retired != (binding.action == .drop)) return error.InvalidGatewayTerminal;
-                if (value.kind == .dml and !std.meta.eql(binding.expected_definition.?, evidence.resulting.interpretation)) return error.InvalidGatewayTerminal;
-                if (binding.expected_data) |expected| if (evidence.outcome.position.partition != expected.partition or evidence.outcome.position.next_lsn <= expected.next_lsn) return error.InvalidGatewayTerminal;
-                value.partition = evidence.outcome.position.partition;
-                value.next_lsn = evidence.outcome.position.next_lsn;
-                value.resulting_revision = evidence.resulting.interpretation.revision;
-                value.matched = evidence.outcome.matched;
-                value.changed = evidence.outcome.affected;
-            },
-            inline .rejected, .cancelled => |operation, tag| {
-                try binding.requireSame(operation.binding);
-                if (!std.mem.eql(u8, @tagName(operation.phase), @tagName(tag))) return error.InvalidGatewayTerminal;
-                value.state = if (tag == .rejected) .rejected else .cancelled;
-                value.reason = @backingInt(operation.reason);
+            inline else => |item, tag| {
+                if (comptime std.mem.eql(u8, @tagName(tag), "not_observed") or std.mem.eql(u8, @tagName(tag), "admitted") or std.mem.eql(u8, @tagName(tag), "finalizing")) return null;
+                if (comptime std.mem.eql(u8, @tagName(tag), "committed")) {
+                    const evidence = item;
+                    try binding.requireSame(evidence.binding);
+                    try evidence.resulting.validate();
+                    try evidence.outcome.position.validate();
+                    const expected_revision = switch (binding.action) {
+                        .create => @as(u64, 1),
+                        .alter, .rename, .drop => try std.math.add(u64, binding.expected_definition.?.revision, 1),
+                        else => binding.expected_definition.?.revision,
+                    };
+                    if (!std.meta.eql(binding.target, evidence.resulting.interpretation.object) or evidence.resulting.interpretation.revision != expected_revision or evidence.resulting.retired != (binding.action == .drop)) return error.InvalidGatewayTerminal;
+                    if (value.kind == .dml and !std.meta.eql(binding.expected_definition.?, evidence.resulting.interpretation)) return error.InvalidGatewayTerminal;
+                    if (binding.expected_data) |expected| if (evidence.outcome.position.partition != expected.partition or evidence.outcome.position.next_lsn <= expected.next_lsn) return error.InvalidGatewayTerminal;
+                    value.partition = evidence.outcome.position.partition;
+                    value.next_lsn = evidence.outcome.position.next_lsn;
+                    value.resulting_revision = evidence.resulting.interpretation.revision;
+                    value.matched = evidence.outcome.matched;
+                    value.changed = evidence.outcome.affected;
+                } else {
+                    const operation = item;
+                    try binding.requireSame(operation.binding);
+                    if (!std.mem.eql(u8, @tagName(operation.phase), @tagName(tag))) return error.InvalidGatewayTerminal;
+                    value.state = if (tag == .rejected) .rejected else .cancelled;
+                    value.reason = @backingInt(operation.reason);
+                }
             },
         },
         else => return error.InvalidGatewayTerminal,
@@ -269,4 +280,32 @@ test "command projection preserves matched and changed counts and the SQL identi
     try t.expectEqual(.unchanged, absent.outcome);
     try t.expectEqualDeep(g.results.Counts{ .matched = 0, .changed = 0 }, absent.counts.?);
     try t.expectError(error.InvalidGatewayTerminal, terminal.completion(.alter_table, operation));
+}
+
+test "owner rejection reasons survive terminal projection without admitting foreign reasons" {
+    const t = std.testing;
+    const scope: d.Scope = .{ .realm = 1, .resource = 3, .catalog = 1 };
+    const object: d.Object = .{ .scope = scope, .branch = 1, .object = 7 };
+    const definition: d.Definition = .{ .object = object, .revision = 2, .digest = @splat(8) };
+    const position: d.Position = .{ .partition = 1, .next_lsn = 9 };
+    const binding: d.Binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = 55 }, .target = object, .action = .update, .expected_definition = definition, .expected_data = position, .intent = @splat(9) };
+    var evidence: c.storage.TablePartition.Operation = .{ .binding = binding, .intent = .{ .bytes = 100, .sha256 = @splat(5) }, .basis = .{ .interpretation = definition, .position = position, .changed_lsn = 8 }, .phase = .rejected, .reason = .check_violation };
+    try evidence.validate();
+    const terminal = (try fromResult(binding, .{ .rows = .{ .rejected = evidence } })).?;
+    try t.expectEqual(.rejected, terminal.state);
+    try t.expectEqual(@backingInt(evidence.reason), terminal.reason);
+    try t.expectEqual(@as(u64, 0), terminal.matched);
+    try t.expectEqual(@as(u64, 0), terminal.changed);
+    var invalid = terminal;
+    invalid.reason = 255;
+    try t.expectError(error.InvalidGatewayTerminal, invalid.validate());
+    // DDL and DML have different owner enums; DDL's new work-limit reason
+    // must validate without accidentally expanding the DML reason domain.
+    invalid.reason = 8;
+    try t.expectError(error.InvalidGatewayTerminal, invalid.validate());
+    invalid.kind = .ddl;
+    try invalid.validate();
+    evidence.phase = .cancelled;
+    evidence.reason = .none;
+    try t.expectEqual(.cancelled, (try fromResult(binding, .{ .rows = .{ .cancelled = evidence } })).?.state);
 }

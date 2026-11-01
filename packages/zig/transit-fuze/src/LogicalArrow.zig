@@ -8,9 +8,10 @@ const a = f.arrow;
 pub const working_bytes = f.Unified.Arrow.working_bytes;
 pub const segment_bytes = f.Unified.Arrow.segment_bytes;
 pub const max_rows = f.Unified.max_rows;
-pub const definition = "transit.fuze.logical-arrow.v1.2026-09-30";
+pub const definition = "transit.fuze.logical-arrow.v1.2026-11-01.companions";
 const u8_type: a.DataType = .{ .uint8 = {} };
 const u64_type: a.DataType = .{ .uint64 = {} };
+const bool_type: a.DataType = .{ .bool = {} };
 const Layout = struct {
     logical: t.Type,
     value: a.DataType,
@@ -23,7 +24,7 @@ const Layout = struct {
         self.logical = logical;
         const count: usize = switch (logical) {
             .structure, .tagged_union => |fields| fields.len,
-            .list, .array => 1,
+            .list, .array, .range, .multirange => 1,
             .map => 2,
             else => 0,
         };
@@ -34,6 +35,8 @@ const Layout = struct {
             },
             .list => |element| self.children[0] = try create(allocator, element.type.*),
             .array => |array| self.children[0] = try create(allocator, array.element.type.*),
+            .range => |subtype| self.children[0] = try create(allocator, subtype.*),
+            .multirange => |subtype| self.children[0] = try create(allocator, .{ .range = subtype }),
             .map => |map| {
                 self.children[0] = try create(allocator, map.key.*);
                 self.children[1] = try create(allocator, map.value.type.*);
@@ -60,6 +63,20 @@ const Layout = struct {
             .time => .{ .time64 = .{ .unit = .nanosecond } },
             .timestamp => |zone| .{ .timestamp = .{ .unit = .microsecond, .timezone = if (zone == .utc) "UTC" else null } },
             .interval => .{ .interval_month_day_nano = .{ .unit = .month_day_nano } },
+            // Bounds are scalar values, with null meaning unbounded. Cell
+            // provenance belongs to the enclosing range, never its bounds.
+            .range => .{ .struct_ = .{ .fields = try allocator.dupe(a.Field, &.{
+                .{ .name = "empty", .data_type = &bool_type, .nullable = false },
+                .{ .name = "lower", .data_type = &self.children[0].value, .nullable = true },
+                .{ .name = "upper", .data_type = &self.children[0].value, .nullable = true },
+                .{ .name = "lower_inclusive", .data_type = &bool_type, .nullable = false },
+                .{ .name = "upper_inclusive", .data_type = &bool_type, .nullable = false },
+            }) } },
+            .multirange => .{ .list = .{ .value_field = .{ .name = "range", .data_type = &self.children[0].value, .nullable = false } } },
+            // The logical descriptor specifies dimensions, element kind and
+            // little-endian encoding, including binary and bfloat16. One
+            // fixed-width payload preserves the dense, unboxed representation.
+            .vector => |shape| .{ .fixed_size_binary = .{ .byte_width = @intCast(try shape.byteLen()) } },
             .structure => |fields| blk: {
                 const physical = try allocator.alloc(a.Field, fields.len);
                 for (fields, physical, self.children) |field, *out, child| out.* = .{ .name = field.name, .data_type = &child.cell, .nullable = false };
@@ -174,8 +191,64 @@ fn payload(allocator: std.mem.Allocator, layout: *const Layout, data: []const ?v
     return switch (layout.logical) {
         .structure, .tagged_union => nested(allocator, layout, data),
         .list, .array, .map => collection(allocator, layout, data),
+        .range => rangePayload(allocator, layout, data),
+        .multirange => multirangePayload(allocator, layout, data),
+        .vector => vectorPayload(allocator, layout, data),
         inline else => |_, tag| primitive(tag, allocator, layout, data),
     };
+}
+fn vectorPayload(allocator: std.mem.Allocator, layout: *const Layout, data: []const ?v.Value) !a.ArrayRef {
+    var builder = try a.FixedSizeBinaryBuilder.init(allocator, @intCast(try layout.logical.vector.byteLen()), data.len);
+    defer builder.deinit();
+    for (data) |item| if (item) |value| try builder.append(value.vector) else try builder.appendNull();
+    return builder.finish();
+}
+fn rangePayload(allocator: std.mem.Allocator, layout: *const Layout, data: []const ?v.Value) anyerror!a.ArrayRef {
+    const lower = try allocator.alloc(?v.Value, data.len);
+    const upper = try allocator.alloc(?v.Value, data.len);
+    const empty = try allocator.alloc(bool, data.len);
+    const lower_inclusive = try allocator.alloc(bool, data.len);
+    const upper_inclusive = try allocator.alloc(bool, data.len);
+    for (data, 0..) |item, i| {
+        const r: t.Ranges.Value = if (item) |value| value.range else .{ .is_empty = true };
+        empty[i] = r.is_empty;
+        lower[i] = if (r.lower) |bound| .{ .atom = bound.value } else null;
+        upper[i] = if (r.upper) |bound| .{ .atom = bound.value } else null;
+        lower_inclusive[i] = if (r.lower) |bound| bound.inclusive else false;
+        upper_inclusive[i] = if (r.upper) |bound| bound.inclusive else false;
+    }
+    var empty_array = try integers(a.BooleanBuilder, allocator, empty);
+    defer empty_array.release();
+    var lower_array = try payload(allocator, layout.children[0], lower);
+    defer lower_array.release();
+    var upper_array = try payload(allocator, layout.children[0], upper);
+    defer upper_array.release();
+    var lower_flag = try integers(a.BooleanBuilder, allocator, lower_inclusive);
+    defer lower_flag.release();
+    var upper_flag = try integers(a.BooleanBuilder, allocator, upper_inclusive);
+    defer upper_flag.release();
+    return structure(allocator, layout.value.struct_.fields, &.{ empty_array, lower_array, upper_array, lower_flag, upper_flag }, data);
+}
+fn multirangePayload(allocator: std.mem.Allocator, layout: *const Layout, data: []const ?v.Value) anyerror!a.ArrayRef {
+    var count: usize = 0;
+    for (data) |item| if (item) |value| {
+        count = std.math.add(usize, count, value.multirange.len) catch return error.ArrowShapeTooLarge;
+        if (count > 65536) return error.ArrowShapeTooLarge;
+    };
+    const ranges = try allocator.alloc(?v.Value, count);
+    var at: usize = 0;
+    for (data) |item| if (item) |value| {
+        for (value.multirange) |r| {
+            ranges[at] = .{ .range = r };
+            at += 1;
+        }
+    };
+    var values = try rangePayload(allocator, layout.children[0], ranges);
+    defer values.release();
+    var builder = try a.ListBuilder.init(allocator, data.len, layout.value.list.value_field);
+    defer builder.deinit();
+    for (data) |item| if (item) |value| try builder.appendLen(value.multirange.len) else try builder.appendNull();
+    return builder.finish(values);
 }
 fn nested(allocator: std.mem.Allocator, layout: *const Layout, data: []const ?v.Value) !a.ArrayRef {
     const children = try allocator.alloc(a.ArrayRef, layout.children.len);

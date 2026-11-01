@@ -30,7 +30,7 @@ pub const Context = struct {
     }
 };
 
-pub const Kind = enum { pages_only, rows, scan_rows, ordered_rows, physical_schemas, column_origins, receipts, operations, pins, archive };
+pub const Kind = enum { pages_only, rows, scan_rows, ordered_rows, physical_schemas, column_origins, definitions, receipts, operations, pins, archive };
 pub const Root = struct {
     reference: pages.Reference,
     kind: Kind,
@@ -50,6 +50,7 @@ pub const Edge = union(enum) {
     evidence: struct { owner: d.Operation, content: d.Content, kind: enum { receipt, operation } },
     archive: struct { position: d.Position, content: d.Content },
     declaration: Declaration.Stored,
+    definition: Interpretations.Accepted,
 };
 const Frame = struct { reference: pages.Reference, height: ?u8 = null, child: u8 = 0, disclosed: bool = false };
 pub const max_depth = pages.max_height + 1;
@@ -115,6 +116,13 @@ fn owned(self: *const Self, entry: pages.Entry) !?Edge {
             const stored = if (self.root.kind == .physical_schemas) (try Interpretations.Physical.decode(entry.value)).declaration else try Interpretations.decode(entry.value);
             if (!std.meta.eql(stored.interpretation.object, self.context.object)) return error.InvalidTableStorageGraph;
             return .{ .declaration = stored };
+        },
+        .definitions => {
+            const accepted = try Interpretations.Accepted.decode(entry.value);
+            if (try Interpretations.identity(entry.key) != accepted.declaration.interpretation.revision or
+                !std.meta.eql(accepted.declaration.interpretation.object, self.context.object) or
+                accepted.next_lsn > self.context.next_lsn) return error.InvalidTableStorageGraph;
+            return .{ .definition = accepted };
         },
         .receipts, .operations => return .{ .evidence = .{
             .owner = try self.owner(entry.key),

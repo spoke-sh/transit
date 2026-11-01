@@ -381,6 +381,7 @@ fn step(self: *Self) !void {
                 .{ .source = "22001".*, .code = 1406, .state = "22001".* },
                 .{ .source = "23505".*, .code = 1062, .state = "23000".* },
                 .{ .source = "23502".*, .code = 1048, .state = "23000".* },
+                .{ .source = "23514".*, .code = 3819, .state = "HY000".* },
                 .{ .source = "42P07".*, .code = 1050, .state = "42S01".* },
                 .{ .source = "42P01".*, .code = 1146, .state = "42S02".* },
                 .{ .source = "42601".*, .code = 1064, .state = "42000".* },

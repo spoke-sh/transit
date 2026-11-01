@@ -120,6 +120,12 @@ def check(caller, *, capabilities=True):
             assert not validators['value'].is_valid(bad)
             caller.call({'value_json': json.dumps(bad)}, invalid=True)
         count += 1
+    for case in json.loads((ROOT / 'packages/zig/transit-fuze/src/fixtures/companion-values.json').read_text())['cases']:
+        if case['error'] is None:
+            continue
+        document = dict(definition=DEFINITION.decode(), field=case['field'], cell=case['cell'])
+        caller.call({'value_json': json.dumps(document)}, invalid=True)
+        caller.call({'value_bytes': case['value_hex']}, invalid=True)
     # Decimal rescaling and full-domain casts share Zig semantics.
     decimal = lambda scale: json.dumps({'definition': DEFINITION.decode(), 'type': {'decimal': {'precision': 8, 'scale': scale}}})
     first = caller.call({'bind': {'type_json': decimal(3), 'literal': '1.255'}})['value']['json']
@@ -136,7 +142,7 @@ if __name__ == '__main__':
     with tempfile.TemporaryDirectory(prefix='transit-logical-codec-') as directory:
         native = Native(sys.argv[1]); port = Port(sys.argv[2], Path(directory))
         try:
-            assert check(native) == check(port) == 111
+            assert check(native) == check(port) == 236
         finally:
             port.close()
-    print('Logical codecs: 111 independent scalar/recursive/state fixtures through C ABI and port, exact binary/hash/Arrow, generated schemas, rejected definitions and owned buffers passed.')
+    print('Logical codecs: 236 independent scalar/companion/recursive/state fixtures through C ABI and port, exact binary/hash/Arrow, generated schemas, rejected definitions and owned buffers passed.')

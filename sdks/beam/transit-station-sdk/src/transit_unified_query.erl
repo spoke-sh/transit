@@ -45,7 +45,7 @@ definition(#transit_unified_table{scope=Scope,audience=Owner,branch=Branch,names
     true=Columns=/=[],RowType={structure,[table_field(C) || C<-array(Columns,128)]},
     #{<<"table">>=>#{<<"scope">>=>transit_catalog_value:scope(Scope),<<"owner">>=>transit_sdk_value:counter(Owner),<<"branch">>=>decimal(positive(Branch)),<<"namespace">>=>transit_sdk_value:counter(Namespace),<<"object">>=>decimal(positive(Object)),
         <<"interpretation">>=>interpretation(Interpretation),<<"row_type">>=>transit_logical:type_wire(RowType),
-        <<"collations">>=>[transit_catalog_value:collation(C#transit_catalog_column.collation)||C<-Columns]}};
+        <<"collations">>=>[transit_catalog_value:collation(C#transit_catalog_column.collation)||C<-Columns],<<"semantics">>=>[#{<<"rounding">>=>null,<<"metric">>=>null,<<"timezone">>=>null,<<"spatial">>=>null}||_<-Columns]}};
 definition(#transit_unified_document{reference=#transit_document_reference{resource=Resource,document=D,epoch=E,type_revision=T,revision=R},projections=P,expand=X}) ->
     true=P=/=[],positive(D),positive(E),
     #{<<"document">>=>#{<<"reference">>=>#{<<"resource">>=>resource(Resource),<<"document">>=>decimal(D),<<"epoch">>=>decimal(E),<<"type_revision">>=>transit_sdk_value:integer(T,1,4294967295),<<"revision">>=>decimal(R)},
@@ -84,7 +84,7 @@ predicate_atom({compare,C,Op,V}) -> #{<<"compare">>=>#{<<"column">>=>transit_sdk
 predicate_atom(_) -> transit_sdk_value:fail(invalid_argument,predicate_atom).
 plan(#transit_unified_plan{projection=P,predicate=F,aggregate=A,limit=L,output_names=N}) -> true=P=/=[],
     Names=optional(N,fun(Values)->true=length(Values)=:=length(P),[optional(V,fun name/1)||V<-array(Values,128)] end),
-    #{<<"version">>=>1,<<"projection">>=>[transit_sdk_value:integer(I,0,127)||I<-array(P,128)],<<"output_names">>=>Names,<<"predicate">>=>predicate(F),<<"aggregate">>=>enum(A,[rows,count,sum,count_values]),<<"limit">>=>optional(L,fun decimal/1)}.
+    #{<<"version">>=>1,<<"scalar_program">>=><<"00">>,<<"projection">>=>[transit_sdk_value:integer(I,0,127)||I<-array(P,128)],<<"output_names">>=>Names,<<"predicate">>=>predicate(F),<<"aggregate">>=>enum(A,[rows,count,sum,count_values]),<<"limit">>=>optional(L,fun decimal/1)}.
 budgets(#transit_unified_budgets{pages=P,segments=S,result_bytes=B}) -> positive(P),positive(S),positive(B),#{<<"pages">>=>decimal(P),<<"segments">>=>decimal(S),<<"result_bytes">>=>decimal(B)}.
 parsed_budgets(#{<<"pages">>:=P,<<"segments">>:=S,<<"result_bytes">>:=B}) -> V=#transit_unified_budgets{pages=wide(P),segments=wide(S),result_bytes=wide(B)},budgets(V),V.
 optional(undefined,_) -> null;

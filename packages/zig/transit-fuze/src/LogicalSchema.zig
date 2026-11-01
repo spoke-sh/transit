@@ -132,6 +132,7 @@ fn writeNode(comptime graph: Graph, comptime T: type, out: *std.json.Stringify) 
             try out.objectField("items");
             try reference(graph, info.child, out);
         },
+        .float => try field(out, "type", "number"),
         else => @compileError("Unsupported logical JSON schema node"),
     }
     try out.endObject();

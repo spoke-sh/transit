@@ -59,7 +59,7 @@ test "durable source records fit unchanged values and preserve all continuation 
     checkpoint.progress.pages = 1;
     checkpoint.cursor.ordinal = 1;
     checkpoint.cursor.after = try p.Value.init(&@as([32]u8, @splat('a')));
-    try t.expectEqual(@as(u16, 222), (try checkpoint.encode()).len);
+    try t.expectEqual(@as(u16, 230), (try checkpoint.encode()).len);
     try t.expectEqualDeep(checkpoint, try r.Checkpoint.decode(try checkpoint.encode()));
     for ([_]m.SourceKind{ .table, .document }) |kind| {
         var changed = checkpoint;
@@ -89,7 +89,7 @@ test "durable source records fit unchanged values and preserve all continuation 
     const manifest: r.Manifest = .{ .job = complete, .checkpoint = checkpoint };
     var output: [r.Manifest.max_bytes]u8 = undefined;
     try t.expectEqualDeep(manifest, try r.Manifest.decode(try manifest.encode(&output)));
-    try t.expectEqual(@as(usize, 366), (try manifest.encode(&output)).len);
+    try t.expectEqual(@as(usize, 374), (try manifest.encode(&output)).len);
     for ([_]p.Value{ try policy.encode(), try job.encode(), try checkpoint.encode(), try segment.encode() }, 0..) |value, kind| {
         var bad = value;
         bad.data[0] = 'X';

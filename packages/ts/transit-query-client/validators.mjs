@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { shareValidatorSchemas } from "../../../tasks/validator_schema.mjs";
 import Ajv2020 from "ajv/dist/2020.js";
 import standalone from "ajv/dist/standalone/index.js";
+import { booleanValidatorSource } from "../../../tasks/validator_source.mjs";
 for (const prefix of ["", "read-"]) {
   const schema = JSON.parse(
     readFileSync(new URL(`./src/${prefix}schema.json`, import.meta.url), "utf8"),
@@ -23,7 +24,10 @@ for (const prefix of ["", "read-"]) {
   );
   const text =
     '// Generated; no runtime code generation or eval.\nimport lengthModule from "ajv/dist/runtime/ucs2length.js";\nconst ucs2length = lengthModule.default ?? lengthModule;\n' +
-    generated.replaceAll('require("ajv/dist/runtime/ucs2length").default', "ucs2length");
+    booleanValidatorSource(generated).replaceAll(
+      'require("ajv/dist/runtime/ucs2length").default',
+      "ucs2length",
+    );
   for (const [name, content] of [
     ["validators.js", text],
     [

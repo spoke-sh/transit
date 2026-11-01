@@ -64,6 +64,7 @@ pub fn next(self: *Self, allocator: std.mem.Allocator, store: anytype) !?Edge {
                 if (!std.meta.eql(entry.key, try r.idKey(object.object))) return error.InvalidDirectCatalogEntry;
                 if (object.resource == null and object.partition >= self.next_partition) return error.InvalidDirectCatalogEntry;
                 if (object.resource) |at| if (at >= self.next_lsn) return error.InvalidDirectCatalogEntry;
+                if (object.descriptor) |at| if (at >= self.next_lsn) return error.InvalidDirectCatalogEntry;
                 if (object.log) |at| if (at >= self.next_lsn) return error.InvalidDirectCatalogEntry;
                 if (object.seed) |seed| return .{ .declaration = seed };
             },

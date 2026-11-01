@@ -121,7 +121,7 @@ Total source and result cardinality are governed by durable work limits.
 
 ## Canonical plans and output names
 
-The current `FQP1` plan and 126-byte `FQS1` progress are defined by the
+The current `FQP1` plan and 134-byte `FQS1` progress are defined by the
 [logical query contract](TABLE_QUERY_V1.md#canonical-logical-plans). Plans bind
 complete logical schema and source commitments, with an 8192-byte identity
 budget and at most 8448 encoded bytes. Output names are optional per position,
@@ -157,9 +157,9 @@ The canonical `UQB1` bundle has a 66-byte minimum header: magic, the 32-byte
 shared current definition, u16 source length, u16 plan length, then u64 maximum
 input pages, segments and result bytes, followed by an authorization-presence
 byte and its optional 185-byte proof, then a retention-presence byte and its
-optional 311-byte direct read delegation. Both presence bytes are exactly 0 or 1.
+optional 433-byte direct read delegation. Both presence bytes are exactly 0 or 1.
 Integers are little-endian. These precede the canonical `UQS1` source and `FQP1`
-plan. Its total budget is 25743 bytes; source and plan bounds are 16733 and 8448 bytes. All three
+plan. Its total budget is 26713 bytes; source and plan bounds are 17581 and 8448 bytes. All three
 work budgets are positive and must fit the current durable source policy. The
 bundle uses the query-request publication domain, record 1, format `0x31425155`,
 referenced by Station's 72-byte `SPF1` encoding. Truncation and trailing bytes
@@ -344,14 +344,14 @@ failure-presence byte and optional `UQF1` make native jobs 136 or 248 bytes and
 Table jobs 135 or 247 bytes. Failed/denied jobs require a
 matching failure; all other source phases forbid one. The `UQC1` checkpoint contains
 magic, source kind u8, resource u64, a native revision u64 or Table commitment (32 bytes),
-126-byte `FQS1`, cursor-done boolean and a source-specific cursor. KV stores an
+134-byte `FQS1`, cursor-done boolean and a source-specific cursor. KV stores an
 after-key presence flag and optional length/bytes (at most 32). Table stores a
 presence flag, 20-byte row identity (zero if absent), and scanned-row u64.
 Document stores counter/replica u64 and traversal-phase u8. Total result bytes
 u64 and the ordered segment digest (32 bytes) finish the record. Integers are
 little-endian except the row identity's canonical big-endian encoding. Cursor
-ordinal is the progress page count. Maximum lengths are KV 222, Table 241 and
-Document 205 bytes, within the unchanged 256-byte KV value. Table scanned-row
+ordinal is the progress page count. Maximum lengths are KV 230, Table 249 and
+Document 213 bytes, within the unchanged 256-byte KV value. Table scanned-row
 counts can exceed selected/scanned execution counters when a finite LIMIT stops
 inside a fetched page, and can be smaller than eight times the page count when
 the direct page byte limit binds.

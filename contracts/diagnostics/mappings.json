@@ -63,6 +63,10 @@
         {
           "source": "packages/zig/transit-fuze/src/LogSettlementSql.zig",
           "name": "log settlement SQL enforces typed complete operands without acquiring authority"
+        },
+        {
+          "source": "packages/zig/transit-fuze/src/companion_values_test.zig",
+          "name": "companion declaration failures retain structured binding diagnostics"
         }
       ],
       "exceptions": [
@@ -833,6 +837,246 @@
         "InvalidLogSettlementOperand": {
           "code": "sql.invalid_log_settlement_operand",
           "category": "binding"
+        },
+        "UnrepresentableEbcdic1047": {
+          "code": "sql.unrepresentable_cp1047",
+          "category": "binding"
+        },
+        "CheckConstraintViolation": {
+          "code": "sql.check_violation",
+          "category": "constraint"
+        },
+        "UnsupportedCheckExpression": {
+          "code": "sql.unsupported_check_expression",
+          "category": "unsupported"
+        },
+        "UnknownTableConstraint": {
+          "code": "sql.unknown_table_constraint",
+          "category": "binding"
+        },
+        "DuplicateConstraintName": {
+          "code": "sql.duplicate_constraint_name",
+          "category": "constraint"
+        },
+        "InvalidConstraintCount": {
+          "code": "sql.invalid_constraint_count",
+          "category": "limit"
+        },
+        "InvalidCheckConstraint": {
+          "code": "sql.invalid_check_constraint",
+          "category": "constraint"
+        },
+        "IncompatibleCheckColumns": {
+          "code": "sql.incompatible_check_columns",
+          "category": "binding"
+        },
+        "ForeignKeyIndexEnforcementUnavailable": {
+          "code": "sql.foreign_key_enforcement_unavailable",
+          "category": "unsupported"
+        },
+        "ForeignKeyResolutionRequired": {
+          "code": "sql.foreign_key_resolution_required",
+          "category": "binding"
+        },
+        "InvalidConstraintName": {
+          "code": "sql.invalid_constraint_name",
+          "category": "constraint"
+        },
+        "DuplicateForeignKeyColumn": {
+          "code": "sql.duplicate_foreign_key_column",
+          "category": "constraint"
+        },
+        "ForeignKeySourceLimit": {
+          "code": "sql.foreign_key_source_limit",
+          "category": "limit"
+        },
+        "InvalidForeignKeyArity": {
+          "code": "sql.invalid_foreign_key_arity",
+          "category": "constraint"
+        },
+        "InvalidForeignKeyAction": {
+          "code": "sql.invalid_foreign_key_action",
+          "category": "unsupported"
+        },
+        "ForeignKeyTargetNotUniqueKey": {
+          "code": "sql.foreign_key_target_not_unique",
+          "category": "constraint"
+        },
+        "IncompatibleForeignKeyColumnType": {
+          "code": "sql.incompatible_foreign_key_columns",
+          "category": "binding"
+        },
+        "ForeignKeySetNullRequiresNullableColumn": {
+          "code": "sql.foreign_key_set_null_requires_nullable",
+          "category": "constraint"
+        },
+        "ColumnReferencedByCheckConstraint": {
+          "code": "sql.column_referenced_by_check",
+          "category": "constraint"
+        },
+        "ColumnReferencedByForeignKey": {
+          "code": "sql.column_referenced_by_foreign_key",
+          "category": "constraint"
+        },
+        "OnlinePhasedRewriteRequired": {
+          "code": "sql.phased_rewrite_required",
+          "category": "unsupported"
+        },
+        "UnsupportedRangeSubtype": {
+          "code": "sql.unsupported_range_subtype",
+          "category": "unsupported"
+        },
+        "InvalidRangeLiteral": {
+          "code": "sql.invalid_range_literal",
+          "category": "binding"
+        },
+        "InvalidRangeValue": {
+          "code": "sql.invalid_range_value",
+          "category": "binding"
+        },
+        "NonCanonicalRange": {
+          "code": "sql.noncanonical_range",
+          "category": "binding"
+        },
+        "NonCanonicalMultiRange": {
+          "code": "sql.noncanonical_multirange",
+          "category": "binding"
+        },
+        "RangeBoundOverflow": {
+          "code": "sql.range_bound_overflow",
+          "category": "constraint"
+        },
+        "InvalidVectorLiteral": {
+          "code": "sql.invalid_vector_literal",
+          "category": "binding"
+        },
+        "InvalidVectorDimensions": {
+          "code": "sql.invalid_vector_dimensions",
+          "category": "binding"
+        },
+        "InvalidBinaryVectorDimensions": {
+          "code": "sql.invalid_binary_vector_dimensions",
+          "category": "binding"
+        },
+        "VectorDimensionMismatch": {
+          "code": "sql.vector_dimension_mismatch",
+          "category": "binding"
+        },
+        "InvalidVectorValue": {
+          "code": "sql.invalid_vector_value",
+          "category": "binding"
+        },
+        "IncompatibleVectorMetric": {
+          "code": "sql.incompatible_vector_metric",
+          "category": "binding"
+        },
+        "InvalidColumnSemantics": {
+          "code": "sql.invalid_column_semantics",
+          "category": "binding"
+        },
+        "IncompatibleNumericSemantics": {
+          "code": "sql.incompatible_numeric_semantics",
+          "category": "binding"
+        },
+        "IncompatibleTimezoneSemantics": {
+          "code": "sql.incompatible_timezone_semantics",
+          "category": "binding"
+        },
+        "IncompatibleSpatialSemantics": {
+          "code": "sql.incompatible_spatial_semantics",
+          "category": "binding"
+        },
+        "InvalidSpatialUnitScale": {
+          "code": "sql.invalid_spatial_unit_scale",
+          "category": "binding"
+        },
+        "InvalidTimezoneData": {
+          "code": "sql.invalid_timezone_data",
+          "category": "binding"
+        },
+        "InvalidTimezoneName": {
+          "code": "sql.invalid_timezone_name",
+          "category": "binding"
+        },
+        "InvalidTzdbVersion": {
+          "code": "sql.invalid_tzdb_version",
+          "category": "binding"
+        },
+        "TimezoneDefinitionMismatch": {
+          "code": "sql.timezone_definition_mismatch",
+          "category": "binding"
+        },
+        "TimezoneDataTooLarge": {
+          "code": "sql.timezone_data_too_large",
+          "category": "limit"
+        },
+        "UnsupportedTimezoneFormat": {
+          "code": "sql.unsupported_timezone_format",
+          "category": "unsupported"
+        },
+        "LeapSecondTimezoneUnsupported": {
+          "code": "sql.leap_second_timezone_unsupported",
+          "category": "unsupported"
+        },
+        "UnsupportedScalarFunction": {
+          "code": "sql.unsupported_scalar_function",
+          "category": "unsupported"
+        },
+        "InvalidScalarOption": {
+          "code": "sql.invalid_scalar_option",
+          "category": "binding"
+        },
+        "MissingColumnSemantics": {
+          "code": "sql.missing_column_semantics",
+          "category": "binding"
+        },
+        "ScalarProgramBudget": {
+          "code": "sql.scalar_program_budget",
+          "category": "limit"
+        },
+        "InvalidScalarReference": {
+          "code": "sql.invalid_scalar_reference",
+          "category": "binding"
+        },
+        "InvalidScalarEncoding": {
+          "code": "sql.invalid_scalar_encoding",
+          "category": "integrity"
+        },
+        "DecimalOverflow": {
+          "code": "sql.decimal_overflow",
+          "category": "limit"
+        },
+        "DivisionByZero": {
+          "code": "sql.division_by_zero",
+          "category": "constraint"
+        },
+        "InexactDecimalRounding": {
+          "code": "sql.inexact_decimal_rounding",
+          "category": "constraint"
+        },
+        "TimestampOverflow": {
+          "code": "sql.timestamp_overflow",
+          "category": "limit"
+        },
+        "ZeroMagnitudeCosineVector": {
+          "code": "sql.zero_magnitude_cosine_vector",
+          "category": "constraint"
+        },
+        "InvalidTimeBucket": {
+          "code": "sql.invalid_time_bucket",
+          "category": "binding"
+        },
+        "NonexistentLocalTime": {
+          "code": "sql.nonexistent_local_time",
+          "category": "constraint"
+        },
+        "AmbiguousLocalTime": {
+          "code": "sql.ambiguous_local_time",
+          "category": "constraint"
+        },
+        "TimezoneCoverageUnavailable": {
+          "code": "sql.timezone_coverage_unavailable",
+          "category": "unsupported"
         }
       }
     },
@@ -1756,6 +2000,62 @@
         },
         "InvalidQueryCollations": {
           "code": "query.invalid_collations",
+          "category": "binding"
+        },
+        "MissingColumnSemantics": {
+          "code": "query.missing_column_semantics",
+          "category": "binding"
+        },
+        "ScalarProgramBudget": {
+          "code": "query.scalar_program_budget",
+          "category": "limit"
+        },
+        "InvalidScalarReference": {
+          "code": "query.invalid_scalar_reference",
+          "category": "binding"
+        },
+        "InvalidScalarEncoding": {
+          "code": "query.invalid_scalar_encoding",
+          "category": "integrity"
+        },
+        "DecimalOverflow": {
+          "code": "query.decimal_overflow",
+          "category": "limit"
+        },
+        "DivisionByZero": {
+          "code": "query.division_by_zero",
+          "category": "constraint"
+        },
+        "InexactDecimalRounding": {
+          "code": "query.inexact_decimal_rounding",
+          "category": "constraint"
+        },
+        "TimestampOverflow": {
+          "code": "query.timestamp_overflow",
+          "category": "limit"
+        },
+        "ZeroMagnitudeCosineVector": {
+          "code": "query.zero_magnitude_cosine_vector",
+          "category": "constraint"
+        },
+        "InvalidTimeBucket": {
+          "code": "query.invalid_time_bucket",
+          "category": "binding"
+        },
+        "NonexistentLocalTime": {
+          "code": "query.nonexistent_local_time",
+          "category": "constraint"
+        },
+        "AmbiguousLocalTime": {
+          "code": "query.ambiguous_local_time",
+          "category": "constraint"
+        },
+        "TimezoneCoverageUnavailable": {
+          "code": "query.timezone_coverage_unavailable",
+          "category": "unsupported"
+        },
+        "InvalidColumnSemantics": {
+          "code": "query.invalid_column_semantics",
           "category": "binding"
         }
       },
@@ -3178,6 +3478,62 @@
         "InvalidQueryCollations": {
           "code": "query.invalid_collations",
           "category": "binding"
+        },
+        "MissingColumnSemantics": {
+          "code": "query.missing_column_semantics",
+          "category": "binding"
+        },
+        "ScalarProgramBudget": {
+          "code": "query.scalar_program_budget",
+          "category": "limit"
+        },
+        "InvalidScalarReference": {
+          "code": "query.invalid_scalar_reference",
+          "category": "binding"
+        },
+        "InvalidScalarEncoding": {
+          "code": "query.invalid_scalar_encoding",
+          "category": "integrity"
+        },
+        "DecimalOverflow": {
+          "code": "query.decimal_overflow",
+          "category": "limit"
+        },
+        "DivisionByZero": {
+          "code": "query.division_by_zero",
+          "category": "constraint"
+        },
+        "InexactDecimalRounding": {
+          "code": "query.inexact_decimal_rounding",
+          "category": "constraint"
+        },
+        "TimestampOverflow": {
+          "code": "query.timestamp_overflow",
+          "category": "limit"
+        },
+        "ZeroMagnitudeCosineVector": {
+          "code": "query.zero_magnitude_cosine_vector",
+          "category": "constraint"
+        },
+        "InvalidTimeBucket": {
+          "code": "query.invalid_time_bucket",
+          "category": "binding"
+        },
+        "NonexistentLocalTime": {
+          "code": "query.nonexistent_local_time",
+          "category": "constraint"
+        },
+        "AmbiguousLocalTime": {
+          "code": "query.ambiguous_local_time",
+          "category": "constraint"
+        },
+        "TimezoneCoverageUnavailable": {
+          "code": "query.timezone_coverage_unavailable",
+          "category": "unsupported"
+        },
+        "InvalidColumnSemantics": {
+          "code": "query.invalid_column_semantics",
+          "category": "binding"
         }
       },
       "exceptions": [],
@@ -4390,6 +4746,102 @@
         "UnsupportedVectorCpu": {
           "code": "file.unsupported_vector_cpu",
           "category": "unsupported"
+        },
+        "VectorDimensionMismatch": {
+          "code": "file.vector_dimension_mismatch",
+          "category": "binding"
+        },
+        "InvalidVectorDimensions": {
+          "code": "file.invalid_vector_dimensions",
+          "category": "binding"
+        },
+        "InvalidBinaryVectorDimensions": {
+          "code": "file.invalid_binary_vector_dimensions",
+          "category": "binding"
+        },
+        "InvalidVectorValue": {
+          "code": "file.invalid_vector_value",
+          "category": "binding"
+        },
+        "UnsupportedRangeSubtype": {
+          "code": "file.unsupported_range_subtype",
+          "category": "unsupported"
+        },
+        "InvalidRangeValue": {
+          "code": "file.invalid_range_value",
+          "category": "binding"
+        },
+        "NonCanonicalRange": {
+          "code": "file.noncanonical_range",
+          "category": "binding"
+        },
+        "NonCanonicalMultiRange": {
+          "code": "file.noncanonical_multirange",
+          "category": "binding"
+        },
+        "RangeBoundOverflow": {
+          "code": "file.range_bound_overflow",
+          "category": "binding"
+        },
+        "UnsupportedScalarFunction": {
+          "code": "file.unsupported_scalar_function",
+          "category": "unsupported"
+        },
+        "InvalidScalarOption": {
+          "code": "file.invalid_scalar_option",
+          "category": "binding"
+        },
+        "MissingColumnSemantics": {
+          "code": "file.missing_column_semantics",
+          "category": "binding"
+        },
+        "ScalarProgramBudget": {
+          "code": "file.scalar_program_budget",
+          "category": "limit"
+        },
+        "InvalidScalarReference": {
+          "code": "file.invalid_scalar_reference",
+          "category": "binding"
+        },
+        "InvalidScalarEncoding": {
+          "code": "file.invalid_scalar_encoding",
+          "category": "integrity"
+        },
+        "DecimalOverflow": {
+          "code": "file.decimal_overflow",
+          "category": "limit"
+        },
+        "DivisionByZero": {
+          "code": "file.division_by_zero",
+          "category": "constraint"
+        },
+        "InexactDecimalRounding": {
+          "code": "file.inexact_decimal_rounding",
+          "category": "constraint"
+        },
+        "TimestampOverflow": {
+          "code": "file.timestamp_overflow",
+          "category": "limit"
+        },
+        "ZeroMagnitudeCosineVector": {
+          "code": "file.zero_magnitude_cosine_vector",
+          "category": "constraint"
+        },
+        "InvalidTimeBucket": {
+          "code": "file.invalid_time_bucket",
+          "category": "binding"
+        },
+        "NonexistentLocalTime": {
+          "code": "file.nonexistent_local_time",
+          "category": "constraint"
+        },
+        "AmbiguousLocalTime": {
+          "code": "file.ambiguous_local_time",
+          "category": "constraint"
+        },
+        "TimezoneCoverageUnavailable": {
+          "code": "file.timezone_coverage_unavailable",
+          "category": "unsupported"
         }
       }
     },
@@ -4505,7 +4957,13 @@
         "packages/zig/transit-catalog/src/DirectAuthorizationSql.zig",
         "packages/zig/transit-catalog/src/DirectTableDiagnostic.zig",
         "packages/zig/transit-catalog/src/DirectCatalogRetention.zig",
-        "packages/zig/transit-data-client/src/Catalog.zig"
+        "packages/zig/transit-data-client/src/Catalog.zig",
+        "packages/zig/transit-catalog/src/DirectHistory.zig",
+        "packages/zig/transit-catalog/src/DirectHistorySelector.zig",
+        "packages/zig/transit-catalog/src/DirectCatalogHistory.zig",
+        "packages/zig/transit-catalog/src/DirectSchemaProjection.zig",
+        "packages/zig/transit-catalog/src/DirectCatalogDefinitions.zig",
+        "packages/zig/transit-catalog/src/DirectDefinition.zig"
       ],
       "exclude": [],
       "registry": "packages/zig/transit-catalog/src/DirectCallerCodes.zig",
@@ -4878,6 +5336,94 @@
         "TransactionReadChanged": {
           "code": "catalog.transaction_read_changed",
           "category": "conflict"
+        },
+        "EmptyHistoricalSelection": {
+          "code": "catalog.empty_historical_selection",
+          "category": "binding"
+        },
+        "HistoricalIdentityConflict": {
+          "code": "catalog.historical_identity_conflict",
+          "category": "conflict"
+        },
+        "HistoricalReadOnly": {
+          "code": "catalog.historical_read_only",
+          "category": "unsupported"
+        },
+        "HistoricalObjectNotSelected": {
+          "code": "catalog.historical_object_not_selected",
+          "category": "binding"
+        },
+        "HistoricalSnapshotReleased": {
+          "code": "catalog.historical_snapshot_released",
+          "category": "lifecycle"
+        },
+        "InvalidHistoricalBinding": {
+          "code": "catalog.invalid_historical_binding",
+          "category": "binding"
+        },
+        "InvalidHistoricalCursor": {
+          "code": "catalog.invalid_historical_cursor",
+          "category": "binding"
+        },
+        "InvalidHistoricalSelector": {
+          "code": "catalog.invalid_historical_selector",
+          "category": "binding"
+        },
+        "InvalidHistoricalResponse": {
+          "code": "catalog.invalid_historical_response",
+          "category": "integrity"
+        },
+        "InvalidHistoricalState": {
+          "code": "catalog.invalid_historical_state",
+          "category": "integrity"
+        },
+        "InvalidHistoricalTransition": {
+          "code": "catalog.invalid_historical_transition",
+          "category": "integrity"
+        },
+        "InvalidTableReadBudget": {
+          "code": "catalog.invalid_read_budget",
+          "category": "limit"
+        },
+        "InvalidSchemaProjection": {
+          "code": "catalog.invalid_schema_projection",
+          "category": "integrity"
+        },
+        "IncompatibleSchemaProjection": {
+          "code": "catalog.incompatible_schema_projection",
+          "category": "unsupported"
+        },
+        "CatalogDependencyOwned": {
+          "code": "catalog.dependency_owned",
+          "category": "lifecycle"
+        },
+        "InvalidCatalogDescriptor": {
+          "code": "catalog.invalid_descriptor",
+          "category": "binding"
+        },
+        "UnsupportedCatalogView": {
+          "code": "catalog.unsupported_view",
+          "category": "unsupported"
+        },
+        "UnsupportedForeignLayout": {
+          "code": "catalog.unsupported_foreign_layout",
+          "category": "unsupported"
+        },
+        "ForeignValueMalformed": {
+          "code": "catalog.foreign_value_malformed",
+          "category": "binding"
+        },
+        "CatalogKindMismatch": {
+          "code": "catalog.kind_mismatch",
+          "category": "binding"
+        },
+        "CatalogRecordTooLarge": {
+          "code": "catalog.record_too_large",
+          "category": "limit"
+        },
+        "UnsupportedHistoricalKind": {
+          "code": "catalog.unsupported_historical_kind",
+          "category": "unsupported"
         }
       },
       "exceptions": [

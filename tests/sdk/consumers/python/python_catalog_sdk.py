@@ -175,6 +175,87 @@ async def run(mode, config_file):
                 listing = await resolve(client.tables())
                 assert listing.consistency == 'independent'
                 write(dict(recovered=True))
+            elif command == 'history_begin':
+                key = client.prepare_history_key(bytes([67])*32, (92000+offset).to_bytes(16, 'big'))
+                selection = client.prepare_history_selection(92000+offset)
+                step = client.prepare_history_step(selection, 1, name)
+                persist(root / 'history-step.json', step.save())
+                selection = await resolve(client.select_history(step))
+                original = client.prepare_history_acquisition(selection, key)
+                persist(root / 'history-acquisition.json', original.save())
+                await uncertain(lambda: client.acquire_history(original), original)
+                write(dict(history_uncertain=True))
+            elif command == 'history_recover':
+                original = m.HistoryAcquisition.restore((root / 'history-acquisition.json').read_text())
+                status = await resolve(client.inspect_history(original.key))
+                assert status.intent.operation == 92000+offset
+                for _ in range(16):
+                    if status.phase == 'published': break
+                    status = await resolve(client.advance_history(original.key))
+                assert status.phase == 'published' and status.basis.consistency == 'single_partition'
+                assert (await resolve(client.acquire_history(original))).basis == status.basis
+                retained = status.basis.snapshot
+                persist(root / 'history-snapshot.json', retained.save())
+                source = await resolve(client.historical_source(retained, object_id))
+                assert source.row_count == 9 and len(source.schema.columns) == 2
+                coverage = await resolve(client.historical_coverage(retained, object_id))
+                assert coverage.total_rows == 9 and coverage.definition.rows == 9 and coverage.next is None
+                locations = await resolve(client.historical_coverage(retained, object_id, 'locations'))
+                assert len(locations.locations) == 8 and locations.next is not None
+                saved_cursor = m.HistoryCoverageCursor.restore(locations.next.save())
+                ending = await resolve(client.historical_coverage(retained, object_id, 'locations', saved_cursor))
+                assert len(ending.locations) == 1 and ending.next is None
+                assert ending.logical == source.binding.definition
+                write(dict(published=True))
+            elif command == 'history_denied':
+                retained = m.HistoricalSnapshot.restore((root / 'history-snapshot.json').read_text())
+                for invoke in (lambda: client.historical_source(retained, object_id), lambda: client.historical_tables(retained, 1)):
+                    try: await resolve(invoke())
+                    except TransitError as error:
+                        assert error.status == 4 and not isinstance(error, m.Uncertain), error
+                    else: raise AssertionError('Revoked caller disclosed historical metadata')
+                write(dict(denied=True))
+            elif command == 'history_inspect':
+                retained = m.HistoricalSnapshot.restore((root / 'history-snapshot.json').read_text())
+                assert await resolve(client.historical_lookup(retained, 1, name)) == object_id
+                source = await resolve(client.historical_source(retained, object_id))
+                assert source.row_count == 9 and len(source.schema.columns) == 2
+                coverage = await resolve(client.historical_coverage(retained, object_id))
+                assert coverage.total_rows == 9 and coverage.definition.rows == 9 and coverage.next is None
+                locations = await resolve(client.historical_coverage(retained, object_id, 'locations'))
+                assert len(locations.locations) == 8 and locations.next is not None
+                saved_cursor = m.HistoryCoverageCursor.restore(locations.next.save())
+                ending = await resolve(client.historical_coverage(retained, object_id, 'locations', saved_cursor))
+                assert len(ending.locations) == 1 and ending.next is None
+                assert ending.logical == source.binding.definition
+                page = await resolve(client.historical_tables(retained, 1))
+                assert len(page.entries) == 1 and page.next is None and page.entries[0].name == name
+                assert page.entries[0].definition == source.binding.definition
+                assert page.basis.snapshot == retained and page.basis.source_count == 1
+                write(dict(original=True))
+            elif command == 'history_release':
+                retained = m.HistoricalSnapshot.restore((root / 'history-snapshot.json').read_text())
+                assert (await resolve(client.historical_source(retained, object_id))).row_count == 9
+                original = m.HistoryAcquisition.restore((root / 'history-acquisition.json').read_text())
+                control = client.prepare_history_control(original.key, 'release')
+                persist(root / 'history-control.json', control.save())
+                await uncertain(lambda: client.resume_history_control(control), control)
+                write(dict(history_release_uncertain=True))
+            elif command == 'history_finish':
+                control = m.HistoryControl.restore((root / 'history-control.json').read_text())
+                status = await resolve(client.inspect_history(control.key))
+                assert status.phase in ('releasing', 'released')
+                for _ in range(16):
+                    if status.phase == 'released': break
+                    status = await resolve(client.advance_history(control.key))
+                assert status.phase == 'released'
+                assert (await resolve(client.resume_history_control(control))).phase == 'released'
+                retained = m.HistoricalSnapshot.restore((root / 'history-snapshot.json').read_text())
+                assert status.basis.snapshot == retained
+                try: await resolve(client.historical_source(retained, object_id))
+                except TransitError as error: assert not isinstance(error, m.Uncertain)
+                else: raise AssertionError('Released history remained readable')
+                write(dict(released=True))
             else: raise AssertionError(f'Unknown proof phase: {command}')
     finally:
         await resolve(query.close())

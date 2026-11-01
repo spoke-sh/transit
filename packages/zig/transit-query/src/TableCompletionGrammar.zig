@@ -93,7 +93,9 @@ pub fn expectations(allocator: std.mem.Allocator, text: []const u8, definition: 
     if (parser.word("SELECT")) {
         if (definition) |value| {
             var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
-            var compiled = f.TableSelect.compileWithEditor(allocator, text, value.name, try value.schema.rowType(&fields), @splat(0), null, &editor) catch |err| {
+            var semantics: [f.TableSchema.max_columns]f.ColumnSemantics = undefined;
+            for (value.schema.columns, semantics[0..value.schema.columns.len]) |column, *out| out.* = column.semantics;
+            var compiled = f.TableSelect.compileSemantics(allocator, text, value.name, try value.schema.rowType(&fields), @splat(0), null, &editor, semantics[0..value.schema.columns.len]) catch |err| {
                 try ignored(err);
                 return editor;
             };
@@ -152,7 +154,7 @@ pub fn suggestions(builder: *Builder, editor: Parser.Editor, definition: ?Source
     if (editor.name_role == .column) if (definition) |value| {
         if (editor.qualifier) |actual| if (qualifier == null or !std.mem.eql(u8, actual.slice(), qualifier.?)) return;
         for (value.schema.columns) |column| {
-            if (editor.sum_only and column.type != .int64) continue;
+            if (editor.sum_only and (column.type != .int64 and column.type != .decimal)) continue;
             try builder.add(column.name, .column, @tagName(column.type));
         }
     };
@@ -205,7 +207,7 @@ pub fn relationalExpectations(allocator: std.mem.Allocator, text: []const u8, so
             for (self.sources) |source| {
                 if (reference.qualifier) |alias| if (!std.mem.eql(u8, alias, source.alias)) continue;
                 for (source.schema.columns) |column| if (std.mem.eql(u8, column.name, reference.name)) {
-                    if (found != null or column.type != .int64) return null;
+                    if (found != null or (column.type != .int64 and column.type != .decimal)) return null;
                     found = column.type;
                 };
             }
@@ -224,7 +226,7 @@ pub fn relationalSuggestions(builder: *Builder, editor: Parser.Editor, sources: 
     if (editor.name_role == .column) for (sources) |source| {
         if (editor.qualifier) |alias| if (!std.mem.eql(u8, alias.slice(), source.alias)) continue;
         for (source.schema.columns) |column| {
-            if (column.type != .int64) continue;
+            if ((column.type != .int64 and column.type != .decimal)) continue;
             try builder.addQualified(column.name, if (editor.qualifier == null and sources.len > 1) source.alias else null, .column, "int64");
         }
     };

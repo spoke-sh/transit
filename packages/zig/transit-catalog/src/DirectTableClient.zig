@@ -38,6 +38,7 @@ pub const Attempt = struct {
         self.mutation = .{
             .action = std.meta.activeTag(request.action),
             .identity = switch (request.action) {
+                .descriptor => |value| if (value == .declaration) value.declaration.request.binding.identity else null,
                 .stream => |value| value.identity(),
                 .queue => |value| value.identity(),
                 .kv => |value| value.identity(),
@@ -60,7 +61,7 @@ pub const Attempt = struct {
     /// domain work; an error code cannot turn this attempt into rejection.
     pub fn failure(self: Attempt, cause: anyerror, native: ?p.ErrorCode) !?p.Diagnostic {
         const mutation = self.mutation orelse return null;
-        var result = try p.Diagnostic.init("catalog.direct_outcome_unknown", .unavailable, .submit, .unknown, if (mutation.identity != null) .saved_intent else .none, if (mutation.identity != null) "The direct operation outcome is unknown. Preserve its original saved binding and inspect that operation under current rights before deciding how to continue." else if (mutation.action == .branch) "The branch operation outcome is unknown. Preserve the original account, token and complete request. Inspect that token under current source rights, then resume or cancel the original branch preparation." else if (mutation.action == .transaction) "The transaction control outcome is unknown. Preserve the original account, token, statement and commit operation identities. Inspect that transaction under current rights before resuming its original work." else if (mutation.action == .client_token) "The client-token binding outcome is unknown. Preserve the original account, token and request fingerprint. Look up that token under current rights and use only its accepted intent reference." else if (mutation.action == .flush) "The physical flush outcome is unknown. Preserve the original object and exclusive acceptance cut. Inspect current storage coverage or repeat that same target under current rights." else "The catalog initialization outcome is unknown. Inspect the catalog under the original connection and current rights before deciding how to continue.");
+        var result = try p.Diagnostic.init("catalog.direct_outcome_unknown", .unavailable, .submit, .unknown, if (mutation.identity != null) .saved_intent else .none, if (mutation.identity != null) "The direct operation outcome is unknown. Preserve its original saved binding and inspect that operation under current rights before deciding how to continue." else if (mutation.action == .historical_catalog) "The historical catalog operation outcome is unknown. Preserve the original selection, account and token. Inspect and resume that original acquisition or release; do not choose a newer cut." else if (mutation.action == .branch) "The branch operation outcome is unknown. Preserve the original account, token and complete request. Inspect that token under current source rights, then resume or cancel the original branch preparation." else if (mutation.action == .transaction) "The transaction control outcome is unknown. Preserve the original account, token, statement and commit operation identities. Inspect that transaction under current rights before resuming its original work." else if (mutation.action == .client_token) "The client-token binding outcome is unknown. Preserve the original account, token and request fingerprint. Look up that token under current rights and use only its accepted intent reference." else if (mutation.action == .flush) "The physical flush outcome is unknown. Preserve the original object and exclusive acceptance cut. Inspect current storage coverage or repeat that same target under current rights." else "The catalog initialization outcome is unknown. Inspect the catalog under the original connection and current rights before deciding how to continue.");
         result.cause = try p.Diagnostic.Code.init(@errorName(cause));
         if (mutation.identity) |identity| result.identity = .{ .domain = .catalog, .id = .init(identity.operation), .realm = .init(identity.scope.realm), .resource = .init(identity.scope.resource) };
         try result.text(.operation, .caller, @tagName(mutation.action));
@@ -223,6 +224,7 @@ pub fn closeOriginalHistory(self: Self, object: p.DataLifecycle.Object, owner: p
 }
 fn closeOriginal(self: Self, object: p.DataLifecycle.Object, owner: p.DataLifecycle.Operation, expected: p.DataLifecycle.Position, known: ?c.storage.TablePartition.SnapshotHandle, retention: c.storage.TablePartition.Retention) !void {
     const selection = if (self.delegation) |grant| grant.binding.selection else .exact;
+    const copying = if (self.delegation) |grant| grant.binding.copied_from != null else false;
     try self.connection.object(object);
     try self.connection.owner(owner);
     try expected.validate();
@@ -244,7 +246,7 @@ fn closeOriginal(self: Self, object: p.DataLifecycle.Object, owner: p.DataLifecy
         // A delayed original request can no longer match a retired/later
         // monotone frontier. Otherwise create its tombstone by pinning and
         // releasing that exact frontier, so an in-flight retry cannot reopen it.
-        if (handle == null) {
+        if (handle == null and !copying) {
             if (state.retired) return;
             if (selection == .exact and state.position.next_lsn > expected.next_lsn) return;
             if (state.position.next_lsn < expected.next_lsn) return error.InvalidTableResponse;
@@ -260,7 +262,13 @@ fn closeOriginal(self: Self, object: p.DataLifecycle.Object, owner: p.DataLifecy
         // An unknown handle must be recovered through the original acquisition
         // to verify its retained frontier. A matching owner alone is not enough.
         const acquisition: w.Acquisition = .{ .object = object, .owner = owner, .expected = expected, .selection = selection };
-        const pinned = try self.call(if (retention == .history) .{ .retain_history = acquisition } else .{ .pin = acquisition });
+        const pinned = self.call(if (retention == .history) .{ .retain_history = acquisition } else .{ .pin = acquisition }) catch |err| {
+            // A typed released-pin response proves that no delayed copy can
+            // reopen this operation: either its source or destination is closed.
+            // Unavailable/ambiguous replies retain the original cleanup intent.
+            if (copying and (err == error.Conflict or err == error.Rejected) and self.service.last_rejection == .QueryExpired) return;
+            return err;
+        };
         defer pinned.deinit();
         if (handle) |observed| if (!std.meta.eql(observed, pinned.value.result.pin)) return error.InvalidTableResponse;
         handle = pinned.value.result.pin;

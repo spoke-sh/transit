@@ -156,7 +156,7 @@ fn explain(allocator: Allocator, plan: f.LogicalQuery.Plan, schema: types.Type, 
     };
     count += 1;
     const projection = try allocator.alloc([]const u8, plan.projection.len);
-    for (plan.projection, projection) |index, *target| target.* = try allocator.dupe(u8, schema.structure[index].name);
+    for (plan.projection, projection) |index, *target| target.* = try allocator.dupe(u8, (try plan.inputField(index)).name);
     return .{
         .operators = try allocator.dupe(Operator, operators[0..count]),
         .predicate = try inspectPredicate(allocator, plan.predicate, schema),

@@ -19,16 +19,19 @@ from query.logical.fuze_types import fixtures
 
 def oracle(binary, target, environment):
     child = subprocess.Popen([binary, 'codec'], cwd=target, env=environment, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
-    count = 0
-    def check(kind, value):
-        nonlocal count
+    counts = dict(roundtrips=0, unsupported_rejections=0)
+    def check(kind, value, *, supported=True):
         child.stdin.write(kind + json.dumps(value, ensure_ascii=True) + '\n')
         child.stdin.flush()
         assert select.select([child.stdout], [], [], 30)[0], 'installed C codec timed out'
         raw = child.stdout.readline()
-        assert raw and raw != 'invalid\n', (kind, raw)
-        assert json.loads(raw) == value
-        count += 1
+        if supported:
+            assert raw and raw != 'invalid\n', (kind, value, raw)
+            assert json.loads(raw) == value
+            counts['roundtrips'] += 1
+        else:
+            assert raw == 'invalid\n', (kind, value, raw)
+            counts['unsupported_rejections'] += 1
     try:
         for case in fixtures()['cases']:
             kind = case['kind']
@@ -58,11 +61,18 @@ def oracle(binary, target, environment):
                 raise AssertionError(kind)
             check('c', {'value': {'atom': atom}})
         for typ, cell in recursive_cases():
-            check('t', typ)
+            # These shared fixtures also exercise families outside the C/C++
+            # construction-view profile. Prove explicit refusal rather than
+            # skipping them or implying that a generated schema adds an API.
+            supported = next(iter(typ)) not in ('range', 'multirange', 'vector')
+            check('t', typ, supported=supported)
+            if not supported:
+                check('t', {'list': {'type': typ, 'nullable': True}}, supported=False)
+                check('c', {'value': {'list': [cell]}}, supported=False)
             for value in (cell, {'missing': {}}, {'null': {}}, {'type_error': 'utf8'}, {'conflict': [
                 {'counter': '9007199254740993', 'replica': '18446744073709551615', 'value': cell},
                 {'counter': '18446744073709551615', 'replica': '1', 'value': {'null': {}}}]}):
-                check('c', value)
+                check('c', value, supported=supported or next(iter(value)) in ('missing', 'null', 'type_error'))
         child.stdin.close()
         assert child.wait(timeout=10) == 0
     finally:
@@ -71,7 +81,7 @@ def oracle(binary, target, environment):
             child.wait(timeout=10)
         child.stdin.close()
         child.stdout.close()
-    return count
+    return counts
 
 
 def run(artifacts):

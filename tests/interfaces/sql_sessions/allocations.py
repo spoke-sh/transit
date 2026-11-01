@@ -38,7 +38,7 @@ def peer(mode, root):
     dropped = set()
     lock = threading.Lock()
     partial = threading.Event()
-    observation = dict(metadata=dict(kind='probe', consistency='session', namespace=None, definitions=[], configuration_revision=None, session_settings=None, source=None))
+    observation = dict(metadata=dict(kind='probe', consistency='session', namespace=None, definitions=[], configuration_revision=None, session_settings=None, source=None, historical=None, projections=[]))
 
     class Handler(BaseHTTPRequestHandler):
         protocol_version = 'HTTP/1.1'
@@ -326,7 +326,9 @@ def main():
                     finally:
                         timer.cancel()
                         timer.join()
-                    report = json.loads(result.stdout.splitlines()[-1])
+                    lines = result.stdout.splitlines()
+                    assert lines, f'Allocation probe produced no report (exit {result.returncode}); see {destination / (name + ".log")}'
+                    report = json.loads(lines[-1])
                     profile.update(client=report, peer=dict(state), trace=capture.identity(trace))
                     events = mappings(trace.read_text())
                     profile['memory_events'] = events

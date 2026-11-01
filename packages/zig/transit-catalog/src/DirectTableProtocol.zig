@@ -105,13 +105,14 @@ pub const Connection = struct {
 /// Defaults are FVL1 typed cells, preserving binary values and floating bits.
 /// The Table owner validates the resulting value against its accepted column.
 pub const Change = union(enum) {
-    add: struct { name: []const u8, type: f.Types.Type, nullable: bool, default: ?Binary, max_characters: ?u32, encoding: f.TableSchema.Encoding, collation: f.TableSchema.Collation },
+    add: struct { name: []const u8, type: f.Types.Type, nullable: bool, default: ?Binary, max_characters: ?u32, encoding: f.TableSchema.Encoding, collation: f.TableSchema.Collation, semantics: f.TableSchema.Semantics.Neutral },
     drop: u64,
     rename: struct { column: u64, name: []const u8 },
     default: struct { column: u64, value: ?Binary },
     nullable: struct { column: u64, value: bool },
     type: struct { column: u64, type: f.Types.Type, max_characters: ?u32 },
-    physical: struct { column: u64, encoding: f.TableSchema.Encoding, collation: f.TableSchema.Collation },
+    physical: struct { column: u64, encoding: f.TableSchema.Encoding, collation: f.TableSchema.Collation, semantics: ?f.TableSchema.Semantics.Neutral },
+    integrity: Binary,
 
     fn cell(allocator: std.mem.Allocator, value: ?Binary) !?f.Types.Values.Cell {
         const binary = value orelse return null;
@@ -121,13 +122,14 @@ pub const Change = union(enum) {
     }
     pub fn native(self: Change, allocator: std.mem.Allocator) !f.TableEvolution.Change {
         return switch (self) {
-            .add => |value| .{ .add = .{ .name = value.name, .type = value.type, .nullable = value.nullable, .default = try cell(allocator, value.default), .max_characters = value.max_characters, .encoding = value.encoding, .collation = value.collation } },
+            .add => |value| .{ .add = .{ .name = value.name, .type = value.type, .nullable = value.nullable, .default = try cell(allocator, value.default), .max_characters = value.max_characters, .encoding = value.encoding, .collation = value.collation, .semantics = try f.TableSchema.Semantics.native(value.semantics, allocator) } },
             .drop => |value| .{ .drop = value },
             .rename => |value| .{ .rename = .{ .column = value.column, .name = value.name } },
             .default => |value| .{ .default = .{ .column = value.column, .value = try cell(allocator, value.value) } },
             .nullable => |value| .{ .nullable = .{ .column = value.column, .value = value.value } },
             .type => |value| .{ .type = .{ .column = value.column, .type = value.type, .max_characters = value.max_characters } },
-            .physical => |value| .{ .physical = .{ .column = value.column, .encoding = value.encoding, .collation = value.collation } },
+            .physical => |value| .{ .physical = .{ .column = value.column, .encoding = value.encoding, .collation = value.collation, .semantics = if (value.semantics) |rules| try f.TableSchema.Semantics.native(rules, allocator) else null } },
+            .integrity => |value| .{ .integrity = (try f.TableSchema.decode(allocator, try value.decode(allocator, f.TableSchema.max_bytes))).schema },
         };
     }
 };
@@ -262,7 +264,7 @@ pub const CaptureSelection = enum(u8) { exact = 1, current = 2 };
 pub const Acquisition = struct { object: d.Object, owner: d.Operation, expected: d.Position, selection: CaptureSelection = .exact };
 pub const Historical = struct { object: d.Object, point: P.HistoryPoint };
 pub const HistoryRequest = struct { snapshot: Snapshot, from: d.Position, through: d.Position, frames: u8 };
-pub const ReadCheck = union(enum) { access: D.AccessRequest, snapshot: Snapshot };
+pub const ReadCheck = union(enum) { access: D.AccessRequest, snapshot: Snapshot, historical: @FieldType(c.DirectHistory.Request, "source") };
 /// Read current data only while this exact definition and original logical
 /// basis remain valid. The seek key does not retain data or prove prior reads.
 pub const CurrentRead = struct {
@@ -312,6 +314,9 @@ pub const FilterScan = struct {
 pub const Action = union(enum) {
     pub const json_schema_sequence_bounds = .{ .check_set = 16 };
     branch: c.DirectBranch.Request,
+    historical_catalog: c.DirectHistory.Request,
+    descriptor: c.DirectDefinition.Action,
+    schema_projection: c.DirectSchemaProjection.Request,
     transaction: c.DirectTransactionRequest.Request,
     client_token: c.DirectClientToken.Request,
     client_progress: c.DirectClientToken.ProgressRequest,
@@ -364,6 +369,8 @@ pub const Action = union(enum) {
     pin_status: struct { object: d.Object, owner: d.Operation },
     snapshot: Snapshot,
     history_start: Snapshot,
+    projection_definitions: struct { snapshot: Snapshot, after: ?P.ProjectionEvidence.Cursor },
+    projection_locations: struct { snapshot: Snapshot, after: ?P.SnapshotCursor },
     history_source: Historical,
     history: HistoryRequest,
     history_scan: struct { source: Historical, after: ?P.SnapshotCursor, limits: P.ReadLimits },
@@ -411,6 +418,8 @@ pub const Request = struct {
             .stream => |value| value.mutation(),
             .queue => |value| value.mutation(),
             .branch => |value| value.mutation(),
+            .historical_catalog => |value| value.mutation(),
+            .descriptor => |value| value.mutation(),
             inline .kv, .kv_declaration => |value| value.mutation(),
             .transaction => |value| value.mutation(),
             .record => |value| value == .stage,
@@ -426,7 +435,7 @@ pub const Request = struct {
             .log_operation => |value| value.command != .inspect,
             else => false,
         };
-        const control = (self.action == .kv and self.action.kv.control()) or (self.action == .kv_declaration and self.action.kv_declaration.control()) or (self.action == .branch and (self.action.branch == .inspect or self.action.branch == .cancel)) or (self.action == .stream and self.action.stream.control()) or (self.action == .queue and self.action.queue.control()) or (self.action == .log_operation and self.action.log_operation.command != .execute) or (self.action == .transaction and self.action.transaction.control()) or self.action == .release or self.action == .pin_status or self.action == .namespace_operation or self.action == .dependency_operation or (self.action == .resource_operation and (self.action.resource_operation.command == .inspect or self.action.resource_operation.command == .cancel)) or (self.action == .operation and self.action.operation.command != .execute) or (self.action == .name_assertion and self.action.name_assertion.command != .accept);
+        const control = (self.action == .historical_catalog and (self.action.historical_catalog == .inspect or self.action.historical_catalog == .abandon or self.action.historical_catalog == .release)) or (self.action == .kv and self.action.kv.control()) or (self.action == .kv_declaration and self.action.kv_declaration.control()) or (self.action == .branch and (self.action.branch == .inspect or self.action.branch == .cancel)) or (self.action == .stream and self.action.stream.control()) or (self.action == .queue and self.action.queue.control()) or (self.action == .log_operation and self.action.log_operation.command != .execute) or (self.action == .transaction and self.action.transaction.control()) or self.action == .release or self.action == .pin_status or self.action == .namespace_operation or self.action == .dependency_operation or (self.action == .resource_operation and (self.action.resource_operation.command == .inspect or self.action.resource_operation.command == .cancel)) or (self.action == .operation and self.action.operation.command != .execute) or (self.action == .name_assertion and self.action.name_assertion.command != .accept);
         return .{ .operation = @tagName(self.action), .mutation = mutation and self.transaction == null, .control = if (control) "table" else null, .wait = if (self.action == .stream and self.action.stream == .wait) .{ .after = 0, .milliseconds = self.action.stream.wait.milliseconds } else if (self.action == .queue and self.action.queue == .wait) .{ .after = 0, .milliseconds = self.action.queue.wait.milliseconds } else null };
     }
     pub fn validate(self: Request, allocator: std.mem.Allocator) !void {
@@ -477,6 +486,9 @@ pub const Request = struct {
             },
             .workload_result => |value| try value.validate(connection),
             .branch => |value| try value.validate(connection),
+            .historical_catalog => |value| try value.validate(connection),
+            .descriptor => |value| try value.validate(allocator, connection),
+            .schema_projection => |value| try value.validate(connection),
             .transaction => |value| {
                 try value.validate();
                 if (!std.meta.eql(value.key().connection, connection)) return error.CatalogIdentityConflict;
@@ -528,7 +540,7 @@ pub const Request = struct {
                     },
                 }
                 if (value.cursor) |cursor| {
-                    try cursor.position.validate();
+                    try cursor.validate();
                     if (cursor.position.next_lsn == 0 or !std.meta.eql(cursor.selection, value.selection) or cursor.authority != value.authority) return error.InvalidCatalogCursor;
                 }
             },
@@ -563,6 +575,7 @@ pub const Request = struct {
                 if (values.len == 0 or values.len > 16) return error.InvalidTableReadBudget;
                 for (values) |value| switch (value) {
                     .access => |access| try access.validate(connection.scope, connection.branch),
+                    .historical => |historical| try (c.DirectHistory.Request{ .source = historical }).validate(connection),
                     .snapshot => |snapshot| try validateSnapshot(connection, snapshot),
                 };
             },
@@ -633,6 +646,10 @@ pub const Request = struct {
                 try connection.owner(value.owner);
             },
             inline .snapshot, .history_start, .release => |value| try validateSnapshot(connection, value),
+            inline .projection_definitions, .projection_locations => |value| {
+                try validateSnapshot(connection, value.snapshot);
+                if (value.after) |cursor| if (!std.meta.eql(cursor.source, value.snapshot.handle.content)) return error.InvalidTableCursor;
+            },
             .history_source => |value| try validateHistorical(connection, value),
             .history => |value| {
                 try validateSnapshot(connection, value.snapshot);
@@ -816,6 +833,9 @@ pub const Point = struct {
 pub const StateList = struct { entries: [8]?D.Listed, next: ?u64, directory_position: d.Position, consistency: enum { independent } };
 pub const Result = union(enum) {
     branch: c.DirectBranch.Result,
+    historical_catalog: c.DirectHistory.Result,
+    descriptor: c.DirectDefinition.Result,
+    schema_projection: c.DirectSchemaProjection.Result,
     transaction: c.DirectTransactionRequest.Result,
     record: c.DirectRecord.Result,
     workload_result: c.DirectWorkloadResultProtocol.Result,
@@ -858,6 +878,8 @@ pub const Result = union(enum) {
     pin: P.SnapshotHandle,
     pin_state: PinState,
     snapshot: Source,
+    projection_definitions: P.ProjectionEvidence,
+    projection_locations: P.ProjectionLocations,
     history_source: HistorySource,
     history: HistoryPage,
     history_page: struct { point: P.HistoryPoint, page: Page },

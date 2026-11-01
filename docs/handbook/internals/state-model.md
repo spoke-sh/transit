@@ -618,3 +618,22 @@ closure across independent owners, typed merge coverage and retained artifact
 availability. Supporting application schema revisions within the current
 descriptor format is compatible with a single current v1 contract; it does not
 authorize fallback decoding of incompatible historical Transit formats.
+
+## Accepted interpretation metadata
+
+The direct catalog now publishes immutable view, property-graph and foreign-layout
+definitions through [one owning operation](../../../contracts/CATALOG_DEFINITIONS_V1.md).
+Its accepted log record updates the name, exact revision index, dependency edges
+and original operation outcome together. Native object registration is an earlier
+preparation step. Retrying an uncertain publication retains the original binding;
+registration alone cannot establish that a definition became visible.
+
+Historical selection retains the accepted artifact and each exact Table source.
+Replacing live metadata transfers dependency protection atomically while keeping
+the old interpretation readable under current permissions. Graph mapping and
+output-column identities cannot be recycled after removal. Foreign inputs bind
+verified content and explicit availability; a provenance URI grants no fetch
+authority. The [disk catalog tests](../../../packages/zig/transit-catalog/src/direct_catalog_test.zig)
+exercise publication reply loss, replacement, dependency protection and reopen.
+These scoped mechanisms do not supply whole-catalog branching, graph traversal
+or general foreign scans.

@@ -37,11 +37,17 @@ public static partial class Catalog
             V.Number(v["credential_epoch"], 1), V.Number(v["audience"], 1), NativeValues.Digest(v["context"]));
     }
     internal static Schema ParseSchema(JsonNode? value) {
-        var v = Fields(value, "definition", "object", "revision", "next_column", "columns", "primary_key"); Current(V.String(v["definition"]));
+        var source = (JsonObject)V.Object(value).DeepClone();
+        var integrity = Fields(source["integrity"], "next_id", "checks", "foreign_keys");
+        if (integrity["next_id"]?.GetValue<uint>() != 1 || integrity["checks"] is not JsonArray { Count: 0 } || integrity["foreign_keys"] is not JsonArray { Count: 0 }) throw V.Incompatible("catalog-constraint-schema-unsupported");
+        source.Remove("integrity");
+        var v = Fields(source, "definition", "object", "revision", "next_column", "columns", "primary_key"); Current(V.String(v["definition"]));
         if (v["columns"] is not JsonArray { Count: > 0 and <= 128 } cols || v["primary_key"] is not JsonArray keys || keys.Count > cols.Count) throw V.Incompatible("catalog-schema-bound");
         List<Column> columns = [];
         foreach (var col in cols) {
-            var c = Fields(col, "id", "name", "type", "nullable", "default", "max_characters", "encoding", "collation");
+            var c = Fields(col, "id", "name", "type", "nullable", "default", "max_characters", "encoding", "collation", "semantics");
+            var semantics = Fields(c["semantics"], "rounding", "metric", "timezone", "spatial");
+            if (semantics.Any(entry => entry.Value is not null)) throw V.Incompatible("catalog-column-semantics-unsupported");
             columns.Add(new(Wide(c["id"]), V.String(c["name"]), Logical.TypeFromWire(c["type"]), V.Boolean(c["nullable"]), c["default"] is {} d ? Logical.CellFromWire(d) : null, c["max_characters"] is {} m ? Small(m, 1) : null, Variant<Encoding>(c["encoding"]), Variant<Collation>(c["collation"])));
         }
         Schema result = new(Wide(v["object"]), Wide(v["revision"]), Wide(v["next_column"]), columns, keys.Select(Wide).ToArray()); result.Wire(); return result;
@@ -186,6 +192,12 @@ public static partial class Catalog
         var tagged = V.Object(value); string kind = Tag(tagged); var state = V.Object(tagged[kind]); string tag = Tag(state); var raw = V.Object(state[tag]); var observed = Variant<ObservationKind>(JsonValue.Create(kind));
         if (observed != ExpectedKind(original.Kind,original.Binding())) throw V.Incompatible("catalog-observation-kind");
         if (tag == "not_observed") return new(observed,OperationState.NotObserved,original);
+        if (tag == "finalizing") {
+            var progress = V.Object(raw["operation"]);
+            if (progress["requires_settlement"]?.GetValue<bool>() != true || V.String(progress["phase"]) is not ("admitted" or "ready")) throw V.Incompatible("catalog-finalizing-phase");
+            if (observed != ObservationKind.Ddl || !JsonNode.DeepEquals(V.Object(raw["operation"])["binding"],original.Binding())) throw V.Incompatible("catalog-finalizing-binding");
+            return ParseObservation(V.Obj(("ddl", V.Obj(("committed", raw["evidence"]!.DeepClone())))), original) with { State = OperationState.Finalizing };
+        }
         if (!JsonNode.DeepEquals(raw["binding"],original.Binding())) throw V.Incompatible("catalog-original-binding");
         if (observed == ObservationKind.NameAssertion) return new(observed,Variant<OperationState>(raw["state"]),original,Reason: Variant<Reason>(raw["reason"]),Position: ParsePosition(raw["position"]));
         if (tag == "committed") {

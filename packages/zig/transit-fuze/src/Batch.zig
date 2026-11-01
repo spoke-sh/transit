@@ -79,7 +79,10 @@ pub fn init(allocator: std.mem.Allocator, plan: logical.Plan, limits: Limits) !S
     var row_bytes: usize = @sizeOf(Provenance) + 2 * @sizeOf(Outcome) + @sizeOf(usize) + 1 + kernel.depth * @sizeOf(finite.Truth);
     var retained: [128]bool = @splat(false);
     if (owned.aggregate == .rows or owned.aggregate == .sum) for (owned.projection) |column| {
-        retained[column] = true;
+        if (column < owned.schema.structure.len) retained[column] = true;
+    };
+    for (owned.scalars.instructions) |instruction| if (instruction == .input) {
+        retained[instruction.input] = true;
     };
     for (kernel.instructions) |instruction| if (instruction == .atom) {
         const atom = instruction.atom;
@@ -107,6 +110,7 @@ pub fn predicateFailure(self: *const Self, row: usize) logical.Plan.PredicateFai
 fn copyPlan(a: std.mem.Allocator, source: logical.Plan) !logical.Plan {
     var result = source;
     result.schema = try source.schema.cloneInto(a);
+    result.scalars = try source.scalars.cloneInto(a);
     result.projection = try a.dupe(u8, source.projection);
     const names = try a.dupe(?[]const u8, source.output_names);
     for (names) |*name| if (name.*) |text| {
@@ -255,14 +259,19 @@ test "conflict payload exhaustion preserves prefix and releases on reset" {
     defer physical.deinit();
     var alternatives: [8]Alternative = undefined;
     for (&alternatives, 0..) |*item, i| item.* = .{ .counter = i + 1, .replica = 1, .value = .null };
+    // Fit one conflict into the available payload area without coupling this
+    // exhaustion test to the ABI size of plans or logical values.
+    const available = physical.backing.len - physical.payload_start;
+    try t.expect(available > @sizeOf(Alternative) + @alignOf(Alternative));
+    const count = @min(alternatives.len, (available - @alignOf(Alternative)) / @sizeOf(Alternative));
     while (true) {
-        physical.append(&.{.{ .conflict = &alternatives }}, .{ .row = physical.len + 1, .boundary = physical.len + 1 }) catch |err| {
+        physical.append(&.{.{ .conflict = alternatives[0..count] }}, .{ .row = physical.len + 1, .boundary = physical.len + 1 }) catch |err| {
             try t.expectEqual(error.BatchFull, err);
             break;
         };
     }
     try t.expect(physical.len > 0 and physical.len < physical.capacity);
-    try t.expectEqual(@as(usize, 8), physical.columns[0].view(physical.len).cell(0).conflict.len);
+    try t.expectEqual(count, physical.columns[0].view(physical.len).cell(0).conflict.len);
     physical.reset();
-    try physical.append(&.{.{ .conflict = &alternatives }}, .{ .row = 1, .boundary = 1 });
+    try physical.append(&.{.{ .conflict = alternatives[0..count] }}, .{ .row = 1, .boundary = 1 });
 }

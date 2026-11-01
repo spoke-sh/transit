@@ -101,9 +101,9 @@ public final class UnifiedQuery {
             case KvSource v -> obj("kv",obj("prefix",hex(v.prefix()),"key",v.key().wire(),"value",v.value().wire()));
             case TableSource v -> {
                 var rowType=new Logical.Structure(v.schema().columns().stream().map(c -> new Logical.Field(c.name(),c.type(),c.nullable(),false)).toList());
-                JsonArray collations=new JsonArray(); v.schema().columns().forEach(c -> collations.add(Logical.tag(c.collation())));
+                JsonArray collations=new JsonArray(), semantics=new JsonArray(); v.schema().columns().forEach(c -> { collations.add(Logical.tag(c.collation())); semantics.add(obj("rounding",null,"metric",null,"timezone",null,"spatial",null)); });
                 yield obj("table",obj("scope",v.scope().wire(),"owner",v.audience(),"branch",v.branch().toString(),"namespace",v.namespace(),"object",v.schema().object().toString(),
-                    "interpretation",v.interpretation().wire(),"row_type",Logical.typeWire(rowType),"collations",collations));
+                    "interpretation",v.interpretation().wire(),"row_type",Logical.typeWire(rowType),"collations",collations,"semantics",semantics));
             }
             case DocumentSource v -> {
                 var r=v.reference(); JsonArray projections=new JsonArray(); v.projections().forEach(p -> projections.add(p.wire()));
@@ -143,7 +143,7 @@ public final class UnifiedQuery {
             JsonArray columns=new JsonArray(); projection.forEach(columns::add);
             JsonArray names=outputNames.map(values -> {JsonArray out=new JsonArray();values.forEach(v -> out.add(v.orElse(null)));return out;}).orElse(null);
             JsonObject p=predicateWire(predicate);
-            return obj("version",1,"projection",columns,"output_names",names,"predicate",p,"aggregate",name(aggregate),"limit",limit.map(BigInteger::toString).orElse(null));
+            return obj("version",1,"scalar_program","00","projection",columns,"output_names",names,"predicate",p,"aggregate",name(aggregate),"limit",limit.map(BigInteger::toString).orElse(null));
         }
     }
     public record Budgets(BigInteger pages,BigInteger segments,BigInteger resultBytes) {

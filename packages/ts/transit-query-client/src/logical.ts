@@ -76,14 +76,36 @@ export function logicalTypeValid(type: LogicalType): boolean {
         );
       });
     }
+    if ("range" in value || "multirange" in value) {
+      const subtype = "range" in value ? value.range : value.multirange;
+      return (
+        ["int64", "decimal", "date", "timestamp"].some((key) => key in subtype) &&
+        visit(subtype, depth + 1)
+      );
+    }
+    if ("vector" in value)
+      return (
+        value.vector.dimensions > 0 &&
+        value.vector.dimensions <= 65536 &&
+        (value.vector.element !== "binary" || value.vector.dimensions % 8 === 0)
+      );
     if ("list" in value) return visit(value.list.type, depth + 1);
     if ("array" in value)
       return value.array.length > 0 && visit(value.array.element.type, depth + 1);
     if ("map" in value)
       return (
-        !["structure", "list", "array", "map", "tagged_union", "json", "interval"].some(
-          (k) => k in value.map.key,
-        ) &&
+        ![
+          "structure",
+          "list",
+          "array",
+          "map",
+          "tagged_union",
+          "json",
+          "interval",
+          "range",
+          "multirange",
+          "vector",
+        ].some((k) => k in value.map.key) &&
         visit(value.map.key, depth + 1) &&
         visit(value.map.value.type, depth + 1)
       );
@@ -245,6 +267,62 @@ function jsonDocument(text: string): boolean {
   }
 }
 
+type RangeValue = Extract<Value, { range: unknown }>["range"];
+function rangeNumber(value: Atom): bigint {
+  if ("signed" in value) return BigInt(value.signed);
+  if ("decimal" in value) return BigInt(value.decimal);
+  if ("date_days" in value) return BigInt(value.date_days);
+  if ("timestamp_micros" in value) return BigInt(value.timestamp_micros);
+  throw new TypeError("Invalid range bound");
+}
+function rangeValid(value: RangeValue, type: LogicalType): boolean {
+  if (!["int64", "decimal", "date", "timestamp"].some((key) => key in type)) return false;
+  if (value.is_empty) return value.lower === null && value.upper === null;
+  const discrete = "int64" in type || "date" in type;
+  for (const bound of [value.lower, value.upper])
+    if (bound && !logicalAtomValid(bound.value, type)) return false;
+  if (
+    discrete &&
+    ((value.lower !== null && !value.lower.inclusive) ||
+      (value.upper !== null && value.upper.inclusive))
+  )
+    return false;
+  if (!value.lower || !value.upper) return true;
+  const lower = rangeNumber(value.lower.value),
+    upper = rangeNumber(value.upper.value);
+  return lower < upper || (lower === upper && value.lower.inclusive && value.upper.inclusive);
+}
+function vectorValid(
+  value: string,
+  type: Extract<LogicalType, { vector: unknown }>["vector"],
+): boolean {
+  const width = { float32: 4, float16: 2, bfloat16: 2, int8: 1, binary: 1 / 8 }[type.element];
+  if (
+    !logicalTypeValid({ vector: type }) ||
+    value.length !== type.dimensions * width * 2 ||
+    !logicalHex(value, 262144)
+  )
+    return false;
+  if (type.element === "binary" || type.element === "int8") return true;
+  for (let offset = 0; offset < value.length; offset += width * 2) {
+    const bits = value.slice(offset, offset + width * 2);
+    if (type.element === "float32") {
+      if (!Number.isFinite(logicalFloat(bits))) return false;
+    } else {
+      const word = Number.parseInt(bits.slice(2) + bits.slice(0, 2), 16);
+      const mask = type.element === "float16" ? 0x7c00 : 0x7f80;
+      if ((word & mask) === mask) return false;
+    }
+  }
+  return true;
+}
+function rangeText(value: RangeValue, type?: LogicalType): string {
+  if (value.is_empty) return "EMPTY";
+  const bound = (value: NonNullable<RangeValue["lower"]>) =>
+    logicalCellText({ value: { atom: value.value } }, type);
+  return `${value.lower?.inclusive ? "[" : "("}${value.lower ? bound(value.lower) : "-∞"}, ${value.upper ? bound(value.upper) : "+∞"}${value.upper?.inclusive ? "]" : ")"}`;
+}
+
 export function logicalCellValid(cell: LogicalCell, field: LogicalField): boolean {
   let children = 0,
     bytes = 0;
@@ -293,6 +371,26 @@ export function logicalCellValid(cell: LogicalCell, field: LogicalField): boolea
         value.tagged_union.index < type.tagged_union.length &&
         visit(value.tagged_union.value, type.tagged_union[value.tagged_union.index]!, depth + 1)
       );
+    if ("range" in value) return "range" in type && rangeValid(value.range, type.range);
+    if ("multirange" in value)
+      return (
+        "multirange" in type &&
+        value.multirange.every((range, index) => {
+          if (!child(depth + 1) || range.is_empty || !rangeValid(range, type.multirange))
+            return false;
+          if (index === 0) return true;
+          const previous = value.multirange[index - 1]!.upper,
+            next = range.lower;
+          if (!previous || !next) return false;
+          const upper = rangeNumber(previous.value),
+            lower = rangeNumber(next.value);
+          return upper < lower || (upper === lower && !previous.inclusive && !next.inclusive);
+        })
+      );
+    if ("vector" in value) {
+      bytes += value.vector.length / 2;
+      return "vector" in type && bytes <= 1048576 && vectorValid(value.vector, type.vector);
+    }
     bytes += encoder.encode(value.json).length;
     return "json" in type && bytes <= 1048576 && jsonDocument(value.json);
   }
@@ -326,6 +424,10 @@ export function logicalCellValid(cell: LogicalCell, field: LogicalField): boolea
 export function logicalTypeText(type: LogicalType): string {
   if ("decimal" in type) return `DECIMAL(${type.decimal.precision}, ${type.decimal.scale})`;
   if ("timestamp" in type) return type.timestamp === "utc" ? "TIMESTAMP UTC" : "TIMESTAMP";
+  if ("range" in type) return `RANGE(${logicalTypeText(type.range)})`;
+  if ("multirange" in type) return `MULTIRANGE(${logicalTypeText(type.multirange)})`;
+  if ("vector" in type)
+    return `VECTOR(${type.vector.dimensions}, ${type.vector.element.toUpperCase()})`;
   if ("list" in type) return `LIST(${logicalTypeText(type.list.type)})`;
   if ("array" in type)
     return `ARRAY(${logicalTypeText(type.array.element.type)}, ${type.array.length})`;
@@ -394,5 +496,10 @@ export function logicalCellText(cell: LogicalCell, type?: LogicalType): string {
       type && "tagged_union" in type ? type.tagged_union[value.tagged_union.index] : undefined;
     return `${field ? JSON.stringify(field.name) : value.tagged_union.index}: ${logicalCellText(value.tagged_union.value, field?.type)}`;
   }
+  if ("range" in value)
+    return rangeText(value.range, type && "range" in type ? type.range : undefined);
+  if ("multirange" in value)
+    return `{${value.multirange.map((range) => rangeText(range, type && "multirange" in type ? type.multirange : undefined)).join(", ")}}`;
+  if ("vector" in value) return `0x${value.vector}`;
   return value.json;
 }

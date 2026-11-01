@@ -22,7 +22,7 @@ pub fn interval(self: *const Self) Range {
 /// their original identity traversal. Literals outside the stored key profile
 /// remain valid query operands; inability to encode a bound means a full scan.
 pub fn qualify(schema: f.TableSchema.Schema, plan: f.LogicalQuery.Plan) ?Self {
-    if (plan.aggregate != .count or plan.limit != null or schema.primary_key.len != 1) return null;
+    if (plan.scalars.instructions.len != 0 or plan.aggregate != .count or plan.limit != null or schema.primary_key.len != 1) return null;
     schema.validate() catch return null;
     plan.validate() catch return null;
     const column = schema.index(schema.primary_key[0]) catch return null;

@@ -142,6 +142,22 @@ test "native capacity refusal projects a MySQL resource error without execution"
     try std.testing.expectEqualStrings("#HY000", packet.payload[3..9]);
     try std.testing.expectEqual(@as(usize, 0), host.writes);
 }
+test "CHECK rejection maps to the MySQL constraint error without reporting success" {
+    const t = std.testing;
+    var host: Host = .{ .allocator = t.allocator, .diagnostic_state = "23514".*, .outcome = .rejected };
+    var transport: Transport = .{ .allocator = t.allocator };
+    defer transport.bytes.deinit(t.allocator);
+    var engine = Engine.init(&host, &transport, try m.Session.init(t.allocator, .{}, m.Handshake.required, 1));
+    defer engine.deinit();
+    _ = try engine.run(.{"\x16UPDATE"});
+    transport.bytes.clearRetainingCapacity();
+    _ = try engine.run(.{execute_new});
+    const packet = (try m.Frame.decode(transport.bytes.items, 1, m.wire.Limits.max_frame_bytes)).?;
+    try t.expectEqual(@as(u8, 255), packet.payload[0]);
+    try t.expectEqual(@as(u16, 3819), std.mem.readInt(u16, packet.payload[1..3], .little));
+    try t.expectEqualStrings("#HY000", packet.payload[3..9]);
+    try t.expectEqual(@as(usize, 1), host.writes);
+}
 test "MySQL commands preserve unsigned values and remembered types, with exact affected-row selection" {
     const t = std.testing;
     for ([_]bool{ false, true }) |found| {

@@ -13,6 +13,7 @@ fn number(value: i128) Cell {
 test "lazy schema evolution admits only independently projectable edits" {
     var columns: [s.max_columns]s.Column = undefined;
     for ([_]evolution.Change{
+        .{ .rename = .{ .column = 1, .name = "new_key_name" } },
         .{ .rename = .{ .column = 2, .name = "renamed" } },
         .{ .default = .{ .column = 2, .value = number(9) } },
         .{ .drop = 2 },
@@ -20,7 +21,6 @@ test "lazy schema evolution admits only independently projectable edits" {
         .{ .add = .{ .name = "filled", .type = .int64, .nullable = false, .default = number(7) } },
     }) |change| try e.expect(try (try evolution.apply(before, change, &columns)).canProject());
     for ([_]evolution.Change{
-        .{ .rename = .{ .column = 1, .name = "new_key_name" } },
         .{ .type = .{ .column = 2, .type = .int32 } },
         .{ .physical = .{ .column = 2, .encoding = .rle } },
         .{ .nullable = .{ .column = 2, .value = false } },
@@ -73,10 +73,11 @@ test "tightened nullability and added required columns validate old rows" {
     var columns: [s.max_columns]s.Column = undefined;
     var output: [3]Cell = undefined;
     const tightened = try evolution.apply(before, .{ .nullable = .{ .column = 2, .value = false } }, &columns);
-    try e.expectEqual(evolution.Work.rewrite_rows, tightened.work);
+    try e.expectEqual(evolution.Work.validate_rows, tightened.work);
     try e.expectError(error.NullNotAllowed, tightened.row(&.{ number(1), .null }, &output));
     _ = try tightened.row(&.{ number(1), number(0) }, &output);
     const required = try evolution.apply(before, .{ .add = .{ .name = "extra", .type = .boolean, .nullable = false } }, &columns);
+    try e.expectEqual(evolution.Work.validate_rows, required.work);
     try e.expectError(error.MissingRequiredField, required.row(&.{ number(1), .null }, &output));
     const defaulted = try evolution.apply(before, .{ .add = .{ .name = "extra", .type = .int64, .nullable = false, .default = number(42) } }, &columns);
     try e.expectEqualDeep(number(42), (try defaulted.row(&.{ number(1), .null }, &output))[2]);

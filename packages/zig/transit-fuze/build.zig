@@ -42,8 +42,11 @@ pub fn build(b: *std.Build) !void {
         }) });
         module.addObject(vector_object.?);
     }
-    const relational_module = b.createModule(.{ .root_source_file = b.path("src/RelationalExecution.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_protocol", .module = protocol }} });
-    relational_module.addImport("transit_memory", b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory"));
+    const relational_module = b.createModule(.{ .root_source_file = b.path("src/RelationalExecution.zig"), .target = target, .optimize = optimize });
+    // Relational values share the package's logical type and Arrow boundaries.
+    // Keep this independent test root on the same declared dependency graph.
+    var imports = module.import_table.iterator();
+    while (imports.next()) |entry| relational_module.addImport(entry.key_ptr.*, entry.value_ptr.*);
     if (vector_object) |object| relational_module.addObject(object);
     const relational_tests = b.addTest(.{ .root_module = relational_module });
     b.step("test-relational", "Verify independent relational results with linked column kernels").dependOn(&b.addRunArtifact(relational_tests).step);

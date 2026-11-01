@@ -3,7 +3,11 @@
 grammar TransitExtensions;
 options { caseInsensitive = true; }
 
-statement: (selectStatement | mutationStatement | logAppendCommand | logConsumeCommand | logClaimCommand | logSettlementCommand | extensionStatement | transactionStatement | managedCommand) SEMI? EOF;
+statement: (historicalStatement | selectStatement | mutationStatement | logAppendCommand | logConsumeCommand | logClaimCommand | logSettlementCommand | extensionStatement | transactionStatement | managedCommand) SEMI? EOF;
+// The SQL service binds this exact catalog before compiling the inner query.
+historicalStatement: (selectStatement | DESCRIBE identifier | EXPLAIN selectStatement) snapshotClause projectionClause? | SHOW TABLES snapshotClause;
+snapshotClause: AS OF SNAPSHOT STRING (IN SCHEMA identifier)?;
+projectionClause: PROJECTING TO (CURRENT | SNAPSHOT STRING);
 // Native cohosted SQL lowers these forms to the direct managed Table owner.
 managedCommand
     : CREATE DATAFLOW identifier INTO identifier AS relationalSelect
@@ -53,7 +57,6 @@ privilegeList: ALL PRIVILEGES? | privilege (COMMA privilege)*;
 grantOption: WITH GRANT OPTION;
 revokeBehavior: RESTRICT | CASCADE;
 membershipOption: (ADMIN | INHERIT | SET) (OPTION | TRUE | FALSE);
-asOfFragment: asOfClause EOF;
 // Explicit compiler entry; parameters are not accepted by ordinary statements.
 parameterTemplate: templateSelect SEMI? EOF;
 templateSelect
@@ -68,7 +71,7 @@ templateLimitClause: LIMIT (INTEGER | PARAMETER);
 
 // Explicit Table relational root; admission/type checks remain with RelationalSql.
 // The single-source statement root retains its independent LIMIT/subquery profile.
-relationalQuery: EXPLAIN? relationalSelect SEMI? EOF;
+relationalQuery: EXPLAIN? relationalSelect snapshotClause? SEMI? EOF;
 relationalSelect
     : SELECT relationalSelection (COMMA relationalSelection)* FROM relationalTarget
       relationalJoin? whereClause? (GROUP BY columnReference (COMMA columnReference)*)?
@@ -94,9 +97,14 @@ selectStatement
     ;
 sourceAlias: AS identifier;
 selection: projection | aggregateSelection;
-aggregateSelection: (COUNT LPAREN (STAR | columnReference) RPAREN | SUM LPAREN columnReference RPAREN) outputAlias?;
+aggregateSelection: (COUNT LPAREN (STAR | columnReference | scalarCall) RPAREN | SUM LPAREN (columnReference | scalarCall) RPAREN) outputAlias?;
 projection: STAR | projectionItem (COMMA projectionItem)*;
-projectionItem: columnReference outputAlias?;
+projectionItem: (columnReference (AT TIME ZONE STRING)? | scalarCall) outputAlias?;
+scalarCall: scalarFunction LPAREN scalarArgument (COMMA scalarArgument)* RPAREN;
+scalarArgument: (columnReference | scalarCall) (AT TIME ZONE STRING)? | signedInteger | STRING;
+scalarFunction: DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_MULTIPLY | DECIMAL_DIVIDE
+    | DECIMAL_RESCALE | RANGE_OVERLAPS | RANGE_CONTAINS | RANGE_ADJACENT | RANGE_COMPARE
+    | VECTOR_DISTANCE | TIME_BUCKET | LOCAL_TO_UTC;
 outputAlias: AS identifier;
 columnReference: identifier (DOT identifier)?;
 whereClause: WHERE predicate;
@@ -247,10 +255,22 @@ secretRef
 createTable
     : CREATE TABLE (IF NOT EXISTS)? identifier LPAREN tableElement (COMMA tableElement)* RPAREN
     ;
-tableElement: columnDef | PRIMARY KEY LPAREN identifier (COMMA identifier)* RPAREN;
+tableElement: columnDef | PRIMARY KEY LPAREN identifier (COMMA identifier)* RPAREN | tableConstraint;
+tableConstraint: (CONSTRAINT identifier)? (checkConstraint | foreignKeyConstraint);
+checkConstraint: CHECK LPAREN checkPredicate (AND checkPredicate)* RPAREN (NOT VALID)?;
+checkPredicate: columnReference (IS NOT? NULL_ | comparison (literal | columnReference));
+foreignKeyConstraint
+    : FOREIGN KEY constraintColumns REFERENCES identifier constraintColumns referentialClause* NOT ENFORCED
+    ;
+constraintColumns: LPAREN identifier (COMMA identifier)* RPAREN;
+referentialClause: ON (DELETE | UPDATE) (RESTRICT | NO ACTION | CASCADE | SET NULL_);
 columnDef: identifier dataType columnConstraint*;
-columnConstraint: nullability | DEFAULT literal | PRIMARY KEY | COLLATE collation;
-collation: UTF8_BINARY | ASCII_CI | EBCDIC_CP037;
+columnConstraint
+    : nullability | DEFAULT literal | PRIMARY KEY | COLLATE collation
+    | ROUNDING identifier | METRIC identifier
+    | TIMEZONE STRING TZDB STRING TZIF X STRING
+    ;
+collation: UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | EBCDIC_037_PAD | EBCDIC_1047_NOPAD;
 nullability: NOT NULL_ | NULL_;
 
 dataType
@@ -259,6 +279,8 @@ dataType
     | LIST LPAREN dataType nullability? RPAREN
     | ARRAY LPAREN dataType nullability? COMMA INTEGER RPAREN
     | MAP LPAREN dataType nullability? COMMA dataType nullability? RPAREN
+    | (RANGE | MULTIRANGE) LT dataType GT
+    | VECTOR LPAREN INTEGER COMMA scalarTypeName RPAREN
     ;
 // Unknown scalar names/parameter combinations produce attributed binding errors.
 // Quoted type names are not aliases. INT8 retains Transit's eight-bit meaning.
@@ -272,6 +294,9 @@ typeField: identifier dataType nullability? OPTIONAL?;
 alterTable
     : ALTER TABLE identifier (
         ADD COLUMN? columnDef
+      | ADD tableConstraint
+      | DROP CONSTRAINT identifier RESTRICT?
+      | VALIDATE CONSTRAINT identifier
       | DROP COLUMN? identifier RESTRICT?
       | RENAME COLUMN? identifier TO identifier
       | RENAME TO identifier
@@ -347,23 +372,15 @@ explainStatement
     : EXPLAIN selectStatement
     ;
 
-// Isolated fragment only; no production operation interprets this integer.
-// Keep the rule unchanged until a deliberate grammar/contract cutover.
-// The intended language reserves FOR SYSTEM_TIME for SQL temporal semantics
-// and uses separate typed Transit snapshot/branch/tag and resource selectors.
-// See docs/handbook/reference/sql/as-of.md; this rule enables neither historical queries
-// nor a mapping from a system-time expression to a resource journal revision.
-asOfClause
-    : FOR SYSTEM_TIME AS OF INTEGER
-    ;
-
-identifier: settingIdentifier | STREAMS | QUEUES | DATAFLOW | AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE;
+identifier: settingIdentifier | STREAMS | QUEUES | SNAPSHOT | CURRENT | PROJECTING | DATAFLOW | AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE;
 settingIdentifier: legacyIdentifier | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER;
 legacyIdentifier
     : IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN
     | INSERT | UPDATE | DELETE | SET | VALUES
     | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS
-    | COLLATE | UTF8_BINARY | ASCII_CI | EBCDIC_CP037
+    | COLLATE | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | EBCDIC_037_PAD | EBCDIC_1047_NOPAD
+    | AT | DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_MULTIPLY | DECIMAL_DIVIDE | DECIMAL_RESCALE | RANGE_OVERLAPS | RANGE_CONTAINS | RANGE_ADJACENT | RANGE_COMPARE | VECTOR_DISTANCE | TIME_BUCKET | LOCAL_TO_UTC
+    | RANGE | MULTIRANGE | VECTOR | ROUNDING | METRIC | TIMEZONE | TZDB | TZIF
     | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE
     | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING
     | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION
@@ -374,8 +391,22 @@ legacyIdentifier
     | STREAM | QUEUE | PARTITION | PARTITIONS | HASH
     | PRODUCE | ENQUEUE | PRODUCER | ID | EPOCH | SEQUENCE | VISIBLE_AT | RETURNING
     | CONSUME | CLAIM | LEASE | WAIT | ACK | EXTEND | RECEIPT
+    | CONSTRAINT | CHECK | FOREIGN | REFERENCES | ENFORCED | VALID | VALIDATE | NO | ACTION
     ;
 
+AT: 'AT';
+DECIMAL_ADD: 'DECIMAL_ADD';
+DECIMAL_SUBTRACT: 'DECIMAL_SUBTRACT';
+DECIMAL_MULTIPLY: 'DECIMAL_MULTIPLY';
+DECIMAL_DIVIDE: 'DECIMAL_DIVIDE';
+DECIMAL_RESCALE: 'DECIMAL_RESCALE';
+RANGE_OVERLAPS: 'RANGE_OVERLAPS';
+RANGE_CONTAINS: 'RANGE_CONTAINS';
+RANGE_ADJACENT: 'RANGE_ADJACENT';
+RANGE_COMPARE: 'RANGE_COMPARE';
+VECTOR_DISTANCE: 'VECTOR_DISTANCE';
+TIME_BUCKET: 'TIME_BUCKET';
+LOCAL_TO_UTC: 'LOCAL_TO_UTC';
 DATAFLOW: 'DATAFLOW';
 AUTHORIZE: 'AUTHORIZE';
 ACTIVATE: 'ACTIVATE';
@@ -386,6 +417,15 @@ RETIRE: 'RETIRE';
 
 // ---- Lexer rules --------------------------------------------------------
 BEGIN: 'BEGIN';
+CONSTRAINT: 'CONSTRAINT';
+CHECK: 'CHECK';
+FOREIGN: 'FOREIGN';
+REFERENCES: 'REFERENCES';
+ENFORCED: 'ENFORCED';
+VALID: 'VALID';
+VALIDATE: 'VALIDATE';
+NO: 'NO';
+ACTION: 'ACTION';
 STREAM: 'STREAM';
 QUEUE: 'QUEUE';
 STREAMS: 'STREAMS';
@@ -494,9 +534,19 @@ RESTRICT: 'RESTRICT';
 DEFAULT: 'DEFAULT';
 PRIMARY: 'PRIMARY';
 COLLATE: 'COLLATE';
+RANGE: 'RANGE';
+MULTIRANGE: 'MULTIRANGE';
+VECTOR: 'VECTOR';
+ROUNDING: 'ROUNDING';
+METRIC: 'METRIC';
+TIMEZONE: 'TIMEZONE';
+TZDB: 'TZDB';
+TZIF: 'TZIF';
 UTF8_BINARY: 'UTF8_BINARY';
 ASCII_CI: 'ASCII_CI';
 EBCDIC_CP037: 'EBCDIC_CP037';
+EBCDIC_037_PAD: 'EBCDIC_037_PAD';
+EBCDIC_1047_NOPAD: 'EBCDIC_1047_NOPAD';
 KEY: 'KEY';
 IF: 'IF';
 EXISTS: 'EXISTS';
@@ -553,7 +603,9 @@ SECRET: 'SECRET';
 AS: 'AS';
 OF: 'OF';
 FOR: 'FOR';
-SYSTEM_TIME: 'SYSTEM_TIME';
+SNAPSHOT: 'SNAPSHOT';
+PROJECTING: 'PROJECTING';
+CURRENT: 'CURRENT';
 INT64: 'INT64';
 BOOL: 'BOOL';
 UTF8: 'UTF8';

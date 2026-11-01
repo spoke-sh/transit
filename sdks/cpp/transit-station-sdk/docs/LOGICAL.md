@@ -19,13 +19,17 @@ auto cell = Cell::structure({
 auto owned = Cell::decode(cell.encode());
 ```
 
-`Type` factories cover every logical family: `scalar`, `decimal`, `timestamp`,
+`Type` factories cover the C model's admitted families: `scalar`, `decimal`, `timestamp`,
 `structure`, `tagged_union`, `list`, `array` and `map`. Fields carry name, type,
 nullable and optional flags. `Atom` factories cover exact signed/unsigned numbers,
 decimal coefficients, finite floats, booleans, text, bytes, temporal carriers,
 intervals and UUIDs. `Int128` and `Uint128` expose exact low/high limbs; ordinary
 64-bit numbers have overloads. Decimal coefficients are interpreted using their
 descriptor's scale.
+
+`RANGE`, `MULTIRANGE` and `VECTOR` descriptors and present cells are unsupported
+by this model, including nested occurrences. Decoding them throws
+`transit::sdk::Error` with invalid-argument detail, matching the C owner.
 
 `Cell` factories preserve `missing`, `null`, `type_error`, `atom`, `structure`,
 `list`, `array`, `map`, `tagged_union`, `json` and `conflict`. An `Alternative`

@@ -43,6 +43,12 @@ export type Descriptor =
   | { readonly kind: ScalarKind }
   | { readonly kind: "decimal"; readonly precision: number; readonly scale: number }
   | { readonly kind: "timestamp"; readonly zone: "civil" | "utc" }
+  | { readonly kind: "range" | "multirange"; readonly subtype: Descriptor }
+  | {
+      readonly kind: "vector";
+      readonly dimensions: number;
+      readonly element: "float32" | "float16" | "bfloat16" | "int8" | "binary";
+    }
   | { readonly kind: "structure" | "tagged_union"; readonly fields: readonly Field[] }
   | { readonly kind: "list"; readonly element: Element }
   | { readonly kind: "array"; readonly element: Element; readonly length: number }
@@ -68,6 +74,11 @@ export type Atom =
       readonly days: bigint;
       readonly nanos: bigint;
     };
+export interface RangeValue {
+  readonly empty: boolean;
+  readonly lower: { readonly value: Atom; readonly inclusive: boolean } | null;
+  readonly upper: { readonly value: Atom; readonly inclusive: boolean } | null;
+}
 export type Value =
   | { readonly kind: "atom"; readonly atom: Atom }
   | { readonly kind: "structure" | "list" | "array"; readonly cells: readonly Cell[] }
@@ -76,6 +87,10 @@ export type Value =
       readonly entries: readonly { readonly key: Atom; readonly value: Cell }[];
     }
   | { readonly kind: "tagged_union"; readonly index: number; readonly value: Cell }
+  | { readonly kind: "range"; readonly range: RangeValue }
+  | { readonly kind: "multirange"; readonly ranges: readonly RangeValue[] }
+  /** Exact little-endian dense elements. The descriptor owns shape; no per-element states. */
+  | { readonly kind: "vector"; readonly bytes: Uint8Array }
   | { readonly kind: "json"; readonly json: string };
 export type SourceKind = Descriptor["kind"] | "unknown" | "null_value" | "text" | "character";
 export type Cell =
@@ -138,6 +153,12 @@ export function encodeType(value: Descriptor, budget = new Budget(256), depth = 
       return { decimal: { precision: value.precision, scale: value.scale } };
     case "timestamp":
       return { timestamp: value.zone };
+    case "range":
+      return { range: encodeType(value.subtype, budget, depth + 1) };
+    case "multirange":
+      return { multirange: encodeType(value.subtype, budget, depth + 1) };
+    case "vector":
+      return { vector: { dimensions: value.dimensions, element: value.element } };
     case "structure":
     case "tagged_union": {
       const fields = value.fields.map((field) => ({
@@ -168,6 +189,11 @@ export function decodeType(value: WireType, budget = new Budget(256), depth = 0)
   });
   if ("decimal" in value) return { kind: "decimal", ...value.decimal };
   if ("timestamp" in value) return { kind: "timestamp", zone: value.timestamp };
+  if ("range" in value)
+    return { kind: "range", subtype: decodeType(value.range, budget, depth + 1) };
+  if ("multirange" in value)
+    return { kind: "multirange", subtype: decodeType(value.multirange, budget, depth + 1) };
+  if ("vector" in value) return { kind: "vector", ...value.vector };
   if ("structure" in value || "tagged_union" in value) {
     const fields = "structure" in value ? value.structure : value.tagged_union;
     return {
@@ -330,6 +356,20 @@ export function encodeCell(value: Cell, budget = new Budget(65536), depth = 0): 
       switch (item.kind) {
         case "atom":
           return { value: { atom: encodeAtom(item.atom, budget) } };
+        case "range":
+          return { value: { range: encodeRange(item.range, budget) } };
+        case "multirange":
+          return {
+            value: {
+              multirange: item.ranges.map((range) => {
+                budget.enter(depth + 1);
+                return encodeRange(range, budget);
+              }),
+            },
+          };
+        case "vector":
+          budget.data(item.bytes.byteLength);
+          return { value: { vector: hex(item.bytes, 1024 * 1024) } };
         case "structure":
         case "list":
         case "array":
@@ -381,7 +421,19 @@ export function decodeCell(value: WireCell, budget = new Budget(65536), depth = 
   const item = value.value;
   let decoded: Value;
   if ("atom" in item) decoded = { kind: "atom", atom: decodeAtom(item.atom, budget) };
-  else if ("structure" in item) decoded = { kind: "structure", cells: item.structure.map(cell) };
+  else if ("range" in item) decoded = { kind: "range", range: decodeRange(item.range, budget) };
+  else if ("multirange" in item)
+    decoded = {
+      kind: "multirange",
+      ranges: item.multirange.map((range) => {
+        budget.enter(depth + 1);
+        return decodeRange(range, budget);
+      }),
+    };
+  else if ("vector" in item) {
+    budget.data(item.vector.length / 2);
+    decoded = { kind: "vector", bytes: unhex(item.vector, 1024 * 1024) };
+  } else if ("structure" in item) decoded = { kind: "structure", cells: item.structure.map(cell) };
   else if ("list" in item) decoded = { kind: "list", cells: item.list.map(cell) };
   else if ("array" in item) decoded = { kind: "array", cells: item.array.map(cell) };
   else if ("map" in item)
@@ -403,4 +455,15 @@ export function decodeCell(value: WireCell, budget = new Budget(65536), depth = 
     decoded = { kind: "json", json: item.json };
   }
   return { state: "value", value: decoded };
+}
+type WireRange = Extract<WireValue, { range: unknown }>["range"];
+function encodeRange(value: RangeValue, budget: Budget): WireRange {
+  const bound = (value: RangeValue["lower"]) =>
+    value === null ? null : { value: encodeAtom(value.value, budget), inclusive: value.inclusive };
+  return { is_empty: value.empty, lower: bound(value.lower), upper: bound(value.upper) };
+}
+function decodeRange(value: WireRange, budget: Budget): RangeValue {
+  const bound = (value: WireRange["lower"]) =>
+    value === null ? null : { value: decodeAtom(value.value, budget), inclusive: value.inclusive };
+  return { empty: value.is_empty, lower: bound(value.lower), upper: bound(value.upper) };
 }

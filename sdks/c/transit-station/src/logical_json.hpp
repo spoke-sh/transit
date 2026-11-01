@@ -64,7 +64,7 @@ struct Json {
 };
 class JsonParser {
     std::string_view source;
-    size_t offset = 0, nodes = 0, depth_bound;
+    size_t offset = 0, nodes = 0, depth_bound, field_bound;
     char peek() const { return offset < source.size() ? source[offset] : '\0'; }
     char get() { require(offset < source.size(), "json-truncated"); return source[offset++]; }
     bool consume(char expected) { if (peek() != expected) return false; ++offset; return true; }
@@ -129,7 +129,7 @@ class JsonParser {
         if (consume('{')) {
             auto out = Json::object(); space(); if (consume('}')) return out;
             for (;;) {
-                require(out.members.size() < 256, "json-field-budget"); space(); auto key = string();
+                require(out.members.size() < field_bound, "json-field-budget"); space(); auto key = string();
                 for (const auto &entry : out.members) require(entry.first != key, "json-duplicate-key");
                 space(); require(consume(':'), "json-colon"); out.members.emplace_back(std::move(key), value(depth + 1));
                 space(); if (consume('}')) return out; require(consume(','), "json-object-separator");
@@ -142,8 +142,8 @@ class JsonParser {
         Json out; out.kind = Json::Kind::Number; out.text = source.substr(start, offset - start); return out;
     }
 public:
-    JsonParser(std::string_view input, size_t bytes = json_bytes, size_t depth = 96) : source(input), depth_bound(depth) {
-        require(!input.empty() && input.size() <= bytes && depth && depth <= 128, "json-budget");
+    JsonParser(std::string_view input, size_t bytes = json_bytes, size_t depth = 96, size_t fields = 256) : source(input), depth_bound(depth), field_bound(fields) {
+        require(!input.empty() && input.size() <= bytes && depth && depth <= 128 && fields, "json-budget");
     }
     Json parse() { auto out = value(0); space(); require(offset == source.size(), "json-trailing"); return out; }
 };

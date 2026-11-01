@@ -627,6 +627,11 @@ PyArrow. The package tests exercise shared Arrow/compute types, ownership and
 output failure, and the compatible upstream compute suite. PyArrow is a test
 dependency; no C++ query engine is linked into Fuze.
 
+The `fuze-types`, `table-schema`, `relational` and `fuze-sources` recipes also run
+the package test graph after their independent oracles. Logical types and row
+validation share the declared protocol, memory and Arrow modules; compiling
+those source files as dependency-free test roots does not exercise that graph.
+
 [Integration notes](docs/integration.md) record pins, compatibility changes and
 measured limits. [Tables](../../../docs/handbook/reference/tables.md) owns transaction and result
 semantics; [Arrow](../../../docs/handbook/reference/arrow.md) owns Arrow interchange.
@@ -672,8 +677,10 @@ virtual space padding of the shorter operand, including control characters
 below CP037 space. Its sort keys omit trailing spaces and encode non-space
 symbols with their preceding space-run length; each non-space symbol uses ten
 bytes plus one final terminator. The caller supplies the bounded key buffer.
-This helper and `ebcdic_1047_nopad` are separate from the currently admitted
-TableSchema/SQL collation tags.
+This profile and `ebcdic_1047_nopad` are admitted TableSchema/SQL collation
+tags. Schema/default validation, key ordering, hashes, query batches and
+compressed comparisons use the same descriptor. The existing `ebcdic_cp037`
+profile retains NO PAD semantics.
 
 `StandardsLedger` exposes the generated projection of
 [`standards-ledger.json`](../../../contracts/sql/standards-ledger.json).
