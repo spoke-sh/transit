@@ -1425,8 +1425,10 @@ original-operation RETURNING pass the installed four-interface profile on clean
 [append qualification](../history/qualification/query.md#sql-append-admission-and-original-result-delivery--2026-11-01).
 Typed CONSUME preparation in `9c48a5726` passes its
 [compiler and independent-corpus checks](../history/qualification/query.md#typed-consumption-preparation--2026-11-01),
-but is not admitted by SQL sessions. Native group/positional binding, waits,
-authenticated offset settlement, Queue acquisition/settlement, the finite
+but is not admitted by SQL sessions. `02acf0253` adds authenticated interval
+settlement and bounded original-result consumption with passing
+[component and disk-owner checks](../history/qualification/query.md#bounded-consumption-results-and-authenticated-intervals--2026-11-01).
+SQL group/positional binding, waits, offset-settlement admission, Queue acquisition/settlement, the finite
 analytical bridge, mixed SQL and the remaining installed fault matrix are open.
 The batch and milestone remain in progress.
 

@@ -9,6 +9,83 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Bounded consumption results and authenticated intervals — 2026-11-01
+
+The local implementation committed as `02acf0253867858ff460c8259a6569d5f60d9a80` replaces the current v1
+definition with `aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7`
+(`transit.v1.bounded-stream-progress.2026-11-01`). Native offset requests,
+stored outcomes and transaction actions carry either an exhausted cursor or two
+authenticated boundaries from the same retained Stream read. Independently signed
+Python fixtures exercise both boundaries. A completed interval does not relabel
+the original read as exhausted. See the [Stream contract](../../../contracts/STREAM_V1.md#finite-read-coverage).
+
+Disk-backed storage checks execute prefix and suffix settlement, a lost append
+reply followed by owner/WAL/object-store reopen, original receipt recovery,
+forged MACs and row counts, checkpoint conflicts, generation fencing, read
+release and revocation. Timestamp-filtered sealed reads settle an interval with
+zero returned rows and subsequent intervals with exact count differences.
+Catalog checks retain an interval proof through lost transaction admission,
+prepare and authority-key rotation; original-result checks exercise saved
+interval handoff and reject a response larger than a lowered page budget.
+
+SQL result reading now lowers each native page budget to the remaining frozen
+logical limit. Checks cover LIMIT 0, a partial filtered prefix, exhaustion before
+the limit, repeated completion, original-position retry, owned buffered cells
+and current disclosure checks. The shared codecs preserve a partial native
+cursor when the logical result reaches its explicit limit; missing or unsatisfied
+limits cannot establish completion. Append and Queue claim projections still
+refuse output limits. See the [result contract](../../../contracts/SQL_RESULTS_V1.md#original-workload-evidence).
+
+All Zig checks below used ReleaseSafe in the isolated implementation worktree.
+These are component and disk-owner results, **not an installed SQL CONSUME,
+provider-replacement, performance or whole-M6 qualification**. SQL consumption
+admission, named group binding, waits and SQL offset settlement remain open.
+No installed fault profile was executed on this new definition in this record.
+
+| Check | Result | Log SHA-256 |
+| --- | --- | --- |
+| Storage: Stream reads, interval settlement and transaction actions (`storage1`) | 39/39 | `57ceb12fb25fba59a106b04697ba3ff9a372edcb6aac1c745113f13af969de67` |
+| Native protocol and neutral fixtures (`protocol2`) | 112/112 | `b3e51f84fea6b26d7d90ea80866ee7836e3daf8138066339dc4b825b6f618c52` |
+| Catalog original results and transactional interval settlement (`catalog3`) | 6/6 | `4a071053d0babaec19fcb0424ba4cb7b233d587919348704014fc701000021d7` |
+| SQL runtime, bounded reader and recovery (`sql1`) | 13/13 | `fbc916d19ce098d2ab9d0b9af088877beafc852ae5110313508d07405f8c8a35` |
+| SQL framing, including independent partial and zero-limit frames (`sql-protocol3`) | 25/25 | `7e28b220af4d6721d9d14c5d27b4b310dc7d7c282be5aa8db873bef014bbe6e0` |
+| Shared result semantics (`results1`) | 26/26 | `42ff1c25cca785440b6463601e2502e8be4ca8db51821c45b869e03ee6eb439f` |
+| Shared SQL client (`sql-client1`) | 25/25 | `67dab27625ddf385b0aece41b04bcaabe0b73874d0bd68cc688179b6a3e567fe` |
+| Fuze workload projection selection and dependency tests (`fuze1`) | 116/116 | `d7e7833e1f79b00abc01925098d3423faaabe137f2905d531ebc24624c7b2d73` |
+| Local Stream control reserve and revocation (`backend1`) | 2/2 | `5880450c5bb77e27367f62ec1b5c2d89c18378f243283ae0863edeaa56d40bd6` |
+| Repository fast checks (`fast2`) | 60 passed | `7d5836ff600dbe633557d8dc21ba737b3a8ca3da0170609cea2665ee5377be84` |
+| Documentation links (`docs1`) | 10085 links / 710 files | `258f159d53af8c010aff699250705f457efd7fdea7ed66c348e3b1b5e64c0a19` |
+
+Logs use `/var/tmp/transit-m6-stream-progress-<name>.log`. Package commands were
+`zig build test -Doptimize=ReleaseSafe --summary all`; storage selected
+`stream ` and `log transaction actions`, Catalog selected `workload result` and
+`transaction log statements retain exact offset`, Fuze selected
+`workload projections`, and the local backend selected `direct Stream settlement`.
+The Fuze total includes 93 dependency tests. The remaining rows used their full
+owning package test target, `just check::fast`, and `python3 -B tests/runner/docs.py`.
+
+Contract, ABI, browser, signing and neutral fixture regeneration completed,
+including the remaining Table/codec/relational fixtures and diagnostic inventory.
+Version verification reports 158 aligned packages/pins. The initial generation
+attempts failed compilation on shadowed identifiers; the final generator run
+succeeded. An independent frame check then found an observation field-order
+mismatch in the Python fixture generator, after an earlier test-loop compilation
+failure. Correcting that generator produced the passing 25-test frame run above.
+The runtime fingerprint check was preserved. An initial fast-check invocation
+named a nonexistent recipe and ran no checks; the correct task subsequently
+passed all 60. These earlier failures remain failures:
+
+| Preparation log | Outcome | SHA-256 |
+| --- | --- | --- |
+| `cutover1` | Failed: shadowed progress identifiers | `7cfabf8bc3ddc1c7ca433b67ce8e4977a41fc32a908e69db135b434249407a04` |
+| `cutover2` | Failed: shadowed page row budget | `f43c5d677f569171c4e599a8d01948fb0f47ddf567519a613ab0cc5418dc52d0` |
+| `cutover3` | Regeneration passed | `658554bab56821545ca73e1fda733aa015a18949d9166f5e8b396150e6a974b1` |
+| `extra-fixtures1` | Remaining fixture generation passed | `1df3838fd4ecc44f9f774d8fccee5bea788ca49fcea1c06dc19488117ab4a40f` |
+| `sql-protocol1` | Failed compilation: inline-loop control flow | `a322053342a21912d986a9f1e30263e12a12bbe4cc5684db6295054051805d0c` |
+| `sql-protocol2` | Failed: 24/25 tests; independent observation fingerprint differed | `4883c6b5dd1c65faee100a3de22527feb251933252daa8f54825959daf0ff7c5` |
+| `sql-fixtures2` | Corrected SQL fixtures regenerated | `2b28b1d1e8b555d44700aeabc435f67bc2665072b179188c553f13324e99bdfa` |
+| `fast1` | Not executed: nonexistent recipe | `471e061e3d622eee604515633b2e4eb16df1f5cb9eda540bf64a54864d8ad76d` |
+
 ## Typed consumption preparation — 2026-11-01
 
 The local source committed as `9c48a5726698bcf5920a8db7cf3d23799407e6f7`
