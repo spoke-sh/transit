@@ -6150,30 +6150,17 @@
       ]
     },
     "packages/zig/transit-catalog/src/DirectQueueMutation.zig": {
-      "errors": {
-        "CatalogKindMismatch": 1
-      },
-      "outcomes": {
-        "Request": [
-          "enqueue",
-          "claim",
-          "settle",
-          "release"
-        ]
-      },
+      "errors": {},
+      "outcomes": {},
       "error_sets": {},
-      "error_returns": {
-        "Request.binding()": "<inferred>",
-        "Request.validate()": "<inferred>"
-      },
+      "error_returns": {},
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 4,
+        "try": 0,
         "catch": 0
       },
       "imports": [
-        "root.zig",
-        "std"
+        "root.zig"
       ]
     },
     "packages/zig/transit-catalog/src/DirectQueueResponse.zig": {
@@ -6716,28 +6703,13 @@
       ]
     },
     "packages/zig/transit-catalog/src/DirectStreamMutation.zig": {
-      "errors": {
-        "CatalogKindMismatch": 1,
-        "StreamReadConflict": 1
-      },
-      "outcomes": {
-        "Request": [
-          "append",
-          "assign",
-          "consume",
-          "release",
-          "offset"
-        ]
-      },
+      "errors": {},
+      "outcomes": {},
       "error_sets": {},
-      "error_returns": {
-        "Request.binding()": "<inferred>",
-        "Request.offset.validate()": "<inferred>",
-        "Request.validate()": "<inferred>"
-      },
+      "error_returns": {},
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 6,
+        "try": 0,
         "catch": 0
       },
       "imports": [
@@ -8384,17 +8356,7 @@
       "errors": {
         "InvalidCatalogIdentity": 2
       },
-      "outcomes": {
-        "Access": [
-          "create",
-          "inspect",
-          "read",
-          "append",
-          "acquire",
-          "settle",
-          "administer"
-        ]
-      },
+      "outcomes": {},
       "error_sets": {},
       "error_returns": {
         "requirements()": "<inferred>"
@@ -20815,13 +20777,30 @@
     },
     "packages/zig/transit-protocol/src/LogWorkload.zig": {
       "errors": {
+        "CatalogKindMismatch": 2,
         "DataIdentityConflict": 2,
         "IncompatibleDefinition": 2,
         "InvalidQueueOperationBinding": 1,
-        "InvalidStreamOperationBinding": 1
+        "InvalidStreamOperationBinding": 1,
+        "StreamReadConflict": 1
       },
       "outcomes": {
+        "Access": [
+          "create",
+          "inspect",
+          "read",
+          "append",
+          "acquire",
+          "settle",
+          "administer"
+        ],
         "QueueKind": [
+          "enqueue",
+          "claim",
+          "settle",
+          "release"
+        ],
+        "QueueRequest": [
           "enqueue",
           "claim",
           "settle",
@@ -20833,18 +20812,30 @@
           "consume",
           "release",
           "offset"
+        ],
+        "StreamRequest": [
+          "append",
+          "assign",
+          "consume",
+          "release",
+          "offset"
         ]
       },
       "error_sets": {},
       "error_returns": {
         "QueueBinding.requireSame()": "<inferred>",
         "QueueBinding.validate()": "<inferred>",
+        "QueueRequest.binding()": "<inferred>",
+        "QueueRequest.validate()": "<inferred>",
         "StreamBinding.requireSame()": "<inferred>",
-        "StreamBinding.validate()": "<inferred>"
+        "StreamBinding.validate()": "<inferred>",
+        "StreamRequest.binding()": "<inferred>",
+        "StreamRequest.offset.validate()": "<inferred>",
+        "StreamRequest.validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 6,
+        "try": 16,
         "catch": 0
       },
       "imports": [
@@ -37139,6 +37130,7 @@
         "decodeLevel()": "<inferred>",
         "decodePending()": "<inferred>",
         "epoch()": "<inferred>",
+        "findEvent()": "<inferred>",
         "inspectChunk()": "<inferred>",
         "inspectRun()": "<inferred>",
         "loadBuffer()": "<inferred>",

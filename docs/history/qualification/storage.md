@@ -9,6 +9,59 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Bounded whole-object reads — 2026-11-01
+
+Implementation `25710d9be` combines descriptor and payload retrieval for bounded
+index-page and bitmap reads. The local provider opens one descriptor per read;
+the composed provider path detects a conditional publication between metadata
+and payload retrieval. Both return caller-owned bytes within the existing
+output bound. Expected content, definition, page/container and disk chunk checks
+remain in place. No resident cache, timeout, stored format or definition changes.
+
+In a separate checkout on `1932cea7f`, the implementation later committed as
+`5bd0c237c` passes **39/39 storage tests** and **6/6 native backend tests**. Inside
+the pinned shell, the ReleaseSafe selections are:
+
+```sh
+cd packages/zig/transit-storage
+zig build test \
+  -Dtest-filter='whole-object' -Dtest-filter='bounded range reads' \
+  -Dtest-filter='candidate objects' -Dtest-filter='paged bitmap' \
+  -Dtest-filter='derived page eviction' -Dtest-filter='queue partition' \
+  -Dtest-filter='log transaction Queue' -Dtest-filter='log transaction queue' \
+  -Dtest-filter='log transaction terminal' -Doptimize=ReleaseSafe --summary all
+```
+
+```sh
+cd packages/zig/transit-backend-local
+zig build test \
+  -Dtest-filter='direct data acceptance' -Dtest-filter='direct data candidates' \
+  -Dtest-filter='direct Stream settlement' \
+  -Dtest-filter='native policy revocation after Table' \
+  -Dtest-filter='native storage fence after Table' \
+  -Doptimize=ReleaseSafe --summary all
+```
+
+Storage execution reports 37 seconds and 30 MB peak RSS; backend execution
+reports two seconds and 16 MB. An instrumented real-disk check counts two file
+opens for a small object through the combined path and three through the composed
+metadata/range path. A failing owner allocator permits no new allocations during
+these reads. Empty/missing objects, short buffers, caller lifetimes, multi-chunk
+content/checksum corruption, private derivation, missing accepted index pages,
+quota reserves and current native policy/storage fences are exercised.
+
+The first fast check refuses the changed diagnostic source inventory. After
+reviewing the explicit bounds/corruption mappings and unchanged canonical binding
+types, the inventory is regenerated and all **60 fast checks pass**. This remains
+component evidence, not an installed cold-recovery or whole-milestone result.
+Raw logs under `/var/tmp/` have these SHA-256 hashes:
+
+| Log | SHA-256 |
+| --- | --- |
+| `transit-m6-object-reads-test2.log` | `3b43badc6b6813af16b494a728d6a9f90d1def757165a2b278a45caf57bb89b3` |
+| `transit-m6-object-reads-backend1.log` | `6dfa57eaa4a48f49b0eeba251c9d0fd796478a802ea9d002884d52f13353ab76` |
+| `transit-m6-object-reads-fast2.log` | `7b8465af36d122296ca5dad1f8d08c7de5bd37411ea2e54bdb59c98e1264e36d` |
+
 ## Exact Queue timer membership — 2026-11-01
 
 Implementation `b56101dac` separates exact membership completion from earliest
