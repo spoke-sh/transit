@@ -141,7 +141,8 @@ fn applyHost(arena: *std.heap.ArenaAllocator, session: *c.DirectTableBridge.Sess
     for (0..64) |_| {
         switch (state) {
             .name_assertion => return state,
-            inline .ddl, .rows => |value| if (value == .committed) return state else try t.expect(value == .admitted),
+            .ddl => |value| if (value == .committed) return state else try t.expect(value == .admitted or value == .finalizing),
+            .rows => |value| if (value == .committed) return state else try t.expect(value == .admitted),
         }
         state = (try session.apply(arena, client, .{ .operation = .{ .reference = reference, .command = .execute, .steps = 32 } }, null)).observation;
     }
