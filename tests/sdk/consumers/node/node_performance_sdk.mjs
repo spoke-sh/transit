@@ -51,6 +51,7 @@ try {
         break;
       }
       case 'query': {
+        const isText = request.representation === 'text';
         const current = await client.lookup(request.name);
         const acquisition = client.prepareSnapshot(current, BigInt(request.id));
         await persist('pending.json', acquisition.save());
@@ -67,7 +68,8 @@ try {
             if (page.row !== undefined) {
               if (first === null) first = Number(process.hrtime.bigint() - started);
               assert.equal(page.row.cells.length, 2);
-              assert.ok(page.row.cells.every(value => typeof value === 'bigint'));
+              assert.equal(typeof page.row.cells[0], 'bigint');
+              assert.equal(typeof page.row.cells[1], isText ? 'string' : 'bigint');
               assert.ok(rows < 1000, 'Result row budget exhausted');
               values.push(page.row.cells);
               rows++;
@@ -76,11 +78,16 @@ try {
             assert.ok(page.row !== undefined);
           }
           assert.ok(complete, 'Result row budget exhausted');
-          values.sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0);
+          values.sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : isText ?
+            Buffer.compare(Buffer.from(a[1]), Buffer.from(b[1])) : a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0);
           const digest = createHash('sha256'), bytes = Buffer.alloc(16);
           for (const value of values) {
-            bytes.writeBigInt64LE(value[0], 0); bytes.writeBigInt64LE(value[1], 8);
+            bytes.writeBigInt64LE(value[0], 0);
+            const raw = isText ? Buffer.from(value[1], 'utf8') : undefined;
+            if (raw) bytes.writeBigUInt64LE(BigInt(raw.length), 8);
+            else bytes.writeBigInt64LE(value[1], 8);
             digest.update(bytes);
+            if (raw) digest.update(raw);
           }
           Object.assign(result, { rows, digest: digest.digest('hex'), complete, first_row_ns: first });
         } finally {

@@ -4,7 +4,7 @@ import hashlib
 import unittest
 
 from performance.sdk.report import compare, summarize
-from performance.sdk.workload import CASES, cases, digest_rows, verify
+from performance.sdk.workload import CASES, cases, digest_rows, digest_text, text_value, verify
 
 
 def campaign():
@@ -27,6 +27,18 @@ def campaign():
 
 
 class ReportTest(unittest.TestCase):
+    def test_text_oracle_preserves_raw_bytes(self):
+        # Independently spelled frame: signed key -1, unsigned UTF-8 byte length 3, snow.
+        raw = bytes.fromhex('ffffffffffffffff0300000000000000e99baa')
+        self.assertEqual(digest_text([(-1, '雪')]), hashlib.sha256(raw).hexdigest())
+        self.assertNotEqual(digest_text([(1, 'A ')]), digest_text([(1, 'a')]))
+        self.assertNotEqual(digest_text([(1, '')]), digest_text([]))
+        self.assertNotEqual(digest_text([(1, 'x')]), digest_text([(1, 'x'), (1, 'x')]))
+        self.assertGreater(len(text_value(5).encode()), 12)
+        workload = {name: expected for name, _, expected in cases(70)}
+        self.assertEqual(workload['text_full']['rows'], 70)
+        self.assertEqual(workload['text_point']['digest'], digest_text([(5, text_value(5))]))
+
     def test_exact_oracle(self):
         # Explicit two signed little-endian int64s, including a negative value.
         expected = hashlib.sha256(bytes.fromhex('0100000000000000feffffffffffffff')).hexdigest()

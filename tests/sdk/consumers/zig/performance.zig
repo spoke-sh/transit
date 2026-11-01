@@ -4,7 +4,8 @@ const data = @import("transit_data_client");
 const c = @import("transit_catalog");
 const q = @import("transit_query_direct");
 const Config = struct { url: []const u8, service_url: []const u8, seed_file: []const u8, connection: c.DirectTableProtocol.Connection };
-const Request = struct { operation: []const u8 = "", name: []const u8 = "", sql: []const u8 = "", id: []const u8 = "1", close: ?struct {} = null };
+const Request = struct { operation: []const u8 = "", name: []const u8 = "", sql: []const u8 = "", id: []const u8 = "1", representation: enum { integer, text } = .integer, close: ?struct {} = null };
+const Row = struct { id: i64, number: i64 = 0, text: []const u8 = "" };
 const Result = struct {
     complete: bool = true,
     rows: ?u64 = null,
@@ -79,7 +80,7 @@ fn execute(io: std.Io, client: *data.Catalog, query: *q.RelationalBridge.Session
     const identity = try std.fmt.allocPrint(allocator, "{x:0>32}", .{try c.TableValues.unsigned(request.id)});
     const opened = (try query.apply(allocator, .{ .open = .{ .id = identity, .statement = .{ .sql = request.sql, .routes = &.{0} }, .bindings = &.{current.binding}, .snapshots = &.{snapshot} } }, null)).opened;
     errdefer _ = query.apply(allocator, .{ .close = opened.reference }, null) catch {};
-    var values: [1000][2]i64 = undefined;
+    var values: [1000]Row = undefined;
     var rows: u64 = 0;
     var first: ?u64 = null;
     var scratch: std.heap.ArenaAllocator = .init(client.allocator);
@@ -92,10 +93,19 @@ fn execute(io: std.Io, client: *data.Catalog, query: *q.RelationalBridge.Session
             if (first == null) first = elapsed(io, started);
             if (row.cells.len != 2) return error.UnexpectedSchema;
             if (rows == values.len) return error.ResultBudgetExceeded;
-            for (row.cells, 0..) |cell, index| {
-                if (cell != .value or cell.value != .atom or cell.value.atom != .signed) return error.UnexpectedValue;
-                values[@intCast(rows)][index] = try std.fmt.parseInt(i64, cell.value.atom.signed, 10);
+            const key = row.cells[0];
+            const cell = row.cells[1];
+            if (key != .value or key.value != .atom or key.value.atom != .signed or cell != .value or cell.value != .atom) return error.UnexpectedValue;
+            var value: Row = .{ .id = try std.fmt.parseInt(i64, key.value.atom.signed, 10) };
+            if (request.representation == .text) {
+                if (cell.value.atom != .utf8 or cell.value.atom.utf8.len > 4096) return error.UnexpectedValue;
+                // Pages borrow scratch; retain verified raw bytes before reset.
+                value.text = try allocator.dupe(u8, cell.value.atom.utf8);
+            } else {
+                if (cell.value.atom != .signed) return error.UnexpectedValue;
+                value.number = try std.fmt.parseInt(i64, cell.value.atom.signed, 10);
             }
+            values[@intCast(rows)] = value;
             rows += 1;
         }
         if (page.complete_coverage) break;
@@ -104,17 +114,18 @@ fn execute(io: std.Io, client: *data.Catalog, query: *q.RelationalBridge.Session
     _ = try query.apply(allocator, .{ .close = opened.reference }, null);
     _ = try call(client, output, .{ .retention = .{ .release = snapshot } });
     const ordered = values[0..@intCast(rows)];
-    std.mem.sort([2]i64, ordered, {}, struct {
-        fn less(_: void, a: [2]i64, b: [2]i64) bool {
-            return a[0] < b[0] or (a[0] == b[0] and a[1] < b[1]);
+    std.mem.sort(Row, ordered, request.representation == .text, struct {
+        fn less(text: bool, a: Row, b: Row) bool {
+            return a.id < b.id or (a.id == b.id and (if (text) std.mem.order(u8, a.text, b.text) == .lt else a.number < b.number));
         }
     }.less);
     var hash = std.crypto.hash.sha2.Sha256.init(.{});
     for (ordered) |value| {
         var bytes: [16]u8 = undefined;
-        std.mem.writeInt(i64, bytes[0..8], value[0], .little);
-        std.mem.writeInt(i64, bytes[8..16], value[1], .little);
+        std.mem.writeInt(i64, bytes[0..8], value.id, .little);
+        if (request.representation == .text) std.mem.writeInt(u64, bytes[8..16], value.text.len, .little) else std.mem.writeInt(i64, bytes[8..16], value.number, .little);
         hash.update(&bytes);
+        if (request.representation == .text) hash.update(value.text);
     }
     return .{ .rows = rows, .digest = try allocator.dupe(u8, &std.fmt.bytesToHex(hash.finalResult(), .lower)), .first_row_ns = first };
 }

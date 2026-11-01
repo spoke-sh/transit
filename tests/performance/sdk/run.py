@@ -20,7 +20,7 @@ from runner.paths import ROOT
 from sdk.consumer_registry import PERFORMANCE_CONSUMERS
 from sdk.sdk_unified import Consumer
 
-from performance.sdk.workload import LANGUAGES, cases, digest_rows, verify
+from performance.sdk.workload import LANGUAGES, cases, digest_rows, text_value, verify
 
 RECORDING = None
 DRIVERS = ('tests/performance/sdk/run.py', 'tests/performance/sdk/workload.py',
@@ -190,6 +190,12 @@ def main():
         for start in range(0, args.rows, 20):
             values = ','.join(f'({i},{73+i})' for i in range(start, min(start+20, args.rows)))
             result, = fixture.console('INSERT INTO sdk_items VALUES ' + values + ';')
+            assert int(result['completion']['counts']['changed']) == min(20, args.rows-start)
+        fixture.console('CREATE TABLE sdk_text (id BIGINT PRIMARY KEY, value TEXT);')
+        for start in range(0, args.rows, 20):
+            values = ','.join("(%d,'%s')" % (i, text_value(i).replace("'", "''"))
+                              for i in range(start, min(start+20, args.rows)))
+            result, = fixture.console('INSERT INTO sdk_text VALUES ' + values + ';')
             assert int(result['completion']['counts']['changed']) == min(20, args.rows-start)
         for language in languages:
             fixture.console(f'CREATE TABLE sdk_write_{language.replace("-", "_")} (id BIGINT PRIMARY KEY, value BIGINT);')
