@@ -181,7 +181,7 @@ This milestone resolves four foundational problems in 2D/3D spatial, volumetric
    inspectable via `ST_IsValidReason` / `ST_IsSolid` and repairable via
    declarative `ST_MakeValid` / `ST_3DMakeValid` (hole-filling, normal
    orientation or SDF voxel-remeshing). Across branches
-   ([Milestone 19](19-branches-merges-and-restore.md)), incompatible edits to
+   ([Milestone 20](20-branches-merges-and-restore.md)), incompatible edits to
    shared `.topo_arc` / `.topo_face` boundaries or 3D spatial clash collisions
    surface natively as **`IS CONFLICT`** cells.
 
@@ -218,6 +218,7 @@ flowchart LR
 | **`MESH3D` & `SOLID3D`** (2-manifold surface meshes & closed watertight volumetric 3-solids / CSG / B-Rep) | 3D Euclidean (`SRID 0` with unit scale `mm`/`m` and `RightHanded_ZUp`/`YUp`) or geodetic (`EPSG:4979` + `EGM2008`); exact `orient3d`/`insphere` over 3D grid $\delta_{\text{grid}}$; boundary $\partial_2(\partial_3 V) = 0$ and Euler–Poincaré $\chi = V - E + F$ | **`.mesh_edgebreaker`** ($<2\text{ bpt}$ `BP`/`CLERS` dual spanning trees + parallelogram vertex delta-varints + 16-bit octahedral normals + progressive wavelet `LOD_0..LOD_k` pages) + **`.octree_roaring`** (`INTERIOR` octant Roaring bitmaps + narrow-band `BOUNDARY` triangle patches / quantized `SDF`) | Non-manifold edges ($>2$ incident faces), open shells on `SOLID3D` ($\partial_2 \partial_3 V \neq 0$), self-intersecting faces or inverted normals $\to$ `IS TYPE_ERROR` with `(shell_id, face_id, edge_id)` witness; linear Z-set volume/centroid/inertia via Discrete Divergence Theorem |
 | **`SCENE3D` & `TRANSFORM3D`** (Hierarchical instanced 3D assemblies & $SE(3)/\text{Sim}(3)$ rigid/similarity poses) | Lie group $SE(3)$ / $\text{Sim}(3)$ composition ($T_{\text{world}}(u) = T_{\text{world}}(\text{parent}(u)) \cdot T_{\text{local}}(u)$) with unit-quaternion normalization ($|q| = 1$) and positive scale ($s > 0$) | **`.scene_dag`**: `.tseg` prototype dictionary (`prototype_id -> .mesh_edgebreaker + .octree_roaring`) + columnar DAG rows `(node_id, parent_id, prototype_id, transform_se3, world_bbox3d)` with unboxed 48-byte `TRANSFORM3D` (`vec3` + `quat4` + `scale`) | Non-invertible transforms, zero/negative scale or cyclic `parent_id` links $\to$ `IS TYPE_ERROR`; articulating a part updates only 48-byte `TRANSFORM3D` in `TWAL1` with zero mesh copy |
 | **`POINTCLOUD`** (LiDAR, photogrammetry & RGB-D 3D point patches) | 3D CRS + vertical datum + `HILBERT_3D` / `MORTON_3D` spatial clustering order and quantized coordinate precision $\delta_{\text{grid}}$ | **`.pcloud_hilbert`**: 4,096-point 3D Hilbert-sorted blocks with `BBOX3D` Frame-of-Reference (`FOR`) bitpacked $(\Delta x, \Delta y, \Delta z)$ integers and dictionary/RLE intensity, RGB, classification and return-number subcolumns | Out-of-bounds coordinates or corrupt LAS/LAZ point records $\to$ `IS TYPE_ERROR`; block-level `BBOX3D` + `OCT_CELL` zone maps prune $>98\%$ of blocks before point decompression |
+| **`RASTER2D` / `GRID3D`** (2D Earth-observation/DEM elevation rasters & 3D regular volumetric grids) | Coupled $\kappa_{\text{spatial}}$ + affine geo-transform (`pixel_to_crs`) + band schema / `nodata` sentinel and pyramid resampling rule (`NEAREST`, `BILINEAR`, `MIN`/`MAX`) | **`.raster_morton`**: 2D/3D Morton-ordered (Z-curve) multi-resolution overview tiles (`64x64` / `256x256` with `FOR` bitpacking or floating-point predictor deltas) + per-tile `(min, max, nodata_bitmap)` zone maps | Non-invertible geo-transform, corrupt tile blocks or `NaN` bands $\to$ `IS TYPE_ERROR`; supports vectorized map algebra (`ST_Value`, `ST_Band`, `ST_Clip`, `ST_Slope`, `ST_Hillshade`) and terrain heightfield raycast |
 | **`BBOX2D` / `BBOX3D`** (`[xmin, ymin, xmax, ymax]` / `+ [zmin, zmax]`) | Axis-aligned 2D/3D planar box or spherical lon/lat/alt box (explicitly distinguishing antimeridian-crossing boxes where `xmin > xmax`); unified with [Milestone 16](16-document-profiles-and-gateway-exchange-lifecycle.md) `PDF` `(page_no, bbox, span)` layout spans | Unboxed 32-byte (`4 x f64` / `4 x i32`) or 48-byte (`6 x f64` / `6 x i32`) SIMD vector lanes + per-row-group summary zone maps | `xmin > xmax` (in non-wrapping planar `SRID`), `ymin > ymax` or `zmin > zmax` $\to$ `IS TYPE_ERROR`; supports 2D/3D box predicates (`&&`, `&&&`, `@>`, `<@`) |
 | **`S2_CELL` / `H3_CELL` / `OCT_CELL`** (`u64` discrete hierarchical 2D/3D grid & octree identifiers) | Hierarchical containment (`parent(level)`, `children(level)`), 2D/3D Hilbert/Morton range intervals (`[cell_min, cell_max]`), and $k$-ring / 6-face / 26-neighbor graph adjacency | 64-bit integer vector with `.bitpack` / `.for_delta` or `.s2_roaring` / `.octree_roaring` interval-run bitmaps; $O(1)$ bit-shift level truncation and range-join alignment | Corrupt/unassigned face, octant or resolution bits $\to$ `IS TYPE_ERROR`; native equijoin/range-join key for multi-resolution 2D/3D spatial aggregation |
 | **`TRAJECTORY`** (3D/4D `POINT` or 6-DoF `TRANSFORM3D` time series with kinematic interpolation) | Coupled $(\kappa_{\text{spatial}}, \kappa_{\text{tz}})$ with declared dead-reckoning spatial/angular tolerance $\varepsilon$ and temporal period `RANGE<TIMESTAMPTZ>` | Piecewise-linear/SLERP 4D/6-DoF tube segments (`[pose0, t0] -> [pose1, t1]`, $\varepsilon$) with delta-quantized waypoints in `StreamPartition` / `TablePartition` `.tseg` | Non-monotonic timestamps or invalid poses $\to$ `IS TYPE_ERROR`; suppresses downstream incremental dataflow deltas while motion stays within the active $\varepsilon$-tube and 2D/3D cell covering |
@@ -303,7 +304,7 @@ flowchart LR
      octree coverings, separating **`INTERIOR` cells/octants** (stored as
      compressed 64-bit prefix intervals in `.tseg` Roaring bitmaps sharing
      [Milestone 6's](06-streams-queues-and-durable-runtime.md) and
-     [Milestone 21 A5's](21-formal-semantics-and-correspondence.md#a5-physical-codecs-and-selected-bitmap-representations)
+     [Milestone 22 A5's](22-formal-semantics-and-correspondence.md#a5-physical-codecs-and-selected-bitmap-representations)
      Roaring container implementation) from **`BOUNDARY` (narrow-band surface)
      cells/octants** (storing clipped edge/triangle slices or a quantized
      Dual-Contouring Signed Distance Field `SDF` + Hermite surface plane per
@@ -435,17 +436,28 @@ flowchart LR
   Search** (combining 256-doc Block-Max BM25, ANN vector similarity and
   `.s2_roaring` / `.octree_roaring` spatial bitmaps in one query plan), and
   `FOREIGN TABLE` / `COPY` adapters for 2D geospatial (**`GeoParquet` v1.1**,
-  **`FlatGeobuf`**, **`GeoArrow`**, **`Shapefile` / `GeoPackage`**, **`PMTiles` /
-  `MVT`**) and 3D / CAD / BIM / Point-Cloud formats (**`glTF 2.0` / `GLB`**,
-  **`OpenUSD` (`USDA`/`USDC`/`USDZ`)**, **`IFC` (`ISO 16739` BIM)**, **`STEP`
-  (`ISO 10303-21` CAD)**, **`CityGML` / `CityJSON`**, **`OGC 3D Tiles 1.1`**, and
-  **`LAS` / `LAZ` / `COPC`**).
-- [Branches, merges and restore](19-branches-merges-and-restore.md) uses `.tseg`
+  **`FlatGeobuf`**, **`GeoArrow`**, **`Cloud-Optimized GeoTIFF` (`COG`)**,
+  **`Shapefile` / `GeoPackage`**, **`PMTiles` / `MVT`**) and 3D / CAD / BIM /
+  Point-Cloud formats (**`glTF 2.0` / `GLB`**, **`OpenUSD`
+  (`USDA`/`USDC`/`USDZ`)**, **`IFC` (`ISO 16739` BIM)**, **`STEP` (`ISO 10303-21`
+  CAD)**, **`CityGML` / `CityJSON`**, **`OGC 3D Tiles 1.1`**, and **`LAS` / `LAZ` /
+  `COPC`**).
+- [Interactive 3D worlds, game asset pipelines and simulation streaming](19-game-asset-pipelines-and-simulation-streaming.md)
+  extends `MESH3D`, `SOLID3D`, `SCENE3D`, `RASTER2D`/`GRID3D`, `.topo_face`,
+  `.octree_roaring` and `TRAJECTORY` with virtualized micropolygon meshlet
+  cluster DAGs (`.mesh_cluster_dag`), block-compressed GPU texture mip-pyramids
+  and Morton Virtual Texture tiles (`.tex_mip_morton`), sparse voxel hierarchies
+  (`.vdb_hierarchy`), 3D Gaussian Splats (`.splat_hilbert`), deformable skeletal
+  rigs and keyframe animation clips (`SKELETON3D`, `ANIMATION_CLIP`),
+  WAL-activated Derived Data Cache (DDC) asset cooking, incremental DBSP
+  `NavMesh` & `HLOD` maintenance, and authoritative ECS simulation / frustum AoI
+  streaming.
+- [Branches, merges and restore](20-branches-merges-and-restore.md) uses `.tseg`
   2D/3D bounding-box (`BBOX2D`/`BBOX3D`) and `S2`/`OCT_CELL` Hilbert zone maps for
   $O(1)$ spatial and volumetric segment skipping in `DIFF(table, base, branch)`
   and detects three-way topological arc/face/assembly conflicts and 3D clash
   collisions (`IS CONFLICT`).
-- [Formal semantics and implementation correspondence](21-formal-semantics-and-correspondence.md)
+- [Formal semantics and implementation correspondence](22-formal-semantics-and-correspondence.md)
   extends **A2 (`CollationOrder.lean`)** to prove 2D/3D MBR / Hilbert / `S2` /
   `OCT_CELL` covering pruning soundness (including geodesic edge-inflation and
   $SE(3)$ bounding-box transformation bounds), **A3 (`FuzeDelta.lean`)** to prove
@@ -454,20 +466,20 @@ flowchart LR
   linear volume aggregates and `INTERIOR`/`BOUNDARY` 2D/3D joins, and **A5
   (`CodecProofs.lean`)** to prove `.mesh_edgebreaker` (`BP`/`CLERS`) and Roaring
   octree round-trip invariants.
-- [Enterprise identity and the Control & Policy Plane](26-control-and-policy-plane.md)
+- [Enterprise identity and the Control & Policy Plane](27-control-and-policy-plane.md)
   enforces **2D & 3D Geospatial/Volumetric Row-Level Security (Spatial RLS)**
   (such as `USING (ST_CoveredBy(location, authorized_region))` or
   `USING (ST_3DWithin(part_solid, authorized_zone3d))`) with security-barrier
   evaluation so untrusted predicates or zone maps never leak out-of-region
   geometry/mesh coordinates or `type_error` side-channels.
-- [Board reimplementation and data-first workbench](29-board-reimplementation.md)
+- [Board reimplementation and data-first workbench](30-board-reimplementation.md)
   renders read-only interactive 2D map layers (`MVT` / `GeoArrow`), progressive
   wavelet-LOD 3D mesh/CAD/BIM scene-graph and LiDAR point-cloud viewports
   (`glTF` / `3D Tiles` / `.mesh_edgebreaker` `LOD_0..LOD_k`), `ST_CrossSection`
   2D slice planes, trajectory streams, `PDF` layout bounding boxes and
   2-way/3-way 2D/3D spatial `DIFF` / clash (`IS CONFLICT`) overlays over public
   result APIs.
-- [SQL grammar, standards comparison and dialect ergonomics](34-sql-grammar-and-dialect-ergonomics.md)
+- [SQL grammar, standards comparison and dialect ergonomics](35-sql-grammar-and-dialect-ergonomics.md)
   audits `GEOMETRY`/`GEOGRAPHY`/`MESH3D`/`SOLID3D`/`POINTCLOUD` type modifiers,
   2D `ST_*` and 3D `ST_3D*` functions and `RANGE` operators against **ISO/IEC
   13249-3 (SQL/MM Spatial)**, **OGC Simple Features**, **PostGIS / SFCGAL**,

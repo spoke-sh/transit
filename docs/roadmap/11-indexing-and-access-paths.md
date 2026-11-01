@@ -130,8 +130,8 @@ does not supply a portable cross-vendor indexing grammar.
    owned by
    [first-class strings and search](14-vectorized-strings-and-search.md),
    [multi-model and foreign relations](18-multi-model-and-foreign-relations.md),
-   [reactive agent context](31-reactive-context-and-agent-activation.md) and
-   [declarative language, context and synthesis research](37-declarative-language-context-and-synthesis.md).
+   [reactive agent context](32-reactive-context-and-agent-activation.md) and
+   [declarative language, context and synthesis research](38-declarative-language-context-and-synthesis.md).
 5. **Integrate the planner and shared public operations.** Expose define, inspect,
    build/rebuild and retire/drop through owning typed operations and SQL adapters,
    using shared statement outcomes and original-operation recovery. Define DDL
@@ -180,15 +180,15 @@ success as winning a map microbenchmark. Record scoped results in the
 - [Multi-model access](18-multi-model-and-foreign-relations.md) qualifies graph
   adjacency and selected document projections against this lifecycle; specialized
   index semantics and external-source coverage need independent evidence.
-- [Branches](19-branches-merges-and-restore.md) qualify sharing, divergence,
+- [Branches](20-branches-merges-and-restore.md) qualify sharing, divergence,
   constraint validation and GC reachability. Immutable reuse alone supplies no
   constant-time preparation, merge or historical-correctness guarantee.
-- [Providers](22-storage-providers-and-concurrency.md),
-  [replication](23-replication-and-failover.md),
-  [operations](24-operations-and-recovery.md) and
-  [clustered execution](25-clustered-execution.md) extend writer scope, copy/rebuild
+- [Providers](23-storage-providers-and-concurrency.md),
+  [replication](24-replication-and-failover.md),
+  [operations](25-operations-and-recovery.md) and
+  [clustered execution](26-clustered-execution.md) extend writer scope, copy/rebuild
   decisions, recovery readiness and distributed uniqueness explicitly.
-- [Board](29-board-reimplementation.md) presents shared definitions, progress,
+- [Board](30-board-reimplementation.md) presents shared definitions, progress,
   coverage and plans. Inspection remains read-only; administrative actions use
   separately authorized public operations.
 
