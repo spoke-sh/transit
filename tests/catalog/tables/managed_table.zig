@@ -149,4 +149,21 @@ pub fn recover(init: std.process.Init, client: c.DirectTableClient, path: []cons
     try control(manager, declaration, .retire, 652012);
     try t.expect(try manager.start(declaration) == null);
     try count(client, 4);
+    // Executor refusal must close the original attempt without publishing an
+    // incomplete prefix or replacing the previous complete output.
+    var bounded = options;
+    bounded.budgets.output_rows = 2;
+    const limited = try manager.prepare(1, "managed_budget", 650003, 652022, "managed_output", "SELECT id FROM managed_input", bounded);
+    _ = try manager.publish(limited);
+    try control(manager, limited, .authorize, 652023);
+    try control(manager, limited, .activate, 652024);
+    try drain(manager, limited, init.io, .cwd());
+    try t.expect(try manager.start(limited) == null);
+    const refusal = try manager.inspect(limited);
+    try t.expectEqual(.budget, refusal.head.blocked);
+    try t.expectEqual(@as(u64, 0), refusal.head.revision);
+    try t.expect(refusal.head.pending == null);
+    try count(client, 4);
+    try control(manager, limited, .retire, 652025);
+    try t.expect(try manager.start(limited) == null);
 }

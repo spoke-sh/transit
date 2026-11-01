@@ -479,7 +479,7 @@ fn privateClient(self: Self, transaction: c.DirectClientToken.Key) !c.DirectTabl
 pub fn step(self: Self, token: c.DirectClientToken.Key, io: std.Io, directory: std.Io.Dir, cancellation: ?*const std.atomic.Value(bool)) !bool {
     return self.stepInner(token, io, directory, cancellation) catch |err| {
         const reason: flow.Blocked = switch (err) {
-            error.ManagedTableResultBudget, error.RelationalOutputBudget, error.RelationalWorkBudget, error.RelationalResidentBudget, error.RelationalSpillBudget, error.TransactionMemoryLimit, error.TransactionStatementLimit, error.TransactionWorkLimit, error.KVBuildBudget => .budget,
+            error.ManagedTableResultBudget, error.RelationalResultBudget, error.RelationalWorkBudget, error.RelationalResidentBudget, error.RelationalSpillBudget, error.RelationalSpillWorkBudget, error.QueryPageBudget, error.QueryResultBudget, error.TransactionMemoryLimit, error.TransactionStatementLimit, error.TransactionWorkLimit, error.KVBuildBudget => .budget,
             error.CatalogDenied, error.AccessDenied, error.Rejected => .authorization,
             error.TableDefinitionChanged, error.TableNotFound, error.DataflowSourceChanged => .source_changed,
             else => return err,

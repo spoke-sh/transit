@@ -264,14 +264,14 @@ Executable acceptance owners are
 [`server_managed_tables.py`](../../tests/interfaces/installation/server_managed_tables.py),
 registered as `just test::managed-tables`. Their assertions cover exact output
 rows, process replacement after private staging, original decisions, control
-races, dependency-cycle refusal, empty successors, restart while suspended and
+races, dependency-cycle and budget refusal, empty successors, restart while suspended and
 idle parking. Registration and this implementation record do not certify an
 execution; completed runner evidence and selected clean lanes are reported with
 the PR.
 
-### Current implementation and evidence boundaries
+### Source assessment at the plan baseline
 
-| Boundary | Present at this source | Remaining implementation |
+| Boundary | Present at the plan baseline | Work identified by the plan |
 | --- | --- | --- |
 | Durable maintained queries | [`RelationalMaintenance`](../../packages/zig/transit-query/src/RelationalMaintenance.zig), [`RelationalHistory`](../../packages/zig/transit-query/src/RelationalHistory.zig) and [`NamedRelational`](../../packages/zig/transit-station-app/src/NamedRelational.zig) retain host-driven activation, finite recomputation, complete revisions and original attribution under the [current public contract](../handbook/reference/queries.md#maintained-table-revisions) | Replace the Station progress/publication mechanism with a direct owner while preserving accepted identity, source retention, ordered errors, verified result coverage and cleanup. Existing independent Table vectors do not establish M5 common-cut semantics |
 | Dataflow lifecycle components | [`ManagedDataflow`](../../packages/zig/transit-catalog/src/ManagedDataflow.zig) has five-state transitions, source bindings, caller-supplied WAL records/decision labels and inspection helpers | No installed scheduler or durable dataflow owner uses this component. Pending records and outbox intents each have 64 resident slots; endpoint declarations have 32. Its single maximum LSN is copied to every source. Replace these representations with durable paged state and exact per-partition progress; never treat a supplied `committed_cut` tag as a verified transaction decision |
@@ -301,7 +301,7 @@ drift check expands the public profile.
 | [M9](09-client-foundation-and-language-apis.md#remaining-implementation-plan--2026-10-31), In Progress; PR #298 merged | Independent `transit-data-client.Catalog`, neutral values/direct readers, bounded contexts, frozen SQL submission and local recovery storage | Principal coordination, ordinary settlement, result/transaction handles and independent data bindings remain active work. M12 supplies its minimal typed operations and migrates affected callers without waiting for every language redesign |
 | [M10](10-standards-and-catalogs.md#delivered-implementation-evidence--2026-10-30), In Progress | Generated standards ledger, operator traits, EXPLAIN integration, collation/timezone/range helpers and historical-cut components | Stored companion types, constraints and durable historical catalog/SQL binding are not delivered by helpers. Gate period types and bitemporal knowledge cuts on their actual owners; do not adopt a private manifest namespace |
 | [M11](11-indexing-and-access-paths.md), Planned | Index lifecycle contracts and existing bounded ordered storage primitives | Full secondary indexes, phased rewrites and finer conflict tracking remain M11. Start on bounded scans/paged arrangements; consume index coverage when qualified. M11 builds must not depend on M12 scheduling, avoiding a circular prerequisite |
-| [M19](19-branches-merges-and-restore.md#local-table-branch-increment), In Progress; PR #301 merged | Durable immutable single-Table branches with exact retained interpretation and protected pins | This does not supply writable branches, whole-catalog cuts or live branch dataflows. Begin M12 in the qualified local branch-one domain and preserve explicit branch identity for later extension |
+| [M20](20-branches-merges-and-restore.md#local-table-branch-increment), In Progress; PR #301 merged | Durable immutable single-Table branches with exact retained interpretation and protected pins | This does not supply writable branches, whole-catalog cuts or live branch dataflows. Begin M12 in the qualified local branch-one domain and preserve explicit branch identity for later extension |
 
 ### Delivery profile and decisions
 
@@ -727,9 +727,9 @@ when every scope and qualification gate is met.
 | [M13 performance](13-data-structures-and-performance.md) | Correct bounded operators, actual spill, allocation/catch-up baselines and per-morsel budget seams | Broader structures, statistics/costing, WCOJ, cache/metering integration and comparative scorecards. M12 cannot defer boundedness or recovery to M13 |
 | [M14 strings/search](14-vectorized-strings-and-search.md), [M15 compilation](15-data-centric-compilation-and-specialization.md) | Typed/effect-aware finite and incremental plans with explicit lifetimes and independent oracles | Shared string/hash integration, search execution and later fusion/AOT/tier-up. Reuse delivered helpers without assuming every optimized path is integrated |
 | [M16 profiles](16-document-profiles-and-gateway-exchange-lifecycle.md), [M17 spatial](17-geospatial-and-spatio-temporal-computing.md), [M18 foreign relations](18-multi-model-and-foreign-relations.md) | Source/decoder definition bindings, function traits, arrangements, temporal joins and governed endpoints | Document/protocol parsers, spatial semantics/indexes, foreign formats, COPY and CDC ingress. Generic callbacks or descriptors do not establish those features |
-| [M19 branches](19-branches-merges-and-restore.md) | Branch-scoped computation identities and retained source/result roots | Writable branch computation, merge/restore decisions and execution discontinuities; SQL MERGE stays with M12 |
-| [M21 formal semantics](21-formal-semantics-and-correspondence.md) | T5/T8/A3 models, production correspondence and explicit proof limits | Broader composition/refinement. M12's selected proofs remain its own completion gate |
-| [M26 policy](26-control-and-policy-plane.md), [M29 Board](29-board-reimplementation.md), [M31 reactive context](31-reactive-context-and-agent-activation.md), [M34 SQL ergonomics](34-sql-grammar-and-dialect-ergonomics.md) | Current-policy execution/disclosure, inspectable complete revisions, exact change modes, blocked reasons and shared lifecycle verbs | Enterprise policy/authentication workflows, broader workbench editing, durable application interests/business triggers and dialect audits. Notifications do not prove an agent or external action completed |
+| [M20 branches](20-branches-merges-and-restore.md) | Branch-scoped computation identities and retained source/result roots | Writable branch computation, merge/restore decisions and execution discontinuities; SQL MERGE stays with M12 |
+| [M22 formal semantics](22-formal-semantics-and-correspondence.md) | T5/T8/A3 models, production correspondence and explicit proof limits | Broader composition/refinement. M12's selected proofs remain its own completion gate |
+| [M27 policy](27-control-and-policy-plane.md), [M30 Board](30-board-reimplementation.md), [M32 reactive context](32-reactive-context-and-agent-activation.md), [M35 SQL ergonomics](35-sql-grammar-and-dialect-ergonomics.md) | Current-policy execution/disclosure, inspectable complete revisions, exact change modes, blocked reasons and shared lifecycle verbs | Enterprise policy/authentication workflows, broader workbench editing, durable application interests/business triggers and dialect audits. Notifications do not prove an agent or external action completed |
 
 ### First implementation changes
 
