@@ -741,7 +741,7 @@ sdk-performance *args:
     zig build transit transit-node transit-query-host transit-board transit-sql-gateway sdk-performance-client -Doptimize=ReleaseSafe --prefix .cache/transit-sdk-performance/release 1>&2
     python3 -B tests/runner/launch.py tests/performance/sdk/run.py --cli .cache/transit-sdk-performance/release/bin/transit --node .cache/transit-sdk-performance/release/bin/transit-node --host .cache/transit-sdk-performance/release/bin/transit-query-host --zig .cache/transit-sdk-performance/release/bin/transit-sdk-performance --wheels .cache/bindings/ReleaseSafe/wheels --node-packages .cache/bindings/ReleaseSafe/node "$@"
 
-# Matching TLS component control for the persistent console statement workload.
+# Finite installed managed-work and wire pressure with verified outcomes.
 [positional-arguments]
 installed-performance profile *args:
     nix develop .#sql-wire --command zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe --prefix .cache/transit-installed-performance/release 1>&2

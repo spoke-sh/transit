@@ -3,10 +3,12 @@ import argparse
 from contextlib import ExitStack, contextmanager
 import ctypes
 import hashlib
+import importlib.metadata
 import json
 import os
 from pathlib import Path
 import platform
+import re
 import secrets
 import shutil
 import socket
@@ -22,6 +24,15 @@ from interfaces.sql_sessions.storage import text
 from performance.console import resources
 from runner.capture import directory, provenance
 from runner.paths import ROOT
+
+DRIVERS = ('performance/load/installed.py', 'performance/load/report.py',
+           'performance/sdk/report.py', 'performance/console/resources.py',
+           'harness/local_installation.py', 'harness/sql_placement.py', 'harness/processes.py',
+           'harness/phases.py', 'harness/services.py', 'interfaces/installation/server.py',
+           'interfaces/sql_sessions/local.py', 'interfaces/sql_sessions/native.py',
+           'interfaces/sql_sessions/result_frame.py', 'interfaces/sql_sessions/storage.py',
+           'interfaces/cli/table_console.py', 'interfaces/cli/console.py',
+           'query/unified/unified_shell.py', 'runner/capture.py', 'runner/paths.py', 'runner/launch.py')
 
 
 def digest(path):
@@ -280,6 +291,8 @@ def main():
     parser.add_argument('--rows', type=int, choices=range(1, 901), default=16)
     parser.add_argument('--peers', type=int, choices=range(1, 17), default=4)
     args = parser.parse_args()
+    if not re.fullmatch('[0-9a-f]{40}', args.binary_revision):
+        parser.error('--binary-revision must be the full source commit')
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
     evidence = directory(ROOT / '.cache/performance/installed/campaign.json') / 'observations.jsonl'
     print(f'Installed measurement: {evidence}', file=sys.stderr)
@@ -297,14 +310,15 @@ def main():
             recorder.emit(dict(phase='manifest', profile=args.profile, rows=args.rows, repeat=args.repeat, peers=args.peers,
                 source=provenance(ROOT), binary_revision=args.binary_revision, cli_version=version,
                 binaries={role: digest(path) for role, path in dict(cli=fixture.cli, **fixture.config['executables']).items()},
-                drivers={str(path.relative_to(ROOT)): digest(path) for path in sorted((ROOT/'tests/performance/load').glob('*.py'))},
+                drivers={path: digest(ROOT/'tests'/path) for path in DRIVERS},
                 system=platform.platform(), machine=platform.machine(), cpus=os.cpu_count(), load=os.getloadavg(),
                 host_id=digest('/proc/sys/kernel/random/boot_id'), storage_device=fixture.root.stat().st_dev,
                 toolchain=subprocess.check_output(['zig', 'version'], text=True).strip(),
                 maintenance='enabled', durability='native-local synchronous', cache='OS and server retained; no eviction',
-                build_mode='ReleaseSafe', tls='required; verified generated local CA',
-                client_versions={name: subprocess.check_output(command, text=True).strip() for name, command in
-                                 dict(python=[sys.executable, '--version']).items()},
+                build_mode='ReleaseSafe', tls='required; verified generated local CA' if configured else 'native Unix peer',
+                client_versions=dict(python=platform.python_version(), **{
+                    name: importlib.metadata.version(name) for name in
+                    (('psycopg', 'mysql-connector-python') if configured else ())}),
                 sql_limits=dict(request_timeout_ms=5000, command_ms=30000, connections=64,
                                 connections_per_account=8, authentications=4),
                 instrumentation='typed attempt and procfs snapshots outside timers; includes background work',

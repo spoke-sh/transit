@@ -11,7 +11,8 @@ def campaign():
         dict(phase='manifest', profile='managed', rows=3, repeat=1, peers=1,
              source={'revision': 'a'*40}, binary_revision='a'*40, binaries={'cli': 'b'*64}, drivers={'driver': 'c'*64},
              system='Linux', machine='x86_64', cpus=2, host_id='d'*64, storage_device=1, toolchain='zig',
-             maintenance='enabled', durability='sync', cache='retained', instrumentation='procfs', bounds={'rows': 1000})]
+             maintenance='enabled', durability='sync', cache='retained', instrumentation='procfs', bounds={'rows': 1000},
+             build_mode='ReleaseSafe', tls='peer', client_versions={'python': '3'}, sql_limits={'command_ms': 30000})]
     for case in ('startup', 'foreground_baseline', 'activation', 'source_update', 'idle', 'retained_restart'):
         row = dict(phase='sample', case=case, index=0, outcome='complete', verified=True, elapsed_ns=100)
         if case == 'startup':

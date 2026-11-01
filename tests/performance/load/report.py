@@ -34,7 +34,8 @@ def summarize(records):
         raise ValueError('missing manifest')
     manifest, = manifests
     for key in ('source', 'binary_revision', 'binaries', 'drivers', 'system', 'machine', 'cpus', 'host_id',
-                'storage_device', 'toolchain', 'maintenance', 'durability', 'cache', 'instrumentation', 'bounds'):
+                'storage_device', 'toolchain', 'maintenance', 'durability', 'cache', 'instrumentation', 'bounds',
+                'build_mode', 'tls', 'client_versions', 'sql_limits'):
         if not manifest.get(key):
             raise ValueError('missing attribution: ' + key)
     expected = inventory(manifest)
@@ -91,7 +92,8 @@ def summarize(records):
 
 def compare(control, candidate):
     keys = ('profile', 'rows', 'repeat', 'peers', 'drivers', 'system', 'machine', 'cpus', 'host_id',
-            'storage_device', 'toolchain', 'maintenance', 'durability', 'cache', 'instrumentation', 'bounds')
+            'storage_device', 'toolchain', 'maintenance', 'durability', 'cache', 'instrumentation', 'bounds',
+            'build_mode', 'tls', 'client_versions', 'sql_limits')
     if control['definition'] != candidate['definition'] or any(control['manifest'][key] != candidate['manifest'][key] for key in keys):
         raise ValueError('incomparable campaigns')
     ratios = {}
