@@ -156,7 +156,7 @@ class TableSource:
         return {'version': 1, 'resource': self.resource.resource, 'source': {'table': {
             'scope': self.scope._wire(), 'owner': self.audience, 'branch': str(self.branch), 'namespace': self.namespace,
             'object': str(self.schema.object_id), 'interpretation': self.interpretation._wire(), 'row_type': logical.type_wire(row_type),
-            'collations': [c._wire()['collation'] for c in self.schema.columns]}}}
+            'collations': [c._wire()['collation'] for c in self.schema.columns], 'semantics': [c._wire()['semantics'] for c in self.schema.columns]}}}
 
 
 @dataclass(frozen=True, slots=True)
@@ -309,6 +309,9 @@ class Plan:
     limit: int | None = None
     aggregate: Aggregate = Aggregate.ROWS
     output_names: tuple[str | None, ...] | None = None
+    scalar_program: bytes = b'\0'
+    def __post_init__(self) -> None:
+        object.__setattr__(self, 'scalar_program', owned_bytes(self.scalar_program, 8448))
     def _wire(self) -> dict[str, Any]:
         if not isinstance(self.aggregate, Aggregate): raise TypeError('Expected a query aggregate')
         if self.predicate is not None and not isinstance(self.predicate, (IsState, Compare, PredicateProgram)):
@@ -320,7 +323,7 @@ class Plan:
         if self.output_names is not None:
             for name in self.output_names:
                 if name is not None: _name(name)
-        return {'version': 1, 'projection': [integer(v, 'column', minimum=0, maximum=127) for v in self.projection],
+        return {'version': 1, 'projection': [integer(v, 'column', minimum=0, maximum=159) for v in self.projection], 'scalar_program': self.scalar_program.hex(),
             'output_names': self.output_names,
             'predicate': {'all': {}} if self.predicate is None else self.predicate._wire(),
             'limit': None if self.limit is None else str(_wide(self.limit, 'limit')), 'aggregate': self.aggregate.value}

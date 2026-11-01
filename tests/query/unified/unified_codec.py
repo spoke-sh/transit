@@ -89,12 +89,12 @@ def table_collation_fixtures():
         collations = bytes([0, tag])
         table = (b'TQS1' + current_definition() + struct.pack('<8Q', 1, 7, 9, 3, 1, 1, 9, 1)
                  + bytes([1])*32 + struct.pack('<Q', 200) + bytes([2])*32
-                 + struct.pack('<H', len(encoded)) + encoded + collations)
+                 + struct.pack('<H', len(encoded)) + encoded + collations + b'\0')
         source_bytes = b'UQS1' + current_definition() + struct.pack('<QBH', 7, 2, len(table)) + table
-        plan_bytes = (b'FQP1' + hashlib.sha256(b'transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names:nullable-parameters:collations').digest()
+        plan_bytes = (b'FQP1' + hashlib.sha256(b'transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names:nullable-parameters:collations:scalar-programs:decimal-sum.2026-11-01').digest()
                       + hashlib.sha256(b'transit.table.query.declaration.v1\0' + table).digest()
                       + hashlib.sha256(encoded).digest() + bytes([0, 1, 1, 0, 0])
-                      + struct.pack('<Q', 0) + b'\0' + collations)
+                      + struct.pack('<Q', 0) + b'\0' + collations + b'\0')
         wire = (b'UQB1' + current_definition() + struct.pack('<HHQQQ', len(source_bytes), len(plan_bytes), 1000, 500, 1048576)
                 + b'\0\0' + source_bytes + plan_bytes)
         rows.append(dict(collation=name, wire_hex=wire.hex()))
@@ -128,9 +128,9 @@ def boolean_bundle_fixtures():
         else:
             program = [{'atom': {'all': {}}}] + [{'negate': {}}]*63
             code = bytes([0, 0]) + bytes([1])*63
-        plan_bytes = (b'FQP1' + hashlib.sha256(b'transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names:nullable-parameters:collations').digest() +
+        plan_bytes = (b'FQP1' + hashlib.sha256(b'transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names:nullable-parameters:collations:scalar-programs:decimal-sum.2026-11-01').digest() +
                       hashlib.sha256(b'transit.query.source.v1\0' + source_bytes).digest() + hashlib.sha256(descriptor(schema)).digest() +
-                      bytes([0, 1, 0, 0, 0]) + struct.pack('<Q', 0) + bytes([3, len(program)]) + code + b'\0\0')
+                      bytes([0, 1, 0, 0, 0]) + struct.pack('<Q', 0) + bytes([3, len(program)]) + code + b'\0\0\0')
         wire = b'UQB1' + current_definition() + struct.pack('<HHQQQ', len(source_bytes), len(plan_bytes), 1000, 500, 1048576) + b'\0\0' + source_bytes + plan_bytes
         digest = hashlib.sha256(b'transit.station.publication.v1\0' + struct.pack('<II', 0x31425155, len(wire))).digest()
         for chunk_index, offset in enumerate(range(0, len(wire), 256)):

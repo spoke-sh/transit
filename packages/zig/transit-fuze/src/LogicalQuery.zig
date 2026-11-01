@@ -5,6 +5,7 @@ const types = @import("Types.zig");
 const values = types.Values;
 const finite = @import("Finite.zig");
 const machine = @import("PredicateMachine.zig");
+pub const Scalar = @import("ScalarProgram.zig");
 const PredicateRow = @import("LogicalPredicate.zig").Row;
 
 pub const Row = struct {
@@ -20,7 +21,10 @@ pub const Plan = struct {
     schema: types.Type,
     source_basis: [32]u8,
     collations: @import("QueryCollations.zig") = .{},
+    /// Input ordinals retain their meaning; subsequent ordinals select scalar
+    /// instructions. Pruning remaps inputs and rebases these computed ordinals.
     projection: []const u8,
+    scalars: Scalar = .{},
     /// Empty retains defaults; otherwise one optional borrowed name per output.
     /// Names and their vector must remain immutable through execution.
     output_names: []const ?[]const u8 = &.{},
@@ -45,18 +49,20 @@ pub const Plan = struct {
         try self.collations.validate(self.schema);
         if (self.projection.len == 0 or self.projection.len > 128) return error.InvalidProjection;
         if (self.output_names.len != 0 and self.output_names.len != self.projection.len) return error.InvalidOutputNames;
+        var scalar_fields: [Scalar.max_instructions]types.Field = undefined;
+        _ = try self.scalars.validate(self.schema.structure, &scalar_fields);
         const renamed = self.hasOutputNames();
         for (self.projection, 0..) |index, i| {
-            if (index >= self.schema.structure.len) return error.UnknownColumn;
+            if (index >= self.schema.structure.len + self.scalars.instructions.len) return error.UnknownColumn;
             if (!renamed) for (self.projection[0..i]) |earlier| {
                 if (index == earlier) return error.DuplicateProjection;
             };
         }
         if (self.aggregate != .rows and self.projection.len != 1) return error.UnsupportedAggregate;
-        if (self.aggregate == .sum and self.schema.structure[self.projection[0]].type != .int64) return error.UnsupportedAggregate;
+        if (self.aggregate == .sum) _ = try self.sumType();
         // The 128-field descriptor workspace belongs only to renamed outputs;
         // keep its stack probing/initialization out of ordinary validation.
-        if (renamed) try @call(.never_inline, validateOutput, .{&self});
+        if (renamed or self.scalars.instructions.len != 0) try @call(.never_inline, validateOutput, .{&self});
         switch (self.predicate) {
             .program => |program| try program.validateCollations(self.schema, self.collations),
             inline else => |value, tag| try @as(Atom, @unionInit(Atom, @tagName(tag), value)).validateCollations(self.schema, self.collations),
@@ -109,6 +115,7 @@ pub const Plan = struct {
         }
         try writer.writeAll("collations\x00");
         try self.collations.write(self.schema, &writer);
+        try self.scalars.write(&writer);
         var digest: [32]u8 = undefined;
         std.crypto.hash.sha2.Sha256.hash(writer.buffered(), &digest, .{});
         return digest;
@@ -116,17 +123,58 @@ pub const Plan = struct {
     pub fn outputSchema(self: Plan, fields: []types.Field) !types.Type {
         try self.validate();
         if (fields.len < self.projection.len) return error.InvalidProjection;
-        for (0..self.projection.len) |i| fields[i] = self.outputField(i);
+        for (0..self.projection.len) |i| fields[i] = try self.outputField(i);
         return .{ .structure = fields[0..self.projection.len] };
     }
     fn hasOutputNames(self: Plan) bool {
         for (self.output_names) |name| if (name != null) return true;
         return false;
     }
-    fn outputField(self: Plan, index: usize) types.Field {
-        var field = if (self.aggregate == .rows) self.schema.structure[self.projection[index]] else types.Field{
+    pub fn inputField(self: Plan, index: u8) !types.Field {
+        if (index < self.schema.structure.len) return self.schema.structure[index];
+        const scalar = index - self.schema.structure.len;
+        if (scalar >= self.scalars.instructions.len) return error.UnknownColumn;
+        var fields: [Scalar.max_instructions]types.Field = undefined;
+        _ = try self.scalars.validate(self.schema.structure, &fields);
+        return fields[scalar];
+    }
+    /// Evaluate only after the predicate selects this row. Work is caller-owned
+    /// and prepared once; no loading, allocation or host clock access per row.
+    pub fn materialize(self: Plan, cells: []const values.Cell, work: *Scalar.Workspace) ![]const values.Cell {
+        if (self.scalars.instructions.len == 0) return cells;
+        const computed = try self.scalars.evaluate(cells, work);
+        @memcpy(work.row[0..cells.len], cells);
+        @memcpy(work.row[cells.len..][0..computed.len], computed);
+        return work.row[0 .. cells.len + computed.len];
+    }
+    pub fn evaluated(self: Plan, cells: []const values.Cell, work: *const Scalar.Workspace) []const values.Cell {
+        return if (self.scalars.instructions.len == 0) cells else work.row[0 .. cells.len + self.scalars.instructions.len];
+    }
+    pub fn sumType(self: Plan) !types.Type {
+        const ordinal = self.projection[0];
+        const input: types.Type = if (ordinal < self.schema.structure.len) self.schema.structure[ordinal].type else blk: {
+            const index = ordinal - self.schema.structure.len;
+            if (index >= self.scalars.instructions.len) return error.UnknownColumn;
+            // Plans are validated before execution. Recover the output type
+            // without reloading or hashing timezone artifacts in the hot loop.
+            break :blk switch (self.scalars.instructions[index]) {
+                .input => |column| if (column < self.schema.structure.len) self.schema.structure[column].type else return error.InvalidScalarReference,
+                .decimal_binary => |value| .{ .decimal = value.result },
+                .decimal_rescale => |value| .{ .decimal = value.result },
+                .range_binary => |value| if (value.operation == .compare) .int64 else return error.UnsupportedAggregate,
+                else => return error.UnsupportedAggregate,
+            };
+        };
+        return switch (input) {
+            .int64 => .int64,
+            .decimal => |kind| .{ .decimal = .{ .precision = 38, .scale = kind.scale } },
+            else => error.UnsupportedAggregate,
+        };
+    }
+    fn outputField(self: Plan, index: usize) !types.Field {
+        var field = if (self.aggregate == .rows) try self.inputField(self.projection[index]) else types.Field{
             .name = if (self.aggregate == .count_values) "count" else @tagName(self.aggregate),
-            .type = if (self.aggregate == .sum) .int64 else .uint64,
+            .type = if (self.aggregate == .sum) try self.sumType() else .uint64,
             .nullable = self.aggregate == .sum,
         };
         if (self.output_names.len != 0) if (self.output_names[index]) |name| {
@@ -136,7 +184,7 @@ pub const Plan = struct {
     }
     fn validateOutput(self: *const Plan) !void {
         var fields: [128]types.Field = undefined;
-        for (0..self.projection.len) |i| fields[i] = self.outputField(i);
+        for (0..self.projection.len) |i| fields[i] = try self.outputField(i);
         // Repeated recursive inputs must still fit the descriptor budget.
         try (types.Type{ .structure = fields[0..self.projection.len] }).validate(.{});
     }
@@ -176,7 +224,7 @@ pub const Plan = struct {
 /// First operator failure, copied before the row and schema owners are released.
 /// It describes the frozen execution, never a later read of the source.
 pub const Failure = struct {
-    operation: enum { predicate, count, sum },
+    operation: enum { predicate, projection, count, sum },
     row: u64,
     column: [128]u8 = @splat(0),
     column_len: u8,
@@ -218,9 +266,14 @@ pub const Counters = struct {
     scanned: u64 = 0,
     selected: u64 = 0,
     value_count: u64 = 0,
-    sum: ?i64 = null,
+    sum: ?i128 = null,
     pub const FailureSite = struct { operation: @FieldType(Failure, "operation"), column: u8, instruction: ?u8 = null };
     pub fn observe(self: *Counters, plan: Plan, cells: []const values.Cell, failure: *?FailureSite) !bool {
+        var work: Scalar.Workspace = .{};
+        try plan.scalars.prepare(plan.schema.structure, &work);
+        return self.observePrepared(plan, cells, &work, failure);
+    }
+    pub fn observePrepared(self: *Counters, plan: Plan, cells: []const values.Cell, work: *Scalar.Workspace, failure: *?FailureSite) !bool {
         failure.* = null;
         if (cells.len != plan.schema.structure.len) return error.InvalidColumnCount;
         self.scanned = try std.math.add(u64, self.scanned, 1);
@@ -230,7 +283,11 @@ pub const Counters = struct {
             if (predicate_failure) |site| failure.* = .{ .operation = .predicate, .column = site.column, .instruction = site.instruction };
             return err;
         })) return false;
-        return self.contribute(plan, cells, failure);
+        const evaluated_cells = plan.materialize(cells, work) catch |err| {
+            if (work.failed) |index| failure.* = .{ .operation = .projection, .column = @intCast(plan.schema.structure.len + index), .instruction = index };
+            return err;
+        };
+        return self.contribute(plan, evaluated_cells, failure);
     }
     /// Consume one selected, validated row after predicate failure arbitration.
     /// The caller has advanced scanned exactly once at the original frontier.
@@ -240,22 +297,39 @@ pub const Counters = struct {
             failure.* = .{ .operation = .count, .column = plan.projection[0] };
             return err;
         };
-        if (plan.aggregate == .sum) self.sum = finite.sum(self.sum, cells[plan.projection[0]], struct {
-            fn integer(value: values.Value) !i64 {
-                if (value != .atom or value.atom != .signed) return error.TypeMismatch;
-                return std.math.cast(i64, value.atom.signed) orelse error.Overflow;
-            }
-        }.integer) catch |err| {
+        if (plan.aggregate == .sum) self.sum = addSum(self.sum, try plan.sumType(), cells[plan.projection[0]]) catch |err| {
             failure.* = .{ .operation = .sum, .column = plan.projection[0] };
             return err;
         };
         return true;
     }
-    pub fn result(self: Counters, aggregate: finite.Aggregate) !values.Cell {
-        return switch (aggregate) {
+    /// Decimal SUM preserves input scale and checks a 38-digit accumulator at
+    /// every source-ordered contribution. It never rounds or uses floating point.
+    pub fn addSum(previous: ?i128, kind: types.Type, cell: values.Cell) !?i128 {
+        return switch (cell) {
+            .missing, .null => previous,
+            .type_error => error.QueryTypeError,
+            .conflict => error.QueryConflict,
+            .value => |value| blk: {
+                if (value != .atom) return error.TypeMismatch;
+                if (kind == .int64) {
+                    if (value.atom != .signed) return error.TypeMismatch;
+                    const before = std.math.cast(i64, previous orelse 0) orelse return error.Overflow;
+                    const input = std.math.cast(i64, value.atom.signed) orelse return error.Overflow;
+                    break :blk try std.math.add(i64, before, input);
+                }
+                if (kind != .decimal or value.atom != .decimal) return error.TypeMismatch;
+                const coefficient = std.math.add(i128, previous orelse 0, value.atom.decimal) catch return error.DecimalOverflow;
+                types.Semantics.validate(.{ .decimal = coefficient }, kind) catch return error.DecimalOverflow;
+                break :blk coefficient;
+            },
+        };
+    }
+    pub fn result(self: Counters, plan: Plan) !values.Cell {
+        return switch (plan.aggregate) {
             .count => .{ .value = .{ .atom = .{ .unsigned = self.selected } } },
             .count_values => .{ .value = .{ .atom = .{ .unsigned = self.value_count } } },
-            .sum => if (self.sum) |sum| .{ .value = .{ .atom = .{ .signed = sum } } } else .null,
+            .sum => if (self.sum) |sum| .{ .value = .{ .atom = if (try plan.sumType() == .decimal) .{ .decimal = sum } else .{ .signed = sum } } } else .null,
             .rows => error.UnsupportedAggregate,
         };
     }
@@ -271,14 +345,17 @@ pub fn Execution(comptime Scan: type, comptime verification: Verification) type 
         selected: u64 = 0,
         value_count: u64 = 0,
         emitted: u64 = 0,
-        sum: ?i64 = null,
+        sum: ?i128 = null,
         complete: bool = false,
         failed: bool = false,
         failure: ?Failure = null,
+        scalar_work: Scalar.Workspace = .{},
         /// Takes ownership of scan only on success. The source owner must establish
         /// the schema and source-basis binding before entering this executor.
         pub fn init(scan: Scan, plan: Plan) !Self {
-            return .{ .scan = scan, .plan = plan, .fingerprint = try plan.fingerprint() };
+            var result: Self = .{ .scan = scan, .plan = plan, .fingerprint = try plan.fingerprint() };
+            try plan.scalars.prepare(plan.schema.structure, &result.scalar_work);
+            return result;
         }
         pub fn deinit(self: *Self) void {
             self.scan.deinit();
@@ -298,7 +375,7 @@ pub fn Execution(comptime Scan: type, comptime verification: Verification) type 
                 }
                 if (self.plan.aggregate == .rows) {
                     const projected = try row.arena.allocator().alloc(values.Cell, self.plan.projection.len);
-                    for (self.plan.projection, projected) |index, *cell| cell.* = row.cells[index];
+                    for (self.plan.projection, projected) |index, *cell| cell.* = self.plan.evaluated(row.cells, &self.scalar_work)[index];
                     row.cells = projected;
                     self.emitted = try std.math.add(u64, self.emitted, 1);
                     return row;
@@ -310,7 +387,7 @@ pub fn Execution(comptime Scan: type, comptime verification: Verification) type 
                 var arena: std.heap.ArenaAllocator = .init(self.scan.allocator);
                 errdefer arena.deinit();
                 const cells = try arena.allocator().alloc(values.Cell, 1);
-                cells[0] = try self.counters().result(self.plan.aggregate);
+                cells[0] = try self.counters().result(self.plan);
                 self.complete = true;
                 self.emitted = 1;
                 return .{ .arena = arena, .cells = cells };
@@ -333,7 +410,7 @@ pub fn Execution(comptime Scan: type, comptime verification: Verification) type 
                 self.sum = progress.sum;
             }
             var failure: ?Counters.FailureSite = null;
-            return progress.observe(self.plan, cells, &failure) catch |err| {
+            return progress.observePrepared(self.plan, cells, &self.scalar_work, &failure) catch |err| {
                 // Capture the same one-based row before the deferred copy.
                 self.scanned = progress.scanned;
                 if (failure) |site| self.capture(site.operation, cells, site.column, site.instruction);
@@ -341,8 +418,10 @@ pub fn Execution(comptime Scan: type, comptime verification: Verification) type 
             };
         }
         fn capture(self: *Self, operation: @FieldType(Failure, "operation"), cells: []const values.Cell, column: u8, instruction: ?u8) void {
-            if (self.failure != null or column >= self.plan.schema.structure.len or column >= cells.len) return;
-            self.failure = Failure.init(operation, self.scanned, self.plan.schema.structure[column], std.meta.activeTag(cells[column]), instruction, self.plan.source_basis, self.fingerprint);
+            if (self.failure != null) return;
+            const field = self.plan.inputField(column) catch return;
+            const state = if (column < cells.len) std.meta.activeTag(cells[column]) else .value;
+            self.failure = Failure.init(operation, self.scanned, field, state, instruction, self.plan.source_basis, self.fingerprint);
         }
     };
 }

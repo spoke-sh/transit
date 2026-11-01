@@ -37,7 +37,82 @@ def raw(client, sql):
     return collected, observation
 
 
+def companion_expressions(root, port, postgres, mysql_options, restart, catalog):
+    """Actual stored values and frozen plans; independent native result bytes."""
+    client = Client(root, port).open()
+    tzif = (ROOT / 'packages/zig/transit-fuze/src/timezone-fixtures/utc.tzif').read_bytes().hex()
+    command(client, f"""CREATE TABLE history_companions (
+        id INT64 PRIMARY KEY,
+        a DECIMAL(8,2) ROUNDING HALF_EVEN, b DECIMAL(8,2),
+        span RANGE<INT64>, next_span RANGE<INT64>,
+        x VECTOR(2,FLOAT32) METRIC L2_SQUARED,
+        y VECTOR(2,FLOAT32) METRIC L2_SQUARED,
+        ts TIMESTAMPTZ TIMEZONE 'Etc/UTC' TZDB 'iana-2025b' TZIF X'{tzif}')""")
+    command(client, """INSERT INTO history_companions VALUES
+        (1, 1.00, 6.00, '[1,3)', '[3,5)', '[1,2]', '[4,6]', '1969-12-31T23:59:59.999999Z'),
+        (2, NULL, 6.00, 'empty', '[3,5)', '[0,0]', '[4,6]', '1970-01-01T00:00:00Z')""")
+    retained = catalog('history-retain', 900010, 'history_companions')
+    suffix = " AS OF SNAPSHOT '" + retained['selector'] + "'"
+    expressions = """SELECT DECIMAL_DIVIDE(a,b,8,2,HALF_EVEN) AS quotient,
+        RANGE_ADJACENT(span,next_span) AS adjacent, VECTOR_DISTANCE(x,y) AS distance,
+        ts AT TIME ZONE 'Etc/UTC' AS local_time, TIME_BUCKET(ts,1000000,'Etc/UTC') AS bucket
+        FROM history_companions WHERE id=1"""
+    query = expressions + suffix
+    expected = [['03' + (17).to_bytes(16, 'little', signed=True).hex(),
+                 '0301', '03' + struct.pack('<d', 25).hex(),
+                 '03' + (-1).to_bytes(8, 'little', signed=True).hex(),
+                 '03' + (-1000000).to_bytes(8, 'little', signed=True).hex()]]
+    saved, observation = raw(client, query)
+    assert saved == expected, saved
+    sum_sql = 'SELECT SUM(DECIMAL_DIVIDE(a,b,8,2,HALF_EVEN)) AS total FROM history_companions' + suffix
+    assert raw(client, sum_sql)[0] == [[expected[0][0]]]
+    prepared = client.call(dict(prepare=dict(sql=query)))['described']['statement']
+    command(client, 'UPDATE history_companions SET b=0 WHERE id=1')
+    client.call(dict(execute=dict(sql=expressions)), error='DivisionByZero')
+    # Filtering happens before scalar evaluation, including a zero divisor in
+    # rejected rows. NULL remains a distinct encoded state in selected rows.
+    safe = 'SELECT DECIMAL_DIVIDE(a,b,8,2,REJECT) AS q FROM history_companions WHERE id=2'
+    assert raw(client, safe)[0] == [['01']]
+    repeated = client.call(dict(execute=dict(statement=prepared)))['batch']
+    assert repeated['complete'] and repeated['rows'] == expected and repeated['observation'] == observation
+    client.call(dict(close_result=repeated['cursor']))
+    client.call(dict(release=prepared))
+    transport_query = 'SELECT RANGE_ADJACENT(span,next_span) AS adjacent, VECTOR_DISTANCE(x,y) AS distance FROM history_companions WHERE id=1' + suffix
+    with psycopg.connect(**postgres) as pg:
+        assert pg.execute(transport_query).fetchall() == [(True, 25.0)]
+        try:
+            pg.execute(sum_sql)
+        except psycopg.errors.FeatureNotSupported as error:
+            assert error.sqlstate == '0A000'
+        else:
+            raise AssertionError('Unqualified PostgreSQL DECIMAL result profile was admitted')
+    with mysql.connector.connect(**mysql_options) as my:
+        cursor = my.cursor(prepared=True)
+        cursor.execute(transport_query)
+        assert cursor.fetchall() == [(1, 25.0)]
+        try:
+            cursor.execute(sum_sql)
+        except mysql.connector.Error as error:
+            assert error.sqlstate == '0A000', error
+        else:
+            raise AssertionError('Unqualified MySQL DECIMAL result profile was admitted')
+        cursor.close()
+    client.close()
+    restart()
+    client = Client(root, port).open()
+    assert raw(client, query) == (saved, observation)
+    assert raw(client, sum_sql)[0] == [[expected[0][0]]]
+    catalog('history-release', 900010)
+    command(client, 'DROP TABLE history_companions')
+    client.close()
+    print(json.dumps(dict(profile='installed_companion_expressions', source=provenance(ROOT),
+                          canonical_native_values=True, exact_decimal_sum=True,
+                          pinned_timezone=True, prepared_history=True, gateway_restart=True,
+                          postgres_mysql_scalar_outputs=True, unsupported_decimal_wire_refuses=True)), flush=True)
+
+
 def run(root, port, postgres, mysql_options, restart, catalog, faults):
+    companion_expressions(root, port, postgres, mysql_options, restart, catalog)
     first = Client(root, port).open()
     command(first, 'CREATE TABLE historical_values (id INT64 PRIMARY KEY, amount INT64)')
     command(first, 'INSERT INTO historical_values VALUES (1, 10), (2, 20)')

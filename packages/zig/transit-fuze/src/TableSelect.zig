@@ -9,7 +9,9 @@ const predicate = @import("SqlLogicalPredicate.zig");
 const Aggregate = @import("Finite.zig").Aggregate;
 const max_columns = @import("TableSchema.zig").max_columns;
 const Reference = @import("SqlReference.zig");
-const Item = struct { column: Reference, alias: ?[]const u8 };
+const Scalar = @import("SqlScalar.zig");
+const Semantics = @import("ColumnSemantics.zig");
+const Item = struct { column: Reference, alias: ?[]const u8, scalar: ?Scalar.Syntax = null };
 const Selection = struct {
     aggregate: Aggregate = .rows,
     star: bool = false,
@@ -29,9 +31,11 @@ const Selection = struct {
                 if (result.aggregate != .count_values) return error.UnsupportedAggregate;
                 result.aggregate = .count;
                 result.star = true;
+                result.items[0].scalar = null;
             } else {
                 if (parser.boundary()) |editor| editor.sum_only = result.aggregate == .sum;
                 result.items[0].column = try Reference.parse(parser);
+                result.items[0].scalar = try Scalar.parse(parser, result.items[0].column);
             }
             try parser.require(.right);
             result.items[0].alias = if (try parser.takeWord("AS")) try parser.name() else null;
@@ -41,21 +45,22 @@ const Selection = struct {
         } else while (true) {
             if (result.count == max_columns) return error.InvalidProjection;
             const column = try Reference.parse(parser);
-            if (parser.token.tag == .left) return error.UnsupportedAggregate;
-            result.items[result.count] = .{ .column = column, .alias = if (try parser.takeWord("AS")) try parser.name() else null };
+            const scalar = try Scalar.parse(parser, column);
+            result.items[result.count] = .{ .column = column, .scalar = scalar, .alias = if (try parser.takeWord("AS")) try parser.name() else null };
             result.count += 1;
             if (!try parser.take(.comma)) break;
         }
         try parser.requireWord("FROM");
         return result;
     }
-    fn lower(self: Selection, allocator: std.mem.Allocator, schema: t.Type, qualifier: []const u8, basis: [32]u8, location: ?*sql.Location) !logical.Plan {
+    fn lower(self: Selection, allocator: std.mem.Allocator, schema: t.Type, qualifier: []const u8, basis: [32]u8, location: ?*sql.Location, semantics: []const Semantics) !logical.Plan {
+        var scalars: Scalar.Builder = .{};
         const count = if (self.star and self.aggregate == .rows) schema.structure.len else self.count;
         const columns = try allocator.alloc(u8, count);
         const names = try allocator.alloc(?[]const u8, count);
         for (columns, names, 0..) |*column, *name, i| {
-            column.* = if (self.star) (if (self.aggregate == .count) 0 else @intCast(i)) else @intCast(try self.items[i].column.resolve(qualifier, schema.structure, location));
-            name.* = if (self.star and self.aggregate == .rows) null else self.items[i].alias;
+            column.* = if (self.star) (if (self.aggregate == .count) 0 else @intCast(i)) else if (self.items[i].scalar) |expression| try scalars.bind(expression, allocator, schema.structure, qualifier, semantics, location) else @intCast(try self.items[i].column.resolve(qualifier, schema.structure, location));
+            name.* = if (self.star and self.aggregate == .rows) null else self.items[i].alias orelse if (!self.star and self.items[i].scalar != null) self.items[i].column.name else null;
         }
         if (self.aggregate == .rows) for (columns, names, 0..) |column, name, i| {
             const output_name = name orelse schema.structure[column].name;
@@ -68,7 +73,7 @@ const Selection = struct {
                 }
             }
         };
-        const plan: logical.Plan = .{ .schema = schema, .source_basis = basis, .projection = columns, .output_names = names, .aggregate = self.aggregate };
+        const plan: logical.Plan = .{ .scalars = try scalars.finish(allocator), .schema = schema, .source_basis = basis, .projection = columns, .output_names = names, .aggregate = self.aggregate };
         try plan.validateShape();
         return plan;
     }
@@ -136,6 +141,7 @@ fn alias(parser: *Parser, name: []const u8) ![]const u8 {
 }
 pub const Syntax = struct {
     selection: Selection,
+    semantics: []const Semantics = &.{},
     subject: Reference,
     qualifier: []const u8,
     predicate: ?predicate.Syntax = null,
@@ -154,7 +160,7 @@ pub const Syntax = struct {
             if (location) |at| at.* = .{ .offset = self.subject.span.start };
             return error.UnknownSource;
         }
-        var plan = try self.selection.lower(allocator, schema, self.qualifier, basis, location);
+        var plan = try self.selection.lower(allocator, schema, self.qualifier, basis, location, self.semantics);
         if (self.predicate) |expression| {
             const program = try expression.bindParametersDiagnostic(allocator, schema, self.qualifier, location, parameters, diagnostic);
             // Parentheses around one atom do not introduce a distinct plan or
@@ -171,7 +177,8 @@ pub const Syntax = struct {
         if (self.outer) |outer| {
             var fields: [max_columns]t.Field = undefined;
             const input_type = try plan.outputSchema(&fields);
-            const output = try outer.selection.lower(allocator, input_type, outer.qualifier, basis, location);
+            const output = try outer.selection.lower(allocator, input_type, outer.qualifier, basis, location, &.{});
+            if (output.scalars.instructions.len != 0) return error.UnsupportedConstruct;
             const projection = try allocator.dupe(u8, output.projection);
             for (projection) |*index| index.* = plan.projection[index.*];
             plan.projection = projection;
@@ -217,6 +224,9 @@ pub fn syntax(parser: *Parser, hints: ?t.Type) !Syntax {
 /// Schema slices retain their owner; parser and output-name slices use allocator.
 /// Catalog identity and admission remain with the caller.
 pub fn planDiagnostic(allocator: std.mem.Allocator, text: []const u8, name: []const u8, schema: t.Type, basis: [32]u8, diagnostic: ?*sql.Binding) !logical.Plan {
+    return planSemantics(allocator, text, name, schema, basis, diagnostic, &.{});
+}
+pub fn planSemantics(allocator: std.mem.Allocator, text: []const u8, name: []const u8, schema: t.Type, basis: [32]u8, diagnostic: ?*sql.Binding, semantics: []const Semantics) !logical.Plan {
     if (diagnostic) |detail| detail.* = .{};
     var location: sql.Location = .{};
     errdefer if (diagnostic) |detail| {
@@ -224,7 +234,8 @@ pub fn planDiagnostic(allocator: std.mem.Allocator, text: []const u8, name: []co
     };
     try sql.validateText(text);
     var parser = try Parser.init(allocator, text, &location);
-    const parsed = try syntax(&parser, schema);
+    var parsed = try syntax(&parser, schema);
+    parsed.semantics = semantics;
     try parser.finish();
     return parsed.bindParametersDiagnostic(allocator, name, schema, basis, &location, null, diagnostic) catch |err| {
         sql.Binding.nameFailure(diagnostic, text, if (err == error.UnknownSource) name else parsed.qualifier, err, location);
@@ -236,6 +247,9 @@ pub fn compile(allocator: std.mem.Allocator, text: []const u8, name: []const u8,
     return compileWithEditor(allocator, text, name, schema, basis, location, null);
 }
 pub fn compileWithEditor(allocator: std.mem.Allocator, text: []const u8, name: []const u8, schema: t.Type, basis: [32]u8, location: ?*sql.Location, editor: ?*Parser.Editor) !Owned {
+    return compileSemantics(allocator, text, name, schema, basis, location, editor, &.{});
+}
+pub fn compileSemantics(allocator: std.mem.Allocator, text: []const u8, name: []const u8, schema: t.Type, basis: [32]u8, location: ?*sql.Location, editor: ?*Parser.Editor, semantics: []const Semantics) !Owned {
     if (schema != .structure or schema.structure.len == 0 or schema.structure.len > max_columns) return error.InvalidQuerySchema;
     var descriptor = try schema.clone(allocator);
     errdefer descriptor.deinit();
@@ -244,7 +258,8 @@ pub fn compileWithEditor(allocator: std.mem.Allocator, text: []const u8, name: [
     const alloc = arena.allocator();
     var parser = try Parser.init(alloc, text, location);
     parser.editor = editor;
-    const input = try syntax(&parser, schema);
+    var input = try syntax(&parser, schema);
+    input.semantics = semantics;
     try parser.finish();
     const plan = try input.bind(alloc, name, descriptor.type, basis, location);
     return .{ .arena = arena, .descriptor = descriptor, .name = input.subject.name, .plan = plan };
@@ -252,4 +267,5 @@ pub fn compileWithEditor(allocator: std.mem.Allocator, text: []const u8, name: [
 
 test {
     _ = @import("table_select_test.zig");
+    _ = @import("scalar_query_test.zig");
 }

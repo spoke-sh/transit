@@ -777,7 +777,13 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
         error.HistoricalObjectNotSelected => .{ "42P01".*, "Object is absent from the selected historical catalog" },
         error.HistoricalSnapshotReleased => .{ "55000".*, "The selected historical snapshot has been explicitly released" },
         error.UnsupportedHistoricalTransaction, error.UnsupportedHistoricalKind, error.HistoricalReadOnly => .{ "0A000".*, "This statement cannot execute against a historical catalog" },
-        error.WireValueOutOfRange => .{ "22003".*, "Value is out of range" },
+        error.WireValueOutOfRange, error.DecimalOverflow, error.InexactDecimalRounding => .{ "22003".*, "Value exceeds the declared numeric precision or exact rounding rule" },
+        error.DivisionByZero => .{ "22012".*, "Decimal divisor is zero" },
+        error.TimestampOverflow => .{ "22008".*, "Timestamp is out of range" },
+        error.NonexistentLocalTime, error.AmbiguousLocalTime => .{ "22007".*, "Local time requires an explicit gap or fold resolution" },
+        error.InvalidTimeBucket, error.ZeroMagnitudeCosineVector, error.InvalidColumnSemantics, error.MissingColumnSemantics => .{ "22023".*, "Scalar operation requires valid declared semantics and operands" },
+        error.ScalarProgramBudget => .{ "54000".*, "Scalar expression exceeds its instruction budget" },
+        error.TimezoneCoverageUnavailable, error.UnsupportedScalarFunction => .{ "0A000".*, "Scalar operation is outside the declared execution coverage" },
         error.CatalogIdentityConflict, error.CatalogDefinitionChanged, error.TableDefinitionChanged => .{ "55000".*, "Prepared source changed; prepare again" },
         error.GatewayOwnerUnavailable, error.StaleGatewayCoordinator => .{ "55000".*, "Gateway owner is not ready; inspect admitted writes before retrying SQL" },
         error.SqlReadLeaseCapacity, error.GatewayRecordTooLarge, error.TooManyWireStatements, error.TooManyWirePortals, error.OutOfMemory, error.ResultMemoryBudgetExceeded, error.ResultRowTooLarge, error.SqlBatchTooLarge, error.InvalidResultBudget => .{ "54000".*, "Session capacity exceeded" },
@@ -872,6 +878,15 @@ test "capacity diagnostics retain operation uncertainty and do not override deni
     try std.testing.expect(std.mem.indexOf(u8, capacity.detail.?, "17") != null);
     try std.testing.expectEqualStrings("42501", &host.diagnostic(error.AccessDenied).state);
     try std.testing.expectEqualStrings("23502", &host.diagnostic(error.NullNotAllowed).state);
+    try std.testing.expectEqualStrings("22003", &host.diagnostic(error.DecimalOverflow).state);
+    try std.testing.expectEqualStrings("22003", &host.diagnostic(error.InexactDecimalRounding).state);
+    try std.testing.expectEqualStrings("22012", &host.diagnostic(error.DivisionByZero).state);
+    try std.testing.expectEqualStrings("22008", &host.diagnostic(error.TimestampOverflow).state);
+    try std.testing.expectEqualStrings("22007", &host.diagnostic(error.AmbiguousLocalTime).state);
+    try std.testing.expectEqualStrings("22007", &host.diagnostic(error.NonexistentLocalTime).state);
+    try std.testing.expectEqualStrings("22023", &host.diagnostic(error.ZeroMagnitudeCosineVector).state);
+    try std.testing.expectEqualStrings("54000", &host.diagnostic(error.ScalarProgramBudget).state);
+    try std.testing.expectEqualStrings("0A000", &host.diagnostic(error.TimezoneCoverageUnavailable).state);
     try std.testing.expectEqualStrings("22023", &host.diagnostic(error.InvalidHistoricalSelector).state);
     try std.testing.expectEqualStrings("42P01", &host.diagnostic(error.HistoricalObjectNotSelected).state);
     try std.testing.expectEqualStrings("55000", &host.diagnostic(error.HistoricalSnapshotReleased).state);

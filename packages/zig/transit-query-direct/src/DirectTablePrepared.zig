@@ -39,7 +39,9 @@ pub fn prepareAt(allocator: std.mem.Allocator, client: c.DirectTableClient, name
     var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
     const row_type = try schema.schema.rowType(&fields);
     const basis = try binding.fingerprint(allocator);
-    var template = try f.LogicalPrepared.initDialect(allocator, text, name, row_type, basis, detail, dialect);
+    var semantics: [f.TableSchema.max_columns]f.ColumnSemantics = undefined;
+    for (schema.schema.columns, semantics[0..schema.schema.columns.len]) |column, *value| value.* = column.semantics;
+    var template = try f.LogicalPrepared.initSemantics(allocator, text, name, row_type, basis, detail, dialect, semantics[0..schema.schema.columns.len]);
     errdefer template.deinit();
     var witnesses: [f.LogicalPrepared.max_parameters]?f.Types.Values.Atom = undefined;
     for (template.parameterTypes(), witnesses[0..template.count]) |kind, *value| value.* = try f.LogicalPrepared.witness(kind);

@@ -157,6 +157,7 @@ export type Predicate =
   | PredicateAtom
   | { readonly kind: "program"; readonly instructions: readonly PredicateInstruction[] };
 export interface Plan {
+  readonly scalarProgram?: Uint8Array;
   readonly projection: readonly number[];
   readonly outputNames?: readonly (string | null)[];
   readonly predicate?: Predicate;
@@ -270,6 +271,7 @@ function sourceWire(source: Source): WireSource {
               })),
             }),
             collations: schemaWire(source.schema).columns.map((column) => column.collation),
+            semantics: schemaWire(source.schema).columns.map((column) => column.semantics),
           },
         },
       };
@@ -358,7 +360,11 @@ export function planWire(plan: Plan): WireBundle["plan"] {
     throw new TypeError("Output names must match the projection width");
   return {
     version: 1,
-    projection: plan.projection.map((v) => integer(v, "column", 0, 127)),
+    projection: plan.projection.map((v) => integer(v, "column", 0, 159)),
+    scalar_program:
+      plan.scalarProgram === undefined
+        ? "00"
+        : Buffer.from(owned(plan.scalarProgram, 8448)).toString("hex"),
     output_names:
       plan.outputNames === undefined
         ? null
@@ -939,7 +945,8 @@ export class Client {
       !("table" in expected) ||
       JSON.stringify(encodeType(decodeType(expected.table.row_type))) !==
         JSON.stringify(encodeType(decodeType(direct.row_type))) ||
-      JSON.stringify(expected.table.collations) !== JSON.stringify(direct.collations)
+      JSON.stringify(expected.table.collations) !== JSON.stringify(direct.collations) ||
+      JSON.stringify(expected.table.semantics) !== JSON.stringify(direct.semantics)
     )
       throw new IncompatibleNative("Inconsistent direct Table row type or collations");
     return new TableDefinition(

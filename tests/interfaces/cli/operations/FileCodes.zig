@@ -2,6 +2,21 @@
 const d = @import("transit_query").protocol.Diagnostic;
 pub const Entry = struct { cause: anyerror, code: []const u8, category: d.Category, message: []const u8 };
 pub const entries = [_]Entry{
+    .{ .cause = error.UnsupportedScalarFunction, .code = "file.unsupported_scalar_function", .category = .unsupported, .message = "Scalar function is unsupported" },
+    .{ .cause = error.InvalidScalarOption, .code = "file.invalid_scalar_option", .category = .binding, .message = "Scalar option is invalid" },
+    .{ .cause = error.MissingColumnSemantics, .code = "file.missing_column_semantics", .category = .binding, .message = "Expression requires a declared interpretation" },
+    .{ .cause = error.ScalarProgramBudget, .code = "file.scalar_program_budget", .category = .limit, .message = "Scalar program exceeds its instruction budget" },
+    .{ .cause = error.InvalidScalarReference, .code = "file.invalid_scalar_reference", .category = .binding, .message = "Scalar instruction reference is invalid" },
+    .{ .cause = error.InvalidScalarEncoding, .code = "file.invalid_scalar_encoding", .category = .integrity, .message = "Saved scalar instruction encoding is invalid" },
+    .{ .cause = error.DecimalOverflow, .code = "file.decimal_overflow", .category = .limit, .message = "Decimal arithmetic exceeds its declared precision" },
+    .{ .cause = error.DivisionByZero, .code = "file.division_by_zero", .category = .constraint, .message = "Decimal divisor is zero" },
+    .{ .cause = error.InexactDecimalRounding, .code = "file.inexact_decimal_rounding", .category = .constraint, .message = "Decimal result requires rounding" },
+    .{ .cause = error.TimestampOverflow, .code = "file.timestamp_overflow", .category = .limit, .message = "Timezone arithmetic exceeds the timestamp domain" },
+    .{ .cause = error.ZeroMagnitudeCosineVector, .code = "file.zero_magnitude_cosine_vector", .category = .constraint, .message = "Cosine distance is undefined for a zero vector" },
+    .{ .cause = error.InvalidTimeBucket, .code = "file.invalid_time_bucket", .category = .binding, .message = "Time bucket width is invalid" },
+    .{ .cause = error.NonexistentLocalTime, .code = "file.nonexistent_local_time", .category = .constraint, .message = "Local time falls in a timezone gap" },
+    .{ .cause = error.AmbiguousLocalTime, .code = "file.ambiguous_local_time", .category = .constraint, .message = "Local time falls in a timezone fold" },
+    .{ .cause = error.TimezoneCoverageUnavailable, .code = "file.timezone_coverage_unavailable", .category = .unsupported, .message = "Pinned timezone rules do not cover this timestamp" },
     .{ .cause = error.VectorDimensionMismatch, .code = "file.vector_dimension_mismatch", .category = .binding, .message = "The dense payload does not match its declared dimension and element width." },
     .{ .cause = error.InvalidVectorDimensions, .code = "file.invalid_vector_dimensions", .category = .binding, .message = "A vector dimension must be between 1 and 65536." },
     .{ .cause = error.InvalidBinaryVectorDimensions, .code = "file.invalid_binary_vector_dimensions", .category = .binding, .message = "A binary vector bit dimension must be divisible by eight." },

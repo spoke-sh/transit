@@ -253,6 +253,20 @@ do not close P1 or P8: production interval/distance/decimal/timezone expression
 integration, decimal aggregates and final installed-consumer qualification remain
 required, alongside the historical catalog work listed above.
 
+The expression increment binds bounded scalar programs into production Table
+SELECT and prepared/captured logical plans: explicit DECIMAL arithmetic and
+ordered DECIMAL(38,s) SUM, range predicates/order, vector distance and frozen
+TZif timezone conversion/bucketing. Captured Table declarations retain exact
+column semantics. Scalar programs and 128-bit aggregate progress participate in
+the coordinated current-v1 cutover; former plans/checkpoints reject.
+
+Development evidence includes 505 full Fuze tests, 69 focused scalar/prepared
+tests, 132 query tests, 37 independent decimal/instruction-byte fixtures,
+21 TypeScript catalog/query adapter tests and strict Python type checking.
+The reference grammar and 60 fast checks pass. Installed scalar/history scenarios
+and final committed-revision qualification remain required; this increment does
+not close P1/P8 or the remaining projection, common-cut, view and inspection work.
+
 The following table preserves the original source audit. It is not a description
 of the newer increments above.
 

@@ -121,7 +121,7 @@ Total source and result cardinality are governed by durable work limits.
 
 ## Canonical plans and output names
 
-The current `FQP1` plan and 126-byte `FQS1` progress are defined by the
+The current `FQP1` plan and 134-byte `FQS1` progress are defined by the
 [logical query contract](TABLE_QUERY_V1.md#canonical-logical-plans). Plans bind
 complete logical schema and source commitments, with an 8192-byte identity
 budget and at most 8448 encoded bytes. Output names are optional per position,
@@ -344,7 +344,7 @@ failure-presence byte and optional `UQF1` make native jobs 136 or 248 bytes and
 Table jobs 135 or 247 bytes. Failed/denied jobs require a
 matching failure; all other source phases forbid one. The `UQC1` checkpoint contains
 magic, source kind u8, resource u64, a native revision u64 or Table commitment (32 bytes),
-126-byte `FQS1`, cursor-done boolean and a source-specific cursor. KV stores an
+134-byte `FQS1`, cursor-done boolean and a source-specific cursor. KV stores an
 after-key presence flag and optional length/bytes (at most 32). Table stores a
 presence flag, 20-byte row identity (zero if absent), and scanned-row u64.
 Document stores counter/replica u64 and traversal-phase u8. Total result bytes

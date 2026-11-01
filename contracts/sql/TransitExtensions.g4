@@ -89,9 +89,14 @@ selectStatement
     ;
 sourceAlias: AS identifier;
 selection: projection | aggregateSelection;
-aggregateSelection: (COUNT LPAREN (STAR | columnReference) RPAREN | SUM LPAREN columnReference RPAREN) outputAlias?;
+aggregateSelection: (COUNT LPAREN (STAR | columnReference | scalarCall) RPAREN | SUM LPAREN (columnReference | scalarCall) RPAREN) outputAlias?;
 projection: STAR | projectionItem (COMMA projectionItem)*;
-projectionItem: columnReference outputAlias?;
+projectionItem: (columnReference (AT TIME ZONE STRING)? | scalarCall) outputAlias?;
+scalarCall: scalarFunction LPAREN scalarArgument (COMMA scalarArgument)* RPAREN;
+scalarArgument: (columnReference | scalarCall) (AT TIME ZONE STRING)? | signedInteger | STRING;
+scalarFunction: DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_MULTIPLY | DECIMAL_DIVIDE
+    | DECIMAL_RESCALE | RANGE_OVERLAPS | RANGE_CONTAINS | RANGE_ADJACENT | RANGE_COMPARE
+    | VECTOR_DISTANCE | TIME_BUCKET | LOCAL_TO_UTC;
 outputAlias: AS identifier;
 columnReference: identifier (DOT identifier)?;
 whereClause: WHERE predicate;
@@ -330,6 +335,7 @@ legacyIdentifier
     | INSERT | UPDATE | DELETE | SET | VALUES
     | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS
     | COLLATE | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | EBCDIC_037_PAD | EBCDIC_1047_NOPAD
+    | AT | DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_MULTIPLY | DECIMAL_DIVIDE | DECIMAL_RESCALE | RANGE_OVERLAPS | RANGE_CONTAINS | RANGE_ADJACENT | RANGE_COMPARE | VECTOR_DISTANCE | TIME_BUCKET | LOCAL_TO_UTC
     | RANGE | MULTIRANGE | VECTOR | ROUNDING | METRIC | TIMEZONE | TZDB | TZIF
     | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE
     | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING
@@ -341,6 +347,20 @@ legacyIdentifier
     | STREAM | QUEUE | PARTITION | PARTITIONS | HASH
     | CONSTRAINT | CHECK | FOREIGN | REFERENCES | ENFORCED | VALID | VALIDATE | NO | ACTION
     ;
+
+AT: 'AT';
+DECIMAL_ADD: 'DECIMAL_ADD';
+DECIMAL_SUBTRACT: 'DECIMAL_SUBTRACT';
+DECIMAL_MULTIPLY: 'DECIMAL_MULTIPLY';
+DECIMAL_DIVIDE: 'DECIMAL_DIVIDE';
+DECIMAL_RESCALE: 'DECIMAL_RESCALE';
+RANGE_OVERLAPS: 'RANGE_OVERLAPS';
+RANGE_CONTAINS: 'RANGE_CONTAINS';
+RANGE_ADJACENT: 'RANGE_ADJACENT';
+RANGE_COMPARE: 'RANGE_COMPARE';
+VECTOR_DISTANCE: 'VECTOR_DISTANCE';
+TIME_BUCKET: 'TIME_BUCKET';
+LOCAL_TO_UTC: 'LOCAL_TO_UTC';
 
 // ---- Lexer rules --------------------------------------------------------
 BEGIN: 'BEGIN';

@@ -22,12 +22,15 @@ pub fn init(allocator: std.mem.Allocator, text: []const u8, name: []const u8, sc
     return initDialect(allocator, text, name, schema, basis, diagnostic, .transit);
 }
 pub fn initDialect(allocator: std.mem.Allocator, text: []const u8, name: []const u8, schema: t.Type, basis: [32]u8, diagnostic: ?*sql.Binding, dialect: sql.Dialect) !Self {
-    return initInner(allocator, text, name, schema, basis, diagnostic, dialect) catch |err| {
+    return initSemantics(allocator, text, name, schema, basis, diagnostic, dialect, &.{});
+}
+pub fn initSemantics(allocator: std.mem.Allocator, text: []const u8, name: []const u8, schema: t.Type, basis: [32]u8, diagnostic: ?*sql.Binding, dialect: sql.Dialect, semantics: []const @import("ColumnSemantics.zig")) !Self {
+    return initInner(allocator, text, name, schema, basis, diagnostic, dialect, semantics) catch |err| {
         if (diagnostic) |detail| if (detail.location) |position| sql.Binding.nameFailure(detail, text, name, err, position);
         return err;
     };
 }
-fn initInner(allocator: std.mem.Allocator, text: []const u8, name: []const u8, schema: t.Type, basis: [32]u8, diagnostic: ?*sql.Binding, dialect: sql.Dialect) !Self {
+fn initInner(allocator: std.mem.Allocator, text: []const u8, name: []const u8, schema: t.Type, basis: [32]u8, diagnostic: ?*sql.Binding, dialect: sql.Dialect, semantics: []const @import("ColumnSemantics.zig")) !Self {
     if (diagnostic) |detail| detail.* = .{};
     try sql.validateText(text);
     if (schema != .structure or schema.structure.len == 0 or schema.structure.len > 128) return error.InvalidQuerySchema;
@@ -43,7 +46,14 @@ fn initInner(allocator: std.mem.Allocator, text: []const u8, name: []const u8, s
         if (detail.location == null) detail.location = location;
     };
     var parser = try Parser.initDialect(alloc, owned_text, &location, true, dialect);
-    const syntax = try Select.syntax(&parser, descriptor.type);
+    var syntax = try Select.syntax(&parser, descriptor.type);
+    if (semantics.len != 0 and semantics.len != schema.structure.len) return error.InvalidColumnSemantics;
+    const owned_semantics = try alloc.dupe(@import("ColumnSemantics.zig"), semantics);
+    for (owned_semantics, 0..) |*item, i| {
+        try item.validate(schema.structure[i].type);
+        if (item.timezone) |rules| item.timezone = try rules.cloneInto(alloc);
+    }
+    syntax.semantics = owned_semantics;
     try parser.finish();
     var result: Self = .{ .arena = arena, .descriptor = descriptor, .syntax = syntax, .name = try alloc.dupe(u8, name), .basis = basis };
     if (syntax.predicate) |predicate| for (predicate.instructions) |instruction| {

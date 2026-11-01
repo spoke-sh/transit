@@ -61,6 +61,16 @@
       "source": "packages/zig/transit-fuze/src/LogDdl.zig",
       "contract": "contracts/STREAM_V1.md",
       "behavior": "Pure named Stream/Queue SHOW/DESCRIBE syntax used by the SQL service. No definition lookup or disclosure."
+    },
+    "table_query": {
+      "source": "packages/zig/transit-fuze/src/TableSelect.zig",
+      "contract": "contracts/TABLE_QUERY_V1.md",
+      "behavior": "Pure scalar SELECT compilation against an explicit logical Table schema and its exact semantic descriptors; no acquisition or execution."
+    },
+    "historical_selector": {
+      "source": "packages/zig/transit-sql/src/HistoricalSql.zig",
+      "contract": "contracts/HISTORICAL_CATALOG_V1.md",
+      "behavior": "Pure extraction and canonical decoding of a historical selector before inner-statement compilation. No catalog binding, authority or retention is claimed."
     }
   },
   "cases": [
@@ -1540,10 +1550,10 @@
     },
     {
       "id": "as-of",
-      "sql": "FOR SYSTEM_TIME AS OF 240",
+      "sql": "AS OF SNAPSHOT '5448534e415030315b344a12e9434eb956ab8c6dd8d955c7d614c69943433985d1c9a6dcdc6b04bb2a000000000000000300000000000000ffffffffffffffff0400000000000000ffffffffffffffff01000000000000000002000000000000191919191919191919191919191919191919191919191919191919191919191900030000000000001a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a02000000000000000200000000000000000000000000000000'",
       "profile": "query",
       "grammar": "sql",
-      "root": "asOfFragment",
+      "root": "snapshotClause",
       "reference": true,
       "expected": {
         "accepted": false,
@@ -3166,10 +3176,10 @@
     },
     {
       "id": "incomplete-historical",
-      "sql": "FOR SYSTEM_TIME AS OF",
+      "sql": "AS OF SNAPSHOT",
       "profile": "query",
       "grammar": "sql",
-      "root": "asOfFragment",
+      "root": "snapshotClause",
       "reference": false,
       "expected": {
         "accepted": false,
@@ -6686,6 +6696,532 @@
         "accepted": false,
         "code": "sql.invalid_constraint_name",
         "category": "constraint"
+      }
+    },
+    {
+      "id": "historical-selection-0",
+      "sql": "SELECT id FROM items AS OF SNAPSHOT '5448534e415030315b344a12e9434eb956ab8c6dd8d955c7d614c69943433985d1c9a6dcdc6b04bb2a000000000000000300000000000000ffffffffffffffff0400000000000000ffffffffffffffff01000000000000000002000000000000191919191919191919191919191919191919191919191919191919191919191900030000000000001a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a02000000000000000200000000000000000000000000000000'",
+      "profile": "historical_selector",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "historical-selection-1",
+      "sql": "SHOW TABLES AS OF SNAPSHOT '5448534e415030315b344a12e9434eb956ab8c6dd8d955c7d614c69943433985d1c9a6dcdc6b04bb2a000000000000000300000000000000ffffffffffffffff0400000000000000ffffffffffffffff01000000000000000002000000000000191919191919191919191919191919191919191919191919191919191919191900030000000000001a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a02000000000000000200000000000000000000000000000000'",
+      "profile": "historical_selector",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "historical-selection-2",
+      "sql": "DESCRIBE items AS OF SNAPSHOT '5448534e415030315b344a12e9434eb956ab8c6dd8d955c7d614c69943433985d1c9a6dcdc6b04bb2a000000000000000300000000000000ffffffffffffffff0400000000000000ffffffffffffffff01000000000000000002000000000000191919191919191919191919191919191919191919191919191919191919191900030000000000001a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a02000000000000000200000000000000000000000000000000'",
+      "profile": "historical_selector",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "historical-selection-3",
+      "sql": "EXPLAIN SELECT id FROM items AS OF SNAPSHOT '5448534e415030315b344a12e9434eb956ab8c6dd8d955c7d614c69943433985d1c9a6dcdc6b04bb2a000000000000000300000000000000ffffffffffffffff0400000000000000ffffffffffffffff01000000000000000002000000000000191919191919191919191919191919191919191919191919191919191919191900030000000000001a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a02000000000000000200000000000000000000000000000000'",
+      "profile": "historical_selector",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "historical-relational",
+      "sql": "SELECT l.id FROM items l JOIN items r ON l.id=r.id AS OF SNAPSHOT '5448534e415030315b344a12e9434eb956ab8c6dd8d955c7d614c69943433985d1c9a6dcdc6b04bb2a000000000000000300000000000000ffffffffffffffff0400000000000000ffffffffffffffff01000000000000000002000000000000191919191919191919191919191919191919191919191919191919191919191900030000000000001a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a02000000000000000200000000000000000000000000000000'",
+      "profile": "historical_selector",
+      "grammar": "sql",
+      "root": "relationalQuery",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "scalar-decimal-add",
+      "sql": "SELECT DECIMAL_ADD(a,b,8,2,HALF_EVEN) FROM items",
+      "profile": "table_query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      },
+      "basis": "CREATE TABLE items (id INT64 PRIMARY KEY, a DECIMAL(8,2), b DECIMAL(8,2))"
+    },
+    {
+      "id": "scalar-decimal-subtract",
+      "sql": "SELECT DECIMAL_SUBTRACT(a,b,8,2,HALF_EVEN) FROM items",
+      "profile": "table_query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      },
+      "basis": "CREATE TABLE items (id INT64 PRIMARY KEY, a DECIMAL(8,2), b DECIMAL(8,2))"
+    },
+    {
+      "id": "scalar-decimal-multiply",
+      "sql": "SELECT DECIMAL_MULTIPLY(a,b,8,2,HALF_EVEN) FROM items",
+      "profile": "table_query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      },
+      "basis": "CREATE TABLE items (id INT64 PRIMARY KEY, a DECIMAL(8,2), b DECIMAL(8,2))"
+    },
+    {
+      "id": "scalar-decimal-divide",
+      "sql": "SELECT DECIMAL_DIVIDE(a,b,8,2,HALF_EVEN) FROM items",
+      "profile": "table_query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      },
+      "basis": "CREATE TABLE items (id INT64 PRIMARY KEY, a DECIMAL(8,2), b DECIMAL(8,2))"
+    },
+    {
+      "id": "scalar-nested-532",
+      "sql": "SELECT DECIMAL_RESCALE(DECIMAL_ADD(a,b,9,2,REJECT),8,1,HALF_EVEN) FROM items",
+      "profile": "table_query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      },
+      "basis": "CREATE TABLE items (id INT64 PRIMARY KEY, a DECIMAL(8,2), b DECIMAL(8,2))"
+    },
+    {
+      "id": "scalar-nested-533",
+      "sql": "SELECT SUM(DECIMAL_ADD(a,b,9,2,REJECT)) FROM items",
+      "profile": "table_query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      },
+      "basis": "CREATE TABLE items (id INT64 PRIMARY KEY, a DECIMAL(8,2), b DECIMAL(8,2))"
+    },
+    {
+      "id": "scalar-nested-534",
+      "sql": "SELECT COUNT(DECIMAL_ADD(a,b,9,2,REJECT)) FROM items",
+      "profile": "table_query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      },
+      "basis": "CREATE TABLE items (id INT64 PRIMARY KEY, a DECIMAL(8,2), b DECIMAL(8,2))"
+    },
+    {
+      "id": "scalar-range-overlaps",
+      "sql": "SELECT RANGE_OVERLAPS(a,b) FROM items",
+      "profile": "table_query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      },
+      "basis": "CREATE TABLE items (id INT64 PRIMARY KEY, a RANGE<INT64>, b RANGE<INT64>)"
+    },
+    {
+      "id": "scalar-range-contains",
+      "sql": "SELECT RANGE_CONTAINS(a,b) FROM items",
+      "profile": "table_query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      },
+      "basis": "CREATE TABLE items (id INT64 PRIMARY KEY, a RANGE<INT64>, b RANGE<INT64>)"
+    },
+    {
+      "id": "scalar-range-adjacent",
+      "sql": "SELECT RANGE_ADJACENT(a,b) FROM items",
+      "profile": "table_query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      },
+      "basis": "CREATE TABLE items (id INT64 PRIMARY KEY, a RANGE<INT64>, b RANGE<INT64>)"
+    },
+    {
+      "id": "scalar-range-compare",
+      "sql": "SELECT RANGE_COMPARE(a,b) FROM items",
+      "profile": "table_query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      },
+      "basis": "CREATE TABLE items (id INT64 PRIMARY KEY, a RANGE<INT64>, b RANGE<INT64>)"
+    },
+    {
+      "id": "scalar-vector",
+      "sql": "SELECT VECTOR_DISTANCE(a,b) FROM items",
+      "profile": "table_query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      },
+      "basis": "CREATE TABLE items (id INT64 PRIMARY KEY, a VECTOR(2,FLOAT32) METRIC L2_SQUARED, b VECTOR(2,FLOAT32) METRIC L2_SQUARED)"
+    },
+    {
+      "id": "scalar-time-0",
+      "sql": "SELECT ts AT TIME ZONE 'Etc/UTC' FROM items",
+      "profile": "table_query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      },
+      "basis": "CREATE TABLE items (id INT64 PRIMARY KEY, ts TIMESTAMPTZ TIMEZONE 'Etc/UTC' TZDB 'iana-2025b' TZIF X'545a69663200000000000000000000000000000000000000000000000000000000000000000000010000000400000000000055544300545a696632000000000000000000000000000000000000000000000000000000000000000000000100000004000000000000555443000a555443300a')"
+    },
+    {
+      "id": "scalar-time-1",
+      "sql": "SELECT TIME_BUCKET(ts,1000000,'Etc/UTC') FROM items",
+      "profile": "table_query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      },
+      "basis": "CREATE TABLE items (id INT64 PRIMARY KEY, ts TIMESTAMPTZ TIMEZONE 'Etc/UTC' TZDB 'iana-2025b' TZIF X'545a69663200000000000000000000000000000000000000000000000000000000000000000000010000000400000000000055544300545a696632000000000000000000000000000000000000000000000000000000000000000000000100000004000000000000555443000a555443300a')"
+    },
+    {
+      "id": "scalar-time-2",
+      "sql": "SELECT LOCAL_TO_UTC(ts AT TIME ZONE 'Etc/UTC','Etc/UTC',REJECT) FROM items",
+      "profile": "table_query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      },
+      "basis": "CREATE TABLE items (id INT64 PRIMARY KEY, ts TIMESTAMPTZ TIMEZONE 'Etc/UTC' TZDB 'iana-2025b' TZIF X'545a69663200000000000000000000000000000000000000000000000000000000000000000000010000000400000000000055544300545a696632000000000000000000000000000000000000000000000000000000000000000000000100000004000000000000555443000a555443300a')"
+    },
+    {
+      "id": "scalar-time-3",
+      "sql": "SELECT TIME_BUCKET(LOCAL_TO_UTC(ts AT TIME ZONE 'Etc/UTC','Etc/UTC',REJECT) AT TIME ZONE 'Etc/UTC',1000000,'Etc/UTC') FROM items",
+      "profile": "table_query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.type_mismatch",
+        "category": "binding"
+      },
+      "basis": "CREATE TABLE items (id INT64 PRIMARY KEY, ts TIMESTAMPTZ TIMEZONE 'Etc/UTC' TZDB 'iana-2025b' TZIF X'545a69663200000000000000000000000000000000000000000000000000000000000000000000010000000400000000000055544300545a696632000000000000000000000000000000000000000000000000000000000000000000000100000004000000000000555443000a555443300a')"
+    },
+    {
+      "id": "m10-keyword-at",
+      "sql": "SELECT id AS AT FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "m10-keyword-decimal_add",
+      "sql": "SELECT id AS DECIMAL_ADD FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "m10-keyword-decimal_subtract",
+      "sql": "SELECT id AS DECIMAL_SUBTRACT FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "m10-keyword-decimal_multiply",
+      "sql": "SELECT id AS DECIMAL_MULTIPLY FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "m10-keyword-decimal_divide",
+      "sql": "SELECT id AS DECIMAL_DIVIDE FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "m10-keyword-decimal_rescale",
+      "sql": "SELECT id AS DECIMAL_RESCALE FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "m10-keyword-range_overlaps",
+      "sql": "SELECT id AS RANGE_OVERLAPS FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "m10-keyword-range_contains",
+      "sql": "SELECT id AS RANGE_CONTAINS FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "m10-keyword-range_adjacent",
+      "sql": "SELECT id AS RANGE_ADJACENT FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "m10-keyword-range_compare",
+      "sql": "SELECT id AS RANGE_COMPARE FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "m10-keyword-vector_distance",
+      "sql": "SELECT id AS VECTOR_DISTANCE FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "m10-keyword-time_bucket",
+      "sql": "SELECT id AS TIME_BUCKET FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "m10-keyword-local_to_utc",
+      "sql": "SELECT id AS LOCAL_TO_UTC FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "m10-keyword-range",
+      "sql": "SELECT id AS RANGE FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "m10-keyword-multirange",
+      "sql": "SELECT id AS MULTIRANGE FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "m10-keyword-vector",
+      "sql": "SELECT id AS VECTOR FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "m10-keyword-rounding",
+      "sql": "SELECT id AS ROUNDING FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "m10-keyword-metric",
+      "sql": "SELECT id AS METRIC FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "m10-keyword-timezone",
+      "sql": "SELECT id AS TIMEZONE FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "m10-keyword-tzdb",
+      "sql": "SELECT id AS TZDB FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "m10-keyword-tzif",
+      "sql": "SELECT id AS TZIF FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "m10-keyword-snapshot",
+      "sql": "SELECT id AS SNAPSHOT FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "m10-declaration-semantics",
+      "sql": "CREATE TABLE items (id INT64, a DECIMAL(8,2) ROUNDING HALF_EVEN, b MULTIRANGE<INT64>, v VECTOR(2,FLOAT32) METRIC L2_SQUARED, ts TIMESTAMPTZ TIMEZONE 'Etc/UTC' TZDB 'iana-2025b' TZIF X'545a69663200000000000000000000000000000000000000000000000000000000000000000000010000000400000000000055544300545a696632000000000000000000000000000000000000000000000000000000000000000000000100000004000000000000555443000a555443300a')",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "profile": "table_query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "id": "scalar-missing-operand",
+      "sql": "SELECT RANGE_OVERLAPS(id) FROM items",
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_sql_syntax",
+        "category": "syntax"
+      }
+    },
+    {
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "id": "m10-range-declaration",
+      "sql": "CREATE TABLE items (a RANGE<INT64>)",
+      "expected": {
+        "accepted": true
       }
     }
   ]

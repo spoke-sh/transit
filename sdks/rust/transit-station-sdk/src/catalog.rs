@@ -1827,7 +1827,10 @@ impl Observation {
         if tag == "finalizing" {
             object(raw, &["evidence", "operation"])?;
             if raw["operation"]["requires_settlement"] != json!(true)
-                || !matches!(raw["operation"]["phase"].as_str(), Some("admitted" | "ready"))
+                || !matches!(
+                    raw["operation"]["phase"].as_str(),
+                    Some("admitted" | "ready")
+                )
             {
                 return Err(malformed());
             }

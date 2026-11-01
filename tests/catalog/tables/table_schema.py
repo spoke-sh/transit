@@ -56,20 +56,20 @@ def fixtures():
     for _, label, tag, nullable, _ in columns:
         query_type += bytes([len(label)]) + label.encode() + bytes([nullable]) + tag
     query_schema = hashlib.sha256(query_type).digest()
-    query_definition = hashlib.sha256(b'transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names:nullable-parameters:collations').digest()
+    query_definition = hashlib.sha256(b'transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names:nullable-parameters:collations:scalar-programs:decimal-sum.2026-11-01').digest()
     query_prefix = b'\0\2\1\0'
     query_limit = b'\1' + struct.pack('<Q', 3)
     literal = b'\3' + struct.pack('<i', 12)
     program = b'\3\3\0\2\0\0' + struct.pack('<H', len(literal)) + literal + b'\0\1\1\1\3'
     query_bytes = (b'FQP1' + query_definition + b'\7' * 32 + query_schema + query_prefix +
-                   b'\6chosen\0' + query_limit + program + bytes(len(columns)))
+                   b'\6chosen\0' + query_limit + program + bytes(len(columns)) + b'\0')
     literal_envelope = b'FVL1' + struct.pack('<H', len(int32)) + int32 + b'\0' + literal
     identity_program = (b'\3\3\0\2\0\0' + struct.pack('<H', len(literal_envelope)) +
                         literal_envelope + b'\0\1\1\1\3')
     query_identity = (b'transit.fuze.file-plan.v1\0' + b'\7' * 32 + query_schema + query_prefix +
-                      query_limit + identity_program + b'output_names\0\1\6chosen\0' + b'collations\0' + bytes(len(columns)))
+                      query_limit + identity_program + b'output_names\0\1\6chosen\0' + b'collations\0' + bytes(len(columns)) + b'\0')
     query_progress = (b'FQS1' + b'\7' * 32 + hashlib.sha256(query_identity).digest() +
-                      struct.pack('<QQQQQQBqB', 1, 2, 1, 0, 1, 1, 0, 0, 1))
+                      struct.pack('<QQQQQQB', 1, 2, 1, 0, 1, 1, 0) + bytes(16) + b'\1')
 
     def assignment(column, kind, value=None):
         result = dict(column=column, kind=kind)

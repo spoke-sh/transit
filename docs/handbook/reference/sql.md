@@ -171,7 +171,7 @@ Arrow int64 columns.
 | `LIMIT n` | Full u64 count; no implicit truncation when omitted |
 | `COUNT(*)` | uint64, counting every cell state; Flight checks conversion to int64 |
 | `COUNT(column)` | uint64, counting top-level values; skips missing/null; error/conflict fails; Flight checks conversion to int64 |
-| `SUM(column)` | Checked int64; skips missing/null; error/conflict fails |
+| `SUM(column)` | Checked int64 or DECIMAL(38,s); skips missing/null; error/conflict fails |
 | Comparison with `NULL` | Rejected; use `IS NULL` |
 | Results | Nested typed cells: value, null, missing, type error, conflict |
 

@@ -62,6 +62,7 @@ test("lookup preserves direct interpretation, schema and full-width frontier", a
               ],
             },
             collations: ["none", "none"],
+            semantics: schemaWire(source.schema).columns.map((column) => column.semantics),
           },
         },
       },
@@ -90,6 +91,16 @@ test("lookup preserves direct interpretation, schema and full-width frontier", a
       await assert.rejects(
         client.lookupTable("people"),
         collations === undefined ? ReadFailed : IncompatibleNative,
+      );
+    });
+  }
+  for (const semantics of [undefined, [], [response.table.source.source.table.semantics[0]]]) {
+    const mismatched = structuredClone(response);
+    Object.assign(mismatched.table.source.source.table, { semantics });
+    await withHost(mismatched, async (client) => {
+      await assert.rejects(
+        client.lookupTable("people"),
+        semantics === undefined ? ReadFailed : IncompatibleNative,
       );
     });
   }

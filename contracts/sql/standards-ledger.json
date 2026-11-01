@@ -2,7 +2,7 @@
   "version": 1,
   "definition": "transit.sql.standards-ledger.v1.2026-11-01",
   "operator_traits": {
-    "definition": "transit.fuze.operator-traits.v1.2026-10-30",
+    "definition": "transit.fuze.operator-traits.v1.2026-11-01.scalars",
     "effect_dimensions": [
       "read",
       "mutate",
@@ -360,7 +360,7 @@
       "dependencies": [
         "UCS_BASIC"
       ],
-      "deviations": "Selected scalar types only. Stored DECIMAL does not imply SQL decimal arithmetic or a manifest-bound rounding descriptor; standalone helpers are separately tested.",
+      "deviations": "Selected scalar types and collations. DECIMAL arithmetic uses bounded explicit DECIMAL_* functions with declared result precision, scale and rounding; ordered SUM widens to DECIMAL(38,s). Frozen column semantics carry exact TZif artifacts for AT TIME ZONE, TIME_BUCKET and LOCAL_TO_UTC. General infix arithmetic and host timezone lookup are not admitted. Scalar execution and saved-plan checks have component evidence; installed scalar transport/recovery qualification remains pending.",
       "corpus_sources": [
         "contracts/sql/corpus/statements.json",
         "contracts/sql/corpus/parameters.json"
@@ -376,7 +376,9 @@
       "profile": "production SQL entry points; only the selected scope described in deviations",
       "evidence_sources": [
         "packages/zig/transit-fuze/src/operator_traits_test.zig",
-        "tests/interfaces/sql_sessions/native.py"
+        "tests/interfaces/sql_sessions/native.py",
+        "packages/zig/transit-fuze/src/scalar_query_test.zig",
+        "tests/query/logical/scalar_programs.py"
       ]
     },
     {
@@ -532,22 +534,23 @@
       "dependencies": [
         "E021-E051"
       ],
-      "deviations": "Schema-bound RANGE and MULTIRANGE values, Table row/page codecs, SQL declarations and string literals, neutral JSON and logical Arrow are implemented. SQL containment/overlap/adjacency operators remain staged.",
+      "deviations": "Schema-bound RANGE and MULTIRANGE values, Table row/page codecs, SQL declarations and string literals, neutral JSON and logical Arrow are implemented. RANGE_OVERLAPS, RANGE_CONTAINS, RANGE_ADJACENT and RANGE_COMPARE execute as bounded scalar projections; symbolic interval operators remain staged.",
       "corpus_sources": [
         "contracts/sql/corpus/statements.json"
       ],
       "states": {
         "parse": "implemented",
         "lower": "implemented",
-        "execute": "rejected",
-        "recover": "rejected",
-        "transport": "rejected"
+        "execute": "implemented",
+        "recover": "staged",
+        "transport": "staged"
       },
       "reference_verified": false,
       "profile": "production SQL entry points; only the selected scope described in deviations",
       "evidence_sources": [
         "packages/zig/transit-fuze/src/operator_traits_test.zig",
-        "packages/zig/transit-fuze/src/companion_values_test.zig"
+        "packages/zig/transit-fuze/src/companion_values_test.zig",
+        "packages/zig/transit-fuze/src/scalar_query_test.zig"
       ]
     },
     {
@@ -559,22 +562,23 @@
       "dependencies": [
         "E021-E051"
       ],
-      "deviations": "VECTOR descriptors and unboxed 64-byte-aligned values, Table row/page codecs, SQL declarations and string literals, persisted metrics, neutral JSON and logical Arrow are implemented. SQL distance expressions remain staged.",
+      "deviations": "VECTOR descriptors and unboxed 64-byte-aligned values, Table row/page codecs, SQL declarations and string literals, persisted metrics, neutral JSON and logical Arrow are implemented. VECTOR_DISTANCE executes typed scalar projections using an explicit or persisted compatible metric. Zero-norm cosine refuses.",
       "corpus_sources": [
         "contracts/sql/corpus/statements.json"
       ],
       "states": {
         "parse": "implemented",
         "lower": "implemented",
-        "execute": "rejected",
-        "recover": "rejected",
-        "transport": "rejected"
+        "execute": "implemented",
+        "recover": "staged",
+        "transport": "staged"
       },
       "reference_verified": false,
       "profile": "production SQL entry points; only the selected scope described in deviations",
       "evidence_sources": [
         "packages/zig/transit-fuze/src/operator_traits_test.zig",
-        "packages/zig/transit-fuze/src/companion_values_test.zig"
+        "packages/zig/transit-fuze/src/companion_values_test.zig",
+        "packages/zig/transit-fuze/src/scalar_query_test.zig"
       ]
     },
     {
@@ -1029,7 +1033,7 @@
       ]
     }
   ],
-  "sha256": "08ce4bfab5e88661bdea3cab0210002462ffabc2358b4eb2ce8e9d41d9c3f0e0",
+  "sha256": "e2d0643b8235884cbeb1cf20bf09302c7232d0bc5780e5a466a1a44907f49de8",
   "scope": "States describe public runtime entry points, not helper availability or ISO conformance. Physical codecs describe typed TableSchema admission; ENCODING syntax remains reference-only. An implemented feature covers only the stated deviations and fixtures.",
   "compiler_cases": [
     {

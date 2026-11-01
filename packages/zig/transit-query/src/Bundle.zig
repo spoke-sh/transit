@@ -33,7 +33,7 @@ pub fn fromSqlDiagnostic(allocator: std.mem.Allocator, source: q.SourceDefinitio
 fn fromSqlInner(allocator: std.mem.Allocator, source: q.SourceDefinition, name: []const u8, text: []const u8, limits: Limits, diagnostic: ?*q.fuze.Sql.Binding) !Self {
     var fields: [q.SourceDefinition.max_columns]t.Field = undefined;
     const schema = try (try source.schema(&fields)).cloneInto(allocator);
-    var plan = try f.TableSelect.planDiagnostic(allocator, text, name, schema, try source.fingerprint(), diagnostic);
+    var plan = try f.TableSelect.planSemantics(allocator, text, name, schema, try source.fingerprint(), diagnostic, source.semantics());
     plan.collations = source.collations();
     const result: Self = .{ .source = source, .plan = plan, .limits = limits };
     try result.validate();

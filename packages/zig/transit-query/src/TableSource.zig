@@ -18,6 +18,7 @@ object: u64,
 interpretation: c.storage.TableDeclaration.Stored,
 row_type: t.Type,
 collations: f.QueryCollations = .{},
+semantics: []const f.ColumnSemantics = &.{},
 
 pub const Owned = struct {
     descriptor: t.Decoded,
@@ -37,6 +38,8 @@ pub fn validate(self: Self) !void {
     if (!std.meta.eql(object, self.interpretation.interpretation.object) or self.interpretation.retired) return error.InvalidQuerySource;
     try self.row_type.validate(.{});
     try self.collations.validate(self.row_type);
+    if (self.row_type != .structure or (self.semantics.len != 0 and self.semantics.len != self.row_type.structure.len)) return error.InvalidColumnSemantics;
+    for (self.semantics, 0..) |value, i| try value.validate(self.row_type.structure[i].type);
     if (self.row_type != .structure or self.row_type.structure.len == 0 or self.row_type.structure.len > f.TableSchema.max_columns) return error.InvalidQuerySource;
 }
 /// Copy the admitted schema. The interpretation commits physical descriptors,
@@ -53,11 +56,27 @@ pub fn from(allocator: std.mem.Allocator, connection: w.Connection, definition: 
     var fields: [f.TableSchema.max_columns]t.Field = undefined;
     var descriptor = try (try schema.schema.rowType(&fields)).clone(allocator);
     errdefer descriptor.deinit();
-    const source: Self = .{ .scope = connection.scope, .owner = connection.audience, .branch = connection.branch, .namespace = definition.namespace, .object = schema.schema.object, .interpretation = definition.interpretation, .row_type = descriptor.type, .collations = .fromTable(schema.schema) };
+    var present = false;
+    for (schema.schema.columns) |column| present = present or !column.semantics.empty();
+    const semantics: []const f.ColumnSemantics = if (present) blk: {
+        const values = try descriptor.arena.allocator().alloc(f.ColumnSemantics, schema.schema.columns.len);
+        for (schema.schema.columns, values) |column, *value| {
+            value.* = column.semantics;
+            if (value.timezone) |rules| value.timezone = try rules.cloneInto(descriptor.arena.allocator());
+        }
+        break :blk values;
+    } else &.{};
+    const source: Self = .{ .semantics = semantics, .scope = connection.scope, .owner = connection.audience, .branch = connection.branch, .namespace = definition.namespace, .object = schema.schema.object, .interpretation = definition.interpretation, .row_type = descriptor.type, .collations = .fromTable(schema.schema) };
     try source.validate();
     return .{ .descriptor = descriptor, .source = source };
 }
 pub fn encode(self: Self, output: []u8) ![]const u8 {
+    return self.encodeInner(output) catch |err| switch (err) {
+        error.WriteFailed => error.SourceDefinitionTooLarge,
+        else => err,
+    };
+}
+fn encodeInner(self: Self, output: []u8) ![]const u8 {
     try self.validate();
     var type_bytes: [t.max_encoding_bytes]u8 = undefined;
     const encoded = try self.row_type.encode(&type_bytes);
@@ -73,6 +92,10 @@ pub fn encode(self: Self, output: []u8) ![]const u8 {
     try writer.writeInt(u16, @intCast(encoded.len), .little);
     try writer.writeAll(encoded);
     try self.collations.write(self.row_type, &writer);
+    var present = false;
+    for (self.semantics) |value| present = present or !value.empty();
+    try writer.writeByte(if (present) @intCast(self.semantics.len) else 0);
+    if (present) for (self.semantics) |value| try value.write(&writer);
     return writer.buffered();
 }
 pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Owned {
@@ -107,6 +130,11 @@ pub fn decodeInto(arena: std.mem.Allocator, bytes: []const u8) !Self {
     const type_bytes = try reader.take(try reader.takeInt(u16, .little));
     source.row_type = try t.decodeInto(arena, type_bytes);
     source.collations = try f.QueryCollations.read(source.row_type, &reader);
+    const semantic_count = try reader.takeByte();
+    if (semantic_count != 0 and semantic_count != source.row_type.structure.len) return error.InvalidColumnSemantics;
+    const semantics = try arena.alloc(f.ColumnSemantics, semantic_count);
+    for (semantics) |*value| value.* = try f.ColumnSemantics.read(arena, &reader);
+    source.semantics = semantics;
     if (reader.bufferedLen() != 0) return error.InvalidSourceEncoding;
     try source.validate();
     var canonical: [max_bytes]u8 = undefined;
@@ -134,10 +162,7 @@ pub fn checkDefinition(self: Self, client: c.DirectTableClient) !void {
     defer current.deinit();
     // An exact definition identity alone does not authenticate the separately
     // supplied logical descriptor used by SQL binding and metadata disclosure.
-    if (!std.meta.eql(current.source.interpretation, self.interpretation) or
-        current.source.namespace != self.namespace or
-        !std.meta.eql(current.source.collations, self.collations) or
-        !try current.source.row_type.eql(self.row_type)) return error.TableSchemaChanged;
+    if (!std.mem.eql(u8, &try current.source.fingerprint(), &try self.fingerprint())) return error.TableSchemaChanged;
 }
 pub fn requireGrant(self: Self, allocator: std.mem.Allocator, grant: c.DirectReadDelegation) !void {
     try self.validate();
@@ -160,6 +185,10 @@ pub fn basis(self: Self, retained: c.DirectTableReader.Basis, schema: f.TableSch
     if (!std.meta.eql(retained.interpretation, self.interpretation) or !std.mem.eql(u8, &try schema.fingerprint(), &self.interpretation.schema_fingerprint)) return error.SourceChanged;
     try q.direct.DirectTableQuery.qualify(schema);
     if (!std.meta.eql(self.collations, f.QueryCollations.fromTable(schema))) return error.TableSchemaChanged;
+    for (schema.columns, 0..) |column, i| {
+        const declared: f.ColumnSemantics = if (self.semantics.len == 0) .{} else self.semantics[i];
+        if (!declared.eql(column.semantics)) return error.TableSchemaChanged;
+    }
     var fields: [f.TableSchema.max_columns]t.Field = undefined;
     if (!try self.row_type.eql(try schema.rowType(&fields))) return error.TableSchemaChanged;
     return .{ .declaration = try self.fingerprint(), .schema = try self.row_type.fingerprint(), .retained = retained };

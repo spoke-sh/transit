@@ -56,7 +56,9 @@ pub fn openRetained(allocator: std.mem.Allocator, client: c.DirectTableClient, s
     const table_schema = scan.reader.schema.schema;
     try qualify(table_schema);
     var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
-    var compiled = try f.TableSelect.compile(allocator, text, name, try table_schema.rowType(&fields), try scan.fingerprint(), location);
+    var semantics: [f.TableSchema.max_columns]f.ColumnSemantics = undefined;
+    for (table_schema.columns, semantics[0..table_schema.columns.len]) |column, *value| value.* = column.semantics;
+    var compiled = try f.TableSelect.compileSemantics(allocator, text, name, try table_schema.rowType(&fields), try scan.fingerprint(), location, null, semantics[0..table_schema.columns.len]);
     errdefer compiled.deinit();
     compiled.plan.collations = .fromTable(table_schema);
     return start(&scan, &compiled, limits, compute);

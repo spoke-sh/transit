@@ -45,7 +45,12 @@ pub fn fromPlan(schema: table.Schema, plan: logical.Plan) !Self {
         !std.meta.eql(plan.collations, collations.fromTable(schema))) return error.SourceChanged;
     var needed: [table.max_columns]bool = @splat(false);
     for (schema.primary_key) |id| needed[try schema.index(id)] = true;
-    for (plan.projection) |index| needed[index] = true;
+    for (plan.projection) |index| if (index < schema.columns.len) {
+        needed[index] = true;
+    };
+    for (plan.scalars.instructions) |instruction| if (instruction == .input) {
+        needed[instruction.input] = true;
+    };
     switch (plan.predicate) {
         .program => |program| for (program.instructions) |instruction| {
             if (instruction == .atom) needAtom(&needed, instruction.atom);
@@ -106,6 +111,7 @@ pub const Workspace = struct {
     columns: [table.max_columns]table.Column = undefined,
     fields: [table.max_columns]types.Field = undefined,
     outputs: [table.max_columns]u8 = undefined,
+    scalars: [logical.Scalar.max_instructions]logical.Scalar.Instruction = undefined,
     instructions: [logical.Program.max_instructions]logical.Program.Instruction = undefined,
 };
 
@@ -118,8 +124,13 @@ pub fn remap(self: *const Self, original: table.Schema, plan: logical.Plan, work
     var result = plan;
     result.schema = try projected.rowType(&work.fields);
     result.collations = collations.fromTable(projected);
-    for (plan.projection, work.outputs[0..plan.projection.len]) |index, *out| out.* = try self.ordinal(index);
+    for (plan.projection, work.outputs[0..plan.projection.len]) |index, *out| out.* = if (index < original.columns.len) try self.ordinal(index) else @intCast(@as(usize, self.len) + index - original.columns.len);
     result.projection = work.outputs[0..plan.projection.len];
+    for (plan.scalars.instructions, work.scalars[0..plan.scalars.instructions.len]) |instruction, *out| out.* = switch (instruction) {
+        .input => |index| .{ .input = try self.ordinal(index) },
+        else => instruction,
+    };
+    result.scalars.instructions = work.scalars[0..plan.scalars.instructions.len];
     result.predicate = switch (plan.predicate) {
         .program => |program| blk: {
             for (program.instructions, work.instructions[0..program.instructions.len]) |instruction, *out| out.* = switch (instruction) {

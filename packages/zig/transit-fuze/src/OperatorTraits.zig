@@ -6,7 +6,7 @@ const Collation = @import("Collation.zig").Collation;
 const LogicalQuery = @import("LogicalQuery.zig");
 const Relational = @import("Relational.zig");
 
-pub const definition = "transit.fuze.operator-traits.v1.2026-10-30";
+pub const definition = "transit.fuze.operator-traits.v1.2026-11-01.scalars";
 
 /// Orthogonal effect classification across data, capture, and external dispatch.
 pub const EffectSet = packed struct(u8) {
@@ -48,6 +48,8 @@ pub const FiveStateRule = enum(u8) {
     check_constraint_true_or_null = 4,
     /// Explicit state predicate (`IS NULL`, `IS MISSING`, `IS VALUE`, `IS TYPE_ERROR`, `IS CONFLICT`) maps all 5 states to `value(bool)`.
     total_state_predicate = 5,
+    /// Scalar expressions preserve NULL/missing and fail on evaluated errors.
+    checked_scalar = 6,
 };
 
 /// How comparison and ordering operators bind collation descriptors ($\kappa$).
@@ -147,12 +149,12 @@ pub fn forLogicalPlan(plan: LogicalQuery.Plan) !Summary {
     for (plan.collations.columns[0..plan.schema.structure.len]) |entry| {
         if (entry != .none) active_collations += 1;
     }
-    const fallible = plan.aggregate != .rows or switch (plan.predicate) {
+    const fallible = plan.scalars.instructions.len != 0 or plan.aggregate != .rows or switch (plan.predicate) {
         .all, .state => false,
         else => true,
     };
     const five_state_rule: FiveStateRule = switch (plan.aggregate) {
-        .rows => switch (plan.predicate) {
+        .rows => if (plan.scalars.instructions.len != 0) .checked_scalar else switch (plan.predicate) {
             .all => .preserves_all_states,
             .state => .filters_to_true_only,
             .compare, .null_compare, .program => .filters_to_true_only,

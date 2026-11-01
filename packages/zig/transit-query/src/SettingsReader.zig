@@ -22,6 +22,8 @@ origins: ?bool = null,
 arena: std.heap.ArenaAllocator,
 ordered: std.array_list.Managed(OwnedRow),
 sorted: bool = false,
+scalar_ready: bool = false,
+scalar_work: f.ScalarProgram.Workspace = .{},
 const OwnedRow = struct {
     arena: std.heap.ArenaAllocator,
     cells: []const Cell,
@@ -97,8 +99,13 @@ fn matches(self: Self, cells: []const Cell) !bool {
 }
 fn project(self: *Self, cells: []const Cell) ![]const Cell {
     if (self.plan.query) |query| {
+        if (!self.scalar_ready) {
+            try query.plan.scalars.prepare(query.plan.schema.structure, &self.scalar_work);
+            self.scalar_ready = true;
+        }
+        const evaluated = try query.plan.materialize(cells, &self.scalar_work);
         const result = try self.arena.allocator().alloc(Cell, query.plan.projection.len);
-        for (result, query.plan.projection) |*out, column| out.* = cells[column];
+        for (result, query.plan.projection) |*out, column| out.* = evaluated[column];
         return result;
     }
     return cells;
