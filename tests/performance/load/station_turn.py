@@ -164,7 +164,7 @@ def main():
             started = time.monotonic()
             try:
                 with (destination / 'diagnostics.log').open('ab') as console:
-                    execution = capture([caller, url, phase, str(root)], cwd=ROOT, log=prefix.with_suffix('.stderr'),
+                    execution = capture([str(caller), url, phase, str(root)], cwd=ROOT, log=prefix.with_suffix('.stderr'),
                                         result=result, capture_stdout=True, console=console)
                 execution.check_returncode()
                 records = [json.loads(line) for line in prefix.with_suffix('.stdout').read_text().splitlines()]
