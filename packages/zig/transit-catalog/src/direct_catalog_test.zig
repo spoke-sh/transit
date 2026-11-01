@@ -7049,3 +7049,152 @@ test "automatic Queue transfer resumes its frozen pre-admission reservation afte
         }
     }
 }
+
+test "direct Stream cancellation retains one terminal identity through waits mutation and replacement" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    var cached: ?c.DirectStream.Cached = null;
+    defer if (cached) |*value| value.deinit();
+    try catalog.initialize(access.policy());
+    const declaration_request = try logCreation(.stream, 10, 1, "cancellable", 2);
+    _ = try catalog.admitLog(declaration_request, access.policy());
+    _ = try catalog.logOperation(declaration_request.binding, .execute, access.policy());
+    const definition = (try catalog.logOperation(declaration_request.binding, .execute, access.policy())).operation.resulting.?;
+    const target: p.StreamQueue.Partition = .{ .definition = p.Growth.current_definition, .interpretation = definition.stored.declaration.interpretation, .partition = 0 };
+    const identity: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 100 };
+    const work: c.DirectStreamMutation.Request = .{ .consume = .{ .target = target, .operation = identity, .group = null, .from = 0, .until = null, .timestamp = null } };
+    const cancel: c.DirectStream.Request = .{ .cancel = work };
+    const connection: c.DirectTableProtocol.Connection = .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null };
+    access.denied_privileges = .{ .id = definition.properties.authorization, .mask = c.LogAuthority.read };
+    try t.expectError(error.CatalogDenied, streamCall(&catalog, &access, &cached, cancel, 256));
+    try t.expect((try c.OperationBinding.lookupStream(t.allocator, objects.objectStore(), identity)) == null);
+    access.denied_privileges = null;
+    const original = try streamCall(&catalog, &access, &cached, cancel, 256);
+    try t.expect(original.operation.? == .closed);
+    try c.DirectStreamResponse.validate(t.allocator, connection, cancel, original);
+    try t.expectEqualDeep(original, try streamCall(&catalog, &access, &cached, cancel, 256));
+    try t.expectEqualDeep(original, try streamCall(&catalog, &access, &cached, .{ .mutate = .{ .work = work, .payload = null } }, 256));
+    const wait: c.DirectStream.Request = .{ .wait = .{ .consume = work.consume, .milliseconds = 100 } };
+    try t.expectEqualDeep(original, try streamCallWaiting(&catalog, &access, &cached, wait, 256, .{ .expired = true, .registrations = 1 }));
+    var changed = work;
+    changed.consume.from += 1;
+    try t.expectError(error.DataIdentityConflict, streamCall(&catalog, &access, &cached, .{ .cancel = changed }, 256));
+    try t.expectError(error.DataIdentityConflict, c.DirectStreamResponse.validate(t.allocator, connection, .{ .cancel = changed }, original));
+    changed = work;
+    changed.consume.target.partition = 1;
+    try t.expectError(error.DataIdentityConflict, streamCall(&catalog, &access, &cached, .{ .cancel = changed }, 256));
+    try t.expectError(error.DataIdentityConflict, c.OperationBinding.lookup(t.allocator, objects.objectStore(), identity));
+    access.denied_privileges = .{ .id = definition.properties.authorization, .mask = c.LogAuthority.read };
+    try t.expectError(error.CatalogDenied, streamCall(&catalog, &access, &cached, .{ .operation = work }, 256));
+    access.denied_privileges = null;
+    cached.?.deinit();
+    cached = null;
+    catalog.deinit();
+    catalog = try owner(&wal, &objects);
+    try t.expectEqualDeep(original, try streamCall(&catalog, &access, &cached, .{ .operation = work }, 256));
+    var accepted_work = work;
+    accepted_work.consume.operation.operation += 1;
+    const accepted = try streamCall(&catalog, &access, &cached, .{ .mutate = .{ .work = accepted_work, .payload = null } }, 256);
+    try t.expect(accepted.operation.? == .consume);
+    try t.expectEqualDeep(accepted, try streamCall(&catalog, &access, &cached, .{ .cancel = accepted_work }, 256));
+}
+
+test "direct Queue cancellation retains one terminal identity through waits mutation and replacement" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    var clock: QueueClock = .{};
+    var cached: ?c.DirectQueue.Cached = null;
+    defer if (cached) |*value| value.deinit();
+    try catalog.initialize(access.policy());
+    const declaration_request = try logCreation(.queue, 10, 1, "cancellable", 2);
+    _ = try catalog.admitLog(declaration_request, access.policy());
+    _ = try catalog.logOperation(declaration_request.binding, .execute, access.policy());
+    const definition = (try catalog.logOperation(declaration_request.binding, .execute, access.policy())).operation.resulting.?;
+    const target: p.StreamQueue.Partition = .{ .definition = p.Growth.current_definition, .interpretation = definition.stored.declaration.interpretation, .partition = 0 };
+    const identity: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 100 };
+    const work: c.DirectQueueMutation.Request = .{ .claim = .{ .target = target, .operation = identity, .maximum = 1, .lease_ms = 100 } };
+    const cancel: c.DirectQueue.Request = .{ .cancel = work };
+    const connection: c.DirectTableProtocol.Connection = .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null };
+    access.denied_privileges = .{ .id = definition.properties.authorization, .mask = c.LogAuthority.read };
+    try t.expectError(error.CatalogDenied, queueCall(&catalog, &access, &cached, &clock, cancel, 256));
+    try t.expect((try c.OperationBinding.lookupQueue(t.allocator, objects.objectStore(), identity)) == null);
+    access.denied_privileges = null;
+    const original = try queueCall(&catalog, &access, &cached, &clock, cancel, 256);
+    try t.expect(original.operation.? == .closed);
+    try c.DirectQueueResponse.validate(t.allocator, connection, cancel, original);
+    try t.expectEqualDeep(original, try queueCall(&catalog, &access, &cached, &clock, cancel, 256));
+    try t.expectEqualDeep(original, try queueCall(&catalog, &access, &cached, &clock, .{ .mutate = .{ .work = work, .payload = null } }, 256));
+    const wait: c.DirectQueue.Request = .{ .wait = .{ .claim = work.claim, .milliseconds = 100 } };
+    try t.expectEqualDeep(original, try queueCallWaiting(&catalog, &access, &cached, &clock, wait, 256, .{ .expired = true, .registrations = 1 }));
+    var changed = work;
+    changed.claim.maximum += 1;
+    try t.expectError(error.DataIdentityConflict, queueCall(&catalog, &access, &cached, &clock, .{ .cancel = changed }, 256));
+    try t.expectError(error.DataIdentityConflict, c.DirectQueueResponse.validate(t.allocator, connection, .{ .cancel = changed }, original));
+    changed = work;
+    changed.claim.target.partition = 1;
+    try t.expectError(error.DataIdentityConflict, queueCall(&catalog, &access, &cached, &clock, .{ .cancel = changed }, 256));
+    try t.expectError(error.DataIdentityConflict, c.OperationBinding.lookup(t.allocator, objects.objectStore(), identity));
+    access.denied_privileges = .{ .id = definition.properties.authorization, .mask = c.LogAuthority.read };
+    try t.expectError(error.CatalogDenied, queueCall(&catalog, &access, &cached, &clock, .{ .operation = work }, 256));
+    access.denied_privileges = null;
+    cached.?.deinit();
+    cached = null;
+    catalog.deinit();
+    catalog = try owner(&wal, &objects);
+    try t.expectEqualDeep(original, try queueCall(&catalog, &access, &cached, &clock, .{ .operation = work }, 256));
+    var accepted_work = work;
+    accepted_work.claim.operation.operation += 1;
+    const accepted = try queueCall(&catalog, &access, &cached, &clock, .{ .mutate = .{ .work = accepted_work, .payload = null } }, 256);
+    try t.expect(accepted.operation.? == .claim);
+    try t.expectEqualDeep(accepted, try queueCall(&catalog, &access, &cached, &clock, .{ .cancel = accepted_work }, 256));
+    // A missing clock is retryable and supplies no terminal evidence. A known
+    // expired lease is a durable refusal under the same frozen operation.
+    const enqueue_identity: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 200 };
+    var buffer: [8192]u8 = undefined;
+    const payload = try s.LogBatch.encode(declaration_request.intent.action.create.schema, enqueue_identity, .queue, &.{.{ .cells = &.{.{ .value = .{ .atom = .{ .signed = 42 } } }} }}, &buffer);
+    const encoded = try c.DirectTableProtocol.Binary.encode(t.allocator, payload);
+    defer t.allocator.free(encoded.base64);
+    _ = try queueCall(&catalog, &access, &cached, &clock, .{ .mutate = .{ .work = .{ .enqueue = .{
+        .target = target,
+        .operation = enqueue_identity,
+        .kind = .queue,
+        .producer = null,
+        .rows = 1,
+        .payload = s.LogBatch.content(payload),
+    } }, .payload = encoded } }, 256);
+    var claim_work = work;
+    claim_work.claim.operation.operation = 201;
+    const claimed = (try queueCall(&catalog, &access, &cached, &clock, .{ .mutate = .{ .work = claim_work, .payload = null } }, 256)).operation.?.claim;
+    const page = try queueCall(&catalog, &access, &cached, &clock, .{ .page = .{ .cursor = .{ .receipt = claimed, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } }, 256);
+    defer page.deinit(t.allocator);
+    const settlement: c.DirectQueueMutation.Request = .{ .settle = .{ .operation = .{ .scope = scope, .principal = 1, .operation = 202 }, .lease = page.page.rows[0].lease.original, .action = .ack } };
+    const settle_request: c.DirectQueue.Request = .{ .mutate = .{ .work = settlement, .payload = null } };
+    clock.now = null;
+    try t.expectError(error.QueueTimeUnavailable, queueCall(&catalog, &access, &cached, &clock, settle_request, 256));
+    try t.expect((try queueCall(&catalog, &access, &cached, &clock, .{ .operation = settlement }, 256)).operation == null);
+    clock.now = .exact(200);
+    const refused = try queueCall(&catalog, &access, &cached, &clock, settle_request, 256);
+    try t.expectEqual(p.LogWorkload.Refusal.lease_expired, refused.operation.?.closed.reason.refused);
+    try c.DirectQueueResponse.validate(t.allocator, connection, settle_request, refused);
+    try t.expectEqual(@as(u64, 0), cached.?.owner.owner.root.queue.?.terminal);
+    clock.now = null;
+    try t.expectEqualDeep(refused, try queueCall(&catalog, &access, &cached, &clock, settle_request, 256));
+    try t.expectEqualDeep(refused, try queueCall(&catalog, &access, &cached, &clock, .{ .cancel = settlement }, 256));
+    cached.?.deinit();
+    cached = null;
+    try t.expectEqualDeep(refused, try queueCall(&catalog, &access, &cached, &clock, .{ .operation = settlement }, 256));
+}

@@ -70,6 +70,10 @@ without importing the catalog. Operation access categories do not evaluate or
 grant rights; current native policy remains the authorization owner. Binding
 validation and equality establish neither acceptance nor a terminal outcome.
 Catalog exports use these same neutral types and canonical commitments.
+`Closure` binds partition-owned cancellation or a qualified terminal refusal to
+that original request and its recorded WAL position. Shape validation grants no
+rights and does not authenticate storage publication; callers resolve the original
+operation through its authorized owner.
 
 [`DocumentDeclaration`](src/DocumentDeclaration.zig),
 [`DocumentOperation`](src/DocumentOperation.zig) and

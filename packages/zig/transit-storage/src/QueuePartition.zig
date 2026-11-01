@@ -92,6 +92,12 @@ pub fn enqueue(self: *Self, declared: Declaration.Stored, request: p.StreamQueue
 pub fn operation(self: *Self, identity: p.DataLifecycle.Operation, guard: Guard) !?@import("LogEvidence.zig").Record {
     return self.owner.operation(identity, guard);
 }
+pub fn cancel(self: *Self, declared: Declaration.Stored, request: p.LogWorkload.QueueRequest, guard: Guard) !@import("LogEvidence.zig").Record {
+    return self.owner.cancel(declared, request, guard);
+}
+pub fn refuse(self: *Self, declared: Declaration.Stored, request: p.LogWorkload.QueueRequest, cause: anyerror, guard: Guard) !@import("LogEvidence.zig").Record {
+    return self.owner.refuse(declared, request, cause, guard);
+}
 pub fn claim(self: *Self, declared: Declaration.Stored, request: p.StreamQueue.Claim, guard: Guard) !p.StreamQueue.ClaimReceipt {
     return self.owner.claim(declared, request, guard);
 }

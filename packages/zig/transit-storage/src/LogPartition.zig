@@ -599,6 +599,44 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             try authorize(guard);
             return result;
         }
+        /// Serialize cancellation with admission in this partition. The adapter
+        /// must first reserve the exact global operation binding. Accepted work
+        /// wins; cancellation never releases its lease, offsets or result pins.
+        pub fn cancel(self: *Self, declared: Declaration.Stored, request: if (kind == .stream) p.LogWorkload.StreamRequest else p.LogWorkload.QueueRequest, guard: Guard) !Evidence.Record {
+            return self.close(declared, request, .cancelled, guard);
+        }
+        /// The serialized adapter invokes this only after this owner's mutation
+        /// returned a qualified terminal refusal. Other failures retain their
+        /// uncertainty and cannot create closure evidence.
+        pub fn refuse(self: *Self, declared: Declaration.Stored, request: if (kind == .stream) p.LogWorkload.StreamRequest else p.LogWorkload.QueueRequest, cause: anyerror, guard: Guard) !Evidence.Record {
+            const reason = p.LogWorkload.Refusal.fromError(cause) orelse return cause;
+            return self.close(declared, request, .{ .refused = reason }, guard);
+        }
+        fn close(self: *Self, declared: Declaration.Stored, request: if (kind == .stream) p.LogWorkload.StreamRequest else p.LogWorkload.QueueRequest, reason: @FieldType(p.LogWorkload.Closure, "reason"), guard: Guard) !Evidence.Record {
+            try authorize(guard);
+            try self.requireReady();
+            if (self.private_position != null) return error.PrivateLogWorkspace;
+            try self.root.requireControlDeclaration(declared);
+            try self.requireTarget(request.target());
+            var bytes: [16 * 1024]u8 = undefined;
+            var scratch = std.heap.FixedBufferAllocator.init(&bytes);
+            const binding: p.LogWorkload.Binding = if (kind == .stream)
+                .{ .stream = try request.binding(scratch.allocator()) }
+            else
+                .{ .queue = try request.binding(scratch.allocator()) };
+            if (try self.original(request.identity())) |record| {
+                try binding.requireSame(try record.binding(scratch.allocator()));
+                try authorize(guard);
+                return record;
+            }
+            const record: Evidence.Record = .{ .declared = declared, .outcome = .{ .closed = .{
+                .binding = binding,
+                .recorded = try self.nextPosition(),
+                .reason = reason,
+            } } };
+            try self.publish(record, &.{}, guard);
+            return record;
+        }
         pub fn observe(self: *Self, declared: Declaration.Stored, guard: Guard) !q.Cut {
             try authorize(guard);
             try self.requireReady();
@@ -1407,7 +1445,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         }
         fn candidate(self: *Self, evidence: Evidence.Record, payload: []const u8, guard: Guard) !Root {
             try evidence.validate();
-            if (evidence.outcome == .offset or evidence.outcome == .release or evidence.outcome == .settlement or evidence.outcome == .terminal or evidence.outcome == .queue_release)
+            if (evidence.outcome == .offset or evidence.outcome == .release or evidence.outcome == .settlement or evidence.outcome == .terminal or evidence.outcome == .queue_release or evidence.outcome == .closed)
                 try self.root.requireControlDeclaration(evidence.declared)
             else
                 try self.root.requireDeclaration(evidence.declared);
@@ -1423,6 +1461,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             result.next_lsn = evidence.accepted().next_lsn;
             result.receipts = try self.tree().put(result.receipts, try Evidence.operationKey(evidence.operation()), reference);
             switch (evidence.outcome) {
+                .closed => {},
                 .queue_release => |receipt| if (kind == .queue) {
                     try self.requireOriginalClaim(receipt.release.claim);
                     if (try self.claimReadReleased(receipt.release.claim)) return error.QueueReadReleased;
@@ -1488,7 +1527,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         }
         fn publish(self: *Self, evidence: Evidence.Record, payload: []const u8, guard: Guard) !void {
             const reserve = switch (evidence.outcome) {
-                .release, .offset, .settlement, .terminal, .queue_release => true,
+                .release, .offset, .settlement, .terminal, .queue_release, .closed => true,
                 .assignment => |value| value.assignment.expected != null,
                 .append, .read, .claim => false,
             };
@@ -2350,7 +2389,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 return;
             }
             const evidence = record.action.operation;
-            if (evidence.outcome == .offset or evidence.outcome == .release)
+            if (evidence.outcome == .offset or evidence.outcome == .release or evidence.outcome == .closed)
                 try self.root.requireControlDeclaration(evidence.declared)
             else
                 try self.root.requireDeclaration(evidence.declared);
@@ -2368,6 +2407,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             expected.changed_lsn = next.changed_lsn;
             expected.receipts = next.receipts;
             switch (evidence.outcome) {
+                .closed => {},
                 .claim, .settlement, .terminal, .queue_release => return error.InvalidLogHistory,
                 .append => |receipt| {
                     if (receipt.first != self.root.next_offset) return error.InvalidLogHistory;

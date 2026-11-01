@@ -2011,3 +2011,64 @@ test "log transaction decision barriers recover lost preparation and commit repl
         }
     }
 }
+
+test "stream partition cancellation fences late admission and preserves original accepted work on disk" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var declared = try s.LogDeclaration.prepare(t.allocator, support.definition(.stream));
+    defer declared.deinit();
+    var policy: Policy = .{};
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declared);
+    var fault: Fault = .{ .underlying = wal.log(), .lose_reply = false };
+    var owner = try Stream.open(t.allocator, fault.log(), objects.objectStore(), initial, policy.guard(), options);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+    var bytes: [8192]u8 = undefined;
+    const input = try appendRequest(&declared, 2, null, &bytes);
+    const work: p.LogWorkload.StreamRequest = .{ .append = input.request };
+    const before = owner.root;
+    try t.expectEqual(@as(?s.LogEvidence.Record, null), try owner.operation(operation(2), policy.guard()));
+    fault.lose_reply = true;
+    try t.expectError(error.LogAppendUncertain, owner.cancel(initial.declared, work, policy.guard()));
+    try t.expectError(error.LogRecoveryRequired, owner.operation(operation(2), policy.guard()));
+    try owner.deinit();
+    owner = try Stream.open(t.allocator, fault.log(), objects.objectStore(), initial, policy.guard(), options);
+    while (!(try owner.recoverStep(policy.guard(), 1)).complete) {}
+    const closed = (try owner.operation(operation(2), policy.guard())).?;
+    try t.expect(closed.outcome == .closed);
+    try closed.outcome.closed.requireStream(work);
+    try t.expectEqual(before.next_offset, owner.root.next_offset);
+    try t.expectEqual(before.changed_lsn, owner.root.changed_lsn);
+    try t.expectEqualDeep(before.clock_ms, owner.root.clock_ms);
+    try t.expectEqualDeep(before.queue, owner.root.queue);
+    const closed_root = owner.root;
+    try t.expectEqualDeep(closed, try owner.cancel(initial.declared, work, policy.guard()));
+    try t.expectError(error.LogOperationConflict, owner.append(initial.declared, input.request, input.payload, policy.guard()));
+    var altered = work;
+    altered.append.payload.sha256[0] ^= 1;
+    try t.expectError(error.DataIdentityConflict, owner.cancel(initial.declared, altered, policy.guard()));
+    try t.expectEqualDeep(closed_root, owner.root);
+    policy.deny_at = policy.calls + 1;
+    try t.expectError(error.PermissionDenied, owner.cancel(initial.declared, work, policy.guard()));
+    try t.expectError(error.PermissionDenied, owner.operation(operation(2), policy.guard()));
+    policy.deny_at = std.math.maxInt(usize);
+    const accepted_input = try appendRequest(&declared, 3, null, &bytes);
+    const accepted_work: p.LogWorkload.StreamRequest = .{ .append = accepted_input.request };
+    const receipt = try owner.append(initial.declared, accepted_input.request, accepted_input.payload, policy.guard());
+    const accepted_root = owner.root;
+    const retained = try owner.cancel(initial.declared, accepted_work, policy.guard());
+    try t.expectEqualDeep(receipt, retained.outcome.append);
+    try t.expectEqualDeep(accepted_root, owner.root);
+    var retired_definition = declared.definition;
+    retired_definition.revision += 1;
+    retired_definition.retired = true;
+    var retired = try s.LogDeclaration.prepare(t.allocator, retired_definition);
+    defer retired.deinit();
+    const current = try s.LogDeclaration.stage(objects.objectStore(), &retired);
+    try t.expectEqualDeep(closed, try owner.cancel(current, work, policy.guard()));
+    try t.expectEqualDeep(accepted_root, owner.root);
+}

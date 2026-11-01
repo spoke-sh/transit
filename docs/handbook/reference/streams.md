@@ -52,6 +52,21 @@ profile below remains separate.
 See the [caller package](../../../packages/zig/transit-data-client/README.md) and
 [exact lifecycle contract](../../../contracts/DIRECT_TABLE_V1.md#stream-and-queue-lifecycle).
 
+## Cancelling original workload operations
+
+Native Stream and Queue `cancel` requests use the exact saved mutation and its
+original identity. If it already committed, Transit returns its original success
+receipt. Otherwise Transit durably closes that identity and returns `closed`.
+Later mutation, wait and lookup calls return the same closure. Cancellation never
+undoes an accepted append, changes a consumer offset, releases a result or ACKs
+or renews a claim. Current rights still apply.
+
+Known producer fencing/receipt expiry and Queue lease fencing/expiry also return
+a durable `closed` refusal when its record commits. Other errors, absent receipts
+and lost replies remain unresolved; recover the original operation. Stopping a
+local wait is separate from requesting durable cancellation. These are native
+caller operations; SQL workload verbs remain unavailable.
+
 ## Queue payloads and leased work
 
 `Catalog.callQueue` enqueues typed batches, claims a bounded original selection,
@@ -66,7 +81,7 @@ for eligible work. The service rechecks FIFO order, leases, trusted visibility
 time and current rights after a notification or delayed-item deadline. A timeout
 reports an observed cut without accepting an empty claim. An already accepted
 claim still returns its original selection, including an empty one. Save the
-underlying claim before dispatch: cancellation or a lost response cannot prove
+underlying claim before dispatch: stopping a local wait or a lost response cannot prove
 it was unaccepted. Waits have separate bounded admission and do not hold data
 locks while parked.
 

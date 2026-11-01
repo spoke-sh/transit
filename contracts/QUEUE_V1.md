@@ -63,6 +63,25 @@ The [data lifecycle schema](data-lifecycle-v1.schema.json) and
 [fixture](../packages/zig/transit-protocol/src/fixtures/stream-queue-v1.json)
 are generated/checked through the existing public contract workflow.
 
+## Original-operation cancellation
+
+`DirectQueue.Request.cancel` carries the exact enqueue, claim, settlement or
+claim-result release request under its original identity. It uses the shared
+canonical operation reservation and current rights for that operation. The
+partition serializes cancellation with admission: existing success wins and is
+returned unchanged; otherwise a durable `LogWorkload.Closure` records the exact
+binding and cancellation position in the ordinary receipt directory.
+
+The closure advances no offsets, lease state or data-change frontier. It fences
+late native mutation and wait admission, survives replacement, and remains
+available through original-operation lookup. Repeating or cancelling an accepted
+claim never selects again, renews a lease, ACKs or releases its retained result.
+Cancellation of an unaccepted ACK leaves the original claim and lease untouched.
+Changed requests cannot reuse a closed identity. Current authorization remains
+necessary after buffering; missing receipts, timeouts and stopped waits are not
+closure evidence. The Stream contract's control-capacity, declaration,
+transaction-barrier and lost-reply rules apply equally to Queue closure.
+
 ## Lease identity and time
 
 The declaration's Queue policy selects `unordered` or `key_fifo`. FIFO requires

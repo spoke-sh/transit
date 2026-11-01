@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "2e2c775950d2d0cfa6d6ea66e078fcdfa8381c16e522c5ac7d91fb243714c7f3"
+definition = "54060530ffe325fd2288d8ede718720381390c5fafb60ea617eea37e1110dfad"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -247,6 +247,16 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
     queue_wait_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(queue_wait_input)).digest())}
     queue_wait_request = {**queue_wait_input, "proof": {"claim": queue_wait_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(queue_wait_claim)).digest())}}
     queue_wait_fixture = {"request": queue_wait_request, "public_key": public_key, "intent_digest": list(queue_digest)}
+    for workload_kind, workload, fixture_value in (("stream", stream_work, stream_fixture), ("queue", queue_work, queue_fixture)):
+        cancel_input = {**request_input, "action": {workload_kind: {"cancel": workload}}}
+        cancel_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(cancel_input)).digest())}
+        fixture_value["cancel_request"] = {**cancel_input, "proof": {"claim": cancel_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(cancel_claim)).digest())}}
+        request_kind = next(iter(workload))
+        fixture_value["closed"] = {
+            "binding": {workload_kind: {"definition": definition, "operation": workload[request_kind]["operation"],
+                         "target": workload[request_kind]["target"], "kind": request_kind, "intent": fixture_value["intent_digest"]}},
+            "recorded": {"partition": 91, "next_lsn": 11}, "reason": {"cancelled": {}},
+        }
     queue_release_work = {"release": {
         "operation": {**log_binding["identity"], "operation": 2**64-2},
         "claim": {"claim": queue_work["claim"], "accepted": {"partition": 91, "next_lsn": 11},
@@ -316,6 +326,35 @@ for field in ("binding", "changes"):
     del invalid["action"]["kv"]["mutate"][field]
     assert not validator.is_valid(invalid), field
 validator.validate(stream_request)
+validator.validate(stream_fixture["cancel_request"])
+validator.validate(queue_fixture["cancel_request"])
+
+# The response reflector shares the closure definition between both native
+# unions. Check its independent evidence, mandatory fields and exact definition.
+def closure_shapes(node):
+    if isinstance(node, dict):
+        if set(node.get("properties", {})) == {"binding", "recorded", "reason"}:
+            yield node
+        for child in node.values():
+            yield from closure_shapes(child)
+    elif isinstance(node, list):
+        for child in node:
+            yield from closure_shapes(child)
+
+closure_schemas = list(closure_shapes(schema))
+assert len(closure_schemas) == 1
+for closure_schema in closure_schemas:
+    closure_validator = jsonschema.Draft202012Validator({**closure_schema, "$defs": schema["$defs"]})
+    for workload_kind, fixture_value in (("stream", stream_fixture), ("queue", queue_fixture)):
+        closed = fixture_value["closed"]
+        closure_validator.validate(closed)
+        for field in ("binding", "recorded", "reason"):
+            invalid = copy.deepcopy(closed)
+            del invalid[field]
+            assert not closure_validator.is_valid(invalid), field
+        invalid = copy.deepcopy(closed)
+        invalid["binding"][workload_kind]["definition"] = "0" * 64
+        assert not closure_validator.is_valid(invalid)
 validator.validate(queue_request)
 validator.validate(queue_wait_request)
 for field in ("claim", "milliseconds"):

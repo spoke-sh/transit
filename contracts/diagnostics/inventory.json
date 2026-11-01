@@ -6061,7 +6061,7 @@
         "InvalidQueuePayload": 1,
         "InvalidQueueReadBudget": 1,
         "InvalidQueueWait": 1,
-        "LogOperationConflict": 1,
+        "LogOperationConflict": 2,
         "LogPayloadConflict": 1,
         "QueueNotEligible": 1,
         "QueueTimeUnavailable": 1,
@@ -6074,12 +6074,14 @@
           "enqueue",
           "claim",
           "settle",
-          "release"
+          "release",
+          "closed"
         ],
         "Request": [
           "observe",
           "mutate",
           "operation",
+          "cancel",
           "page",
           "wait"
         ],
@@ -6096,12 +6098,13 @@
         "Request.validate()": "<inferred>",
         "apply()": "<inferred>",
         "authorize()": "<inferred>",
+        "mutate()": "<inferred>",
         "originalReceipt()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 43,
-        "catch": 2
+        "try": 51,
+        "catch": 3
       },
       "imports": [
         "root.zig",
@@ -6603,7 +6606,7 @@
         "LogGroupFenced": 1,
         "LogGroupRequired": 1,
         "LogOffsetConflict": 1,
-        "LogOperationConflict": 6,
+        "LogOperationConflict": 7,
         "LogPayloadConflict": 1,
         "LogRangeExpired": 1,
         "StreamReadConflict": 2,
@@ -6618,12 +6621,14 @@
           "assign",
           "consume",
           "release",
-          "offset"
+          "offset",
+          "closed"
         ],
         "Request": [
           "observe",
           "mutate",
           "operation",
+          "cancel",
           "group",
           "cursor",
           "page",
@@ -6644,13 +6649,14 @@
         "Request.validate()": "<inferred>",
         "apply()": "<inferred>",
         "authorize()": "<inferred>",
+        "mutate()": "<inferred>",
         "originalReceipt()": "<inferred>",
         "receipt()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 55,
-        "catch": 1
+        "try": 64,
+        "catch": 2
       },
       "imports": [
         "root.zig",
@@ -20504,7 +20510,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"2e2c775950d2d0cfa6d6ea66e078fcdfa8381c16e522c5ac7d91fb243714c7f3\""
+          "@\"54060530ffe325fd2288d8ede718720381390c5fafb60ea617eea37e1110dfad\""
         ],
         "Effect.phase": [
           "pending",
@@ -20778,10 +20784,15 @@
     "packages/zig/transit-protocol/src/LogWorkload.zig": {
       "errors": {
         "CatalogKindMismatch": 2,
-        "DataIdentityConflict": 2,
+        "DataIdentityConflict": 3,
         "IncompatibleDefinition": 2,
+        "InvalidLogClosure": 4,
         "InvalidQueueOperationBinding": 1,
         "InvalidStreamOperationBinding": 1,
+        "LogProducerFenced": 1,
+        "LogProducerReceiptExpired": 1,
+        "QueueLeaseExpired": 1,
+        "QueueLeaseFenced": 1,
         "StreamReadConflict": 1
       },
       "outcomes": {
@@ -20794,6 +20805,14 @@
           "settle",
           "administer"
         ],
+        "Binding": [
+          "stream",
+          "queue"
+        ],
+        "Closure.reason": [
+          "cancelled",
+          "refused"
+        ],
         "QueueKind": [
           "enqueue",
           "claim",
@@ -20805,6 +20824,12 @@
           "claim",
           "settle",
           "release"
+        ],
+        "Refusal": [
+          "producer_fenced",
+          "producer_receipt_expired",
+          "lease_fenced",
+          "lease_expired"
         ],
         "StreamKind": [
           "append",
@@ -20823,6 +20848,11 @@
       },
       "error_sets": {},
       "error_returns": {
+        "Binding.requireSame()": "<inferred>",
+        "Binding.validate()": "<inferred>",
+        "Closure.requireQueue()": "<inferred>",
+        "Closure.requireStream()": "<inferred>",
+        "Closure.validate()": "<inferred>",
         "QueueBinding.requireSame()": "<inferred>",
         "QueueBinding.validate()": "<inferred>",
         "QueueRequest.binding()": "<inferred>",
@@ -20833,9 +20863,9 @@
         "StreamRequest.offset.validate()": "<inferred>",
         "StreamRequest.validate()": "<inferred>"
       },
-      "open_error_set_uses": 0,
+      "open_error_set_uses": 1,
       "propagation": {
-        "try": 16,
+        "try": 27,
         "catch": 0
       },
       "imports": [
@@ -35875,9 +35905,10 @@
     "packages/zig/transit-storage/src/LogEvidence.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
-        "InvalidLogEvidence": 17,
+        "InvalidLogEvidence": 18,
         "LogEvidenceMissing": 1,
-        "LogEvidenceTooLarge": 1
+        "LogEvidenceTooLarge": 1,
+        "LogOperationConflict": 1
       },
       "outcomes": {
         "Record.outcome": [
@@ -35889,11 +35920,13 @@
           "claim",
           "settlement",
           "terminal",
-          "queue_release"
+          "queue_release",
+          "closed"
         ]
       },
       "error_sets": {},
       "error_returns": {
+        "Record.binding()": "<inferred>",
         "Record.validate()": "<inferred>",
         "decodeReference()": "<inferred>",
         "encode()": "<inferred>",
@@ -35907,7 +35940,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 28,
+        "try": 30,
         "catch": 0
       },
       "imports": [
@@ -36051,7 +36084,7 @@
         "LogTransactionSourceNotPinned": 4,
         "LogTransactionSourceReleased": 2,
         "OutstandingTailBorrows": 1,
-        "PrivateLogWorkspace": 7,
+        "PrivateLogWorkspace": 8,
         "QueueClaimMissing": 2,
         "QueueDestinationSchemaMismatch": 1,
         "QueueItemMissing": 6,
@@ -36100,6 +36133,7 @@
         "Owner().<return>.beginRead()": "<inferred>",
         "Owner().<return>.borrowAt()": "<inferred>",
         "Owner().<return>.borrowWithinBudget()": "<inferred>",
+        "Owner().<return>.cancel()": "<inferred>",
         "Owner().<return>.cancelCompaction()": "<inferred>",
         "Owner().<return>.candidate()": "<inferred>",
         "Owner().<return>.candidateClaim()": "<inferred>",
@@ -36113,6 +36147,7 @@
         "Owner().<return>.claimReadReleased()": "<inferred>",
         "Owner().<return>.claimReadiness()": "<inferred>",
         "Owner().<return>.claimSelected()": "<inferred>",
+        "Owner().<return>.close()": "<inferred>",
         "Owner().<return>.commitOffset()": "<inferred>",
         "Owner().<return>.compactStep()": "<inferred>",
         "Owner().<return>.compactionMaintenanceUnit()": "<inferred>",
@@ -36169,6 +36204,7 @@
         "Owner().<return>.recoverStep()": "<inferred>",
         "Owner().<return>.recoverStepSince()": "<inferred>",
         "Owner().<return>.recoveryState()": "<inferred>",
+        "Owner().<return>.refuse()": "<inferred>",
         "Owner().<return>.releaseClaimRead()": "<inferred>",
         "Owner().<return>.releaseRead()": "<inferred>",
         "Owner().<return>.releaseTransactionSource()": "<inferred>",
@@ -36209,9 +36245,9 @@
         "Owner().<return>.verifyTransition()": "<inferred>",
         "Owner().<return>.verifyValue()": "<inferred>"
       },
-      "open_error_set_uses": 0,
+      "open_error_set_uses": 1,
       "propagation": {
-        "try": 878,
+        "try": 890,
         "catch": 20
       },
       "imports": [
@@ -37026,6 +37062,7 @@
       "error_returns": {
         "archive()": "<inferred>",
         "archiveMaintenanceUnit()": "<inferred>",
+        "cancel()": "<inferred>",
         "checkpoint()": "<inferred>",
         "claim()": "<inferred>",
         "claimNonempty()": "<inferred>",
@@ -37049,6 +37086,7 @@
         "recoverStep()": "<inferred>",
         "recoverStepSince()": "<inferred>",
         "recoveryState()": "<inferred>",
+        "refuse()": "<inferred>",
         "releaseClaimRead()": "<inferred>",
         "releaseTransactionSource()": "<inferred>",
         "resolveTransaction()": "<inferred>",
@@ -37059,7 +37097,7 @@
         "verifyDecisionTime()": "<inferred>",
         "verifyPrepared()": "<inferred>"
       },
-      "open_error_set_uses": 0,
+      "open_error_set_uses": 1,
       "propagation": {
         "try": 2,
         "catch": 0

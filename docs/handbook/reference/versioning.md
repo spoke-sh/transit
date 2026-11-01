@@ -108,7 +108,7 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`2e2c775950d2d0cfa6d6ea66e078fcdfa8381c16e522c5ac7d91fb243714c7f3`.
+`54060530ffe325fd2288d8ede718720381390c5fafb60ea617eea37e1110dfad`.
 It binds direct KV, mixed state/log transactions and frozen Stream/Queue
 declaration intents together with retained Table branches and installed worker
 rotation. Catalog roots require branch identity, name and retention-owner
@@ -117,6 +117,13 @@ owner. Installation records require per-worker enrollment receipts and the last
 accepted public key. Restart conditionally rotates that key and ownership
 without re-granting permissions. Earlier installations cannot synthesize these
 fields and reject before starting authority.
+
+Stream/Queue workload outcomes include partition-owned terminal closures with a
+mandatory original binding, recorded position and cancellation/refusal reason.
+Native cancellation, mutation, wait and lookup share that identity. Earlier
+receipt shapes and stored definitions reject before execution; no missing
+closure field or old success-only profile is inferred. Generated consumers and
+independent signing fixtures use the same current definition.
 
 Transaction references also require an explicit purpose. Protected exhausted-Queue
 transfers retain their original paired request and use the ordinary workspace,

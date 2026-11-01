@@ -13,6 +13,7 @@ fn samePartition(left: q.Partition, right: q.Partition) !void {
 }
 
 pub fn requireReceipt(work: c.DirectStreamMutation.Request, result: stream.Receipt) !void {
+    if (result == .closed) return result.closed.requireStream(work);
     const expected: std.meta.Tag(stream.Receipt) = switch (work) {
         .append => .append,
         .assign => .assign,
@@ -22,6 +23,7 @@ pub fn requireReceipt(work: c.DirectStreamMutation.Request, result: stream.Recei
     };
     if (expected != std.meta.activeTag(result)) return error.InvalidStreamResponse;
     switch (result) {
+        .closed => unreachable,
         .append => |value| try value.requireAppend(work.append),
         .assign => |value| try value.requireAssignment(work.assign),
         .consume => |value| try value.requireRequest(work.consume),
@@ -50,7 +52,7 @@ pub fn validate(allocator: std.mem.Allocator, connection: c.DirectTableProtocol.
         return;
     }
     const expected: std.meta.Tag(stream.Result) = switch (request) {
-        .mutate, .operation, .wait => .operation,
+        .mutate, .operation, .wait, .cancel => .operation,
         .observe => .cut,
         .group => .group,
         .cursor => .cursor,
@@ -61,7 +63,7 @@ pub fn validate(allocator: std.mem.Allocator, connection: c.DirectTableProtocol.
         .recovering, .timed_out => unreachable,
         .operation => |maybe| if (maybe) |value| {
             try requireReceipt(switch (request) {
-                .operation => |work| work,
+                .operation, .cancel => |work| work,
                 .wait => |input| .{ .consume = input.consume },
                 .mutate => |input| input.work,
                 else => unreachable,

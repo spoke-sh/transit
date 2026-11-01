@@ -105,6 +105,15 @@ waiting, allocating or changing accepted work. Initialization and destruction
 require quiescence. This cache does not make the surrounding serialized Queue
 owner concurrent, and a hit provides no lease, retention pin or current-grant authority.
 
+Stream and Queue operation closure uses the same paged receipt directory and
+partition WAL. `cancel` preserves existing acceptance or records the canonical
+request binding under control capacity. `refuse` accepts only the explicitly
+qualified producer/lease owner errors; it cannot convert storage uncertainty or
+missing time into a terminal result. Neither closure changes data, offsets,
+leases or delivery pins. The catalog adapter reserves the global identity and
+serializes both operations with native mutation. Recovery validates the complete
+closure and successor root; private transaction work cannot publish closure.
+
 `QueuePartition.enqueue` binds initial scheduling state, payloads and original
 producer receipts to one fenced WAL record. Claims publish acquired state,
 exact leases and deadlines together; settlement and expiry publish their full

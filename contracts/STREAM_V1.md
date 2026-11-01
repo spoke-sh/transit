@@ -130,6 +130,41 @@ under that same principal and operation. Reservation alone is not acceptance
 and does not create a read pin or append payloads. The service must check current
 rights before reserving and retain the original storage outcome independently.
 
+### Original-operation cancellation
+
+`DirectStream.Request.cancel` carries the exact original mutation request, not
+a fresh operation identity. Current rights for that mutation still apply. The
+catalog reserves its canonical binding in the shared operation namespace, then
+the partition serializes cancellation with admission. A reservation alone and
+an absent receipt remain nonterminal observations.
+
+If the original mutation already committed, cancellation returns its original
+success receipt without releasing a read, changing progress or undoing an append.
+Otherwise the partition commits `LogWorkload.Closure` in its existing receipt
+directory. The closure binds the canonical request, a `cancelled` reason and the
+closure's WAL position (`recorded`); that position is not mutation acceptance.
+The closure advances neither logical offsets nor the data-change frontier.
+Repeated cancellation, mutation, wait and original-operation lookup return that
+same closure. Changing any bound request field conflicts. Direct storage
+mutation methods also reject the closed identity rather than admitting it.
+
+Closure uses control capacity and remains possible against a compatible altered
+or retired declaration. A prepared transaction still blocks unrelated publication;
+standalone cancellation cannot cancel a transaction participant or overwrite its
+global reservation. Lost cancellation replies require lookup/recovery of the
+same operation. Authorization is checked again before disclosing buffered
+evidence. Failure to publish or observe closure is not proof of cancellation.
+Stopping a local wait does not invoke this operation implicitly.
+
+After a serialized mutation returns `LogProducerFenced` or
+`LogProducerReceiptExpired`, its adapter records a terminal `refused` closure
+before returning that outcome. Queue settlement adds the exact lease-fenced and
+lease-expired refusals. Closure validation restricts each reason to its owning
+operation kind. Producer sequence gaps, capacity, authorization, missing time,
+storage failure and uncertain append results are not terminalized by this rule.
+If recording refusal itself fails, the caller must recover the original
+operation; the earlier local error cannot establish a durable terminal outcome.
+
 The receipt's mandatory nullable `observed_ms` is the upper bound of the trusted
 owner's UTC interval before private staging, rechecked under the publication guard. It is
 separate from event timestamps and the physical WAL header. A configured clock

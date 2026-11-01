@@ -33,6 +33,12 @@ row identities, byte budgets and exact cursor advance. The signed `queue` action
 and `DirectQueueClient` expose standalone operations through the native service.
 Saved work preserves the exact original mutation and payload commitment. The
 local node performs bounded automatic lease expiry through catalog maintenance.
+Stream and Queue `cancel` requests carry that same saved work and use control
+capacity. A committed mutation returns its original receipt; an unaccepted one
+receives a durable closure that prevents later admission under that identity.
+Mutation and lookup can return `closed` with cancellation or a qualified producer/
+lease refusal. Retryable failures and absent receipts remain unresolved. Closing
+an accepted claim's delivery resources remains the separate `release` mutation.
 SQL workload verbs remain unavailable. The local node can schedule protected
 DLQ transfers with an explicitly configured database signer.
 
