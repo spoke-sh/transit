@@ -1,6 +1,6 @@
 # 16. Document type library, protocol grammars and gateway exchange lifecycle
 
-[Roadmap](README.md) · [Standards & Multi-Model #31](https://github.com/spoke-sh/transit/issues/31) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · **Status:** Planned ([implementation plan](#implementation-plan--2026-11-01))
+[Roadmap](README.md) · [Standards & Multi-Model #31](https://github.com/spoke-sh/transit/issues/31) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · **Status:** In progress ([implementation plan](#implementation-plan--2026-11-01))
 
 Deliver a declarative **library of Document types, application-protocol
 grammars and compound office/publishing formats**—spanning structured/interchange
@@ -308,8 +308,16 @@ flowchart LR
 `c8d060cb2dfcf3bc531ef2e41fcdf7d4f172c2d5`. This plan uses merged source and
 source-attributed qualification records, including PRs #298–#304. It does not
 count work in other branches or checkouts as delivered. No runtime proof was
-rerun to prepare this plan. M16 remains **Planned**; the work packages below
-are implementation and acceptance obligations.
+rerun to prepare the source audit. M16 is **In progress** through the offline
+foundation below; the remaining work packages are implementation and acceptance
+obligations.
+
+**Integration refresh:** `origin/main` at `f49a3da65` adds the November 1
+current-definition cutover, shared KV admission/recovery and Serving caller
+work. The profile schema and independent commitment fixture use that definition.
+The new game/simulation milestone is M19; branching is now M20 and service/SDK
+coverage is M21. The audit below incorporates those changes while preserving
+each qualification record's source and limits.
 
 An application must be able to declare a Document interpretation, ingest or
 construct a document without a gateway, inspect its accepted revision and exact
@@ -325,6 +333,33 @@ typed Zig/SQL callers. Extend it to the profile library and existing consumers
 through the gates below. This first journey does not reduce the full milestone's
 format, offline, exchange, search or branching requirements.
 
+### Initial implementation scope
+
+The first implementation adds an additive
+[profile/provenance contract](../../contracts/DOCUMENT_PROFILE_V1.md), independently
+encoded commitment fixtures, and the pure
+[`transit-document-profiles`](../../packages/zig/transit-document-profiles/README.md)
+package. It supplies resumable scalar JSON and an explicitly restricted UTF-8
+XML grammar, ordered events with raw part offsets, caller-owned bounded workspace,
+and a reader that checks complete permitted coverage, grammar, length and hash
+before reporting completion. It adds no catalog declaration or stored-format
+cutover. It consumes the integrated current definition without changing existing
+native/Document/Exchange operations or stored layouts.
+
+P0 and P1 remain **partial**. The initial profile subset and its resource rules
+are executable; complete capability/lifecycle contracts, namespaces, serializers,
+shared protocol framing, container graphs and the other profile families remain
+open. Component tests and the independent Python JSON/Expat oracle are runnable
+through the existing component/fixture owners. They do not establish installed
+publication, a SIMD throughput claim or gateway/effect recovery.
+
+The next installed step remains P2: integrate evaluated, paged direct Documents
+with public admission and current-policy reads in M7 before adding profile
+publication. P5/P6 additionally require the native Document transaction participant
+and M6's Station/effect composition. No parser result may bypass those gates or
+replace the current Exchange/Serving authority. The full milestone completion
+criteria below remain unchanged.
+
 ### Current implementation and recent progress
 
 The older prerequisite tables in M6–M9 describe their own source revisions.
@@ -338,10 +373,10 @@ and the actual acceptance path when deciding whether a gate has opened.
 | M6 direct primitives and composition | Named direct KV, typed Stream/Queue operations, bounded Queue waits, native Table/KV/Stream/Queue statements and explicit Queue transfers. The [installed mixed schedule](../history/qualification/transactions.md#installed-mixed-state-output-and-input-settlement--2026-10-31) records 85 signed requests, two lost replies and two node replacements. [SQL declarations](../history/qualification/sql.md#stream-and-queue-declaration-sql--2026-10-31) include real console/PostgreSQL/MySQL callers. | Do not rebuild these foundations. Document participation, workload SQL verbs, automatic DLQ scheduling, Station composition and complete common-revision qualification remain separate gates. The installed mixed run is not a clean dependent-lane pass. |
 | M7 logical and storage components | `transit-document` supplies tree/span/merge components; `DocumentShredder` supplies in-memory columns; [`DocumentPartition`](../../packages/zig/transit-storage/docs/document-partitions.md) supplies paged directories, exact receipts, retained reads and bounded recovery. PR #300 tightens read budgets, signing and recovery. | `applyMutation` still accepts supplied state/conflict counts, does not invoke the evaluator/shredder, and reads whole revisions within a budget. Installed Documents still use Station. Persisted part graphs, integrated evaluation, within-revision paging, direct dispatch and the transaction participant are incoming M7 work. |
 | M8 gateway separation | PR #299 adds pure resumable PostgreSQL/MySQL command engines with event/generation fencing and resumed disclosure checks; local co-hosting and event-driven SQL recovery exist. | Reuse the byte/event and host ownership pattern. The installed driver still has blocking workers/timer races; complete deadline/scheduler, remote-placement and Flight/Serving integration remain open. |
-| M9 caller foundation | PR #298 adds bounded context/SQL leases, frozen pre-submit records and `LocalRecoveryStore`; [`Catalog`](../../packages/zig/transit-data-client/src/Catalog.zig) exposes current data owners. | Use the shared context and exact recovery seam. Managed handles, principal coordination, installed language composition and a direct Document facet are not implied by those components. |
+| M9 caller foundation | PR #298 adds bounded context/SQL leases, frozen pre-submit records and `LocalRecoveryStore`; PR #307 adds `Context.callKV`, finite fair admission waits and `KVRecovery` with persist-before-dispatch and original-outcome observation. Its [qualification](../history/qualification/sdk.md#bounded-admission-and-direct-kv-recovery--2026-11-01) separates passing scoped checks from failed/incomplete broad lanes. | Reuse these context, admission and recovery owners. Aggregate byte accounting, managed handles, native principal coordination, installed Python/Node composition and a direct Document facet remain open. |
 | M10–M15 interpretation, queries and performance | Collation/standards helpers, analytical/dataflow oracles, result memory reserves, `PerfectHash`, `GermanString`, compressed predicates and search components exist. M15 remains Planned. | Verify actual storage/compiler integration. No general historical-catalog service, installed Document search, hierarchical service metering or AOT grammar compiler follows from component presence. |
-| M19 branching | PR #301 delivers a typed, immutable branch of one selected Table, retained pin ownership and original outcome recovery. Its [qualification](../history/qualification/catalog.md#immutable-single-table-branches--2026-10-31) retains failed/incomplete wider runs. | This is neither a writable Document branch nor a whole-catalog cut. M16 can bind revision/part identity now; full Document branching/merge depends on M19. |
-| Existing exchanges and serving | [`transit-exchange`](../../packages/zig/transit-exchange/README.md), HTTP/gRPC/Flight and their workers retain Station publication, exact intent binding, capture coverage, diagnostics and holds. Serving owns independent `SV1` admission/reply records. | All existing safety and consumer contracts are migration inputs. No Document-backed exchange or general protocol listener is enabled by this plan. |
+| M20 branching | PR #301 delivers a typed, immutable branch of one selected Table, retained pin ownership and original outcome recovery. Its [qualification](../history/qualification/catalog.md#immutable-single-table-branches--2026-10-31) retains failed/incomplete wider runs. | This is neither a writable Document branch nor a whole-catalog cut. M16 can bind revision/part identity now; full Document branching/merge depends on M20. |
+| Existing exchanges and serving | [`transit-exchange`](../../packages/zig/transit-exchange/README.md), HTTP/gRPC/Flight and their workers retain Station publication, exact intent binding, capture coverage, diagnostics and holds. Serving owns independent `SV1` admission/reply records; PR #305 adds shared native/Go caller recovery and copied recovery with redaction. | All existing safety and consumer contracts are migration inputs. No Document-backed exchange or general protocol listener is enabled by this plan. |
 
 The decisive source boundaries are
 [`DOCUMENT_V1`](../../contracts/DOCUMENT_V1.md),
@@ -359,16 +394,17 @@ until the replacement passes its coordinated cutover gate.
 | --- | --- | --- |
 | [M6](06-streams-queues-and-durable-runtime.md#r5-extend-the-transaction-owner-and-deliver-direct-kv) and [M7](07-document-storage-and-station-decoupling.md#remaining-work-packages-and-gates) | M7 C0–C4/C6: canonical evaluated mutations, durable raw parts/tree/subcolumns, paged reads and installed catalog/client/SQL access. M7 C5 and M6 R5/R7/R8: Document plus input settlement/output/intent composition and Station/effect migration. | Profile contracts, pure parsers, independent corpora and resource tests can start now. Installed profile publication waits for the direct Document owner; exchange replacement additionally waits for the common-decision/effect handoff. |
 | [M8](08-gateway-architecture-and-protocol-ingress.md#resumable-command-session-implementation--2026-10-31) | Bounded host input/output leases, cancellation join, event fencing, deadlines and current disclosure; appropriate direct data ingress. | Pure protocol grammars and offline transcripts need no live listener. M16 must not add another socket scheduler, polling recovery service or per-chunk HTTP orchestration layer. |
-| [M9](09-client-foundation-and-language-apis.md#remaining-implementation-plan--2026-10-31), [M20](20-service-and-sdk-coverage.md) | Direct Document facet, owned/borrowed result lifetimes, exact original-operation recovery and generated bindings. | Typed Zig is the first caller. M16 migrates every existing affected HTTP/gRPC/Flight/Document consumer; broader new language/protocol coverage retains its own owner. |
+| [M9](09-client-foundation-and-language-apis.md#remaining-implementation-plan--2026-11-01), [M21](21-service-and-sdk-coverage.md) | Direct Document facet, owned/borrowed result lifetimes, exact original-operation recovery and generated bindings. | Typed Zig is the first caller. M16 migrates every existing affected HTTP/gRPC/Flight/Document consumer; broader new language/protocol coverage retains its own owner. |
 | [M10](10-standards-and-catalogs.md#delivered-implementation-evidence--2026-10-30) | Exact interpretation/collation descriptors, capability evidence and retained definition binding. | Start with explicitly supported encodings/collations. LDAP matching rules and additional codepages require their own qualified descriptors; a helper or familiar name does not establish support. |
 | [M11](11-indexing-and-access-paths.md), [M14](14-vectorized-strings-and-search.md) | Persisted index definitions, coverage/maintenance and sound path/text search at retained cuts. | M7 base traversal and finite scans establish correctness first. M16 supplies structural/part/span facts and protocol vocabularies; it does not create an independent search catalog. |
 | [M12](12-sql-and-dataflows.md) | Actual finite analytical/TVF lowering, common source cuts and durable managed activation where exposed. | Finite Document projections and lineage queries can land first. `AS OF JOIN`, continuous enrichment and automatic acknowledgement workflows wait for their executable owners. |
 | [M13](13-data-structures-and-performance.md#allocation-contract-and-measurement-boundary) | Shared allocation accounting, resource quotas and scratch/output lifetime rules. | Bound input, expansion, stack/depth, output and CPU work from the first parser. Hierarchical `MeteredAllocator`, swizzled zero-copy storage and service-wide allocation claims require integration evidence. |
 | [M15](15-data-centric-compilation-and-specialization.md) | AOT artifact identity, compiler integration, invalidation and interpreted-versus-compiled equivalence. | Scalar/interpreted grammar semantics and shared descriptors land first. M16's AOT package remains open until the compiler handoff exists; it does not block the first offline or HTTP journey. |
 | [M17](17-geospatial-and-spatio-temporal-computing.md), [M18](18-multi-model-and-foreign-relations.md) | Shared spatial descriptors/indexes and later foreign/graph/hybrid composition. | Define PDF page coordinates, units and layout revision now. Basic page/span projection does not require the full geospatial engine; spatial type/operator exposure uses M17, and foreign imports/CDC stay in M18. |
-| [M19](19-branches-merges-and-restore.md#local-table-branch-increment) | Document roots, writable branches, common cuts, merge and branch-aware GC. | Retain exact revisions and part/lineage dependencies now. Full offline branch acceptance waits for this handoff; copied captures never authorize dispatch on a branch. |
-| [M26](26-control-and-policy-plane.md), [M27](27-published-resources-and-investigations.md) | Current subject/audience policy, admitted secret references and explicit retained investigation dependencies. | Reuse current grants and qualified secret resolution. Enterprise policy components and browser Table publications do not establish Document RLS, delegated capture disclosure or automatic retention pins. |
-| [M29](29-board-reimplementation.md), [M32](32-recorded-mcp-integrations.md) | Read-only public inspection and later governed tool capture. | M16 migrates existing Board exchange metadata and publishes bounded typed views. New spreadsheet/PDF workbench UX belongs to M29; MCP protocol/agent policy belongs to M32. |
+| [M19](19-game-asset-pipelines-and-simulation-streaming.md) | Typed asset/container provenance and later dependency-aware cooking/streaming. | M16 owns immutable container parts and interpretation; target asset codecs, simulation semantics and execution belong to M19. Its planned workloads do not add installed Document support. |
+| [M20](20-branches-merges-and-restore.md#local-table-branch-increment) | Document roots, writable branches, common cuts, merge and branch-aware GC. | Retain exact revisions and part/lineage dependencies now. Full offline branch acceptance waits for this handoff; copied captures never authorize dispatch on a branch. |
+| [M27](27-control-and-policy-plane.md), [M28](28-published-resources-and-investigations.md) | Current subject/audience policy, admitted secret references and explicit retained investigation dependencies. | Reuse current grants and qualified secret resolution. Enterprise policy components and browser Table publications do not establish Document RLS, delegated capture disclosure or automatic retention pins. |
+| [M30](30-board-reimplementation.md), [M33](33-recorded-mcp-integrations.md) | Read-only public inspection and later governed tool capture. | M16 migrates existing Board exchange metadata and publishes bounded typed views. New spreadsheet/PDF workbench UX belongs to M30; MCP protocol/agent policy belongs to M33. |
 
 These are capability gates, not a requirement to finish every earlier milestone
 before starting. In particular, M7 owns generic Document storage and M6 owns the
@@ -564,7 +600,7 @@ retain original capture bytes. Define lossy/unsupported round trips explicitly.
 | P6 | Inbound HTTP admission and linked response Documents | P3/P4; M8 host and M6/M7 atomic admission | Original receipt recovery, one admitted request, correct response linkage and explicit disconnect/unknown states |
 | P7 | Enterprise, mail, directory, signaling, messaging and time families | P1/P2; reuse P4; live adapters additionally P5/P6 and owner gates | Every matrix row's offline corpus and separately qualified live listener/connector journey |
 | P8 | Office/spreadsheet/PDF container and layout profiles | P1/P2; XML/MIME; shared bounded expansion | Large multi-part disk round trips, worksheet/spans/lineage oracles and deterministic budget refusal |
-| P9 | Integrated structural/text/lineage views and inspection | P3/P7/P8; M11/M14 and relevant M12/M17/M19 gates | One exact-basis email + PDF + workbook query, search/branch proofs and authorized public Board metadata |
+| P9 | Integrated structural/text/lineage views and inspection | P3/P7/P8; M11/M14 and relevant M12/M17/M20 gates | One exact-basis email + PDF + workbook query, search/branch proofs and authorized public Board metadata |
 | P10 | SIMD, dictionary/index reuse and AOT grammar specialization | P1 oracles; M13/M14; M15 for AOT | Scalar/compiled equivalence, allocation/resource gates and paired persisted-path measurements |
 | P11 | Complete migration, installed qualification and public promotion | All applicable profile/consumer gates above | One committed revision with full acceptance matrix and retained failures/omissions |
 
@@ -720,7 +756,7 @@ Do not combine older passing component records into a claimed pass at a new HEAD
 | Outbound effects | Pre-intent failure, permit/dispatch uncertainty, capture/observation closure race, exact retries, redirected destinations, rotated credentials, exhausted attempts, late replies, replay with network/secrets unavailable, held ancestors and permanent retirement. |
 | Inbound gateways | Lost durable receipt/response, duplicate or conflicting command, partial body, disconnect, response deadline, current original-subject policy and saturation. Demonstrate each live adapter against an independent peer. |
 | SQL and inspection | Real typed caller, console and selected wire consumers; empty/multi-batch results, bounded windows, early close, cancelled/incomplete prefixes, exact basis and post-buffer revocation for rows/metadata/terminal counts. |
-| Offline composition | Declare, construct, validate, mutate, query/search and branch each advertised profile with no gateway/connector process. Email + MIME + PDF + workbook joins preserve revision/part provenance; M19-dependent branch cases remain open until executed. |
+| Offline composition | Declare, construct, validate, mutate, query/search and branch each advertised profile with no gateway/connector process. Email + MIME + PDF + workbook joins preserve revision/part provenance; M20-dependent branch cases remain open until executed. |
 | Resources and optimization | Declared limits fail before uncontrolled allocation; allocation-failure unwind, guard-page/tail safety, no retained scratch pointers, scalar/SIMD/AOT equivalence, and continuing control/recovery progress under slow peers and expansion pressure. |
 | Consumer cutover | Real existing HTTP/gRPC/Flight SDK/example binaries and Board inspection use the new contracts; old `EX*` storage paths are absent; foreign definitions reject; release/manifests/generated fixtures agree. |
 
