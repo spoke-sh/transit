@@ -29,11 +29,11 @@ const Peer = struct {
     executes: usize = 0,
     statuses: usize = 0,
     fn run(self: *Peer) !void {
-        const count: usize = switch (self.mode) {
+        const count: usize = 2 + @as(usize, switch (self.mode) {
             .refuse_store => 1,
             .lost_reply => 3,
             else => 2,
-        };
+        });
         var token: ?api.Token = null;
         for (0..count) |index| {
             const stream = try self.listener.accept(self.io);
@@ -51,9 +51,15 @@ const Peer = struct {
             try parsed.value.validate();
             var response: api.JsonResponse = .{ .version = 1, .definition = api.native.current_definition, .instance = instance, .result = undefined };
             if (index == 0) {
+                try t.expect(parsed.value.action == .hello);
+                response.result = .{ .hello = .{ .encoding = api.encoding, .session_lease_ms = 30000, .maximum_message = api.max_message_bytes, .maximum_batch = api.max_batch_bytes, .maximum_rows = api.max_rows, .capabilities = &.{} } };
+            } else if (index == 1) {
+                try t.expect(parsed.value.action == .open);
+                response.result = .{ .opened = .{ .session = session, .account = account, .database = "transit" } };
+            } else if (index == 2) {
                 try t.expect(parsed.value.action == .context);
                 response.result = .{ .context = .{ .account = account, .database = "transit", .source = null, .transaction = null, .sources = &.{} } };
-            } else if (index == 1) {
+            } else if (index == 3) {
                 try t.expect(parsed.value.action == .execute);
                 self.executes += 1;
                 token = parsed.value.action.execute.token;
@@ -107,21 +113,18 @@ test "SQL disk persistence orders sends and keeps known commitment on receipt-st
         const endpoint = try std.fmt.allocPrint(t.allocator, "http://127.0.0.1:{d}", .{listener.socket.address.getPort()});
         defer t.allocator.free(endpoint);
         const config: sql.Client.Config = .{ .endpoint = endpoint, .authentication = .trust, .request_timeout_ms = 1000 };
-        var client = try sql.Client.init(t.allocator, io, config);
-        defer client.deinit();
-        var control = try sql.Client.init(t.allocator, io, config);
-        defer control.deinit();
-        for ([_]*sql.Client{ &client, &control }) |value| {
-            value.instance = instance;
-            value.account = account;
-            value.session = session;
-        }
+        var context = try data.Context.init(t.allocator, io, .{ .catalogs = 1, .sqls = 1, .active = .{ .data = 1, .control = 1 } });
+        defer context.deinit() catch unreachable;
+        defer context.close(.none) catch unreachable;
+        const handle = try context.openSql(config, null);
+        const lease = try context.borrowSql(handle);
+        defer lease.release() catch unreachable;
         var peer: Peer = .{ .io = io, .listener = &listener, .store = &store, .mode = mode };
         var task = try io.concurrent(Peer.run, .{&peer});
         defer task.cancel(io) catch {};
+        try lease.connect();
         Fault.refuse = mode == .refuse_store;
-        var executor: sql.Executor = .{ .client = &client, .control = &control, .config = config };
-        const result = recovery.execute(&executor, text, null, .{});
+        const result = recovery.execute(try lease.executor(), text, null, .{});
         if (mode == .refuse_store) {
             try t.expectError(error.NoSpaceLeft, result);
         } else {

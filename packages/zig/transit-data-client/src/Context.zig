@@ -1,14 +1,17 @@
-//! Bounded Catalog facets sharing caller-owned I/O. No worker pool, durable
-//! queue, sequence allocator or implicit operation recovery is created here.
+//! Bounded Catalog and SQL facets sharing caller-owned I/O. No worker pool,
+//! durable queue, sequence allocator or implicit recovery is created here.
 const std = @import("std");
 const Catalog = @import("Catalog.zig");
 const c = @import("transit_catalog");
+const sql = @import("transit_sql_client");
+const SqlSession = @import("SqlSession.zig");
 pub const Admission = @import("Admission.zig");
 const Self = @This();
 
 allocator: std.mem.Allocator,
 io: std.Io,
 slots: []Slot,
+sql_slots: []SqlSlot,
 admission: Admission,
 serial: u64 = 1,
 mutex: std.Io.Mutex = .init,
@@ -19,20 +22,136 @@ const Slot = struct {
     serial: u64 = 0,
     active: bool = false,
 };
+const SqlSlot = struct { session: ?*SqlSession = null, opening: bool = false, serial: u64 = 0, lease: u64 = 0 };
 pub const Config = struct {
     /// Bound on simultaneously open transport/intent owners, not data objects.
     catalogs: usize,
+    sqls: usize = 0,
     active: Admission.Limits,
 };
 pub const Handle = struct { owner: *Self, slot: usize, serial: u64 };
+pub const SqlHandle = struct { owner: *Self, slot: usize, serial: u64 };
+/// Exclusive data permit. All outcomes, readers and batch borrows obtained
+/// through this lease must end before release. Copying it creates no new owner.
+pub const SqlLease = struct {
+    handle: SqlHandle,
+    serial: u64,
+    pub fn connect(self: SqlLease) !void {
+        try (try self.handle.owner.sqlSession(self)).connect();
+    }
+    pub fn executor(self: SqlLease) !*sql.Executor {
+        const session = try self.handle.owner.sqlSession(self);
+        if (session.client.session == null) return error.SqlSessionRequired;
+        return &session.executor;
+    }
+    pub fn release(self: SqlLease) !void {
+        try self.handle.owner.releaseSql(self);
+    }
+};
 
 /// Pure local initialization. Keep the context at a stable address until deinit.
 pub fn init(allocator: std.mem.Allocator, io: std.Io, config: Config) !Self {
     const admission = try Admission.init(config.active);
-    if (config.catalogs < config.active.data + config.active.control or config.catalogs > std.math.maxInt(usize) / @sizeOf(Slot)) return error.InvalidClientCapacity;
+    const total = std.math.add(usize, config.catalogs, config.sqls) catch return error.InvalidClientCapacity;
+    if (total < config.active.data + config.active.control or config.catalogs > std.math.maxInt(usize) / @sizeOf(Slot) or config.sqls > std.math.maxInt(usize) / @sizeOf(SqlSlot)) return error.InvalidClientCapacity;
     const slots = try allocator.alloc(Slot, config.catalogs);
+    errdefer allocator.free(slots);
     @memset(slots, .{});
-    return .{ .allocator = allocator, .io = io, .slots = slots, .admission = admission };
+    const sql_slots = try allocator.alloc(SqlSlot, config.sqls);
+    @memset(sql_slots, .{});
+    return .{ .allocator = allocator, .io = io, .slots = slots, .sql_slots = sql_slots, .admission = admission };
+}
+
+/// Owns bounded configuration/credential copies and native transport reserves.
+/// May read configured CA files, but opens no session and starts no worker pool.
+pub fn openSql(self: *Self, config: sql.Client.Config, password: ?[]const u8) !SqlHandle {
+    const handle = reserved: {
+        try self.mutex.lock(self.io);
+        defer self.mutex.unlock(self.io);
+        if (self.admission.state != .open) return error.ClientContextClosed;
+        if (self.serial == std.math.maxInt(u64)) return error.ClientHandleExhausted;
+        for (self.sql_slots, 0..) |*slot, index| {
+            if (slot.session != null or slot.opening) continue;
+            try self.admission.enter(.data);
+            slot.opening = true;
+            slot.serial = self.serial;
+            self.serial += 1;
+            break :reserved SqlHandle{ .owner = self, .slot = index, .serial = slot.serial };
+        }
+        return error.ClientCapacityExceeded;
+    };
+    // Configured trust-file I/O must not hold the context's control mutex.
+    const session = SqlSession.create(self.allocator, self.io, config, password);
+    self.mutex.lockUncancelable(self.io);
+    defer self.mutex.unlock(self.io);
+    defer {
+        self.admission.leave(.data) catch unreachable;
+        self.condition.broadcast(self.io);
+    }
+    const slot = &self.sql_slots[handle.slot];
+    slot.opening = false;
+    slot.session = try session;
+    return handle;
+}
+fn validateSql(self: *Self, handle: SqlHandle) !*SqlSlot {
+    if (handle.owner != self or handle.slot >= self.sql_slots.len or handle.serial == 0) return error.StaleClientHandle;
+    const slot = &self.sql_slots[handle.slot];
+    if (slot.session == null or slot.serial != handle.serial) return error.StaleClientHandle;
+    return slot;
+}
+pub fn closeSql(self: *Self, handle: SqlHandle) !void {
+    self.mutex.lockUncancelable(self.io);
+    defer self.mutex.unlock(self.io);
+    const slot = try self.validateSql(handle);
+    if (slot.lease != 0) return error.ClientWorkOutstanding;
+    slot.session.?.destroy();
+    slot.* = .{};
+}
+pub fn borrowSql(self: *Self, handle: SqlHandle) !SqlLease {
+    try self.mutex.lock(self.io);
+    defer self.mutex.unlock(self.io);
+    const slot = try self.validateSql(handle);
+    if (slot.lease != 0) return error.Busy;
+    if (self.serial == std.math.maxInt(u64)) return error.ClientHandleExhausted;
+    try self.admission.enter(.data);
+    slot.lease = self.serial;
+    self.serial += 1;
+    slot.session.?.cancel.store(@backingInt(sql.Executor.Cancellation.Request.none), .release);
+    slot.session.?.executor.interrupted = false;
+    return .{ .handle = handle, .serial = slot.lease };
+}
+fn sqlSession(self: *Self, lease: SqlLease) !*SqlSession {
+    try self.mutex.lock(self.io);
+    defer self.mutex.unlock(self.io);
+    const slot = try self.validateSql(lease.handle);
+    if (lease.serial == 0 or slot.lease != lease.serial) return error.StaleSqlLease;
+    return slot.session.?;
+}
+fn releaseSql(self: *Self, lease: SqlLease) !void {
+    self.mutex.lockUncancelable(self.io);
+    defer self.mutex.unlock(self.io);
+    const slot = try self.validateSql(lease.handle);
+    if (lease.serial == 0 or slot.lease != lease.serial) return error.StaleSqlLease;
+    slot.lease = 0;
+    self.admission.leave(.data) catch unreachable;
+    self.condition.broadcast(self.io);
+}
+/// Signals only this lease's shared executor. The executor owns the distinction
+/// between stopping a wait and requesting cancellation of accepted work.
+/// This method reports local delivery, never a remote cancellation outcome.
+pub fn cancelSql(self: *Self, lease: SqlLease, request: sql.Executor.Cancellation.Request) !void {
+    if (request == .none) return error.InvalidSqlCancellation;
+    try self.mutex.lock(self.io);
+    defer self.mutex.unlock(self.io);
+    const slot = try self.validateSql(lease.handle);
+    if (lease.serial == 0 or slot.lease != lease.serial) return error.StaleSqlLease;
+    try self.admission.enter(.control);
+    defer self.admission.leave(.control) catch unreachable;
+    const signal = &slot.session.?.cancel;
+    var previous = signal.load(.acquire);
+    while (previous < @backingInt(request)) {
+        previous = signal.cmpxchgWeak(previous, @backingInt(request), .acq_rel, .acquire) orelse break;
+    }
 }
 
 /// Copies endpoints and key through the existing caller; contacts no authority.
@@ -165,8 +284,11 @@ pub fn deinit(self: *Self) !void {
     defer self.mutex.unlock(self.io);
     if (self.admission.state != .joined) return error.ClientWorkOutstanding;
     for (self.slots) |*slot| if (slot.caller) |*caller| caller.deinit();
+    for (self.sql_slots) |slot| if (slot.session) |session| session.destroy();
     self.allocator.free(self.slots);
     self.slots = &.{};
+    self.allocator.free(self.sql_slots);
+    self.sql_slots = &.{};
 }
 
 const test_config: Config = .{ .catalogs = 3, .active = .{ .data = 1, .control = 1 } };
@@ -187,6 +309,34 @@ fn initFailure(allocator: std.mem.Allocator) !void {
 }
 test "context and facet construction unwind every allocation failure" {
     try std.testing.checkAllAllocationFailures(std.testing.allocator, initFailure, .{});
+}
+
+test "SQL leases share admission preserve cancellation capacity and fence stale release" {
+    const t = std.testing;
+    var context = try Self.init(t.allocator, t.io, .{ .catalogs = 1, .sqls = 1, .active = .{ .data = 1, .control = 1 } });
+    defer context.deinit() catch unreachable;
+    defer context.close(.none) catch unreachable;
+    const catalog = try context.openCatalog(test_catalog, @splat(10));
+    const handle = try context.openSql(.{ .endpoint = "http://127.0.0.1:1", .authentication = .trust }, null);
+    const lease = try context.borrowSql(handle);
+    try t.expectError(error.SqlSessionRequired, lease.executor());
+    try t.expectError(error.Busy, context.borrowSql(handle));
+    try t.expectError(error.ClientCapacityExceeded, context.acquire(catalog, .data));
+    const control = try context.acquire(catalog, .control);
+    try t.expectError(error.ClientCapacityExceeded, context.cancelSql(lease, .cancel));
+    context.release(control);
+    context.beginClose();
+    try context.cancelSql(lease, .terminate);
+    try context.cancelSql(lease, .cancel);
+    try t.expectEqual(@as(u8, @backingInt(sql.Executor.Cancellation.Request.terminate)), context.sql_slots[handle.slot].session.?.cancel.load(.acquire));
+    try t.expectError(error.Timeout, context.close(.{ .duration = .{ .clock = .awake, .raw = .fromMilliseconds(0) } }));
+    try t.expectError(error.ClientWorkOutstanding, context.closeSql(handle));
+    try lease.release();
+    try t.expectError(error.StaleSqlLease, lease.release());
+    try t.expectError(error.StaleSqlLease, context.cancelSql(lease, .cancel));
+    try t.expectError(error.ClientContextClosed, context.borrowSql(handle));
+    try context.closeSql(handle);
+    try t.expectError(error.StaleClientHandle, context.closeSql(handle));
 }
 
 test "context fences handles across slots scopes replacement and serial exhaustion" {

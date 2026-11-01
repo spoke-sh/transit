@@ -13,10 +13,11 @@ The [Zig SDK](../../../sdks/zig/README.md) also exposes
 [`transit_data_client`](../../../packages/zig/transit-data-client/README.md),
 an independent direct Catalog caller with explicit allocator/I/O and outcome
 ownership. It shares the implementation used by existing Catalog bindings;
-ordinary automatic settlement and a unified data/SQL context remain unimplemented.
-Its [Catalog context](../../../packages/zig/transit-data-client/docs/context.md)
+ordinary Catalog automatic settlement remains unimplemented.
+Its [client context](../../../packages/zig/transit-data-client/docs/context.md)
 composes explicit Table, Stream and Queue operations with bounded data/control
-admission and joined close. The exported SQL executor independently supports
+admission and joined close, plus exclusive leases over the shared SQL executor.
+The exported SQL executor supports
 [pre-dispatch persistence](../../../packages/zig/transit-sql-client/README.md#persisting-an-original-attempt)
 of the original attempt through an application callback. The data client's
 [local recovery adapter](../../../packages/zig/transit-data-client/docs/recovery.md)

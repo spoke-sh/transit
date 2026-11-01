@@ -101,6 +101,11 @@ submission prerequisite of P4; it does not complete either work package.
   over supplied allocator/I/O. Separate data/control admission covers the existing
   Table/log/Stream/Queue operations. Closing refuses new data work, retains
   control access until joined, and preserves ownership after timeout/cancellation.
+- SQL facets now compose through explicit context leases over the existing
+  executor. Negotiation, borrowed-result lifetime and cancellation are explicit;
+  primary/control clients retain independent reserves. This advances P5 without
+  establishing managed result handles, shared concurrent response storage or
+  installed language composition.
 - `Executor.Options.before_submit` freezes SQL text, canonical parameters,
   original token and observed account/instance/database/source/transaction scope
   before execute. Its borrowed `Submission` excludes session credentials.
@@ -121,7 +126,7 @@ submission prerequisite of P4; it does not complete either work package.
 The [context guide](../../packages/zig/transit-data-client/docs/context.md) and
 [SQL persistence API](../../packages/zig/transit-sql-client/README.md#persisting-an-original-attempt)
 own the current semantics. Remaining work includes P0's representative resource
-baseline, principal coordination, fair queued admission, SQL/context composition,
+baseline, principal coordination, fair queued admission, managed result/transaction handles,
 store process-loss qualification and ordinary Catalog settlement, generated data ABI/host,
 installed language APIs, and each M6/M7 public handoff. The source inventory below
 records the pre-implementation audit; the ordered work packages remain the
@@ -531,7 +536,8 @@ Do not add v2, dual decoders or old Station import shims.
 ### Reviewable work packages
 
 P0 and P1 are **In Progress** through the initial extraction below. P2 and P4 are
-**In Progress** through the context/submission slice; P3 and P5–P8 remain
+**In Progress** through the context/submission slice, and P5 through explicit
+SQL leases; P3 and P6–P8 remain
 **Planned**. Contract work and independent internal pieces may overlap, but a
 dependent public adapter cannot advertise an unqualified operation.
 

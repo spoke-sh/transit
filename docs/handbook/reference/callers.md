@@ -24,8 +24,9 @@ through the public SDK without a Station runner. It accepts caller-owned
 allocator/I/O, owns local saved work and returns arena-owned outcomes with
 per-call mutation evidence. Preparation, staging, admission and settlement
 remain explicit; this interface does not supply automatic recovery or a shared
-SQL session. Its optional [Catalog context](../../../packages/zig/transit-data-client/docs/context.md)
-bounds scoped handles and concurrent calls with separate data/control capacity.
+SQL session. Its optional [client context](../../../packages/zig/transit-data-client/docs/context.md)
+bounds scoped Catalog/SQL facets and concurrent calls with separate data/control capacity.
+SQL leases own explicit negotiation and must outlive their executor/results.
 Close joins local work without cancelling durable operations; timeout or
 cancellation of close leaves ownership intact. Existing foreign-language Catalog APIs retain their current
 Station package entry points.

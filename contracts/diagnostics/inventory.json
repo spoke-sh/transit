@@ -9579,40 +9579,55 @@
     },
     "packages/zig/transit-data-client/src/Context.zig": {
       "errors": {
-        "Busy": 1,
-        "ClientCapacityExceeded": 1,
-        "ClientContextClosed": 1,
-        "ClientHandleExhausted": 1,
-        "ClientWorkOutstanding": 2,
-        "InvalidClientCapacity": 1,
-        "StaleClientHandle": 2
+        "Busy": 2,
+        "ClientCapacityExceeded": 2,
+        "ClientContextClosed": 2,
+        "ClientHandleExhausted": 3,
+        "ClientWorkOutstanding": 3,
+        "InvalidClientCapacity": 2,
+        "InvalidSqlCancellation": 1,
+        "SqlSessionRequired": 1,
+        "StaleClientHandle": 4,
+        "StaleSqlLease": 3
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "SqlLease.connect()": "<inferred>",
+        "SqlLease.executor()": "<inferred>",
+        "SqlLease.release()": "<inferred>",
         "acquire()": "<inferred>",
+        "borrowSql()": "<inferred>",
         "call()": "<inferred>",
         "callLog()": "<inferred>",
         "callQueue()": "<inferred>",
         "callStream()": "<inferred>",
+        "cancelSql()": "<inferred>",
         "close()": "<inferred>",
         "closeCatalog()": "<inferred>",
+        "closeSql()": "<inferred>",
         "deinit()": "<inferred>",
         "init()": "<inferred>",
         "initFailure()": "<inferred>",
         "openCatalog()": "<inferred>",
-        "validate()": "<inferred>"
+        "openSql()": "<inferred>",
+        "releaseSql()": "<inferred>",
+        "sqlSession()": "<inferred>",
+        "validate()": "<inferred>",
+        "validateSql()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 18,
-        "catch": 3
+        "try": 36,
+        "catch": 7
       },
       "imports": [
         "Admission.zig",
         "Catalog.zig",
+        "SqlSession.zig",
         "std",
-        "transit_catalog"
+        "transit_catalog",
+        "transit_sql_client"
       ]
     },
     "packages/zig/transit-data-client/src/LocalRecoveryStore.zig": {
@@ -9692,6 +9707,28 @@
       },
       "imports": [
         "LocalRecoveryStore.zig",
+        "std",
+        "transit_sql_client"
+      ]
+    },
+    "packages/zig/transit-data-client/src/SqlSession.zig": {
+      "errors": {
+        "InvalidSqlClientConfiguration": 2,
+        "SqlSessionAlreadyOpen": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "allocationFailures()": "<inferred>",
+        "connect()": "<inferred>",
+        "create()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 11,
+        "catch": 1
+      },
+      "imports": [
         "std",
         "transit_sql_client"
       ]

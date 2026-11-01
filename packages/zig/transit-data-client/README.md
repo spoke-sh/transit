@@ -10,9 +10,10 @@ The package depends on `transit-catalog` and `transit-sql-client`; the low-level
 below Catalog. The build rejects transitive Station imports. Consumer Zig
 applications import this module through the [Zig SDK](../../../sdks/zig/README.md).
 
-`Context` composes multiple Catalog facets over caller-owned I/O, with bounded
+`Context` composes Catalog and SQL facets over caller-owned I/O, with bounded
 handle/data/control capacity and joined local closure. It exposes the same
-explicit Table, log, Stream and Queue calls. See the
+explicit Table, log, Stream and Queue calls and an exclusive lease over the
+existing SQL executor. See the
 [context guide](docs/context.md) for handle lifetimes, reserved control capacity,
 close cancellation and remaining boundaries.
 

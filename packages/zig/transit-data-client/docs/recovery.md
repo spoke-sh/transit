@@ -42,6 +42,24 @@ A missing marker alongside saved records, a foreign definition, bad checksum,
 truncated record, mismatched key or excessive size refuses recovery. There is no
 default definition, migration decoder or silent reset.
 
+The 36-byte `.format` marker is ASCII `TCR1` followed by the 32 raw bytes of the
+shared definition. Record names are the lowercase 64-digit key plus `.rec`.
+Each record has this fixed header, followed immediately by original and evidence
+bytes; integers are unsigned little-endian and trailing bytes are refused.
+
+| Offset | Bytes | Meaning |
+| --- | --- | --- |
+| 0 | 4 | ASCII `TCR1` |
+| 4 | 32 | Required shared definition |
+| 36 | 32 | Exact filename key |
+| 68 | 8 | Positive revision; initial insertion is 1 |
+| 76 | 4 | Nonzero original length |
+| 80 | 4 | Evidence length, initially zero |
+| 84 | 32 | SHA-256 of header bytes 0–83 followed by both payloads |
+
+An incompatible layout or interpretation replaces the current shared definition;
+the format label alone never establishes compatibility across builds.
+
 `insert(key, original)` preserves exact nonempty bytes. Repeating the same key
 and bytes preserves subsequent evidence; different bytes refuse. `update` uses
 an expected revision and replaces evidence without changing the original. The
