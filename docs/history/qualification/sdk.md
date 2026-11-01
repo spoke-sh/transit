@@ -57,7 +57,10 @@ passes its first 11 tasks, then fails compilation because the existing branch
 policy fixture omits `Intent.kind`. Commit `8e79f4316d4cb0d0e01834bd7f7d231a1ff104c5`
 adds the explicit Table kind. A fresh full catalog attempt compiles and enters
 runtime execution, then is stopped in favor of the two affected branch checks;
-that full attempt is also incomplete. Neither failed lane is retroactively passed.
+that full attempt is also incomplete. At the same committed revision,
+`zig build test-local-catalog -Dlocal-catalog-filter="branch reads survive" --summary all`
+then passes all three selected tests (including the signed and typed branch
+schedules) in ten minutes. Neither failed lane is retroactively passed.
 
 Raw command reports and bounded logs remain under
 `.cache/ci/m9/client-foundation/` and `.cache/ci/m9/integrated/` in
