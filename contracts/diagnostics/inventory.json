@@ -9487,6 +9487,42 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-data-client/src/Admission.zig": {
+      "errors": {
+        "ClientCapacityExceeded": 1,
+        "ClientContextClosed": 1,
+        "ClientWorkOutstanding": 1,
+        "InvalidClientAdmission": 1,
+        "InvalidClientCapacity": 2
+      },
+      "outcomes": {
+        "Lane": [
+          "data",
+          "control"
+        ],
+        "State": [
+          "open",
+          "closing",
+          "joined"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Limits.validate()": "<inferred>",
+        "enter()": "<inferred>",
+        "init()": "<inferred>",
+        "join()": "<inferred>",
+        "leave()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 1,
+        "catch": 1
+      },
+      "imports": [
+        "std"
+      ]
+    },
     "packages/zig/transit-data-client/src/Catalog.zig": {
       "errors": {
         "Busy": 4,
@@ -9541,6 +9577,162 @@
         "transit_catalog"
       ]
     },
+    "packages/zig/transit-data-client/src/Context.zig": {
+      "errors": {
+        "Busy": 2,
+        "ClientCapacityExceeded": 2,
+        "ClientContextClosed": 2,
+        "ClientHandleExhausted": 3,
+        "ClientWorkOutstanding": 3,
+        "InvalidClientCapacity": 2,
+        "InvalidSqlCancellation": 1,
+        "SqlSessionRequired": 1,
+        "StaleClientHandle": 4,
+        "StaleSqlLease": 3
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "SqlLease.connect()": "<inferred>",
+        "SqlLease.executor()": "<inferred>",
+        "SqlLease.release()": "<inferred>",
+        "acquire()": "<inferred>",
+        "borrowSql()": "<inferred>",
+        "call()": "<inferred>",
+        "callLog()": "<inferred>",
+        "callQueue()": "<inferred>",
+        "callStream()": "<inferred>",
+        "cancelSql()": "<inferred>",
+        "close()": "<inferred>",
+        "closeCatalog()": "<inferred>",
+        "closeSql()": "<inferred>",
+        "deinit()": "<inferred>",
+        "init()": "<inferred>",
+        "initFailure()": "<inferred>",
+        "openCatalog()": "<inferred>",
+        "openSql()": "<inferred>",
+        "releaseSql()": "<inferred>",
+        "sqlSession()": "<inferred>",
+        "validate()": "<inferred>",
+        "validateSql()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 36,
+        "catch": 7
+      },
+      "imports": [
+        "Admission.zig",
+        "Catalog.zig",
+        "SqlSession.zig",
+        "std",
+        "transit_catalog",
+        "transit_sql_client"
+      ]
+    },
+    "packages/zig/transit-data-client/src/LocalRecoveryStore.zig": {
+      "errors": {
+        "FileNotFound": 2,
+        "IncompatibleRecoveryStore": 3,
+        "InvalidRecoveryRecord": 7,
+        "InvalidRecoveryStorePath": 1,
+        "PathAlreadyExists": 2,
+        "RecoveryKeyConflict": 2,
+        "RecoveryPageCapacity": 1,
+        "RecoveryRecordCapacity": 3,
+        "RecoveryRecordMissing": 2,
+        "RecoveryRevisionConflict": 2,
+        "RecoveryRevisionExhausted": 1,
+        "RecoveryStoreOwned": 1,
+        "RecoveryStorePermissions": 1,
+        "UnsupportedRecoveryStore": 1
+      },
+      "outcomes": {
+        "remove().policy": [
+          "forget_original"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "get()": "<inferred>",
+        "insert()": "<inferred>",
+        "listPage()": "<inferred>",
+        "open()": "<inferred>",
+        "private()": "<inferred>",
+        "publish()": "<inferred>",
+        "read()": "<inferred>",
+        "remove()": "<inferred>",
+        "syncDirectory()": "<inferred>",
+        "update()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 47,
+        "catch": 7
+      },
+      "imports": [
+        "builtin",
+        "std",
+        "transit_catalog"
+      ]
+    },
+    "packages/zig/transit-data-client/src/SqlRecovery.zig": {
+      "errors": {
+        "DuplicateSubmissionPersistence": 1,
+        "IncompatibleRecoveryStore": 1,
+        "RecoveryKeyConflict": 3,
+        "RecoveryOutcomeConflict": 1,
+        "RecoveryRecordCapacity": 2,
+        "RecoveryRecordMissing": 1,
+        "RecoveryRevisionConflict": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Loaded.pending()": "<inferred>",
+        "encode()": "<inferred>",
+        "execute()": "<inferred>",
+        "init()": "<inferred>",
+        "key()": "<inferred>",
+        "load()": "<inferred>",
+        "persist()": "<inferred>",
+        "save()": "<inferred>",
+        "saveCompletion()": "<inferred>",
+        "validateCompletion()": "<inferred>"
+      },
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 19,
+        "catch": 2
+      },
+      "imports": [
+        "LocalRecoveryStore.zig",
+        "std",
+        "transit_sql_client"
+      ]
+    },
+    "packages/zig/transit-data-client/src/SqlSession.zig": {
+      "errors": {
+        "InvalidSqlClientConfiguration": 2,
+        "SqlSessionAlreadyOpen": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "allocationFailures()": "<inferred>",
+        "connect()": "<inferred>",
+        "create()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 11,
+        "catch": 1
+      },
+      "imports": [
+        "std",
+        "transit_sql_client"
+      ]
+    },
     "packages/zig/transit-data-client/src/root.zig": {
       "errors": {},
       "outcomes": {},
@@ -9552,8 +9744,13 @@
         "catch": 0
       },
       "imports": [
+        "Admission.zig",
         "Catalog.zig",
-        "transit_catalog"
+        "Context.zig",
+        "LocalRecoveryStore.zig",
+        "SqlRecovery.zig",
+        "transit_catalog",
+        "transit_sql_client"
       ]
     },
     "packages/zig/transit-document/src/Bytes.zig": {
@@ -24969,17 +25166,20 @@
         "IncompatibleSqlDefinition": 1,
         "InvalidResultBudget": 1,
         "InvalidResultOperation": 1,
-        "InvalidSqlResponse": 4,
+        "InvalidSqlResponse": 5,
+        "InvalidSqlSubmission": 1,
         "ParameterCountMismatch": 1,
-        "ReadOnlyStatementRequired": 2,
+        "ReadOnlyStatementRequired": 3,
         "ResultCancelled": 2,
-        "SqlInstanceChanged": 1,
-        "SqlObservationDenied": 2,
+        "SqlInstanceChanged": 2,
+        "SqlObservationDenied": 3,
         "SqlOutcomeUnknown": 1,
         "SqlResponseBusy": 1,
         "SqlResponseCapacity": 1,
         "SqlResultUnavailable": 1,
-        "SqlSessionUnavailable": 1
+        "SqlSessionRequired": 2,
+        "SqlSessionUnavailable": 1,
+        "SqlSubmissionScopeChanged": 1
       },
       "outcomes": {
         "Cancellation.Request": [
@@ -25004,6 +25204,9 @@
       },
       "error_sets": {},
       "error_returns": {
+        "BeforeSubmit.persist()": "anyerror",
+        "Submission.pending()": "<inferred>",
+        "Submission.validate()": "<inferred>",
         "awaitPending()": "anyerror",
         "call()": "<inferred>",
         "createOutcome()": "<inferred>",
@@ -25016,9 +25219,9 @@
         "requireRead()": "<inferred>",
         "settle()": "<inferred>"
       },
-      "open_error_set_uses": 5,
+      "open_error_set_uses": 6,
       "propagation": {
-        "try": 38,
+        "try": 46,
         "catch": 5
       },
       "imports": [

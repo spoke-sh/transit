@@ -24,7 +24,49 @@ pub const Phase = enum { prepare, submit, wait, fetch };
 pub fn enter(self: *Self, phase: Phase) void {
     if (self.observer) |observer| observer.changed(observer.context, phase);
 }
-pub const Options = struct { resident_bytes: usize = 16 * 1024 * 1024, captured: bool = false };
+pub const Options = struct {
+    resident_bytes: usize = 16 * 1024 * 1024,
+    captured: bool = false,
+    before_submit: ?BeforeSubmit = null,
+};
+/// Borrowed only during persist. The application must durably copy this value
+/// before returning success when it promises recovery after caller loss.
+/// Carries the mandatory definition and exact original execute token, without
+/// the secret session handle, endpoint credentials or prepared-statement state.
+pub const Submission = struct {
+    version: u8,
+    definition: api.native.Definition,
+    instance: api.Instance,
+    account: api.Account,
+    database: []const u8,
+    source: ?[]const u8,
+    transaction: ?r.protocol.Transaction.Handle,
+    execute: @FieldType(api.Action, "execute"),
+
+    pub fn validate(self: Submission) !void {
+        if (self.execute.sql == null or self.execute.statement != null or self.execute.token == null) return error.InvalidSqlSubmission;
+        // Reuse protocol validation with an inert local handle. This envelope
+        // is never dispatched; no credential is stored or reconstructed.
+        try (api.Request{ .version = self.version, .definition = self.definition, .instance = self.instance, .session = @splat(0), .action = .{ .execute = self.execute } }).validate();
+        if (self.transaction) |transaction| try transaction.validate();
+    }
+
+    /// Observe through a separately authenticated client. Does not restore a
+    /// session/transaction, submit SQL or establish that acceptance occurred.
+    pub fn pending(self: Submission, client: *sdk.Client) !sdk.Pending {
+        try self.validate();
+        if (!std.meta.eql(client.instance, @as(?api.Instance, self.instance))) return error.SqlInstanceChanged;
+        if (!std.meta.eql(client.account, @as(?api.Account, self.account))) return error.SqlObservationDenied;
+        if (client.session == null) return error.SqlSessionRequired;
+        return sdk.Pending.init(client, self.execute.token.?);
+    }
+};
+pub const BeforeSubmit = struct {
+    context: *anyopaque,
+    /// No reentry into this executor/its clients or mutation/retention of borrows.
+    /// Failure stops before execute; this hook never observes a domain outcome.
+    persist: *const fn (*anyopaque, Submission) anyerror!void,
+};
 pub const Outcome = struct {
     parent: std.mem.Allocator,
     memory: r.fuze.MemoryBudget,
@@ -46,6 +88,7 @@ pub const Outcome = struct {
 /// reason to run the SQL again. The outcome owns the prepared handle.
 pub fn read(self: *Self, sql: []const u8, options: Options) !*Outcome {
     if (options.captured) return error.ReadOnlyStatementRequired;
+    if (options.before_submit != null) return error.ReadOnlyStatementRequired;
     self.enter(.prepare);
     const out = try self.createOutcome(options);
     errdefer out.deinit();
@@ -103,9 +146,11 @@ pub fn execute(self: *Self, sql: []const u8, parameters: ?[]const r.fuze.Logical
     const out = try self.createOutcome(options);
     errdefer out.deinit();
     const a = out.arena.allocator();
+    // Own the exact text before a persistence callback can release its input.
+    const text = if (options.before_submit != null) try a.dupe(u8, sql) else sql;
     var values: []const []const u8 = &.{};
     if (parameters) |bindings| {
-        const metadata = try self.call(.{ .prepare = .{ .sql = sql } }, out.memory.allocator());
+        const metadata = try self.call(.{ .prepare = .{ .sql = text } }, out.memory.allocator());
         defer metadata.deinit();
         if (metadata.value.result == .err) {
             out.value = .{ .failure = try self.failure(a, metadata.value.result.err) };
@@ -124,9 +169,34 @@ pub fn execute(self: *Self, sql: []const u8, parameters: ?[]const r.fuze.Logical
     }
     var token: api.Token = undefined;
     try self.client.io.randomSecure(&token);
+    const action: api.Action = .{ .execute = .{ .sql = text, .parameters = values, .token = token, .captured = options.captured } };
+    if (options.before_submit) |hook| {
+        const request: api.Request = .{ .version = 1, .definition = api.native.current_definition, .instance = self.client.instance, .session = self.client.session, .action = action };
+        try request.validate();
+        const account = self.client.account orelse return error.SqlSessionRequired;
+        // Read actual session selection/attachment, not initial Config values:
+        // a session may have changed its database or attached a transaction.
+        const observed = try self.call(.context, out.memory.allocator());
+        defer observed.deinit();
+        if (observed.value.result == .err) {
+            out.value = .{ .failure = try self.failure(a, observed.value.result.err) };
+            return out;
+        }
+        if (observed.value.result != .context or !std.mem.eql(u8, &observed.value.result.context.account, &account)) return error.InvalidSqlResponse;
+        const scope = observed.value.result.context;
+        try hook.persist(hook.context, .{ .version = request.version, .definition = request.definition, .instance = request.instance.?, .account = account, .database = scope.database, .source = scope.source, .transaction = scope.transaction, .execute = action.execute });
+        // Detect handle replacement before any accepting dispatch. This is not
+        // permission to reenter the single-borrower session inside the callback.
+        if (!std.meta.eql(self.client.instance, request.instance) or
+            !std.meta.eql(self.client.session, request.session) or
+            !std.meta.eql(self.client.account, @as(?api.Account, account)) or
+            !std.meta.eql(self.control.instance, request.instance) or
+            !std.meta.eql(self.control.session, request.session) or
+            !std.meta.eql(self.control.account, @as(?api.Account, account))) return error.SqlSubmissionScopeChanged;
+    }
     var pending = sdk.Pending.init(self.control, token);
     self.enter(.submit);
-    const response = self.call(.{ .execute = .{ .sql = sql, .parameters = values, .token = token, .captured = options.captured } }, out.memory.allocator()) catch |err| {
+    const response = self.call(action, out.memory.allocator()) catch |err| {
         // Slot refusal precedes dispatch. It cannot create an accepted attempt
         // requiring settlement; other failures may follow a successful send.
         if (err == error.SqlResponseCapacity or err == error.SqlResponseBusy) return err;

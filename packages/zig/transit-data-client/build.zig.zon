@@ -5,6 +5,7 @@
     .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
     .dependencies = .{
         .transit_catalog = .{ .path = "../transit-catalog" },
+        .transit_sql_client = .{ .path = "../transit-sql-client" },
     },
-    .paths = .{ "build.zig", "build.zig.zon", "src", "README.md" },
+    .paths = .{ "build.zig", "build.zig.zon", "src", "docs", "README.md" },
 }

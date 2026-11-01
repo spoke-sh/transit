@@ -48,6 +48,39 @@ not attach it. `execute` submits once. Its uncertainty result
 retains the original account, instance, admission token and known operation; a
 missing observation never authorizes resubmission.
 
+### Persisting an original attempt
+
+`Executor.Options.before_submit` supplies a synchronous `persist(context,
+Submission)` callback. The executor owns the SQL text and canonical parameters,
+allocates the original token, reads the session's actual database/source and
+transaction attachment, and invokes the callback before sending `execute`.
+Preparation and context inspection can occur before the callback. A failed or
+cancelled callback prevents execution. Applications promising caller-loss recovery
+must durably copy the borrowed submission before returning success; retaining its
+pointers is invalid. The callback must not reenter the executor or its clients.
+
+`Submission` contains mandatory protocol version/definition, persistent instance,
+account, selected database/source, transaction handle and exact execute content.
+It excludes secret session handles, login credentials and endpoint configuration.
+Current credentials remain necessary for recovery. `submission.pending(client)`
+validates the saved definition and requires an authenticated client for the same
+instance/account, then creates the existing original-token observer. Call
+`Pending.settle` with current connection configuration to observe that attempt;
+this never resubmits its SQL, restores an interactive result or attaches a
+transaction. A missing operation remains uncertain. Use explicit transaction
+reattachment only when continuing an original transaction.
+
+The hook applies to `execute`, including transaction statements; `read` rejects
+it because that operation uses an ephemeral prepared read without durable token
+admission. No hook means no additional context request or text copy. The hook is
+an application-owned persistence boundary, not a built-in disk store or automatic
+receipt journal. A stored attempt proves neither submission nor acceptance, and
+later failure to save a received outcome cannot undo that outcome. Store format,
+atomic writes, private permissions, bounded capacity and receipt updates remain
+the application's responsibility.
+
+### Result sets
+
 A `ResultSet` exposes one logical schema and observation, `nextRow` or `nextBatch`,
 and verified `completion`. Batches are borrowed row or column views with no cursor,
 ordinal or repeated schema. Rows include their nested/variable-width allocations;

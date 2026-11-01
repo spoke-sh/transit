@@ -4,11 +4,12 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     const catalog = b.dependency("transit_catalog", .{ .target = target, .optimize = optimize });
+    const sql = b.dependency("transit_sql_client", .{ .target = target, .optimize = optimize });
     const module = b.addModule("transit_data_client", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{.{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }},
+        .imports = &.{ .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_sql_client", .module = sql.module("transit_sql_client") } },
     });
     requireIndependentClient(b, module);
     const tests = b.addTest(.{ .root_module = module });
