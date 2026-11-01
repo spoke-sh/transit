@@ -33,6 +33,12 @@ Concurrent attempts that both observe a missing key can reserve twice; those
 conservative reservations remain charged until reopen. Direct-object syncs therefore
 do not hold up unrelated native reads or control publication through this mutex.
 Device contention and the serialized WAL can still delay them.
+Bounded whole-object reads forward through the same direct-key boundary and
+return bytes in caller-owned output. The local provider reads the descriptor
+once for both metadata and payload verification. This counts as one observed
+object-read attempt; separate metadata/range calls retain their separate counts.
+Publication authority, payload verification and caller disclosure fences are
+unchanged.
 Direct creation also records a durable key/content inventory before publication.
 The private FIFO and latest per-key epoch use a separate mutex: slow inventory
 syncs can delay other direct creators, but do not hold the native journal mutex.

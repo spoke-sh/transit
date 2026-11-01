@@ -263,11 +263,13 @@ pub fn load(self: *Self, reference: pages.Reference) !pages.Page {
     self.misses +|= 1;
     var name: [96]u8 = undefined;
     const object_key = try key(reference.location, &name);
-    const metadata = try self.store.head(object_key) orelse return error.MissingDataIndexObject;
     var bytes: [header_bytes + pages.max_encoded_bytes]u8 = undefined;
+    const metadata = (self.store.getObject(object_key, &bytes) catch |err| switch (err) {
+        error.BufferTooSmall, error.ObjectTooLarge, error.ObjectSizeMismatch => return error.InvalidDataIndexObject,
+        else => return err,
+    }) orelse return error.MissingDataIndexObject;
     if (metadata.size < header_bytes or metadata.size > bytes.len or !std.mem.eql(u8, &metadata.sha256, &reference.location)) return error.InvalidDataIndexObject;
-    const encoded = try self.store.getRange(object_key, 0, @intCast(metadata.size), &bytes);
-    if (encoded.len != metadata.size) return error.InvalidDataIndexObject;
+    const encoded = bytes[0..@intCast(metadata.size)];
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(encoded, &digest, .{});
     if (!std.mem.eql(u8, &digest, &reference.location)) return error.InvalidDataIndexObject;

@@ -2649,6 +2649,8 @@
         "conditional()": "<inferred>",
         "delete()": "<inferred>",
         "fence()": "<inferred>",
+        "getObject()": "<inferred>",
+        "getObjectImpl()": "<inferred>",
         "head()": "<inferred>",
         "headImpl()": "<inferred>",
         "partition()": "<inferred>",
@@ -2668,7 +2670,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 24,
+        "try": 26,
         "catch": 0
       },
       "imports": [
@@ -6149,10 +6151,7 @@
     },
     "packages/zig/transit-catalog/src/DirectQueueMutation.zig": {
       "errors": {
-        "CatalogKindMismatch": 1,
-        "DataIdentityConflict": 1,
-        "IncompatibleDefinition": 1,
-        "InvalidQueueOperationBinding": 1
+        "CatalogKindMismatch": 1
       },
       "outcomes": {
         "Request": [
@@ -6164,14 +6163,12 @@
       },
       "error_sets": {},
       "error_returns": {
-        "Binding.requireSame()": "<inferred>",
-        "Binding.validate()": "<inferred>",
         "Request.binding()": "<inferred>",
         "Request.validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 7,
+        "try": 4,
         "catch": 0
       },
       "imports": [
@@ -6721,9 +6718,6 @@
     "packages/zig/transit-catalog/src/DirectStreamMutation.zig": {
       "errors": {
         "CatalogKindMismatch": 1,
-        "DataIdentityConflict": 1,
-        "IncompatibleDefinition": 1,
-        "InvalidStreamOperationBinding": 1,
         "StreamReadConflict": 1
       },
       "outcomes": {
@@ -6737,15 +6731,13 @@
       },
       "error_sets": {},
       "error_returns": {
-        "Binding.requireSame()": "<inferred>",
-        "Binding.validate()": "<inferred>",
         "Request.binding()": "<inferred>",
         "Request.offset.validate()": "<inferred>",
         "Request.validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 9,
+        "try": 6,
         "catch": 0
       },
       "imports": [
@@ -20821,6 +20813,45 @@
         "root.zig"
       ]
     },
+    "packages/zig/transit-protocol/src/LogWorkload.zig": {
+      "errors": {
+        "DataIdentityConflict": 2,
+        "IncompatibleDefinition": 2,
+        "InvalidQueueOperationBinding": 1,
+        "InvalidStreamOperationBinding": 1
+      },
+      "outcomes": {
+        "QueueKind": [
+          "enqueue",
+          "claim",
+          "settle",
+          "release"
+        ],
+        "StreamKind": [
+          "append",
+          "assign",
+          "consume",
+          "release",
+          "offset"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "QueueBinding.requireSame()": "<inferred>",
+        "QueueBinding.validate()": "<inferred>",
+        "StreamBinding.requireSame()": "<inferred>",
+        "StreamBinding.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 6,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-protocol/src/NativeInspection.zig": {
       "errors": {
         "InvalidRead": 13
@@ -21724,6 +21755,7 @@
         "IndexLifecycle.zig",
         "Json.zig",
         "Lifecycle.zig",
+        "LogWorkload.zig",
         "NativePayload.zig",
         "QueueRead.zig",
         "Runtime.zig",
@@ -34782,6 +34814,7 @@
       "errors": {
         "BitmapBatchTooLarge": 1,
         "BitmapCardinalityOverflow": 1,
+        "BufferTooSmall": 1,
         "IncompatibleDefinition": 1,
         "InvalidBitmapCardinality": 1,
         "InvalidBitmapContainer": 5,
@@ -34790,6 +34823,8 @@
         "InvalidBitmapRoot": 2,
         "MissingBitmapContainer": 1,
         "NoStorageCandidate": 2,
+        "ObjectSizeMismatch": 1,
+        "ObjectTooLarge": 1,
         "StorageCandidateTooLarge": 1
       },
       "outcomes": {},
@@ -34812,8 +34847,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 36,
-        "catch": 1
+        "try": 34,
+        "catch": 2
       },
       "imports": [
         "TransitObjectStore.zig",
@@ -34931,6 +34966,7 @@
     },
     "packages/zig/transit-storage/src/CandidateObjects.zig": {
       "errors": {
+        "BufferTooSmall": 1,
         "CandidateMutationUnsupported": 2,
         "CandidateObjectBudgetExceeded": 2,
         "ImmutableObjectConflict": 1,
@@ -34945,6 +34981,7 @@
         "conditional()": "<inferred>",
         "delete()": "<inferred>",
         "get()": "<inferred>",
+        "getObject()": "<inferred>",
         "head()": "<inferred>",
         "init()": "<inferred>",
         "persist()": "<inferred>",
@@ -34956,7 +34993,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 10,
+        "try": 11,
         "catch": 1
       },
       "imports": [
@@ -34966,7 +35003,7 @@
     },
     "packages/zig/transit-storage/src/DiskObjects.zig": {
       "errors": {
-        "BufferTooSmall": 1,
+        "BufferTooSmall": 2,
         "CorruptObjectDescriptor": 5,
         "FileNotFound": 4,
         "ImmutableObjectConflict": 5,
@@ -34988,6 +35025,7 @@
       "error_returns": {
         "confirmImmutable()": "<inferred>",
         "delete()": "<inferred>",
+        "getObject()": "<inferred>",
         "head()": "<inferred>",
         "linkContentFile()": "<inferred>",
         "lockKey()": "<inferred>",
@@ -35003,6 +35041,7 @@
         "putImmutable()": "<inferred>",
         "putImmutableBatch()": "<inferred>",
         "read()": "<inferred>",
+        "readContent()": "<inferred>",
         "readRecord()": "<inferred>",
         "reclaimImmutable()": "<inferred>",
         "removeFile()": "<inferred>",
@@ -35016,7 +35055,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 113,
+        "try": 116,
         "catch": 10
       },
       "imports": [
@@ -35678,7 +35717,7 @@
     },
     "packages/zig/transit-storage/src/LocalSegmentStore.zig": {
       "errors": {
-        "BufferTooSmall": 1,
+        "BufferTooSmall": 2,
         "ImmutableObjectConflict": 4,
         "ObjectDigestMismatch": 2,
         "ObjectNotFound": 2,
@@ -35691,6 +35730,7 @@
         "LocalSegmentStore.confirmImmutableObject()": "<inferred>",
         "LocalSegmentStore.deleteErased()": "anyerror",
         "LocalSegmentStore.deleteObject()": "<inferred>",
+        "LocalSegmentStore.getObjectErased()": "<inferred>",
         "LocalSegmentStore.getObjectRange()": "<inferred>",
         "LocalSegmentStore.getRangeErased()": "anyerror",
         "LocalSegmentStore.headErased()": "anyerror",
@@ -35707,7 +35747,7 @@
       },
       "open_error_set_uses": 5,
       "propagation": {
-        "try": 23,
+        "try": 25,
         "catch": 1
       },
       "imports": [
@@ -38605,12 +38645,13 @@
     },
     "packages/zig/transit-storage/src/TransitObjectStore.zig": {
       "errors": {
-        "BufferTooSmall": 1,
+        "BufferTooSmall": 3,
         "DuplicateObjectKey": 1,
         "InvalidObjectBatch": 1,
         "InvalidObjectKey": 5,
-        "ObjectDigestMismatch": 2,
-        "ObjectTooLarge": 3
+        "ObjectDigestMismatch": 3,
+        "ObjectSizeMismatch": 1,
+        "ObjectTooLarge": 5
       },
       "outcomes": {
         "Condition": [
@@ -38621,12 +38662,14 @@
       "error_sets": {},
       "error_returns": {
         "ObjectStore.VTable.delete()": "anyerror",
+        "ObjectStore.VTable.getObject()": "anyerror",
         "ObjectStore.VTable.getRange()": "anyerror",
         "ObjectStore.VTable.head()": "anyerror",
         "ObjectStore.VTable.putConditional()": "anyerror",
         "ObjectStore.VTable.putImmutable()": "anyerror",
         "ObjectStore.VTable.putImmutableBatch()": "anyerror",
         "ObjectStore.delete()": "<inferred>",
+        "ObjectStore.getObject()": "<inferred>",
         "ObjectStore.getRange()": "<inferred>",
         "ObjectStore.head()": "<inferred>",
         "ObjectStore.putConditional()": "<inferred>",
@@ -38635,9 +38678,9 @@
         "validateBatch()": "<inferred>",
         "validateKey()": "<inferred>"
       },
-      "open_error_set_uses": 6,
+      "open_error_set_uses": 7,
       "propagation": {
-        "try": 9,
+        "try": 13,
         "catch": 0
       },
       "imports": [
@@ -38647,6 +38690,7 @@
     "packages/zig/transit-storage/src/TreeStore.zig": {
       "errors": {
         "ActiveStorageCandidate": 2,
+        "BufferTooSmall": 1,
         "ImmutableObjectConflict": 1,
         "IncompatibleDefinition": 1,
         "InvalidDataIndexObject": 7,
@@ -38657,6 +38701,8 @@
         "MissingDataIndexObject": 1,
         "NoStorageCandidate": 3,
         "ObjectDigestMismatch": 1,
+        "ObjectSizeMismatch": 1,
+        "ObjectTooLarge": 1,
         "StorageCandidateTooLarge": 2
       },
       "outcomes": {},
@@ -38674,8 +38720,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 25,
-        "catch": 0
+        "try": 23,
+        "catch": 1
       },
       "imports": [
         "TransitObjectStore.zig",

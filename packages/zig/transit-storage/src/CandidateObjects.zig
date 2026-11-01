@@ -153,7 +153,16 @@ fn get(ctx: *anyopaque, name: []const u8, offset: u64, length: u32, out: []u8) !
 fn conditional(_: *anyopaque, _: []const u8, _: Objects.Condition, _: []const u8) !bool {
     return error.CandidateMutationUnsupported;
 }
+fn getObject(ctx: *anyopaque, name: []const u8, out: []u8) !?Objects.ObjectMeta {
+    const self: *Self = @ptrCast(@alignCast(ctx));
+    const index = self.slots[try self.slot(name)];
+    if (index == vacant) return self.underlying.getObject(name, out);
+    const value = self.bytes(self.entries[index]);
+    if (value.len > out.len) return error.BufferTooSmall;
+    @memcpy(out[0..value.len], value);
+    return self.entries[index].metadata();
+}
 fn delete(_: *anyopaque, _: []const u8) !void {
     return error.CandidateMutationUnsupported;
 }
-const vtable: Objects.ObjectStore.VTable = .{ .putImmutable = put, .putConditional = conditional, .getRange = get, .head = head, .delete = delete };
+const vtable: Objects.ObjectStore.VTable = .{ .putImmutable = put, .putConditional = conditional, .getRange = get, .getObject = getObject, .head = head, .delete = delete };

@@ -684,6 +684,14 @@ One disk `LocalSegmentStore` also permits concurrent operations: per-key locks
 protect publication and a separate short mutex protects completed-attempt
 counters. Read counters only after joining callers, and join all operations
 before closing the store. The memory fixture remains caller-serialized.
+Bounded whole-object reads copy into caller-owned output and return the observed
+descriptor. The local provider reads that descriptor once, then verifies the
+selected content's size and chunk checksums; other providers compose their
+existing metadata and range operations and check the resulting digest.
+Index-page and bitmap readers still verify their expected content commitment,
+definition and decoded structure. The private candidate adapter preserves this
+path without treating derived objects as durable. No cache, deadline or resident
+buffer budget is increased, and a short output buffer refuses before copying.
 The root unit task also launches three races of twelve independent processes and
 checks their results against a Python oracle. Descriptor deletion unpublishes the
 key; physical content collection still requires retained-reader/pin ownership.

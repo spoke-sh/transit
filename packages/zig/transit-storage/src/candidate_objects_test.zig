@@ -33,6 +33,12 @@ test "candidate objects reuse bounded storage and resolve full keys without back
         try t.expectEqualStrings("first", try store.getRange(first_name, 0, 5, &output));
         try t.expectEqualStrings("cond", try store.getRange(second_name, 2, 4, &output));
         try t.expectEqualStrings("accepted", try store.getRange("base", 0, 8, &output));
+        try t.expectEqual(@as(u64, 5), (try store.getObject(first_name, &output)).?.size);
+        try t.expectEqualStrings("first", output[0..5]);
+        try t.expectEqual(@as(u64, 8), (try store.getObject("base", &output)).?.size);
+        try t.expectEqualStrings("accepted", output[0..8]);
+        try t.expectError(error.BufferTooSmall, store.getObject(first_name, output[0..1]));
+        try t.expect(try store.getObject("absent", &output) == null);
         try t.expect(try base.objectStore().head(first_name) == null);
         const used = candidates.used;
         try put(store, first_name, "first");
