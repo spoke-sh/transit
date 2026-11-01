@@ -128,7 +128,7 @@ pub const Work = union(enum) {
     document_initialization: s.DocumentInitialization.Request,
     document_history: s.DocumentStorageRoots.Cursor,
     document_root: struct { root: s.DocumentPartitionRecord.Root, archive: s.LogHistory.Coverage, slot: u8 = 0 },
-    document_index: struct { context: DocumentContext, reference: s.TreeStore.pages.Reference, kind: DocumentIndexKind, prefix_bytes: u16 = 0, height: ?u8 = null, slot: u8 = 0, marked: bool = false },
+    document_index: struct { context: DocumentContext, reference: s.TreeStore.pages.Reference, kind: DocumentIndexKind, height: ?u8 = null, slot: u8 = 0, marked: bool = false },
     document_read: struct { context: DocumentContext, handle: c.protocol.DocumentOperation.Read.Handle },
     document_wal: struct { context: DocumentContext, lsn: u64 },
     table_history: s.TableStorageRoots,
@@ -319,7 +319,7 @@ fn markDocumentBlob(allocator: std.mem.Allocator, context: DocumentContext, stor
     }
 }
 
-fn documentEntry(allocator: std.mem.Allocator, index: *s.TreeStore, workspace: anytype, context: DocumentContext, kind: DocumentIndexKind, prefix_bytes: u16, entry: s.TreeStore.pages.Entry) !void {
+fn documentEntry(allocator: std.mem.Allocator, index: *s.TreeStore, workspace: anytype, context: DocumentContext, kind: DocumentIndexKind, entry: s.TreeStore.pages.Entry) !void {
     switch (kind) {
         .pages_only => {},
         .logical_records => {
@@ -332,9 +332,10 @@ fn documentEntry(allocator: std.mem.Allocator, index: *s.TreeStore, workspace: a
             try markContent(workspace, key, .{ .bytes = locator.length, .sha256 = locator.segment });
         },
         .logical_ordered => {
-            if (try s.OrderedKeyIndex.childIndex(entry, prefix_bytes)) |child| {
-                try workspace.enqueue(.{ .document_index = .{ .context = context, .reference = child, .kind = .logical_ordered, .prefix_bytes = prefix_bytes + 64 } });
-            }
+            // Canonical causal records have full keys <= 64 bytes. Preserve
+            // the existing serialized maintenance cursor; this layout never
+            // creates OrderedKeyIndex continuation directories.
+            if (try s.OrderedKeyIndex.childIndex(entry, 0) != null) return error.InvalidDocumentStorageGraph;
         },
         .documents => {
             const parsed = try c.protocol.Json.parseFromSlice(s.DocumentPartition.DocumentHead, allocator, entry.value.slice());
@@ -1151,14 +1152,14 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             if (!value.marked) {
                 if (value.slot != 0) return error.InvalidDocumentStorageGraph;
                 try markPage(index, workspace, value.reference);
-                if (try workspace.visited(try scope(.{ .document_index = .{ .context = value.context, .reference = value.reference, .kind = value.kind, .prefix_bytes = value.prefix_bytes } }))) return true;
+                if (try workspace.visited(try scope(.{ .document_index = .{ .context = value.context, .reference = value.reference, .kind = value.kind } }))) return true;
                 value.marked = true;
                 return false;
             }
             if (value.slot == page.count) return true;
             switch (page.body) {
-                .branch => |children| try workspace.enqueue(.{ .document_index = .{ .context = value.context, .reference = children[value.slot].?.reference, .kind = value.kind, .prefix_bytes = value.prefix_bytes, .height = page.height - 1 } }),
-                .leaf => |entries| try documentEntry(allocator, index, workspace, value.context, value.kind, value.prefix_bytes, entries[value.slot].?),
+                .branch => |children| try workspace.enqueue(.{ .document_index = .{ .context = value.context, .reference = children[value.slot].?.reference, .kind = value.kind, .height = page.height - 1 } }),
+                .leaf => |entries| try documentEntry(allocator, index, workspace, value.context, value.kind, entries[value.slot].?),
             }
             value.slot += 1;
             return false;

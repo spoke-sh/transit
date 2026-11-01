@@ -6397,7 +6397,7 @@
         "InvalidClientToken": 2,
         "InvalidDataIndexObject": 1,
         "InvalidDirectCatalogHistory": 1,
-        "InvalidDocumentStorageGraph": 15,
+        "InvalidDocumentStorageGraph": 16,
         "InvalidLogCatalogOperation": 1,
         "InvalidLogStorageGraph": 47,
         "InvalidQueueDestination": 2,
@@ -6527,7 +6527,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 502,
+        "try": 501,
         "catch": 1
       },
       "imports": [

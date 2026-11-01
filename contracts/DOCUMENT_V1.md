@@ -215,7 +215,8 @@ key/value rows, validated against the declared object/definition and epoch.
 
 Assignment records retain parent object dot, field hash, logical kind, value
 length and depth. Field metadata stores active count and complete-name length.
-Names and values occupy **240-byte chunks**; active dots occupy separate indexed
+Record keys are at most 64 bytes; the ordered index has no key-continuation
+directories in this layout. Names and values occupy **240-byte chunks**; active dots occupy separate indexed
 records. Active vectors compact on update, so removing a field repeatedly does
 not make evaluation scan its entire tombstone history. Logical collection size
 and retained revision history do not determine resident array sizes. This is an
