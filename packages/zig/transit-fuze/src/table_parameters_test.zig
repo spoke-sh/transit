@@ -31,6 +31,53 @@ test "prepared DML owns bindings and preserves defaults and full-width values" {
     try owned(e.allocator);
     try e.checkAllAllocationFailures(e.allocator, owned, .{});
 }
+
+fn sharedValues(allocator: std.mem.Allocator) !void {
+    var arena: std.heap.ArenaAllocator = .init(allocator);
+    defer arena.deinit();
+    const text = try arena.allocator().dupe(u8, "(id, name) VALUES ($1, $2)");
+    const name = try arena.allocator().dupe(u8, "people");
+    var parser = try f.SqlTyped.initTemplate(arena.allocator(), text, null);
+    const syntax: f.TableDml.Syntax = .{
+        .subject = .{ .kind = .insert, .name = name, .span = .{ .start = 0, .end = 0 } },
+        .subject_span = .{ .start = 0, .end = 0 },
+        .action = .{ .insert = try f.TableDml.insertValues(&parser, schema) },
+    };
+    try parser.finish();
+    var template = try f.TableDmlPrepared.adoptSyntax(allocator, &arena, name, schema, syntax, &.{.{ .site = .{ .index = 3, .offset = text.len }, .type = .uint64 }}, null);
+    var live = true;
+    defer if (live) template.deinit();
+    // Resetting the source owner cannot invalidate the transferred syntax.
+    _ = arena.reset(.free_all);
+    try e.expectEqual(@as(usize, 3), template.parameterTypes().len);
+    try e.expectEqual(f.Types.Type.uint64, template.parameterTypes()[2]);
+    var bytes = "unchanged".*;
+    var bound = try template.bind(allocator, "people", schema, &.{ .{ .signed = 17 }, .{ .bytes = &bytes }, .{ .unsigned = 9 } }, null);
+    defer bound.deinit();
+    template.deinit();
+    live = false;
+    @memset(&bytes, 0);
+    try e.expectEqual(@as(i128, 17), bound.plan.action.insert[0][0].value.atom.signed);
+    try e.expectEqualStrings("unchanged", bound.plan.action.insert[0][1].value.atom.bytes);
+    try e.expectEqual(@as(u128, 7), bound.plan.action.insert[0][2].value.atom.unsigned);
+}
+
+test "shared VALUES syntax transfers ownership and checks metadata parameters" {
+    try sharedValues(e.allocator);
+    try e.checkAllAllocationFailures(e.allocator, sharedValues, .{});
+    for ([_]u32{ 1, 4 }) |site| {
+        var arena: std.heap.ArenaAllocator = .init(e.allocator);
+        defer arena.deinit();
+        var parser = try f.SqlTyped.initTemplate(arena.allocator(), "(id) VALUES ($1)", null);
+        const syntax: f.TableDml.Syntax = .{
+            .subject = .{ .kind = .insert, .name = "people", .span = .{ .start = 0, .end = 0 } },
+            .subject_span = .{ .start = 0, .end = 0 },
+            .action = .{ .insert = try f.TableDml.insertValues(&parser, schema) },
+        };
+        try parser.finish();
+        try e.expectError(if (site == 1) error.ParameterTypeConflict else error.ParameterGap, f.TableDmlPrepared.adoptSyntax(e.allocator, &arena, "people", schema, syntax, &.{.{ .site = .{ .index = site, .offset = 0 }, .type = .uint64 }}, null));
+    }
+}
 test "prepared DML uses MySQL lexer positions without substituting quoted bytes" {
     var template = try f.TableDmlPrepared.init(e.allocator, "UPDATE `people` SET `name` = ? WHERE id = ? /* ? $4 */", "people", schema, .mysql, null);
     defer template.deinit();

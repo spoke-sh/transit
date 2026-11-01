@@ -314,7 +314,7 @@ pub fn syntax(parser: *Parser, hints: ?s.Schema) !Syntax {
     const subject_span = subject.span;
     var result: Syntax = .{ .subject = subject, .subject_span = subject_span, .action = undefined };
     result.action = switch (subject.kind) {
-        .insert => .{ .insert = try insert(parser, hints) },
+        .insert => .{ .insert = try insertValues(parser, hints) },
         .update => .{ .update = try update(parser, hints, subject.name) },
         .delete => .delete,
     };
@@ -324,7 +324,9 @@ pub fn syntax(parser: *Parser, hints: ?s.Schema) !Syntax {
     }
     return result;
 }
-fn insert(parser: *Parser, hints: ?s.Schema) !@FieldType(@FieldType(Syntax, "action"), "insert") {
+/// Shared column/VALUES syntax after an owning workload's target. The caller
+/// owns the verb, trailing clauses, statement completion and execution meaning.
+pub fn insertValues(parser: *Parser, hints: ?s.Schema) !@FieldType(@FieldType(Syntax, "action"), "insert") {
     var rows: std.ArrayList(Row) = .empty;
     const start = parser.lexer.start;
     if (try parser.takeWord("DEFAULT")) {

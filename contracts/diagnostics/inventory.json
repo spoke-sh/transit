@@ -16742,7 +16742,7 @@
         "compile()": "<inferred>",
         "compileWithEditor()": "<inferred>",
         "header()": "<inferred>",
-        "insert()": "<inferred>",
+        "insertValues()": "<inferred>",
         "syntax()": "<inferred>",
         "target()": "<inferred>",
         "targetContext()": "<inferred>",
@@ -16817,6 +16817,8 @@
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "adoptOwned()": "<inferred>",
+        "adoptSyntax()": "<inferred>",
         "bind()": "<inferred>",
         "infer()": "<inferred>",
         "init()": "<inferred>",
@@ -16824,7 +16826,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 24,
+        "try": 27,
         "catch": 0
       },
       "imports": [

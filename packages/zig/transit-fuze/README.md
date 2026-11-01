@@ -62,6 +62,13 @@ epoch and attempt and leaves native coverage independent of filtered output.
 The caller supplies verified frozen metadata and separately owns admission,
 selection, authority and completion. SQL workload admission is not yet wired.
 
+Dedicated workload parsers can reuse `TableDml.insertValues` for column/VALUES
+syntax and `TableDmlPrepared.adoptSyntax` for typed binding. Successful adoption
+transfers the parser arena; failure leaves it with the caller. Row and metadata
+parameters share type, index and gap checks, and bound rows own their values.
+The enclosing parser still owns its verb, suffixes and statement boundary;
+these helpers provide no admission or execution authority.
+
 `TSegReader` reads one host-bound immutable segment through a synchronous range
 callback. Opening reads the 64-byte header, 16-byte trailer and bounded footer;
 projected decoding requests only the selected column pages. The reader verifies
