@@ -252,7 +252,7 @@ const Server = struct {
         host.wire.observer = self.diagnostics;
         // Admit command state before announcing a ready authenticated session.
         // A reserve refusal closes startup without accepting a first command.
-        var engine = try @import("PostgresSession.zig").Engine(Host, Output).init(allocator, host, &tx, self.config.limits);
+        var engine = @import("WireSessionDriver.zig").Driver(pg.Session, Host, Output).init(host, &tx, try pg.Session.init(allocator, self.config.limits, slot.id));
         defer engine.deinit();
         var input = try FrameInput.Reader(pg.Frame.Input).init(allocator, .{ .maximum = self.config.limits.frame_bytes });
         defer input.deinit();
@@ -265,7 +265,7 @@ const Server = struct {
         try tx.writeAll(try backend.key(slot.id, slot.secret));
         try tx.writeAll(try backend.ready(.idle));
         while (true) {
-            const idle = engine.cycle.state == .idle;
+            const idle = engine.session.cycle.state == .idle;
             if (idle) try transport.idle(self.config.limits.idle_ms, host.commandMilliseconds()) else {
                 const elapsed = host.deadline.start.durationTo(std.Io.Clock.awake.now(self.io)).toMilliseconds();
                 if (elapsed >= host.deadline.milliseconds) return error.GatewayDeadline;
@@ -282,7 +282,7 @@ const Server = struct {
             const frame = (try pg.Frame.decode(bytes, self.config.limits.frame_bytes)).?;
             if (idle and self.draining.load(.acquire)) return error.GatewayDraining;
             if (idle) try transport.resetDeadline(host.commandMilliseconds());
-            if (!try boundedHandle(self.io, transport.deadline, @TypeOf(engine).handle, .{ &engine, frame.tag, frame.payload })) break;
+            if (!try boundedHandle(self.io, transport.deadline, @TypeOf(engine).run, .{ &engine, .{ frame.tag, frame.payload } })) break;
         }
         try transport.resetDeadline(self.config.limits.write_ms);
         try channel.finish();
@@ -374,7 +374,7 @@ const Server = struct {
         var limits = self.config.limits;
         if (prefix.maximum_packet != 0) limits.frame_bytes = @min(limits.frame_bytes, prefix.maximum_packet);
         try limits.validate();
-        var engine = try @import("MysqlSession.zig").Engine(Host, Output).init(allocator, host, &tx, limits, prefix.negotiated());
+        var engine = @import("WireSessionDriver.zig").Driver(mysql.Session, Host, Output).init(host, &tx, try mysql.Session.init(allocator, limits, prefix.negotiated(), slot.id));
         defer engine.deinit();
         var input = try FrameInput.Reader(mysql.Frame.Input).init(allocator, .{ .expected = 0, .maximum = limits.frame_bytes });
         defer input.deinit();
@@ -396,7 +396,7 @@ const Server = struct {
             const frame = (try mysql.Frame.decode(bytes, 0, limits.frame_bytes)).?;
             if (self.draining.load(.acquire)) return error.GatewayDraining;
             try transport.resetDeadline(host.commandMilliseconds());
-            if (!try boundedHandle(self.io, transport.deadline, @TypeOf(engine).handle, .{ &engine, frame.payload })) break;
+            if (!try boundedHandle(self.io, transport.deadline, @TypeOf(engine).run, .{ &engine, .{frame.payload} })) break;
         }
         try transport.resetDeadline(limits.write_ms);
         try channel.finish();

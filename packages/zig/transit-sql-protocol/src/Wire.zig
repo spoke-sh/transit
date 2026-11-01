@@ -9,6 +9,7 @@ pub const ReadBatch = @import("WireReadBatch.zig");
 pub const Type = @import("WireType.zig");
 pub const Bytes = @import("WireBytes.zig");
 pub const Input = @import("WireInput.zig").Decoder;
+pub const Session = @import("WireSession.zig");
 test {
     @import("std").testing.refAllDecls(@This());
 }

@@ -209,12 +209,38 @@ M6's bounded Queue claim waits (PR #292) and installed startup attribution
 not complete mixed transaction participants, Queue SQL or Station replacement.
 The startup workload and its separate recovery gates remain in step 1 below.
 
-The execution engines still call their host synchronously. SQL work, partial
-output, authentication, cancellation generations and late completion need the
-remaining session-event contract before reducing worker counts or removing
-command timer races. Coarse remote SQL, configuration handoff, Flight/Serving
-integration, owner-qualified M6/M7 routes and paired latency acceptance remain
-open. No direct data-kind capability or broader protocol profile is added.
+At this foundation revision, execution engines still called their host
+synchronously. The subsequent session slice below addresses that boundary.
+
+#### Resumable command-session implementation — 2026-10-31
+
+The next slice starts from `origin/main` at `644d0a09e`, including merged PR #295
+and the Station listener-recovery fix in PR #294. PostgreSQL/MySQL authenticated
+command engines now live in their pure protocol packages. They emit one neutral
+host request or immutable output slice at a time; partial drains, connection
+generations and monotonically increasing event tokens fence cancellation,
+duplicate and late completions. Reads close before dependent metadata or bound
+values are released. Prepared portals retain their original read cut.
+
+The shared host driver preserves existing installed execution and authenticates
+resumed disclosure through the owning service. Guards cover metadata, buffered
+rows, empty results and terminal output. A paused mutation reply observes its
+original accepted completion rather than revalidating or executing the statement
+again. Reusable encoding buffers and PostgreSQL portal arenas support warmed
+allocation checks in the pure event tests. Public ownership and lifetimes live
+in the [protocol](../../packages/zig/transit-sql-protocol/README.md),
+[PostgreSQL](../../packages/zig/transit-postgres/README.md),
+[MySQL](../../packages/zig/transit-mysql/README.md) and
+[host](../../packages/zig/transit-sql-host/README.md) guides.
+
+This completes the authenticated command-event portion of step 3, not P4 or the
+milestone. The installed driver still uses blocking workers and command timer
+races. Authentication/TLS orchestration, socket deadlines, CPU-scaled scheduling
+and its progress proofs remain open. So do coarse remote SQL, configuration
+handoff, Flight/Serving integration, owner-qualified M6/M7 routes and paired
+latency acceptance. No direct data-kind capability or broader wire profile is
+added. Component event/allocation tests do not establish installed performance
+or complete the separate lifecycle and recovery gates.
 
 #### Current implementation and evidence
 

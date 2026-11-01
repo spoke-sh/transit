@@ -44,19 +44,34 @@ two; affected rows retain full uint64 values. Status reports configured autocomm
 flag, without a generated ID or additional results. Returned packets borrow a
 bounded reusable buffer; the session owns sequencing and negotiated EOF choice.
 
-[`transit-sql-host`](../transit-sql-host/README.md) owns the MySQL
-session engine and its bounded prepared handles, validated parameter type vectors,
-result sequencing and command errors. Statement reset retains parameter types;
-connection reset and database selection clear ephemeral handles. IDs do not
-repeat within a connection. The host supplies execution and current rights;
-accepted writes belong to its database runtime. UPDATE returns changed rows by
-default and matched rows with negotiated `CLIENT_FOUND_ROWS`. The
-[gateway application](../../../apps/transit-sql-gateway/README.md) supplies the
-transport policy, authentication and host. Full-password requests require TLS;
-explicit loopback trust uses the same native admission without a password exchange.
+`Session` owns authenticated command transitions, bounded prepared handles,
+validated parameter type vectors, packet sequencing and command errors. Call
+`start` with a borrowed command, then `poll` for a `Wire.Session` request or
+completion. SQL work and output are values; the engine invokes no host callbacks.
+Complete each request with its generation/sequence token. Partial output retains
+immutable bytes until drained; a transport failure closes without retrying the
+accepted SQL or appending ERR to a partial packet. An authority refusal before
+any bytes preserves the packet sequence for the error response.
 
-Reads request at most 32 rows per disclosure. The host checks current rights
-after materialization and before transmitting that batch. Empty results and
-completion use the same gate; later batches perform fresh checks.
+Statement reset retains parameter types; connection reset and database selection
+clear ephemeral handles. IDs do not repeat within a connection. Input and bound
+values live through the command's `done` event. Prepared metadata belongs to the
+host until explicit destruction; read batches borrow cells until the next pull
+or close. Abort fences late completions; join outstanding work and close host
+handles before `deinit`. Encoding retains bounded high-water storage for reuse.
+
+[`transit-sql-host`](../transit-sql-host/README.md) supplies execution, transport
+and current rights; accepted writes belong to its database runtime. UPDATE returns
+changed rows by default and matched rows with negotiated `CLIENT_FOUND_ROWS`.
+Reads request at most 32 rows per disclosure. Protected metadata, rows and terminal
+output carry an authority guard. After parking, the host must recheck current
+rights immediately before writing buffered bytes, including an empty result or
+completion. A resumed write reply observes its original accepted outcome without
+executing the SQL again. Immediate output from one bounded batch shares a check.
+
+The host retains authentication and TLS orchestration. Full-password requests
+require TLS; explicit loopback trust uses the same native admission without a
+password exchange. See the
+[gateway application](../../../apps/transit-sql-gateway/README.md) for policy.
 
 Build with `zig build test` or `zig build check` inside `nix develop`.

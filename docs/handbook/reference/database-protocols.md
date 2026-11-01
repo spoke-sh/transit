@@ -31,8 +31,11 @@ TLS negotiation failures never trigger an automatic downgrade. Remote exposure
 also requires explicit host, certificate and account configuration.
 
 Protocol decoding uses bounded caller-owned buffers and has no transport or SQL
-execution dependency. The shared SQL host owns TLS, deadlines, authenticated
-sessions and current authorization. Command buffers retain their high-water
+execution dependency. Authenticated PostgreSQL/MySQL command engines emit explicit
+execution and output requests, with bounded borrowed buffers and fenced
+completions. The shared SQL host owns TLS, deadlines, authentication and current
+authorization. Resuming buffered output rechecks rights; resuming a write reply
+observes its original outcome without replaying the statement. Command buffers retain their high-water
 capacity within the admitted session reserve; malformed lengths reject before
 body reads, and partial EOF cannot become another command or a completion.
 
