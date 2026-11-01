@@ -102,7 +102,7 @@ directory groups appends and settlements under one physical owner's guard;
 it contributes one write and requires one exact preparation. Acquired guards
 and prepared predecessors are kind-specific. Complete membership validation
 checks these neutral shapes, while the current decision journal and catalog
-still require executable Table participants. Non-Table shapes do not enable
+require executable Table or direct KV participants. Other shapes do not enable
 log pin acquisition, append reservations, common visibility or terminal transfer.
 
 `TransactionDecisionLog` records start with `TXDEC1` followed by two zero bytes,

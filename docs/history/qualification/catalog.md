@@ -43,7 +43,10 @@ site build. Fast checks (58) and contract checks (19) passed. Before the definit
 cutover, 37 filtered catalog transaction tests passed; the additional mixed
 Table/KV disk test passed separately with current-rights denial, private reads,
 commit/abort replacement and retained graph traversal. Those earlier component
-runs do not qualify the final definition's complete catalog suite.
+runs do not qualify the final definition's complete catalog suite. The subsequent
+current-definition full catalog run passed 197 tests in
+`/var/tmp/transit-m6-r5c-catalog-current.log`; it started before the separate
+signing fixture was added. The merged revision still requires clean qualification.
 
 The superseded clean core/storage runs for the neutral participant and named-KV
 branches were interrupted to consolidate qualification on the integrated
