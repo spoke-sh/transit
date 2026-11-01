@@ -19,11 +19,12 @@ import {
   HistoryControl,
   HistoricalSnapshot,
   HistoryCursor,
+  HistoryCoverageCursor,
   SnapshotOwner,
   SnapshotAcquisition,
   Snapshot,
   Uncertain,
-} from "./catalog.ts";
+} from "./catalog-api.ts";
 import {
   encodeType,
   decodeType,
@@ -1109,17 +1110,19 @@ test("historical coverage retains wide counts and scopes every continuation", as
     assert.equal(result.totalRows, maximum);
     assert.equal(result.definition?.rows, maximum);
     assert.deepEqual(result.definition?.columns[0]?.source, { physical: 1n });
+    const cursor = HistoryCoverageCursor.restore(result.next!.save());
+    assert.equal(cursor.save(), result.next!.save());
     await assert.rejects(
-      client.historicalCoverage(historicalSnapshot, 8n, "definitions", result.next),
+      client.historicalCoverage(historicalSnapshot, 8n, "definitions", cursor),
       TypeError,
     );
     await assert.rejects(
-      client.historicalCoverage(historicalSnapshot, 7n, "locations", result.next),
+      client.historicalCoverage(historicalSnapshot, 7n, "locations", cursor),
       TypeError,
     );
     assert.equal((await requests()).filter((item) => item.catalog?.history).length, 1);
     await assert.rejects(
-      client.historicalCoverage(historicalSnapshot, 7n, "definitions", result.next),
+      client.historicalCoverage(historicalSnapshot, 7n, "definitions", cursor),
       IncompatibleNative,
     );
   });
