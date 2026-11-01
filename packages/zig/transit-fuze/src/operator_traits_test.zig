@@ -202,3 +202,21 @@ test "analytical component helpers do not advertise production SQL support" {
     try testing.expectEqual(@as(usize, 2), supported.targets.len);
     try testing.expectEqual(@FieldType(f.Relational.Join, "kind").left, supported.join.?.kind);
 }
+
+test "standards ledger rejects public search and constant IN syntax despite component helpers" {
+    const schema: f.Types.Type = .{ .structure = &.{.{ .name = "text", .type = .utf8 }} };
+    const cases = .{
+        .{ "X007-PERFECT-HASH-IN", "SELECT text FROM docs WHERE text IN ('a', 'b')" },
+        .{ "X007-PERFECT-HASH-IN", "SELECT text FROM docs WHERE text NOT IN ('a', 'b')" },
+        .{ "X005-SEARCH-WAND", "SELECT text FROM docs WHERE MATCH(text, 'query')" },
+        .{ "X005-SEARCH-WAND", "SELECT text FROM docs WHERE text NEAR 'query'" },
+    };
+    inline for (cases) |case| {
+        try testing.expectEqual(StandardsLedger.StageState.rejected, StandardsLedger.findFeature(case[0]).?.states.parse);
+        if (f.TableSelect.compile(testing.allocator, case[1], "docs", schema, @splat(14), null)) |compiled| {
+            var owner = compiled;
+            owner.deinit();
+            return error.UnexpectedSyntaxAdmission;
+        } else |_| {}
+    }
+}

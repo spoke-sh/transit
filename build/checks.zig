@@ -219,6 +219,19 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     arrow_test.has_side_effects = true;
     arrow_test.stdio = .inherit;
     b.step("test-arrow", "Qualify finite IPC with an independent Arrow implementation").dependOn(&arrow_test.step);
+    const string_execution = b.addExecutable(.{ .name = "transit-string-execution-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/query/logical/string_execution.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
+    }) });
+    const string_oracle = b.addSystemCommand(&.{ "python3", "-B" });
+    string_oracle.addFileArg(b.path("tests/runner/launch.py"));
+    string_oracle.addFileArg(b.path("tests/query/logical/string_execution.py"));
+    string_oracle.addArtifactArg(string_execution);
+    string_oracle.has_side_effects = true;
+    string_oracle.stdio = .inherit;
+    b.step("test-string-execution", "Compare compact batches and encoded strings against an independent oracle").dependOn(&string_oracle.step);
     const sql_driver = b.addExecutable(.{ .name = "transit-sql-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/query/sql/sql_driver.zig"),
         .target = target,

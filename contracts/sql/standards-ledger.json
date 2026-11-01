@@ -597,8 +597,8 @@
       "id": "X004-GERMAN-STRING",
       "standard": "transit_extension_v1",
       "edition_clause": "FUZE_TYPES_V1 §GERMAN_STRING",
-      "title": "16B collation-prefixed GermanString vectors, comptime/frozen PerfectHash, and compressed-domain .dictionary/.fsst predicates",
-      "owner": "packages/zig/transit-fuze/src/GermanString.zig",
+      "title": "Lossless 16-byte string Batch lanes and encoded dictionary/FSST predicates",
+      "owner": "packages/zig/transit-fuze/src/StringVector.zig",
       "dependencies": [
         "E021-E051",
         "UCS_BASIC",
@@ -607,15 +607,17 @@
         "DICTIONARY",
         "FSST"
       ],
-      "deviations": "Inline <=12B collation weights; >12B payloads use generation-checked handles into 64B-padded StringArena.",
+      "deviations": "Existing finite string comparisons use lossless inline raw bytes through 12 bytes, cached collation prefixes for longer values, and explicit owned/borrowed Batch lifetimes. Dictionary predicates cache one outcome per physical code; binary/ASCII_CI FSST comparisons stream and validate all tokens. This adds no string wire ABI. Retained relational keys and end-to-end performance/recovery qualification remain separate work.",
       "corpus_sources": [
-        "contracts/sql/corpus/statements.json"
+        "tests/query/logical/string_execution.py",
+        "packages/zig/transit-fuze/src/query_collation_test.zig",
+        "packages/zig/transit-fuze/src/german_string_and_codecs_test.zig"
       ],
       "states": {
         "parse": "implemented",
         "lower": "implemented",
         "execute": "implemented",
-        "recover": "implemented",
+        "recover": "staged",
         "transport": "staged"
       }
     },
@@ -629,16 +631,16 @@
         "X004-GERMAN-STRING",
         "X002-VECTOR"
       ],
-      "deviations": "Intersects 256-doc posting blocks with .tdel and visibility Roaring bitmasks before scoring; enforces 5-state eager failure frontier.",
+      "deviations": "Search segment, scoring and hybrid helpers are component prototypes. Public search SQL admission, durable build/publication, reopenable posting artifacts, exact snapshot binding and installed result delivery are not implemented.",
       "corpus_sources": [
-        "contracts/sql/corpus/statements.json"
+        "packages/zig/transit-fuze/src/operator_traits_test.zig"
       ],
       "states": {
-        "parse": "implemented",
-        "lower": "implemented",
-        "execute": "implemented",
-        "recover": "implemented",
-        "transport": "staged"
+        "parse": "rejected",
+        "lower": "rejected",
+        "execute": "staged",
+        "recover": "rejected",
+        "transport": "rejected"
       }
     },
     {
@@ -717,7 +719,7 @@
       ],
       "deviations": "Component evaluator only; production predicates do not bind constant IN lists to this helper. A component lookup does not establish SQL parsing, execution or recovery.",
       "corpus_sources": [
-        "contracts/sql/corpus/statements.json"
+        "packages/zig/transit-fuze/src/operator_traits_test.zig"
       ],
       "states": {
         "parse": "rejected",
@@ -881,6 +883,6 @@
       }
     }
   ],
-  "sha256": "5b3f631cae0f96a7c8fd8a3dc6a3722df9a65f46f3c2cdbea80fcdb4b6ba405e",
+  "sha256": "ac2480f232dd147d3444dc37f69312c6657840f0951cecfc7d7db8a0f1ea5793",
   "scope": "States describe public runtime entry points, not helper availability or ISO conformance. Physical codecs describe typed TableSchema admission; ENCODING syntax remains reference-only. An implemented feature covers only the stated deviations and fixtures."
 }

@@ -246,6 +246,40 @@ does not remove Document, positional/substring, ANN or hybrid work from the
 milestone's scope. Each unsupported profile must remain explicit in capability
 evidence until its own gates pass.
 
+### First production strings increment
+
+The selected PR boundary is the first production strings increment in R0–R3.
+It does not complete Milestone 14 or qualify the later search components.
+
+| Package | Delivered in this increment | Explicit next boundary |
+| --- | --- | --- |
+| R0 | Corrected X004/X005/X007 stage claims; real compiler rejection controls; independent Python-to-Zig string execution with retained corpus/output/provenance | Ranking/fusion correspondence and end-to-end benchmark qualification accompany their production integration |
+| R1 | External SIMD reads bounded by slice length, including exact allocations and protected-page tails; existing SQL/LogDdl maps retained | Constant IN/NOT IN binding follows M12 expression admission; schema/page directories need bound-owner reuse and measured benefit |
+| R2 | Lossless 16-byte Batch string lanes, cached long-string prefixes, aligned arrays, owned/borrowed lifetimes, five-state sidecars and sealed allocation tests across 300 resets | Compact retained relational keys, partitions/spill and M13 page-lease integration remain separate operator work |
+| R3 | Production FSST streaming comparisons/prefixes, shared full validation and late projection; dictionary outcome caching without the prototype's 1,024-entry ceiling or rejection of equivalent spellings | Reuse encoded pages across atoms, additional pattern kernels and format-level packed directories need their own qualification |
+
+The old separate compressed-string evaluator and normalized-key materializer
+are removed. Production reads use `evaluateColumnPage` and
+`decodeColumnPageSelected`; normalized `GermanString` helper keys do not supply
+raw projections. Canonical values, saved plans and TCP1 bytes are unchanged.
+Malformed conflict details are rejected using the existing logical value rules;
+synthetic eager-failure fixtures now contain valid multi-alternative conflicts.
+
+The frozen test scope is UTF-8 values under UTF8_BINARY, ASCII_CI and CP037,
+six comparisons, all five states, dictionary/FSST pages and selected raw output.
+The runtime oracle exercises 222 cases / 4,758 rows. Resource controls cover
+64 KiB Batch reservations with zero backing attempts after warmup, short inline
+payloads without arena growth, and a real TSeg predicate over a 16 KiB value
+within a 4 KiB decoded-work budget. Projection has its own charged decode budget.
+These are deterministic resource/correctness controls, not throughput or latency
+qualification. No new end-to-end performance improvement is claimed.
+
+R4–R9 remain explicitly open: durable search admission/build/publication and
+reopenable postings, exact vectorized lexical/proximity execution, retained-cut
+vector/hybrid composition, installed result delivery and final qualification.
+Their dependencies on M10 type admission, M11 lifecycle, M12 expressions,
+M13 resource control and M26 policy remain the gates described below.
+
 ### Source audit: reusable components and missing execution paths
 
 | Area | Reuse at the source basis | Remaining implementation boundary |
