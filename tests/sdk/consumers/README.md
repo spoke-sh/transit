@@ -5,6 +5,7 @@ plus the Python builder that connects them to a shared SDK schedule.
 
 | Language | Directory |
 | --- | --- |
+| Public Zig SDK performance | [zig/](zig/) |
 | Python | [python/](python/) |
 | TypeScript/Node | [node/](node/) |
 | Rust | [rust/](rust/) |

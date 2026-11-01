@@ -93,6 +93,20 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .link_libc = true,
     }) });
     b.step("mutation-latency-client", "Build the persistent public mutation caller control").dependOn(&b.addInstallArtifact(mutation_latency_client, .{}).step);
+    if (sdk) |public_sdk| {
+        const sdk_performance = b.addExecutable(.{ .name = "transit-sdk-performance", .root_module = b.createModule(.{
+            .root_source_file = b.path("tests/sdk/consumers/zig/performance.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "transit_data_client", .module = public_sdk.module("transit_data_client") },
+                .{ .name = "transit_catalog", .module = public_sdk.module("transit_catalog") },
+                .{ .name = "transit_query_direct", .module = public_sdk.module("transit_query_direct") },
+            },
+            .link_libc = true,
+        }) });
+        b.step("sdk-performance-client", "Build the public Zig SDK performance consumer").dependOn(&b.addInstallArtifact(sdk_performance, .{}).step);
+    }
     const cli_support = b.createModule(.{
         .root_source_file = b.path("apps/transit-cli/Support.zig"),
         .target = target,

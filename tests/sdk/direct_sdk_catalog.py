@@ -16,8 +16,8 @@ from sdk.sdk_unified import Consumer
 
 
 
-def exercise(wheels, root, authority, service, profile, restart, policy):
-    target = root / 'installed-python'
+def install_python(wheels, target):
+    """Install the exact packaged Catalog/Query SDK for proofs and benchmarks."""
     target.mkdir()
     packages = target / 'wheels'
     packages.mkdir()
@@ -39,6 +39,12 @@ def exercise(wheels, root, authority, service, profile, restart, policy):
     python = str(venv / 'bin/python')
     subprocess.run([sys.executable, '-m', 'pip', '--python', python, 'install', '--no-index', '--find-links', str(packages), 'transit-station==0.0.1'],
                    env=env, check=True, stdout=subprocess.DEVNULL)
+    return python, env, artifacts
+
+
+def exercise(wheels, root, authority, service, profile, restart, policy):
+    target = root / 'installed-python'
+    python, env, _ = install_python(wheels, target)
     script = target / 'consumer.py'
     shutil.copy2(ROOT / 'tests/sdk/consumers/python/python_catalog_sdk.py', script)
     for test in ('python_catalog_values.py', 'python_relational_values.py'):
@@ -89,8 +95,8 @@ def schedule(target, modes, connect, restart, policy, *, retained_sql=True):
         finally: consumer.close()
 
 
-def exercise_node(packages, root, authority, service, profile, restart, policy):
-    target = root / 'installed-node'
+def install_node(packages, target):
+    """Install the exact packaged Catalog/Query SDK for proofs and benchmarks."""
     target.mkdir()
     copies = target / 'packages'
     copies.mkdir()
@@ -110,6 +116,12 @@ def exercise_node(packages, root, authority, service, profile, restart, policy):
     (target / 'package.json').write_text(json.dumps(dict(private=True, type='module', packageManager=manager, dependencies=dependencies, pnpm=dict(overrides=dependencies))))
     env = {k: v for k, v in os.environ.items() if k not in ('NODE_PATH', 'TRANSIT_HOST', 'TRANSIT_LIBRARY_DIR')}
     subprocess.run(['vp', 'env', 'exec', '--package-manager', manager, 'pnpm', 'install', '--prefer-offline', '--ignore-scripts'], cwd=target, env=env, check=True, stdout=subprocess.DEVNULL)
+    return env, artifacts
+
+
+def exercise_node(packages, root, authority, service, profile, restart, policy):
+    target = root / 'installed-node'
+    env, _ = install_node(packages, target)
     script = target / 'consumer.mjs'
     shutil.copy2(ROOT / 'tests/sdk/consumers/node/node_catalog_sdk.mjs', script)
     seed = target / 'caller.seed'

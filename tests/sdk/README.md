@@ -10,6 +10,7 @@ beside their implementation in [sdks/](../../sdks/README.md).
 | Raw clients and incompatible native definitions | [Shared schedule](sdk_raw_client.py), [ABI](client_abi.py), [recovery](client_abi_growing.py), [port host](client_host.py) |
 | Station callbacks, saved work and lifetime ownership | [Station schedule](sdk_station_runner.py), [native growth](station_growing_abi.py), [query failures](sdk_query_failures.py) |
 | Installed language programs and their builders | [Consumer directory](consumers/README.md) |
+| Installed SDK performance | [Catalog/Query matrix and verified timing reports](../performance/sdk/README.md) |
 | Focused installed feedback | [feedback.py](feedback.py), [failure/isolation controls](test_feedback.py), `just bindings::feedback LANGUAGE --scope raw` |
 | Shared schedules' explicit language dispatch | [Consumer registry](consumer_registry.py) |
 | Query and direct catalog callers | [Unified consumers](sdk_unified.py), [catalog consumers](direct_sdk_catalog.py), [relational consumers](sdk_relational.py) |
