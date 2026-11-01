@@ -719,8 +719,10 @@ The implementation performs the coordinated current-v1 cutover to
 `b8b54b17dfbab67a11e6e48a011d7cb0337ccaaf4f643944d7aaf251c810269c`,
 regenerates reflected resources and independent signing fixtures, and rejects
 foreign definitions. `just check contracts`, `just check fast`, formatting and
-diagnostic mappings pass. Committed-source dependent CI qualification remains
-separate from these focused results.
+diagnostic mappings pass. The [qualification record](../history/qualification/catalog.md#immutable-single-table-branches--2026-10-31)
+records committed-source component, service and SDK results alongside the failed
+and incomplete core, storage-growth, browser, SQL-session and installation
+attempts.
 
 R1/R2 remain open for complete branch histories and whole-catalog cuts. R3 still
 requires writable isolation, published deletion and concurrent lifetime/GC races;
