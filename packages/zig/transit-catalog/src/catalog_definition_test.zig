@@ -145,4 +145,20 @@ test "catalog descriptor independent signed request and canonical artifact prese
     const layout = value.value.body.foreign;
     try t.expectEqual(@as(i128, -123), (try A.decodeField(decoded.schema.columns[0], layout.fields[0], layout.malformed, bytes[0..2], &utf8)).value.atom.signed);
     try t.expectEqual(.type_error, std.meta.activeTag(try A.decodeField(decoded.schema.columns[0], layout.fields[0], layout.malformed, bytes[2..4], &utf8)));
+
+    // A refusal still discloses a recorded predecessor. A malformed or foreign
+    // predecessor must reject even when no successor definition was accepted.
+    var binding = value.request.action.descriptor.declaration.request.binding;
+    binding.action = .alter;
+    binding.expected_definition = stored.interpretation;
+    var outcome: c.DirectDefinition.Operation = .{ .binding = binding, .intent = stored.content, .kind = stored.kind, .namespace = stored.properties.namespace, .name = stored.properties.name, .position = .{ .partition = 1, .next_lsn = 1 }, .phase = .rejected, .reason = .stale_definition, .previous = stored, .resulting = null };
+    try outcome.validate();
+    outcome.previous.?.next_column = 0;
+    try t.expectError(error.InvalidCatalogDescriptor, outcome.validate());
+    outcome.previous = stored;
+    outcome.phase = .cancelled;
+    outcome.reason = .none;
+    try outcome.validate();
+    outcome.previous.?.interpretation.object.object += 1;
+    try t.expectError(error.InvalidCatalogDescriptor, outcome.validate());
 }

@@ -91,8 +91,13 @@ pub const Operation = struct {
         try self.binding.validate();
         try self.intent.validate();
         try self.position.validate();
+        try c.Model.nativeId(self.namespace);
         try self.name.validate();
         if (self.position.next_lsn == 0 or (self.phase == .rejected) != (self.reason != .none) or (self.phase == .applied) != (self.resulting != null)) return error.InvalidCatalogDescriptor;
+        if (self.previous) |value| {
+            try value.validate();
+            if (!std.meta.eql(value.interpretation.object, self.binding.target)) return error.InvalidCatalogDescriptor;
+        }
         if (self.resulting) |value| {
             try value.validate();
             if (!std.meta.eql(value.interpretation.object, self.binding.target) or value.kind != self.kind or value.properties.namespace != self.namespace or !std.meta.eql(value.properties.name, self.name) or value.retired != (self.binding.action == .drop)) return error.InvalidCatalogDescriptor;

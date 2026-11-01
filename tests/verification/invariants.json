@@ -2655,6 +2655,112 @@
       "limits": "Local disk and independent HTTP provider peers; no live provider consent or AWS deployment proof.",
       "qualification": "See docs/history/qualification/README.md for executed evidence; registration is not a pass.",
       "model": null
+    },
+    {
+      "id": "COLLATION-RUNTIME-01",
+      "claim": "Admitted EBCDIC comparison, equality hashing, sort keys, prefixes and encoded filtering preserve the declared PAD or NO PAD semantics",
+      "owner": "contracts/FUZE_TYPES_V1.md",
+      "implementation": [
+        "packages/zig/transit-fuze/src/Collation.zig",
+        "packages/zig/transit-fuze/src/query_collation_test.zig",
+        "packages/zig/transit-fuze/src/perfect_hash_and_oracle_test.zig",
+        "tests/storage/tables/direct_table_service.py"
+      ],
+      "profile": "CP037 NO PAD, CP037 PAD SPACE and CP1047 NO PAD over the admitted Unicode repertoires",
+      "tasks": [
+        "check::native",
+        "test::direct-table-service"
+      ],
+      "scenarios": [
+        "Independent code-page bytes, control characters and trailing spaces agree with comparator, key and hash results",
+        "Equal four-byte prefixes fall back to full comparison; zone maps and dictionary/FSST masks agree with full scans",
+        "Malformed foreign codec values and corrupt stored bytes retain different failure paths"
+      ],
+      "limits": "Connects concrete A2/A5 cases to runtime owners. The separate CollationOrder Lean specification assumes an order; these finite byte oracles are not a proof of Zig refinement, arbitrary Unicode/ICU or every codec.",
+      "model": null,
+      "qualification": "Executed outcomes and source attribution belong in docs/history/qualification/README.md and its domain records. This registration is not a passing result."
+    },
+    {
+      "id": "TABLE-INTEGRITY-01",
+      "claim": "Accepted Table schemas retain CHECK and staged foreign-key identities, and new invalid CHECK rows cannot become an accepted atomic prefix",
+      "owner": "contracts/TABLE_SCHEMA_V1.md",
+      "implementation": [
+        "packages/zig/transit-fuze/src/table_constraints_test.zig",
+        "packages/zig/transit-storage/src/TablePartition.zig",
+        "packages/zig/transit-catalog/src/DirectCatalog.zig",
+        "packages/zig/transit-catalog/src/direct_catalog_test.zig"
+      ],
+      "profile": "Bounded deterministic CHECK expressions and explicit NOT VALID foreign-key declarations over exact stable column and parent identities",
+      "tasks": [
+        "check::native",
+        "test::catalog",
+        "test::sql-sessions"
+      ],
+      "scenarios": [
+        "Defaults precede CHECK; TRUE/NULL differ from FALSE/missing/type_error/conflict",
+        "Point, bulk and private transaction candidates reject invalid rows without a successful prefix",
+        "Lost DDL replies recover original dependency protection and cleanup; rename preserves identity and incompatible DROP remains blocked",
+        "Lazy projection preserves frozen ADD defaults while physical rewrites and index-backed FK enforcement remain refused"
+      ],
+      "limits": "A1 expression and T8 evolution cases are exercised through concrete owners. This does not implement the proposed combined DDL/dataflow model, validate all preexisting rows implicitly or enforce staged foreign keys.",
+      "model": null,
+      "qualification": "Executed outcomes and source attribution belong in docs/history/qualification/README.md and its domain records. This registration is not a passing result."
+    },
+    {
+      "id": "CATALOG-HISTORY-01",
+      "claim": "A published historical catalog retains its exact selected interpretation and data cuts through later naming changes and recovery, subject to current disclosure rights",
+      "owner": "contracts/HISTORICAL_CATALOG_V1.md",
+      "implementation": [
+        "packages/zig/transit-catalog/src/DirectHistory.zig",
+        "packages/zig/transit-catalog/src/DirectCatalog.zig",
+        "packages/zig/transit-catalog/src/DirectStorageGraph.zig",
+        "tests/interfaces/sql_sessions/history.py"
+      ],
+      "profile": "One fenced local catalog, bounded selected Table cuts and metadata definitions; independent vectors or an explicitly transferred Table transaction cut",
+      "tasks": [
+        "test::catalog",
+        "test::sql-sessions",
+        "test::sql-wire-gateway"
+      ],
+      "scenarios": [
+        "Original acquisition and common-cut pin transfer survive lost replies, cleanup, rename, DROP and name reuse",
+        "Metadata-only selections publish with zero Table pins and explicit independent consistency",
+        "Checkpoint, collection and reopen preserve reachable source/schema/artifact roots; released or missing evidence cannot return empty success",
+        "Prepared and captured SQL retain exact selectors and projection targets; metadata and buffered row disclosure recheck current rights",
+        "History pages exceed resident caches and preserve cursor identity, complete coverage and original release ownership"
+      ],
+      "limits": "Selected disk histories and installed native/PostgreSQL/MySQL callers. No wall-clock selector, whole-catalog branch, common-cut metadata descriptor closure, host power-loss proof or automatic replay of a formal model.",
+      "model": null,
+      "qualification": "Executed outcomes and source attribution belong in docs/history/qualification/README.md and its domain records. This registration is not a passing result."
+    },
+    {
+      "id": "CATALOG-DEFINITION-01",
+      "claim": "Versioned interpretation publication atomically binds names, exact dependencies and the original outcome, and historical view expansion uses the retained typed plan",
+      "owner": "contracts/CATALOG_DEFINITIONS_V1.md",
+      "implementation": [
+        "packages/zig/transit-catalog/src/CatalogDefinition.zig",
+        "packages/zig/transit-catalog/src/DirectDefinition.zig",
+        "packages/zig/transit-catalog/src/DirectCatalogDefinitions.zig",
+        "packages/zig/transit-query-direct/src/DirectView.zig",
+        "tests/interfaces/installation/board_workbench.py"
+      ],
+      "profile": "Single-Table projection/filter views, typed property-graph mappings and fixed-record foreign descriptors with captured input identities",
+      "tasks": [
+        "test::catalog",
+        "test::sql-sessions",
+        "transit-board::workbench-test",
+        "transit-board::workbench-browser"
+      ],
+      "scenarios": [
+        "Lost publication replies recover the original accepted revision; replacement transfers dependency protection atomically",
+        "Removed output and graph mapping identities cannot be reused; retained definitions survive source/name reuse",
+        "Foreign decoder replacement and collection preserve the original verified captured bytes without refetching provenance URIs",
+        "View filtering precedes outer fallible expressions and can skip input pages without invalidating borrowed rows; independent view/source checks consume the request budget",
+        "Read-only Board pages retain exact wide identities and clear denied observations without executing SQL or acquiring history"
+      ],
+      "limits": "Graph traversal, general foreign scans, nested or aggregate view definitions and automatic computation activation are outside this profile. Registration alone and component passes do not establish installed qualification.",
+      "model": null,
+      "qualification": "Executed outcomes and source attribution belong in docs/history/qualification/README.md and its domain records. This registration is not a passing result."
     }
   ]
 }

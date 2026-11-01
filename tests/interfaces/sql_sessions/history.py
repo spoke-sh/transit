@@ -248,7 +248,9 @@ def historical_views(root, port, postgres, mysql_options, restart, catalog, faul
     client.call(dict(fetch=dict(cursor=buffered['cursor'], batch=buffered['batch']+1)), error='SqlResultIncomplete')
     dropped = catalog('definition-drop', 900063, 'retained_view')
     assert dropped['phase'] == 'applied', dropped
-    command(client, 'DROP TABLE view_source')
+    command(client, 'ALTER TABLE view_source RENAME TO view_source_moved')
+    assert rows(client, query) == (expected, basis)
+    command(client, 'DROP TABLE view_source_moved')
     command(client, 'CREATE TABLE retained_view (original_amount INT64)')
     command(client, 'INSERT INTO retained_view VALUES (999)')
     client.close()
@@ -271,7 +273,7 @@ def historical_views(root, port, postgres, mysql_options, restart, catalog, faul
     print(json.dumps(dict(profile='installed_historical_views', source=provenance(ROOT),
                           accepted_typed_expansion=True, frozen_replacement=True,
                           parameterized_outer_filter=True, aggregate=True,
-                          current_name_reuse=True, gateway_restart=True,
+                          current_name_reuse=True, upstream_rename=True, gateway_restart=True,
                           retained_metadata=True, buffered_revocation=True,
                           skipped_input_pages=True, empty_result=True,
                           postgres_mysql_prepared=True, explicit_release=True)), flush=True)
