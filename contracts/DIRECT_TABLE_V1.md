@@ -126,7 +126,8 @@ owner. External records fix their connection, namespace, operation and immutable
 
 A transaction reference fixes the connection, selected namespace and
 `Transaction.Begin` descriptor. Initial acceptance checks the exact Catalog
-observation, the complete paged selection of read-only Table/KV descriptors and
+observation, the complete paged selection of read-only Table/KV and partitioned
+Stream/Queue descriptors and
 configured limits. Admission accepts `explicit_objects`; it rejects the neutral
 `authorized_catalog_tables` variant until server-owned catalog discovery supplies
 that selection. Caller-supplied membership cannot certify complete authorized
@@ -145,7 +146,9 @@ The typed `transaction.begin` control accepts an ordered array of exact
 requested participant limit. Each target includes the scoped object, kind and
 an explicit nullable logical partition ordinal. Duplicate or unordered targets,
 mixed kinds for one object and foreign scopes reject. Table and direct KV targets
-execute in the current profile; other kinds reject before token admission. Server-owned
+support private mutations. Stream/Queue targets participate as retained read
+dependencies with explicit partition ordinals; log actions cannot be staged by
+these transaction controls. Document targets reject before token admission. Server-owned
 `authorized_catalog_tables` discovery remains restricted to accessible Tables.
 
 `DirectCatalog.Options.transaction_limits` caps each requested limit: defaults
@@ -179,8 +182,18 @@ the cut position must equal the acquisition progress revision and follow begin
 admission in that same catalog partition. Later workspace records preserve this
 original acquisition position separately from their current progress revision.
 No signed acquisition operation is exposed by this record format. The embedding
-host must hold the catalog/Table publication fence,
+host must hold the catalog and all selected data owners' publication fence,
 and the owner checks each selected kind's current READ rights under the publication policy epoch.
+Each Stream/Queue source retains its original log root through a live
+transaction pin. Incomplete acquisition reuses original pins only while their
+definitions and logical frontiers remain unchanged; it cannot cross another
+transaction's preparation barrier. A published cut retains its original basis
+after later writes. Serializable completion revalidates every selected log
+frontier; read-only completion can use the old cut. Cleanup releases those pins
+through control capacity and preserves the original decision after lost replies.
+`DirectCatalog.Options.logs` supplies the same bounded Stream/Queue owner
+profiles used for standalone data operations. One temporary owner at a time,
+including recovery and its caches, is charged to the transaction's resident limit.
 This format is reserved: generic `record.stage` and `record.read` reject it with
 `TransactionOperationRequired`. CONNECT-only caller-record access cannot disclose
 server-owned cut evidence after a participant's read rights have been revoked.
@@ -336,7 +349,8 @@ INSPECT (metadata and receipts), READ (values and retained reads), WRITE (batch
 mutations), and ownership (rename/DROP). CREATE requires namespace CREATE and
 owner eligibility. Dependency registration uses KV source privileges and
 separate dependent metadata authority. Transaction begin accepts explicit Table
-and direct KV participants. Stream/Queue participation remains unavailable.
+and direct KV participants, plus Stream/Queue partitions as read dependencies.
+Transactional log mutations remain unavailable through this interface.
 
 A KV `get` may carry the envelope's original transaction context with an exact
 active revision and no retained `source`. It reads the private workspace and

@@ -158,7 +158,7 @@ fn executeStream(raw: *anyopaque, output: std.mem.Allocator, catalog: *D, policy
     var secret: [32]u8 = undefined;
     defer std.crypto.secureZero(u8, &secret);
     std.crypto.auth.hmac.sha2.HmacSha256.create(&secret, "transit.catalog.stream.cursor.v1\x00", &seed);
-    return c.DirectStream.apply(scratch.allocator(), output, catalog, slot, .{}, .{
+    return c.DirectStream.apply(scratch.allocator(), output, catalog, slot, catalog.options.logs.stream, .{
         .authority = .{ .secret = secret },
         .clock = if (self.engine.clock != null) .{ .context = self, .read = streamTime } else null,
         .waiting = self.waiting,
@@ -177,7 +177,7 @@ fn executeQueue(raw: *anyopaque, output: std.mem.Allocator, catalog: *D, policy:
     var temporary: ?c.DirectQueue.Cached = null;
     defer if (temporary) |*cached| cached.deinit();
     const slot = if (self.resident) |resident| &resident.queue else &temporary;
-    return c.DirectQueue.apply(scratch.allocator(), output, catalog, slot, .{}, .{
+    return c.DirectQueue.apply(scratch.allocator(), output, catalog, slot, catalog.options.logs.queue, .{
         .waiting = self.waiting,
         .clock = if (self.engine.clock != null) .{ .context = self, .read = streamTime } else null,
     }, request, policy);

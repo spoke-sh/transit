@@ -151,6 +151,7 @@ pub const DirectTransactionWorkspace = @import("DirectTransactionWorkspace.zig")
 pub const DirectTransactionControl = @import("DirectTransactionControl.zig");
 pub const DirectTransactionRequest = @import("DirectTransactionRequest.zig");
 pub const DirectTransaction = @import("DirectTransaction.zig");
+pub const DirectTransactionLog = @import("DirectTransactionLog.zig");
 
 pub const DirectTransactionClient = @import("DirectTransactionClient.zig");
 

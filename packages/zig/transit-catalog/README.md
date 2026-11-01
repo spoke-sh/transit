@@ -33,7 +33,13 @@ row identities, byte budgets and exact cursor advance. The signed `queue` action
 and `DirectQueueClient` expose standalone operations through the native service.
 Saved work preserves the exact original mutation and payload commitment. The
 local node performs bounded automatic lease expiry through catalog maintenance.
-SQL, DLQ transfer and mixed transactions remain unavailable.
+SQL, DLQ transfer and transactional log mutations remain unavailable.
+
+Typed transactions can select Stream/Queue partitions as read dependencies
+alongside Table/KV state. The common cut retains original log pins, checks
+current READ rights and validates logical frontiers for serializable completion.
+Read-only completion preserves its old cut after later writes. Transactional
+log mutations are not exposed by these controls.
 
 `DirectStreamResponse` validates exact operation attribution, pinned schemas,
 ordered row identities, byte budgets and finite coverage. Pages carry the

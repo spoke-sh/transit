@@ -501,7 +501,7 @@ this same original-token owner for reservations and recovery. Tokens retain
 Table DDL/DML, namespace, conditional name, external-owner and transaction begin
 references. Transaction admission atomically reserves a coordination partition
 with its token receipt; it establishes no acquired snapshot or commit decision.
-Its explicit Table selection is paged and its ceilings come from
+Its explicit Table/KV and Stream/Queue partition selection is paged and its ceilings come from
 `Options.transaction_limits`. Caller-built token bindings accept explicit selections only.
 The signed `transaction.begin` operation also supports `authorized_catalog_tables`: it
 walks the catalog and freezes every currently SELECT-authorized direct Table under
@@ -510,28 +510,29 @@ Generic progress updates reject these entries; only their transaction owner can
 replace recovery records or request settlement.
 
 The component operation `DirectCatalog.acquireTransaction` acquires and records
-the selected Tables' common cut. Its embedding host must exclude all catalog and
-Table publication, including common transaction decisions, for the whole call.
-It walks bounded directory pages and opens one Table at a time. Every pin belongs
+the selected objects' common cut. Its embedding host must exclude all catalog and
+selected data-owner publication, including common transaction decisions, for the whole call.
+It walks bounded directory pages and opens one owner at a time. Every pin belongs
 to the original begin identity. After an interrupted acquisition, it reuses the
 original pins and requires their interpretations and logical versions to match
-the current Tables; physical pin/flush bookkeeping may advance. A mismatch
+the current owners; physical pin/flush bookkeeping may advance. A mismatch
 returns `TransactionConflict` without replacing a pin or publishing a partial cut.
 
 All participant checks and the catalog publication guard must observe one writer
 and policy epoch. This avoids retaining an authorization requirement array
-proportional to the Table count or recursively acquiring authority locks. A
+proportional to participant count or recursively acquiring authority locks. A
 changed epoch refuses publication. Once acquired, repeated observations retain
 the original cut despite later data or schema changes and recheck current access
-to every selected Table. A lost final reply recovers the original catalog record.
+to every selected object. A lost final reply recovers the original catalog record.
 
 The acquired record retains its paged source directory through the catalog graph;
-the Table pin owners retain the data itself. Each source guard records logical
+the Table and log pin owners retain the data itself. Each source guard records logical
 conflict frontiers; it does not promise contiguous historical WAL coverage.
-Temporary directories, one Table
+Temporary directories, one data
 owner and decoding work share the admitted resident-byte limit. Transaction
 operations neither borrow nor retain the ordinary Table-owner cache: their
-Table allocations are released before the temporary budget ends. Catalog caches,
+participant allocations are released before the temporary budget ends. `Options.logs`
+supplies the same Stream/Queue owner profiles as standalone data operations. Catalog caches,
 provider buffers and fixed stack buffers have separate owners. Deployment-wide
 capacity uses the node request budgets and per-account reservations. The signed
 `transaction.acquire` operation takes the host database lock for the complete
@@ -599,7 +600,8 @@ from completed cleanup. Explicit abort also handles a pending private statement
 or interrupted cut acquisition; session loss does not request abort. Once abort
 is durably requested, subsequent retries preserve that request until settlement.
 
-Cleanup resolves owned Table barriers and releases original begin pins. It can
+Cleanup resolves owned Table/KV barriers and releases original state and log
+begin pins. It can
 resume after any lost reply. An unrelated transaction's barrier defers pin cleanup;
 it is never cleared on this transaction's behalf. Original outcomes and claims
 remain retained after reservations are released. The storage graph retains active
