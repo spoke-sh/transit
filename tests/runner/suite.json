@@ -63,6 +63,7 @@
       "test::direct-table-service",
       "test::direct-kv",
       "test::direct-state-transaction",
+      "test::direct-mixed-transaction",
       "test::direct-table-maintenance",
       "test::direct-catalog-abi",
       "test::node-concurrency",
