@@ -2,7 +2,7 @@
 import json
 import os
 from interfaces.sql_sessions.native import Client
-from interfaces.sql_sessions.storage import text
+from interfaces.sql_sessions.storage import text, unsigned
 
 
 def run(root, port, postgres, mysql_options, restart, authorize):
@@ -64,6 +64,7 @@ def run(root, port, postgres, mysql_options, restart, authorize):
     completed("CREATE QUEUE sql_work (entity BIGINT NOT NULL, payload TEXT) PARTITION BY HASH (entity) PARTITIONS 2 WITH (mode='key_fifo', lease_duration='5s', dead_letter_queue='sql_failed')", 'create_queue')
     shown = first.execute('SHOW QUEUE sql_work')['batch']
     policy = json.loads(text(shown['rows'][0][3]))
+    assert unsigned(shown['rows'][0][2]) == 2
     assert policy['partitioning']['count'] == 2 and policy['policy']['queue']['ordering'] == 'key_fifo'
     assert policy['retention']['max_age_ms'] is None
     assert policy['policy']['queue']['dead_letter'] == destination_definition
@@ -139,7 +140,9 @@ def run(root, port, postgres, mysql_options, restart, authorize):
             cursor.execute('CREATE STREAM pg_events (value BIGINT)')
             assert cursor.statusmessage == 'CREATE STREAM'
             cursor.execute('SHOW STREAM pg_events')
-            assert len(cursor.fetchall()) == 1
+            published, = cursor.fetchall()
+            assert int(published[2]) == 1
+            assert json.loads(published[3])['partitioning']['count'] == 1
             cursor.execute('SHOW STREAMS')
             assert {row[0] for row in cursor.fetchall()} == expected | {'pg_events'}
             cursor.execute('DROP STREAM pg_events')
@@ -148,7 +151,8 @@ def run(root, port, postgres, mysql_options, restart, authorize):
         with wire.cursor() as cursor:
             cursor.execute('CREATE QUEUE `mysql_work` (value BIGINT)')
             cursor.execute('DESCRIBE QUEUE `mysql_work`')
-            assert len(cursor.fetchall()) == 1
+            column, = cursor.fetchall()
+            assert column[0] == 'value' and column[2] == 1 and column[3] == 0
             cursor.execute('SHOW QUEUES')
             assert {row[0] for row in cursor.fetchall()} == {'sql_work', 'sql_failed', 'mysql_work'}
             cursor.execute('DROP QUEUE `mysql_work`')
