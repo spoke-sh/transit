@@ -17,65 +17,9 @@ pub fn target(allocator: std.mem.Allocator, text: []const u8, dialect: f.Sql.Dia
     return (try header(&parser)).subject;
 }
 
-const Operand = union(enum) {
-    literal: struct { bytes: []const u8, offset: usize },
-    parameter: f.Sql.Parameter,
-    fn parse(parser: *Parser, parameters: *std.ArrayList(f.LogicalPrepared.Parameter)) !Operand {
-        if (try parser.parameter()) |site| {
-            try parameters.append(parser.allocator, .{ .site = site, .type = .utf8 });
-            return .{ .parameter = site };
-        }
-        const literal = try parser.literal(.utf8);
-        var failure: ?Parser.Literal.Span = null;
-        const cell = literal.bind(parser.allocator, .utf8, &failure) catch |err| {
-            if (parser.location) |location| location.* = .{ .offset = (failure orelse literal.span).start };
-            return err;
-        };
-        if (cell != .value or cell.value != .atom or cell.value.atom != .bytes) {
-            if (parser.location) |location| location.* = .{ .offset = literal.span.start };
-            return error.InvalidLogConsumeOperand;
-        }
-        return .{ .literal = .{ .bytes = cell.value.atom.bytes, .offset = literal.span.start } };
-    }
-    fn bind(self: Operand, values: []const ?Atom) ![]const u8 {
-        return switch (self) {
-            .literal => |value| value.bytes,
-            .parameter => |site| (values[site.index - 1] orelse return error.NullWorkloadParameter).bytes,
-        };
-    }
-    fn at(self: Operand, diagnostic: ?*f.Sql.Binding) void {
-        const detail = diagnostic orelse return;
-        switch (self) {
-            .literal => |value| detail.location = .{ .offset = value.offset },
-            .parameter => |site| {
-                detail.location = .{ .offset = site.offset };
-                detail.parameter = site.index;
-                detail.parameter_sites[0] = site.offset;
-                detail.expected = "utf8";
-            },
-        }
-    }
-};
-fn field(schema: f.TableSchema.Schema, qualifier: []const u8, reference: Reference, location: ?*f.Sql.Location) !Field {
-    if (reference.qualifier == null) {
-        if (std.mem.eql(u8, reference.name, "_partition")) return .partition;
-        if (std.mem.eql(u8, reference.name, "_offset")) return .offset;
-    }
-    return .{ .column = schema.columns[try reference.resolve(qualifier, schema.columns, location)].id };
-}
-fn add(fields: *std.ArrayList(Field), allocator: std.mem.Allocator, value: Field) !void {
-    for (fields.items) |existing| if (std.meta.eql(existing, value)) return;
-    if (fields.items.len == f.TableSchema.max_columns) return error.InvalidProjection;
-    try fields.append(allocator, value);
-}
-fn waitDuration(value: []const u8) !u32 {
-    var end: usize = 0;
-    while (end < value.len and std.ascii.isDigit(value[end])) : (end += 1) {}
-    const multiplier = f.PerfectHash.ComptimeMap(u64, true, .{ .{ "ms", 1 }, .{ "s", 1000 }, .{ "m", 60000 } }).get(value[end..]) orelse return error.InvalidLogWait;
-    const number = std.fmt.parseInt(u64, value[0..end], 10) catch return error.InvalidLogWait;
-    if (number == 0) return error.InvalidLogWait;
-    return std.math.cast(u32, std.math.mul(u64, number, multiplier) catch return error.InvalidLogWait) orelse error.InvalidLogWait;
-}
+const Shared = @import("LogReadSql.zig");
+const Operand = Shared.Operand;
+const waitDuration = Shared.waitDuration;
 
 pub const Prepared = struct {
     template: f.LogicalPrepared,
@@ -94,7 +38,7 @@ pub const Prepared = struct {
         var parser = try Parser.initDialect(a, try a.dupe(u8, text), location, true, dialect);
         var syntax = try header(&parser);
         var parameters: std.ArrayList(f.LogicalPrepared.Parameter) = .empty;
-        const group = if (try parser.takeWord("GROUP")) try Operand.parse(&parser, &parameters) else null;
+        const group = if (try parser.takeWord("GROUP")) try Operand.parse(&parser, &parameters, error.InvalidLogConsumeOperand) else null;
         if (try parser.takeWord("WHERE")) syntax.predicate = try Predicate.syntax(&parser, null, syntax.qualifier, error.UnsupportedConstruct);
         if (try parser.takeWord("LIMIT")) {
             if (try parser.parameter()) |site| {
@@ -105,29 +49,10 @@ pub const Prepared = struct {
                 try parser.advance();
             }
         }
-        const wait = if (try parser.takeWord("WAIT")) try Operand.parse(&parser, &parameters) else null;
+        const wait = if (try parser.takeWord("WAIT")) try Operand.parse(&parser, &parameters, error.InvalidLogConsumeOperand) else null;
         try parser.finish();
-        var fields: std.ArrayList(Field) = .empty;
-        if (syntax.selection.star) {
-            // Predicate-only metadata belongs to the input layout, never to
-            // application-column star expansion. Freeze that expansion first.
-            syntax.selection.star = false;
-            syntax.selection.count = owned.schema.columns.len;
-            for (owned.schema.columns, 0..) |column, i| {
-                try add(&fields, a, .{ .column = column.id });
-                syntax.selection.items[i] = .{ .column = .{
-                    .name = try a.dupe(u8, column.name),
-                    .span = syntax.subject.span,
-                    .qualifier = syntax.qualifier,
-                }, .alias = null };
-            }
-        } else for (syntax.selection.items[0..syntax.selection.count]) |item| try add(&fields, a, try field(owned.schema, syntax.qualifier, item.column, location));
-        if (syntax.predicate) |predicate| for (predicate.instructions) |instruction| {
-            if (instruction == .atom) switch (instruction.atom) {
-                inline else => |atom| try add(&fields, a, try field(owned.schema, syntax.qualifier, atom.column, location)),
-            };
-        };
-        const input = try f.WorkloadProjection.schemaLayout(owned.schema, fields.items, .rows);
+        const fields = try Shared.input(a, owned.schema, &syntax, location, .stream);
+        const input = try f.WorkloadProjection.schemaLayout(owned.schema, fields, .rows);
         var diagnostic: f.Sql.Binding = .{};
         const template = f.LogicalPrepared.adoptSyntax(allocator, &arena, syntax, syntax.subject.name, input.typeOf(), try owned.schema.fingerprint(), parameters.items, &diagnostic) catch |err| {
             if (location) |at| {
@@ -135,7 +60,7 @@ pub const Prepared = struct {
             }
             return err;
         };
-        return .{ .template = template, .schema = owned, .fields = fields.items, .group = group, .wait = wait };
+        return .{ .template = template, .schema = owned, .fields = fields, .group = group, .wait = wait };
     }
     pub fn deinit(self: *Prepared) void {
         self.template.deinit();

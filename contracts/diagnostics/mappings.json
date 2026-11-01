@@ -17,7 +17,9 @@
         "packages/zig/transit-fuze/src/RelationalSql.zig",
         "packages/zig/transit-fuze/src/AuthorizationSql.zig",
         "packages/zig/transit-fuze/src/LogAppendSql.zig",
-        "packages/zig/transit-fuze/src/LogConsumeSql.zig"
+        "packages/zig/transit-fuze/src/LogConsumeSql.zig",
+        "packages/zig/transit-fuze/src/LogClaimSql.zig",
+        "packages/zig/transit-fuze/src/LogReadSql.zig"
       ],
       "exclude": [
         "packages/zig/transit-fuze/src/SqlCodes.zig",
@@ -797,6 +799,22 @@
         },
         "InvalidLogWait": {
           "code": "sql.invalid_log_wait",
+          "category": "binding"
+        },
+        "InvalidLogClaimMaximum": {
+          "code": "sql.invalid_log_claim_maximum",
+          "category": "binding"
+        },
+        "InvalidLogClaimOperand": {
+          "code": "sql.invalid_log_claim_operand",
+          "category": "binding"
+        },
+        "InvalidLogClaimPredicate": {
+          "code": "sql.invalid_log_claim_predicate",
+          "category": "binding"
+        },
+        "InvalidLogLeaseDuration": {
+          "code": "sql.invalid_log_lease_duration",
           "category": "binding"
         }
       }

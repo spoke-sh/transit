@@ -7,6 +7,10 @@ pub const Entry = struct {
     hint: ?[]const u8 = null,
 };
 pub const entries = [_]Entry{
+    .{ .cause = error.InvalidLogClaimOperand, .code = "sql.invalid_log_claim_operand", .category = .binding, .summary = "Claim metadata requires a non-NULL text operand", .hint = "Supply positive lease and optional wait durations as text." },
+    .{ .cause = error.InvalidLogClaimMaximum, .code = "sql.invalid_log_claim_maximum", .category = .binding, .summary = "The acquisition maximum is outside its supported range", .hint = "Use a positive unsigned 32-bit LIMIT; the Queue's claim budget applies separately." },
+    .{ .cause = error.InvalidLogClaimPredicate, .code = "sql.invalid_log_claim_predicate", .category = .binding, .summary = "A claim predicate depends on generated lease metadata", .hint = "Select work using application fields or partition/offset metadata before acquiring a lease." },
+    .{ .cause = error.InvalidLogLeaseDuration, .code = "sql.invalid_log_lease_duration", .category = .binding, .summary = "The lease duration is invalid", .hint = "Use positive whole ms, s or m units within unsigned 64-bit milliseconds; the Queue's lease policy applies separately." },
     .{ .cause = error.InvalidLogConsumeOperand, .code = "sql.invalid_log_consume_operand", .category = .binding, .summary = "Consumption metadata requires a non-NULL text operand", .hint = "Supply a group name or a positive wait duration as text." },
     .{ .cause = error.InvalidLogGroupName, .code = "sql.invalid_log_group_name", .category = .binding, .summary = "The consumer-group name is empty", .hint = "Supply a nonempty group name; resolving its native identity requires the Catalog owner." },
     .{ .cause = error.InvalidLogWait, .code = "sql.invalid_log_wait", .category = .binding, .summary = "The wait duration is invalid", .hint = "Use positive whole ms, s or m units within unsigned 32-bit milliseconds; native wait limits apply separately." },

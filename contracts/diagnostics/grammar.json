@@ -71,6 +71,11 @@
       "source": "packages/zig/transit-fuze/src/LogConsumeSql.zig",
       "contract": "contracts/sql/README.md",
       "behavior": "Pure typed projection/predicate/group/wait preparation. No native source capture, group identity, admission, waiting or offset completion."
+    },
+    "log_claim": {
+      "source": "packages/zig/transit-fuze/src/LogClaimSql.zig",
+      "contract": "contracts/sql/README.md",
+      "behavior": "Pure Queue acquisition predicate/projection and lease/maximum preparation. No native acquisition, admitted SQL, receipt handles or settlement."
     }
   },
   "cases": [
@@ -7051,6 +7056,294 @@
       "profile": "log_consume",
       "grammar": "sql",
       "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-claim-0",
+      "sql": "CLAIM * FROM items WITH LEASE '30s'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-claim-1",
+      "sql": "CLAIM id FROM items LIMIT 2 WITH LEASE '1s' WAIT '250ms'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-claim-2",
+      "sql": "CLAIM _offset, id AS task_id, _attempt, _lease_epoch FROM items WHERE body = 'a' AND _partition = 0 LIMIT 1 WITH LEASE '2s'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-claim-3",
+      "sql": "CLAIM body FROM items WHERE id >= 1 AND (body IS NULL OR body = 'b') WITH LEASE '1m'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-claim-4",
+      "sql": "CLAIM * FROM items WHERE body IS NULL LIMIT 4 WITH LEASE '1s'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-claim-5",
+      "sql": "CLAIM id FROM items WHERE NOT (_offset >= 102 OR id < 0) WITH LEASE '1s'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-claim-6",
+      "sql": "CLAIM _partition FROM items LIMIT 4294967295 WITH LEASE '4294967296ms'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-claim-7",
+      "sql": "CLAIM x.id AS first, x.id AS second FROM items AS x WITH LEASE '1s'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-claim-8",
+      "sql": "CLAIM id FROM items LIMIT 0 WITH LEASE '1s'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_claim_maximum",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-claim-9",
+      "sql": "CLAIM id FROM items LIMIT 4294967296 WITH LEASE '1s'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_claim_maximum",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-claim-10",
+      "sql": "CLAIM id FROM items WITH LEASE NULL",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_claim_operand",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-claim-11",
+      "sql": "CLAIM id FROM items WITH LEASE '0ms'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_lease_duration",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-claim-12",
+      "sql": "CLAIM id FROM items WITH LEASE '1.5s'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_lease_duration",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-claim-13",
+      "sql": "CLAIM id FROM items WITH LEASE '1s' WAIT '0ms'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_wait",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-claim-14",
+      "sql": "CLAIM id FROM items WHERE _attempt > 0 WITH LEASE '1s'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_claim_predicate",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-claim-15",
+      "sql": "CLAIM id FROM items WHERE _lease_epoch = 1 WITH LEASE '1s'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_claim_predicate",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-claim-16",
+      "sql": "CLAIM _receipt_handle FROM items WITH LEASE '1s'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.unknown_column",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-claim-17",
+      "sql": "CLAIM wrong.id FROM items WITH LEASE '1s'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.unknown_qualifier",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-claim-18",
+      "sql": "CLAIM id, id FROM items WITH LEASE '1s'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.duplicate_projection",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "log-claim-19",
+      "sql": "CLAIM id FROM items LIMIT -1 WITH LEASE '1s'",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": false,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_sql_syntax",
+        "category": "syntax"
+      }
+    },
+    {
+      "id": "log-claim-parameter",
+      "sql": "CLAIM id FROM items WHERE body = $1 LIMIT $2 WITH LEASE $3 WAIT $4;",
+      "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "log-claim-contextual",
+      "sql": "CLAIM lease FROM claim WITH LEASE '1s'",
+      "basis": "CREATE TABLE claim (lease BIGINT)",
+      "profile": "log_claim",
+      "grammar": "sql",
+      "root": "logClaimStatement",
       "reference": true,
       "expected": {
         "accepted": true

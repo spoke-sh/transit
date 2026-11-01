@@ -150,6 +150,10 @@ logConsumeStatement: logConsumeCommand SEMI? EOF;
 logConsumeCommand: CONSUME projection FROM identifier sourceAlias?
     (GROUP workloadTextOperand)? workloadWhereClause? templateLimitClause?
     (WAIT workloadTextOperand)?;
+// Acquisition preparation only; this root does not admit a SQL claim.
+logClaimStatement: CLAIM projection FROM identifier sourceAlias?
+    workloadWhereClause? templateLimitClause? WITH LEASE workloadTextOperand
+    (WAIT workloadTextOperand)? SEMI? EOF;
 workloadTextOperand: STRING | PARAMETER | NULL_;
 workloadWhereClause: WHERE workloadDisjunction;
 workloadDisjunction: workloadConjunction (OR workloadConjunction)*;
@@ -364,7 +368,7 @@ legacyIdentifier
     | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE
     | STREAM | QUEUE | PARTITION | PARTITIONS | HASH
     | PRODUCE | ENQUEUE | PRODUCER | ID | EPOCH | SEQUENCE | VISIBLE_AT | RETURNING
-    | CONSUME | WAIT
+    | CONSUME | CLAIM | LEASE | WAIT
     ;
 
 DATAFLOW: 'DATAFLOW';
@@ -387,6 +391,8 @@ HASH: 'HASH';
 PRODUCE: 'PRODUCE';
 ENQUEUE: 'ENQUEUE';
 CONSUME: 'CONSUME';
+CLAIM: 'CLAIM';
+LEASE: 'LEASE';
 WAIT: 'WAIT';
 PRODUCER: 'PRODUCER';
 ID: 'ID';

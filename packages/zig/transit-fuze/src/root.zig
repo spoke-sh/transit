@@ -58,6 +58,7 @@ pub const TableSelect = @import("TableSelect.zig");
 pub const WorkloadProjection = @import("WorkloadProjection.zig");
 pub const LogAppendSql = @import("LogAppendSql.zig");
 pub const LogConsumeSql = @import("LogConsumeSql.zig");
+pub const LogClaimSql = @import("LogClaimSql.zig");
 pub const TableProjection = @import("TableProjection.zig");
 pub const TableDmlCodec = @import("TableDmlCodec.zig");
 pub const Declaration = @import("Declaration.zig");
@@ -117,6 +118,7 @@ test {
     _ = WorkloadProjection;
     _ = LogAppendSql;
     _ = LogConsumeSql;
+    _ = LogClaimSql;
     _ = TableProjection;
     _ = Collation;
     _ = Ebcdic1047;

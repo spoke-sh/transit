@@ -366,6 +366,17 @@ pub fn logConsume(text: []const u8, cause: anyerror, binding: sql.Binding) ?Self
     return result;
 }
 
+/// Dedicated acquisition preparation. This diagnostic cannot establish that a
+/// Queue lease was accepted or that any selected work is complete.
+pub fn logClaim(text: []const u8, cause: anyerror, binding: sql.Binding) ?Self {
+    var result = tableDml(text, cause, binding.location orelse .{}) orelse return null;
+    result.binding = binding;
+    for (@import("SqlCodes.zig").entries) |entry| if (entry.cause == cause and entry.summary != null) return result;
+    result.summary = "Queue claim cannot be compiled";
+    result.hint = "Use a row projection, an acquisition predicate and maximum, a positive WITH LEASE duration and an optional bounded WAIT. Preparation acquires no work.";
+    return result;
+}
+
 test "consumption diagnostics preserve the dedicated compiler cause" {
     const text = "CONSUME id FROM items WHERE id = 1 GROUP 'late'";
     const detail = logConsume(text, error.UnsupportedConstruct, .{ .location = .{ .offset = 34 } }).?;

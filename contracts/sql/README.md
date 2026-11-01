@@ -110,6 +110,33 @@ GROUP and WAIT are refused by this adapter. The [consumption corpus](corpus/log-
 uses independent expected layouts and five-row predicate outcomes through
 `just test::table-dml-sql`; those checks establish preparation only.
 
+`LogClaimSql.Prepared` has a dedicated preparation-only `logClaimStatement` root:
+
+```text
+CLAIM * | column [AS name] [, column [AS name]]
+  FROM name [AS alias] [WHERE predicate] [LIMIT integer-or-parameter]
+  WITH LEASE text-or-parameter [WAIT text-or-parameter]
+```
+
+The schema, projection, predicate and one parameter namespace are owned exactly
+as for consumption. Application columns and `_partition`/`_offset` can select
+work. `_lease_epoch` and `_attempt` are generated acquisition outputs: they can
+be projected, but predicates on them are refused. Star includes application
+columns only. LIMIT is a positive unsigned 32-bit acquisition maximum; omission
+leaves it for the declaration owner to resolve. It is removed from the bound
+logical output limit so a later adapter cannot hide already leased rows.
+WITH LEASE is required. Lease and optional WAIT accept positive whole ms/s/m
+text, within unsigned 64-bit milliseconds for leases and unsigned 32-bit
+milliseconds for waits. Native policy enforcement is still required. NULL operands, invalid budgets and unsafe statement shapes are refused.
+
+The predicate must run before lease acquisition, preserving Queue ordering and
+the exact accepted selection. This compiler is not a native selector or a
+post-filter for original claim results. The shared SQL service does not admit
+CLAIM, and this preparation profile does not bind receipt handles, ACK, NACK or
+lease extension. The [claim corpus](corpus/log-claims.json) independently checks
+five-row predicates, projections, lease metadata and acquisition budgets through
+`just test::table-dml-sql` without asserting acquisition or settlement.
+
 Table schemas and projections admit up to 128 columns. Logical types, parameter
 bounds, row budgets and operator/transport capabilities are checked by their
 owning compiler and runtime. Reference grammar acceptance alone does not enable

@@ -168,6 +168,7 @@ def check(binary):
     print(f'General DML: {pg_cases} PostgreSQL/ANTLR AST comparisons; {agreed} exact independent ANTLR/typed FDM1 plans; {len(cases)} cases, defaults, reordered fields, general predicates and compound literals. Codec round trips preserve intent. No admission/publication claim.')
     check_log_appends(binary)
     check_log_consumes(binary)
+    check_log_claims(binary)
 
 
 def log_append_expected(case):
@@ -270,6 +271,29 @@ def check_log_consumes(binary):
         expected = dict(err=case['error']) if 'error' in case else case['expected']
         assert response == expected, (case, expected, response)
     print(f'Log consume preparation: {len(cases)} independent grammar, projection, predicate, limit and metadata cases. No admission or coverage claim.')
+
+
+def check_log_claims(binary):
+    corpus = json.loads((ROOT / 'contracts/sql/corpus/log-claims.json').read_text())
+    assert corpus['version'] == 1
+    cases = corpus['cases']
+    path = CACHE / 'log-claim-cases.json'
+    path.write_text(json.dumps([dict(sql=c['sql'], basis=corpus['basis'], claim=True) for c in cases]))
+    result = subprocess.run([binary, str(path)], capture_output=True, text=True, check=True)
+    (CACHE / 'log-claim-results.jsonl').write_text(result.stdout)
+    actual = [json.loads(line) for line in result.stdout.splitlines()]
+    assert len(actual) == len(cases)
+    for index, (case, response) in enumerate(zip(cases, actual, strict=True)):
+        assert response.pop('index') == index
+        if case.get('syntax_error'):
+            try: tree(case['sql'], 'logClaimStatement')
+            except ValueError: pass
+            else: raise AssertionError(('invalid claim syntax accepted', case))
+        else:
+            tree(case['sql'], 'logClaimStatement')
+        expected = dict(err=case['error']) if 'error' in case else case['expected']
+        assert response == expected, (case, expected, response)
+    print(f'Log claim preparation: {len(cases)} independent grammar, predicate, acquisition budget, lease and projection cases. No admission, acquisition or settlement claim.')
 
 
 if __name__=='__main__':

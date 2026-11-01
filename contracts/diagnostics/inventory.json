@@ -13686,42 +13686,60 @@
         "transit_protocol"
       ]
     },
-    "packages/zig/transit-fuze/src/LogConsumeSql.zig": {
+    "packages/zig/transit-fuze/src/LogClaimSql.zig": {
       "errors": {
-        "InvalidLogConsumeOperand": 1,
-        "InvalidLogGroupName": 1,
-        "InvalidLogWait": 5,
-        "InvalidProjection": 1,
+        "InvalidLogClaimMaximum": 2,
+        "InvalidLogClaimOperand": 2,
         "InvalidSqlSyntax": 1,
         "LiteralOutOfRange": 1,
-        "NullWorkloadParameter": 1,
         "UnsupportedConstruct": 1
       },
-      "outcomes": {
-        "Operand": [
-          "literal",
-          "parameter"
-        ]
-      },
+      "outcomes": {},
       "error_sets": {},
       "error_returns": {
-        "Operand.bind()": "<inferred>",
-        "Operand.parse()": "<inferred>",
         "Prepared.bind()": "<inferred>",
         "Prepared.init()": "<inferred>",
-        "add()": "<inferred>",
-        "consumeOwned()": "<inferred>",
-        "field()": "<inferred>",
+        "claimOwned()": "<inferred>",
         "header()": "<inferred>",
-        "target()": "<inferred>",
-        "waitDuration()": "<inferred>"
+        "target()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 50,
-        "catch": 5
+        "try": 41,
+        "catch": 2
       },
       "imports": [
+        "LogReadSql.zig",
+        "SqlLogicalPredicate.zig",
+        "SqlReference.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/LogConsumeSql.zig": {
+      "errors": {
+        "InvalidLogConsumeOperand": 2,
+        "InvalidLogGroupName": 1,
+        "InvalidSqlSyntax": 1,
+        "LiteralOutOfRange": 1,
+        "UnsupportedConstruct": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Prepared.bind()": "<inferred>",
+        "Prepared.init()": "<inferred>",
+        "consumeOwned()": "<inferred>",
+        "header()": "<inferred>",
+        "target()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 40,
+        "catch": 2
+      },
+      "imports": [
+        "LogReadSql.zig",
         "SqlLogicalPredicate.zig",
         "SqlReference.zig",
         "root.zig",
@@ -13809,6 +13827,47 @@
         "TableSchema.zig",
         "std",
         "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-fuze/src/LogReadSql.zig": {
+      "errors": {
+        "InvalidLogClaimPredicate": 1,
+        "InvalidLogLeaseDuration": 1,
+        "InvalidLogWait": 1,
+        "InvalidProjection": 1,
+        "NullWorkloadParameter": 1
+      },
+      "outcomes": {
+        "Operand": [
+          "literal",
+          "parameter"
+        ],
+        "Profile": [
+          "stream",
+          "queue"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Operand.bind()": "<inferred>",
+        "Operand.parse()": "<inferred>",
+        "add()": "<inferred>",
+        "duration()": "<inferred>",
+        "field()": "<inferred>",
+        "input()": "<inferred>",
+        "leaseDuration()": "<inferred>",
+        "resolve()": "<inferred>",
+        "waitDuration()": "<inferred>"
+      },
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 11,
+        "catch": 3
+      },
+      "imports": [
+        "SqlReference.zig",
+        "root.zig",
+        "std"
       ]
     },
     "packages/zig/transit-fuze/src/LogicalArrow.zig": {
@@ -15816,8 +15875,12 @@
         "InvalidKeyWidth": 1,
         "InvalidLiteral": 1,
         "InvalidLogAppendOperand": 1,
+        "InvalidLogClaimMaximum": 1,
+        "InvalidLogClaimOperand": 1,
+        "InvalidLogClaimPredicate": 1,
         "InvalidLogConsumeOperand": 1,
         "InvalidLogGroupName": 1,
+        "InvalidLogLeaseDuration": 1,
         "InvalidLogPartitioning": 1,
         "InvalidLogProducer": 1,
         "InvalidLogVisibilityTime": 1,
@@ -16043,7 +16106,7 @@
         "structured()": "<inferred>",
         "validateTableSyntax()": "<inferred>"
       },
-      "open_error_set_uses": 11,
+      "open_error_set_uses": 12,
       "propagation": {
         "try": 60,
         "catch": 33
@@ -18510,6 +18573,7 @@
         "GermanString.zig",
         "HybridSearch.zig",
         "LogAppendSql.zig",
+        "LogClaimSql.zig",
         "LogConsumeSql.zig",
         "LogDdl.zig",
         "LogicalArrow.zig",
@@ -39894,6 +39958,7 @@
       "logAppendOperand": "literal | PARAMETER",
       "logConsumeStatement": "logConsumeCommand SEMI ? EOF",
       "logConsumeCommand": "CONSUME projection FROM identifier sourceAlias ? ( GROUP workloadTextOperand ) ? workloadWhereClause ? templateLimitClause ? ( WAIT workloadTextOperand ) ?",
+      "logClaimStatement": "CLAIM projection FROM identifier sourceAlias ? workloadWhereClause ? templateLimitClause ? WITH LEASE workloadTextOperand ( WAIT workloadTextOperand ) ? SEMI ? EOF",
       "workloadTextOperand": "STRING | PARAMETER | NULL_",
       "workloadWhereClause": "WHERE workloadDisjunction",
       "workloadDisjunction": "workloadConjunction ( OR workloadConjunction ) *",
@@ -39942,7 +40007,7 @@
       "asOfClause": "FOR SYSTEM_TIME AS OF INTEGER",
       "identifier": "settingIdentifier | STREAMS | QUEUES | DATAFLOW | AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE",
       "settingIdentifier": "legacyIdentifier | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER",
-      "legacyIdentifier": "IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | INSERT | UPDATE | DELETE | SET | VALUES | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS | COLLATE | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | ROLLBACK | SAVEPOINT | RELEASE | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE | STREAM | QUEUE | PARTITION | PARTITIONS | HASH | PRODUCE | ENQUEUE | PRODUCER | ID | EPOCH | SEQUENCE | VISIBLE_AT | RETURNING | CONSUME | WAIT",
+      "legacyIdentifier": "IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | INSERT | UPDATE | DELETE | SET | VALUES | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS | COLLATE | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | ROLLBACK | SAVEPOINT | RELEASE | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE | STREAM | QUEUE | PARTITION | PARTITIONS | HASH | PRODUCE | ENQUEUE | PRODUCER | ID | EPOCH | SEQUENCE | VISIBLE_AT | RETURNING | CONSUME | CLAIM | LEASE | WAIT",
       "BEGIN": "'BEGIN'",
       "STREAM": "'STREAM'",
       "QUEUE": "'QUEUE'",
@@ -39954,6 +40019,8 @@
       "PRODUCE": "'PRODUCE'",
       "ENQUEUE": "'ENQUEUE'",
       "CONSUME": "'CONSUME'",
+      "CLAIM": "'CLAIM'",
+      "LEASE": "'LEASE'",
       "WAIT": "'WAIT'",
       "PRODUCER": "'PRODUCER'",
       "ID": "'ID'",

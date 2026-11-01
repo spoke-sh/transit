@@ -86,12 +86,22 @@ plan, input field layout and group name own their memory independently of the
 template. Star expands before predicate-only metadata is added to the input.
 `WorkloadProjection.schemaLayout` supplies that pure metadata layout without
 inventing an accepted operation. This preparation helper has no source capture,
-group identity, native wait or offset-settlement authority and is not exposed
-by the SQL service. Its LIMIT remains a logical output bound. Original Stream
+group identity, native wait or offset-settlement authority. The SQL service
+binds its positional subset through the Catalog. Its LIMIT remains a logical output bound. Original Stream
 workload projections can retain that bound; SQL result consumption stops with
 the exact native cursor and preserves partial coverage. Append and Queue claim
 projections continue to reject limits. See the [compiler
 profile](../../../contracts/sql/README.md) for exact boundaries.
+
+`LogClaimSql.Prepared` prepares Queue acquisition syntax using the shared
+`LogReadSql` text operands and row layout. Its predicate is an acquisition
+predicate, and LIMIT becomes a positive claim maximum, separate from output
+delivery. Generated lease epoch/attempt fields may be projected but cannot
+select work before acquisition. The bound plan and field layout own their
+memory independently of the template. This helper does not acquire a lease,
+bind a native selector or admit SQL; receipt handles and settlement still need
+their native contracts and adapters. Post-filtering an accepted claim is not
+an implementation of this preparation contract.
 
 `TSegReader` reads one host-bound immutable segment through a synchronous range
 callback. Opening reads the 64-byte header, 16-byte trailer and bounded footer;
