@@ -136,14 +136,22 @@ cannot defer this milestone's bounded execution or activation/recovery gates.
   five-state values, checked arithmetic, explicit collations, source identities,
   output types and bounded operator state (with Tier 2 NVMe spill for large sorts,
   window frames, joins and aggregations).
-- **Deliver first-class bitemporal SQL (`AS OF JOIN` and application-time periods):**
+- **Deliver first-class bitemporal SQL (`AS OF JOIN` and application-time periods) and linear DBSP Z-set interval-depth / state-book maintenance:**
   combine system-time knowledge cuts (`FOR SYSTEM_TIME AS OF`) with declarative
   application/valid-time periods (`PERIOD FOR valid_time` backed by
   [Milestone 10's](10-standards-and-catalogs.md) canonical `RANGE<TIMESTAMPTZ>`
   type) and native streaming **`AS OF JOIN`** (matching each left observation to
   the nearest prior or exact valid-time right row per entity key—and supporting
   [Milestone 17's](17-geospatial-and-spatio-temporal-computing.md) piecewise-linear
-  4D `TRAJECTORY` interpolation—without $O(N^2)$ inequality joins). Ensure
+  4D `TRAJECTORY` interpolation—without $O(N^2)$ inequality joins). In addition,
+  exploit DBSP Z-set linearity for **1D interval-depth / genomic pileup coverage**
+  (encoding `[start_pos, end_pos)` intervals as $+1$ at `start_pos` and $-1$ at
+  `end_pos` so `RANGE_UNION`, coverage depth and overlap joins maintain via
+  Abelian prefix sums) and **discrete event-sourced state / Limit-Order-Book
+  (`LOB`) depth reconstruction** (where `ADD` emits `+qty` and `CANCEL`/`EXECUTE`
+  emits `-qty` over `(resource_id, side, price_tick)`, maintaining L2/L3 depth
+  profiles and VWAP incrementally in $O(|\Delta \text{events}|)$ while keeping
+  domain/trading policy strictly in user applications). Ensure
   point-in-time research, backtesting and decision auditing evaluate what was
   valid in the domain *and* known to the system at the decision cut, preventing
   later backfill corrections from leaking into earlier simulated decisions.

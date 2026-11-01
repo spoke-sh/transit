@@ -34,12 +34,16 @@ Start from [queries](../handbook/reference/queries.md),
 [query mechanisms](../handbook/internals/query-engine.md) and the
 [benchmark tooling](../../tests/performance/query/README.md).
 
-Keep logical types and span projections ($\tau$), collations and deterministic
+Keep logical types and span projections ($\tau$: `UTF8`, `BINARY`, biological
+sequences `BIO_SEQ`, molecular graphs `MOLECULE`), collations and deterministic
 analyzers/segmenters ($\kappa$: `utf8_binary`, `ascii_ci`, `ebcdic_cp037`,
-`icu:<locale>`, versioned token/span boundaries) and physical codecs and index
-profiles ($\epsilon$: `.dictionary`, `.fsst`, `.rle`, `EBCDIC`, posting blocks,
-trigram/substring bitmaps, suffix/automaton structures) orthogonal. Declarative
-match, substring/pattern, proximity (`NEAR` / `WITHIN`) and ranking contracts
+`icu:<locale>`, versioned token/span boundaries, reference genome assembly
+$\kappa_{\text{genome}}$ and canonical chemical tautomer/stereochemistry rules
+$\kappa_{\text{chem}}$) and physical codecs and index
+profiles ($\epsilon$: `.dictionary`, `.fsst`, `.rle`, `EBCDIC`, `.seq_2bit`,
+`.cram_ref_delta`, `.fm_bwt`, `.geno_pbwt`, `.mol_graph`, `.audio_fingerprint`,
+posting blocks, trigram/substring bitmaps, suffix/automaton structures) orthogonal. Declarative
+match, substring/pattern, proximity (`NEAR` / `WITHIN`), sequence-alignment and ranking contracts
 must remain independent of any single physical index or bag-of-words heuristic
 so `Fuze` can swap physical access paths behind an exact scalar reference oracle.
 Every string representation, sort prefix, hash probe and search index evaluation
@@ -129,6 +133,38 @@ current-authority disclosure checks.
      deletion bitmaps, MVCC snapshot visibility masks and relational predicate
      selection vectors (`WHERE tenant_id = ? AND MATCH(body, ?)`), deferring
      document/row payload decoding until final top-$k$ row IDs are selected.
+   - **Biological sequence (`BIO_SEQ`), biobank genotype (`.geno_pbwt`), chemical substructure (`MOLECULE`) and spectral constellation (`.audio_fingerprint`) codecs and index profiles:**
+     Extend the swappable `.tseg` codec and inverted/succinct index architecture to
+     non-word-tokenized scientific and signal domains:
+     - *`BIO_SEQ(alphabet)` (`DNA`, `RNA`, `IUPAC_NUCLEOTIDE`, `AMINO_ACID`) with `.seq_2bit` & `.cram_ref_delta`:*
+       pack 4 nucleotides per byte (32 bases per `u64` SIMD lane) in `.seq_2bit`
+       with a sparse Roaring bitmap for ambiguous IUPAC codes and RLE/quantized
+       Phred quality scores; for aligned reads (`BAM`/`CRAM`), encode
+       `.cram_ref_delta` tuples `(ref_contig_id, start_pos, cigar_ops, mismatch_edits)`
+       against a catalog-pinned reference genome $\kappa_{\text{genome}}$
+       (`GRCh38.p14`, `T2T-CHM13v2.0`) for $10\times\text{–}50\times$ compression
+       and direct delta-stream pileup scans.
+     - *Succinct FM-Index / Run-Length BWT (`.fm_bwt` / `r-index`) & $(w, k)$-Minimizer Roaring Index (`USING FM_INDEX` / `USING MINIMIZER`):*
+       combine [Milestone 7's](07-document-storage-and-station-decoupling.md)
+       succinct wavelet-tree `rank`/`select` bitvectors with Roaring $(w, k)$-minimizer
+       posting lists to execute $O(|q|)$ exact seed matching, $k$-mer containment /
+       Jaccard similarity (`SEQ_KmerJaccard`), and SIMD Myers bit-parallel /
+       Wavefront Alignment (`WFA`, `SEQ_Align(read, ref, scoring)`).
+     - *Positional Burrows–Wheeler Transform (`.geno_pbwt`) for Biobank Cohort Matrices (`VCF`/`BCF`):*
+       compress population genotype columns (`0/0` hom-ref, `0/1` het, `1/1`
+       hom-alt, and `./.` mapped natively to 5-state `IS MISSING`) via Durbin's
+       `PBWT` and rare-variant Roaring bitmaps so minor-allele frequency (`MAF`),
+       Hardy–Weinberg equilibrium and GWAS case-control association scans execute
+       as vectorized bitwise `@popCount` intersections.
+     - *Cheminformatics (`MOLECULE` / `.mol_graph`) & Spectral Constellation Hashing (`.audio_fingerprint`):*
+       canonicalize molecular graphs (`SMILES` / `InChI` / `SDF`) under
+       $\kappa_{\text{chem}}$, pre-filtering substructure queries
+       (`MOL_ContainsSubstructure(mol, smarts)`) and Tanimoto similarity
+       (`MOL_Tanimoto`) with 2048-bit Morgan/ECFP fingerprint SIMD bitwise screens
+       (`(fp_mol & fp_query) == fp_query`), and index 2D time-frequency spectrogram
+       peak pairs `(f1, f2, delta_t)` as 32-bit `.audio_fingerprint` hashes in
+       Roaring posting lists for sub-millisecond acoustic/seismic matching
+       ([Milestone 19](19-game-asset-pipelines-and-simulation-streaming.md)).
 5. **Compose pluggable multi-signal and hybrid search under one snapshot, and hand off multi-model, reactive-context and corpus-synthesis extensions.**
    Combine vectorized lexical/structural search operators (starting with
    Block-Max BM25) and segmented HNSW / IVF-PQ approximate nearest-neighbor
@@ -156,6 +192,7 @@ current-authority disclosure checks.
 | Compressed-domain `.dictionary` and `.fsst` string kernels | Predicate selectivity sweep ($0.01\%$ to $90\%$), dictionary cardinality, FSST symbol compression ratio, late-materialization decode savings and equivalence against decoded scalar oracle |
 | `comptime` and segment-sealed perfect hashing (`ConstexprCore/perfect_hash` style) | Construction bound at `comptime` and `.tseg` flush time, fallback behavior when key sets exceed greedy association budgets, cycles/ns per lookup on 6–1,000 keys, 4 KiB page-boundary safety and zero false positives on non-member probes |
 | Swappable `.tseg` search profiles: vectorized 256-doc Block-Max BM25 (`turbopuffer` style), positional/proximity streams, n-gram/trigram bitmaps and hybrid `RRF`/linear fusion | 256-doc posting block compression ratio, block-skip rate on top-$k$ ($k \in \{10, 100, 1000\}$), filtered lexical/proximity + relational predicate selectivity, `.tdel` tombstone filtering, cold/warm NVMe cache behavior and exact top-$k$ score/order agreement with the unpruned scalar reference oracle |
+| Biological sequence (`BIO_SEQ`: `.seq_2bit`, `.cram_ref_delta`, `.fm_bwt`, `.geno_pbwt`), chemical (`MOLECULE`: `.mol_graph` + Morgan bitvectors) & acoustic (`.audio_fingerprint`) profiles | `.seq_2bit` / `.cram_ref_delta` / `.geno_pbwt` compression ratio vs. `BAM`/`CRAM`/`BCF`, `FM_INDEX` / $(w,k)$-minimizer seed recall and SIMD Wavefront Alignment (`WFA`) equivalence against dynamic-programming reference oracle, 5-state `IS MISSING` preservation on `./.` genotypes, Morgan fingerprint zero-false-negative substructure pruning (`(fp_mol & fp_query) == fp_query`), and `.audio_fingerprint` time-offset recall under additive noise |
 
 [Umbra's string layout](https://db.in.tum.de/~freitag/papers/p29-neumann-cidr20.pdf),
 [FSST](https://www.vldb.org/pvldb/vol13/p2649-boncz.pdf),

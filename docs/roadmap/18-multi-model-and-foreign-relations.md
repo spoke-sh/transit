@@ -168,6 +168,41 @@ retrieval, streaming CDC ingestion and import/export costs.
        `TransitObjectStore`, pushing spatial/temporal slice predicates (`BBOX2D`/`BBOX3D`,
        vertical pressure levels, time ranges) down to chunk directories before
        decoding.
+   - **Computational biology, genomics, structural proteomics, cheminformatics, medical imaging & EDA/VLSI formats:**
+     project life-science, clinical imaging, semiconductor layout and high-rate
+     waveform/telemetry files onto [Milestone 14's](14-vectorized-strings-and-search.md),
+     [Milestone 17's](17-geospatial-and-spatio-temporal-computing.md) and
+     [Milestone 19's](19-game-asset-pipelines-and-simulation-streaming.md) native
+     codecs:
+     - *Genomics, alignments, cohorts & single-cell atlases (`FASTQ`, `BAM` / `CRAM`, `VCF` / `BCF`, `BED` / `GFF3` / `GTF`, `AnnData` `.h5ad` / `TileDB-SOMA`):*
+       decode raw and aligned sequencing reads into `BIO_SEQ` (`.seq_2bit` and
+       reference-compressed `.cram_ref_delta` bound to $\kappa_{\text{genome}}$),
+       genomic intervals into `RANGE<u64>`, biobank variant call matrices into
+       `.geno_pbwt` columns (mapping `./.` missing genotypes to 5-state
+       `IS MISSING`), and sparse single-cell expression matrices into
+       `.sparse_bcsr` blocks.
+     - *3D structural biology, molecular dynamics & cheminformatics (`PDB` / `mmCIF`, `XTC` / `TRR`, `SMILES` / `InChI` / `SDF`):*
+       project atomic coordinates and covalent bond graphs into `.pcloud_hilbert`
+       ($\delta_{\text{grid}} = 10^{-3}\,\text{Å}$), backbone kinematic chains
+       (`SKELETON3D`), `.float_zfp` MD trajectory frames, and canonical
+       `MOLECULE` (`.mol_graph` + 2048-bit Morgan/ECFP fingerprint bitvectors).
+     - *Medical imaging & digital pathology (`DICOM`, `NIfTI`, `OME-Zarr` / `OME-TIFF`):*
+       map 3D/4D CT/MRI/PET voxel volumes and gigapixel whole-slide pathology
+       pyramids onto `GRID3D`/`RASTER2D` (`.raster_morton` + `.float_zfp`/`HTJ2K`)
+       with anisotropic patient coordinate transforms (`RAS`/`LPS`) and
+       [Milestone 27](27-control-and-policy-plane.md) security-barrier RLS,
+       dynamic PHI tag masking and crypto-shredding.
+     - *Electronic Design Automation (EDA) & VLSI chip layouts (`OASIS`, `GDSII`, `LEF` / `DEF`, `SPICE` / `Verilog` netlists):*
+       project hierarchical multi-layer semiconductor layouts into
+       `.layout_manhattan` (`.scene_dag` + `.topo_arc` on $\delta_{\text{grid}} = 1\,\text{nm}$)
+       and circuit netlists into SQL/PGQ property graphs for incremental DBSP
+       `DRC` and `LVS` verification.
+     - *Audio, seismic, biosignal & market-microstructure streams (`FLAC` / `WAV` / `BWF`, `MiniSEED` / `SEG-Y`, `EDF+` / `BDF`, `ITCH` / `OUCH` / `FIX`):*
+       map multi-channel audio, hydrophone/seismic and EEG/ECG waveforms onto
+       [Milestone 19's](19-game-asset-pipelines-and-simulation-streaming.md)
+       `WAVEFORM` (`.wave_lpc_pyramid` with inline `(min, max, rms)` mip-pyramids)
+       and decode order-book event feeds into [Milestone 12's](12-sql-and-dataflows.md)
+       DBSP Z-set price-level delta streams.
    - **Text and semi-structured formats (`CSV`, `JSONL`):** bounded streaming
      parsers that record malformed fields as `type_error` or `missing` cells
      rather than aborting scans.
