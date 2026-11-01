@@ -178,8 +178,9 @@ try {
       for (let i=0; i<16 && status.phase !== 'published'; i++) status = await client.advanceHistory(original.key);
       assert.equal(status.phase, 'published'); assert.equal(status.basis.consistency.kind, 'single_partition');
       assert.deepEqual((await client.acquireHistory(original)).basis, status.basis);
-      await persist('history-snapshot.json', status.basis.snapshot.save());
-      const source = await client.historicalSource(status.basis.snapshot, objectId);
+      const retained = status.basis.snapshot;
+      await persist('history-snapshot.json', retained.save());
+      const source = await client.historicalSource(retained, objectId);
       assert.equal(source.rowCount, 9n); assert.equal(source.schema.columns.length, 2);
       const coverage = await client.historicalCoverage(retained, objectId);
       assert.equal(coverage.totalRows, 9n); assert.equal(coverage.definition.rows, 9n); assert.equal(coverage.next, undefined);

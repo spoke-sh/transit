@@ -194,8 +194,9 @@ async def run(mode, config_file):
                     status = await resolve(client.advance_history(original.key))
                 assert status.phase == 'published' and status.basis.consistency == 'single_partition'
                 assert (await resolve(client.acquire_history(original))).basis == status.basis
-                persist(root / 'history-snapshot.json', status.basis.snapshot.save())
-                source = await resolve(client.historical_source(status.basis.snapshot, object_id))
+                retained = status.basis.snapshot
+                persist(root / 'history-snapshot.json', retained.save())
+                source = await resolve(client.historical_source(retained, object_id))
                 assert source.row_count == 9 and len(source.schema.columns) == 2
                 coverage = await resolve(client.historical_coverage(retained, object_id))
                 assert coverage.total_rows == 9 and coverage.definition.rows == 9 and coverage.next is None

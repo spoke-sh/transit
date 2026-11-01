@@ -43,6 +43,7 @@ def exercise(wheels, root, authority, service, profile, restart, policy):
     shutil.copy2(ROOT / 'tests/sdk/consumers/python/python_catalog_sdk.py', script)
     history_fixture = target / 'history-fixture.json'
     shutil.copy2(ROOT / 'packages/zig/transit-catalog/src/fixtures/direct-history-host-v1.json', history_fixture)
+    shutil.copy2(ROOT / 'packages/zig/transit-catalog/src/fixtures/direct-history-metadata-v1.json', target / 'direct-history-metadata-v1.json')
     companion_fixture = target / 'companion-values.json'
     shutil.copy2(ROOT / 'packages/zig/transit-fuze/src/fixtures/companion-values.json', companion_fixture)
     for test in ('python_catalog_values.py', 'python_relational_values.py'):
