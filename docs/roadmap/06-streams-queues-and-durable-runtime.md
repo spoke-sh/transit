@@ -546,8 +546,9 @@ per schedule; see [declaration/token and current-definition evidence](../history
 and [bounded transfer evaluation](../history/qualification/transactions.md#installed-recovery-and-bounded-evaluation).
 Mixed disk append-fault schedules and the protected automatic DLQ owner now
 pass focused [catalog, storage and native worker checks](../history/qualification/transactions.md#protected-automatic-dlq-transaction-owner--2026-11-01).
-Installed automatic-worker qualification, integrated resource schedules and
-common-revision clean lanes remain open. R6's workload SQL/shared caller/finite analytical
+The [installed automatic-worker schedule](../history/qualification/transactions.md#installed-automatic-dlq-recovery--2026-11-01)
+also passes original transfer recovery across process replacement. Integrated
+resource schedules and common-revision clean lanes remain open. R6's workload SQL/shared caller/finite analytical
 surfaces, R0 model correspondence and final integrated
 qualification also remain open. Publishing declarations or neutral types does
 not complete these gates.
@@ -558,7 +559,7 @@ not complete these gates.
 | R1 | Implemented foundations; integrated qualification open | R0 physical ownership and format decisions | `.tdel`/`.tack` container correctness, bounded allocation and disk publication faults |
 | R2 | Implemented: catalog declarations, grants and inspectable lifecycles | R0; R1 initialization evidence before publication | [Typed create/alter/drop/inspect/recovery and native policy proof](../history/qualification/catalog.md#typed-stream-and-queue-catalog-lifecycle--2026-10-29) |
 | R3 | Partial: signed payload/read/group operations, bounded waits, local maintenance and sparse rewriting; common-revision qualification open | R1 and R2 | Disk reopen, original producer receipts, complete bounded reads and fenced offset progress through public callers |
-| R4 | Partial: claims, bounded waits, retries, delays, maintenance, retention and automatic atomic DLQ owner delivered; installed automatic-worker and integrated qualification open | R3 payload storage and R0 lease contract; R5 for DLQ | Durable claim recovery, stale-lease refusal, per-key order, bounded waits/timers and atomic DLQ transfer |
+| R4 | Partial: claims, bounded waits, retries, delays, maintenance, retention and automatic atomic DLQ owner delivered; installed automatic-worker recovery passes; integrated qualification open | R3 payload storage and R0 lease contract; R5 for DLQ | Durable claim recovery, stale-lease refusal, per-key order, bounded waits/timers and atomic DLQ transfer |
 | R5 | Partial: native Table/KV/Stream/Queue mixed recovery and installed explicit DLQ recovery pass; complete fault matrix and clean qualification open | R0 and M5; integrate R3/R4 as available | One decision publishes state, append and settlement with no partial visibility |
 | R6 | Partial: declaration SQL, named inspection and paged listings delivered; workload verbs, finite analytical bridge and mixed SQL open | R2–R5 for each exposed operation | Real typed/native SQL/console/wire outcomes and authorization after buffering |
 | R7 | Station behaviors and durable services on database primitives | R4/R5 and public typed callers | Atomic turns, durable calls/timers/names/supervision and handler-free recovery |
@@ -741,9 +742,9 @@ the signed Queue caller and shared native wait admission. Explicit paired DLQ
 transfers now use the common transaction owner and pass installed recovery.
 Automatic blocked-item scheduling now uses protected original transaction
 identities and a separately configured database signer. Catalog fault schedules
-and native policy/collection/worker replacement checks pass. Remaining exit work
-includes installed automatic-worker execution and integrated fault/resource
-evidence on one revision.
+and native policy/collection/worker replacement checks pass, as does installed
+automatic-worker recovery across SIGKILL/restarts. Remaining exit work includes
+integrated fault/resource evidence on one revision.
 
 Implement `QueuePartition` over the R3 payload owner and R1 bitmap foundation.
 The Queue owns its internal payload log; reusing storage must not expose a Stream

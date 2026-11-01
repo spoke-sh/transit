@@ -7,6 +7,56 @@ Current semantics belong to the [transaction reference](../../handbook/reference
 [direct Table contract](../../../contracts/DIRECT_TABLE_V1.md). This record keeps
 finite models, component recovery and installed histories separate.
 
+## Installed automatic DLQ recovery — 2026-11-01
+
+Clean committed source `e58935ced5321d84bbface428fda206cdb2d4eb9`, definition
+`2e2c775950d2d0cfa6d6ea66e078fcdfa8381c16e522c5ac7d91fb243714c7f3`, passes:
+
+```sh
+nix develop --option eval-cache false -c \
+  zig build test-direct-table-service -Doptimize=ReleaseSafe -- automatic-queue-transfer
+```
+
+The installed HTTP caller declares two Queues, enqueues one row, claims it and
+exhausts its first attempt with NACK. It saves each original Queue request before
+dispatch. Only then does the fixture activate the node's explicitly configured
+database signer and automatic transfer worker. The native checkpoint signer is
+separate. The transaction uses 16 MiB resident and 1 MiB workspace budgets, two
+participants and one statement; the existing native maintenance interval and
+operation deadline remain 50 ms and two seconds.
+
+Read-only account/transaction observation sees one protected pending transfer.
+The fixture kills the node at that observed pending, undecided state, restarts,
+and waits for that same receipt to reach committed cleanup. Independent readback
+finds the source archived and exactly one destination row with value 42. Another
+SIGKILL/restart recovers the unchanged transfer receipt and original destination
+claim, without another claim, renewal or settlement. The 165 observations record
+discovery through cleanup, with no replacement identity. This schedule proves process
+replacement at the observed phase; the component fault matrix below separately
+covers specific append boundaries. It is not power-loss, saturation or a full
+clean-clone CI-lane qualification.
+
+The raw log `/var/tmp/transit-m6-dlq-installed2.log` has SHA-256
+`b1b72acbe3f4dde852f7b5f0c5d7904e2fef1263859990a18ee680ab4408ea8b`.
+Node and caller binary hashes are respectively
+`339491b46677005dbad1fdf0c93e569d2ea4a0f78ea81079c97b9d3feffcdf04`
+and `a4eb929dc273bb3279bece516c56200577eb14b67101a4097ec7a943e7559c12`.
+The original transfer receipt hash is
+`4839774fd0b0ae8a3a00ed669f2122b2a2dc37b3512fae147b50b7488d8a1264`;
+the destination claim receipt hash is
+`566d943f608fc83093d1863e8f7540e24d2b833b8a32b9806e93f665c0ef8da3`.
+Successful private installation files were cleaned by the registered driver.
+
+The preceding installed build failed compiling a four-kind maintenance rotation
+whose modulo operand overflowed `u2`. Commit `4b3a5935f` replaces it with an
+explicit exhaustive rotation. The failed log
+`/var/tmp/transit-m6-dlq-installed1.log` remains a failure, SHA-256
+`e75c28559d6701d7e367261db708da06aefef4c415f7d23ba97859392fd26165`.
+All 60 fast checks also pass on the installed-test source; their log
+`/var/tmp/transit-m6-dlq-installed-fast.log` has SHA-256
+`a9e613961755d20ef1984055ad46fbb14eca023ad79fd0b9fc7c3bfc5572da41`.
+Larger-population/resource schedules and common-revision lanes remain open.
+
 ## Protected automatic DLQ transaction owner — 2026-11-01
 
 The implementation committed as `5c8671e71141911a95d09fc5fd957ae35eae4ca9`
@@ -60,9 +110,9 @@ Raw successful logs and SHA-256 values are:
 Regeneration passes all 19 contract checks; 60 fast checks pass during the
 change. The owning [direct contract](../../../contracts/DIRECT_TABLE_V1.md)
 and [node configuration](../../../apps/transit-node/docs/growing.md) describe
-the optional worker and exact authority/retention boundaries. Installed worker
-qualification, larger-population/resource schedules and common-revision lanes
-remain open. This evidence does not complete M6.
+the optional worker and exact authority/retention boundaries. The later installed
+schedule above covers worker process replacement; larger-population/resource
+schedules and common-revision lanes remain open. This evidence does not complete M6.
 
 ## Mixed disk decisions and frozen DLQ plans — 2026-11-01
 
