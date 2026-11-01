@@ -21,6 +21,7 @@ pub const Execution = struct {
     ddl: *const fn (*anyopaque, *D, d.Binding, D.Policy, u16) anyerror!D.Observation,
     namespace: *const fn (*anyopaque, *D, c.DirectNamespace.Binding, D.Policy, u16) anyerror!c.DirectNamespace.Observation,
     resource: ?*const fn (*anyopaque, *D, c.DirectResource.Binding, D.Policy, c.DirectResource.Command, u16, ?c.DirectResource.SignedAllocation) anyerror!c.DirectResource.Observation = null,
+    descriptor: ?*const fn (*anyopaque, *D, c.DirectDefinition.Request, D.Policy, u16) anyerror!c.DirectDefinition.Observation = null,
     log: ?*const fn (*anyopaque, *D, d.Binding, D.Policy, u16) anyerror!c.DirectLog.Observation = null,
     stream: ?*const fn (*anyopaque, std.mem.Allocator, *D, D.Policy, c.DirectStream.Request) anyerror!c.DirectStream.Result = null,
     queue: ?*const fn (*anyopaque, std.mem.Allocator, *D, D.Policy, c.DirectQueue.Request) anyerror!c.DirectQueue.Result = null,
@@ -83,6 +84,7 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
 
 fn applySelected(comptime action_tag: std.meta.Tag(w.Action), allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action: *const w.Action, delegation: ?c.DirectReadDelegation, execution: Execution) anyerror!w.Result {
     switch (action_tag) {
+        .descriptor => return .{ .descriptor = try c.DirectDefinition.dispatch(allocator, catalog, policy, action.descriptor, execution) },
         .branch => return .{ .branch = try branch(allocator, catalog, policy, action.branch) },
         .schema_projection => return .{ .schema_projection = try c.DirectSchemaProjection.dispatch(allocator, catalog, policy, action.schema_projection) },
         .historical_catalog => return .{ .historical_catalog = try historical(allocator, catalog, policy, action.historical_catalog) },

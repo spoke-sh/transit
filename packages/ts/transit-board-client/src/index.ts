@@ -6,6 +6,8 @@ export type {
   HistoricalSource,
   HistoricalTables,
   HistoricalCoverage,
+  CatalogDefinitions,
+  HistoricalDefinition,
   HistoricalRead,
   CatalogDescription,
   CatalogTables,

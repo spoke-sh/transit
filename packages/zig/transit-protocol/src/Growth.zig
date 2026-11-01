@@ -5,9 +5,9 @@ pub const version = 1;
 /// Contract-set fingerprint, independent of the public version label. Replace
 /// this identifier on an incompatible pre-1.0 cutover, including changed stored
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
-/// SHA-256 of transit.v1.m10-captured-historical-queries-and-projection.2026-11-01.
+/// SHA-256 of transit.v1.m10-versioned-catalog-interpretations-and-view-expansion.2026-11-01.
 pub const Definition = enum {
-    @"90f861504d63e02569dbf22889557aab7782cf110b141588c3a7373a74999a21",
+    d9c9be6cf8ac63f1003a2d98ab3076936e28cea6a7278e620fe8b869530fc4d4,
 
     fn spelling(bytes: []const u8) !Definition {
         if (!std.mem.eql(u8, bytes, @tagName(current_definition))) return error.InvalidEnumTag;
@@ -819,6 +819,7 @@ test "native responses require the current contract definition even with a v1 la
     try t.expectError(error.InvalidEnumTag, std.json.parseFromSlice(Response, t.allocator, incomplete_output_names, .{}));
     inline for (.{
         // Before captured historical queries and exact copy grants.
+        "90f861504d63e02569dbf22889557aab7782cf110b141588c3a7373a74999a21",
         "9ccbb15686fea6ace7f101548f0957d9847446c09353f098543b2c20361b2fef",
         // Before accepted interpretation directories and explicit projection.
         "40809e4208bd7e629253251bf10906503f9df4f155f7faae012a61d25a53640c",

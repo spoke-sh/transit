@@ -218,7 +218,7 @@ and a 104-byte common-cut field. The latter encodes the transaction Operation
 (40 bytes), acquired position (16 bytes), complete source content (40 bytes) and
 source count (8 bytes); all integers are little-endian. It is zero for other
 consistency kinds. Decoding verifies exact
-length, canonical spelling, definition and nonempty source count. Single-source
+length, canonical spelling, definition and consistency. Zero Table sources are valid only for independent metadata catalogs; the publication still requires a nonempty selected definition directory. Single-source
 consistency requires count one and a nonzero position. The value carries no
 permission or private-pin authority; the owner verifies actual publication.
 A client can generate the selector from the published typed snapshot without
@@ -329,3 +329,15 @@ acceptance frontier and `stable_columns_add_origins` policy. Metadata observatio
 list these projections beside the original definitions. Result initialization
 freezes this evidence; traversal never mutates the published basis. Existing
 physical access paths are bypassed until qualified for both interpretations.
+
+## Versioned interpretation objects
+
+[Catalog definitions](CATALOG_DEFINITIONS_V1.md) share this selection and publication
+owner. The selection reference carries separate `count` (Table sources) and
+`descriptors` counts; the retained-source reference has zero descriptors. Immutable
+selection roots include separate paged descriptor/object/name/namespace indexes.
+Verification persists its Table cursor and descriptor cursor/count independently
+under the same policy epoch. A policy change resets both verification passes.
+A metadata-only catalog publishes an empty retained-source directory and zero
+Table source count; it does not manufacture a Table pin or atomic data snapshot.
+Common transaction transfers currently require Table-only selections.

@@ -233,7 +233,7 @@ pub fn maintenanceNext(self: *Self, cursor: *MaintenanceCursor, guard_value: P.G
 
 fn validateEntry(self: *Self, value: r.Entry, key: pages.Key) !void {
     try value.validate(self.config());
-    if (!std.meta.eql(key, try r.idKey(value.object)) or value.partition >= self.store.root.next_partition or (value.resource orelse 0) >= self.store.root.next_lsn) return error.InvalidDirectCatalogEntry;
+    if (!std.meta.eql(key, try r.idKey(value.object)) or value.partition >= self.store.root.next_partition or (value.resource orelse 0) >= self.store.root.next_lsn or (value.descriptor orelse 0) >= self.store.root.next_lsn) return error.InvalidDirectCatalogEntry;
 }
 
 /// The caller takes the selected Table's lock after directory discovery and
@@ -473,7 +473,7 @@ fn recordLog(self: *Self, input: L.Operation, previous: ?L.Operation, current: P
     }
     const updates_object = if (operation.binding.action == .create) operation.phase == .admitted or previous != null else operation.phase == .complete;
     if (updates_object) {
-        const target: r.Entry = .{ .object = operation.binding.target.object, .partition = operation.first_partition, .seed = null, .resource = null, .log = self.store.root.next_lsn };
+        const target: r.Entry = .{ .object = operation.binding.target.object, .partition = operation.first_partition, .seed = null, .resource = null, .log = self.store.root.next_lsn, .descriptor = null };
         next.objects = try self.store.tree().put(next.objects, id, try r.pageValue(target));
     }
     if (operation.phase == .admitted and (operation.binding.action == .create or operation.binding.action == .rename)) {
@@ -820,7 +820,7 @@ fn recordResource(self: *Self, operation_input: Resource.Operation, previous: ?R
     const id = try r.idKey(binding.object.object);
     const updates_object = if (binding.action == .create) operation.phase == .admitted or previous != null else operation.phase == .complete;
     if (updates_object) {
-        const target: r.Entry = .{ .object = binding.object.object, .partition = 0, .seed = null, .resource = self.store.root.next_lsn, .log = null };
+        const target: r.Entry = .{ .object = binding.object.object, .partition = 0, .seed = null, .resource = self.store.root.next_lsn, .log = null, .descriptor = null };
         next.objects = try self.store.tree().put(next.objects, id, try r.pageValue(target));
     }
     if (operation.phase == .admitted and binding.action != .drop) {
@@ -3553,6 +3553,12 @@ fn namespaceDependencies(self: *Self, namespace_id: u64, after: ?u64, current: P
         const target = try r.fromValue(r.Entry, self.allocator, item.value);
         try target.validate(self.config());
         if (!std.meta.eql(item.key, try r.idKey(target.object))) return error.InvalidDirectCatalogEntry;
+        if (target.descriptor) |at| {
+            const named = try self.store.descriptorRecord(at);
+            const stored = named.resulting orelse return error.InvalidCatalogDescriptor;
+            if (!stored.retired and stored.properties.namespace == namespace_id) return .{ .blocked = true, .after = null };
+            continue;
+        }
         if (target.log) |at| {
             const named = try self.store.logRecord(at);
             if (named.namespace == namespace_id and (named.pending() or (named.phase == .complete and !named.resulting.?.stored.retired))) return .{ .blocked = true, .after = null };
@@ -3721,6 +3727,11 @@ fn pending(self: *Self, object: u64, current: P.Guard) !bool {
 fn available(self: *Self, namespace: u64, name: a.Name, object: u64, current: P.Guard) !bool {
     const proposed = try self.candidate(namespace, name) orelse return true;
     const target = try self.entry(proposed.object) orelse return error.InvalidDirectCatalogName;
+    if (target.descriptor) |at| {
+        const named = try self.store.descriptorRecord(at);
+        const stored = named.resulting orelse return error.InvalidCatalogDescriptor;
+        return stored.retired or stored.properties.namespace != namespace or !std.meta.eql(stored.properties.name, name) or proposed.object == object;
+    }
     if (target.log) |at| {
         const named = try self.store.logRecord(at);
         if (named.phase == .complete and !named.resulting.?.stored.retired) {
@@ -3858,7 +3869,7 @@ pub fn admit(self: *Self, request: Request, policy: Policy) !r.Operation {
         operation.reason = reason;
     } else {
         if (request.intent.action == .create) {
-            const target: r.Entry = .{ .object = object, .partition = next.next_partition, .seed = null, .resource = null, .log = null };
+            const target: r.Entry = .{ .object = object, .partition = next.next_partition, .seed = null, .resource = null, .log = null, .descriptor = null };
             next.next_partition = try std.math.add(u64, next.next_partition, 1);
             next.objects = try self.store.tree().put(next.objects, try r.idKey(object), try r.pageValue(target));
         }
@@ -4222,6 +4233,7 @@ fn dependentRequirements(self: *Self, policy: Policy, object: d.Object, write: b
     try object.validate();
     if (object.scope.realm != self.config().scope.realm or object.branch != 1) return error.CatalogDenied;
     if (std.meta.eql(object.scope, self.config().scope)) {
+        if (try self.descriptorCurrent(object.object)) |value| return self.requirements(policy, try self.authorizationSchema(value.properties.namespace), value.properties.target(object.object), if (write) .alter else .inspect);
         if (try self.logRecord(object.object)) |known| {
             const value = known.resulting orelse return error.CatalogDenied;
             const namespace = try self.authorizationSchema(value.properties.namespace);
@@ -4252,6 +4264,10 @@ fn dependentDefinition(self: *Self, dependent: Dependency.Dependent) !bool {
     if (dependent.kind == .captured or dependent.kind == .maintained)
         return !std.meta.eql(object.scope, self.config().scope);
     if (!std.meta.eql(object.scope, self.config().scope)) return false;
+    if (dependent.kind == .view or dependent.kind == .property_graph or dependent.kind == .foreign) {
+        const value = try self.descriptorCurrent(object.object) orelse return false;
+        return !value.retired and Descriptor.dependentKind(value.kind) == dependent.kind and std.meta.eql(value.interpretation, dependent.interpretation);
+    }
     if (dependent.kind == .stream or dependent.kind == .queue) {
         const known = try self.logRecord(object.object) orelse return false;
         const value = known.resulting orelse return false;
@@ -4371,6 +4387,7 @@ pub fn dependencyOperation(self: *Self, binding: Dependency.Binding, command: De
     // Queue declaration edges also retain historical routing. Removing one
     // requires the Queue's closure/retention proof, not generic graph editing.
     if (binding.edge.foreign_key != null) return error.TableDependencyOwned;
+    if (binding.edge.dependent.kind == .view or binding.edge.dependent.kind == .property_graph or binding.edge.dependent.kind == .foreign) return error.CatalogDependencyOwned;
     if (binding.action == .remove and binding.edge.dependent.kind == .queue) return error.QueueDependencyRetained;
     if (!binding.connection.matches(self.config()) or binding.connection.principal != policy.subject.principal()) return error.CatalogDenied;
     var arena = std.heap.ArenaAllocator.init(self.allocator);
@@ -5249,7 +5266,7 @@ pub fn openBranch(self: *Self, scratch: std.mem.Allocator, head: p.Branch.Head, 
     return .{ .access = access, .entry = entry_value, .mode = intent.mode };
 }
 fn historyDirectory(self: *Self, owner: d.Operation, kind: c.DirectHistoryDirectory.Kind, reference: ?c.DirectHistoryDirectory.Reference) !c.DirectHistoryDirectory {
-    var directory = try c.DirectHistoryDirectory.init(self.allocator, self.data_objects, owner, self.config().branch, kind, if (reference) |value| @max(value.count, 1) else self.options.history_selection_limit, self.options.resident_pages, self.options.index_work_bytes);
+    var directory = try c.DirectHistoryDirectory.init(self.allocator, self.data_objects, owner, self.config().branch, kind, if (reference) |value| @max(try value.total(), 1) else self.options.history_selection_limit, self.options.resident_pages, self.options.index_work_bytes);
     errdefer directory.deinit();
     if (reference) |value| try directory.restore(value);
     return directory;
@@ -5261,25 +5278,58 @@ pub fn selectHistory(self: *Self, request: @FieldType(c.DirectHistory.Request, "
     if (!std.meta.eql(selected.owner.scope, self.config().scope) or selected.owner.principal != policy.subject.principal() or selected.branch != self.config().branch or self.transaction_read != null) return error.CatalogDenied;
     var scratch = std.heap.ArenaAllocator.init(self.allocator);
     defer scratch.deinit();
-    var view = try self.resolve(scratch.allocator(), request.namespace, request.name, policy) orelse return error.CatalogNameNotFound;
-    defer view.deinit();
-    const namespace = try self.schema(request.namespace);
-    const current = try self.guard(scratch.allocator(), policy, namespace, view.properties.target(view.table.root.interpretation.object.object), .read);
-    try check(current);
-    if (view.table.root.transaction != null) return error.HistoricalSourceChanged;
     var directory = try self.historyDirectory(selected.owner, .selection, selected.directory);
     defer directory.deinit();
     directory.object_limit = self.options.history_selection_limit;
-    const value: c.DirectHistoryDirectory.Entry = .{ .namespace = namespace, .properties = view.properties, .declaration = view.table.root.declared(), .source = .{ .interpretation = view.table.root.interpretation, .manifest = null, .checkpoint_lsn = 0, .accepted = .{ .partition = view.table.root.partition, .next_lsn = view.table.root.next_lsn } }, .catalog = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn }, .pin = null };
-    try directory.put(value);
+    var required = try self.requirements(policy, try self.schema(request.namespace), null, .schema);
+    if (try self.resolve(scratch.allocator(), request.namespace, request.name, policy)) |found| {
+        var view = found;
+        defer view.deinit();
+        required = try required.merge(try self.selectHistoryTable(&directory, &view, null, policy));
+    } else {
+        var definition = try self.resolveDefinition(scratch.allocator(), request.namespace, request.name, policy) orelse return error.CatalogNameNotFound;
+        defer definition.deinit();
+        const value = definition.value;
+        const stored = try value.stored(scratch.allocator());
+        required = try required.merge(try self.requirements(policy, try self.schema(request.namespace), stored.properties.target(value.object.object), .read));
+        try check(try policy.make_guard(policy.context, scratch.allocator(), required, null));
+        try directory.putDescriptor(.{ .namespace = try self.schema(request.namespace), .declaration = stored, .catalog = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn } });
+        for (value.sources) |source| {
+            const target = try self.entry(source.declaration.interpretation.object.object) orelse return error.HistoricalSourceChanged;
+            if (target.seed == null) return error.HistoricalSourceChanged;
+            var view = try self.open(scratch.allocator(), target, false);
+            defer view.deinit();
+            if (!std.meta.eql(view.properties, source.properties)) return error.HistoricalSourceChanged;
+            required = try required.merge(try self.selectHistoryTable(&directory, &view, source.declaration, policy));
+        }
+    }
+    const current = try policy.make_guard(policy.context, scratch.allocator(), required, null);
+    try check(current);
     const reference = try directory.seal();
     try check(current);
     return .{ .owner = selected.owner, .branch = selected.branch, .directory = reference };
 }
+fn selectHistoryTable(self: *Self, directory: *c.DirectHistoryDirectory, view: *View, expected: ?s.TableDeclaration.Stored, policy: Policy) !p.Authorization.Guard {
+    const namespace = try self.schema(view.properties.namespace);
+    const required = try self.requirements(policy, namespace, view.properties.target(view.table.root.interpretation.object.object), .read);
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    try check(try policy.make_guard(policy.context, scratch.allocator(), required, null));
+    if (view.table.root.kind != .table or view.table.root.retired or view.table.root.next_lsn == 0 or view.table.root.transaction != null) return error.HistoricalSourceChanged;
+    if (expected) |declaration| {
+        if (!std.meta.eql(view.table.root.declared(), declaration)) return error.HistoricalSourceChanged;
+        if (try directory.get(declaration.interpretation.object.object)) |known| {
+            if (!std.meta.eql(known.declaration, declaration)) return error.HistoricalSourceChanged;
+            return required; // An earlier explicit source cut remains frozen.
+        }
+    }
+    try directory.put(.{ .namespace = namespace, .properties = view.properties, .declaration = view.table.root.declared(), .source = .{ .interpretation = view.table.root.interpretation, .manifest = null, .checkpoint_lsn = 0, .accepted = .{ .partition = view.table.root.partition, .next_lsn = view.table.root.next_lsn } }, .catalog = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn }, .pin = null });
+    return required;
+}
 
 fn prepareHistoryAdmission(self: *Self, intent: c.DirectHistory.Intent, policy: Policy) !void {
     if (!intent.connection.matches(self.config()) or intent.connection.principal != policy.subject.principal() or self.transaction_read != null) return error.CatalogDenied;
-    if (intent.selection.count > self.options.history_selection_limit) return error.HistoricalObjectLimit;
+    if (try intent.selection.total() > self.options.history_selection_limit) return error.HistoricalObjectLimit;
     if (intent.common) |common| {
         const progress = (try self.clientProgress(.{ .inspect = common.key }, policy)).state orelse return error.ClientOperationMissing;
         if (!progress.pending or progress.cancel or progress.receipt.binding.intent != .transaction) return error.TransactionCutNotAcquired;
@@ -5431,6 +5481,11 @@ pub fn advanceHistory(self: *Self, key: c.DirectClientToken.Key, command: enum {
     }
     if (state.phase == .acquiring) {
         var value = try historyNext(&selection, state.after) orelse {
+            if (state.retained == null and intent.selection.count == 0 and intent.selection.descriptors != 0) {
+                var empty = try self.historyDirectory(intent.identity(), .retained, null);
+                defer empty.deinit();
+                state.retained = try empty.seal();
+            }
             if (state.inflight != null or state.retained == null or state.retained.?.count != intent.selection.count) return error.IncompleteHistoricalSelection;
             state.phase = .verifying;
             try self.publishHistoryState(&progress, state, current);
@@ -5491,6 +5546,8 @@ pub fn advanceHistory(self: *Self, key: c.DirectClientToken.Key, command: enum {
         access.current.release(access.current.context);
         if (state.policy_epoch != null and state.policy_epoch.? != epoch.policy_epoch) {
             state.verified_after = null;
+            state.descriptor_after = null;
+            state.descriptors_verified = 0;
             state.policy_epoch = null;
             try self.publishHistoryState(&progress, state, current);
         } else {
@@ -5499,12 +5556,31 @@ pub fn advanceHistory(self: *Self, key: c.DirectClientToken.Key, command: enum {
             var fenced: HistoryEpoch = .{ .underlying = access.current, .expected = epoch.policy_epoch };
             try self.publishHistoryState(&progress, state, fenced.guard());
         }
+    } else if (try historyNextDescriptor(&selection, state.descriptor_after)) |value| {
+        const access = try self.verifyHistoryDescriptor(scratch.allocator(), &selection, value, policy);
+        const epoch = try access.acquire(access.context);
+        access.release(access.context);
+        if (state.policy_epoch != null and state.policy_epoch.? != epoch.policy_epoch) {
+            state.verified_after = null;
+            state.descriptor_after = null;
+            state.descriptors_verified = 0;
+            state.policy_epoch = null;
+            try self.publishHistoryState(&progress, state, current);
+        } else {
+            state.policy_epoch = epoch.policy_epoch;
+            state.descriptor_after = value.declaration.interpretation.object.object;
+            state.descriptors_verified = try std.math.add(u64, state.descriptors_verified, 1);
+            var fenced: HistoryEpoch = .{ .underlying = access, .expected = epoch.policy_epoch };
+            try self.publishHistoryState(&progress, state, fenced.guard());
+        }
     } else {
-        if (state.verified_after != state.after or state.policy_epoch == null or retained.root.count != intent.selection.count) return error.IncompleteHistoricalSelection;
+        if (state.verified_after != state.after or state.policy_epoch == null or retained.root.count != intent.selection.count or state.descriptors_verified != intent.selection.descriptors) return error.IncompleteHistoricalSelection;
         const epoch = try current.acquire(current.context);
         current.release(current.context);
         if (epoch.policy_epoch != state.policy_epoch.?) {
             state.verified_after = null;
+            state.descriptor_after = null;
+            state.descriptors_verified = 0;
             state.policy_epoch = null;
             try self.publishHistoryState(&progress, state, current);
         } else {
@@ -5580,7 +5656,7 @@ pub fn openHistory(self: *Self, scratch: std.mem.Allocator, snapshot: d.Snapshot
     errdefer access.view.deinit();
     try check(access.current);
     try publication.requirePublished();
-    var directory = try self.historyDirectory(publication.intent.identity(), .retained, .{ .content = snapshot.sources_root, .count = snapshot.source_count });
+    var directory = try self.historyDirectory(publication.intent.identity(), .retained, .{ .content = snapshot.sources_root, .count = snapshot.source_count, .descriptors = 0 });
     defer directory.deinit();
     const value = try directory.get(object) orelse return error.HistoricalObjectNotSelected;
     try snapshot.requireSource(value.source);
@@ -5617,7 +5693,7 @@ pub fn listHistory(self: *Self, output: std.mem.Allocator, input: @FieldType(c.D
     const current = try self.guard(scratch.allocator(), policy, namespace, null, .schema);
     try check(current);
     try publication.requirePublished();
-    var directory = try self.historyDirectory(publication.intent.identity(), .retained, .{ .content = input.snapshot.sources_root, .count = input.snapshot.source_count });
+    var directory = try self.historyDirectory(publication.intent.identity(), .retained, .{ .content = input.snapshot.sources_root, .count = input.snapshot.source_count, .descriptors = 0 });
     defer directory.deinit();
     const page = try directory.page(input.after);
     var selected: [8]c.DirectHistoryDirectory.Entry = undefined;
@@ -5635,4 +5711,391 @@ pub fn listHistory(self: *Self, output: std.mem.Allocator, input: @FieldType(c.D
     // Authenticated dispatch accumulates the selected objects' requirements and
     // fences their union after all output has been buffered.
     return .{ .snapshot = input.snapshot, .namespace = input.namespace, .entries = try output.dupe(c.DirectHistoryDirectory.Entry, selected[0..count]), .next = page.next };
+}
+// Named interpretation metadata shares the catalog's identity/name directories,
+// native Table authority domain and one control-log acceptance boundary.
+const Descriptor = c.DirectDefinition;
+const Artifact = c.CatalogDefinition;
+
+fn descriptorRecord(self: *Self, object: u64) !?Descriptor.Operation {
+    const target = try self.entry(object) orelse return null;
+    const value = try self.store.descriptorRecord(target.descriptor orelse return null);
+    if (value.binding.target.object != object or value.phase != .applied) return error.InvalidCatalogDescriptor;
+    return value;
+}
+fn descriptorCurrent(self: *Self, object: u64) !?Artifact.Stored {
+    return if (try self.descriptorRecord(object)) |value| value.resulting else null;
+}
+fn descriptorGuard(self: *Self, allocator: std.mem.Allocator, request: Descriptor.Request, policy: Policy, write: bool, sources: bool) !P.Guard {
+    if (request.binding.identity.principal != policy.subject.principal()) return error.CatalogDenied;
+    const known = try self.descriptorCurrent(request.binding.target.object);
+    const namespace = try self.authorizationSchema(if (known) |value| value.properties.namespace else request.intent.namespace);
+    var target: ?a.Table = if (known) |value| value.properties.target(request.binding.target.object) else null;
+    if (target == null) if (try policy.registered(policy.context, .table, request.binding.target.object)) |native| {
+        try a.validateObject(self.config().authority, self.config().scope, .table, request.binding.target.object, a.reference(namespace.authorization), native);
+        target = .{ .id = request.binding.target.object, .schema = namespace.id, .authorization = native.reference.id };
+        if (request.intent.action == .create and native.owner != request.intent.action.create.owner) return error.CatalogIdentityConflict;
+    };
+    const access: a.Access = if (request.intent.action == .create and (write or target == null)) .create_table else if (write) .alter else .inspect;
+    var required = try self.requirements(policy, namespace, target, access);
+    if (request.intent.action == .create and write) required.selectable = request.intent.action.create.owner;
+    if (sources) if (request.intent.payload()) |payload| for (payload.sources) |source| {
+        const found = try self.dependencySource(source.declaration.interpretation.object, policy, a.select);
+        required = try required.merge(found.requirements);
+    };
+    return policy.make_guard(policy.context, allocator, required, if (write) request.binding.prerequisite else null);
+}
+fn descriptorReason(self: *Self, request: Descriptor.Request, current: P.Guard) !Descriptor.Reason {
+    const intent = request.intent;
+    const binding = request.binding;
+    if (try self.namespacePending(intent.namespace) != null) return .object_conflict;
+    _ = try self.schema(intent.namespace);
+    if (intent.action == .create) {
+        if (try self.entry(binding.target.object) != null) return .object_conflict;
+    } else {
+        const known = try self.descriptorCurrent(binding.target.object) orelse return .object_conflict;
+        if (known.kind != intent.kind or known.retired or try self.pending(binding.target.object, current)) return .object_conflict;
+        if (!std.meta.eql(known.interpretation, binding.expected_definition.?) or known.properties.namespace != intent.namespace or !std.meta.eql(known.properties.name, intent.name)) return .stale_definition;
+        if (intent.action == .drop and try self.hasDependents(binding.target.object)) return .dependency;
+    }
+    const name = if (intent.action == .rename) intent.action.rename else intent.name;
+    if ((intent.action == .create or intent.action == .rename) and !try self.available(intent.namespace, name, binding.target.object, current)) return .name_conflict;
+    if (intent.payload()) |payload| for (payload.sources) |source| {
+        const target = try self.entry(source.declaration.interpretation.object.object) orelse return .stale_definition;
+        if (target.seed == null or target.seed.?.kind != .table or try self.pending(target.object, current)) return .stale_definition;
+        var view = try self.open(self.allocator, target, false);
+        defer view.deinit();
+        if (view.table.root.next_lsn == 0 or view.table.root.retired or !std.meta.eql(view.properties, source.properties) or !std.meta.eql(view.table.root.declared(), source.declaration)) return .stale_definition;
+        const schema_bytes = try source.schema.decode(self.allocator, c.fuze.TableSchema.max_bytes);
+        defer self.allocator.free(schema_bytes);
+        var canonical: [c.fuze.TableSchema.max_bytes]u8 = undefined;
+        if (!std.mem.eql(u8, schema_bytes, try view.table.declaration.schema.schema.encode(&canonical))) return error.InvalidCatalogDescriptor;
+    };
+    return .none;
+}
+/// Preview has no registration or immutable staging side effect.
+pub fn previewDefinition(self: *Self, request: Descriptor.Request, policy: Policy) !Descriptor.Preview {
+    try self.requireInitialized();
+    try request.validate(self.allocator, self.config());
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    const current = try self.descriptorGuard(scratch.allocator(), request, policy, true, true);
+    try check(current);
+    if (try c.OperationBinding.lookup(self.allocator, self.store.objects, request.binding.identity)) |known| try known.requireSame(request.binding);
+    const result: Descriptor.Preview = .{ .binding = request.binding, .position = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn }, .current = try self.descriptorCurrent(request.binding.target.object), .reason = try self.descriptorReason(request, current) };
+    try check(current);
+    return result;
+}
+/// A native registration is preparation, not declaration acceptance. Only the
+/// original signed proposal may resume it. No data/source dependency is claimed
+/// until the atomic publication record is accepted; admission revalidates all.
+pub fn definitionRegistration(self: *Self, request: Descriptor.Request, policy: Policy) !?Registration {
+    const prepared_preview = try self.previewDefinition(request, policy);
+    if (request.intent.action != .create or prepared_preview.reason != .none) return null;
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    const current = try self.descriptorGuard(scratch.allocator(), request, policy, true, true);
+    const fence = try current.acquire(current.context);
+    defer current.release(current.context);
+    if (try policy.registered(policy.context, .table, request.binding.target.object) != null) return null;
+    try c.OperationBinding.claim(self.allocator, self.store.objects, request.binding);
+    const namespace = try self.schema(request.intent.namespace);
+    return .{ .action = .{ .domain = self.config().authority.table_domain, .owner = request.intent.action.create.owner, .schema = a.reference(namespace.authorization), .binding = try a.binding(self.config().scope, .table, request.binding.target.object) }, .authorization_revision = fence.policy_epoch - 1 };
+}
+fn prepareDescriptor(self: *Self, allocator: std.mem.Allocator, request: Descriptor.Request, policy: Policy) !Artifact.Definition {
+    const intent = request.intent;
+    if (intent.action == .create) {
+        const namespace = try self.schema(intent.namespace);
+        const native = try policy.registered(policy.context, .table, request.binding.target.object) orelse return error.CatalogRegistrationRequired;
+        try a.validateObject(self.config().authority, self.config().scope, .table, request.binding.target.object, a.reference(namespace.authorization), native);
+        if (native.owner != intent.action.create.owner) return error.CatalogIdentityConflict;
+        return intent.action.create.payload.definition(request.binding.target, 1, .{ .namespace = intent.namespace, .name = intent.name, .authorization = native.reference.id });
+    }
+    const previous = try self.descriptorCurrent(request.binding.target.object) orelse return error.InvalidCatalogDescriptor;
+    const owned = try Artifact.load(allocator, self.store.objects, previous);
+    // allocator is the request scratch arena; all returned slices stay alive.
+    const old = owned.value;
+    var next = old;
+    next.revision = try intent.revision(request.binding);
+    if (intent.action == .replace) {
+        next = intent.action.replace.definition(request.binding.target, next.revision, previous.properties);
+        var before = try Artifact.decodeSchema(allocator, old.schema);
+        defer before.deinit();
+        var after = try Artifact.decodeSchema(allocator, next.schema);
+        defer after.deinit();
+        if (after.schema.next_column < before.schema.next_column) return error.InvalidCatalogDescriptor;
+        for (after.schema.columns) |column| {
+            const retained = for (before.schema.columns) |prior| {
+                if (prior.id == column.id) break true;
+            } else false;
+            if (!retained and column.id < before.schema.next_column) return error.InvalidCatalogDescriptor;
+        }
+        if (next.body == .property_graph) {
+            const old_graph = old.body.property_graph;
+            const new_graph = next.body.property_graph;
+            if (new_graph.next_mapping < old_graph.next_mapping) return error.InvalidCatalogDescriptor;
+            inline for (.{ "vertices", "edges" }) |kind| for (@field(new_graph, kind)) |mapping| {
+                const retained = for (@field(old_graph, kind)) |prior| {
+                    if (mapping.id == prior.id) break true;
+                } else false;
+                if (!retained and mapping.id < old_graph.next_mapping) return error.InvalidCatalogDescriptor;
+            };
+        }
+    } else {
+        var row_schema = try Artifact.decodeSchema(allocator, old.schema);
+        defer row_schema.deinit();
+        row_schema.schema.revision = next.revision;
+        var bytes: [c.fuze.TableSchema.max_bytes]u8 = undefined;
+        next.schema = try c.DirectTableProtocol.Binary.encode(allocator, try row_schema.schema.encode(&bytes));
+        switch (intent.action) {
+            .rename => |name| next.properties.name = name,
+            .drop => next.retired = true,
+            else => unreachable,
+        }
+    }
+    try next.validate(allocator);
+    return next;
+}
+fn recordDescriptor(self: *Self, input: Descriptor.Operation, current: P.Guard) !Descriptor.Operation {
+    var batch: s.TreeStore.Batch = .{};
+    try self.store.index.beginBatch(self.options.index_work_bytes, &batch);
+    defer self.store.index.end();
+    var next = self.store.root;
+    var operation = input;
+    next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
+    operation.position = .{ .partition = self.config().partition, .next_lsn = next.next_lsn };
+    try operation.validate();
+    if (operation.phase == .applied) {
+        const stored = operation.resulting.?;
+        const target: r.Entry = .{ .object = stored.interpretation.object.object, .partition = 0, .seed = null, .resource = null, .log = null, .descriptor = self.store.root.next_lsn };
+        next.objects = try self.store.tree().put(next.objects, try r.idKey(target.object), try r.pageValue(target));
+        next.descriptor_definitions = try self.store.tree().put(next.descriptor_definitions, try Descriptor.definitionKey(stored.interpretation), try r.pageValue(stored));
+        if (operation.binding.action == .create or operation.binding.action == .rename) {
+            const name: r.Name = .{ .namespace = stored.properties.namespace, .name = stored.properties.name, .object = target.object, .reservation = operation.binding.identity };
+            next.names = try self.store.tree().put(next.names, try r.nameKey(name.namespace, name.name), try r.pageValue(name));
+        }
+        if (operation.binding.action == .create) {
+            var namespace = try self.schema(operation.namespace);
+            namespace.revision = try std.math.add(u64, namespace.revision, 1);
+            next.schemas = try self.store.tree().put(next.schemas, try r.idKey(namespace.id), try r.pageValue(namespace));
+        }
+        for (operation.removed) |maybe| if (maybe) |edge| {
+            next.dependents = try self.store.tree().remove(next.dependents, try edge.forwardKey());
+            next.dependencies = try self.store.tree().remove(next.dependencies, try edge.reverseKey());
+        };
+        for (operation.added) |maybe| if (maybe) |edge| {
+            const value = try r.pageValue(edge);
+            next.dependents = try self.store.tree().put(next.dependents, try edge.forwardKey(), value);
+            next.dependencies = try self.store.tree().put(next.dependencies, try edge.reverseKey(), value);
+        };
+    }
+    try self.store.receipt(&next, operation.binding);
+    try self.store.publish(next, .{ .descriptor = operation }, current);
+    return operation;
+}
+pub fn definitionOperation(self: *Self, request: Descriptor.Request, command: Descriptor.Command, policy: Policy) !Descriptor.Observation {
+    if (command == .preview) return error.InvalidCatalogDescriptor;
+    try self.requireInitialized();
+    try request.validate(self.allocator, self.config());
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    const previous = try self.store.descriptorOperation(request.binding);
+    const current = try self.descriptorGuard(scratch.allocator(), request, policy, command != .inspect and previous == null, command == .accept and previous == null);
+    try check(current);
+    if (try c.OperationBinding.lookup(self.allocator, self.store.objects, request.binding.identity)) |known| try known.requireSame(request.binding);
+    if (previous) |value| {
+        try check(current);
+        return .{ .operation = value };
+    }
+    if (command == .inspect) return .not_observed;
+    const reason = if (command == .cancel) Descriptor.Reason.none else try self.descriptorReason(request, current);
+    var operation: Descriptor.Operation = .{ .binding = request.binding, .intent = try Descriptor.IntentStore.stage(self.allocator, self.store.objects, self.config(), request), .kind = request.intent.kind, .namespace = request.intent.namespace, .name = if (request.intent.action == .rename) request.intent.action.rename else request.intent.name, .position = .{ .partition = self.config().partition, .next_lsn = 1 }, .phase = if (command == .cancel) .cancelled else if (reason != .none) .rejected else .applied, .reason = reason, .previous = null, .resulting = null };
+    if (operation.phase == .applied) {
+        operation.previous = try self.descriptorCurrent(request.binding.target.object);
+        const value = try self.prepareDescriptor(scratch.allocator(), request, policy);
+        if (!value.retired and value.body == .foreign and value.body.foreign.input.availability == .retained) {
+            const bytes = try Artifact.loadInput(self.allocator, self.store.objects, value.body.foreign.input);
+            self.allocator.free(bytes);
+        }
+        operation.resulting = try Artifact.stage(self.allocator, self.store.objects, value);
+        operation.added = try Descriptor.edges(value, operation.resulting.?);
+        if (operation.previous) |stored| {
+            var old = try Artifact.load(self.allocator, self.store.objects, stored);
+            defer old.deinit();
+            operation.removed = try Descriptor.edges(old.value, stored);
+        }
+    }
+    try c.OperationBinding.claim(self.allocator, self.store.objects, request.binding);
+    return .{ .operation = try self.recordDescriptor(operation, current) };
+}
+pub fn inspectDefinition(self: *Self, allocator: std.mem.Allocator, expected: d.Definition, policy: Policy) !Artifact.Owned {
+    try self.requireInitialized();
+    try expected.validate();
+    if (!std.meta.eql(expected.object.scope, self.config().scope) or expected.object.branch != self.config().branch) return error.CatalogDenied;
+    const latest = try self.descriptorCurrent(expected.object.object) orelse return error.CatalogDenied;
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    const current = try self.guard(scratch.allocator(), policy, try self.authorizationSchema(latest.properties.namespace), latest.properties.target(expected.object.object), .inspect);
+    try check(current);
+    const value = try self.store.tree().get(self.store.root.descriptor_definitions, try Descriptor.definitionKey(expected)) orelse return error.HistoricalArtifactUnavailable;
+    const stored = try r.fromValue(Artifact.Stored, self.allocator, value);
+    if (!std.meta.eql(stored.interpretation, expected) or stored.properties.namespace != latest.properties.namespace or stored.properties.authorization != latest.properties.authorization) return error.DataIdentityConflict;
+    var owned = try Artifact.load(allocator, self.store.objects, stored);
+    errdefer owned.deinit();
+    try check(current);
+    return owned;
+}
+pub fn resolveDefinition(self: *Self, allocator: std.mem.Allocator, namespace_id: u64, name: a.Name, policy: Policy) !?Artifact.Owned {
+    try self.requireInitialized();
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    const current = try self.guard(scratch.allocator(), policy, try self.schema(namespace_id), null, .schema);
+    try check(current);
+    const named = try self.candidate(namespace_id, name) orelse {
+        try check(current);
+        return null;
+    };
+    const stored = try self.descriptorCurrent(named.object) orelse {
+        try check(current);
+        return null;
+    };
+    if (stored.retired or stored.properties.namespace != namespace_id or !std.meta.eql(stored.properties.name, name)) {
+        try check(current);
+        return null;
+    }
+    return try self.inspectDefinition(allocator, stored.interpretation, policy);
+}
+pub fn listDefinitions(self: *Self, namespace_id: u64, after: ?u64, policy: Policy) !Descriptor.Page {
+    try self.requireInitialized();
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    const current = try self.guard(scratch.allocator(), policy, try self.schema(namespace_id), null, .schema);
+    try check(current);
+    const page = try self.store.tree().scan(self.store.root.objects, if (after) |id| try r.idKey(id) else null);
+    var result: Descriptor.Page = .{ .next = null, .position = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn } };
+    var count: usize = 0;
+    var disclosed = try self.requirements(policy, try self.schema(namespace_id), null, .schema);
+    for (page.entries) |maybe| if (maybe) |entry_value| {
+        const entry_value_decoded = try r.fromValue(r.Entry, self.allocator, entry_value.value);
+        try self.validateEntry(entry_value_decoded, entry_value.key);
+        result.next = entry_value_decoded.object;
+        if (entry_value_decoded.descriptor == null) continue;
+        const stored = (try self.descriptorCurrent(entry_value_decoded.object)).?;
+        if (stored.retired or stored.properties.namespace != namespace_id) continue;
+        const requirement = try self.requirements(policy, try self.authorizationSchema(namespace_id), stored.properties.target(stored.interpretation.object.object), .inspect);
+        const required = try policy.make_guard(policy.context, scratch.allocator(), requirement, null);
+        check(required) catch |err| {
+            if (err == error.CatalogDenied) continue;
+            return err;
+        };
+        disclosed = try disclosed.merge(requirement);
+        result.entries[count] = stored;
+        count += 1;
+        if (count == result.entries.len) break;
+    };
+    if (count < result.entries.len and page.next == null) result.next = null;
+    try check(try policy.make_guard(policy.context, scratch.allocator(), disclosed, null));
+    // The service rechecks its accumulated current requirements after copying
+    // the output, including entries accepted from a completely cached page.
+    return result;
+}
+pub fn stageDefinitionInput(self: *Self, namespace_id: u64, bytes: []const u8, policy: Policy) !d.Content {
+    try self.requireInitialized();
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    const current = try self.guard(scratch.allocator(), policy, try self.schema(namespace_id), null, .create_table);
+    try check(current);
+    const result = try Artifact.stageInput(self.store.objects, bytes);
+    try check(current);
+    return result;
+}
+
+fn historyNextDescriptor(directory: *c.DirectHistoryDirectory, after: ?u64) !?c.DirectHistoryDirectory.DescriptorEntry {
+    const page = try directory.descriptorPage(if (after) |id| .{ .directory = try directory.commitment(), .after = id } else null);
+    return page.entries[0];
+}
+fn verifyHistoryDescriptor(self: *Self, allocator: std.mem.Allocator, selection: *c.DirectHistoryDirectory, value: c.DirectHistoryDirectory.DescriptorEntry, policy: Policy) !P.Guard {
+    try value.validate(selection.root.owner, selection.root.branch);
+    const stored = value.declaration;
+    const current = try self.guard(allocator, policy, try self.authorizationSchema(stored.properties.namespace), stored.properties.target(stored.interpretation.object.object), .read);
+    try check(current);
+    var artifact = try self.inspectDefinition(allocator, stored.interpretation, policy);
+    defer artifact.deinit();
+    if (!std.meta.eql(try artifact.value.stored(allocator), stored)) return error.InvalidHistoricalBinding;
+    for (artifact.value.sources) |source| {
+        const retained = try selection.get(source.declaration.interpretation.object.object) orelse return error.IncompleteHistoricalSelection;
+        if (!std.meta.eql(retained.declaration, source.declaration) or !std.meta.eql(retained.properties, source.properties)) return error.InvalidHistoricalBinding;
+    }
+    if (artifact.value.body == .foreign and artifact.value.body.foreign.input.availability == .retained) {
+        const bytes = try Artifact.loadInput(allocator, self.store.objects, artifact.value.body.foreign.input);
+        allocator.free(bytes);
+    }
+    try check(current);
+    return current;
+}
+
+pub fn authorizeDefinition(self: *Self, expected: d.Definition, rows: bool, policy: Policy) !void {
+    try self.requireInitialized();
+    try expected.validate();
+    if (!std.meta.eql(expected.object.scope, self.config().scope) or expected.object.branch != self.config().branch) return error.CatalogDenied;
+    const latest = try self.descriptorCurrent(expected.object.object) orelse return error.CatalogDenied;
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    const current = try self.guard(scratch.allocator(), policy, try self.authorizationSchema(latest.properties.namespace), latest.properties.target(expected.object.object), if (rows) .read else .inspect);
+    try check(current);
+    const value = try self.store.tree().get(self.store.root.descriptor_definitions, try Descriptor.definitionKey(expected)) orelse return error.HistoricalArtifactUnavailable;
+    const stored = try r.fromValue(Artifact.Stored, self.allocator, value);
+    if (!std.meta.eql(stored.interpretation, expected) or stored.properties.authorization != latest.properties.authorization or stored.properties.namespace != latest.properties.namespace) return error.DataIdentityConflict;
+    try check(current);
+}
+pub fn historicalDefinition(self: *Self, allocator: std.mem.Allocator, snapshot: d.Snapshot, namespace_id: u64, name: a.Name, rows: bool, policy: Policy) !?Descriptor.Historical {
+    const publication = try self.historyPublication(snapshot, policy);
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    const current = try self.guard(scratch.allocator(), policy, try self.authorizationSchema(namespace_id), null, .schema);
+    try check(current);
+    var selection = try self.historySelection(publication.intent);
+    defer selection.deinit();
+    const entry_value = try selection.lookupDescriptor(namespace_id, name) orelse {
+        try publication.requirePublished();
+        try check(current);
+        return null;
+    };
+    try self.authorizeDefinition(entry_value.declaration.interpretation, rows, policy);
+    try publication.requirePublished();
+    var owned = try self.inspectDefinition(self.allocator, entry_value.declaration.interpretation, policy);
+    defer owned.deinit();
+    if (!std.meta.eql(try owned.value.stored(self.allocator), entry_value.declaration)) return error.InvalidHistoricalBinding;
+    const result: Descriptor.Historical = .{ .snapshot = snapshot, .binding = entry_value, .value = try Descriptor.clone(allocator, owned.value) };
+    try self.authorizeDefinition(entry_value.declaration.interpretation, rows, policy);
+    return result;
+}
+
+pub fn historicalDefinitions(self: *Self, snapshot: d.Snapshot, namespace_id: u64, after: ?u64, policy: Policy) !Descriptor.HistoricalPage {
+    const publication = try self.historyPublication(snapshot, policy);
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    const current = try self.guard(scratch.allocator(), policy, try self.authorizationSchema(namespace_id), null, .schema);
+    try check(current);
+    try publication.requirePublished();
+    var selection = try self.historySelection(publication.intent);
+    defer selection.deinit();
+    const page = try selection.descriptorPage(if (after) |id| .{ .directory = publication.intent.selection, .after = id } else null);
+    var result: Descriptor.HistoricalPage = .{ .snapshot = snapshot, .next = null };
+    var count: usize = 0;
+    for (page.entries) |maybe| if (maybe) |entry_value| {
+        result.next = entry_value.declaration.interpretation.object.object;
+        if (entry_value.namespace.id != namespace_id) continue;
+        self.authorizeDefinition(entry_value.declaration.interpretation, false, policy) catch |err| {
+            if (err == error.CatalogDenied) continue;
+            return err;
+        };
+        result.entries[count] = entry_value;
+        count += 1;
+        if (count == result.entries.len) break;
+    };
+    if (count < result.entries.len and page.next == null) result.next = null;
+    for (result.entries) |maybe| if (maybe) |entry_value| try self.authorizeDefinition(entry_value.declaration.interpretation, false, policy);
+    try check(current);
+    return result;
 }

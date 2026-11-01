@@ -10279,6 +10279,62 @@
           "actions": [
             "correct_input"
           ]
+        },
+        "CatalogDependencyOwned": {
+          "code": "catalog.dependency_owned",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "InvalidCatalogDescriptor": {
+          "code": "catalog.invalid_descriptor",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "UnsupportedCatalogView": {
+          "code": "catalog.unsupported_view",
+          "category": "unsupported",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "UnsupportedForeignLayout": {
+          "code": "catalog.unsupported_foreign_layout",
+          "category": "unsupported",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "ForeignValueMalformed": {
+          "code": "catalog.foreign_value_malformed",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "CatalogKindMismatch": {
+          "code": "catalog.kind_mismatch",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "CatalogRecordTooLarge": {
+          "code": "catalog.record_too_large",
+          "category": "capacity",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "UnsupportedHistoricalKind": {
+          "code": "catalog.unsupported_historical_kind",
+          "category": "unsupported",
+          "actions": [
+            "correct_input"
+          ]
         }
       },
       "mapping_boundary": "direct-catalog-caller"

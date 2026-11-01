@@ -9,7 +9,7 @@ const d = p.DataLifecycle;
 const pages = c.storage.TreeStore.pages;
 
 pub const Dependent = struct {
-    kind: enum(u8) { kv = 1, document = 2, captured = 3, maintained = 4, stream = 5, queue = 6, table = 7 },
+    kind: enum(u8) { kv = 1, document = 2, captured = 3, maintained = 4, stream = 5, queue = 6, table = 7, view = 8, property_graph = 9, foreign = 10 },
     interpretation: d.Definition,
 
     pub fn validate(self: Dependent) !void {

@@ -73,6 +73,21 @@ is accepted, releasing the original selection or replacing a live definition
 cannot change the computation or its retained result. Release before acceptance
 fails explicitly. Closing an interactive read does not release the selection.
 
+Versioned views are resolved through the same retained catalog. Their accepted
+typed projection/filter and exact Table dependency remain fixed after replacement
+or name reuse; stored SQL is provenance. SELECT supports the outer finite
+single-Table expression profile, while DESCRIBE exposes stable view columns and
+EXPLAIN reports both filter stages without acquiring data. Results identify both
+view and source definitions. Current metadata/SELECT rights on the original view
+and source still apply. Joins, captured execution, transactions and explicit
+schema projection over views are not qualified in this profile.
+
+The shared Catalog `definitions` reads and Board's **Inspect retained definitions**
+show exact view, graph and foreign decoder metadata. Graph/foreign metadata alone
+does not establish executable query support. A retained foreign-only catalog has
+zero Table sources; its captured input identity and decoder remain inspectable
+without claiming a Table snapshot. See the [catalog interpretation contract](../../../../contracts/CATALOG_DEFINITIONS_V1.md).
+
 The current profile rejects historical writes, active transaction composition,
 KV/Document query-source selection and unselected objects. Historical graph/foreign execution,
 branch/tag convenience selectors and temporal-table queries require their own

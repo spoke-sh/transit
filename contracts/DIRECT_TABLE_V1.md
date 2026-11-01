@@ -11,6 +11,14 @@ and shared SQL runtime. Captured-source and SDK migration remain incomplete. The
 
 ## Requests and authority
 
+The `descriptor` action publishes and inspects versioned views, property-graph
+mappings and foreign layouts through `DirectDefinition`. These metadata objects
+share stable catalog identities, namespace/name claims and current native Table
+permissions. Their original-operation outcomes and dependency replacements commit
+atomically in the catalog log. They allocate no data partition. See
+[catalog interpretations](CATALOG_DEFINITIONS_V1.md) for the exact publication,
+historical selection and execution profiles.
+
 The `branch` action and result use `DirectBranch.Request` and `DirectBranch.Result`
 for named immutable single-Table branches. Creation, publication, cancellation,
 source reads and paged scans share this endpoint and the typed local owner.

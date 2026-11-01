@@ -586,12 +586,12 @@
       "standard": "iso_sql_2023_pgq",
       "edition_clause": "ISO/IEC 9075-16:2023 §11-14",
       "title": "SQL/PGQ CREATE PROPERTY GRAPH catalog descriptors and vertex/edge table bindings",
-      "owner": "packages/zig/transit-catalog/src/HistoricalCatalog.zig",
+      "owner": "packages/zig/transit-catalog/src/CatalogDefinition.zig",
       "dependencies": [
         "F031-F034",
         "F492"
       ],
-      "deviations": "Standalone property-graph descriptor validation. No SQL compiler, DirectCatalog persistence or graph execution.",
+      "deviations": "CREATE PROPERTY GRAPH and traversal remain rejected SQL profiles. The separate Transit typed interpretation API persists versioned graph key/label/property bindings, protects exact Table dependencies and retains historical metadata; this does not qualify PGQ execution.",
       "corpus_sources": [
         "contracts/sql/corpus/declarations.json"
       ],
@@ -605,7 +605,8 @@
       "reference_verified": false,
       "profile": "production SQL entry points; only the selected scope described in deviations",
       "evidence_sources": [
-        "packages/zig/transit-fuze/src/operator_traits_test.zig"
+        "packages/zig/transit-catalog/src/catalog_definition_test.zig",
+        "packages/zig/transit-catalog/src/direct_catalog_test.zig"
       ]
     },
     {
@@ -613,7 +614,7 @@
       "standard": "iso_sql_2023_med",
       "edition_clause": "ISO/IEC 9075-9:2023 §11",
       "title": "SQL/MED CREATE FOREIGN TABLE catalog descriptors and mainframe copybook codec bindings",
-      "owner": "packages/zig/transit-catalog/src/HistoricalCatalog.zig",
+      "owner": "packages/zig/transit-catalog/src/CatalogDefinition.zig",
       "dependencies": [
         "COMP",
         "COMP_3",
@@ -621,7 +622,7 @@
         "IBM_HFP",
         "EBCDIC"
       ],
-      "deviations": "Standalone foreign-table descriptor validation. No SQL compiler, DirectCatalog persistence or foreign scan execution.",
+      "deviations": "CREATE FOREIGN TABLE and general foreign scans remain rejected SQL profiles. The separate Transit typed interpretation API persists exact layouts, captured input content/availability and decoder policy. Historical inspection never refetches provenance URIs; durable corruption is not a malformed value cell.",
       "corpus_sources": [
         "contracts/sql/corpus/declarations.json"
       ],
@@ -635,7 +636,8 @@
       "reference_verified": false,
       "profile": "production SQL entry points; only the selected scope described in deviations",
       "evidence_sources": [
-        "packages/zig/transit-fuze/src/operator_traits_test.zig"
+        "packages/zig/transit-catalog/src/catalog_definition_test.zig",
+        "packages/zig/transit-catalog/src/direct_catalog_test.zig"
       ]
     },
     {
@@ -1031,9 +1033,64 @@
         "packages/zig/transit-fuze/src/operator_traits_test.zig",
         "packages/zig/transit-fuze/src/RlsAndMasking.zig"
       ]
+    },
+    {
+      "id": "X-CATALOG-DEFINITIONS",
+      "standard": "transit_extension_v1",
+      "edition_clause": "CATALOG_DEFINITIONS_V1",
+      "title": "Versioned typed view, graph and foreign interpretation metadata",
+      "owner": "packages/zig/transit-catalog/src/DirectDefinition.zig",
+      "dependencies": [
+        "T181-X003"
+      ],
+      "deviations": "One control record publishes immutable definition, qualified name, original outcome and dependency replacement. Historical metadata retains exact artifacts separately from Table pins. Metadata-only catalogs have zero Table sources.",
+      "corpus_sources": [
+        "packages/zig/transit-catalog/src/fixtures/direct-catalog-definition-v1.json",
+        "packages/zig/transit-catalog/src/fixtures/direct-history-metadata-v1.json"
+      ],
+      "states": {
+        "parse": "rejected",
+        "lower": "implemented",
+        "execute": "implemented",
+        "recover": "implemented",
+        "transport": "staged"
+      },
+      "reference_verified": false,
+      "profile": "Native DirectDefinition declarations and Catalog definitions inspection; no SQL CREATE VIEW/GRAPH/FOREIGN claim",
+      "evidence_sources": [
+        "packages/zig/transit-catalog/src/catalog_definition_test.zig",
+        "packages/zig/transit-catalog/src/direct_catalog_test.zig"
+      ]
+    },
+    {
+      "id": "X-HISTORICAL-VIEWS",
+      "standard": "transit_extension_v1",
+      "edition_clause": "CATALOG_DEFINITIONS_V1",
+      "title": "Interactive expansion of accepted single-Table views",
+      "owner": "packages/zig/transit-query-direct/src/DirectTablePrepared.zig",
+      "dependencies": [
+        "X-CATALOG-DEFINITIONS"
+      ],
+      "deviations": "View definitions admit one Table, projection and filter. Outer finite expressions/parameters/aggregates run after that filter. Joins, captured views, transactions and explicit view schema projections refuse. No view text is reparsed.",
+      "corpus_sources": [
+        "packages/zig/transit-catalog/src/fixtures/direct-catalog-definition-v1.json"
+      ],
+      "states": {
+        "parse": "implemented",
+        "lower": "implemented",
+        "execute": "implemented",
+        "recover": "staged",
+        "transport": "staged"
+      },
+      "reference_verified": false,
+      "profile": "Database SQL SELECT/DESCRIBE/EXPLAIN over current or historical accepted typed views",
+      "evidence_sources": [
+        "packages/zig/transit-query-direct/src/DirectView.zig",
+        "tests/interfaces/sql_sessions/history.py"
+      ]
     }
   ],
-  "sha256": "3f259ceed7ac8621bedfb194762033c765e3cda5b5feb878b771d0fe6d2412bd",
+  "sha256": "6df2399d56d67edfc4eae96aaf1411fa5560315cca9d7afd477a4aadd9b0eff9",
   "scope": "States describe public runtime entry points, not helper availability or ISO conformance. Physical codecs describe typed TableSchema admission; ENCODING syntax remains reference-only. An implemented feature covers only the stated deviations and fixtures.",
   "compiler_cases": [
     {
@@ -1216,6 +1273,13 @@
       "feature": "F492",
       "entrypoint": "table_ddl_catalog",
       "sql": "CREATE TABLE t (id BIGINT, FOREIGN KEY (id) REFERENCES parent (id))",
+      "accept": false
+    },
+    {
+      "id": "create-view-explicitly-unqualified",
+      "feature": "X-CATALOG-DEFINITIONS",
+      "entrypoint": "table_ddl",
+      "sql": "CREATE VIEW v AS SELECT id FROM t",
       "accept": false
     }
   ],

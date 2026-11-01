@@ -1390,3 +1390,23 @@ its enclosing scan owns those. It preserves admitted cell states and may fail
 physical/destination validation instead of converting errors to NULL. Its
 one-row output bound describes the mapping, not total query coverage. Default
 changes after ADD do not replace the mapping's recorded initial values.
+
+## Accepted catalog views
+
+The implemented finite view profile binds one exact Table definition to an
+accepted projection and predicate. Source text is provenance. Historical
+preparation resolves the view and Table from the selected catalog before
+compiling the outer query. Current view and source permissions remain separate
+disclosure checks. [The exact contract](../../../contracts/CATALOG_DEFINITIONS_V1.md)
+defines publication, replacement and unsupported operators.
+
+[`DirectView`](../../../packages/zig/transit-query-direct/src/DirectView.zig)
+remaps outer column and scalar inputs to the accepted source ordinals. The scan
+evaluates the view predicate first: combining it with an eager outer predicate
+could expose an error in a row the view excluded. Filtered scans end borrowed
+morsels before crossing a page boundary, keeping earlier row slices valid until
+their consumer finishes. This sacrifices batching opportunities; it makes no
+throughput claim. The package test checks independent ordinals, output names,
+aggregate/scalar mapping and the excluded-error case. Installed replacement,
+restart and revocation schedules live in the
+[SQL history driver](../../../tests/interfaces/sql_sessions/history.py).

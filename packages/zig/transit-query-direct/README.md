@@ -46,3 +46,12 @@ Run `zig build check` and `zig build test` from this directory in `nix develop`.
 The [query reference](../../../docs/handbook/reference/queries.md) describes
 supported SQL and source semantics; the [SQL service](../transit-sql/README.md)
 owns sessions, operation recovery and read-pin cleanup.
+
+`DirectView` expands an accepted single-Table projection/filter over the exact
+source declaration. Historical preparation resolves the retained view before
+compiling the outer SELECT. Source filtering precedes outer expressions, and
+view identity participates in the binding fingerprint and disclosure guard.
+DESCRIBE and EXPLAIN use the same metadata bindings. General graph/foreign
+execution, view joins, captured views, explicit schema projection and transaction
+composition over views remain unavailable. See the
+[catalog interpretation contract](../../../contracts/CATALOG_DEFINITIONS_V1.md).

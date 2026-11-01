@@ -124,9 +124,12 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
     if (try parser.takeWord("DESCRIBE")) {
         const name = try c.TableMetadata.Name.init(try parser.name());
         try parser.finish();
-        const response = if (selection.snapshot) |snapshot| try c.DirectHistory.resolve(host.table, snapshot, selected_namespace, name.slice(), false) else try host.table.call(.{ .lookup = .{ .namespace = host.namespace, .name = name.slice() } });
+        const response = if (selection.snapshot) |snapshot| c.DirectHistory.resolve(host.table, snapshot, selected_namespace, name.slice(), false) catch |err| {
+            if (err == error.HistoricalObjectNotSelected) return try describeView(host, &arena, selected_namespace, name, selection.snapshot, selection.projection);
+            return err;
+        } else try host.table.call(.{ .lookup = .{ .namespace = host.namespace, .name = name.slice() } });
         defer response.deinit();
-        const binding = if (selection.snapshot != null) try c.DirectTableBinding.initCatalog(host.table.connection, response.value.result.historical_catalog.source) else try c.DirectTableBinding.init(host.table.connection, response.value.result.lookup orelse return error.CatalogNameNotFound);
+        const binding = if (selection.snapshot != null) try c.DirectTableBinding.initCatalog(host.table.connection, response.value.result.historical_catalog.source) else try c.DirectTableBinding.init(host.table.connection, response.value.result.lookup orelse return try describeView(host, &arena, selected_namespace, name, selection.snapshot, selection.projection));
         const projected = if (selection.projection) |target| try c.DirectSchemaProjection.resolve(host.table, binding.interpretation, target) else null;
         defer if (projected) |value| value.deinit();
         const projection = if (projected) |value| value.value.result.schema_projection.prepared.target else null;
@@ -145,11 +148,13 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
                 const template = &selected.template;
                 var bound = try template.bind(host.allocator, template.name, template.descriptor.type, template.basis, &.{}, null);
                 defer bound.deinit();
-                bound.plan.collations = selected.collations;
+                bound.plan.collations = if (selected.view) |view| .fromTable(view.schema.schema) else selected.collations;
                 break :blk try std.json.Stringify.valueAlloc(a, .{
                     .object = selected.binding.interpretation.interpretation.object.object,
                     .traits = f.OperatorTraits.Summary.forExplain(try bound.plan.traits()),
-                    .filter = bound.plan.predicate != .all,
+                    .filter = bound.plan.predicate != .all or (if (selected.view) |view| view.plan.plan.predicate != .all else false),
+                    .view = selected.binding.view,
+                    .view_filter = if (selected.view) |view| f.OperatorTraits.Summary.forExplain(try view.plan.plan.traits()) else null,
                     .aggregate = @tagName(bound.plan.aggregate),
                     .limit = bound.plan.limit,
                     .schema = f.LogicalJson.TypeEnvelope{ .definition = f.Types.definition, .type = statement.output.?.type },
@@ -310,3 +315,25 @@ pub const Read = struct {
         return self.prepared.rows[self.index];
     }
 };
+
+fn describeView(host: *g.Session, arena: *std.heap.ArenaAllocator, namespace: u64, name: c.TableMetadata.Name, snapshot: ?c.protocol.DataLifecycle.Snapshot, projection: ?c.DirectSchemaProjection.Target) !Self {
+    if (projection != null) return error.UnsupportedCatalogView;
+    var sql: std.Io.Writer.Allocating = .init(arena.allocator());
+    const quote: u8 = if (host.dialect == .mysql) '`' else '"';
+    try sql.writer.writeAll("SELECT * FROM ");
+    try sql.writer.writeByte(quote);
+    for (name.slice()) |byte| {
+        try sql.writer.writeByte(byte);
+        if (byte == quote) try sql.writer.writeByte(byte);
+    }
+    try sql.writer.writeByte(quote);
+    if (snapshot) |cut| {
+        var selector: [c.DirectHistory.Selector.text_bytes]u8 = undefined;
+        try sql.writer.print(" AS OF SNAPSHOT '{s}'", .{try c.DirectHistory.Selector.encode(cut, &selector)});
+    }
+    var statement = try g.Statement.prepare(host.allocator, &host.table, namespace, sql.written(), host.dialect, .inspection, g.Session.read_options);
+    errdefer statement.deinit();
+    if (statement.plan != .select or statement.plan.select.view == null) return error.UnsupportedCatalogView;
+    const rows = try describeRows(arena.allocator(), statement.plan.select.view.?.schema.schema);
+    return .{ .arena = arena.*, .name = name, .statement = statement, .historical_namespace = if (snapshot != null) namespace else null, .rows = rows, .output = &describe_fields };
+}

@@ -17,7 +17,7 @@ pub const Projection = struct {
         if (!std.meta.eql(self.source.object, self.target.object) or self.source.revision > self.target.revision or self.accepted_lsn == 0 or std.mem.allEqual(u8, &self.schema, 0)) return error.InvalidProjectionObservation;
     }
 };
-pub const Table = struct { object: d.Object, interpretation: d.Definition, accepted: d.Position, changed_lsn: u64, pin: d.Content, commitment: [32]u8, schema: [32]u8, projection: ?Projection = null };
+pub const Table = struct { object: d.Object, interpretation: d.Definition, accepted: d.Position, changed_lsn: u64, pin: d.Content, commitment: [32]u8, schema: [32]u8, projection: ?Projection = null, view: ?d.Definition = null };
 pub const Data = union(enum) {
     source: struct { kind: r.fuze.Unified.SourceKind, resource: u64, position: union(enum) { native_revision: u64, table: [32]u8 }, contract: [32]u8, schema: [32]u8 },
     table: Table,
@@ -51,7 +51,7 @@ pub fn validate(value: Value) !void {
         if (value.metadata.historical) |snapshot| {
             try snapshot.validate();
             if (snapshot.definition != r.protocol.Growth.current_definition) return error.IncompatibleDefinition;
-            if (value.metadata.consistency != .exact_definitions or snapshot.source_count == 0) return error.InvalidHistoricalObservation;
+            if (value.metadata.consistency != .exact_definitions) return error.InvalidHistoricalObservation;
             for (value.metadata.definitions) |definition| {
                 try definition.validate();
                 if (!std.meta.eql(definition.object.scope, snapshot.owner.scope) or definition.object.branch != snapshot.branch) return error.InvalidHistoricalObservation;
@@ -98,6 +98,10 @@ pub fn validate(value: Value) !void {
 }
 
 fn validateTableProjection(source: Table) !void {
+    if (source.view) |definition| {
+        try definition.validate();
+        if (!std.meta.eql(definition.object.scope, source.object.scope) or definition.object.branch != source.object.branch or definition.object.object == source.object.object) return error.InvalidHistoricalObservation;
+    }
     if (source.projection) |projection| {
         try projection.validate();
         if (!std.meta.eql(source.interpretation, projection.source)) return error.InvalidProjectionObservation;

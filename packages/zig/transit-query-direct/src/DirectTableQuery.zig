@@ -71,13 +71,21 @@ pub fn qualify(table_schema: f.TableSchema.Schema) !void {
 pub fn openPreparedRetained(allocator: std.mem.Allocator, client: c.DirectTableClient, snapshot: c.DirectTableProtocol.Snapshot, prepared: *const q.DirectTablePrepared, values: []const ?f.Types.Values.Atom, limits: Limits, cancellation: ?*const std.atomic.Value(bool), detail: ?*f.Sql.Binding, compute: Compute) !Self {
     try limits.validate();
     if (cancellation) |flag| if (flag.load(.acquire)) return error.Cancelled;
-    if (limits.requests < 4) return error.QueryPageBudget;
+    // A view and its source require independent authorization. Each direct
+    // action can acquire credentials before making its protected request.
+    const validation_requests: u64 = if (prepared.binding.view != null) 4 else 2;
+    if (limits.requests < validation_requests + 2) return error.QueryPageBudget;
     _ = try prepared.binding.require(client, .read);
-    var scan = if (prepared.binding.catalog) |catalog| try Scan.openCatalog(allocator, client, catalog, prepared.binding.interpretation.interpretation.object.object, limits.requests - 2, cancellation) else try Scan.open(allocator, client, snapshot, limits.requests - 2, cancellation);
+    var scan = if (prepared.binding.catalog) |catalog| try Scan.openCatalog(allocator, client, catalog, prepared.binding.interpretation.interpretation.object.object, limits.requests - validation_requests, cancellation) else try Scan.open(allocator, client, snapshot, limits.requests - validation_requests, cancellation);
     errdefer scan.deinit();
-    scan.requests += 2;
+    scan.requests += validation_requests;
     scan.request_limit = limits.requests;
     if (prepared.projection) |target| try scan.projectTo(target);
+    if (prepared.view) |view| {
+        scan.view = view.stored.interpretation;
+        var bytes: [f.LogicalPlanCodec.max_bytes]u8 = undefined;
+        scan.view_filter = try f.LogicalPlanCodec.decode(allocator, view.plan.plan.schema, view.plan.plan.source_basis, try f.LogicalPlanCodec.encode(view.plan.plan, &bytes));
+    }
     try qualify(scan.reader.schema.schema);
     var compiled = try prepared.instantiate(allocator, client.connection, scan.reader.basis.interpretation, scan.reader.schema.schema, try scan.fingerprint(), values, detail);
     errdefer compiled.deinit();

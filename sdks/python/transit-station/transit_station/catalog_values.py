@@ -1325,13 +1325,14 @@ def _history_operation(value: object) -> HistoryOperation:
 class HistoryDirectory:
     content: Content
     count: int
+    descriptors: int
     def _wire(self) -> dict[str, object]:
-        return dict(content=dict(bytes=str(_wide(self.content.bytes)), sha256=_digest(self.content.sha256)), count=str(_wide(self.count)))
+        return dict(content=dict(bytes=str(_wide(self.content.bytes)), sha256=_digest(self.content.sha256)), count=str(_wide(self.count, minimum=0)), descriptors=str(_wide(self.descriptors, minimum=0)))
 
 
 def _history_directory(value: object) -> HistoryDirectory:
-    value = _object(value, 'content count')
-    return HistoryDirectory(_content(value['content']), _decimal(value['count']))
+    value = _object(value, 'content count descriptors')
+    return HistoryDirectory(_content(value['content']), _decimal(value['count'], 0), _decimal(value['descriptors'], 0))
 
 
 @dataclass(frozen=True, slots=True)
@@ -1496,7 +1497,7 @@ def _history_basis(value: object, selected: HistoricalSnapshot | None = None) ->
     common = _history_cut(payload) if kind == 'common_transaction' else None
     if kind == 'independent': _object(payload, '')
     return HistoryBasis(value['definition'], snapshot, _history_operation(value['owner']), _decimal(value['branch']), _content(value['catalog_root']),
-                        _content(value['sources_root']), _decimal(value['source_count']), cast(Literal['single_partition', 'independent', 'common_transaction'], kind), position, common)
+                        _content(value['sources_root']), _decimal(value['source_count'], 0), cast(Literal['single_partition', 'independent', 'common_transaction'], kind), position, common)
 
 
 @dataclass(frozen=True, slots=True)
@@ -1510,6 +1511,8 @@ class HistoryStatus:
     after: int | None
     inflight: int | None
     verified_after: int | None
+    descriptor_after: int | None
+    descriptors_verified: int
     policy_epoch: int | None
     released_after: int | None
     basis: HistoryBasis | None
@@ -1517,7 +1520,7 @@ class HistoryStatus:
 
 def _history_status(value: object, key: HistoryKey, original: HistoryAcquisition | None = None) -> HistoryStatus | None:
     if value is None: return None
-    value = _object(value, 'key intent admitted revision phase retained after inflight verified_after policy_epoch released_after snapshot')
+    value = _object(value, 'key intent admitted revision phase retained after inflight verified_after descriptor_after descriptors_verified policy_epoch released_after snapshot')
     if value['key'] != key._wire() or (original is not None and value['intent'] != original._wire()['intent']): raise ValueError('Changed original history acquisition')
     intent = _history_intent(value['intent'], key)
     phase = value['phase']
@@ -1535,7 +1538,7 @@ def _history_status(value: object, key: HistoryKey, original: HistoryAcquisition
     def optional(name: str) -> int | None: return None if value[name] is None else _decimal(value[name], 0)
     return HistoryStatus(key, intent, _position(value['admitted']), _position(value['revision']), phase,
                          None if value['retained'] is None else _history_directory(value['retained']), optional('after'), optional('inflight'),
-                         optional('verified_after'), optional('policy_epoch'), optional('released_after'),
+                         optional('verified_after'), optional('descriptor_after'), _decimal(value['descriptors_verified'], 0), optional('policy_epoch'), optional('released_after'),
                          None if value['snapshot'] is None else _history_basis(value['snapshot']))
 
 
@@ -1600,7 +1603,7 @@ def _history_page(value: object, snapshot: HistoricalSnapshot, scope: Scope, nam
     if cursor:
         cursor._check(snapshot, namespace)
         native = cursor._wire()
-        if _history_directory(native['directory']) != HistoryDirectory(basis.sources_root, basis.source_count) or (previous is not None and _decimal(native['after']) <= _decimal(previous._wire()['after'])):
+        if _history_directory(native['directory']) != HistoryDirectory(basis.sources_root, basis.source_count, 0) or (previous is not None and _decimal(native['after']) <= _decimal(previous._wire()['after'])):
             raise ValueError('Historical continuation changed directory or failed to advance')
     return HistoryPage(basis, namespace, entries, cursor)
 

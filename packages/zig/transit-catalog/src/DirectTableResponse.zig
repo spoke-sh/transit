@@ -162,6 +162,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .queue => .queue,
         .branch => .branch,
         .historical_catalog => .historical_catalog,
+        .descriptor => .descriptor,
         .schema_projection => .schema_projection,
         .kv => .kv,
         .kv_declaration => .kv_declaration,
@@ -228,6 +229,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .stream => |value| try c.DirectStreamResponse.validate(allocator, request.connection, request.action.stream, value),
         .queue => |value| try c.DirectQueueResponse.validate(allocator, request.connection, request.action.queue, value),
         .branch => |value| try c.DirectBranch.validateResult(allocator, request.connection, request.action.branch, value),
+        .descriptor => |value| try c.DirectDefinition.validateResult(allocator, request.connection, request.action.descriptor, value),
         .historical_catalog => |value| try c.DirectHistory.validateResult(allocator, request.connection, request.action.historical_catalog, value),
         .schema_projection => |value| try c.DirectSchemaProjection.validateResult(allocator, request.connection, request.action.schema_projection, value),
         .kv => |value| {

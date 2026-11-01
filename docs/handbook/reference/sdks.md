@@ -191,6 +191,13 @@ for `HistoryAcquisition`, `HistoricalSnapshot` and `HistoryCursor`. These adapte
 provide metadata operations; row results use the shared SQL result lifecycle.
 Other language Catalog wrappers retain their documented current-catalog profile.
 
+History directories report Table and metadata-definition counts separately;
+metadata-only selections can have zero Table sources. Zig's owned
+`Catalog.call(.definitions)` read surface exposes exact view, graph and foreign
+definitions, including typed dependencies and decoder mappings. The neutral host
+and Board share that surface. Python and TypeScript retain their typed history
+operations; their convenience APIs do not yet project those definition bodies.
+
 ## Rules that travel across languages
 
 - Supply credentials and the protocol profile explicitly; imports perform no I/O.

@@ -28,13 +28,14 @@ pub const Key = struct {
 pub const Directory = struct {
     content: h.Content,
     count: []const u8,
+    descriptors: []const u8,
     fn native(self: Directory) !c.DirectHistoryDirectory.Reference {
-        const value: c.DirectHistoryDirectory.Reference = .{ .content = try self.content.native(), .count = try v.unsigned(self.count) };
-        if (value.count == 0) return error.EmptyHistoricalSelection;
+        const value: c.DirectHistoryDirectory.Reference = .{ .content = try self.content.native(), .count = try v.unsigned(self.count), .descriptors = try v.unsigned(self.descriptors) };
+        if (try value.total() == 0) return error.EmptyHistoricalSelection;
         return value;
     }
     fn foreign(allocator: A, value: c.DirectHistoryDirectory.Reference) !Directory {
-        return .{ .content = try h.Content.foreign(allocator, value.content), .count = try v.decimal(allocator, value.count) };
+        return .{ .content = try h.Content.foreign(allocator, value.content), .count = try v.decimal(allocator, value.count), .descriptors = try v.decimal(allocator, value.descriptors) };
     }
 };
 pub const Selection = struct {
@@ -125,6 +126,8 @@ pub const Status = struct {
     after: ?[]const u8,
     inflight: ?[]const u8,
     verified_after: ?[]const u8,
+    descriptor_after: ?[]const u8,
+    descriptors_verified: []const u8,
     policy_epoch: ?[]const u8,
     released_after: ?[]const u8,
     snapshot: ?Snapshot,
@@ -277,6 +280,8 @@ fn project(allocator: A, result: H.Result) !Result {
             .after = try optionalNumber(allocator, status.state.after),
             .inflight = try optionalNumber(allocator, status.state.inflight),
             .verified_after = try optionalNumber(allocator, status.state.verified_after),
+            .descriptor_after = try optionalNumber(allocator, status.state.descriptor_after),
+            .descriptors_verified = try v.decimal(allocator, status.state.descriptors_verified),
             .policy_epoch = try optionalNumber(allocator, status.state.policy_epoch),
             .released_after = try optionalNumber(allocator, status.state.released_after),
             .snapshot = if (status.state.snapshot) |snapshot| try Snapshot.foreign(allocator, snapshot) else null,
@@ -329,7 +334,7 @@ test "historical caller projections preserve maximum identities and cursor scope
     try t.expectEqualStrings("18446744073709551615", copied.owner.operation);
     try t.expectEqualStrings("18446744073709551615", copied.source_count);
     try t.expectEqualDeep(snapshot, try H.Selector.decode(copied.selector));
-    const cursor: Cursor = .{ .selector = copied.selector, .namespace = 1, .directory = .{ .content = copied.sources_root, .count = copied.source_count }, .after = "18446744073709551614" };
+    const cursor: Cursor = .{ .selector = copied.selector, .namespace = 1, .directory = .{ .content = copied.sources_root, .count = copied.source_count, .descriptors = "0" }, .after = "18446744073709551614" };
     const action: Action = .{ .list = .{ .selector = copied.selector, .namespace = 1, .after = cursor } };
     const native = try action.native();
     try t.expectEqual(std.math.maxInt(u64) - 1, native.list.after.?.after);

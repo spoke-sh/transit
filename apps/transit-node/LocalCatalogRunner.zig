@@ -216,3 +216,39 @@ fn runInner(self: *Self, comptime namespace: bool, catalog: *D, binding: anytype
         }
     }
 }
+
+/// Metadata publication is one catalog append. Native registration may need
+/// bounded preparation steps; an uncertain reply resumes this same proposal.
+pub fn runDefinition(self: *Self, catalog: *D, request: c.DirectDefinition.Request, policy: D.Policy, step_limit: u16) !c.DirectDefinition.Observation {
+    if (step_limit == 0 or step_limit > 256) return error.InvalidCatalogStepBudget;
+    var transport: Transport = .{ .engine = self.engine };
+    const registrar: client.AuthorizationClientWithTransport(Transport) = .{ .transport = &transport, .realm = self.engine.genesis.realm, .principal = self.principal, .key = self.key, .role = self.role };
+    for (0..step_limit) |_| {
+        const observed = try catalog.definitionOperation(request, .inspect, policy);
+        if (observed == .operation) return observed;
+        const plan = try catalog.definitionRegistration(request, policy);
+        if (plan == null) return catalog.definitionOperation(request, .accept, policy);
+        const next = registrar.registrationAt(plan.?.action, plan.?.authorization_revision) catch |err| {
+            if (err == error.StaleAuthorizationRevision) return .registration_pending;
+            return err;
+        };
+        switch (next) {
+            .ready => continue,
+            .submit => |signed| {
+                const prepared = self.engine.prepare(signed) catch |err| {
+                    if (err == error.AlreadyCommitted or err == error.StaleAuthorizationRevision) continue;
+                    return err;
+                };
+                if (self.after_prepare) |inject| try inject.run(inject.context, self.engine);
+                const checked = try catalog.definitionRegistration(request, policy) orelse continue;
+                if (!std.meta.eql(checked.action, plan.?.action)) return error.CatalogIdentityConflict;
+                if (checked.authorization_revision != plan.?.authorization_revision) continue;
+                _ = self.engine.commit(prepared) catch |err| {
+                    if (err == error.Conflict) continue;
+                    return err;
+                };
+            },
+        }
+    }
+    return .registration_pending;
+}

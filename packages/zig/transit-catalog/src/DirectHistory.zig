@@ -17,7 +17,7 @@ pub const Common = struct {
     pub fn validate(self: Common, connection: w.Connection, selection: H.Reference) !void {
         try self.key.validate();
         try self.cut.validate();
-        if (!std.meta.eql(self.key.connection, connection) or selection.count > self.cut.source_count or
+        if (!std.meta.eql(self.key.connection, connection) or selection.count > self.cut.source_count or selection.descriptors != 0 or
             !std.meta.eql(self.cut.transaction.scope, connection.scope) or
             self.cut.transaction.principal != connection.principal) return error.HistoricalIdentityConflict;
     }
@@ -38,7 +38,7 @@ pub const Intent = struct {
         try self.identity().validate();
         var key: [96]u8 = undefined;
         _ = try H.objectKey(self.selection.content, &key);
-        if (self.selection.count == 0) return error.EmptyHistoricalSelection;
+        if (try self.selection.total() == 0) return error.EmptyHistoricalSelection;
         if (self.common) |common| {
             try common.validate(self.connection, self.selection);
             if (std.meta.eql(self.identity(), common.cut.transaction)) return error.HistoricalIdentityConflict;
@@ -75,6 +75,8 @@ pub const State = struct {
     /// source; a pin that predates this intent is never adopted.
     inflight: ?u64,
     verified_after: ?u64,
+    descriptor_after: ?u64,
+    descriptors_verified: u64,
     policy_epoch: ?u64,
     released_after: ?u64,
     snapshot: ?d.Snapshot,
@@ -86,7 +88,7 @@ pub const State = struct {
         return self.phase == .abandoning or self.phase == .cancelled;
     }
     pub fn initial() State {
-        return .{ .definition = p.Growth.current_definition, .phase = .acquiring, .retained = null, .after = null, .inflight = null, .verified_after = null, .policy_epoch = null, .released_after = null, .snapshot = null };
+        return .{ .definition = p.Growth.current_definition, .phase = .acquiring, .retained = null, .after = null, .inflight = null, .verified_after = null, .descriptor_after = null, .descriptors_verified = 0, .policy_epoch = null, .released_after = null, .snapshot = null };
     }
     pub fn validate(self: State, progress: c.DirectClientToken.Progress) !void {
         if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
@@ -100,14 +102,16 @@ pub const State = struct {
         const count: u64 = if (self.retained) |retained| blk: {
             var key: [96]u8 = undefined;
             _ = try H.objectKey(retained.content, &key);
-            if (retained.count == 0 or retained.count > intent.selection.count) return error.InvalidHistoricalState;
+            if (retained.descriptors != 0 or retained.count > intent.selection.count or (retained.count == 0 and intent.selection.count != 0)) return error.InvalidHistoricalState;
             break :blk retained.count;
         } else 0;
         if ((count == 0) != (self.after == null)) return error.InvalidHistoricalState;
-        if ((self.phase == .verifying or self.snapshot != null) and count != intent.selection.count) return error.InvalidHistoricalState;
+        if ((self.phase == .verifying or self.snapshot != null) and (self.retained == null or count != intent.selection.count)) return error.InvalidHistoricalState;
         if (self.verified_after) |object| if (object == 0 or object > (self.after orelse 0) or self.policy_epoch == null) return error.InvalidHistoricalState;
+        if ((self.descriptor_after == null) != (self.descriptors_verified == 0) or self.descriptors_verified > intent.selection.descriptors) return error.InvalidHistoricalState;
+        if (self.descriptor_after) |object| if (object == 0 or self.verified_after != self.after or self.policy_epoch == null) return error.InvalidHistoricalState;
         if (self.policy_epoch) |epoch| if (epoch == 0) return error.InvalidHistoricalState;
-        if (self.phase == .acquiring and (self.verified_after != null or self.policy_epoch != null)) return error.InvalidHistoricalState;
+        if (self.phase == .acquiring and (self.verified_after != null or self.policy_epoch != null or self.descriptor_after != null)) return error.InvalidHistoricalState;
         if (self.released_after) |object| {
             if (object == 0 or object > (self.after orelse 0) or (self.phase != .abandoning and self.phase != .cancelled and self.phase != .releasing and self.phase != .released)) return error.InvalidHistoricalState;
         }
@@ -115,7 +119,7 @@ pub const State = struct {
             try snapshot.validate();
             if (snapshot.definition != p.Growth.current_definition or !std.meta.eql(snapshot.owner, intent.identity()) or snapshot.branch != intent.connection.branch or
                 !std.meta.eql(snapshot.catalog_root, intent.selection.content) or !std.meta.eql(snapshot.sources_root, self.retained.?.content) or snapshot.source_count != count or
-                self.inflight != null or self.verified_after != self.after or self.policy_epoch == null) return error.InvalidHistoricalState;
+                self.inflight != null or self.verified_after != self.after or self.policy_epoch == null or self.descriptors_verified != intent.selection.descriptors) return error.InvalidHistoricalState;
             if (intent.common) |common| {
                 if (snapshot.consistency != .common_transaction or !std.meta.eql(snapshot.consistency.common_transaction, common.cut)) return error.InvalidHistoricalState;
             } else if (snapshot.consistency == .common_transaction or (snapshot.consistency == .single_partition) != (count == 1)) return error.InvalidHistoricalState;
@@ -141,6 +145,10 @@ pub const State = struct {
                 .verifying => {
                     if (before.inflight != null) return error.InvalidHistoricalTransition;
                     expected.phase = .verifying;
+                    if (before.retained == null) {
+                        if (after.retained == null or after.retained.?.count != 0 or after.retained.?.descriptors != 0) return error.InvalidHistoricalTransition;
+                        expected.retained = after.retained;
+                    }
                 },
                 .acquiring => {
                     if (before.inflight) |object| {
@@ -164,10 +172,19 @@ pub const State = struct {
                     expected.snapshot = after.snapshot;
                 },
                 .verifying => {
-                    if (after.verified_after) |object| {
-                        if (object <= (before.verified_after orelse 0) or after.policy_epoch == null or (before.policy_epoch != null and before.policy_epoch != after.policy_epoch)) return error.InvalidHistoricalTransition;
-                    } else if (after.policy_epoch != null or before.verified_after == null) return error.InvalidHistoricalTransition;
+                    if (after.policy_epoch == null) {
+                        if ((before.verified_after == null and before.descriptor_after == null) or after.verified_after != null or after.descriptor_after != null or after.descriptors_verified != 0) return error.InvalidHistoricalTransition;
+                    } else {
+                        if (before.policy_epoch != null and before.policy_epoch != after.policy_epoch) return error.InvalidHistoricalTransition;
+                        if (after.verified_after != before.verified_after) {
+                            if (after.verified_after == null or after.verified_after.? <= (before.verified_after orelse 0) or after.descriptor_after != before.descriptor_after or after.descriptors_verified != before.descriptors_verified) return error.InvalidHistoricalTransition;
+                        } else {
+                            if (before.verified_after != before.after or after.descriptor_after == null or after.descriptor_after.? <= (before.descriptor_after orelse 0) or after.descriptors_verified != try std.math.add(u64, before.descriptors_verified, 1)) return error.InvalidHistoricalTransition;
+                        }
+                    }
                     expected.verified_after = after.verified_after;
+                    expected.descriptor_after = after.descriptor_after;
+                    expected.descriptors_verified = after.descriptors_verified;
                     expected.policy_epoch = after.policy_epoch;
                 },
                 else => return error.InvalidHistoricalTransition,
@@ -290,7 +307,7 @@ pub const Request = union(enum) {
                 if (!std.meta.eql(value.snapshot.owner.scope, connection.scope) or value.snapshot.branch != connection.branch) return error.HistoricalIdentityConflict;
                 if (comptime tag == .list) {
                     try c.Model.nativeId(value.namespace);
-                    if (value.after) |cursor| if (!std.meta.eql(cursor.directory.content, value.snapshot.sources_root) or cursor.directory.count != value.snapshot.source_count or cursor.after == 0) return error.InvalidHistoricalCursor;
+                    if (value.after) |cursor| if (!std.meta.eql(cursor.directory.content, value.snapshot.sources_root) or cursor.directory.count != value.snapshot.source_count or cursor.directory.descriptors != 0 or cursor.after == 0) return error.InvalidHistoricalCursor;
                 } else if (comptime tag == .lookup or tag == .namespace) {
                     if (comptime tag == .lookup) try c.Model.nativeId(value.namespace);
                     try value.name.validate();
@@ -325,8 +342,11 @@ pub fn validateResult(allocator: std.mem.Allocator, connection: w.Connection, re
             var key: [96]u8 = undefined;
             _ = try H.objectKey(directory.content, &key);
             const previous: u64 = if (input.selection.directory) |selected| selected.count else 0;
-            if (directory.count == 0 or directory.count < previous or directory.count > try std.math.add(u64, previous, 1)) return error.InvalidHistoricalResponse;
-            if (directory.count == previous and !std.meta.eql(directory, input.selection.directory.?)) return error.InvalidHistoricalResponse;
+            const previous_descriptors: u64 = if (input.selection.directory) |selected| selected.descriptors else 0;
+            if (try directory.total() == 0 or directory.count < previous or directory.descriptors < previous_descriptors or directory.descriptors > try std.math.add(u64, previous_descriptors, 1)) return error.InvalidHistoricalResponse;
+            const maximum_added: u64 = if (directory.descriptors == previous_descriptors) 1 else c.CatalogDefinition.max_sources;
+            if (directory.count > try std.math.add(u64, previous, maximum_added)) return error.InvalidHistoricalResponse;
+            if (directory.count == previous and directory.descriptors == previous_descriptors and !std.meta.eql(directory, input.selection.directory.?)) return error.InvalidHistoricalResponse;
         },
         .acquire, .inspect, .advance, .abandon, .release => {
             if (result != .status) return error.InvalidHistoricalResponse;
@@ -373,7 +393,7 @@ pub fn validateResult(allocator: std.mem.Allocator, connection: w.Connection, re
                 after = entry.source.interpretation.object.object;
             }
             if (value.next) |cursor| {
-                if (!std.meta.eql(cursor.directory.content, input.snapshot.sources_root) or cursor.directory.count != input.snapshot.source_count or cursor.after < after or cursor.after <= (if (input.after) |previous| previous.after else 0)) return error.InvalidHistoricalResponse;
+                if (!std.meta.eql(cursor.directory.content, input.snapshot.sources_root) or cursor.directory.count != input.snapshot.source_count or cursor.directory.descriptors != 0 or cursor.after < after or cursor.after <= (if (input.after) |previous| previous.after else 0)) return error.InvalidHistoricalResponse;
             }
         },
         inline .definitions, .locations => |input, tag| {

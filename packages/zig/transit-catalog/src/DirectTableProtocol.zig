@@ -315,6 +315,7 @@ pub const Action = union(enum) {
     pub const json_schema_sequence_bounds = .{ .check_set = 16 };
     branch: c.DirectBranch.Request,
     historical_catalog: c.DirectHistory.Request,
+    descriptor: c.DirectDefinition.Action,
     schema_projection: c.DirectSchemaProjection.Request,
     transaction: c.DirectTransactionRequest.Request,
     client_token: c.DirectClientToken.Request,
@@ -417,6 +418,7 @@ pub const Request = struct {
             .queue => |value| value.mutation(),
             .branch => |value| value.mutation(),
             .historical_catalog => |value| value.mutation(),
+            .descriptor => |value| value.mutation(),
             inline .kv, .kv_declaration => |value| value.mutation(),
             .transaction => |value| value.mutation(),
             .record => |value| value == .stage,
@@ -483,6 +485,7 @@ pub const Request = struct {
             },
             .branch => |value| try value.validate(connection),
             .historical_catalog => |value| try value.validate(connection),
+            .descriptor => |value| try value.validate(allocator, connection),
             .schema_projection => |value| try value.validate(connection),
             .transaction => |value| {
                 try value.validate();
@@ -829,6 +832,7 @@ pub const StateList = struct { entries: [8]?D.Listed, next: ?u64, directory_posi
 pub const Result = union(enum) {
     branch: c.DirectBranch.Result,
     historical_catalog: c.DirectHistory.Result,
+    descriptor: c.DirectDefinition.Result,
     schema_projection: c.DirectSchemaProjection.Result,
     transaction: c.DirectTransactionRequest.Result,
     record: c.DirectRecord.Result,

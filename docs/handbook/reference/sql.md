@@ -210,7 +210,7 @@ Start with [syntax, names and literals](sql/syntax.md) for notation and shared r
 | `TRUNCATE`, non-Table `ALTER`/`DROP` | No execution contract; selected Table ALTER/DROP are described above |
 | `BEGIN`, `COMMIT`, `ROLLBACK`, savepoints | [Serializable local Table transactions](sql/transactions.md), retained cuts and explicit original-decision recovery |
 | `COPY`, `MERGE`, upsert forms | No SQL import/export or mutation contract |
-| `CREATE VIEW`, `CREATE MATERIALIZED VIEW` | No named SQL view or maintained-query definition |
+| `CREATE VIEW`, `CREATE MATERIALIZED VIEW` | SQL declarations are unavailable. Accepted typed views support [current and historical SELECT/inspection](sql/as-of.md); maintained queries have no execution contract |
 | `SUBSCRIBE`, streaming windows, event-time watermarks | No continuous SQL contract; see [streaming and effects](sql/streaming.md) |
 | `PREPARE`, `EXECUTE`, parameters | [Typed templates, SDK and CLI bindings](sql/parameters.md) use a separate grammar entry; named prepared statements remain unsupported |
 

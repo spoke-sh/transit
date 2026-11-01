@@ -178,6 +178,7 @@ pub const PreparedBinding = struct {
     }
     pub fn foreign(allocator: Allocator, value: c.DirectTableBinding) !PreparedBinding {
         try value.validate();
+        if (value.catalog != null or value.view != null) return error.UnsupportedHistoricalKind;
         return .{ .definition = value.definition, .connection = try Connection.foreign(allocator, value.connection), .namespace = value.namespace, .name = try allocator.dupe(u8, value.name.slice()), .interpretation = try Stored.foreign(allocator, value.interpretation) };
     }
 };

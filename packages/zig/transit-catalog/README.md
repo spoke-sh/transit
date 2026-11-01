@@ -331,3 +331,13 @@ later defaults and DROP. Cursors bind both interpretations and current SELECT
 still governs every read. SQL and its prepared plans use these same operations.
 The [projection contract](../../../contracts/HISTORICAL_CATALOG_V1.md#explicit-schema-projection)
 defines supported mappings and refusal behavior.
+
+## Versioned interpretations
+
+`CatalogDefinition` and `DirectDefinition` publish immutable view, property-graph
+and foreign-decoder interpretations through the same catalog and dependency
+owner. `DirectCatalogDefinitions` projects bounded, owned metadata reads into
+`Catalog.call(.definitions)` and Board's read API. Historical selection retains
+metadata separately from Table pins; zero-source metadata catalogs are explicit.
+The [interpretation contract](../../../contracts/CATALOG_DEFINITIONS_V1.md) owns
+publication, identity, execution limits, current access and artifact verification.

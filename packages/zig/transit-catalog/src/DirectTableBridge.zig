@@ -33,6 +33,7 @@ pub const Action = union(enum) {
     retention: c.DirectCatalogRetention.Action,
     projection: c.DirectCatalogProjection.Action,
     history: c.DirectCatalogHistory.Action,
+    definitions: c.DirectCatalogDefinitions.Action,
     lookup: struct { namespace: u64, name: []const u8 },
     compile: struct {
         pub const json_schema_text_bounds = .{ .sql = 4096 };
@@ -59,6 +60,7 @@ pub const Result = union(enum) {
     retention: c.DirectCatalogRetention.Result,
     projection: c.DirectCatalogProjection.Result,
     history: c.DirectCatalogHistory.Result,
+    definitions: c.DirectCatalogDefinitions.Result,
     metadata: ?h.Metadata,
     compiled: Compiled,
     loaded: Summary,
@@ -156,6 +158,7 @@ pub const Session = struct {
             .resources => |input| return .{ .resources = try c.DirectCatalogResources.apply(allocator, client, input) },
             .retention => |input| return .{ .retention = try c.DirectCatalogRetention.apply(allocator, client, input) },
             .projection => |input| return .{ .projection = try c.DirectCatalogProjection.apply(allocator, client, input) },
+            .definitions => |input| return .{ .definitions = try c.DirectCatalogDefinitions.apply(allocator, client, input) },
             .history => |input| return .{ .history = try c.DirectCatalogHistory.apply(allocator, client, input) },
             .lookup => |input| {
                 const response = try client.call(.{ .lookup = .{ .namespace = input.namespace, .name = input.name } });

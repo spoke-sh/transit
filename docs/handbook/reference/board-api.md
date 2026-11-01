@@ -18,6 +18,14 @@ generated `ReadWorkspace` contract: describe, run, observe, next-window and clos
 Both require same-origin JSON requests and explicit service-side configuration.
 The browser receives no SQL account secrets or native signing key.
 
+The catalog's `definitions` action reads accepted view, property-graph and
+foreign-layout interpretations through the same owner. It supports current and
+historical lookup, exact revision inspection, and pages of at most four definitions.
+The retained-definition inspector shows logical schemas, source identities and
+typed mappings or decoder layouts. Reading a definition neither executes its
+computation nor fetches a provenance URI. See the
+[interpretation contract](../../../contracts/CATALOG_DEFINITIONS_V1.md).
+
 Run uses typed prepared-statement admission and refuses mutations, commands and
 unbound parameters even if its configured account can write. Results preserve one
 logical schema, exact cells, observation and terminal count across physical

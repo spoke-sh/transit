@@ -48,7 +48,7 @@ fn identity(action: b.Action) ?p.DataLifecycle.Operation {
 }
 fn stage(action: b.Action) d.Stage {
     return switch (action) {
-        .catalog, .lookup, .projection => .read,
+        .catalog, .lookup, .projection, .definitions => .read,
         .history => |value| if (value.isRead()) .read else .prepare,
         .retention => |value| if (value == .status or value == .metadata) .read else .prepare,
         .compile => .compile,

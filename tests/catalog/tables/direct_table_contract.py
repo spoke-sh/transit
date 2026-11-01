@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "90f861504d63e02569dbf22889557aab7782cf110b141588c3a7373a74999a21"
+definition = "d9c9be6cf8ac63f1003a2d98ab3076936e28cea6a7278e620fe8b869530fc4d4"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -281,7 +281,7 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
 
     history_intent = {
         "connection": request_input["connection"], "namespace": 1, "operation": 2**64 - 1,
-        "selection": {"content": {"bytes": 512, "sha256": [25] * 32}, "count": 2},
+        "selection": {"content": {"bytes": 512, "sha256": [25] * 32}, "count": 2, "descriptors": 0},
         "common": None,
     }
     history_input = {**request_input, "action": {"historical_catalog": {"acquire": {
@@ -325,6 +325,50 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
         "snapshot": {**history_snapshot, "consistency": {"common_transaction": common_cut}},
         "selector": common_selector.hex()}
 
+    # Independent metadata-only acquisition, including its zero-Table selector.
+    metadata_intent = copy.deepcopy(history_intent)
+    metadata_intent['selection']['count'] = 0
+    metadata_intent['selection']['descriptors'] = 1
+    metadata_input = {**history_input, 'action': {'historical_catalog': {'acquire': {
+        **history_input['action']['historical_catalog']['acquire'], 'intent': metadata_intent}}}}
+    metadata_claim = {**claim, 'context': list(hashlib.sha256(b'transit.table.direct.request.v1\0' + canonical(metadata_input)).digest())}
+    metadata_request = {**metadata_input, 'proof': {'claim': metadata_claim, 'signature': key.sign(hashlib.sha256(b'transit.authorization.subject.v1\0' + canonical(metadata_claim)).digest())}}
+    metadata_history_fixture = {'request': metadata_request, 'public_key': public_key,
+        'intent_digest': list(hashlib.sha256(b'transit.catalog.history.v1\0' + canonical(metadata_intent)).digest()),
+        'snapshot': {**history_snapshot, 'source_count': 0},
+        'selector': (history_selector[:168] + bytes(8) + history_selector[176:]).hex()}
+
+    # Canonical foreign interpretation constructed independently from public
+    # primitive byte layouts. No production encoder supplies these expected bytes.
+    from query.logical.fuze_types import descriptor
+    table_definition = b'transit.table.schema.v1.2026-11-01.semantics'
+    column_id = 2**64 - 2
+    column_type = descriptor('int64')
+    table_bytes = (b'FTS1' + bytes([len(table_definition)]) + table_definition
+        + struct.pack('<QQQH', 7, 1, 2**64 - 1, 1)
+        + struct.pack('<QB', column_id, 6) + b'amount'
+        + struct.pack('<H', len(column_type)) + column_type
+        + struct.pack('<BIBH', 0, 0, 0, 0))
+    captured_bytes = bytes.fromhex('123d1a3d')
+    captured_content = dict(bytes=len(captured_bytes), sha256=list(hashlib.sha256(captured_bytes).digest()))
+    native_name = dict(len=9, bytes=list(b'mainframe' + bytes(54)))
+    payload = dict(schema=dict(base64=base64.b64encode(table_bytes).decode()), sources=[],
+        body=dict(foreign=dict(record_bytes=2, fields=[dict(column=column_id, offset=0, bytes=2, encoding='comp_3')],
+            malformed='type_error', input=dict(content=captured_content, availability='retained', provenance='file:///never-refetched'))))
+    interpretation_intent = dict(kind='foreign', namespace=1, name=native_name, action=dict(create=dict(owner=0, payload=payload)))
+    intent_hash = hashlib.sha256(b'transit.catalog.interpretation.intent.v1\0' + canonical(interpretation_intent)).digest()
+    interpretation_binding = dict(definition=definition, identity=read_binding['owner'], target=read_binding['interpretation']['object'],
+        action='create', expected_definition=None, expected_data=None, intent=list(intent_hash), prerequisite=None)
+    interpretation_input = {**request_input, 'action': {'descriptor': {'declaration': dict(request=dict(binding=interpretation_binding, intent=interpretation_intent), command='preview', steps=1)}}}
+    interpretation_claim = {**claim, 'context': list(hashlib.sha256(b'transit.table.direct.request.v1\0' + canonical(interpretation_input)).digest())}
+    interpretation_request = {**interpretation_input, 'proof': dict(claim=interpretation_claim, signature=key.sign(hashlib.sha256(b'transit.authorization.subject.v1\0' + canonical(interpretation_claim)).digest()))}
+    interpretation_value = dict(definition=definition, object=read_binding['interpretation']['object'], revision=1,
+        properties=dict(namespace=1, authorization=17, name=native_name), retired=False, **payload)
+    interpretation_bytes = b'TCDESC01' + bytes.fromhex(definition) + canonical(interpretation_value)
+    interpretation_fixture = dict(request=interpretation_request, public_key=public_key, value=interpretation_value,
+        artifact_hex=interpretation_bytes.hex(), digest=list(hashlib.sha256(interpretation_bytes).digest()),
+        schema_digest=list(hashlib.sha256(table_bytes).digest()), input_hex=captured_bytes.hex())
+
 request = {**request_input, "proof": {"claim": claim, "signature": signature}}
 fixture = {
     "request": request,
@@ -337,6 +381,8 @@ validator.validate(request)
 validator.validate(branch_request)
 validator.validate(history_request)
 validator.validate(common_request)
+validator.validate(metadata_request)
+validator.validate(interpretation_request)
 missing_common = copy.deepcopy(history_request)
 del missing_common["action"]["historical_catalog"]["acquire"]["intent"]["common"]
 assert not validator.is_valid(missing_common)
@@ -486,7 +532,7 @@ def history_host_content(value):
 
 
 def history_host_directory(value):
-    return dict(content=history_host_content(value["content"]), count=str(value["count"]))
+    return dict(content=history_host_content(value["content"]), count=str(value["count"]), descriptors=str(value["descriptors"]))
 
 
 def history_host_key(value):
@@ -517,6 +563,8 @@ history_host = dict(
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-history-host-v1.json", (json.dumps(history_host, indent=2) + "\n").encode())
 
 
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-history-metadata-v1.json", (json.dumps(metadata_history_fixture, ensure_ascii=False, indent=2) + "\n").encode())
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-catalog-definition-v1.json", (json.dumps(interpretation_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "contracts/direct-table-v1.schema.json", raw)
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-history-common-v1.json",
         (json.dumps(common_history_fixture, ensure_ascii=False, indent=2) + "\n").encode())

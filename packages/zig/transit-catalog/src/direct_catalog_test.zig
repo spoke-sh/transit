@@ -1719,7 +1719,7 @@ test "catalog directory walk retains seed declarations across bounded page paths
     try catalog.store.index.begin(64 * 1024 * 1024);
     defer catalog.store.index.end();
     for (100..173) |id| {
-        const entry: r.Entry = .{ .object = id, .partition = id, .seed = null, .resource = null, .log = null };
+        const entry: r.Entry = .{ .object = id, .partition = id, .seed = null, .resource = null, .log = null, .descriptor = null };
         reference = try catalog.store.tree().put(reference, try r.idKey(id), try r.pageValue(entry));
     }
     basis.next_partition = 173;
@@ -1752,7 +1752,7 @@ test "catalog directory walk retains seed declarations across bounded page paths
     try t.expect(try skip.next(t.allocator, &index) == null);
 
     // A typed object directory must not reinterpret a mismatched object key.
-    const foreign: r.Entry = .{ .object = 99, .partition = 99, .seed = null, .resource = null, .log = null };
+    const foreign: r.Entry = .{ .object = 99, .partition = 99, .seed = null, .resource = null, .log = null, .descriptor = null };
     const invalid = try catalog.store.tree().put(null, try r.idKey(98), try r.pageValue(foreign));
     var corrupt = try c.DirectCatalogWalk.init(basis, .{ .reference = invalid, .kind = .objects });
     try t.expect((try corrupt.next(t.allocator, &index)).? == .page);
@@ -7446,4 +7446,291 @@ test "captured historical copy keeps exact interpretation through lost reply rel
     access.denied_privileges = null;
     try catalog.releaseRows(create.binding.target, copied, access.policy());
     try t.expectError(error.TableSnapshotReleased, catalog.copyRowsDefined(cut.interpretation, copy_owner, cut.accepted, original, access.policy()));
+}
+
+fn descriptorView(allocator: std.mem.Allocator, view: *D.View, object: u64, operation: u64, name: []const u8) !c.DirectDefinition.Request {
+    const f = c.fuze;
+    var bytes: [f.TableSchema.max_bytes]u8 = undefined;
+    const source: c.CatalogDefinition.Source = .{ .properties = view.properties, .declaration = view.table.root.declared(), .schema = try c.DirectTableProtocol.Binary.encode(allocator, try view.table.declaration.schema.schema.encode(&bytes)) };
+    var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
+    const plan: f.LogicalQuery.Plan = .{ .schema = try view.table.declaration.schema.schema.rowType(&fields), .source_basis = source.declaration.interpretation.digest, .projection = &.{0}, .output_names = &.{"original_id"} };
+    var plan_bytes: [f.LogicalPlanCodec.max_bytes]u8 = undefined;
+    const sources = try allocator.alloc(c.CatalogDefinition.Source, 1);
+    sources[0] = source;
+    const schema: f.TableSchema.Schema = .{ .object = object, .revision = 1, .next_column = 12, .columns = &.{.{ .id = 11, .name = "original_id", .type = .int64, .nullable = false }} };
+    const intent: c.DirectDefinition.Intent = .{ .kind = .view, .namespace = 1, .name = try .init(name), .action = .{ .create = .{ .owner = 0, .payload = .{ .schema = try c.DirectTableProtocol.Binary.encode(allocator, try schema.encode(&bytes)), .sources = sources, .body = .{ .view = .{ .plan = try c.DirectTableProtocol.Binary.encode(allocator, try f.LogicalPlanCodec.encode(plan, &plan_bytes)), .source_text = "SELECT id AS original_id FROM events" } } } } } };
+    return .{ .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = operation }, .target = .{ .scope = scope, .branch = 1, .object = object }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(allocator) }, .intent = intent };
+}
+fn descriptorEdit(stored: c.CatalogDefinition.Stored, operation: u64, action: @FieldType(c.DirectDefinition.Intent, "action")) !c.DirectDefinition.Request {
+    const intent: c.DirectDefinition.Intent = .{ .kind = stored.kind, .namespace = stored.properties.namespace, .name = stored.properties.name, .action = action };
+    return .{ .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = operation }, .target = stored.interpretation.object, .action = switch (action) {
+        .create => .create,
+        .replace => .alter,
+        .rename => .rename,
+        .drop => .drop,
+    }, .expected_definition = stored.interpretation, .expected_data = null, .intent = try intent.digest(t.allocator) }, .intent = intent };
+}
+test "catalog descriptor atomic publication recovery dependencies and historical identity" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const create = try creation(7, 1, "events");
+    _ = try catalog.admit(create, access.policy());
+    _ = try catalog.perform(create.binding, access.policy());
+    _ = try catalog.settle(create.binding, access.policy());
+    var view = (try resolve(&catalog, &access, "events")).?;
+    defer view.deinit();
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const request = try descriptorView(arena.allocator(), &view, 77, 100, "selected");
+    const before = catalog.store.root;
+    const puts = objects.puts;
+    try t.expectEqual(.none, (try catalog.previewDefinition(request, access.policy())).reason);
+    try t.expectEqualDeep(before, catalog.store.root);
+    try t.expectEqual(puts, objects.puts);
+    try t.expectEqual(.not_observed, try catalog.definitionOperation(request, .inspect, access.policy()));
+    catalog.store.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.definitionOperation(request, .accept, access.policy()));
+    catalog.store.lose_reply = false;
+    try catalog.recover();
+    const accepted = (try catalog.definitionOperation(request, .accept, access.policy())).operation;
+    try t.expectEqual(.applied, accepted.phase);
+    try t.expectEqual(before.next_lsn + 1, accepted.position.next_lsn);
+    const original = accepted.resulting.?;
+    _ = try insertSelectedTable(&catalog, &access, "events", 110);
+    const acquisition = try historyRequest(&catalog, &access, 111, 21, &.{"selected"});
+    try t.expectEqual(@as(u64, 1), acquisition.intent.selection.count);
+    try t.expectEqual(@as(u64, 1), acquisition.intent.selection.descriptors);
+    var history = try catalog.acquireHistory(acquisition, access.policy());
+    for (0..20) |_| {
+        if (history.state.phase == .published) break;
+        history = try catalog.advanceHistory(acquisition.key, .advance, access.policy());
+    } else return error.FixtureBudget;
+    const retained_catalog = history.state.snapshot.?;
+    const historical = (try catalog.historicalDefinition(arena.allocator(), retained_catalog, 1, try .init("selected"), true, access.policy())).?;
+    try t.expectEqualDeep(original, historical.binding.declaration);
+    try t.expectEqual(@as(u64, 1), retained_catalog.source_count);
+    try t.expectEqual(@as(u64, 11), original.next_column - 1);
+    var selected = (try catalog.resolveDefinition(t.allocator, 1, try .init("selected"), access.policy())).?;
+    selected.deinit();
+    const blocked_table = try creation(88, 101, "selected");
+    try t.expectEqual(.name_conflict, (try catalog.preview(blocked_table, access.policy())).reason);
+    var current_table = (try resolve(&catalog, &access, "events")).?;
+    const drop_table = try edit(&current_table, 102, .drop);
+    current_table.deinit();
+    try t.expectEqual(.dependency, (try catalog.preview(drop_table, access.policy())).reason);
+    const rename = try descriptorEdit(original, 103, .{ .rename = try .init("old_view") });
+    const renamed = (try catalog.definitionOperation(rename, .accept, access.policy())).operation.resulting.?;
+    try t.expect(try catalog.resolveDefinition(t.allocator, 1, try .init("selected"), access.policy()) == null);
+    var prior = try catalog.inspectDefinition(t.allocator, original.interpretation, access.policy());
+    defer prior.deinit();
+    try t.expectEqualStrings("selected", prior.value.properties.name.slice());
+    try t.expectEqual(@as(u64, 1), prior.value.revision);
+    const stale = try descriptorEdit(original, 104, .drop);
+    try t.expectEqual(.stale_definition, (try catalog.definitionOperation(stale, .accept, access.policy())).operation.reason);
+    const drop = try descriptorEdit(renamed, 105, .drop);
+    try t.expectEqual(.applied, (try catalog.definitionOperation(drop, .accept, access.policy())).operation.phase);
+    try t.expectEqual(.none, (try catalog.preview(drop_table, access.policy())).reason);
+    _ = try catalog.admit(drop_table, access.policy());
+    _ = try catalog.perform(drop_table.binding, access.policy());
+    _ = try catalog.settle(drop_table.binding, access.policy());
+    try catalog.recover();
+    var old = try catalog.inspectDefinition(t.allocator, original.interpretation, access.policy());
+    defer old.deinit();
+    try t.expectEqualDeep(create.binding.target, old.value.sources[0].declaration.interpretation.object);
+    const selected_old = (try catalog.historicalDefinition(arena.allocator(), retained_catalog, 1, try .init("selected"), true, access.policy())).?;
+    try t.expectEqualDeep(original, selected_old.binding.declaration);
+    try t.expect(try catalog.historicalDefinition(arena.allocator(), retained_catalog, 1, try .init("old_view"), true, access.policy()) == null);
+    access.denied_privileges = .{ .id = original.properties.authorization, .mask = a.select };
+    access.visible_despite_denied_privileges = true;
+    _ = try catalog.historicalDefinition(arena.allocator(), retained_catalog, 1, try .init("selected"), false, access.policy());
+    try t.expectError(error.CatalogDenied, catalog.historicalDefinition(arena.allocator(), retained_catalog, 1, try .init("selected"), true, access.policy()));
+    access.denied_privileges = null;
+    access.denied_metadata = original.properties.authorization;
+    try t.expectError(error.CatalogDenied, catalog.inspectDefinition(t.allocator, original.interpretation, access.policy()));
+    access.denied_metadata = null;
+    _ = try catalog.advanceHistory(acquisition.key, .release, access.policy());
+    for (0..20) |_| {
+        history = try catalog.advanceHistory(acquisition.key, .advance, access.policy());
+        if (history.state.phase == .released) break;
+    } else return error.FixtureBudget;
+    try t.expectError(error.HistoricalSnapshotReleased, catalog.historicalDefinition(arena.allocator(), retained_catalog, 1, try .init("selected"), true, access.policy()));
+    var substituted = original.interpretation;
+    substituted.digest[0] ^= 1;
+    try t.expectError(error.DataIdentityConflict, catalog.inspectDefinition(t.allocator, substituted, access.policy()));
+}
+
+test "catalog descriptor historical graph replacement preserves mappings and transfers dependency protection" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    for ([_]D.Request{ try creation(7, 1, "first"), try creation(8, 2, "second") }) |create| {
+        _ = try catalog.admit(create, access.policy());
+        _ = try catalog.perform(create.binding, access.policy());
+        _ = try catalog.settle(create.binding, access.policy());
+    }
+    var first = (try resolve(&catalog, &access, "first")).?;
+    defer first.deinit();
+    var second = (try resolve(&catalog, &access, "second")).?;
+    defer second.deinit();
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    var request = try descriptorView(allocator, &first, 77, 100, "network");
+    request.intent.kind = .property_graph;
+    request.intent.action.create.payload.body = .{ .property_graph = .{
+        .next_mapping = 3,
+        .vertices = &.{.{ .id = 1, .label = try .init("Person"), .key = .{ .source = 0, .column = 1 }, .properties = &.{.{ .id = 11, .name = try .init("original_id"), .value = .{ .source = 0, .column = 1 } }} }},
+        .edges = &.{.{ .id = 2, .label = try .init("Knows"), .key = .{ .source = 0, .column = 1 }, .source_vertex = 1, .source_key = .{ .source = 0, .column = 1 }, .target_vertex = 1, .target_key = .{ .source = 0, .column = 1 }, .properties = &.{} }},
+    } };
+    request.binding.intent = try request.intent.digest(allocator);
+    const original = (try catalog.definitionOperation(request, .accept, access.policy())).operation.resulting.?;
+    const acquisition = try historyRequest(&catalog, &access, 101, 21, &.{"network"});
+    var history = try catalog.acquireHistory(acquisition, access.policy());
+    for (0..20) |_| {
+        if (history.state.phase == .published) break;
+        history = try catalog.advanceHistory(acquisition.key, .advance, access.policy());
+    } else return error.FixtureBudget;
+    const snapshot = history.state.snapshot.?;
+    const next_source = try descriptorView(allocator, &second, 77, 102, "network");
+    var replacement = request.intent.action.create.payload;
+    replacement.sources = next_source.intent.action.create.payload.sources;
+    var schema = try c.CatalogDefinition.decodeSchema(allocator, replacement.schema);
+    defer schema.deinit();
+    schema.schema.revision = 2;
+    var bytes: [c.fuze.TableSchema.max_bytes]u8 = undefined;
+    replacement.schema = try c.DirectTableProtocol.Binary.encode(allocator, try schema.schema.encode(&bytes));
+    var vertex = replacement.body.property_graph.vertices[0];
+    vertex.label = try .init("Member");
+    replacement.body.property_graph.vertices = &.{vertex};
+    const replace = try descriptorEdit(original, 102, .{ .replace = replacement });
+    catalog.store.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.definitionOperation(replace, .accept, access.policy()));
+    catalog.store.lose_reply = false;
+    catalog.deinit();
+    catalog = try owner(&wal, &objects);
+    const updated = (try catalog.definitionOperation(replace, .accept, access.policy())).operation.resulting.?;
+    try t.expectEqual(@as(u64, 2), updated.interpretation.revision);
+    const drop_first = try edit(&first, 103, .drop);
+    const drop_second = try edit(&second, 104, .drop);
+    try t.expectEqual(.none, (try catalog.preview(drop_first, access.policy())).reason);
+    try t.expectEqual(.dependency, (try catalog.preview(drop_second, access.policy())).reason);
+    const old = (try catalog.historicalDefinition(allocator, snapshot, 1, try .init("network"), false, access.policy())).?;
+    try t.expectEqualStrings("Person", old.value.body.property_graph.vertices[0].label.slice());
+    try t.expectEqual(@as(u64, 7), old.value.sources[0].declaration.interpretation.object.object);
+    try t.expectEqual(@as(u64, 1), old.value.body.property_graph.edges[0].target_vertex);
+    var current = (try catalog.resolveDefinition(t.allocator, 1, try .init("network"), access.policy())).?;
+    defer current.deinit();
+    try t.expectEqualStrings("Member", current.value.body.property_graph.vertices[0].label.slice());
+    try t.expectEqual(@as(u64, 8), current.value.sources[0].declaration.interpretation.object.object);
+    const page = try catalog.historicalDefinitions(snapshot, 1, null, access.policy());
+    try t.expectEqualDeep(original, page.entries[0].?.declaration);
+    try t.expect(page.next == null);
+    // Removing a mapping does not make its ID available to a later definition.
+    replacement.body.property_graph.edges = &.{};
+    schema.schema.revision = 3;
+    replacement.schema = try c.DirectTableProtocol.Binary.encode(allocator, try schema.schema.encode(&bytes));
+    const removed = (try catalog.definitionOperation(try descriptorEdit(updated, 105, .{ .replace = replacement }), .accept, access.policy())).operation.resulting.?;
+    schema.schema.revision = 4;
+    replacement.schema = try c.DirectTableProtocol.Binary.encode(allocator, try schema.schema.encode(&bytes));
+    replacement.body.property_graph.edges = request.intent.action.create.payload.body.property_graph.edges;
+    try t.expectError(error.InvalidCatalogDescriptor, catalog.definitionOperation(try descriptorEdit(removed, 106, .{ .replace = replacement }), .accept, access.policy()));
+}
+
+test "historical metadata-only foreign catalog retains decoder and captured bytes without inventing a Table source" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const input = try catalog.stageDefinitionInput(1, &.{ 0x12, 0x3d }, access.policy());
+    const f = c.fuze;
+    const schema: f.TableSchema.Schema = .{ .object = 81, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "amount", .type = .int64, .nullable = false }} };
+    var bytes: [f.TableSchema.max_bytes]u8 = undefined;
+    const intent: c.DirectDefinition.Intent = .{ .kind = .foreign, .namespace = 1, .name = try .init("mainframe"), .action = .{ .create = .{ .owner = 0, .payload = .{ .schema = try c.DirectTableProtocol.Binary.encode(allocator, try schema.encode(&bytes)), .sources = &.{}, .body = .{ .foreign = .{ .record_bytes = 2, .fields = &.{.{ .column = 1, .offset = 0, .bytes = 2, .encoding = .comp_3 }}, .malformed = .type_error, .input = .{ .content = input, .availability = .retained, .provenance = "file:///mutable/input" } } } } } } };
+    const request: c.DirectDefinition.Request = .{ .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = 100 }, .target = .{ .scope = scope, .branch = 1, .object = 81 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(allocator) }, .intent = intent };
+    const original = (try catalog.definitionOperation(request, .accept, access.policy())).operation.resulting.?;
+    const acquisition = try historyRequest(&catalog, &access, 111, 21, &.{"mainframe"});
+    try t.expectEqual(@as(u64, 0), acquisition.intent.selection.count);
+    try t.expectEqual(@as(u64, 1), acquisition.intent.selection.descriptors);
+    var history = try catalog.acquireHistory(acquisition, access.policy());
+    for (0..20) |_| {
+        if (history.state.phase == .published) break;
+        history = try catalog.advanceHistory(acquisition.key, .advance, access.policy());
+    } else return error.FixtureBudget;
+    const snapshot = history.state.snapshot.?;
+    try t.expectEqual(@as(u64, 0), snapshot.source_count);
+    try t.expectEqual(.independent, snapshot.consistency);
+    var selector: [c.DirectHistory.Selector.text_bytes]u8 = undefined;
+    try t.expectEqualDeep(snapshot, try c.DirectHistory.Selector.decode(try c.DirectHistory.Selector.encode(snapshot, &selector)));
+    _ = try c.DirectCatalogHistory.Snapshot.foreign(allocator, snapshot);
+    // Replacement names a different byte interpretation, while the selected
+    // catalog still owns the first decoder and its exact captured content.
+    var replacement = intent.action.create.payload;
+    var updated = schema;
+    updated.revision = 2;
+    replacement.schema = try c.DirectTableProtocol.Binary.encode(allocator, try updated.encode(&bytes));
+    replacement.body.foreign.fields = &.{.{ .column = 1, .offset = 0, .bytes = 2, .encoding = .comp }};
+    const replace = try descriptorEdit(original, 112, .{ .replace = replacement });
+    _ = try catalog.definitionOperation(replace, .accept, access.policy());
+    const orphan = try catalog.stageDefinitionInput(1, &.{ 0x99, 0x9c }, access.policy());
+    var workspace: @import("direct_storage_graph_test.zig").Workspace = .{};
+    defer workspace.deinit();
+    // Accepted revisions are reachable from the revision directory itself,
+    // independent of the additional retained control-WAL recovery obligations.
+    try workspace.enqueue(.{ .catalog_root = .{ .root = catalog.store.root } });
+    var at: usize = 0;
+    var steps: usize = 0;
+    while (at < workspace.jobs.items.len) : (at += 1) {
+        var work = workspace.jobs.items[at];
+        while (true) {
+            const jobs = workspace.jobs.items.len;
+            const done = try c.DirectStorageGraph.step(t.allocator, &catalog.store.index, wal.log(), &work, &workspace);
+            try t.expect(workspace.jobs.items.len - jobs <= 3);
+            steps += 1;
+            if (steps > 100000) return error.FixtureBudget;
+            if (done) break;
+        }
+    }
+    var key: [96]u8 = undefined;
+    try t.expect(workspace.marks.contains(try c.CatalogDefinition.key(original.content, &key)));
+    try t.expect(workspace.marks.contains(try c.CatalogDefinition.inputKey(input, &key)));
+    try t.expect(!workspace.marks.contains(try c.CatalogDefinition.inputKey(orphan, &key)));
+    try objects.objectStore().delete(try c.CatalogDefinition.inputKey(orphan, &key));
+    catalog.deinit();
+    catalog = try owner(&wal, &objects);
+    const old = (try catalog.historicalDefinition(allocator, snapshot, 1, try .init("mainframe"), false, access.policy())).?;
+    try t.expectEqualDeep(original, old.binding.declaration);
+    try t.expectEqual(.comp_3, old.value.body.foreign.fields[0].encoding);
+    const captured = try c.CatalogDefinition.loadInput(allocator, objects.objectStore(), old.value.body.foreign.input);
+    var utf8: [16]u8 = undefined;
+    try t.expectEqual(@as(i128, -123), (try c.CatalogDefinition.decodeField(schema.columns[0], old.value.body.foreign.fields[0], .reject, captured, &utf8)).value.atom.signed);
+    _ = try catalog.advanceHistory(acquisition.key, .release, access.policy());
+    for (0..20) |_| {
+        history = try catalog.advanceHistory(acquisition.key, .advance, access.policy());
+        if (history.state.phase == .released) break;
+    } else return error.FixtureBudget;
+    try t.expectError(error.HistoricalSnapshotReleased, catalog.historicalDefinition(allocator, snapshot, 1, try .init("mainframe"), false, access.policy()));
 }

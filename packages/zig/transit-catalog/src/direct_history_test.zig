@@ -11,6 +11,9 @@ test "historical acquisition independent signed intent and full width selector" 
 test "historical common transaction independent signature and selector bytes" {
     try verifyFixture(@embedFile("fixtures/direct-history-common-v1.json"));
 }
+test "historical metadata-only independent signature and selector bytes" {
+    try verifyFixture(@embedFile("fixtures/direct-history-metadata-v1.json"));
+}
 fn verifyFixture(bytes: []const u8) !void {
     const t = std.testing;
     const Fixture = struct { request: w.Request, public_key: [32]u8, intent_digest: [32]u8, snapshot: d.Snapshot, selector: []const u8 };

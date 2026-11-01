@@ -99,7 +99,7 @@ fn recoverSinceOptions(self: *Self, prior: ?RecoveryState, retain_cache: bool) !
         next = record.root;
         chain = r.hash(frame.payload);
     }
-    for ([_]?pages.Reference{ next.schemas, next.schema_names, next.namespace_claims, next.namespace_pending, next.objects, next.names, next.operations, next.pending, next.native_allocations, next.dependents, next.dependencies, next.client_tokens, next.client_operations, next.client_pending, next.client_accounts, next.branches, next.branch_names, next.branch_owners, next.history_transactions }) |slot| if (slot) |reference| {
+    for ([_]?pages.Reference{ next.schemas, next.schema_names, next.namespace_claims, next.namespace_pending, next.objects, next.names, next.operations, next.pending, next.native_allocations, next.dependents, next.dependencies, next.client_tokens, next.client_operations, next.client_pending, next.client_accounts, next.branches, next.branch_names, next.branch_owners, next.history_transactions, next.descriptor_definitions }) |slot| if (slot) |reference| {
         _ = try self.index.load(reference);
     };
     self.root = next;
@@ -205,6 +205,8 @@ fn operationAt(self: *Self, basis: r.Root, binding: p.DataLifecycle.Binding) !?r
 }
 
 fn operationTransition(self: *Self, before: r.Root, record: r.Record) !void {
+    if (record.action == .descriptor) return self.descriptorTransition(before, record);
+    if (!std.meta.eql(before.descriptor_definitions, record.root.descriptor_definitions)) return error.InvalidDirectCatalogTransition;
     if (record.action == .client_token) return self.clientTokenTransition(before, record);
     if (!std.meta.eql(before.history_transactions, record.root.history_transactions)) return error.InvalidDirectCatalogTransition;
     if (!std.meta.eql(before.branches, record.root.branches) or !std.meta.eql(before.branch_names, record.root.branch_names) or !std.meta.eql(before.branch_owners, record.root.branch_owners)) return error.InvalidDirectCatalogTransition;
@@ -263,7 +265,7 @@ fn operationTransition(self: *Self, before: r.Root, record: r.Record) !void {
         const value = try self.tree().get(record.root.objects, object_key) orelse return error.InvalidDirectCatalogTransition;
         const target = try r.fromValue(r.Entry, self.allocator, value);
         try target.validate(before.configuration);
-        if (target.resource != null or target.log != null) return error.InvalidDirectCatalogTransition;
+        if (target.resource != null or target.log != null or target.descriptor != null) return error.InvalidDirectCatalogTransition;
         if (next.binding.action == .create) {
             if ((next.phase == .ready) != (target.seed != null)) return error.InvalidDirectCatalogTransition;
             if (next.phase == .ready and previous.?.phase != .ready) {
@@ -576,7 +578,7 @@ fn resourceTransition(self: *Self, before: r.Root, record: r.Record) !void {
     const updates_object = if (next.binding.action == .create) next.phase == .admitted or previous != null else next.phase == .complete;
     if (updates_object) {
         const target = try r.fromValue(r.Entry, self.allocator, try self.tree().get(record.root.objects, id) orelse return error.InvalidDirectCatalogTransition);
-        const expected: r.Entry = .{ .object = next.binding.object.object, .partition = 0, .seed = null, .resource = before.next_lsn, .log = null };
+        const expected: r.Entry = .{ .object = next.binding.object.object, .partition = 0, .seed = null, .resource = before.next_lsn, .log = null, .descriptor = null };
         if (!std.meta.eql(expected, target)) return error.InvalidDirectCatalogTransition;
         if (previous == null and try self.tree().get(before.objects, id) != null) return error.InvalidDirectCatalogTransition;
     } else if (!std.meta.eql(before.objects, record.root.objects)) return error.InvalidDirectCatalogTransition;
@@ -664,7 +666,7 @@ fn logTransition(self: *Self, before: r.Root, record: r.Record) !void {
     const updates_object = if (next.binding.action == .create) next.phase == .admitted or previous != null else next.phase == .complete;
     if (updates_object) {
         const target = try r.fromValue(r.Entry, self.allocator, try self.tree().get(record.root.objects, id) orelse return error.InvalidDirectCatalogTransition);
-        const expected: r.Entry = .{ .object = next.binding.target.object, .partition = next.first_partition, .seed = null, .resource = null, .log = before.next_lsn };
+        const expected: r.Entry = .{ .object = next.binding.target.object, .partition = next.first_partition, .seed = null, .resource = null, .log = before.next_lsn, .descriptor = null };
         if (!std.meta.eql(expected, target)) return error.InvalidDirectCatalogTransition;
         if (allocating and try self.tree().get(before.objects, id) != null) return error.InvalidDirectCatalogTransition;
     } else if (!std.meta.eql(before.objects, record.root.objects)) return error.InvalidDirectCatalogTransition;
@@ -867,4 +869,85 @@ fn branchTransition(self: *Self, before: r.Root, record: r.Record) !void {
     if (state.phase == .cancelled) {
         if (named != null) return error.InvalidDirectCatalogTransition;
     } else if (!std.meta.eql(@as(?pages.Value, expected), named)) return error.InvalidDirectCatalogTransition;
+}
+
+pub fn descriptorRecord(self: *Self, at: u64) !c.DirectDefinition.Operation {
+    try self.ready();
+    return self.descriptorRecordAt(self.root, at);
+}
+fn descriptorRecordAt(self: *Self, basis: r.Root, at: u64) !c.DirectDefinition.Operation {
+    if (at == 0 or at >= basis.next_lsn) return error.InvalidCatalogDescriptor;
+    var batch = try self.log.read(self.allocator, basis.configuration.partition, at, 1);
+    defer batch.deinit();
+    if (batch.frames.len != 1) return error.CatalogHistoryMissing;
+    const record = try decodeFrame(self.allocator, batch.frames[0], basis.configuration.partition, at);
+    if (record.action != .descriptor) return error.DataIdentityConflict;
+    if (!std.meta.eql(record.root.configuration, basis.configuration)) return error.InvalidDirectCatalogOperation;
+    return record.action.descriptor;
+}
+pub fn descriptorOperation(self: *Self, binding: d.Binding) !?c.DirectDefinition.Operation {
+    try self.ready();
+    return self.descriptorAt(self.root, binding);
+}
+fn descriptorAt(self: *Self, basis: r.Root, binding: d.Binding) !?c.DirectDefinition.Operation {
+    try binding.validate();
+    if (!std.meta.eql(binding.identity.scope, basis.configuration.scope)) return error.DataIdentityConflict;
+    const value = try self.tree().get(basis.operations, try r.operationKey(binding.identity)) orelse return null;
+    if (value.len != 8) return error.InvalidCatalogDescriptor;
+    const result = try self.descriptorRecordAt(basis, std.mem.readInt(u64, value.data[0..8], .little));
+    try result.binding.requireSame(binding);
+    return result;
+}
+fn descriptorTransition(self: *Self, before: r.Root, record: r.Record) !void {
+    const outcome = record.action.descriptor;
+    if (try self.descriptorAt(before, outcome.binding) != null) return error.InvalidDirectCatalogTransition;
+    var unchanged = record.root;
+    unchanged.next_lsn = before.next_lsn;
+    unchanged.operations = before.operations;
+    if (outcome.phase == .applied) {
+        unchanged.objects = before.objects;
+        unchanged.descriptor_definitions = before.descriptor_definitions;
+        unchanged.dependents = before.dependents;
+        unchanged.dependencies = before.dependencies;
+        if (outcome.binding.action == .create or outcome.binding.action == .rename) unchanged.names = before.names;
+        if (outcome.binding.action == .create) unchanged.schemas = before.schemas;
+    }
+    if (!std.meta.eql(unchanged, before)) return error.InvalidDirectCatalogTransition;
+    const receipt_value = try self.tree().get(record.root.operations, try r.operationKey(outcome.binding.identity)) orelse return error.InvalidDirectCatalogTransition;
+    if (receipt_value.len != 8 or std.mem.readInt(u64, receipt_value.data[0..8], .little) != before.next_lsn) return error.InvalidDirectCatalogTransition;
+    if (outcome.phase != .applied) return;
+    const stored = outcome.resulting.?;
+    const id = try r.idKey(stored.interpretation.object.object);
+    const target = try r.fromValue(r.Entry, self.allocator, try self.tree().get(record.root.objects, id) orelse return error.InvalidDirectCatalogTransition);
+    const expected: r.Entry = .{ .object = stored.interpretation.object.object, .partition = 0, .seed = null, .resource = null, .log = null, .descriptor = before.next_lsn };
+    if (!std.meta.eql(expected, target)) return error.InvalidDirectCatalogTransition;
+    const prior = try self.tree().get(before.objects, id);
+    if (outcome.binding.action == .create) {
+        if (prior != null) return error.InvalidDirectCatalogTransition;
+    } else {
+        const prior_entry = try r.fromValue(r.Entry, self.allocator, prior orelse return error.InvalidDirectCatalogTransition);
+        const known = try self.descriptorRecordAt(before, prior_entry.descriptor orelse return error.InvalidDirectCatalogTransition);
+        if (!std.meta.eql(known.resulting, outcome.previous)) return error.InvalidDirectCatalogTransition;
+    }
+    const version_key = try c.DirectDefinition.definitionKey(stored.interpretation);
+    if (try self.tree().get(before.descriptor_definitions, version_key) != null) return error.InvalidDirectCatalogTransition;
+    const version = try r.fromValue(c.CatalogDefinition.Stored, self.allocator, try self.tree().get(record.root.descriptor_definitions, version_key) orelse return error.InvalidDirectCatalogTransition);
+    if (!std.meta.eql(version, stored)) return error.InvalidDirectCatalogTransition;
+    if (outcome.binding.action == .create or outcome.binding.action == .rename) {
+        const name: r.Name = .{ .namespace = stored.properties.namespace, .name = stored.properties.name, .object = target.object, .reservation = outcome.binding.identity };
+        const found = try r.fromValue(r.Name, self.allocator, try self.tree().get(record.root.names, try r.nameKey(name.namespace, name.name)) orelse return error.InvalidDirectCatalogTransition);
+        if (!std.meta.eql(name, found)) return error.InvalidDirectCatalogTransition;
+    }
+    for (outcome.removed) |maybe| if (maybe) |edge| {
+        const forward = try edge.forwardKey();
+        const reverse = try edge.reverseKey();
+        const old = try self.tree().get(before.dependents, forward) orelse return error.InvalidDirectCatalogTransition;
+        if (!std.meta.eql(old, try self.tree().get(before.dependencies, reverse) orelse return error.InvalidDirectCatalogTransition) or !std.meta.eql(try r.fromValue(c.DirectDependency.Edge, self.allocator, old), edge) or try self.tree().get(record.root.dependents, forward) != null or try self.tree().get(record.root.dependencies, reverse) != null) return error.InvalidDirectCatalogTransition;
+    };
+    for (outcome.added) |maybe| if (maybe) |edge| {
+        const forward = try edge.forwardKey();
+        const reverse = try edge.reverseKey();
+        const expected_value = try r.pageValue(edge);
+        if (try self.tree().get(before.dependents, forward) != null or try self.tree().get(before.dependencies, reverse) != null or !std.meta.eql(expected_value, try self.tree().get(record.root.dependents, forward) orelse return error.InvalidDirectCatalogTransition) or !std.meta.eql(expected_value, try self.tree().get(record.root.dependencies, reverse) orelse return error.InvalidDirectCatalogTransition)) return error.InvalidDirectCatalogTransition;
+    };
 }

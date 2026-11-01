@@ -816,10 +816,12 @@ const historyStatus = {
   admitted: { partition: "1", next_lsn: "20" },
   revision: { partition: "1", next_lsn: "30" },
   phase: "published",
-  retained: { content: historyFixture.snapshot.sources_root, count: "2" },
+  retained: { content: historyFixture.snapshot.sources_root, count: "2", descriptors: "0" },
   after: maximum.toString(),
   inflight: null,
   verified_after: maximum.toString(),
+  descriptor_after: null,
+  descriptors_verified: "0",
   policy_epoch: maximum.toString(),
   released_after: null,
   snapshot: historyFixture.snapshot,
@@ -845,7 +847,7 @@ const historyPage = {
   next: {
     selector: historicalSnapshot.selector,
     namespace: 1,
-    directory: { content: historyFixture.snapshot.sources_root, count: "2" },
+    directory: { content: historyFixture.snapshot.sources_root, count: "2", descriptors: "0" },
     after: "7",
   },
 };
@@ -890,6 +892,48 @@ test("history values own full-width original common acquisition and reject missi
     assert.equal(sent.length, 1); // Closing is not an explicit release.
     assert.deepEqual(sent[0].catalog.history.acquire, historyFixture.acquire);
   });
+});
+
+test("metadata-only history preserves descriptor progress without inventing a Table source", async () => {
+  const independent = JSON.parse(
+    await readFile(
+      new URL(
+        "../../../../packages/zig/transit-catalog/src/fixtures/direct-history-metadata-v1.json",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  );
+  const acquire = structuredClone(historyFixture.acquire);
+  acquire.intent.common = null;
+  acquire.intent.selection.count = "0";
+  acquire.intent.selection.descriptors = "1";
+  const original = HistoryAcquisition.restore(JSON.stringify(acquire));
+  const observed = {
+    ...historyStatus,
+    intent: acquire.intent,
+    retained: { ...historyStatus.retained, count: "0" },
+    after: null,
+    verified_after: null,
+    descriptor_after: maximum.toString(),
+    descriptors_verified: "1",
+    snapshot: {
+      ...historyFixture.snapshot,
+      selector: independent.selector,
+      source_count: "0",
+      consistency: { independent: {} },
+    },
+  };
+  await withHost({ history: { status: observed } }, async (client) => {
+    const result = await client.acquireHistory(original);
+    assert.equal(result.intent.selection.descriptors, 1n);
+    assert.equal(result.descriptorAfter, maximum);
+    assert.equal(result.descriptorsVerified, 1n);
+    assert.equal(result.basis?.sourceCount, 0n);
+    assert.equal(result.basis?.consistency.kind, "independent");
+  });
+  delete acquire.intent.selection.descriptors;
+  assert.throws(() => HistoryAcquisition.restore(JSON.stringify(acquire)), IncompatibleNative);
 });
 
 test("history uncertainty preserves acquisition, selected step and exact release command", async () => {
@@ -945,7 +989,7 @@ test("history selection is explicit and never reacquires moving names during acq
     definition: contract.definition,
     owner: historyFixture.snapshot.owner,
     branch: "1",
-    directory: { content: historyFixture.snapshot.catalog_root, count: "2" },
+    directory: { content: historyFixture.snapshot.catalog_root, count: "2", descriptors: "0" },
   };
   await withHost({ history: { selection: selected } }, async (client, requests) => {
     const step = client.prepareHistoryStep(client.prepareHistorySelection(maximum), 1, "items");

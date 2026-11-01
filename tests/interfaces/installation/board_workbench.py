@@ -1,5 +1,6 @@
 """Installed Board over public catalog callers and shared SQL result readers."""
 import ctypes
+import base64
 import hashlib
 import json
 import os
@@ -14,6 +15,7 @@ from interfaces.installation.server_board import Board
 from harness.local_installation import freeze_executables
 from interfaces.http.serving import compact
 from interfaces.installation.server_application_faults import ExistingKey, native, post
+from query.logical.fuze_types import descriptor
 
 
 def retained_metrics(fixture, definition, connection, seed, operation=900030):
@@ -24,20 +26,57 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030):
     identity = post(port, '/v1/query', native(key, realm, principal,
         dict(authorization=dict(role=None, kind=dict(identity={})))))['body']['authorization']['body']['identity']
 
-    def call(action):
+    def direct(action):
         body = dict(definition=definition, connection=connection, nonce=[91]*16,
-                    action=dict(historical_catalog=action), delegation=None, closure=None,
+                    action=action, delegation=None, closure=None,
                     borrow=None, lease=None, transaction=None)
         context = hashlib.sha256(b'transit.table.direct.request.v1\0' + compact(body)).digest()
         claim = dict(definition=definition, realm=realm, principal=principal,
                      credential_epoch=identity['credential_epoch'], role=None,
                      audience=connection['audience'], context=list(context))
         signature = key.sign(hashlib.sha256(b'transit.authorization.subject.v1\0' + compact(claim)).digest())
-        return post(port, '/table/v1', dict(body, proof=dict(claim=claim, signature=signature)))['result']['historical_catalog']
+        return post(port, '/table/v1', dict(body, proof=dict(claim=claim, signature=signature)))['result']
+
+    def call(action):
+        return direct(dict(historical_catalog=action))['historical_catalog']
 
     owner = dict(scope=connection['scope'], principal=principal, operation=operation)
     selection = call(dict(select=dict(selection=dict(owner=owner, branch=connection['branch'], directory=None),
         namespace=1, name=dict(len=7, bytes=list(b'metrics')+[0]*56))))['selection']
+    if operation == 900030:
+        # Real signed declarations populate two metadata pages. Board only
+        # receives the public read projection, never this provisioning identity.
+        content = direct(dict(descriptor=dict(stage_input=dict(namespace=1,
+            bytes=dict(base64=base64.b64encode(bytes.fromhex('123d')).decode())))))['descriptor']['input']
+        schema_definition = b'transit.table.schema.v1.2026-11-01.semantics'
+        kind = descriptor('int64')
+        for index in range(5):
+            object_id = 900100 + index
+            name = f'decoder_{index}'.encode()
+            named = dict(len=len(name), bytes=list(name)+[0]*(63-len(name)))
+            schema = (b'FTS1' + bytes([len(schema_definition)]) + schema_definition
+                + struct.pack('<QQQH', object_id, 1, 2, 1)
+                + struct.pack('<QB', 1, 6) + b'amount'
+                + struct.pack('<H', len(kind)) + kind + struct.pack('<BIBH', 0, 0, 0, 0))
+            intent = dict(kind='foreign', namespace=1, name=named, action=dict(create=dict(owner=identity['login_role'],
+                payload=dict(schema=dict(base64=base64.b64encode(schema).decode()), sources=[],
+                    body=dict(foreign=dict(record_bytes=2, fields=[dict(column=1, offset=0, bytes=2, encoding='comp_3')],
+                        malformed='reject', input=dict(content=content, availability='retained', provenance='file:///never-refetched')))))))
+            binding = dict(definition=definition, identity=dict(owner, operation=object_id),
+                target=dict(scope=connection['scope'], branch=connection['branch'], object=object_id),
+                action='create', expected_definition=None, expected_data=None,
+                intent=list(hashlib.sha256(b'transit.catalog.interpretation.intent.v1\0'+compact(intent)).digest()), prerequisite=None)
+            saved = dict(binding=binding, intent=intent)
+            (fixture.root / f'definition-intent-{object_id}.json').write_text(json.dumps(saved))
+            for _ in range(32):
+                result = direct(dict(descriptor=dict(declaration=dict(request=saved, command='accept', steps=16))))['descriptor']['observation']
+                if 'operation' in result:
+                    assert result['operation']['phase'] == 'applied', result
+                    break
+                assert result == 'registration_pending', result
+            else:
+                raise AssertionError('Metadata declaration did not settle')
+            selection = call(dict(select=dict(selection=selection, namespace=1, name=named)))['selection']
     token = dict(definition=definition, connection=connection, account=[91]*32, token=list(operation.to_bytes(16, 'little')))
     intent = dict(connection=connection, namespace=1, operation=owner['operation'],
                   selection=selection['directory'], common=None)
@@ -148,6 +187,13 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
             return request('catalog', dict(history=action), expected)
         namespace = history(dict(namespace=dict(selector=selector, name='public')))['history']['namespace']
         assert namespace['id'] == 1
+        metadata_page = request('catalog', dict(definitions=dict(list=dict(namespace=1, selector=selector, cursor=None))))['definitions']['page']
+        assert len([item for item in metadata_page['entries'] if item]) == 4 and metadata_page['next'] is not None
+        metadata_tail = request('catalog', dict(definitions=dict(list=dict(namespace=1, selector=selector, cursor=metadata_page['next']))))['definitions']['page']
+        assert len([item for item in metadata_tail['entries'] if item]) == 1 and metadata_tail['next'] is None
+        decoder = request('catalog', dict(definitions=dict(historical=dict(selector=selector, namespace=1, name='decoder_0'))))['definitions']['historical']
+        assert decoder['definition']['body']['foreign']['fields'][0]['encoding'] == 'comp_3'
+        assert decoder['definition']['schema']['columns'][0]['id'] == '1'
         retained = history(dict(list=dict(selector=selector, namespace=1, after=None)))['history']['listing']
         assert retained['snapshot']['selector'] == selector and retained['next'] is None
         assert [item['name'] for item in retained['entries']] == ['metrics']

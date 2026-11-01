@@ -92,7 +92,7 @@ pub const Work = union(enum) {
     branch: struct { root: r.Root, progress: c.DirectClientToken.Progress },
     historical: struct { root: r.Root, progress: c.DirectClientToken.Progress, slot: u8 = 0 },
     historical_directory: struct { catalog: r.Root, owner: d.Operation, branch: u64, kind: c.DirectHistoryDirectory.Kind, reference: c.DirectHistoryDirectory.Reference, slot: u8 = 0 },
-    historical_walk: struct { root: c.DirectHistoryDirectory.Root, walk: c.DirectCatalogWalk },
+    historical_walk: struct { root: c.DirectHistoryDirectory.Root, walk: c.DirectCatalogWalk, descriptors: bool = false },
     transaction: struct { root: r.Root, progress: c.DirectClientToken.Progress, slot: u8 = 0 },
     transaction_walk: struct { walk: c.DirectCatalogWalk, head: W.Head, scope: c.DirectRecord.Scope, tables: bool },
     transaction_intent: W.Request,
@@ -106,6 +106,10 @@ pub const Work = union(enum) {
     catalog_root: struct { root: r.Root, slot: u8 = 0 },
     catalog_walk: c.DirectCatalogWalk,
     catalog_intent: struct { configuration: r.Configuration, operation: r.Operation },
+    descriptor_operation: struct { configuration: r.Configuration, operation: c.DirectDefinition.Operation },
+    descriptor: c.CatalogDefinition.Stored,
+    descriptor_sources: struct { stored: c.CatalogDefinition.Stored, next: u8 = 0 },
+    foreign_input: d.Content,
     log_operation: struct { configuration: r.Configuration, operation: c.DirectLog.Operation },
     log_declaration: s.LogDeclaration.Stored,
     queue_destination: d.Definition,
@@ -150,7 +154,7 @@ pub fn collectible(key: []const u8) bool {
     // Saved staging references and permanent operation-to-target reservations
     // have independent lifetimes. Unknown generic object namespaces also remain
     // outside this collector's authority.
-    for ([_][]const u8{ "catalog-history/", "data-index/", "bitmap-containers/", "data-maintenance/", "catalog-intents/", "catalog-log-intents/", "log-definitions/", "log-evidence/", "log-reads/", "log-tx-sources/", "log-preparations/", "transaction-log-actions/", "transaction-log-payload/", "log-checkpoints/", "log-segments/", "log-segment-metadata/", "queue-selections/", "queue-time-buffers/", "queue-time-runs/", "document-definitions/", "document-evidence/", "document-reads/", "document-checkpoints/", "document-payloads/", "document-states/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
+    for ([_][]const u8{ "catalog-history/", "catalog-definitions/", "catalog-definition-intents/", "catalog-foreign/", "data-index/", "bitmap-containers/", "data-maintenance/", "catalog-intents/", "catalog-log-intents/", "log-definitions/", "log-evidence/", "log-reads/", "log-tx-sources/", "log-preparations/", "transaction-log-actions/", "transaction-log-payload/", "log-checkpoints/", "log-segments/", "log-segment-metadata/", "queue-selections/", "queue-time-buffers/", "queue-time-runs/", "document-definitions/", "document-evidence/", "document-reads/", "document-checkpoints/", "document-payloads/", "document-states/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
         if (std.mem.startsWith(u8, key, prefix)) return true;
     }
     return false;
@@ -378,7 +382,7 @@ fn documentEntry(allocator: std.mem.Allocator, index: *s.TreeStore, workspace: a
 /// any error discards all private cursor/root changes from this step.
 pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog.Log, work: *Work, workspace: anytype) !bool {
     switch (work.*) {
-        .declaration, .evidence, .intent, .snapshot, .wal, .segment, .catalog_intent, .log_operation, .log_declaration, .queue_destination, .log_initialization, .log_segment, .log_wal, .document_declaration, .document_initialization, .document_read, .document_wal => if (try workspace.visited(try scope(work.*))) return true,
+        .declaration, .evidence, .intent, .snapshot, .wal, .segment, .catalog_intent, .descriptor_operation, .descriptor, .foreign_input, .log_operation, .log_declaration, .queue_destination, .log_initialization, .log_segment, .log_wal, .document_declaration, .document_initialization, .document_read, .document_wal => if (try workspace.visited(try scope(work.*))) return true,
         else => {},
     }
     var key_buffer: [96]u8 = undefined;
@@ -387,6 +391,7 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             const record = try walk.next(allocator, log) orelse return true;
             try workspace.enqueue(.{ .catalog_root = .{ .root = record.root } });
             if (record.action == .operation) try workspace.enqueue(.{ .catalog_intent = .{ .configuration = record.root.configuration, .operation = record.action.operation } });
+            if (record.action == .descriptor) try workspace.enqueue(.{ .descriptor_operation = .{ .configuration = record.root.configuration, .operation = record.action.descriptor } });
             if (record.action == .log) try workspace.enqueue(.{ .log_operation = .{ .configuration = record.root.configuration, .operation = record.action.log } });
             if (record.action == .client_token and record.action.client_token.receipt.binding.intent == .branch and !record.action.client_token.pending and !record.action.client_token.cancel)
                 try workspace.enqueue(.{ .branch = .{ .root = record.root, .progress = record.action.client_token } });
@@ -422,13 +427,13 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
         },
         .historical_directory => |*value| {
             const H = c.DirectHistoryDirectory;
-            var directory = try H.init(allocator, index.store, value.owner, value.branch, value.kind, value.reference.count, 0, 1);
+            var directory = try H.init(allocator, index.store, value.owner, value.branch, value.kind, @max(try value.reference.total(), 1), 0, 1);
             defer directory.deinit();
             try directory.restore(value.reference);
             if (value.slot == 0) try markContent(workspace, try H.objectKey(value.reference.content, &key_buffer), value.reference.content);
-            const roots = [_]?s.TreeStore.pages.Reference{ directory.root.objects, directory.root.names, directory.root.namespaces, directory.root.namespace_names };
+            const roots = [_]?s.TreeStore.pages.Reference{ directory.root.objects, directory.root.names, directory.root.namespaces, directory.root.namespace_names, directory.root.descriptors, directory.root.descriptor_names, directory.root.descriptor_namespaces, directory.root.descriptor_namespace_names };
             if (value.slot == roots.len) return true;
-            if (roots[value.slot]) |reference| try workspace.enqueue(.{ .historical_walk = .{ .root = directory.root, .walk = try .init(value.catalog, .{ .reference = reference, .kind = if (value.slot == 0) .values else .pages_only }) } });
+            if (roots[value.slot]) |reference| try workspace.enqueue(.{ .historical_walk = .{ .root = directory.root, .descriptors = value.slot == 4, .walk = try .init(value.catalog, .{ .reference = reference, .kind = if (value.slot == 0 or value.slot == 4) .values else .pages_only }) } });
             value.slot += 1;
             return false;
         },
@@ -442,6 +447,14 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
                 .value => |entry| {
                     const H = c.DirectHistoryDirectory;
                     const content = try H.contentOf(entry.value);
+                    if (value.descriptors) {
+                        const binding = try H.load(index.store, H.DescriptorEntry, content);
+                        try binding.validate(value.root.owner, value.root.branch);
+                        if (entry.key.len != 8 or std.mem.readInt(u64, entry.key.data[0..8], .big) != binding.declaration.interpretation.object.object) return error.InvalidHistoricalDirectory;
+                        try markContent(workspace, try H.objectKey(content, &key_buffer), content);
+                        try workspace.enqueue(.{ .descriptor = binding.declaration });
+                        return false;
+                    }
                     const binding = try H.load(index.store, H.Entry, content);
                     try binding.validate(value.root.owner, value.root.branch, value.root.kind);
                     if (entry.key.len != 8 or std.mem.readInt(u64, entry.key.data[0..8], .big) != binding.source.interpretation.object.object) return error.InvalidHistoricalDirectory;
@@ -679,18 +692,23 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
         },
         .catalog_root => |*value| {
             const root = value.root;
-            const directories = [_]?s.TreeStore.pages.Reference{ root.schemas, root.schema_names, root.namespace_claims, root.namespace_pending, root.objects, root.names, root.operations, root.pending, root.native_allocations, root.dependents, root.dependencies, root.client_tokens, root.client_operations, root.client_pending, root.client_accounts, root.branches, root.branch_names, root.branch_owners, root.history_transactions };
+            const directories = [_]?s.TreeStore.pages.Reference{ root.schemas, root.schema_names, root.namespace_claims, root.namespace_pending, root.objects, root.names, root.operations, root.pending, root.native_allocations, root.dependents, root.dependencies, root.client_tokens, root.client_operations, root.client_pending, root.client_accounts, root.branches, root.branch_names, root.branch_owners, root.history_transactions, root.descriptor_definitions };
             if (value.slot > directories.len) return error.InvalidDirectCatalogHistory;
             if (value.slot == directories.len) return true;
             const slot = value.slot;
             value.slot += 1;
-            if (directories[slot]) |reference| try workspace.enqueue(.{ .catalog_walk = try .init(root, .{ .reference = reference, .kind = if (slot == 4) .objects else .pages_only }) });
+            if (directories[slot]) |reference| try workspace.enqueue(.{ .catalog_walk = try .init(root, .{ .reference = reference, .kind = if (slot == 4) .objects else if (slot == 19) .values else .pages_only }) });
             return false;
         },
         .catalog_walk => |*walk| {
             const edge = try walk.next(allocator, index) orelse return true;
             switch (edge) {
-                .value => return error.InvalidTableStorageGraph,
+                .value => |entry| {
+                    const stored = try r.fromValue(c.CatalogDefinition.Stored, allocator, entry.value);
+                    try stored.validate();
+                    if (!std.meta.eql(entry.key, try c.DirectDefinition.definitionKey(stored.interpretation)) or !std.meta.eql(stored.interpretation.object.scope, walk.configuration.scope) or stored.interpretation.object.branch != walk.configuration.branch) return error.InvalidTableStorageGraph;
+                    try workspace.enqueue(.{ .descriptor = stored });
+                },
                 .page => |root| {
                     try markPage(index, workspace, root.reference);
                     if (try workspace.visited(try scope(.{ .catalog = walk.configuration, .next_lsn = walk.next_lsn, .next_partition = walk.next_partition, .root = root }))) try walk.skip();
@@ -704,6 +722,38 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             defer intent.deinit();
             try value.operation.binding.requireSame(intent.value.binding);
             try markContent(workspace, try Intent.key(value.operation.intent, &key_buffer), value.operation.intent);
+        },
+        .descriptor_operation => |value| {
+            const IntentCodec = c.DirectDefinition.IntentStore;
+            var intent = try IntentCodec.load(allocator, index.store, value.configuration, value.operation.intent);
+            defer intent.deinit();
+            try value.operation.binding.requireSame(intent.value.binding);
+            try markContent(workspace, try IntentCodec.key(value.operation.intent, &key_buffer), value.operation.intent);
+            if (value.operation.resulting) |stored| try workspace.enqueue(.{ .descriptor = stored });
+            if (value.operation.previous) |stored| try workspace.enqueue(.{ .descriptor = stored });
+        },
+        .descriptor => |stored| {
+            var value = try c.CatalogDefinition.load(allocator, index.store, stored);
+            defer value.deinit();
+            try markContent(workspace, try c.CatalogDefinition.key(stored.content, &key_buffer), stored.content);
+            if (value.value.sources.len != 0) try workspace.enqueue(.{ .descriptor_sources = .{ .stored = stored } });
+            if (value.value.body == .foreign and value.value.body.foreign.input.availability == .retained) try workspace.enqueue(.{ .foreign_input = value.value.body.foreign.input.content });
+        },
+        .descriptor_sources => |*value| {
+            var artifact = try c.CatalogDefinition.load(allocator, index.store, value.stored);
+            defer artifact.deinit();
+            if (value.next > artifact.value.sources.len) return error.InvalidCatalogDescriptor;
+            if (value.next == artifact.value.sources.len) return true;
+            try workspace.enqueue(.{ .declaration = artifact.value.sources[value.next].declaration });
+            value.next += 1;
+            return false;
+        },
+        .foreign_input => |content| {
+            // Durable walk work owns fixed content identities, never slices
+            // borrowed from the descriptor which produced this child job.
+            const bytes = try c.CatalogDefinition.loadInput(allocator, index.store, .{ .content = content, .availability = .retained, .provenance = "" });
+            defer allocator.free(bytes);
+            try markContent(workspace, try c.CatalogDefinition.inputKey(content, &key_buffer), content);
         },
         .log_operation => |value| {
             const LogIntent = c.DirectLog.IntentStore;

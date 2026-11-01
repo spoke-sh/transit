@@ -419,3 +419,11 @@ availability without erasing the original acquisition outcome; reader close
 does not release that separately retained basis. See the
 [exact contract](../../../contracts/HISTORICAL_CATALOG_V1.md) for bounded progress,
 private-pin ownership, collection roots and failure distinctions.
+
+Selections can also retain [versioned views, graph mappings and foreign layouts](../../../contracts/CATALOG_DEFINITIONS_V1.md).
+Views and graphs include their exact Table dependencies; foreign layouts retain
+captured input content separately. Metadata definitions have their own count and
+paged inspection. A selection containing only foreign metadata has zero Table
+sources and independent consistency. Inspecting it neither acquires a data pin
+nor fetches an external URI. SQL expands the accepted historical view definition,
+so replacing its current definition cannot change the retained query.

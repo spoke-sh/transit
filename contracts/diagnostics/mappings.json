@@ -4856,7 +4856,9 @@
         "packages/zig/transit-catalog/src/DirectHistory.zig",
         "packages/zig/transit-catalog/src/DirectHistorySelector.zig",
         "packages/zig/transit-catalog/src/DirectCatalogHistory.zig",
-        "packages/zig/transit-catalog/src/DirectSchemaProjection.zig"
+        "packages/zig/transit-catalog/src/DirectSchemaProjection.zig",
+        "packages/zig/transit-catalog/src/DirectCatalogDefinitions.zig",
+        "packages/zig/transit-catalog/src/DirectDefinition.zig"
       ],
       "exclude": [],
       "registry": "packages/zig/transit-catalog/src/DirectCallerCodes.zig",
@@ -5284,6 +5286,38 @@
         },
         "IncompatibleSchemaProjection": {
           "code": "catalog.incompatible_schema_projection",
+          "category": "unsupported"
+        },
+        "CatalogDependencyOwned": {
+          "code": "catalog.dependency_owned",
+          "category": "lifecycle"
+        },
+        "InvalidCatalogDescriptor": {
+          "code": "catalog.invalid_descriptor",
+          "category": "binding"
+        },
+        "UnsupportedCatalogView": {
+          "code": "catalog.unsupported_view",
+          "category": "unsupported"
+        },
+        "UnsupportedForeignLayout": {
+          "code": "catalog.unsupported_foreign_layout",
+          "category": "unsupported"
+        },
+        "ForeignValueMalformed": {
+          "code": "catalog.foreign_value_malformed",
+          "category": "binding"
+        },
+        "CatalogKindMismatch": {
+          "code": "catalog.kind_mismatch",
+          "category": "binding"
+        },
+        "CatalogRecordTooLarge": {
+          "code": "catalog.record_too_large",
+          "category": "capacity"
+        },
+        "UnsupportedHistoricalKind": {
+          "code": "catalog.unsupported_historical_kind",
           "category": "unsupported"
         }
       },

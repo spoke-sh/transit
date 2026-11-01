@@ -7,6 +7,7 @@ import struct
 import mysql.connector
 import psycopg
 
+from query.logical.fuze_types import descriptor
 from interfaces.sql_sessions.native import Client
 from interfaces.sql_sessions.storage import text
 from interfaces.sql_sessions.transactions import command, rows
@@ -192,9 +193,94 @@ def captured_history(root, port, restart, catalog, faults, select_source):
                           original_release_and_name_reuse=True, release_before_copy_refuses=True)), flush=True)
 
 
+def historical_views(root, port, postgres, mysql_options, restart, catalog, faults):
+    client = Client(root, port).open()
+    command(client, 'CREATE TABLE view_source (id INT64 PRIMARY KEY, amount INT64)')
+    command(client, 'INSERT INTO view_source VALUES (1,10),(2,20),(3,30)')
+    # Qualifying rows precede many rejected pages. A borrowed output slice must
+    # remain valid when the view filter skips across the remaining source pages.
+    for start in range(4, 84, 8):
+        values = ','.join(f'({i},{i * 10})' for i in range(start, start + 8))
+        command(client, 'INSERT INTO view_source VALUES ' + values)
+    original = catalog('definition-view', 900060, 'retained_view', 'view_source',
+                       'SELECT amount AS original_amount FROM view_source WHERE id > 1 AND id < 4')
+    assert original['phase'] == 'applied', original
+    retained = catalog('history-retain', 900061, 'retained_view')
+    suffix = " AS OF SNAPSHOT '" + retained['selector'] + "'"
+    query = 'SELECT original_amount FROM retained_view' + suffix
+    assert catalog('definition-budget', retained['selector'],
+                   'SELECT original_amount FROM retained_view') == dict(refused=8, opened=10)
+    expected, basis = rows(client, query)
+    assert expected == [[20], [30]], expected
+    assert rows(client, 'SELECT original_amount FROM retained_view WHERE original_amount > 1000' + suffix)[0] == []
+    source = basis['data']['historical']['sources'][0]
+    assert source['view'] == original['resulting']['interpretation'], source
+    with faults.metadata_only() as calls:
+        description, described_basis = raw(client, 'DESCRIBE retained_view'+suffix)
+        explanation, explained_basis = raw(client, 'EXPLAIN '+query)
+    assert [text(row[0]) for row in description] == ['original_amount'], description
+    assert original['resulting']['interpretation'] in described_basis['metadata']['definitions']
+    plan = json.loads(text(explanation[0][0]))
+    assert plan['view'] == original['resulting']['interpretation'] and plan['filter'], plan
+    assert not any(plan['view_filter']['explain_effects'].values()), plan
+    assert calls.get('descriptor.historical', 0) > 0 and calls.get('descriptor.authorize', 0) > 0, calls
+    inspection = catalog('definition-inspect', retained['selector'], 'retained_view')['historical']
+    assert inspection['definition']['stored']['interpretation']['revision'] == '1', inspection
+    assert inspection['definition']['schema']['columns'][0]['name'] == 'original_amount'
+    statement = client.call(dict(prepare=dict(sql='SELECT original_amount FROM retained_view WHERE original_amount > $1'+suffix)))['described']['statement']
+    updated = catalog('definition-view', 900062, 'retained_view', 'view_source',
+                      'SELECT amount AS original_amount FROM view_source WHERE id > 2 AND id < 4')
+    assert updated['phase'] == 'applied', updated
+    assert rows(client, 'SELECT original_amount FROM retained_view')[0] == [[30]]
+    assert rows(client, query) == (expected, basis)
+    batch = client.call(dict(execute=dict(statement=statement, parameters=[(b'FVL1' + struct.pack('<H', len(descriptor('int64'))) + descriptor('int64') + b'\x01\x03' + struct.pack('<q', 15)).hex()])))['batch']
+    assert batch['complete'] and batch['completion']['rows'] == 2, batch
+    client.call(dict(close_result=batch['cursor']))
+    client.call(dict(release=statement))
+    assert rows(client, 'SELECT SUM(original_amount) FROM retained_view'+suffix)[0] == [[50]]
+    buffered = client.execute(query)['batch']
+    catalog('external-read-grants', 'deny')
+    try:
+        client.call(dict(fetch=dict(cursor=buffered['cursor'], batch=buffered['batch'])), error='AccessDenied')
+        assert len(raw(client, 'DESCRIBE retained_view'+suffix)[0]) == 1
+    finally:
+        catalog('external-read-grants', 'allow')
+    client.call(dict(fetch=dict(cursor=buffered['cursor'], batch=buffered['batch']+1)), error='SqlResultIncomplete')
+    dropped = catalog('definition-drop', 900063, 'retained_view')
+    assert dropped['phase'] == 'applied', dropped
+    command(client, 'DROP TABLE view_source')
+    command(client, 'CREATE TABLE retained_view (original_amount INT64)')
+    command(client, 'INSERT INTO retained_view VALUES (999)')
+    client.close()
+    restart()
+    client = Client(root, port).open()
+    assert rows(client, query) == (expected, basis)
+    assert rows(client, 'SELECT original_amount FROM retained_view')[0] == [[999]]
+    assert catalog('definition-inspect', retained['selector'], 'retained_view') == dict(historical=inspection)
+    with psycopg.connect(**postgres) as pg:
+        assert pg.execute(query, prepare=True).fetchall() == [(20,), (30,)]
+    with mysql.connector.connect(**mysql_options) as my:
+        cursor = my.cursor(prepared=True)
+        cursor.execute(query)
+        assert cursor.fetchall() == [(20,), (30,)]
+        cursor.close()
+    catalog('history-release', 900061)
+    client.call(dict(execute=dict(sql=query)), error='HistoricalSnapshotReleased')
+    command(client, 'DROP TABLE retained_view')
+    client.close()
+    print(json.dumps(dict(profile='installed_historical_views', source=provenance(ROOT),
+                          accepted_typed_expansion=True, frozen_replacement=True,
+                          parameterized_outer_filter=True, aggregate=True,
+                          current_name_reuse=True, gateway_restart=True,
+                          retained_metadata=True, buffered_revocation=True,
+                          skipped_input_pages=True, empty_result=True,
+                          postgres_mysql_prepared=True, explicit_release=True)), flush=True)
+
+
 def run(root, port, postgres, mysql_options, restart, catalog, faults, select_source):
     companion_expressions(root, port, postgres, mysql_options, restart, catalog)
     captured_history(root, port, restart, catalog, faults, select_source)
+    historical_views(root, port, postgres, mysql_options, restart, catalog, faults)
     first = Client(root, port).open()
     command(first, 'CREATE TABLE historical_values (id INT64 PRIMARY KEY, amount INT64)')
     command(first, 'INSERT INTO historical_values VALUES (1, 10), (2, 20)')

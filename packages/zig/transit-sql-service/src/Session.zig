@@ -125,8 +125,8 @@ pub const Read = struct {
                 const scan = &query.execution.scan;
                 const source = scan.reader.basis;
                 if (source.workspace) |view| break :blk try self.transactionBasis(allocator, &.{view});
-                if (source.catalog) |snapshot| break :blk .{ .historical = .{ .snapshot = snapshot, .sources = try allocator.dupe(@FieldType(g.results.Observation.Data, "table"), &.{.{ .object = source.snapshot.object, .interpretation = source.interpretation.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .pin = source.snapshot.handle.content, .commitment = try scan.fingerprint(), .schema = source.interpretation.schema_fingerprint, .projection = projectionObservation(source.interpretation, source.projection) }}) } };
-                break :blk .{ .table = .{ .object = source.snapshot.object, .interpretation = source.interpretation.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .pin = source.snapshot.handle.content, .commitment = try scan.fingerprint(), .schema = source.interpretation.schema_fingerprint, .projection = projectionObservation(source.interpretation, source.projection) } };
+                if (source.catalog) |snapshot| break :blk .{ .historical = .{ .snapshot = snapshot, .sources = try allocator.dupe(@FieldType(g.results.Observation.Data, "table"), &.{.{ .object = source.snapshot.object, .interpretation = source.interpretation.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .pin = source.snapshot.handle.content, .commitment = try scan.fingerprint(), .schema = source.interpretation.schema_fingerprint, .projection = projectionObservation(source.interpretation, source.projection), .view = scan.view }}) } };
+                break :blk .{ .table = .{ .object = source.snapshot.object, .interpretation = source.interpretation.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .pin = source.snapshot.handle.content, .commitment = try scan.fingerprint(), .schema = source.interpretation.schema_fingerprint, .projection = projectionObservation(source.interpretation, source.projection), .view = scan.view } };
             },
             .relational => |query| blk: {
                 if (self.transaction != null) {
@@ -186,7 +186,7 @@ pub const Read = struct {
                 if (prepared.log_metadata) |binding| metadata.definitions = try allocator.dupe(p.DataLifecycle.Definition, &.{binding.definition.stored.declaration.interpretation});
                 if (prepared.statement) |statement| {
                     if (statement.plan == .select) {
-                        metadata.definitions = try allocator.dupe(p.DataLifecycle.Definition, &.{statement.plan.select.binding.interpretation.interpretation});
+                        metadata.definitions = if (statement.plan.select.binding.view) |view| try allocator.dupe(p.DataLifecycle.Definition, &.{ statement.plan.select.binding.interpretation.interpretation, view }) else try allocator.dupe(p.DataLifecycle.Definition, &.{statement.plan.select.binding.interpretation.interpretation});
                         metadata.historical = statement.plan.select.binding.catalog;
                         if (projectionObservation(statement.plan.select.binding.interpretation, statement.plan.select.projection)) |projection| metadata.projections = try allocator.dupe(g.results.Observation.Projection, &.{projection});
                     } else if (statement.plan == .relational) {

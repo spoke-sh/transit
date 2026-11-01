@@ -28,6 +28,7 @@ pub const DirectTablePreparedDdl = @import("DirectTablePreparedDdl.zig");
 pub const DirectTableValues = @import("DirectTableValues.zig");
 pub const DirectTableBridge = @import("DirectTableBridge.zig");
 pub const DirectCatalogInspection = @import("DirectCatalogInspection.zig");
+pub const DirectCatalogDefinitions = @import("DirectCatalogDefinitions.zig");
 pub const DirectCatalogRead = @import("DirectCatalogRead.zig");
 pub const DirectCatalogAdministration = @import("DirectCatalogAdministration.zig");
 pub const DirectCatalogDependencies = @import("DirectCatalogDependencies.zig");
@@ -87,6 +88,7 @@ test {
     // indirect callers in the catalog lifecycle suite.
     _ = @import("DirectCatalogRecords.zig");
     _ = DirectTableClient;
+    _ = CatalogDefinition;
     _ = DirectHistoryDirectory;
     _ = DirectSchemaProjection;
     _ = DirectTableDiagnostic;
@@ -169,3 +171,7 @@ pub const DirectTransactionGraph = @import("DirectTransactionGraph.zig");
 pub const DirectTransactionClient = @import("DirectTransactionClient.zig");
 
 pub const DirectTransactionRead = @import("DirectTransactionRead.zig");
+
+pub const CatalogDefinition = @import("CatalogDefinition.zig");
+
+pub const DirectDefinition = @import("DirectDefinition.zig");

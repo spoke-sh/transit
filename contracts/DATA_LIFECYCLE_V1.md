@@ -453,3 +453,11 @@ SQL `AS OF SNAPSHOT` binds that catalog before names and schemas; historical
 SELECT observations carry its immutable identity and exact source evidence.
 Metadata observations retain catalog attribution without claiming row execution.
 An independent source vector is not an atomic cross-Table cut.
+
+Selected catalog interpretations also retain exact accepted view, property-graph
+and foreign-layout definitions. Their metadata directory and verification progress
+are separate from the Table-source directory. A metadata-only foreign catalog
+has zero Table sources and independent consistency. It binds the decoder and
+captured-input content without inventing a Table pin. See
+[versioned interpretations](CATALOG_DEFINITIONS_V1.md) for publication and dependency
+closure; the existing current-policy and release boundaries apply to every read.

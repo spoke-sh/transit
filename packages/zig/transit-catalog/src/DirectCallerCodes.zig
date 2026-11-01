@@ -2,6 +2,15 @@
 const common = @import("CallerCodes.zig");
 pub const Entry = common.Entry;
 pub const entries = [_]Entry{
+    .{ .cause = error.UnsupportedHistoricalKind, .code = "catalog.unsupported_historical_kind", .category = .unsupported, .message = "This caller profile cannot preserve the selected historical or view binding. Use the qualified historical SQL or catalog read operation." },
+    .{ .cause = error.CatalogKindMismatch, .code = "catalog.kind_mismatch", .category = .binding, .message = "The proposal's object kind differs from its typed body. Correct the original declaration before dispatch." },
+    .{ .cause = error.CatalogRecordTooLarge, .code = "catalog.record_too_large", .category = .capacity, .message = "The catalog declaration exceeds the bounded record size. Reduce the declaration before dispatch; this failure does not change accepted work." },
+    .{ .cause = error.CatalogDependencyOwned, .code = "catalog.dependency_owned", .category = .lifecycle, .message = "This dependency is managed atomically with its catalog definition. Replace or retire that definition through its owner." },
+    .{ .cause = error.InvalidCatalogDescriptor, .code = "catalog.invalid_descriptor", .category = .binding, .message = "The interpretation descriptor has inconsistent stable identities, types, dependencies or layout bounds. Validate the complete original proposal." },
+    .{ .cause = error.UnsupportedCatalogView, .code = "catalog.unsupported_view", .category = .unsupported, .message = "Views currently accept a projection and predicate over one exact Table. Other operators and nested views require a separately qualified profile." },
+    .{ .cause = error.UnsupportedForeignLayout, .code = "catalog.unsupported_foreign_layout", .category = .unsupported, .message = "The foreign descriptor requires an unsupported physical layout. Use an explicitly qualified fixed-record codec." },
+    .{ .cause = error.ForeignValueMalformed, .code = "catalog.foreign_value_malformed", .category = .binding, .message = "A captured foreign field violates its declared codec and the descriptor requires rejection. Durable checksum failures are separate integrity failures." },
+
     .{ .cause = error.InvalidSchemaProjection, .code = "catalog.invalid_schema_projection", .category = .integrity, .message = "Projection evidence must retain its original source and exact accepted target." },
     .{ .cause = error.IncompatibleSchemaProjection, .code = "catalog.incompatible_schema_projection", .category = .unsupported, .message = "The requested definitions require an unsupported schema conversion. Select a compatible forward target." },
     .{ .cause = error.EmptyHistoricalSelection, .code = "catalog.empty_historical_selection", .category = .binding, .message = "Select at least one exact source before retaining a historical catalog." },

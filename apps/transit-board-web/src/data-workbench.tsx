@@ -4,6 +4,7 @@ import {
   DataCatalog,
   type HistoricalTables,
   type HistoricalCoverage,
+  type CatalogDefinitions,
   type CatalogEntry,
   type CatalogTable,
   type CatalogTables,
@@ -194,6 +195,7 @@ function HistoricalCatalog() {
 }
 
 function HistoricalSelection({ selector, namespace }: { selector: string; namespace: string }) {
+  const [definitions, setDefinitions] = useState(false);
   const [after, setAfter] = useState<HistoricalTables["next"]>(null);
   const [object, setObject] = useState<string | null>(null);
   const state = useMetadata(JSON.stringify([selector, namespace, after]), async (signal) => {
@@ -253,6 +255,125 @@ function HistoricalSelection({ selector, namespace }: { selector: string; namesp
         Next page
       </button>
       {object && <HistoricalObject key={object} selector={selector} object={object} />}
+      <details onToggle={(event) => setDefinitions(event.currentTarget.open)}>
+        <summary>Inspect retained definitions</summary>
+        {definitions && <HistoricalDefinitions selector={selector} namespace={namespace} />}
+      </details>
+    </section>
+  );
+}
+
+function HistoricalDefinitions({ selector, namespace }: { selector: string; namespace: string }) {
+  const [cursor, setCursor] = useState<CatalogDefinitions["next"]>(null);
+  const [name, setName] = useState<string | null>(null);
+  const state = useMetadata(JSON.stringify([selector, namespace, cursor]), async (signal) => {
+    const selected = await catalog.historical({ namespace: { selector, name: namespace } }, signal);
+    if (!("namespace" in selected) || selected.namespace === null)
+      throw new Error("Schema is absent from this retained catalog.");
+    return {
+      namespace: selected.namespace.id,
+      page: await catalog.definitions(selected.namespace.id, selector, cursor, signal),
+    };
+  });
+  if (!state.value) return <Unavailable error={state.error} retry={state.retry} />;
+  const { page, namespace: namespaceId } = state.value;
+  return (
+    <section aria-label="Retained definitions">
+      <p>
+        Accepted views, graph mappings and foreign decoders. Inspecting a definition does not
+        execute it.
+      </p>
+      <ul>
+        {page.entries
+          .filter((entry) => entry !== null)
+          .map((entry) => (
+            <li key={entry.interpretation.object.object}>
+              <button onClick={() => setName(entry.properties.name)}>
+                {entry.properties.name}
+              </button>
+              {" · "}
+              {entry.kind}
+              {" · Object "}
+              {entry.interpretation.object.object}
+              {" · Definition "}
+              {entry.interpretation.revision}
+            </li>
+          ))}
+      </ul>
+      <p>
+        {page.next
+          ? "More definitions are available."
+          : "End of the selected definition directory."}
+      </p>
+      <button
+        disabled={cursor === null}
+        onClick={() => {
+          setCursor(null);
+          setName(null);
+        }}
+      >
+        First definitions
+      </button>
+      <button
+        disabled={page.next === null}
+        onClick={() => {
+          setCursor(page.next);
+          setName(null);
+        }}
+      >
+        Next definitions
+      </button>
+      {name && (
+        <HistoricalDefinitionDetails
+          key={name}
+          selector={selector}
+          namespace={namespaceId}
+          name={name}
+        />
+      )}
+    </section>
+  );
+}
+function HistoricalDefinitionDetails({
+  selector,
+  namespace,
+  name,
+}: {
+  selector: string;
+  namespace: number;
+  name: string;
+}) {
+  const state = useMetadata(JSON.stringify([selector, namespace, name]), (signal) =>
+    catalog.historicalDefinition(selector, namespace, name, signal),
+  );
+  if (!state.value) return <Unavailable error={state.error} retry={state.retry} />;
+  const definition = state.value.definition;
+  if (!definition) return <p>This definition is absent from the selected catalog.</p>;
+  return (
+    <section aria-label="Accepted interpretation">
+      <h3>{definition.stored.properties.name}</h3>
+      <p>
+        {definition.stored.kind}
+        {" · Definition "}
+        {definition.stored.interpretation.revision}
+      </p>
+      <p>
+        Definition digest <code>{definition.stored.interpretation.digest}</code>
+      </p>
+      <ul>
+        {definition.sources.map((source) => (
+          <li key={source.declaration.interpretation.object.object}>
+            Source {source.declaration.interpretation.object.object}
+            {" · Definition "}
+            {source.declaration.interpretation.revision}
+            <code>{source.declaration.interpretation.digest}</code>
+          </li>
+        ))}
+      </ul>
+      <details>
+        <summary>Output schema and interpretation</summary>
+        <pre>{JSON.stringify({ schema: definition.schema, body: definition.body }, null, 2)}</pre>
+      </details>
     </section>
   );
 }

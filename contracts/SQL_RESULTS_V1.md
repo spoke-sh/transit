@@ -37,6 +37,14 @@ session-settings commitment where relevant. Independent metadata observations do
 not acquire a fictional data snapshot. EXPLAIN observes a prepared plan without
 executing that plan. Hashes identify content; they grant no rights or retained pin.
 
+A Table observation can additionally identify the accepted view definition whose
+projection/filter interpreted that source. The view identity participates in the
+binding fingerprint. Historical view observations retain the selected catalog and
+original source cut; metadata observations include both view and source definitions.
+Current rights on both objects still govern schema, rows and terminal disclosure.
+A metadata-only historical catalog may have zero Table sources with independent
+consistency; it establishes no data snapshot.
+
 ## Abstract progress
 
 Let a result's state be `(I, S, O, r, d, q, c, released)`:

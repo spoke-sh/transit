@@ -279,9 +279,17 @@ test("retained catalog inspection is bounded and clears revoked coverage", async
     if (request.url().endsWith("/api/v1/sql-read") && request.postDataJSON()?.action.run) runs++;
   });
   await page.route("**/api/v1/catalog", async (route) => {
-    const history = route.request().postDataJSON().action.history;
+    const action = route.request().postDataJSON().action;
+    const history = action.history;
     if (history) {
       actions.push(Object.keys(history)[0]!);
+      if (denied) {
+        await route.fulfill({ status: 403, json: { err: "Forbidden", diagnostic: null } });
+        return;
+      }
+    }
+    if (action.definitions) {
+      actions.push(`interpretation.${Object.keys(action.definitions)[0]!}`);
       if (denied) {
         await route.fulfill({ status: 403, json: { err: "Forbidden", diagnostic: null } });
         return;
@@ -299,7 +307,9 @@ test("retained catalog inspection is bounded and clears revoked coverage", async
   const interpretation = page.getByRole("region", { name: "Retained interpretation", exact: true });
   await expect(interpretation).toContainText("145 retained rows");
   await expect(interpretation).toContainText("physical column");
-  await interpretation.getByRole("combobox", { name: "Coverage", exact: true }).selectOption("locations");
+  await interpretation
+    .getByRole("combobox", { name: "Coverage", exact: true })
+    .selectOption("locations");
   await expect(interpretation).toContainText("Partial directory coverage");
   await expect(interpretation).toContainText(
     "Payload verification and query completion are separate",
@@ -312,6 +322,20 @@ test("retained catalog inspection is bounded and clears revoked coverage", async
     .poll(async () => (await rows().allTextContents()).filter((row) => before.includes(row)).length)
     .toBe(0);
   await expect(rows()).toHaveCount(8);
+  await catalog.getByText("Inspect retained definitions", { exact: true }).click();
+  const definitions = page.getByRole("region", { name: "Retained definitions", exact: true });
+  await expect(definitions).toContainText("More definitions are available.");
+  await definitions.getByRole("button", { name: "decoder_0", exact: true }).click();
+  const accepted = page.getByRole("region", { name: "Accepted interpretation", exact: true });
+  await expect(accepted).toContainText("foreign · Definition 1");
+  await accepted.getByText("Output schema and interpretation", { exact: true }).click();
+  await expect(accepted).toContainText("comp_3");
+  await definitions.getByRole("button", { name: "Next definitions", exact: true }).click();
+  await expect(definitions).toContainText("decoder_4");
+  await expect(definitions).toContainText("End of the selected definition directory.");
+  await expect(
+    page.getByRole("region", { name: "Accepted interpretation", exact: true }),
+  ).toHaveCount(0);
   denied = true;
   await expect(
     page.getByRole("heading", { name: "Data connection unavailable" }).first(),
@@ -323,7 +347,15 @@ test("retained catalog inspection is bounded and clears revoked coverage", async
   expect(actions.length).toBeGreaterThan(5);
   expect(
     actions.every((action) =>
-      ["namespace", "list", "source", "definitions", "locations"].includes(action),
+      [
+        "namespace",
+        "list",
+        "source",
+        "definitions",
+        "locations",
+        "interpretation.list",
+        "interpretation.historical",
+      ].includes(action),
     ),
   ).toBe(true);
 });

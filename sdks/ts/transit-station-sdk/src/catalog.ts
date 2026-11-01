@@ -1235,6 +1235,7 @@ export interface HistoryOperation {
 export interface HistoryDirectory {
   readonly content: HistoryContent;
   readonly count: bigint;
+  readonly descriptors: bigint;
 }
 export interface HistoryCommonCut {
   readonly transaction: HistoryOperation;
@@ -1267,7 +1268,11 @@ function historyOperation(value: NativeHistorySnapshot["owner"]): HistoryOperati
 function historyDirectory(
   value: NonNullable<HistoryOutput<"selection">["directory"]>,
 ): HistoryDirectory {
-  return Object.freeze({ content: historyContent(value.content), count: nativeWide(value.count) });
+  return Object.freeze({
+    content: historyContent(value.content),
+    count: nativeWide(value.count),
+    descriptors: nativeWide(value.descriptors),
+  });
 }
 function historyCut(
   value: NonNullable<HistoryInput<"acquire">["intent"]["common"]>["cut"],
@@ -1494,6 +1499,8 @@ export interface HistoryStatus {
   readonly after: bigint | undefined;
   readonly inflight: bigint | undefined;
   readonly verifiedAfter: bigint | undefined;
+  readonly descriptorAfter: bigint | undefined;
+  readonly descriptorsVerified: bigint;
   readonly policyEpoch: bigint | undefined;
   readonly releasedAfter: bigint | undefined;
   readonly basis: HistoryBasis | undefined;
@@ -1562,6 +1569,8 @@ function historyStatus(
     after: optional(value.after),
     inflight: optional(value.inflight),
     verifiedAfter: optional(value.verified_after),
+    descriptorAfter: optional(value.descriptor_after),
+    descriptorsVerified: nativeWide(value.descriptors_verified),
     policyEpoch: optional(value.policy_epoch),
     releasedAfter: optional(value.released_after),
     basis: value.snapshot === null ? undefined : historyBasis(value.snapshot),
@@ -2286,6 +2295,7 @@ export class Client {
               sha256: digest(selection.content.digest),
             },
             count: positive(selection.count).toString(),
+            descriptors: wide(selection.descriptors).toString(),
           },
           common,
         },
@@ -2425,6 +2435,7 @@ export class Client {
       value.next !== null &&
       (!isDeepStrictEqual(value.next.directory.content, value.snapshot.sources_root) ||
         value.next.directory.count !== value.snapshot.source_count ||
+        value.next.directory.descriptors !== "0" ||
         (cursor &&
           nativeWide(value.next.after) <=
             nativeWide(

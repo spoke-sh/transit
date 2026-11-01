@@ -3955,6 +3955,69 @@
         "root.zig"
       ]
     },
+    "packages/zig/transit-catalog/src/CatalogDefinition.zig": {
+      "errors": {
+        "CatalogRecordTooLarge": 1,
+        "ForeignValueMalformed": 1,
+        "HistoricalArtifactUnavailable": 3,
+        "IncompatibleDefinition": 2,
+        "InvalidCatalogDependency": 4,
+        "InvalidCatalogDescriptor": 41,
+        "UnsupportedCatalogView": 1,
+        "UnsupportedForeignLayout": 2
+      },
+      "outcomes": {
+        "Definition.body": [
+          "view",
+          "property_graph",
+          "foreign"
+        ],
+        "Input.availability": [
+          "retained",
+          "unavailable"
+        ],
+        "Kind": [
+          "view",
+          "property_graph",
+          "foreign"
+        ],
+        "Malformed": [
+          "reject",
+          "type_error"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Definition.sourceColumn()": "<inferred>",
+        "Definition.stored()": "<inferred>",
+        "Definition.validate()": "<inferred>",
+        "Definition.validateGraph()": "<inferred>",
+        "Definition.validateProperties()": "<inferred>",
+        "Definition.validateView()": "<inferred>",
+        "Input.validate()": "<inferred>",
+        "Stored.validate()": "<inferred>",
+        "decodeField()": "<inferred>",
+        "decodeSchema()": "<inferred>",
+        "encode()": "<inferred>",
+        "inputKey()": "<inferred>",
+        "key()": "<inferred>",
+        "load()": "<inferred>",
+        "loadInput()": "<inferred>",
+        "stage()": "<inferred>",
+        "stageInput()": "<inferred>",
+        "validateForeign()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 66,
+        "catch": 1
+      },
+      "imports": [
+        "DirectCatalogRecords.zig",
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/CatalogIntentCodec.zig": {
       "errors": {
         "CatalogIntentMissing": 1,
@@ -4308,10 +4371,14 @@
     },
     "packages/zig/transit-catalog/src/DirectCallerCodes.zig": {
       "errors": {
+        "CatalogDependencyOwned": 1,
         "CatalogDirectoryChanged": 1,
+        "CatalogKindMismatch": 1,
         "CatalogObservationChanged": 1,
+        "CatalogRecordTooLarge": 1,
         "DataIdentityConflict": 1,
         "EmptyHistoricalSelection": 1,
+        "ForeignValueMalformed": 1,
         "HistoricalIdentityConflict": 1,
         "HistoricalObjectNotSelected": 1,
         "HistoricalReadOnly": 1,
@@ -4319,6 +4386,7 @@
         "IncompatibleSchemaProjection": 1,
         "InvalidCatalogAssertion": 1,
         "InvalidCatalogCursor": 1,
+        "InvalidCatalogDescriptor": 1,
         "InvalidCatalogStepBudget": 1,
         "InvalidDataIdentity": 1,
         "InvalidDataOperation": 1,
@@ -4347,7 +4415,10 @@
         "TablePayloadTooLarge": 1,
         "TableSnapshotReleased": 1,
         "TransactionReadChanged": 1,
+        "UnsupportedCatalogView": 1,
         "UnsupportedDirectSchemaAdministration": 1,
+        "UnsupportedForeignLayout": 1,
+        "UnsupportedHistoricalKind": 1,
         "UnsupportedTransactionRead": 1
       },
       "outcomes": {},
@@ -4372,9 +4443,10 @@
         "BranchOperationRequired": 4,
         "BranchRetentionOwned": 1,
         "BranchSourceChanged": 2,
-        "CatalogDenied": 71,
+        "CatalogDenied": 78,
+        "CatalogDependencyOwned": 1,
         "CatalogHistoryMissing": 1,
-        "CatalogIdentityConflict": 7,
+        "CatalogIdentityConflict": 9,
         "CatalogKindMismatch": 15,
         "CatalogNameHashCollision": 2,
         "CatalogNameNotFound": 1,
@@ -4383,7 +4455,7 @@
         "CatalogObjectBusy": 2,
         "CatalogObjectMissing": 1,
         "CatalogObservationChanged": 1,
-        "CatalogRegistrationRequired": 11,
+        "CatalogRegistrationRequired": 12,
         "CheckConstraintViolation": 1,
         "ClientOperationConflict": 2,
         "ClientOperationMissing": 20,
@@ -4393,7 +4465,7 @@
         "ColumnReferencedByCheckConstraint": 1,
         "ColumnReferencedByForeignKey": 1,
         "ConflictingRetry": 1,
-        "DataIdentityConflict": 9,
+        "DataIdentityConflict": 11,
         "DuplicatePrimaryKey": 1,
         "Forbidden": 7,
         "ForeignKeyDefinitionRequired": 1,
@@ -4402,6 +4474,7 @@
         "ForeignKeyTargetChanged": 3,
         "ForeignKeyTargetMismatch": 1,
         "ForeignKeyTargetNotUniqueKey": 1,
+        "HistoricalArtifactUnavailable": 2,
         "HistoricalAuthorityChanged": 1,
         "HistoricalIdentityConflict": 2,
         "HistoricalNotPublished": 5,
@@ -4410,24 +4483,25 @@
         "HistoricalOperationRequired": 4,
         "HistoricalRetentionOwned": 1,
         "HistoricalSnapshotReleased": 1,
-        "HistoricalSourceChanged": 2,
+        "HistoricalSourceChanged": 7,
         "IbmHfpOverflow": 1,
         "IbmHfpUnderflow": 1,
         "IncompatibleDefinition": 1,
         "IncompatibleForeignKeyColumnType": 1,
         "IncompleteBranchDirectory": 1,
-        "IncompleteHistoricalSelection": 3,
+        "IncompleteHistoricalSelection": 4,
         "IncompleteTransactionCut": 3,
         "InvalidBranchState": 5,
         "InvalidCatalogConfiguration": 1,
         "InvalidCatalogCursor": 3,
         "InvalidCatalogDependency": 11,
+        "InvalidCatalogDescriptor": 10,
         "InvalidDirectCatalogCompletion": 1,
         "InvalidDirectCatalogEntry": 16,
         "InvalidDirectCatalogName": 2,
         "InvalidDirectCatalogOperation": 28,
         "InvalidDirectCatalogTransition": 1,
-        "InvalidHistoricalBinding": 1,
+        "InvalidHistoricalBinding": 4,
         "InvalidHistoricalState": 9,
         "InvalidKVOperation": 1,
         "InvalidLogCatalogDefinition": 2,
@@ -4583,6 +4657,7 @@
         "attachResource()": "<inferred>",
         "authenticateTransactionLog()": "<inferred>",
         "authorizationSchema()": "<inferred>",
+        "authorizeDefinition()": "<inferred>",
         "authorizeTransactionStatements()": "<inferred>",
         "available()": "<inferred>",
         "beginTransaction()": "<inferred>",
@@ -4604,6 +4679,8 @@
         "copyRowsDefined()": "<inferred>",
         "createBranch()": "<inferred>",
         "currentReadAuthority()": "<inferred>",
+        "definitionOperation()": "<inferred>",
+        "definitionRegistration()": "<inferred>",
         "dependencyAdministration()": "<inferred>",
         "dependencyEdge()": "<inferred>",
         "dependencyOperation()": "<inferred>",
@@ -4613,6 +4690,10 @@
         "dependencyState()": "<inferred>",
         "dependentDefinition()": "<inferred>",
         "dependentRequirements()": "<inferred>",
+        "descriptorCurrent()": "<inferred>",
+        "descriptorGuard()": "<inferred>",
+        "descriptorReason()": "<inferred>",
+        "descriptorRecord()": "<inferred>",
         "directRecord()": "<inferred>",
         "entry()": "<inferred>",
         "evaluateTransactionLogStatement()": "<inferred>",
@@ -4625,11 +4706,14 @@
         "guard()": "<inferred>",
         "hasColumnDependents()": "<inferred>",
         "hasDependents()": "<inferred>",
+        "historicalDefinition()": "<inferred>",
+        "historicalDefinitions()": "<inferred>",
         "history()": "<inferred>",
         "historyAccess()": "<inferred>",
         "historyDefinition()": "<inferred>",
         "historyDirectory()": "<inferred>",
         "historyNext()": "<inferred>",
+        "historyNextDescriptor()": "<inferred>",
         "historyProgress()": "<inferred>",
         "historyPublication()": "<inferred>",
         "historyRead()": "<inferred>",
@@ -4639,6 +4723,7 @@
         "init()": "<inferred>",
         "initialize()": "<inferred>",
         "inspectBranch()": "<inferred>",
+        "inspectDefinition()": "<inferred>",
         "inspectHistory()": "<inferred>",
         "inspectLogDefinition()": "<inferred>",
         "inspectNamespace()": "<inferred>",
@@ -4649,6 +4734,7 @@
         "kvReady()": "<inferred>",
         "kvRequirements()": "<inferred>",
         "list()": "<inferred>",
+        "listDefinitions()": "<inferred>",
         "listHistory()": "<inferred>",
         "listKV()": "<inferred>",
         "listLogs()": "<inferred>",
@@ -4697,11 +4783,13 @@
         "pinRowsDefined()": "<inferred>",
         "pinState()": "<inferred>",
         "prepareBranchAdmission()": "<inferred>",
+        "prepareDescriptor()": "<inferred>",
         "prepareHistoryAdmission()": "<inferred>",
         "prepareLogDefinition()": "<inferred>",
         "prepareResourceAllocation()": "<inferred>",
         "prepareSchemaProjection()": "<inferred>",
         "preview()": "<inferred>",
+        "previewDefinition()": "<inferred>",
         "previewLog()": "<inferred>",
         "previewName()": "<inferred>",
         "previewNamespace()": "<inferred>",
@@ -4721,6 +4809,7 @@
         "readCurrent()": "<inferred>",
         "readRow()": "<inferred>",
         "record()": "<inferred>",
+        "recordDescriptor()": "<inferred>",
         "recordLog()": "<inferred>",
         "recordNamespace()": "<inferred>",
         "recordResource()": "<inferred>",
@@ -4736,6 +4825,7 @@
         "requireUnreservedBranchPin()": "<inferred>",
         "requirements()": "<inferred>",
         "resolve()": "<inferred>",
+        "resolveDefinition()": "<inferred>",
         "resolveKV()": "<inferred>",
         "resolveLog()": "<inferred>",
         "resolveResource()": "<inferred>",
@@ -4758,6 +4848,7 @@
         "scanSchemaProjection()": "<inferred>",
         "schema()": "<inferred>",
         "selectHistory()": "<inferred>",
+        "selectHistoryTable()": "<inferred>",
         "selectTransactionTable()": "<inferred>",
         "settle()": "<inferred>",
         "settleTransaction()": "<inferred>",
@@ -4766,6 +4857,7 @@
         "snapshotDefinition()": "<inferred>",
         "snapshotRead()": "<inferred>",
         "sourceAuthority()": "<inferred>",
+        "stageDefinitionInput()": "<inferred>",
         "stageTransactionKV()": "<inferred>",
         "stageTransactionLog()": "<inferred>",
         "stageTransactionLogBounded()": "<inferred>",
@@ -4803,12 +4895,13 @@
         "validateEntry()": "<inferred>",
         "validateLogRequest()": "<inferred>",
         "validateTransactionTransfer()": "<inferred>",
-        "verifiedObject()": "<inferred>"
+        "verifiedObject()": "<inferred>",
+        "verifyHistoryDescriptor()": "<inferred>"
       },
       "open_error_set_uses": 11,
       "propagation": {
-        "try": 1833,
-        "catch": 25
+        "try": 2054,
+        "catch": 27
       },
       "imports": [
         "DirectCatalogIntent.zig",
@@ -4866,6 +4959,48 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 35,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectCatalogDefinitions.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidCatalogCursor": 2
+      },
+      "outcomes": {
+        "Action": [
+          "lookup",
+          "inspect",
+          "historical",
+          "list"
+        ],
+        "Body": [
+          "view",
+          "property_graph",
+          "foreign"
+        ],
+        "Result": [
+          "definition",
+          "historical",
+          "page"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Column.foreign()": "<inferred>",
+        "Properties.foreign()": "<inferred>",
+        "Stored.foreign()": "<inferred>",
+        "apply()": "<inferred>",
+        "foreign()": "<inferred>",
+        "properties()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 60,
         "catch": 0
       },
       "imports": [
@@ -5008,7 +5143,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 124,
+        "try": 129,
         "catch": 1
       },
       "imports": [
@@ -5129,6 +5264,7 @@
         "Request.action": [
           "describe",
           "history",
+          "definitions",
           "namespaces",
           "tables",
           "resources",
@@ -5138,6 +5274,7 @@
         "Response": [
           "catalog",
           "history",
+          "definitions",
           "resources",
           "table",
           "dependencies"
@@ -5149,7 +5286,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 16,
+        "try": 17,
         "catch": 0
       },
       "imports": [
@@ -5162,8 +5299,8 @@
         "DataIdentityConflict": 1,
         "InvalidCatalogIdentity": 3,
         "InvalidDirectCatalogConfiguration": 1,
-        "InvalidDirectCatalogEntry": 5,
-        "InvalidDirectCatalogHistory": 9,
+        "InvalidDirectCatalogEntry": 6,
+        "InvalidDirectCatalogHistory": 10,
         "InvalidDirectCatalogName": 1,
         "InvalidDirectCatalogOperation": 11,
         "InvalidDirectCatalogProperties": 2,
@@ -5204,6 +5341,7 @@
           "dependency",
           "resource",
           "log",
+          "descriptor",
           "client_token"
         ]
       },
@@ -5232,7 +5370,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 46,
+        "try": 47,
         "catch": 4
       },
       "imports": [
@@ -5361,17 +5499,18 @@
     "packages/zig/transit-catalog/src/DirectCatalogStore.zig": {
       "errors": {
         "BranchNameConflict": 1,
-        "CatalogHistoryMissing": 11,
+        "CatalogHistoryMissing": 12,
         "CatalogRecordTooLarge": 1,
         "CatalogRecoveryRequired": 1,
-        "DataIdentityConflict": 15,
+        "DataIdentityConflict": 17,
         "HistoricalRetentionPending": 2,
         "IncompatibleDefinition": 1,
         "InvalidBranchState": 2,
+        "InvalidCatalogDescriptor": 2,
         "InvalidClientToken": 8,
         "InvalidDirectCatalogHistory": 8,
-        "InvalidDirectCatalogOperation": 16,
-        "InvalidDirectCatalogTransition": 135,
+        "InvalidDirectCatalogOperation": 17,
+        "InvalidDirectCatalogTransition": 157,
         "InvalidHistoricalState": 4,
         "InvalidHistoricalTransition": 1,
         "InvalidLogCatalogOperation": 2,
@@ -5400,6 +5539,11 @@
         "dependency()": "<inferred>",
         "dependencyAt()": "<inferred>",
         "dependencyTransition()": "<inferred>",
+        "descriptorAt()": "<inferred>",
+        "descriptorOperation()": "<inferred>",
+        "descriptorRecord()": "<inferred>",
+        "descriptorRecordAt()": "<inferred>",
+        "descriptorTransition()": "<inferred>",
         "encode()": "<inferred>",
         "historyTransferPending()": "<inferred>",
         "historyTransition()": "<inferred>",
@@ -5437,7 +5581,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 284,
+        "try": 323,
         "catch": 1
       },
       "imports": [
@@ -5448,7 +5592,7 @@
     },
     "packages/zig/transit-catalog/src/DirectCatalogWalk.zig": {
       "errors": {
-        "InvalidDirectCatalogEntry": 4,
+        "InvalidDirectCatalogEntry": 5,
         "InvalidDirectCatalogHistory": 11
       },
       "outcomes": {
@@ -5546,6 +5690,99 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectDefinition.zig": {
+      "errors": {
+        "CatalogKindMismatch": 1,
+        "CatalogRecordTooLarge": 1,
+        "CatalogRegistrationRequired": 1,
+        "Conflict": 1,
+        "DataIdentityConflict": 2,
+        "HistoricalIdentityConflict": 2,
+        "HistoricalSnapshotReleased": 1,
+        "IncompatibleDefinition": 2,
+        "InvalidCatalogCursor": 2,
+        "InvalidCatalogDescriptor": 8,
+        "InvalidCatalogStepBudget": 1,
+        "InvalidTableResponse": 25
+      },
+      "outcomes": {
+        "Action": [
+          "historical_list",
+          "declaration",
+          "lookup",
+          "inspect",
+          "authorize",
+          "historical",
+          "list",
+          "stage_input"
+        ],
+        "Command": [
+          "preview",
+          "inspect",
+          "accept",
+          "cancel"
+        ],
+        "Intent.action": [
+          "create",
+          "replace",
+          "rename",
+          "drop"
+        ],
+        "Observation": [
+          "not_observed",
+          "registration_pending",
+          "operation"
+        ],
+        "Operation.phase": [
+          "applied",
+          "rejected",
+          "cancelled"
+        ],
+        "Reason": [
+          "none",
+          "name_conflict",
+          "object_conflict",
+          "stale_definition",
+          "dependency"
+        ],
+        "Result": [
+          "historical_page",
+          "authorized",
+          "historical",
+          "preview",
+          "observation",
+          "definition",
+          "page",
+          "input"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Action.validate()": "<inferred>",
+        "Intent.digest()": "<inferred>",
+        "Intent.revision()": "<inferred>",
+        "Intent.validate()": "<inferred>",
+        "Operation.validate()": "<inferred>",
+        "Request.validate()": "<inferred>",
+        "call()": "<inferred>",
+        "clone()": "<inferred>",
+        "definitionKey()": "<inferred>",
+        "dispatch()": "<inferred>",
+        "edges()": "<inferred>",
+        "validateResult()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 67,
+        "catch": 1
+      },
+      "imports": [
+        "CatalogIntentCodec.zig",
+        "DirectCatalogRecords.zig",
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DirectDependency.zig": {
       "errors": {
         "DataIdentityConflict": 1,
@@ -5574,7 +5811,10 @@
           "maintained",
           "stream",
           "queue",
-          "table"
+          "table",
+          "view",
+          "property_graph",
+          "foreign"
         ],
         "Observation": [
           "not_observed",
@@ -5629,9 +5869,9 @@
         "IncompatibleDefinition": 2,
         "InvalidHistoricalBinding": 1,
         "InvalidHistoricalCursor": 1,
-        "InvalidHistoricalResponse": 30,
-        "InvalidHistoricalState": 17,
-        "InvalidHistoricalTransition": 15,
+        "InvalidHistoricalResponse": 31,
+        "InvalidHistoricalState": 19,
+        "InvalidHistoricalTransition": 18,
         "InvalidTableReadBudget": 1
       },
       "outcomes": {
@@ -5687,7 +5927,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 60,
+        "try": 64,
         "catch": 1
       },
       "imports": [
@@ -5700,15 +5940,15 @@
     "packages/zig/transit-catalog/src/DirectHistoryDirectory.zig": {
       "errors": {
         "HistoricalArtifactUnavailable": 1,
-        "HistoricalIdentityConflict": 3,
-        "HistoricalNameConflict": 1,
-        "HistoricalNamespaceConflict": 2,
-        "HistoricalObjectLimit": 2,
+        "HistoricalIdentityConflict": 4,
+        "HistoricalNameConflict": 2,
+        "HistoricalNamespaceConflict": 5,
+        "HistoricalObjectLimit": 3,
         "IncompatibleDefinition": 2,
         "InvalidHistoricalArtifact": 5,
-        "InvalidHistoricalBinding": 3,
-        "InvalidHistoricalCursor": 1,
-        "InvalidHistoricalDirectory": 9,
+        "InvalidHistoricalBinding": 5,
+        "InvalidHistoricalCursor": 3,
+        "InvalidHistoricalDirectory": 14,
         "InvalidHistoricalLimits": 1
       },
       "outcomes": {
@@ -5719,23 +5959,30 @@
       },
       "error_sets": {},
       "error_returns": {
+        "DescriptorEntry.validate()": "<inferred>",
         "Entry.validate()": "<inferred>",
         "Entry.verify()": "<inferred>",
+        "Reference.total()": "<inferred>",
         "Root.validate()": "<inferred>",
         "commitment()": "<inferred>",
         "contentOf()": "<inferred>",
+        "descriptorEntry()": "<inferred>",
+        "descriptorPage()": "<inferred>",
         "encode()": "<inferred>",
         "entry()": "<inferred>",
         "get()": "<inferred>",
+        "getDescriptor()": "<inferred>",
         "idKey()": "<inferred>",
         "init()": "<inferred>",
         "load()": "<inferred>",
         "lookup()": "<inferred>",
+        "lookupDescriptor()": "<inferred>",
         "namespace()": "<inferred>",
         "namespaceByName()": "<inferred>",
         "objectKey()": "<inferred>",
         "page()": "<inferred>",
         "put()": "<inferred>",
+        "putDescriptor()": "<inferred>",
         "reference()": "<inferred>",
         "restore()": "<inferred>",
         "schemaNameKey()": "<inferred>",
@@ -5744,7 +5991,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 69,
+        "try": 119,
         "catch": 0
       },
       "imports": [
@@ -5755,9 +6002,8 @@
     },
     "packages/zig/transit-catalog/src/DirectHistorySelector.zig": {
       "errors": {
-        "EmptyHistoricalSelection": 1,
         "IncompatibleDefinition": 2,
-        "InvalidHistoricalSelector": 7
+        "InvalidHistoricalSelector": 8
       },
       "outcomes": {},
       "error_sets": {},
@@ -6761,11 +7007,12 @@
         "DocumentStateObjectMissing": 1,
         "IncompleteBranchDirectory": 1,
         "InvalidBranchState": 3,
+        "InvalidCatalogDescriptor": 1,
         "InvalidClientToken": 2,
         "InvalidDataIndexObject": 1,
         "InvalidDirectCatalogHistory": 1,
         "InvalidDocumentStorageGraph": 13,
-        "InvalidHistoricalDirectory": 2,
+        "InvalidHistoricalDirectory": 3,
         "InvalidLogCatalogOperation": 1,
         "InvalidLogStorageGraph": 47,
         "InvalidQueueDestination": 2,
@@ -6830,6 +7077,10 @@
           "catalog_root",
           "catalog_walk",
           "catalog_intent",
+          "descriptor_operation",
+          "descriptor",
+          "descriptor_sources",
+          "foreign_input",
           "log_operation",
           "log_declaration",
           "queue_destination",
@@ -6896,7 +7147,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 517,
+        "try": 544,
         "catch": 1
       },
       "imports": [
@@ -7080,8 +7331,10 @@
         "HistoricalIdentityConflict": 1,
         "HistoricalReadOnly": 1,
         "IncompatibleDefinition": 1,
+        "InvalidCatalogDescriptor": 1,
         "InvalidTableResponse": 1,
-        "TableDefinitionChanged": 2
+        "TableDefinitionChanged": 2,
+        "UnsupportedCatalogView": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -7095,7 +7348,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 13,
+        "try": 16,
         "catch": 0
       },
       "imports": [
@@ -7120,6 +7373,7 @@
           "retention",
           "projection",
           "history",
+          "definitions",
           "lookup",
           "compile",
           "load",
@@ -7147,6 +7401,7 @@
           "retention",
           "projection",
           "history",
+          "definitions",
           "metadata",
           "compiled",
           "loaded",
@@ -7183,7 +7438,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 51,
+        "try": 52,
         "catch": 1
       },
       "imports": [
@@ -7259,6 +7514,7 @@
       "error_sets": {},
       "error_returns": {
         "Execution.ddl()": "anyerror",
+        "Execution.descriptor()": "anyerror",
         "Execution.log()": "anyerror",
         "Execution.namespace()": "anyerror",
         "Execution.queue()": "anyerror",
@@ -7273,9 +7529,9 @@
         "requireSource()": "<inferred>",
         "schema()": "<inferred>"
       },
-      "open_error_set_uses": 8,
+      "open_error_set_uses": 9,
       "propagation": {
-        "try": 241,
+        "try": 242,
         "catch": 0
       },
       "imports": [
@@ -7443,6 +7699,7 @@
         "Action": [
           "branch",
           "historical_catalog",
+          "descriptor",
           "schema_projection",
           "transaction",
           "client_token",
@@ -7556,6 +7813,7 @@
         "Result": [
           "branch",
           "historical_catalog",
+          "descriptor",
           "schema_projection",
           "transaction",
           "record",
@@ -7657,7 +7915,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 178,
+        "try": 179,
         "catch": 3
       },
       "imports": [
@@ -7763,7 +8021,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 222,
+        "try": 223,
         "catch": 10
       },
       "imports": [
@@ -7808,6 +8066,7 @@
       "errors": {
         "IncompatibleDefinition": 2,
         "InvalidTableResponse": 4,
+        "UnsupportedHistoricalKind": 1,
         "UnsupportedTransactionRead": 1
       },
       "outcomes": {
@@ -9493,12 +9752,14 @@
         "BrowserContract.zig",
         "BrowserDeclarations.zig",
         "BrowserRecordStore.zig",
+        "CatalogDefinition.zig",
         "DeclarativeIngress.zig",
         "DelegationAndSecrets.zig",
         "DirectAuthorizationSql.zig",
         "DirectBranch.zig",
         "DirectCatalog.zig",
         "DirectCatalogAdministration.zig",
+        "DirectCatalogDefinitions.zig",
         "DirectCatalogDependencies.zig",
         "DirectCatalogHistory.zig",
         "DirectCatalogInspection.zig",
@@ -9509,6 +9770,7 @@
         "DirectCatalogRoots.zig",
         "DirectCatalogWalk.zig",
         "DirectClientToken.zig",
+        "DirectDefinition.zig",
         "DirectDependency.zig",
         "DirectHistory.zig",
         "DirectHistoryDirectory.zig",
@@ -20745,7 +21007,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"90f861504d63e02569dbf22889557aab7782cf110b141588c3a7373a74999a21\""
+          "d9c9be6cf8ac63f1003a2d98ab3076936e28cea6a7278e620fe8b869530fc4d4"
         ],
         "Effect.phase": [
           "pending",
@@ -22071,9 +22333,11 @@
     "packages/zig/transit-query-direct/src/DirectTablePrepared.zig": {
       "errors": {
         "CatalogIdentityConflict": 1,
+        "HistoricalObjectNotSelected": 2,
         "InvalidQueryAccess": 1,
-        "TableDefinitionChanged": 1,
+        "TableDefinitionChanged": 3,
         "TableNotFound": 1,
+        "UnsupportedCatalogView": 2,
         "UnsupportedHistoricalTransaction": 1
       },
       "outcomes": {},
@@ -22084,14 +22348,16 @@
         "prepare()": "<inferred>",
         "prepareAccess()": "<inferred>",
         "prepareAt()": "<inferred>",
-        "prepareProjectedAt()": "<inferred>"
+        "prepareProjectedAt()": "<inferred>",
+        "prepareView()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 26,
-        "catch": 0
+        "try": 44,
+        "catch": 2
       },
       "imports": [
+        "DirectView.zig",
         "root.zig",
         "std"
       ]
@@ -22122,7 +22388,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 31,
+        "try": 33,
         "catch": 1
       },
       "imports": [
@@ -22151,6 +22417,7 @@
         "next()": "<inferred>",
         "nextAfter()": "<inferred>",
         "nextBorrowed()": "<inferred>",
+        "nextSource()": "<inferred>",
         "open()": "<inferred>",
         "openCatalog()": "<inferred>",
         "projectTo()": "<inferred>",
@@ -22160,11 +22427,32 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 18,
-        "catch": 7
+        "try": 22,
+        "catch": 8
       },
       "imports": [
         "DirectTableCountRange.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query-direct/src/DirectView.zig": {
+      "errors": {
+        "InvalidCatalogDescriptor": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "atom()": "<inferred>",
+        "column()": "<inferred>",
+        "expand()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 14,
+        "catch": 0
+      },
+      "imports": [
         "root.zig",
         "std"
       ]
@@ -28530,7 +28818,7 @@
       "errors": {
         "AuthorizationRevokedMidStream": 1,
         "IncompatibleDefinition": 2,
-        "InvalidHistoricalObservation": 6,
+        "InvalidHistoricalObservation": 7,
         "InvalidProjectionObservation": 4,
         "InvalidPublishedResourceObservation": 2,
         "InvalidTransactionObservation": 2,
@@ -28583,7 +28871,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 20,
+        "try": 21,
         "catch": 0
       },
       "imports": [
@@ -29291,7 +29579,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 114,
+        "try": 115,
         "catch": 9
       },
       "imports": [
@@ -29305,13 +29593,15 @@
       "errors": {
         "CatalogIdentityConflict": 4,
         "CatalogKindMismatch": 1,
-        "CatalogNameNotFound": 3,
+        "CatalogNameNotFound": 2,
         "Forbidden": 1,
+        "HistoricalObjectNotSelected": 1,
         "QueryPageBudget": 1,
         "TableDefinitionChanged": 1,
         "UnknownSqlSource": 1,
+        "UnsupportedCatalogView": 2,
         "UnsupportedConstruct": 2,
-        "UnsupportedHistoricalKind": 1,
+        "UnsupportedHistoricalKind": 2,
         "UnsupportedHistoricalTransaction": 1
       },
       "outcomes": {},
@@ -29320,6 +29610,7 @@
         "Read.historicalNext()": "<inferred>",
         "Read.next()": "<inferred>",
         "describeRows()": "<inferred>",
+        "describeView()": "<inferred>",
         "prepare()": "<inferred>",
         "prepareSource()": "<inferred>",
         "validate()": "<inferred>",
@@ -29327,8 +29618,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 75,
-        "catch": 0
+        "try": 87,
+        "catch": 1
       },
       "imports": [
         "SessionStorage.zig",

@@ -7,7 +7,7 @@ pub const text_bytes = encoded_bytes * 2;
 fn validate(value: d.Snapshot) !void {
     try value.validate();
     if (value.definition != c.protocol.Growth.current_definition) return error.IncompatibleDefinition;
-    if (value.source_count == 0) return error.EmptyHistoricalSelection;
+    if (value.source_count == 0 and value.consistency != .independent) return error.InvalidHistoricalSelector;
     switch (value.consistency) {
         .single_partition => |position| if (value.source_count != 1 or position.next_lsn == 0) return error.InvalidHistoricalSelector,
         .independent => {},

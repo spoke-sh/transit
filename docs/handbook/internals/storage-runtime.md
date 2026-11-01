@@ -1961,3 +1961,20 @@ check the corresponding owners with independent value/decision oracles. They are
 selected implementation histories, not automatic replay of every TLC state or a
 refinement proof; the model's finite programs, symbolic values and truthful-storage
 assumptions remain explicit in the [model guide](../../../tests/verification/models/README.md#finite-local-table-transaction-model).
+
+### Retained interpretation artifacts
+
+The [direct storage graph](../../../packages/zig/transit-catalog/src/DirectStorageGraph.zig)
+walks the accepted catalog revision index as well as historical selections.
+An interpretation artifact retains its exact source declarations and any captured
+foreign input. Source traversal advances one dependency per work step, preserving
+the collector's existing bounded fan-out. Queued input work owns the fixed content
+identity; it cannot borrow a provenance string from a descriptor already freed.
+
+The catalog's disk retention tests verify that an old decoder and its captured
+bytes survive replacement and collection while an unaccepted staged input is
+deleted. Corruption or unavailable required bytes fail verification; they cannot
+be converted to an empty historical result or a normal decoded error cell.
+These checks cover process-local disk reopen and collection, not host power loss.
+The [interpretation contract](../../../contracts/CATALOG_DEFINITIONS_V1.md)
+owns artifact limits and availability semantics.

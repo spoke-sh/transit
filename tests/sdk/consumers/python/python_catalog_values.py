@@ -370,8 +370,8 @@ rejects(ValueError, lambda: m.HistoryAcquisition.restore(json.dumps(invalid)))
 rejects(ValueError, lambda: m.HistoricalSnapshot('00' * 193))
 status = dict(key=history_fixture['acquire']['key'], intent=history_fixture['acquire']['intent'],
               admitted=dict(partition='1', next_lsn='20'), revision=dict(partition='1', next_lsn='30'),
-              phase='published', retained=dict(content=history_fixture['snapshot']['sources_root'], count='2'),
-              after=str(maximum), inflight=None, verified_after=str(maximum), policy_epoch=str(maximum), released_after=None, snapshot=history_fixture['snapshot'])
+              phase='published', retained=dict(content=history_fixture['snapshot']['sources_root'], count='2', descriptors='0'),
+              after=str(maximum), inflight=None, verified_after=str(maximum), descriptor_after=None, descriptors_verified='0', policy_epoch=str(maximum), released_after=None, snapshot=history_fixture['snapshot'])
 owner = client()
 # The common fixture uses its own explicit service connection and principal.
 history_connection, history_principal = v._connection(history_fixture['acquire']['key']['connection'])
@@ -398,7 +398,7 @@ try:
     try: owner.select_history(step)
     except m.Uncertain as error: assert error.original is step
     else: raise AssertionError('Selection loss discarded original step')
-    selected = dict(definition=definition, owner=history_fixture['snapshot']['owner'], branch='1', directory=dict(content=history_fixture['snapshot']['catalog_root'], count='2'))
+    selected = dict(definition=definition, owner=history_fixture['snapshot']['owner'], branch='1', directory=dict(content=history_fixture['snapshot']['catalog_root'], count='2', descriptors='0'))
     owner._api.response = {'history': {'selection': selected}}
     selection = owner.select_history(step)
     independent = owner.prepare_history_acquisition(selection, history_key)
@@ -414,7 +414,7 @@ try:
     ns = dict(scope=history_connection.scope._wire(), id=1, authorization=10, name='original', revision=str(maximum))
     declaration = copy.deepcopy(stored); declaration['interpretation']['object']['scope'] = history_connection.scope._wire()
     entry = dict(namespace=ns, name='items', declaration=declaration, accepted=dict(partition='9', next_lsn='10'), catalog=dict(partition='1', next_lsn='12'))
-    page = dict(snapshot=history_fixture['snapshot'], namespace=1, entries=[entry], next=dict(selector=history_snapshot.selector, namespace=1, directory=dict(content=history_fixture['snapshot']['sources_root'], count='2'), after=str(maximum-1)))
+    page = dict(snapshot=history_fixture['snapshot'], namespace=1, entries=[entry], next=dict(selector=history_snapshot.selector, namespace=1, directory=dict(content=history_fixture['snapshot']['sources_root'], count='2', descriptors='0'), after=str(maximum-1)))
     owner._api.response = {'history': {'listing': copy.deepcopy(page)}}
     listing = owner.historical_tables(history_snapshot, 1)
     assert listing.entries[0].namespace.revision == maximum and listing.basis.snapshot == history_snapshot
@@ -450,6 +450,29 @@ finally:
     owner.close()
 assert len(owner._api.calls) == calls and owner._api.destroyed
 print('Python history: exact common/independent acquisition, uncertain original work, bounded metadata and current-selector fencing passed.')
+
+
+# A zero-Table retained catalog still owns exact descriptor verification progress.
+metadata_fixture = json.loads(Path(sys.argv[1]).with_name('direct-history-metadata-v1.json').read_bytes())
+metadata_request = copy.deepcopy(history_fixture['acquire'])
+metadata_request['intent']['common'] = None
+metadata_request['intent']['selection'].update(count='0', descriptors='1')
+metadata_original = m.HistoryAcquisition.restore(json.dumps(metadata_request))
+metadata_status = dict(status, intent=metadata_request['intent'],
+    retained=dict(status['retained'], count='0'), after=None, verified_after=None,
+    descriptor_after=str(maximum), descriptors_verified='1',
+    snapshot=dict(history_fixture['snapshot'], selector=metadata_fixture['selector'], source_count='0', consistency=dict(independent={})))
+owner = client(); owner._queries = m._Queries(history_connection, history_principal)
+try:
+    owner._api.response = {'history': {'status': metadata_status}}
+    result = owner.acquire_history(metadata_original)
+    assert result.intent.selection.descriptors == 1 and result.descriptor_after == maximum
+    assert result.descriptors_verified == 1 and result.basis.source_count == 0
+    assert result.basis.consistency == 'independent'
+    del metadata_request['intent']['selection']['descriptors']
+    rejects(ValueError, lambda: m.HistoryAcquisition.restore(json.dumps(metadata_request)))
+finally:
+    owner.close()
 
 
 async def history_cancellation():

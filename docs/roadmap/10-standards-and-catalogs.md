@@ -673,6 +673,20 @@ profile in the ledger, including changed historical decoders and dependency
 failures. Do not activate computations, effects or connectors while inspecting
 or restoring definitions.
 
+The versioned-definition increment implements atomic metadata/dependency
+publication, exact retained view expansion, graph mappings and captured foreign
+decoder inputs. Metadata-only selections have independent consistency and zero
+Table sources. The shared current definition is
+`d9c9be6cf8ac63f1003a2d98ab3076936e28cea6a7278e620fe8b869530fc4d4`;
+generated native, host, SDK and Board descriptions move together. The owner is
+the [catalog interpretation contract](../../contracts/CATALOG_DEFINITIONS_V1.md).
+All 250 catalog tests and 21 direct-query tests pass in ReleaseSafe, including
+lost-reply recovery, graph replacement, exact decoder history and real collection.
+The collector checks caught and fixed borrowed provenance in queued input work;
+the rerun preserves old accepted artifacts while deleting an unaccepted input.
+Installed view/Board scenarios and final committed-source qualification remain
+pending. These component results do not close P6–P8.
+
 #### P7 — Expose one shared caller and inspection surface
 
 Extend `transit-data-client.Catalog`, `transit-sql-results` and

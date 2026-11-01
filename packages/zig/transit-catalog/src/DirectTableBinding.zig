@@ -11,6 +11,8 @@ namespace: u64,
 name: c.TableAuthority.Name,
 interpretation: c.storage.TableDeclaration.Stored,
 catalog: ?p.DataLifecycle.Snapshot = null,
+/// Accepted view interpretation; its current rights are independent of source rights.
+view: ?p.DataLifecycle.Definition = null,
 
 pub fn init(connection: w.Connection, metadata: w.Definition) !Self {
     const result: Self = .{ .definition = p.Growth.current_definition, .connection = connection, .namespace = metadata.namespace, .name = metadata.name, .interpretation = metadata.interpretation };
@@ -31,6 +33,11 @@ pub fn validate(self: Self) !void {
     if (self.interpretation.kind != .table) return error.InvalidTableResponse;
     try self.connection.object(self.interpretation.interpretation.object);
     if (self.interpretation.retired) return error.TableDefinitionChanged;
+    if (self.view) |definition| {
+        try definition.validate();
+        try self.connection.object(definition.object);
+        if (definition.object.object == self.interpretation.interpretation.object.object) return error.InvalidCatalogDescriptor;
+    }
     if (self.catalog) |snapshot| {
         try (c.DirectHistory.Request{ .source = .{ .snapshot = snapshot, .object = self.interpretation.interpretation.object.object } }).validate(self.connection);
     }
@@ -55,6 +62,11 @@ pub fn check(self: Self, connection: w.Connection, metadata: w.Definition) !void
 pub fn require(self: Self, client: c.DirectTableClient, access: c.TableAuthority.Access) !p.Authorization.Verified {
     try self.validate();
     if (!std.meta.eql(self.connection, client.connection)) return error.CatalogIdentityConflict;
+    if (self.view) |definition| {
+        if (access != .read and access != .inspect) return error.UnsupportedCatalogView;
+        const response = try client.call(.{ .descriptor = .{ .authorize = .{ .interpretation = definition, .rows = access == .read } } });
+        response.deinit();
+    }
     if (self.catalog) |snapshot| {
         if (access != .read and access != .inspect) return error.HistoricalReadOnly;
         const response = try c.DirectHistory.call(client, .{ .source = .{ .snapshot = snapshot, .object = self.interpretation.interpretation.object.object, .rows = access == .read } });

@@ -167,7 +167,7 @@ test "historical directory verifies actual declaration and unflushed pinned inte
         object.bytes[8] ^= 1;
         try t.expectError(error.InvalidHistoricalArtifact, history.restore(selected));
         std.crypto.hash.sha2.Sha256.hash(object.bytes, &object.sha256, .{});
-        const foreign: H.Reference = .{ .count = selected.count, .content = .{ .bytes = object.bytes.len, .sha256 = object.sha256 } };
+        const foreign: H.Reference = .{ .count = selected.count, .descriptors = selected.descriptors, .content = .{ .bytes = object.bytes.len, .sha256 = object.sha256 } };
         var foreign_key: [96]u8 = undefined;
         // Re-address a self-consistent foreign-definition artifact. Failure is
         // the format boundary, not merely the outer content checksum.
