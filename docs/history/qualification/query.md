@@ -9,6 +9,44 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Positional SQL consumption admission — 2026-11-01
+
+`a5965727d36833e88898eeabbc7342b5e0b9b3f3` (isolated helper
+`aaa7fb6804da4cc3444b94fe115e64038651b236`) admits positional CONSUME through
+the existing workload runtime. Preparation describes a typed row schema;
+acceptance freezes one native read, predicate and nullable LIMIT. Native SQL
+requires a caller token, while wire execution admits one identity and opens its
+original result. The current definition remains
+`aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7`.
+See the [public consumption profile](../../handbook/reference/sql/streaming.md#consume-a-finite-stream-cut).
+
+The checks below establish component, compiler and documentation behavior.
+They do not qualify installed consumption, named groups, WAIT, SQL offset
+settlement, performance or whole-M6 completion. The new installed fixture's
+source alone is not execution evidence.
+
+| Check | Result | Log SHA-256 |
+| --- | --- | --- |
+| Shared SQL runtime, ReleaseSafe (`sql1`) | 13/13 tests | `266422f20cfb0ef28c450205d7668ed9864ff71f90f0420ff2b63b500753bf51` |
+| Shared SQL service, ReleaseSafe (`service1`) | 11/11 tests | `3333beb04dd3d22f8b0645c28b4cb929be5587682772ac1508d8de0697acf895` |
+| Dedicated consumption diagnostic and dependency checks, ReleaseSafe (`diagnostic1`) | 116/116 tests | `b9de6f24f64fd8a9c08328368a1ece01bb2d505d45801772e5f8b82a4b630b6d` |
+| Independent compiler and diagnostic grammar (`grammar2`) | 44 Table, 28 append, 24 consume cases; 548 diagnostic cases / 824 grammar obligations | `f901791289a39278a73ef5b6a5fdd1b94f62b9795b84729ceb32250d5563bf81` |
+| General grammar and public examples (`reference1`) | 174 PostgreSQL SELECT comparisons, 32 exclusions, 42 extensions; 33 relational comparisons / 22 exclusions; 137 examples | `da0b6a4da545d42475037cbffb81fe0a32e06920e8add421c2370f1eaa7a9e97` |
+| Repository fast checks (`fast1`) | 60 passed | `2f947260f807f00b2f456fe6eb0adf0801a34d5e11f3732038fe17c6d3f45f6d` |
+
+Logs use `/var/tmp/transit-m6-consume-activation-<name>.log`. Package commands
+used `zig build test -Doptimize=ReleaseSafe --summary all`; Fuze selected
+`consumption diagnostics` and includes 93 dependency checks. Repeating that
+focused command on the final clean helper source reused its passing cache
+(`diagnostic2`, SHA-256
+`2fdbcdd2c7f735afcf6452ae0475b0acdb36426a7f3a5cd01c0debe595b46a97`).
+The registered `just test::table-dml-sql test::diagnostic-grammar` tasks run the
+DML compiler in ReleaseSafe and the diagnostic consumer in its default mode.
+`just test::sql-grammar` and `just check::fast` own the remaining checks.
+An earlier combined build named a nonexistent `test-diagnostic-grammar` target;
+it executed no checks and failed (`grammar1`, SHA-256
+`c01ab9f1e20c361a7c570e121c209a227125d23742339370582e80652f0f1c92`).
+
 ## Bounded consumption results and authenticated intervals — 2026-11-01
 
 The local implementation committed as `02acf0253867858ff460c8259a6569d5f60d9a80` replaces the current v1

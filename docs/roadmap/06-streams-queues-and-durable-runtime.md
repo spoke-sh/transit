@@ -1431,8 +1431,11 @@ settlement and bounded original-result consumption with passing
 The same definition subsequently passes installed SQL/native original-result
 recovery and partial Stream settlement within a mixed transaction; see the
 [installed interval evidence](../history/qualification/query.md#installed-original-results-and-partial-settlement).
-`b3300394e` adds pure positional Catalog binding with five focused tests; SQL
-consumption admission remains open. SQL group binding, waits, offset-settlement admission, Queue acquisition/settlement, the finite
+`b3300394e` adds pure positional Catalog binding with five focused tests.
+`a5965727d` admits positional consumption through the SQL workload runtime;
+its [component and grammar checks](../history/qualification/query.md#positional-sql-consumption-admission--2026-11-01)
+pass, with installed consumption qualification still pending. SQL group binding,
+waits, offset-settlement admission, Queue acquisition/settlement, the finite
 analytical bridge, mixed SQL and the remaining installed fault matrix are open.
 The batch and milestone remain in progress.
 
