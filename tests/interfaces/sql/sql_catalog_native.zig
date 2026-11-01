@@ -92,6 +92,32 @@ pub fn main(init: std.process.Init) !void {
     const config = try support.load(Config, init, directory, "catalog.json");
     var client = try caller(init, &wire, config);
     if (std.mem.startsWith(u8, mode, "history-")) return history(init, client, directory, mode, args[4..]);
+    if (std.mem.eql(u8, mode, "namespace-admin")) {
+        if (args.len < 6) return error.Usage;
+        const operation = try std.fmt.parseInt(u64, args[4], 10);
+        const Saved = struct { sql: []const u8, binding: c.DirectNamespace.Binding };
+        const filename = try std.fmt.allocPrint(init.arena.allocator(), "namespace-{d}.json", .{operation});
+        const original = support.load(Saved, init, directory, filename) catch |err| switch (err) {
+            error.FileNotFound => null,
+            else => return err,
+        };
+        const saved = original orelse blk: {
+            var plan = try c.DirectAuthorizationSql.prepareNamespace(client, 1, args[5], .{}, null);
+            defer plan.deinit();
+            const value: Saved = .{ .sql = args[5], .binding = try plan.bind(operation, if (plan.action == .create) operation else null) };
+            try support.save(init, directory, filename, value);
+            break :blk value;
+        };
+        if (!std.mem.eql(u8, saved.sql, args[5])) return error.ProofIdentityConflict;
+        for (0..100) |step| {
+            const response = try client.call(.{ .namespace_operation = .{ .binding = saved.binding, .command = if (step == 0) .admit else .execute, .steps = 8 } });
+            defer response.deinit();
+            const operation_state = response.value.result.namespace_operation.operation;
+            if (operation_state.phase == .applied) return support.print(init, .{ .state = "terminal", .outcome = "applied" });
+            if (operation_state.phase != .admitted) return error.ProofNamespaceRejected;
+        }
+        return error.ProofNamespaceBudget;
+    }
     if (std.mem.eql(u8, mode, "initialize")) {
         const response = try client.call(.initialize);
         defer response.deinit();

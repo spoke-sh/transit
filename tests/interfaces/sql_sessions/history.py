@@ -129,12 +129,14 @@ def run(root, port, postgres, mysql_options, restart, catalog, faults):
     old_object = source['interpretation']['object']['object']
     prepared = first.call(dict(prepare=dict(sql=query)))['described']['statement']
 
+    # Namespace ownership stays with the fixture administrator; the SQL
+    # account keeps only its original Table rights throughout this scenario.
     # A historical schema name resolves inside the selected catalog, even when
     # that live spelling is reused for a different namespace.
     scoped = suffix + ' IN SCHEMA public'
     scoped_query = 'SELECT id, amount FROM historical_values' + scoped
-    command(first, 'ALTER SCHEMA public RENAME TO history_live')
-    command(first, 'CREATE SCHEMA public')
+    catalog('namespace-admin', 900020, 'ALTER SCHEMA public RENAME TO history_live')
+    catalog('namespace-admin', 900021, 'CREATE SCHEMA public')
     assert rows(first, scoped_query) == (original, basis)
     first.call(dict(execute=dict(sql='SHOW TABLES' + suffix + ' IN SCHEMA history_live')), error='HistoricalObjectNotSelected')
     described, scoped_metadata = raw(first, 'DESCRIBE historical_values' + scoped)
@@ -230,8 +232,8 @@ def run(root, port, postgres, mysql_options, restart, catalog, faults):
         assert sorted(cursor.fetchall()) == [(1, 10, 7), (2, 20, 7)]
         cursor.close()
 
-    command(first, 'DROP SCHEMA public')
-    command(first, 'ALTER SCHEMA history_live RENAME TO public')
+    catalog('namespace-admin', 900022, 'DROP SCHEMA public')
+    catalog('namespace-admin', 900023, 'ALTER SCHEMA history_live RENAME TO public')
 
     # Independent cuts are never relabeled as an atomic cross-table snapshot.
     pair = catalog('history-retain', 900002, 'historical_values', 'historical_renamed')
