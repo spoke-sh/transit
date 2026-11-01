@@ -65,10 +65,17 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
     assert {key: coverage[key] for key in ('from', 'until', 'through', 'rows', 'complete')} == dict(
         **{'from': 2}, until=65, through=8, rows=6, complete=False), coverage
 
-    all_rows = rows(submit('CONSUME value FROM consume_events')['identity'])
+    complete_read = submit('CONSUME value FROM consume_events')['identity']
+    all_rows = rows(complete_read)
     assert [unsigned(row[0]) for row in all_rows[0]] == list(range(65))
     assert all_rows[1] == [32, 32, 1]
     assert all_rows[3]['workload']['position']['consume']['coverage']['complete']
+    filtered = rows(submit('CONSUME value FROM consume_events WHERE value > 1000 LIMIT 1')['identity'])
+    assert filtered[0] == [] and filtered[1] == [0]
+    coverage = filtered[3]['workload']['position']['consume']['coverage']
+    assert coverage['through'] == coverage['rows'] == 65 and coverage['complete']
+    routed = rows(submit('CONSUME value, _partition, _offset FROM append_manual WHERE _partition = 1')['identity'])
+    assert [list(map(unsigned, row)) for row in routed[0]] == [[1, 1, 0]]
     for limit, start, expected in ((0, 2, []), (9, 63, [63, 64]), (1, 65, [])):
         delivered = rows(submit(f'CONSUME value FROM consume_events WHERE _offset >= {start} LIMIT {limit}')['identity'])
         assert [unsigned(row[0]) for row in delivered[0]] == expected
@@ -99,7 +106,7 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
     assert [unsigned(row[0]) for row in typed_rows[0]] == [64, 65]
     client.call(dict(release=described['statement']))
 
-    for identity in (original['identity'], submit('CONSUME value FROM consume_events LIMIT 0')['identity']):
+    for identity in (original['identity'], complete_read, submit('CONSUME value FROM consume_events LIMIT 0')['identity']):
         batch = client.call(dict(result=identity))['batch']
         authorize(False)
         try:
