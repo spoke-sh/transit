@@ -7,6 +7,49 @@ Current semantics belong to the [transaction reference](../../handbook/reference
 [direct Table contract](../../../contracts/DIRECT_TABLE_V1.md). This record keeps
 finite models, component recovery and installed histories separate.
 
+## Catalog Stream and Queue read dependencies — 2026-10-31
+
+Implementation `a679c9f3b9873523405a706be99604affcafe483` admits explicit
+Stream/Queue partition read dependencies beside Table/KV state. Definition
+`e43dc2b9d4e7bb5c5412694a505e50588680570ab346dde42c9745832769ebd4`
+replaces the earlier definition. The [direct contract](../../../contracts/DIRECT_TABLE_V1.md)
+owns selection, common-cut acquisition, conflict validation and closure semantics.
+Public transactional log mutations remain unavailable.
+
+Workspace checks of these exact implementation sources pass **202/202 catalog
+tests** and **26/26 selected storage tests** in ReleaseSafe. The catalog disk
+case selects one Table, two Stream partitions and one Queue. Seven fresh disk
+opens recover six injected lost replies: the four original source pins, common-cut
+publication and the shared commit decision. Each original source stays at its
+pre-pin position; no retry advances or duplicates it. Current Queue READ denial
+refuses cut disclosure and commit. After the accepted decision, read revocation
+does not prevent cleanup under current control rights. Commit/abort races retain
+the original committed decision. A policy fixture rejects nested guard acquisition.
+
+Retained graph traversal reaches every original log source artifact while
+asserting at most three new jobs per step. A separate case appends to a selected
+Stream after acquisition: a read-only transaction retains and completes its old
+cut, while a serializable transaction refuses commit and aborts its already
+prepared Table output. The independent Stream append remains visible. These
+checks cover catalog components and disk reopen, not installed signed mixed
+state/input/output execution or process-death fault schedules.
+
+The same run passes **58 fast checks**, **19 contract checks** and the handbook
+production build. Commands and raw output are in
+`/var/tmp/transit-m6-log-catalog-cuts-checks3.log`, SHA-256
+`a35f14249456a886bc50500999794abcc8b7c04246c33cf31eba16d903ad5664`. Owning schema, binding, browser and independent
+signing writers complete in `/var/tmp/transit-m6-log-catalog-cuts-generation.log`,
+SHA-256 `4a30ecbf38ec274cd6c39bc4b26b1fd6c165fd699616f2070bb9f7f6cd473718`; version validation covers
+158 manifests. These are local artifacts, not portable download links.
+Earlier check attempts stopped on a missing Python launcher and a Zig formatting
+check; the successful run corrects both and regenerates the diagnostic inventory.
+
+These workspace checks are not clean dependent-lane qualification. The separate
+Table/KV integration branch's clean storage lane is still executing at the time
+of this record; its earlier core failure requires the queued corrected retry.
+Public log mutations, atomic DLQ, Station composition, Table latency targets and
+Stream/Queue/Station baseline measurements remain open.
+
 ## Stream and Queue preparation and decisions — 2026-10-31
 
 Implementation `acbab910e33704118b4f3b2626e598dbf776fb0c` adds private log
