@@ -42,8 +42,9 @@ def run(root, port, postgres, mysql_options, restart, authorize):
         authorize(True)
     first.call(dict(fetch=dict(cursor=empty['cursor'], batch=0)), error='SqlResultIncomplete')
 
-    def completed(statement, kind):
-        result = first.terminal(first.execute(statement, list(os.urandom(16)))['operation'])
+    def completed(statement, kind, client=None):
+        client = client or first
+        result = client.terminal(client.execute(statement, list(os.urandom(16)))['operation'])
         assert result['command'] == kind, result
         return result
 
@@ -70,11 +71,13 @@ def run(root, port, postgres, mysql_options, restart, authorize):
     first.call(dict(close_result=shown['cursor']))
     prepared = first.call(dict(prepare=dict(sql='SHOW QUEUE sql_work')))['described']['statement']
     stale = first.execute('SHOW QUEUE sql_work')['batch']
-    completed("ALTER QUEUE sql_work SET (retention='1d', max_attempts=9)", 'alter_queue')
-    first.call(dict(execute=dict(statement=prepared)), error='CatalogDefinitionChanged')
-    first.call(dict(release=prepared))
+    writer = Client(root, port).open()
+    completed("ALTER QUEUE sql_work SET (retention='1d', max_attempts=9)", 'alter_queue', writer)
+    writer.close()
     first.call(dict(fetch=dict(cursor=stale['cursor'], batch=stale['batch'])), error='CatalogDefinitionChanged')
     first.call(dict(fetch=dict(cursor=stale['cursor'], batch=stale['batch'])), error='SqlResultIncomplete')
+    first.call(dict(execute=dict(statement=prepared)), error='CatalogDefinitionChanged')
+    first.call(dict(release=prepared))
     changed = first.execute('SHOW QUEUE sql_work')['batch']
     changed_policy = json.loads(text(changed['rows'][0][3]))
     assert changed_policy['retention']['max_age_ms'] == 86400000
@@ -114,7 +117,9 @@ def run(root, port, postgres, mysql_options, restart, authorize):
     first.call(dict(close_result=rest['cursor']))
     stale_listing = first.execute('SHOW STREAMS')['batch']
     revised = text(stale_listing['rows'][0][0])
-    completed(f"ALTER STREAM {revised} SET (retention='1h')", 'alter_stream')
+    writer = Client(root, port).open()
+    completed(f"ALTER STREAM {revised} SET (retention='1h')", 'alter_stream', writer)
+    writer.close()
     first.call(dict(fetch=dict(cursor=stale_listing['cursor'], batch=0)), error='CatalogDefinitionChanged')
     first.call(dict(fetch=dict(cursor=stale_listing['cursor'], batch=0)), error='SqlResultIncomplete')
     for statement in ('SHOW STREAMS', 'SHOW QUEUES'):
