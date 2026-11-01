@@ -9,6 +9,64 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Installed Stream/Queue baseline and cold recovery deadline — 2026-11-01
+
+The six-profile installed workload **failed** on clean source
+`1c4106d5470cc028fe6e9c444d1be94f7f5e0573`, definition
+`8e441078693f1373d69323bfeadd5cfe8c7024ec2015819bacfb2b04eaea3865`.
+Profiles 1–3 completed three warmup and twenty measured iterations and verified
+their original receipts, retained selections and exact payloads after restart.
+The 128-row unordered Queue profile completed all 3,335 foreground calls,
+including 3,151 durable mutations, but its first original-operation lookup
+after restart exceeded the existing 30-second logical recovery deadline. Nine
+incomplete recovery responses preceded `OwnerRecoveryBudget`; no mutation was
+attempted during that failed recovery. Profiles 5–6 did not execute.
+
+| Completed profile operation | Samples | p50 / p95 (ms) |
+| --- | ---: | ---: |
+| Stream single-row append | 20 | 584.193 / 751.257 |
+| Stream 128-row append | 20 | 586.633 / 754.616 |
+| Single-row Stream page | 20 | 6.660 / 7.881 |
+| 128-row Stream page | 20 | 14.877 / 17.811 |
+| Queue single-row enqueue | 20 | 403.609 / 446.782 |
+| Queue single-row claim | 20 | 450.063 / 480.221 |
+| Queue single-row ACK | 20 | 365.503 / 380.958 |
+
+The fourth profile's foreground observations remain in the failed report:
+twenty enqueues have p50/p95 9,076.220/13,774.941 ms, 160 claims have
+3,619.896/5,746.025 ms, and 2,560 ACKs have 419.298/759.441 ms. These
+observations do not qualify that profile's recovery or the whole baseline.
+The failed recovery denominator is one attempted logical read, zero successes,
+one failure and zero mutations; none of the foreground outcomes are discarded.
+
+```sh
+python3 -B tests/runner/launch.py tests/performance/storage/log_runtime.py \
+  zig-out/bin/transit-node zig-out/bin/transit-direct-table-proof \
+  --output .cache/performance/log-clock-fixed-baseline-1 \
+  --profiles 1 2 3 4 5 6 --warmup 3 --repeat 20
+```
+
+The local disk, ReleaseSafe workload retains 128-byte payloads, one sequential
+caller, unlimited retention, 60-second leases, 30-second caller deadlines and
+10,000-ms configured clock uncertainty. The 48-CPU Linux 6.17.0-41 host's initial
+load averages were 16.736/23.646/28.407. No agent-owned heavy builds or fault
+suites overlapped measurement; other host work was uncontrolled. This is not a
+matched speedup comparison with earlier runs. Per-phase owner budgets, client
+allocation counts, node I/O/RSS and raw samples remain beside the report.
+Server allocations, storage IOPS and CPU cycles remain unmeasured. Sealed/cold
+payload reads, groups, waits, delays, expiry and offered load remain outside
+these completed profiles; their absence does not close M6's baseline gate.
+
+The report SHA-256 is
+`1b8ea81df96d0cd5d72a6da9648da78787c21a8c884c889db9ac470e33309787`.
+Matching node/caller hashes are
+`b4b5351ebbd3e2e235a4402ceb2f44864939fda2f003849ad686cad62bbefba3`
+and `dfd70a25f0efb12c6121d5d243b0b6fb196773e7253608d4df1121e2e61210c5`.
+The private installation `/var/tmp/transit-table-log-baseline-ak_56n_u`
+preserves the original requests, receipts, configuration and matching binaries.
+Later read-only investigation must preserve those identities and cannot turn
+this failed run into a passing measurement.
+
 ## Installed Stream/Queue partial baseline and clock refusal — 2026-11-01
 
 The six-profile [installed log workload](../../../tests/performance/storage/log_runtime.md)
