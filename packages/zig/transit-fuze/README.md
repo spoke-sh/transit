@@ -56,9 +56,11 @@ Restored plans own their schema, names and literals. Only finite Stream
 consumption permits a projection predicate: claim filtering must happen before
 lease acquisition, and RETURNING describes every accepted append row. Limits
 and aggregates belong to other owners and are refused by this projection.
+`Projector` resolves stable IDs once and evaluates decoded rows in fixed input
+and output arrays without per-row allocation. It preserves the original claim's
+epoch and attempt and leaves native coverage independent of filtered output.
 The caller supplies verified frozen metadata and separately owns admission,
-selection, authority and completion. This preparation module is not yet wired
-into SQL workload admission or result recovery.
+selection, authority and completion. SQL workload admission is not yet wired.
 
 `TSegReader` reads one host-bound immutable segment through a synchronous range
 callback. Opening reads the 64-byte header, 16-byte trailer and bounded footer;

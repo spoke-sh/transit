@@ -119,6 +119,55 @@ pub fn restore(allocator: std.mem.Allocator, source: Source, fields: []const Fie
     return owned;
 }
 
+/// A bounded evaluator over validated native rows. Stable column IDs resolve
+/// once at initialization. Schema, layout and plan remain borrowed and immutable
+/// for its lifetime; output borrows the input values until the next row/reset.
+pub const Projector = struct {
+    pub const Metadata = struct { offset: u64, lease: ?p.StreamQueue.Lease = null };
+    source: Source,
+    fields: []const Field,
+    plan: f.LogicalQuery.Plan,
+    columns: [f.TableSchema.max_columns]u8 = @splat(0),
+    input: [f.TableSchema.max_columns]f.Types.Values.Cell = undefined,
+    output: [f.TableSchema.max_columns]f.Types.Values.Cell = undefined,
+    failure: ?f.LogicalQuery.Plan.PredicateFailure = null,
+
+    pub fn init(allocator: std.mem.Allocator, source: Source, fields: []const Field, plan: f.LogicalQuery.Plan) !Projector {
+        const expected = try layout(source, fields);
+        try requireProjection(source, plan, expected);
+        if (!std.mem.eql(u8, &plan.source_basis, &try basis(allocator, source, fields)) or
+            !std.mem.eql(u8, &try plan.schema.fingerprint(), &try expected.typeOf().fingerprint())) return error.WorkloadProjectionSourceChanged;
+        var result: Projector = .{ .source = source, .fields = fields, .plan = plan };
+        for (fields, 0..) |field, i| if (field == .column) {
+            result.columns[i] = @intCast(try source.schema.index(field.column));
+        };
+        return result;
+    }
+
+    /// The source owns row decoding/validation and native result authentication.
+    /// This pure evaluator allocates nothing and never alters delivery coverage.
+    pub fn row(self: *Projector, cells: []const f.Types.Values.Cell, metadata: Metadata) !?[]const f.Types.Values.Cell {
+        self.failure = null;
+        if (cells.len != self.source.schema.columns.len) return error.InvalidWorkloadProjectionRow;
+        if (self.source.binding == .queue and self.source.binding.queue.kind == .claim) {
+            const lease = metadata.lease orelse return error.InvalidWorkloadProjectionRow;
+            try lease.validate();
+            if (!std.meta.eql(lease.target, self.source.binding.target()) or
+                !std.meta.eql(lease.claim, self.source.binding.operation()) or lease.offset != metadata.offset) return error.WorkloadProjectionSourceChanged;
+        } else if (metadata.lease != null) return error.InvalidWorkloadProjectionRow;
+        for (self.fields, 0..) |field, i| self.input[i] = switch (field) {
+            .column => cells[self.columns[i]],
+            .partition => .{ .value = .{ .atom = .{ .unsigned = self.source.binding.target().partition } } },
+            .offset => .{ .value = .{ .atom = .{ .unsigned = metadata.offset } } },
+            .lease_epoch => .{ .value = .{ .atom = .{ .unsigned = metadata.lease.?.epoch } } },
+            .attempt => .{ .value = .{ .atom = .{ .unsigned = metadata.lease.?.attempt } } },
+        };
+        if (!try self.plan.matches(self.input[0..self.fields.len], &self.failure)) return null;
+        for (self.plan.projection, 0..) |index, i| self.output[i] = self.input[index];
+        return self.output[0..self.plan.projection.len];
+    }
+};
+
 test "workload projections freeze original identity layout aliases and collations" {
     const t = std.testing;
     const scope: p.DataLifecycle.Scope = .{ .realm = 1, .resource = 2, .catalog = 3 };
@@ -145,6 +194,17 @@ test "workload projections freeze original identity layout aliases and collation
     try t.expectEqual(f.Types.Type.uint64, restored.plan.schema.structure[0].type);
     try t.expectEqualStrings("Alpha", restored.plan.predicate.compare.value.bytes);
     length = (try encode(source, &fields, restored.plan, t.allocator, &bytes)).len;
+    var projector = try Projector.init(t.allocator, source, &fields, restored.plan);
+    var cells = [_]f.Types.Values.Cell{
+        .{ .value = .{ .atom = .{ .bytes = "aLpHa" } } },
+        .{ .value = .{ .atom = .{ .signed = 42 } } },
+    };
+    const projected = (try projector.row(&cells, .{ .offset = 23 })).?;
+    try t.expectEqual(23, projected[0].value.atom.unsigned);
+    try t.expectEqualStrings("aLpHa", projected[1].value.atom.bytes);
+    try t.expectEqual(target.partition, projected[2].value.atom.unsigned);
+    cells[0] = .{ .value = .{ .atom = .{ .bytes = "beta" } } };
+    try t.expectEqual(null, try projector.row(&cells, .{ .offset = 24 }));
     source.binding.stream.operation.operation += 1;
     try t.expectError(error.SourceChanged, restore(t.allocator, source, &fields, bytes[0..length]));
     source.binding.stream.operation.operation -= 1;
@@ -162,6 +222,15 @@ test "workload projections freeze original identity layout aliases and collation
     const claimed_fields = [_]Field{ .lease_epoch, .attempt, .{ .column = 17 } };
     var claim = try compile(t.allocator, source, &claimed_fields, "tasks", "SELECT _lease_epoch, _attempt, value FROM tasks", null);
     defer claim.deinit();
+    var claim_projector = try Projector.init(t.allocator, source, &claimed_fields, claim.plan);
+    var lease: p.StreamQueue.Lease = .{ .target = target, .claim = original, .offset = 13, .epoch = 7, .attempt = 2, .expires_ms = 1000 };
+    const selected = (try claim_projector.row(&cells, .{ .offset = 13, .lease = lease })).?;
+    try t.expectEqual(7, selected[0].value.atom.unsigned);
+    try t.expectEqual(2, selected[1].value.atom.unsigned);
+    try t.expectEqual(42, selected[2].value.atom.signed);
+    try t.expectError(error.InvalidWorkloadProjectionRow, claim_projector.row(&cells, .{ .offset = 13 }));
+    lease.claim.operation += 1;
+    try t.expectError(error.WorkloadProjectionSourceChanged, claim_projector.row(&cells, .{ .offset = 13, .lease = lease }));
     try t.expectError(error.InvalidWorkloadProjection, compile(t.allocator, source, &claimed_fields, "tasks", "SELECT value FROM tasks WHERE value = 42", null));
     source.binding.queue.kind = .enqueue;
     try t.expectError(error.WorkloadProjectionUnavailable, layout(source, &claimed_fields));

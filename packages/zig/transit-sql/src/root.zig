@@ -17,6 +17,7 @@ pub const Statement = @import("Statement.zig");
 pub const ManagedSql = @import("ManagedSql.zig");
 pub const TransactionSql = @import("TransactionSql.zig");
 pub const TransactionWork = @import("TransactionWork.zig");
+pub const WorkloadRead = @import("WorkloadRead.zig");
 pub const Terminal = @import("Terminal.zig");
 pub const DatabaseAccount = @import("DatabaseAccount.zig");
 pub const OperationRecords = @import("OperationRecords.zig");

@@ -28,6 +28,14 @@ caller commands for Catalog-owned common cuts, private Table changes, savepoints
 and original commit/abort settlement. [Table transactions](../../../docs/handbook/reference/sql/transactions.md)
 describes the supported local serializable domain and provisional outcomes.
 
+`WorkloadRead` composes frozen workload bodies, Fuze projections and the signed
+native original-result API. It owns decoded metadata and retained scratch,
+resumes failed page requests at the same position, and exposes original selection
+and completion evidence. Returned rows are borrowed until the next pull: a batch
+owner must copy them and recheck disclosure after buffering, including repeated
+or empty terminal responses. Closing only releases local memory. This adapter
+does not yet enable workload SQL or session result opening.
+
 Run `zig build test` or `zig build check` from this directory. The build graph
 rejects transitive Station imports. Real native-owner, restart and wire proofs
 are registered in the [test index](../../../tests/README.md).

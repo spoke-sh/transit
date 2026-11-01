@@ -18175,7 +18175,8 @@
       "errors": {
         "DuplicateColumn": 1,
         "InvalidWorkloadProjection": 3,
-        "WorkloadProjectionSourceChanged": 2,
+        "InvalidWorkloadProjectionRow": 3,
+        "WorkloadProjectionSourceChanged": 4,
         "WorkloadProjectionUnavailable": 3
       },
       "outcomes": {
@@ -18189,6 +18190,8 @@
       },
       "error_sets": {},
       "error_returns": {
+        "Projector.init()": "<inferred>",
+        "Projector.row()": "<inferred>",
         "Source.validate()": "<inferred>",
         "basis()": "<inferred>",
         "compile()": "<inferred>",
@@ -18199,7 +18202,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 23,
+        "try": 31,
         "catch": 0
       },
       "imports": [
@@ -30498,6 +30501,35 @@
         "std"
       ]
     },
+    "packages/zig/transit-sql/src/WorkloadRead.zig": {
+      "errors": {
+        "CatalogIdentityConflict": 1,
+        "IncompleteWorkloadCoverage": 1,
+        "WorkloadProjectionUnavailable": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Prepared.init()": "<inferred>",
+        "Prepared.open()": "<inferred>",
+        "Read.checkDisclosure()": "<inferred>",
+        "Read.complete()": "<inferred>",
+        "Read.completion()": "<inferred>",
+        "Read.fetch()": "<inferred>",
+        "Read.init()": "<inferred>",
+        "Read.observation()": "<inferred>",
+        "Read.pull()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 28,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-sql/src/root.zig": {
       "errors": {},
       "outcomes": {},
@@ -30525,6 +30557,7 @@
         "Terminal.zig",
         "TransactionSql.zig",
         "TransactionWork.zig",
+        "WorkloadRead.zig",
         "transit_catalog",
         "transit_client",
         "transit_query_direct",
