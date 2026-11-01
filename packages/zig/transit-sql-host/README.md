@@ -18,10 +18,9 @@ A scheduled caller uses `perform` to invalidate cached authorization before
 resuming owner work or buffered output. Protected metadata, rows and terminal
 frames carry a guard. Resumed mutation replies re-observe the original accepted
 completion through the database owner, including COMMIT or DROP whose execution
-attachment may have ended. The installed driver still drains requests with its
-existing blocking worker/deadline orchestration; this change does not reduce
-worker counts or remove timer tasks. Authentication input and TLS upgrades also
-retain those deadlines.
+attachment may have ended. The installed driver drains requests with blocking
+workers and deadline tasks. The same deadlines bound authentication input and
+TLS upgrades.
 
 The pure `StartupSession` engines emit input, output, TLS upgrade, credential,
 verification and final admission requests through `Wire.Startup`. The host

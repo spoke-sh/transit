@@ -264,7 +264,9 @@ sizing, `authenticationDeadline`/`connectionDeadline`/`boundedHandle`, socket an
 non-socket deadline propagation, coarse remote SQL and owner-qualified M6/M7
 routes retain their separate gates. No new wire capability, authority or durable
 definition is introduced. Codec allocation checks do not establish installed
-latency or host/TLS allocation guarantees.
+latency or host/TLS allocation guarantees. The
+[startup qualification](../history/qualification/sql.md#connection-startup-continuations--2026-11-01)
+records the executed checks and their source basis.
 
 ### Implementation plan — 2026-11-01
 
