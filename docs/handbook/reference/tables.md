@@ -121,6 +121,23 @@ plans, saved operations and retained readers to their original meaning.
 Unsupported or incompatible definitions reject before execution; stored data
 and accepted work are never silently reset or decoded as another profile.
 
+Accepted active definitions also retain their exact ADD-time column origins in
+a paged metadata directory. Later default changes, column removal, compaction
+and Table retirement do not erase this interpretation evidence. A staged schema
+artifact is not an accepted definition. Retaining definitions does not retain
+old rows; an exact data read still needs its own retained cut.
+
+Explicit schema projection maps a retained source forward to an accepted
+definition of the same object. It matches stable ColumnIds, uses frozen ADD
+values and keeps source evidence separate from the target. It rejects backward
+mapping and type/collation conversion. Ordinary historical reads use the original
+schema. Append `PROJECTING TO CURRENT` or `PROJECTING TO SNAPSHOT 'target'`
+to a historical SELECT, DESCRIBE or EXPLAIN to choose a target explicitly. CURRENT
+resolves once during preparation; later defaults, DROP or name reuse do not
+replace that prepared target. A target snapshot supplies metadata for the original
+object, not its rows. See the [historical contract](../../../contracts/HISTORICAL_CATALOG_V1.md#explicit-schema-projection)
+for bounds, provenance and current authorization.
+
 The protocol package also validates offline index declarations and coverage
 descriptors. They bind stable index/source/column identities, comparison and
 constraint semantics, build generations and exact source cuts. Definition,

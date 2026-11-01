@@ -4316,6 +4316,7 @@
         "HistoricalObjectNotSelected": 1,
         "HistoricalReadOnly": 1,
         "HistoricalSnapshotReleased": 1,
+        "IncompatibleSchemaProjection": 1,
         "InvalidCatalogAssertion": 1,
         "InvalidCatalogCursor": 1,
         "InvalidCatalogStepBudget": 1,
@@ -4331,6 +4332,7 @@
         "InvalidNamedResource": 1,
         "InvalidNamedResourceOperation": 1,
         "InvalidProjection": 1,
+        "InvalidSchemaProjection": 1,
         "InvalidTableBasis": 1,
         "InvalidTableDelegation": 1,
         "InvalidTableReadBudget": 1,
@@ -4697,6 +4699,7 @@
         "prepareHistoryAdmission()": "<inferred>",
         "prepareLogDefinition()": "<inferred>",
         "prepareResourceAllocation()": "<inferred>",
+        "prepareSchemaProjection()": "<inferred>",
         "preview()": "<inferred>",
         "previewLog()": "<inferred>",
         "previewName()": "<inferred>",
@@ -4751,6 +4754,7 @@
         "scanFiltered()": "<inferred>",
         "scanHistory()": "<inferred>",
         "scanRows()": "<inferred>",
+        "scanSchemaProjection()": "<inferred>",
         "schema()": "<inferred>",
         "selectHistory()": "<inferred>",
         "selectTransactionTable()": "<inferred>",
@@ -4802,7 +4806,7 @@
       },
       "open_error_set_uses": 11,
       "propagation": {
-        "try": 1825,
+        "try": 1827,
         "catch": 25
       },
       "imports": [
@@ -6672,6 +6676,51 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectSchemaProjection.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "IncompatibleSchemaProjection": 1,
+        "InvalidSchemaProjection": 20,
+        "InvalidTableReadBudget": 1
+      },
+      "outcomes": {
+        "Request": [
+          "prepare",
+          "scan"
+        ],
+        "Result": [
+          "prepared",
+          "page"
+        ],
+        "Source": [
+          "snapshot",
+          "historical"
+        ],
+        "Target": [
+          "current",
+          "snapshot"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Request.validate()": "<inferred>",
+        "call()": "<inferred>",
+        "definition()": "<inferred>",
+        "dispatch()": "<inferred>",
+        "pair()": "<inferred>",
+        "resolve()": "<inferred>",
+        "validateResult()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 39,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DirectStorageGraph.zig": {
       "errors": {
         "CatalogHistoryMissing": 1,
@@ -6814,7 +6863,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 514,
+        "try": 517,
         "catch": 1
       },
       "imports": [
@@ -7191,7 +7240,7 @@
       },
       "open_error_set_uses": 8,
       "propagation": {
-        "try": 236,
+        "try": 237,
         "catch": 0
       },
       "imports": [
@@ -7359,6 +7408,7 @@
         "Action": [
           "branch",
           "historical_catalog",
+          "schema_projection",
           "transaction",
           "client_token",
           "client_progress",
@@ -7471,6 +7521,7 @@
         "Result": [
           "branch",
           "historical_catalog",
+          "schema_projection",
           "transaction",
           "record",
           "client_token",
@@ -7571,7 +7622,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 177,
+        "try": 178,
         "catch": 3
       },
       "imports": [
@@ -7584,7 +7635,8 @@
         "CatalogIdentityConflict": 2,
         "HistoricalRetentionOwned": 1,
         "InvalidHistoricalResponse": 3,
-        "InvalidTableCursor": 4,
+        "InvalidSchemaProjection": 1,
+        "InvalidTableCursor": 5,
         "InvalidTableKey": 1,
         "InvalidTableReadBudget": 3,
         "InvalidTableResponse": 41,
@@ -7623,6 +7675,8 @@
         "openHistory()": "<inferred>",
         "openHistoryStart()": "<inferred>",
         "pointAllocationFailures()": "<inferred>",
+        "projectTo()": "<inferred>",
+        "projectedPage()": "<inferred>",
         "projectionAllocationFailures()": "<inferred>",
         "rangeAllocationFailures()": "<inferred>",
         "readAfter()": "<inferred>",
@@ -7635,7 +7689,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 95,
+        "try": 103,
         "catch": 2
       },
       "imports": [
@@ -7672,7 +7726,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 219,
+        "try": 220,
         "catch": 10
       },
       "imports": [
@@ -9441,6 +9495,7 @@
         "DirectRecord.zig",
         "DirectResource.zig",
         "DirectResourceClient.zig",
+        "DirectSchemaProjection.zig",
         "DirectStorageGraph.zig",
         "DirectStream.zig",
         "DirectStreamClient.zig",
@@ -20653,7 +20708,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"40809e4208bd7e629253251bf10906503f9df4f155f7faae012a61d25a53640c\""
+          "@\"9ccbb15686fea6ace7f101548f0957d9847446c09353f098543b2c20361b2fef\""
         ],
         "Effect.phase": [
           "pending",
@@ -21870,7 +21925,7 @@
         "InvalidRelationalSources": 4,
         "RelationalCallerChanged": 2,
         "RelationalResidentBudget": 2,
-        "RelationalSourceChanged": 2,
+        "RelationalSourceChanged": 3,
         "TableNotFound": 1,
         "UnsupportedHistoricalTransaction": 1
       },
@@ -21881,12 +21936,13 @@
         "prepare()": "<inferred>",
         "prepareAccess()": "<inferred>",
         "prepareAt()": "<inferred>",
+        "prepareProjectedAt()": "<inferred>",
         "validate()": "<inferred>",
         "validateBindings()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 26,
+        "try": 27,
         "catch": 0
       },
       "imports": [
@@ -21931,7 +21987,7 @@
     },
     "packages/zig/transit-query-direct/src/DirectRelationalTables.zig": {
       "errors": {
-        "InvalidRelationalSources": 1,
+        "InvalidRelationalSources": 2,
         "InvalidTransactionRead": 2,
         "QueryClosed": 3,
         "QueryPageBudget": 4,
@@ -21946,11 +22002,12 @@
         "next()": "<inferred>",
         "open()": "<inferred>",
         "openAt()": "<inferred>",
+        "openProjectedAt()": "<inferred>",
         "validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 15,
+        "try": 16,
         "catch": 1
       },
       "imports": [
@@ -21986,13 +22043,15 @@
       "error_sets": {},
       "error_returns": {
         "instantiate()": "<inferred>",
+        "preparationBasis()": "<inferred>",
         "prepare()": "<inferred>",
         "prepareAccess()": "<inferred>",
-        "prepareAt()": "<inferred>"
+        "prepareAt()": "<inferred>",
+        "prepareProjectedAt()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 23,
+        "try": 26,
         "catch": 0
       },
       "imports": [
@@ -22026,7 +22085,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 30,
+        "try": 31,
         "catch": 1
       },
       "imports": [
@@ -22043,7 +22102,8 @@
         "QueryClosed": 1,
         "QueryConflict": 1,
         "QueryPageBudget": 1,
-        "QueryTypeError": 1
+        "QueryTypeError": 1,
+        "SourceChanged": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -22056,13 +22116,14 @@
         "nextBorrowed()": "<inferred>",
         "open()": "<inferred>",
         "openCatalog()": "<inferred>",
+        "projectTo()": "<inferred>",
         "rejected()": "anyerror",
         "selectAccess()": "<inferred>",
         "validateCurrent()": "<inferred>"
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 14,
+        "try": 18,
         "catch": 7
       },
       "imports": [
@@ -28427,6 +28488,7 @@
         "AuthorizationRevokedMidStream": 1,
         "IncompatibleDefinition": 2,
         "InvalidHistoricalObservation": 6,
+        "InvalidProjectionObservation": 4,
         "InvalidPublishedResourceObservation": 2,
         "InvalidTransactionObservation": 2,
         "PublishedResourceWithdrawn": 1
@@ -28454,6 +28516,9 @@
           "plan",
           "probe"
         ],
+        "Projection.policy": [
+          "stable_columns_add_origins"
+        ],
         "PublishedResourceObservation.disclosure_mode": [
           "caller_source_rights",
           "derived_publication",
@@ -28466,14 +28531,16 @@
       },
       "error_sets": {},
       "error_returns": {
+        "Projection.validate()": "<inferred>",
         "PublishedResourceObservation.validate()": "<inferred>",
         "PublishedResourceObservation.validateBatchDisclosure()": "<inferred>",
         "fingerprint()": "<inferred>",
-        "validate()": "<inferred>"
+        "validate()": "<inferred>",
+        "validateTableProjection()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 13,
+        "try": 20,
         "catch": 0
       },
       "imports": [
@@ -29043,6 +29110,7 @@
         "HistoricalObjectNotSelected": 1,
         "HistoricalReadOnly": 1,
         "HistoricalSnapshotReleased": 1,
+        "IncompatibleSchemaProjection": 1,
         "InexactDecimalRounding": 1,
         "InvalidAuthentication": 3,
         "InvalidColumnSemantics": 1,
@@ -29058,6 +29126,7 @@
         "InvalidQueuePartitionKey": 1,
         "InvalidQueuePolicy": 1,
         "InvalidResultBudget": 1,
+        "InvalidSchemaProjection": 1,
         "InvalidSettingUnit": 1,
         "InvalidSettingValue": 1,
         "InvalidSqlSyntax": 1,
@@ -29197,7 +29266,7 @@
         "QueryPageBudget": 1,
         "TableDefinitionChanged": 1,
         "UnknownSqlSource": 1,
-        "UnsupportedConstruct": 1,
+        "UnsupportedConstruct": 2,
         "UnsupportedHistoricalKind": 1,
         "UnsupportedHistoricalTransaction": 1
       },
@@ -29214,7 +29283,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 74,
+        "try": 75,
         "catch": 0
       },
       "imports": [
@@ -29523,7 +29592,7 @@
       "errors": {
         "HistoricalObjectNotSelected": 1,
         "InvalidCatalogName": 1,
-        "InvalidHistoricalSelector": 3,
+        "InvalidHistoricalSelector": 4,
         "InvalidSqlSyntax": 1
       },
       "outcomes": {},
@@ -29534,7 +29603,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 16,
+        "try": 22,
         "catch": 0
       },
       "imports": [
@@ -37409,13 +37478,16 @@
     },
     "packages/zig/transit-storage/src/TableInterpretations.zig": {
       "errors": {
-        "InvalidTableInterpretation": 11
+        "InvalidTableInterpretation": 14
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "Accepted.decode()": "<inferred>",
+        "Accepted.encode()": "<inferred>",
         "Physical.decode()": "<inferred>",
         "Physical.encode()": "<inferred>",
+        "accepted()": "<inferred>",
         "adjust()": "<inferred>",
         "decode()": "<inferred>",
         "encode()": "<inferred>",
@@ -37425,7 +37497,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 28,
+        "try": 35,
         "catch": 1
       },
       "imports": [
@@ -37517,6 +37589,7 @@
         "DuplicateBatchKey": 3,
         "DuplicatePrimaryKey": 6,
         "DuplicateTableRowIdentity": 3,
+        "IncompatibleSchemaProjection": 1,
         "InvalidDataDefinition": 1,
         "InvalidPartitionLease": 1,
         "InvalidSegmentIndex": 1,
@@ -37524,9 +37597,9 @@
         "InvalidTableCompactionBudget": 1,
         "InvalidTableDeclaration": 1,
         "InvalidTableFlushBudget": 1,
-        "InvalidTableHistory": 49,
+        "InvalidTableHistory": 50,
         "InvalidTableIdentity": 1,
-        "InvalidTableInterpretation": 9,
+        "InvalidTableInterpretation": 15,
         "InvalidTableKey": 3,
         "InvalidTableMaintenance": 6,
         "InvalidTableOperation": 14,
@@ -37535,14 +37608,14 @@
         "InvalidTableReceipt": 4,
         "InvalidTableRowReference": 38,
         "InvalidTableSegment": 2,
-        "InvalidTableSnapshotCursor": 12,
+        "InvalidTableSnapshotCursor": 13,
         "InvalidTableStatementIntent": 1,
         "InvalidTransactionDecision": 2,
         "InvalidTransactionPreparation": 7,
         "InvalidTransactionRead": 1,
         "InvalidTransactionWorkspace": 1,
         "LostAcknowledgement": 1,
-        "MissingTableInterpretation": 5,
+        "MissingTableInterpretation": 8,
         "OnlinePhasedRewriteRequired": 1,
         "OutOfMemory": 3,
         "PrivateTableWorkspace": 5,
@@ -37566,7 +37639,7 @@
         "TableNotFound": 2,
         "TableOperationTerminal": 1,
         "TableOperationsPending": 1,
-        "TableReadBudgetTooSmall": 3,
+        "TableReadBudgetTooSmall": 4,
         "TableRecoveryRequired": 3,
         "TableRetired": 9,
         "TableRowIdentityChanged": 2,
@@ -37579,7 +37652,7 @@
         "TransactionNotFrozen": 2,
         "TransactionObjectNotSelected": 1,
         "TransactionPrepared": 8,
-        "UnknownColumn": 4,
+        "UnknownColumn": 5,
         "UnsupportedTableAction": 2,
         "UnsupportedTransactionStatement": 1,
         "WriteFailed": 3
@@ -37676,6 +37749,7 @@
         "historyAt()": "<inferred>",
         "historyStart()": "<inferred>",
         "init()": "<inferred>",
+        "inspectDefinition()": "<inferred>",
         "inspectHistoryLease()": "<inferred>",
         "inspectProjection()": "<inferred>",
         "inspectProjectionLocations()": "<inferred>",
@@ -37700,9 +37774,11 @@
         "physicalSchema()": "<inferred>",
         "pin()": "<inferred>",
         "pinState()": "<inferred>",
+        "prepareProjection()": "<inferred>",
         "prepareTransaction()": "<inferred>",
         "privateSnapshot()": "<inferred>",
         "projectPhysicalRowInto()": "<inferred>",
+        "projectionCursorSource()": "<inferred>",
         "publish()": "<inferred>",
         "publishMaintenance()": "<inferred>",
         "publishSegmentRows()": "<inferred>",
@@ -37731,6 +37807,7 @@
         "requireReceiptTransition()": "<inferred>",
         "requireTransactionTransition()": "<inferred>",
         "requireTransition()": "<inferred>",
+        "resolveSchemaProjection()": "<inferred>",
         "resolveTransaction()": "<inferred>",
         "retain()": "<inferred>",
         "retainHistory()": "<inferred>",
@@ -37745,6 +37822,7 @@
         "scanSnapshot()": "<inferred>",
         "scanSnapshotColumns()": "<inferred>",
         "scanSnapshotFiltered()": "<inferred>",
+        "scanSnapshotProjected()": "<inferred>",
         "scope()": "<inferred>",
         "segmentDecision()": "<inferred>",
         "segmentKey()": "<inferred>",
@@ -37760,8 +37838,8 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 725,
-        "catch": 17
+        "try": 759,
+        "catch": 18
       },
       "imports": [
         "OrderedKeyIndex.zig",
@@ -37991,7 +38069,7 @@
     },
     "packages/zig/transit-storage/src/TableStorageWalk.zig": {
       "errors": {
-        "InvalidTableStorageGraph": 21
+        "InvalidTableStorageGraph": 22
       },
       "outcomes": {
         "Edge": [
@@ -38002,7 +38080,8 @@
           "snapshot",
           "evidence",
           "archive",
-          "declaration"
+          "declaration",
+          "definition"
         ],
         "Edge.evidence.kind": [
           "receipt",
@@ -38015,6 +38094,7 @@
           "ordered_rows",
           "physical_schemas",
           "column_origins",
+          "definitions",
           "receipts",
           "operations",
           "pins",
@@ -38033,7 +38113,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 21,
+        "try": 23,
         "catch": 0
       },
       "imports": [
@@ -38920,8 +39000,9 @@
   "grammars": {
     "contracts/sql/TransitExtensions.g4": {
       "statement": "( historicalStatement | selectStatement | mutationStatement | extensionStatement | transactionStatement ) SEMI ? EOF",
-      "historicalStatement": "( selectStatement | SHOW TABLES | DESCRIBE identifier | EXPLAIN selectStatement ) snapshotClause",
+      "historicalStatement": "( selectStatement | DESCRIBE identifier | EXPLAIN selectStatement ) snapshotClause projectionClause ? | SHOW TABLES snapshotClause",
       "snapshotClause": "AS OF SNAPSHOT STRING ( IN SCHEMA identifier ) ?",
+      "projectionClause": "PROJECTING TO ( CURRENT | SNAPSHOT STRING )",
       "transactionStatement": "( BEGIN ( WORK | TRANSACTION ) ? | START TRANSACTION ) transactionOptions ? | COMMIT ( WORK | TRANSACTION ) ? | ROLLBACK ( WORK | TRANSACTION ) ? ( TO SAVEPOINT ? identifier ) ? | SAVEPOINT identifier | RELEASE SAVEPOINT ? identifier",
       "transactionOptions": "ISOLATION LEVEL SERIALIZABLE transactionAccess ? | transactionAccess ( ISOLATION LEVEL SERIALIZABLE ) ?",
       "transactionAccess": "READ ( ONLY | WRITE )",
@@ -39020,7 +39101,7 @@
       "catalogKind": "TABLES | STREAMS | QUEUES | DATABASES | SCHEMAS | SOURCES | SINKS | CONNECTIONS",
       "describeStatement": "DESCRIBE logKind ? identifier",
       "explainStatement": "EXPLAIN selectStatement",
-      "identifier": "settingIdentifier | STREAMS | QUEUES | SNAPSHOT",
+      "identifier": "settingIdentifier | STREAMS | QUEUES | SNAPSHOT | CURRENT | PROJECTING",
       "settingIdentifier": "legacyIdentifier | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER",
       "legacyIdentifier": "IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | INSERT | UPDATE | DELETE | SET | VALUES | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS | COLLATE | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | EBCDIC_037_PAD | EBCDIC_1047_NOPAD | AT | DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_MULTIPLY | DECIMAL_DIVIDE | DECIMAL_RESCALE | RANGE_OVERLAPS | RANGE_CONTAINS | RANGE_ADJACENT | RANGE_COMPARE | VECTOR_DISTANCE | TIME_BUCKET | LOCAL_TO_UTC | RANGE | MULTIRANGE | VECTOR | ROUNDING | METRIC | TIMEZONE | TZDB | TZIF | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | ROLLBACK | SAVEPOINT | RELEASE | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE | STREAM | QUEUE | PARTITION | PARTITIONS | HASH | CONSTRAINT | CHECK | FOREIGN | REFERENCES | ENFORCED | VALID | VALIDATE | NO | ACTION",
       "AT": "'AT'",
@@ -39206,6 +39287,8 @@
       "OF": "'OF'",
       "FOR": "'FOR'",
       "SNAPSHOT": "'SNAPSHOT'",
+      "PROJECTING": "'PROJECTING'",
+      "CURRENT": "'CURRENT'",
       "INT64": "'INT64'",
       "BOOL": "'BOOL'",
       "UTF8": "'UTF8'",

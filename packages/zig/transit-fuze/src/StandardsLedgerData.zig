@@ -242,7 +242,7 @@ pub const features = [_]l.FeatureDescriptor{
         .title = "Typed retained catalog/snapshot selection and explicit schema projection",
         .owner = "packages/zig/transit-catalog/src/DirectHistory.zig",
         .dependencies = &.{ "F031-F034", "UCS_BASIC", "EBCDIC_037_NOPAD" },
-        .deviations = "Selected direct Table catalogs have paged acquisition, exact WAL/segment retention, original-operation recovery and explicit release. The SQL service binds canonical AS OF SNAPSHOT suffixes before names; raw Fuze relational parsing still rejects the suffix. Temporal syntax, explicit target-schema projection and historical graph/foreign execution are separate unfinished profiles; independent sources are not a common transaction cut.",
+        .deviations = "Selected direct Table catalogs have paged acquisition, exact WAL/segment retention, original-operation recovery and explicit release. The SQL service binds canonical AS OF SNAPSHOT suffixes before names; raw Fuze relational parsing still rejects the suffix. Explicit forward schema projection binds an accepted CURRENT or snapshot-selected target separately from source evidence. Temporal syntax and historical graph/foreign execution are separate unfinished profiles; independent sources are not a common transaction cut.",
         .corpus_sources = &.{ "contracts/sql/corpus/statements.json", "contracts/sql/corpus/relational.json", "packages/zig/transit-catalog/src/fixtures/direct-history-v1.json" },
         .states = .{ .parse = .implemented, .lower = .implemented, .execute = .implemented, .recover = .implemented, .transport = .staged },
         .reference_verified = false,

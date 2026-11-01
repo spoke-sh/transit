@@ -125,8 +125,8 @@ pub const Read = struct {
                 const scan = &query.execution.scan;
                 const source = scan.reader.basis;
                 if (source.workspace) |view| break :blk try self.transactionBasis(allocator, &.{view});
-                if (source.catalog) |snapshot| break :blk .{ .historical = .{ .snapshot = snapshot, .sources = try allocator.dupe(@FieldType(g.results.Observation.Data, "table"), &.{.{ .object = source.snapshot.object, .interpretation = source.interpretation.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .pin = source.snapshot.handle.content, .commitment = try scan.fingerprint(), .schema = try scan.reader.schema.schema.fingerprint() }}) } };
-                break :blk .{ .table = .{ .object = source.snapshot.object, .interpretation = source.interpretation.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .pin = source.snapshot.handle.content, .commitment = try scan.fingerprint(), .schema = try scan.reader.schema.schema.fingerprint() } };
+                if (source.catalog) |snapshot| break :blk .{ .historical = .{ .snapshot = snapshot, .sources = try allocator.dupe(@FieldType(g.results.Observation.Data, "table"), &.{.{ .object = source.snapshot.object, .interpretation = source.interpretation.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .pin = source.snapshot.handle.content, .commitment = try scan.fingerprint(), .schema = source.interpretation.schema_fingerprint, .projection = projectionObservation(source.interpretation, source.projection) }}) } };
+                break :blk .{ .table = .{ .object = source.snapshot.object, .interpretation = source.interpretation.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .pin = source.snapshot.handle.content, .commitment = try scan.fingerprint(), .schema = source.interpretation.schema_fingerprint, .projection = projectionObservation(source.interpretation, source.projection) } };
             },
             .relational => |query| blk: {
                 if (self.transaction != null) {
@@ -141,7 +141,7 @@ pub const Read = struct {
                         const scan = slot.?;
                         const source = scan.reader.basis;
                         if (!std.meta.eql(source.catalog, snapshot)) return error.InvalidHistoricalObservation;
-                        out.* = .{ .object = source.snapshot.object, .interpretation = source.interpretation.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .pin = source.snapshot.handle.content, .commitment = try scan.fingerprint(), .schema = try scan.reader.schema.schema.fingerprint() };
+                        out.* = .{ .object = source.snapshot.object, .interpretation = source.interpretation.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .pin = source.snapshot.handle.content, .commitment = try scan.fingerprint(), .schema = source.interpretation.schema_fingerprint, .projection = projectionObservation(source.interpretation, source.projection) };
                     }
                     break :blk .{ .historical = .{ .snapshot = snapshot, .sources = sources } };
                 }
@@ -172,18 +172,27 @@ pub const Read = struct {
                 if (prepared.metadata) |binding| {
                     metadata.definitions = try allocator.dupe(p.DataLifecycle.Definition, &.{binding.interpretation.interpretation});
                     metadata.historical = binding.catalog;
+                    if (projectionObservation(binding.interpretation, prepared.projection)) |projection| metadata.projections = try allocator.dupe(g.results.Observation.Projection, &.{projection});
                 }
                 if (prepared.log_metadata) |binding| metadata.definitions = try allocator.dupe(p.DataLifecycle.Definition, &.{binding.definition.stored.declaration.interpretation});
                 if (prepared.statement) |statement| {
                     if (statement.plan == .select) {
                         metadata.definitions = try allocator.dupe(p.DataLifecycle.Definition, &.{statement.plan.select.binding.interpretation.interpretation});
                         metadata.historical = statement.plan.select.binding.catalog;
+                        if (projectionObservation(statement.plan.select.binding.interpretation, statement.plan.select.projection)) |projection| metadata.projections = try allocator.dupe(g.results.Observation.Projection, &.{projection});
                     } else if (statement.plan == .relational) {
                         metadata.historical = statement.plan.relational.catalog;
                         const bindings = statement.plan.relational.bindings[0..statement.plan.relational.plan.sources.len];
                         const definitions = try allocator.alloc(p.DataLifecycle.Definition, bindings.len);
                         for (bindings, definitions) |binding, *definition| definition.* = binding.interpretation.interpretation;
                         metadata.definitions = definitions;
+                        var projections: [f.Relational.max_sources]g.results.Observation.Projection = undefined;
+                        var count: usize = 0;
+                        for (bindings, statement.plan.relational.projections[0..bindings.len]) |binding, target| if (projectionObservation(binding.interpretation, target)) |projection| {
+                            projections[count] = projection;
+                            count += 1;
+                        };
+                        metadata.projections = try allocator.dupe(g.results.Observation.Projection, projections[0..count]);
                     }
                 }
                 if (prepared.source) {
@@ -207,6 +216,10 @@ pub const Read = struct {
             else => unreachable,
         }
         return .{ .metadata = metadata };
+    }
+    fn projectionObservation(source: c.storage.TableDeclaration.Stored, target: ?c.DirectSchemaProjection.Accepted) ?g.results.Observation.Projection {
+        const accepted = target orelse return null;
+        return .{ .source = source.interpretation, .target = accepted.declaration.interpretation, .declaration = accepted.declaration.content, .schema = accepted.declaration.schema_fingerprint, .accepted_lsn = accepted.next_lsn, .policy = .stable_columns_add_origins };
     }
     fn sourceBasis(value: q.Basis) g.results.Observation.Data {
         return .{ .source = .{ .kind = value.cut.kind, .resource = value.cut.resource, .position = switch (value.cut.position) {
@@ -775,6 +788,8 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
         error.WireParameterCountMismatch, error.WireParameterTypeMismatch, error.InvalidWireValue => .{ "22023".*, "Parameter type or value rejected" },
         error.NullNotAllowed => .{ "23502".*, "Required value is NULL" },
         error.CheckConstraintViolation => .{ "23514".*, "A CHECK constraint rejected the proposed row" },
+        error.IncompatibleSchemaProjection => .{ "0A000".*, "The selected definitions require an unsupported schema conversion" },
+        error.InvalidSchemaProjection => .{ "22023".*, "Schema projection evidence does not match the original source and target" },
         error.InvalidHistoricalSelector => .{ "22023".*, "Expected an exact published historical snapshot selector" },
         error.HistoricalObjectNotSelected => .{ "42P01".*, "Object is absent from the selected historical catalog" },
         error.HistoricalSnapshotReleased => .{ "55000".*, "The selected historical snapshot has been explicitly released" },

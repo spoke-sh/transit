@@ -234,3 +234,52 @@ The clause applies equally to SELECT, SHOW TABLES, DESCRIBE and EXPLAIN. Metadat
 observations report the resolved namespace, and EXPLAIN performs only metadata
 reads. The historical directory contains selected namespaces, so an unselected
 name refuses even if a current namespace has that name.
+
+## Explicit schema projection
+
+Historical SELECT, DESCRIBE and EXPLAIN admit an optional suffix after the
+snapshot and namespace selection:
+
+```sql
+SELECT id, added_column FROM events
+AS OF SNAPSHOT 'source' IN SCHEMA public PROJECTING TO CURRENT;
+```
+
+`PROJECTING TO SNAPSHOT 'target'` selects the accepted definition of the same
+stable object from another published catalog. Source names resolve only in the
+source catalog. CURRENT resolves once during preparation. Subsequent execution
+uses the exact accepted target, even after a default change, column removal or
+Table DROP. The target's row cut is never read or pinned. Preparing anew from a
+released target selector refuses; an already prepared target retains accepted
+metadata through the Table definition directory. SHOW TABLES has no projection
+clause. System-time syntax and historical writes remain outside this profile.
+
+The signed `schema_projection.prepare` action accepts exact source and nullable
+target declarations; null means CURRENT. It requires current inspection rights,
+verifies both accepted declarations and forward compatibility, and returns the
+exact target, its acceptance frontier, ADD-origin directory and encoded schema.
+This operation reads no segments and acquires no pins. Staged content cannot
+substitute for acceptance. `schema_projection.scan` takes an existing private
+Table pin or published historical source, exact target, cursor and read budget.
+Current SELECT protects every page, including empty and terminal results.
+
+Mapping uses stable ColumnIds and the target's frozen ADD-origin values. Existing
+five-state cells retain their state; later defaults do not substitute values.
+Target nullability and length limits validate each mapped row and may refuse
+historical values. Projection does not apply write-time CHECK enforcement or
+claim that historical rows were accepted under the target's constraints.
+Type, codec, collation, semantic descriptor and key changes require separately
+qualified conversion and currently refuse. Backward revision mapping refuses.
+Each call reads at most eight source rows within 16 MiB and applies a separate
+caller output-byte budget; a row that cannot fit refuses. Continuations commit
+to both the source pin and canonical accepted target. Returned rows own their
+values independently of temporary metadata and later pages.
+
+`DirectTableReader.projectTo` composes preparation and traversal without changing
+retention ownership. Its basis fingerprints source and target separately. SQL
+Table observations preserve the original interpretation and schema fingerprint;
+`projection` records target definition, declaration content, target schema,
+acceptance frontier and `stable_columns_add_origins` policy. Metadata observations
+list these projections beside the original definitions. Result initialization
+freezes this evidence; traversal never mutates the published basis. Existing
+physical access paths are bypassed until qualified for both interpretations.

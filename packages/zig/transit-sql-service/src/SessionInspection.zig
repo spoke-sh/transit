@@ -14,6 +14,7 @@ statement: ?g.Statement = null,
 source: bool = false,
 historical_list: ?c.protocol.DataLifecycle.Snapshot = null,
 historical_namespace: ?u64 = null,
+projection: ?c.DirectSchemaProjection.Accepted = null,
 storage: bool = false,
 node_storage: bool = false,
 kind: @FieldType(g.results.Observation.Metadata, "kind") = .catalog,
@@ -81,6 +82,7 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
     }
     const selected_namespace = if (selection.snapshot != null) try selection.resolveNamespace(host.table, host.namespace) else host.namespace;
     if (try parser.takeWord("SHOW")) {
+        if (selection.projection != null) return error.UnsupportedConstruct;
         if (selection.snapshot) |snapshot| {
             try parser.requireWord("TABLES");
             try parser.finish();
@@ -117,11 +119,14 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
         const response = if (selection.snapshot) |snapshot| try c.DirectHistory.resolve(host.table, snapshot, selected_namespace, name.slice(), false) else try host.table.call(.{ .lookup = .{ .namespace = host.namespace, .name = name.slice() } });
         defer response.deinit();
         const binding = if (selection.snapshot != null) try c.DirectTableBinding.initCatalog(host.table.connection, response.value.result.historical_catalog.source) else try c.DirectTableBinding.init(host.table.connection, response.value.result.lookup orelse return error.CatalogNameNotFound);
-        const schema = if (selection.snapshot != null) response.value.result.historical_catalog.source.schema else response.value.result.lookup.?.schema;
+        const projected = if (selection.projection) |target| try c.DirectSchemaProjection.resolve(host.table, binding.interpretation, target) else null;
+        defer if (projected) |value| value.deinit();
+        const projection = if (projected) |value| value.value.result.schema_projection.prepared.target else null;
+        const schema = if (projected) |value| value.value.result.schema_projection.prepared.schema else if (selection.snapshot != null) response.value.result.historical_catalog.source.schema else response.value.result.lookup.?.schema;
         var owned_schema = try f.TableSchema.decode(a, try schema.decode(a, f.TableSchema.max_bytes));
         defer owned_schema.deinit();
         const rows = try describeRows(a, owned_schema.schema);
-        return .{ .arena = arena, .name = name, .metadata = binding, .historical_namespace = if (selection.snapshot != null) selected_namespace else null, .rows = rows, .output = &describe_fields };
+        return .{ .arena = arena, .name = name, .metadata = binding, .historical_namespace = if (selection.snapshot != null) selected_namespace else null, .rows = rows, .output = &describe_fields, .projection = projection };
     }
     if (try parser.takeWord("EXPLAIN")) {
         var statement = try g.Statement.prepare(host.allocator, &host.table, host.namespace, sql[parser.lexer.start..], host.dialect, .inspection, g.Session.read_options);
@@ -142,6 +147,7 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
                     .schema = f.LogicalJson.TypeEnvelope{ .definition = f.Types.definition, .type = statement.output.?.type },
                     .executed = false,
                     .basis = selected.binding.catalog,
+                    .projection = selected.projection,
                 }, .{});
             },
             .relational => |compilation| try std.json.Stringify.valueAlloc(a, .{
@@ -154,6 +160,7 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
                 .schema = f.LogicalJson.TypeEnvelope{ .definition = f.Types.definition, .type = statement.output.?.type },
                 .executed = false,
                 .basis = compilation.catalog,
+                .projections = compilation.projections[0..compilation.plan.sources.len],
             }, .{}),
             else => unreachable,
         };

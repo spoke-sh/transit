@@ -148,7 +148,36 @@ def run(root, port, postgres, mysql_options, restart, catalog, faults):
 
     command(first, 'UPDATE historical_values SET amount=99 WHERE id=1')
     command(first, 'ALTER TABLE historical_values ADD COLUMN later INT64 DEFAULT 7')
+    projected_query = 'SELECT id, amount, later FROM historical_values' + suffix + ' PROJECTING TO CURRENT'
+    projected_rows, projected_basis = rows(first, projected_query)
+    assert projected_rows == [[1, 10, 7], [2, 20, 7]], projected_rows
+    projected_source = projected_basis['data']['historical']['sources'][0]
+    assert projected_source['interpretation'] == source['interpretation']
+    assert projected_source['schema'] == source['schema']
+    assert projected_source['projection']['target']['object']['object'] == old_object
+    projected_statement = first.call(dict(prepare=dict(sql=projected_query)))['described']['statement']
+    target = catalog('history-retain', 900011, 'historical_values')
+    exact_projection = suffix + " PROJECTING TO SNAPSHOT '" + target['selector'] + "'"
+    exact_query = 'SELECT id, amount, later FROM historical_values' + exact_projection
+    assert rows(first, exact_query) == (projected_rows, projected_basis)
+    with faults.metadata_only() as calls:
+        explained, projection_metadata = raw(first, 'EXPLAIN ' + exact_query)
+        described, description_metadata = raw(first, 'DESCRIBE historical_values' + exact_projection)
+    assert calls.get('schema_projection.prepare', 0) >= 2, calls
+    assert [text(row[0]) for row in described] == ['id', 'amount', 'later']
+    assert projection_metadata['metadata']['projections'][0] == description_metadata['metadata']['projections'][0]
+    assert json.loads(text(explained[0][0]))['executed'] is False
+    command(first, 'ALTER TABLE historical_values ALTER COLUMN later SET DEFAULT 9')
     command(first, 'ALTER TABLE historical_values RENAME TO historical_renamed')
+    command(first, 'ALTER TABLE historical_renamed DROP COLUMN later')
+    projected_repeat = first.call(dict(execute=dict(statement=projected_statement)))['batch']
+    assert projected_repeat['complete'] and projected_repeat['observation'] == projected_basis
+    first.call(dict(close_result=projected_repeat['cursor']))
+    first.call(dict(release=projected_statement))
+    assert rows(first, exact_query) == (projected_rows, projected_basis)
+    projected_join = 'SELECT a.id, b.later FROM historical_values AS a INNER JOIN historical_values AS b ON a.id=b.id' + exact_projection
+    assert rows(first, projected_join)[0] == [[1, 7], [2, 7]]
+
     command(first, 'CREATE TABLE historical_values (id INT64 PRIMARY KEY, amount INT64)')
     command(first, 'INSERT INTO historical_values VALUES (1, 1000)')
     assert rows(first, 'SELECT id, amount FROM historical_values')[0] == [[1, 1000]]
@@ -189,12 +218,16 @@ def run(root, port, postgres, mysql_options, restart, catalog, faults):
     assert rows(first, query) == (original, basis)
     assert catalog('history-inspect', 900001) == retained
     assert rows(first, scoped_query) == (original, basis)
+    assert rows(first, exact_query) == (projected_rows, projected_basis)
     with psycopg.connect(**postgres) as pg:
         assert sorted(pg.execute(scoped_query).fetchall()) == [(1, 10), (2, 20)]
+        assert sorted(pg.execute(exact_query, prepare=True).fetchall()) == [(1, 10, 7), (2, 20, 7)]
     with mysql.connector.connect(**mysql_options) as connection:
         cursor = connection.cursor()
         cursor.execute(scoped_query)
         assert sorted(cursor.fetchall()) == [(1, 10), (2, 20)]
+        cursor.execute(exact_query)
+        assert sorted(cursor.fetchall()) == [(1, 10, 7), (2, 20, 7)]
         cursor.close()
 
     command(first, 'DROP SCHEMA public')
@@ -241,12 +274,13 @@ def run(root, port, postgres, mysql_options, restart, catalog, faults):
     assert catalog('history-release', 900001) == released
     assert catalog('history-inspect', 900001) == released
     catalog('history-release', 900002)
+    catalog('history-release', 900011)
     assert rows(first, 'SELECT id, amount FROM historical_values')[0] == [[1, 1000]]
     command(first, 'DROP TABLE historical_values')
     command(first, 'DROP TABLE historical_renamed')
     first.close()
     print(json.dumps(dict(profile='installed_historical_catalog', source=provenance(ROOT),
                          original_object=old_object, rename_recreate=True, current_authority=True,
-                         prepared_and_restart=True, native_postgres_mysql=True, historical_namespace_reuse=True,
+                         prepared_and_restart=True, native_postgres_mysql=True, historical_namespace_reuse=True, explicit_projection=True, projection_default_frozen=True,
                          independent_multi_source=True, paged_metadata=True, buffered_revocation=True, explicit_release=True,
                          limits='Local disk, gateway replacement and finite selected sets; not host power loss or global atomicity.')), flush=True)

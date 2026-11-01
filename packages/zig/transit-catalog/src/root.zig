@@ -9,6 +9,7 @@ pub const Inspection = @import("Inspection.zig");
 pub const DirectBranch = @import("DirectBranch.zig");
 pub const DirectCatalog = @import("DirectCatalog.zig");
 pub const DirectCatalogRoots = @import("DirectCatalogRoots.zig");
+pub const DirectSchemaProjection = @import("DirectSchemaProjection.zig");
 pub const DirectHistory = @import("DirectHistory.zig");
 pub const DirectHistoryDirectory = @import("DirectHistoryDirectory.zig");
 pub const DirectCatalogWalk = @import("DirectCatalogWalk.zig");
@@ -87,6 +88,7 @@ test {
     _ = @import("DirectCatalogRecords.zig");
     _ = DirectTableClient;
     _ = DirectHistoryDirectory;
+    _ = DirectSchemaProjection;
     _ = DirectTableDiagnostic;
     _ = DirectCatalogRetention;
     _ = DirectCatalogHistory;

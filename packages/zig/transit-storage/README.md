@@ -7,6 +7,25 @@ indexes. Separate components include the content-verified
 `NvmeCache`, immutable `TableManifest` (`"TMAN"` v1) artifacts and optimistic
 manifest rebasing (`PartitionLease.OccCoordinator`).
 
+`TableInterpretations.Accepted` records each active definition's declaration,
+acceptance frontier and ADD-time column origins in a paged directory published
+with CREATE/ALTER/RENAME. This metadata remains available after later default
+changes, column removal and physical normalization. DROP preserves it but is
+not an active target. Collection walks the directory and its origin references
+without a resident list of all revisions.
+
+`TablePartition.inspectDefinition` verifies an exact accepted declaration.
+`scanSnapshotProjected` maps an existing source pin forward to that definition,
+using stable column IDs and frozen ADD values. It never acquires a target data
+pin or converts physical types/collations. Returned pages retain the original
+source evidence and report the target separately. Continuations bind both;
+rows own their values independently of metadata scratch and subsequent pages.
+One call reads at most eight source rows within 16 MiB, with a separate caller
+output byte budget. Backward mapping, staged targets, insufficient budgets and
+current authorization failures refuse. `prepareProjection` validates a target
+without reading rows or retaining data. The catalog composes these operations
+through `DirectSchemaProjection` and the shared retained reader.
+
 Immutable object batches sync independent files with at most eight concurrent
 tasks through `SyncBatch`. Every task joins on failure as well as success.
 Content files and names become durable before descriptor publication; the final

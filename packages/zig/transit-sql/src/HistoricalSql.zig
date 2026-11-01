@@ -7,6 +7,7 @@ pub const Selected = struct {
     statement: []const u8,
     snapshot: ?g.catalog.protocol.DataLifecycle.Snapshot,
     namespace: ?g.catalog.TableAuthority.Name = null,
+    projection: ?g.catalog.DirectSchemaProjection.Target = null,
 
     /// Resolve only inside the already published selection. The returned stable
     /// namespace is frozen into the prepared binding, never a live search path.
@@ -48,18 +49,30 @@ pub fn select(text: []const u8, dialect: sql.Dialect) !Selected {
         const snapshot = try Selector.decode(literal.text[1 .. literal.text.len - 1]);
         var end = try suffix.next();
         var namespace: ?g.catalog.TableAuthority.Name = null;
-        if (word(end, "IN")) {
-            // Reuse identifier folding/unquoting with a bounded scratch owner.
-            // No arbitrary statement-sized allocation is needed for one name.
+        if (word(end, "IN") or word(end, "PROJECTING")) {
             var bytes: [512]u8 = undefined;
             var scratch = std.heap.FixedBufferAllocator.init(&bytes);
             var parser = try g.fuze.SqlTyped.initDialect(scratch.allocator(), text[suffix.start..], null, false, dialect);
-            try parser.requireWord("IN");
-            try parser.requireWord("SCHEMA");
-            if (parser.token.text.len > bytes.len) return error.InvalidCatalogName;
-            namespace = try .init(try parser.name());
+            if (try parser.takeWord("IN")) {
+                try parser.requireWord("SCHEMA");
+                if (parser.token.text.len > bytes.len) return error.InvalidCatalogName;
+                namespace = try .init(try parser.name());
+            }
+            var projection: ?g.catalog.DirectSchemaProjection.Target = null;
+            if (try parser.takeWord("PROJECTING")) {
+                try parser.requireWord("TO");
+                if (try parser.takeWord("CURRENT")) {
+                    projection = .current;
+                } else {
+                    try parser.requireWord("SNAPSHOT");
+                    if (parser.token.tag != .string) return error.InvalidHistoricalSelector;
+                    const target = parser.token.text;
+                    projection = .{ .snapshot = try Selector.decode(target[1 .. target.len - 1]) };
+                    try parser.advance();
+                }
+            }
             try parser.finish();
-            return .{ .statement = text[0..start], .snapshot = snapshot, .namespace = namespace };
+            return .{ .statement = text[0..start], .snapshot = snapshot, .namespace = namespace, .projection = projection };
         }
         if (end.tag == .semi) end = try suffix.next();
         if (end.tag != .eof) return error.InvalidHistoricalSelector;
@@ -88,6 +101,16 @@ test "historical SQL selector is canonical and cannot be a comment string or new
         const selected = try select(named, .transit);
         try t.expectEqualStrings(case.expected, selected.namespace.?.slice());
         try t.expectEqualDeep(snapshot, selected.snapshot.?);
+    }
+    for ([_][]const u8{ "SELECT score FROM events", "DESCRIBE events", "EXPLAIN SELECT score FROM events" }) |statement| {
+        for ([_][]const u8{ "", " IN SCHEMA public" }) |namespace| {
+            const projected = try std.fmt.allocPrint(t.allocator, "{s} AS OF SNAPSHOT '{s}'{s} PROJECTING TO CURRENT", .{ statement, encoded, namespace });
+            defer t.allocator.free(projected);
+            try t.expectEqual(.current, (try select(projected, .transit)).projection.?);
+            const exact = try std.fmt.allocPrint(t.allocator, "{s} AS OF SNAPSHOT '{s}'{s} PROJECTING TO SNAPSHOT '{s}';", .{ statement, encoded, namespace, encoded });
+            defer t.allocator.free(exact);
+            try t.expectEqualDeep(snapshot, (try select(exact, .transit)).projection.?.snapshot);
+        }
     }
     const duplicate = try std.fmt.allocPrint(t.allocator, "SHOW TABLES AS OF SNAPSHOT '{s}' IN SCHEMA public IN SCHEMA other", .{encoded});
     defer t.allocator.free(duplicate);

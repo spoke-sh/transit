@@ -36,6 +36,15 @@ pub fn openCatalog(allocator: std.mem.Allocator, client: c.DirectTableClient, sn
     if (cancellation) |flag| if (flag.load(.acquire)) return error.Cancelled;
     return .{ .allocator = allocator, .client = client, .reader = try c.DirectTableReader.openCatalog(allocator, client, snapshot, object), .request_limit = request_limit, .cancellation = cancellation };
 }
+pub fn projectTo(self: *Self, target: c.DirectSchemaProjection.Accepted) !void {
+    // Metadata preparation and final original-source validation each require
+    // at most a credential exchange and one direct call.
+    try self.charge();
+    try self.charge();
+    try self.reader.projectTo(self.client, target.declaration);
+    if (!std.meta.eql(self.reader.basis.projection.?, target)) return error.SourceChanged;
+    try self.checkCancellation();
+}
 pub fn deinit(self: *Self) void {
     if (self.page) |*page| page.deinit();
     self.reader.deinit();
@@ -90,7 +99,7 @@ pub fn selectPoint(self: *Self, plan: f.LogicalQuery.Plan) void {
 pub fn selectAccess(self: *Self, plan: f.LogicalQuery.Plan) !void {
     // Historical sources evaluate the same plan over their original layout.
     // Current physical access paths require separate historical qualification.
-    if (self.reader.basis.catalog != null) return;
+    if (self.reader.basis.catalog != null or self.reader.basis.projection != null) return;
     self.selectPoint(plan);
     if (self.point_key == null) self.count_range = CountRange.qualify(self.reader.schema.schema, plan);
     if (self.point_key != null or self.count_range != null) return;

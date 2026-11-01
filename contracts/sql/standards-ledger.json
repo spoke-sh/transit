@@ -503,7 +503,7 @@
         "UCS_BASIC",
         "EBCDIC_037_NOPAD"
       ],
-      "deviations": "Selected direct Table catalogs have paged acquisition, exact WAL/segment retention, original-operation recovery and explicit release. The SQL service binds canonical AS OF SNAPSHOT suffixes before names; raw Fuze relational parsing still rejects the suffix. Temporal syntax, explicit target-schema projection and historical graph/foreign execution are separate unfinished profiles; independent sources are not a common transaction cut.",
+      "deviations": "Selected direct Table catalogs have paged acquisition, exact WAL/segment retention, original-operation recovery and explicit release. The SQL service binds canonical AS OF SNAPSHOT suffixes before names; raw Fuze relational parsing still rejects the suffix. Explicit forward schema projection binds an accepted CURRENT or snapshot-selected target separately from source evidence. Temporal syntax and historical graph/foreign execution are separate unfinished profiles; independent sources are not a common transaction cut.",
       "corpus_sources": [
         "contracts/sql/corpus/statements.json",
         "contracts/sql/corpus/relational.json",
@@ -1033,7 +1033,7 @@
       ]
     }
   ],
-  "sha256": "e2d0643b8235884cbeb1cf20bf09302c7232d0bc5780e5a466a1a44907f49de8",
+  "sha256": "cab76205d9a36aa5691ff1621b5af66b9a822d38385ae5fd0d4f9075cd12017a",
   "scope": "States describe public runtime entry points, not helper availability or ISO conformance. Physical codecs describe typed TableSchema admission; ENCODING syntax remains reference-only. An implemented feature covers only the stated deviations and fixtures.",
   "compiler_cases": [
     {

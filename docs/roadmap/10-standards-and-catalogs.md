@@ -532,6 +532,21 @@ owning completion contract, not silently appended to the cursor's initial basis.
 Budget metadata traversal as well as rows. Claim no constant-time DDL or zero
 allocations without measurements against the actual retained graph.
 
+The next storage increment publishes accepted definition revisions and their
+frozen ADD-origin directories atomically with Table DDL. Exact metadata lookup
+and forward projection survive reply loss, checkpoint/restart, later defaults,
+column removal and a history larger than the resident cache. A real collection
+walk preserves the origin pages while deleting an unaccepted declaration.
+Independent 194-byte fixtures cover wide identities and canonical rejection.
+The focused disk projection and canonical fixture checks pass. Signed native
+preparation/scan and the shared reader now bind exact accepted targets separately
+from source cuts; the signed test covers metadata-only rights, denied reads,
+later defaults, DROP, continuation fencing and historical release. SQL SELECT,
+DESCRIBE and EXPLAIN are wired to these operations with separate observation
+evidence. The current cutover passes all 320 storage tests, 13 focused catalog tests,
+20 direct-query tests, 13 SQL tests, 26 result tests, reflected contract checks
+and 60 fast checks. Expanded installed SQL qualification remains pending.
+
 #### P4 — Build durable catalog cuts and their retention lifecycle
 
 Implement historical acquisition and lookup in `DirectCatalog`,
@@ -770,3 +785,9 @@ descriptor cutover, followed by `P2`/`P3` write and schema integration. The
 and evidence decisions required by the newer source. Existing WAL traversal,
 Table snapshot/transaction identities, current-policy checks and retention owners
 must be reused; a separate in-memory manifest namespace cannot replace them.
+
+The installed Python and Node history schedules pass at `95e82586f`: 457 and
+230 public requests respectively, including sync/async Python, caller/node
+replacement, lost acquisition/release replies, retained original identities,
+rename/DROP/name reuse and current revocation. This evidence predates the accepted
+interpretation/projection cutover and must be repeated at the final PR revision.

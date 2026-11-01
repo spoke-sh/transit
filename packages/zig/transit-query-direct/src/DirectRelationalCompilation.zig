@@ -11,6 +11,7 @@ parent: std.mem.Allocator,
 memory: Memory,
 syntax: f.RelationalSql.Owned,
 bindings: [r.max_sources]c.DirectTableBinding = undefined,
+projections: [r.max_sources]?c.DirectSchemaProjection.Accepted = @splat(null),
 positions: [r.max_sources]q.protocol.DataLifecycle.Position = undefined,
 schemas: [r.max_sources]?f.TableSchema.Owned = @splat(null),
 sources: [r.max_sources]r.Source = undefined,
@@ -26,6 +27,9 @@ pub fn prepareAccess(allocator: std.mem.Allocator, clients: []const c.DirectTabl
     return prepareAt(allocator, clients, namespace, text, lifetime, options, location, access, null);
 }
 pub fn prepareAt(allocator: std.mem.Allocator, clients: []const c.DirectTableClient, namespace: u64, text: []const u8, lifetime: r.Lifetime, options: q.DirectRelationalQuery.Options, location: ?*f.Sql.Location, access: c.TableAuthority.Access, snapshot: ?q.protocol.DataLifecycle.Snapshot) !*Self {
+    return prepareProjectedAt(allocator, clients, namespace, text, lifetime, options, location, access, snapshot, null);
+}
+pub fn prepareProjectedAt(allocator: std.mem.Allocator, clients: []const c.DirectTableClient, namespace: u64, text: []const u8, lifetime: r.Lifetime, options: q.DirectRelationalQuery.Options, location: ?*f.Sql.Location, access: c.TableAuthority.Access, snapshot: ?q.protocol.DataLifecycle.Snapshot, projection: ?c.DirectSchemaProjection.Target) !*Self {
     if (access != .read and access != .inspect) return error.InvalidQueryAccess;
     if (clients.len == 0) return error.InvalidRelationalSources;
     for (clients) |client| try options.requireClient(client);
@@ -38,6 +42,7 @@ pub fn prepareAt(allocator: std.mem.Allocator, clients: []const c.DirectTableCli
     self.catalog = snapshot;
     self.memory = .{ .parent = allocator, .limit = @intCast(options.budgets.resident_bytes - resident_base) };
     self.schemas = @splat(null);
+    self.projections = @splat(null);
     self.syntax = try f.RelationalSql.parseDialect(self.memory.allocator(), text, location, options.dialect);
     errdefer self.syntax.deinit();
     if (clients.len != self.syntax.targets.len or clients.len == 0) return error.InvalidRelationalSources;
@@ -55,7 +60,14 @@ pub fn prepareAt(allocator: std.mem.Allocator, clients: []const c.DirectTableCli
         self.bindings[i].catalog = snapshot;
         self.positions[i] = metadata.position;
         _ = try self.bindings[i].require(client, access);
-        const bytes = try metadata.schema.decode(self.memory.allocator(), f.TableSchema.max_bytes);
+        const projected = if (projection) |selected| try c.DirectSchemaProjection.resolve(client, metadata.interpretation, selected) else null;
+        defer if (projected) |value| value.deinit();
+        self.projections[i] = if (projected) |value| value.value.result.schema_projection.prepared.target else null;
+        for (self.bindings[0..i], self.projections[0..i]) |earlier, earlier_target| {
+            if (std.meta.eql(earlier.interpretation.interpretation.object, metadata.interpretation.interpretation.object) and !std.meta.eql(earlier_target, self.projections[i])) return error.RelationalSourceChanged;
+        }
+        const schema_bytes = if (projected) |value| value.value.result.schema_projection.prepared.schema else metadata.schema;
+        const bytes = try schema_bytes.decode(self.memory.allocator(), f.TableSchema.max_bytes);
         defer self.memory.allocator().free(bytes);
         self.schemas[i] = try f.TableSchema.decode(self.memory.allocator(), bytes);
         try q.DirectTableQuery.qualify(self.schemas[i].?.schema);
@@ -99,6 +111,7 @@ pub fn fromRetained(allocator: std.mem.Allocator, client: c.DirectTableClient, n
     self.catalog = null;
     self.memory = .{ .parent = allocator, .limit = @intCast(options.budgets.resident_bytes - resident_base) };
     self.schemas = @splat(null);
+    self.projections = @splat(null);
     self.syntax = try f.RelationalSql.parseDialect(self.memory.allocator(), text, location, options.dialect);
     errdefer self.syntax.deinit();
     if (self.syntax.targets.len != bindings.len) return error.InvalidRelationalSources;

@@ -5,8 +5,9 @@ options { caseInsensitive = true; }
 
 statement: (historicalStatement | selectStatement | mutationStatement | extensionStatement | transactionStatement) SEMI? EOF;
 // The SQL service binds this exact catalog before compiling the inner query.
-historicalStatement: (selectStatement | SHOW TABLES | DESCRIBE identifier | EXPLAIN selectStatement) snapshotClause;
+historicalStatement: (selectStatement | DESCRIBE identifier | EXPLAIN selectStatement) snapshotClause projectionClause? | SHOW TABLES snapshotClause;
 snapshotClause: AS OF SNAPSHOT STRING (IN SCHEMA identifier)?;
+projectionClause: PROJECTING TO (CURRENT | SNAPSHOT STRING);
 // Session controls lower to the Catalog-owned local Table transaction contract.
 transactionStatement
     : (BEGIN (WORK | TRANSACTION)? | START TRANSACTION) transactionOptions?
@@ -328,7 +329,7 @@ explainStatement
     : EXPLAIN selectStatement
     ;
 
-identifier: settingIdentifier | STREAMS | QUEUES | SNAPSHOT;
+identifier: settingIdentifier | STREAMS | QUEUES | SNAPSHOT | CURRENT | PROJECTING;
 settingIdentifier: legacyIdentifier | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER;
 legacyIdentifier
     : IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN
@@ -536,6 +537,8 @@ AS: 'AS';
 OF: 'OF';
 FOR: 'FOR';
 SNAPSHOT: 'SNAPSHOT';
+PROJECTING: 'PROJECTING';
+CURRENT: 'CURRENT';
 INT64: 'INT64';
 BOOL: 'BOOL';
 UTF8: 'UTF8';

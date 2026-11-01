@@ -322,3 +322,12 @@ without dispatching an exchange. Expiry and disablement never delete accepted
 history. Native owner quotas still apply. Private secret bytes stay outside these
 records. Signing in confers no native privilege; bindings refer to an existing
 reader's actual credential and reject the bootstrap owner/root role.
+
+`DirectSchemaProjection` exposes metadata-only target preparation and bounded
+forward reads over existing private pins or published historical catalogs.
+`DirectTableReader.projectTo` owns the target schema and preserves the original
+source evidence. CURRENT resolves once; accepted targets and ADD origins survive
+later defaults and DROP. Cursors bind both interpretations and current SELECT
+still governs every read. SQL and its prepared plans use these same operations.
+The [projection contract](../../../contracts/HISTORICAL_CATALOG_V1.md#explicit-schema-projection)
+defines supported mappings and refusal behavior.

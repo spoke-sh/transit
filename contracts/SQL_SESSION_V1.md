@@ -470,3 +470,9 @@ its stable ID without changing session settings; historical
 SELECT observations carry its immutable identity and exact source evidence.
 Metadata observations retain catalog attribution without claiming row execution.
 An independent source vector is not an atomic cross-Table cut.
+
+Historical SELECT, DESCRIBE and EXPLAIN also accept the explicit projection
+suffix defined in the historical catalog contract. Source catalog and data
+provenance remain unchanged; target definition, schema, acceptance frontier and
+mapping policy are separate observation fields. Prepared CURRENT targets resolve
+once. Metadata preparation has zero data reads, pin acquisitions or mutations.

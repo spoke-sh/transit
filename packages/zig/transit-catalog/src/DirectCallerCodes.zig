@@ -2,6 +2,8 @@
 const common = @import("CallerCodes.zig");
 pub const Entry = common.Entry;
 pub const entries = [_]Entry{
+    .{ .cause = error.InvalidSchemaProjection, .code = "catalog.invalid_schema_projection", .category = .integrity, .message = "Projection evidence must retain its original source and exact accepted target." },
+    .{ .cause = error.IncompatibleSchemaProjection, .code = "catalog.incompatible_schema_projection", .category = .unsupported, .message = "The requested definitions require an unsupported schema conversion. Select a compatible forward target." },
     .{ .cause = error.EmptyHistoricalSelection, .code = "catalog.empty_historical_selection", .category = .binding, .message = "Select at least one exact source before retaining a historical catalog." },
     .{ .cause = error.HistoricalIdentityConflict, .code = "catalog.historical_identity_conflict", .category = .conflict, .message = "The historical binding differs from its original retained identity. Preserve the original selector and acquisition." },
     .{ .cause = error.HistoricalReadOnly, .code = "catalog.historical_read_only", .category = .unsupported, .message = "Retained catalog bindings support reads and inspection. Mutations require an explicit current binding." },

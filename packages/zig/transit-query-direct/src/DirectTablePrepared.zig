@@ -10,6 +10,7 @@ metadata: ?c.DirectTableProtocol.Definition = null,
 template: f.LogicalPrepared,
 output: f.Types.Decoded,
 collations: f.QueryCollations = .{},
+projection: ?c.DirectSchemaProjection.Accepted = null,
 
 pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, namespace: u64, text: []const u8, dialect: f.Sql.Dialect, detail: ?*f.Sql.Binding) !Self {
     return prepareAccess(allocator, client, namespace, text, dialect, detail, .read);
@@ -18,6 +19,9 @@ pub fn prepareAccess(allocator: std.mem.Allocator, client: c.DirectTableClient, 
     return prepareAt(allocator, client, namespace, text, dialect, detail, access, null);
 }
 pub fn prepareAt(allocator: std.mem.Allocator, client: c.DirectTableClient, namespace: u64, text: []const u8, dialect: f.Sql.Dialect, detail: ?*f.Sql.Binding, access: c.TableAuthority.Access, snapshot: ?q.protocol.DataLifecycle.Snapshot) !Self {
+    return prepareProjectedAt(allocator, client, namespace, text, dialect, detail, access, snapshot, null);
+}
+pub fn prepareProjectedAt(allocator: std.mem.Allocator, client: c.DirectTableClient, namespace: u64, text: []const u8, dialect: f.Sql.Dialect, detail: ?*f.Sql.Binding, access: c.TableAuthority.Access, snapshot: ?q.protocol.DataLifecycle.Snapshot, projection: ?c.DirectSchemaProjection.Target) !Self {
     if (snapshot != null and client.transaction != null) return error.UnsupportedHistoricalTransaction;
     if (access != .read and access != .inspect) return error.InvalidQueryAccess;
     var arena = std.heap.ArenaAllocator.init(allocator);
@@ -33,12 +37,16 @@ pub fn prepareAt(allocator: std.mem.Allocator, client: c.DirectTableClient, name
     var binding = try c.DirectTableBinding.init(client.connection, metadata);
     binding.catalog = snapshot;
     _ = try binding.require(client, access);
-    var schema = try f.TableSchema.decode(allocator, try metadata.schema.decode(arena.allocator(), f.TableSchema.max_bytes));
+    const projected = if (projection) |target| try c.DirectSchemaProjection.resolve(client, binding.interpretation, target) else null;
+    defer if (projected) |value| value.deinit();
+    const target = if (projected) |value| value.value.result.schema_projection.prepared.target else null;
+    const schema_bytes = if (projected) |value| value.value.result.schema_projection.prepared.schema else metadata.schema;
+    var schema = try f.TableSchema.decode(allocator, try schema_bytes.decode(arena.allocator(), f.TableSchema.max_bytes));
     defer schema.deinit();
     try q.DirectTableQuery.qualify(schema.schema);
     var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
     const row_type = try schema.schema.rowType(&fields);
-    const basis = try binding.fingerprint(allocator);
+    const basis = try preparationBasis(allocator, binding, target);
     var semantics: [f.TableSchema.max_columns]f.ColumnSemantics = undefined;
     for (schema.schema.columns, semantics[0..schema.schema.columns.len]) |column, *value| value.* = column.semantics;
     var template = try f.LogicalPrepared.initSemantics(allocator, text, name, row_type, basis, detail, dialect, semantics[0..schema.schema.columns.len]);
@@ -53,7 +61,17 @@ pub fn prepareAt(allocator: std.mem.Allocator, client: c.DirectTableClient, name
     _ = try binding.require(client, access);
     var stored_metadata = metadata;
     stored_metadata.schema = .{ .base64 = "" };
-    return .{ .binding = binding, .metadata = stored_metadata, .template = template, .output = output, .collations = .fromTable(schema.schema) };
+    return .{ .binding = binding, .metadata = stored_metadata, .template = template, .output = output, .collations = .fromTable(schema.schema), .projection = target };
+}
+fn preparationBasis(allocator: std.mem.Allocator, binding: c.DirectTableBinding, target: ?c.DirectSchemaProjection.Accepted) ![32]u8 {
+    const source = try binding.fingerprint(allocator);
+    const projection = target orelse return source;
+    var hash = std.crypto.hash.sha2.Sha256.init(.{});
+    hash.update("transit.table.prepared.projection.v1\x00");
+    hash.update(&source);
+    const bytes = try projection.encode();
+    hash.update(bytes.slice());
+    return hash.finalResult();
 }
 pub fn parameterTypes(self: *const Self) []const f.Types.Type {
     return self.template.parameterTypes();
@@ -67,12 +85,12 @@ pub fn deinit(self: *Self) void {
 pub fn instantiate(self: *const Self, allocator: std.mem.Allocator, connection: c.DirectTableProtocol.Connection, interpretation: c.storage.TableDeclaration.Stored, schema: f.TableSchema.Schema, captured_basis: [32]u8, values: []const ?f.Types.Values.Atom, detail: ?*f.Sql.Binding) !f.TableSelect.Owned {
     try self.binding.validate();
     if (!std.meta.eql(self.binding.connection, connection)) return error.CatalogIdentityConflict;
-    if (!std.meta.eql(self.binding.interpretation, interpretation) or !std.mem.eql(u8, &try schema.fingerprint(), &interpretation.schema_fingerprint)) return error.TableDefinitionChanged;
+    if (!std.meta.eql(self.binding.interpretation, interpretation) or !std.mem.eql(u8, &try schema.fingerprint(), &(if (self.projection) |target| target.declaration.schema_fingerprint else interpretation.schema_fingerprint))) return error.TableDefinitionChanged;
     var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
     var arena = std.heap.ArenaAllocator.init(allocator);
     errdefer arena.deinit();
     const name = try arena.allocator().dupe(u8, self.template.name);
-    var bound = try self.template.instantiate(allocator, name, try schema.rowType(&fields), try self.binding.fingerprint(allocator), captured_basis, values, detail);
+    var bound = try self.template.instantiate(allocator, name, try schema.rowType(&fields), try preparationBasis(allocator, self.binding, self.projection), captured_basis, values, detail);
     errdefer bound.deinit();
     bound.plan.collations = .fromTable(schema);
     try bound.plan.validate();

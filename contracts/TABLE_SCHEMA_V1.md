@@ -331,3 +331,31 @@ shared 64-KiB schema allowance before converting the next default. It retains at
 most one individually bounded conversion beyond the remaining allowance.
 Complete schema validation also counts descriptors and framing. A shared input
 tree cannot postpone the aggregate check until every default is materialized.
+
+## Accepted interpretation directory
+
+Each Table partition publishes an immutable, paged directory of its accepted
+active definitions in the same log record as CREATE, ALTER or RENAME. Entries
+are keyed by full definition revision and contain the exact stored declaration,
+its acceptance frontier and that definition's ADD-time column-origin directory.
+A staged declaration, matching schema digest or caller-supplied descriptor alone
+cannot establish acceptance. Retiring a Table preserves this directory; DROP is
+not an active projection target. Row mutations and physical maintenance preserve
+it. Persisted roots must carry this directory explicitly; older roots with no
+field are incompatible and cannot default to an empty accepted history.
+
+The directory is control metadata, distinct from live physical-schema locator
+counts and from retained data cuts. It does not keep old rows or a transaction
+open, confer access or make two data sources atomic. Immutable definition and
+column-origin artifacts are reachable from collection through bounded directory
+walks. Resident memory depends on page/cache budgets rather than the number of
+accepted definitions. Retention is unlimited by default; this profile provides
+no implicit metadata expiry during compaction or quota pressure.
+
+Explicit forward projection can use one exact accepted target definition of the
+same stable object. CURRENT must resolve once to such a definition. Columns map
+by stable ColumnId, and missing additions use that target's retained ADD-time
+origin, never its later insertion default. Backward projection, physical type or
+comparison conversion and incompatible keys refuse. Detailed source placement
+and target coverage remain separate inspection evidence; selecting a target
+never mutates an already issued source observation.

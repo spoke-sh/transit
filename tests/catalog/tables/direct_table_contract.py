@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "40809e4208bd7e629253251bf10906503f9df4f155f7faae012a61d25a53640c"
+definition = "9ccbb15686fea6ace7f101548f0957d9847446c09353f098543b2c20361b2fef"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -431,6 +431,42 @@ def persist(path, content):
         path.write_bytes(content)
     else:
         assert path.read_bytes() == content, f"Direct Table contract drift: {path}"
+
+
+# Independent fixed-width accepted-interpretation directory value. This oracle
+# uses only struct packing, never the production codec. Fixture content is MIT.
+def accepted_interpretation_fixture():
+    revision, frontier = 2**53 + 1, 2**64 - 1
+    scope = dict(realm=42, resource=3, catalog=2**64 - 1)
+    stored = dict(kind="table", interpretation=dict(object=dict(scope=scope, branch=1, object=7), revision=revision, digest=[3]*32),
+                  content=dict(bytes=104, sha256=[3]*32), schema_fingerprint=[4]*32, retired=False)
+    value = dict(declaration=stored, next_lsn=frontier, origins=dict(digest=[5]*32, location=[6]*32))
+    encoded = (struct.pack("<7Q", 42, 3, 2**64 - 1, 1, 7, revision, 104)
+               + bytes([3]*32) + bytes([4]*32) + bytes([0])
+               + struct.pack("<Q", frontier) + bytes([1]) + bytes([5]*32) + bytes([6]*32))
+    assert len(encoded) == 194
+    return dict(value=value, hex=encoded.hex())
+
+
+persist(root / "packages/zig/transit-storage/src/fixtures/accepted-interpretation-v1.json",
+        (json.dumps(accepted_interpretation_fixture(), indent=2) + "\n").encode())
+
+
+# Independent signed projection preparation includes both exact declarations.
+projection_stored = accepted_interpretation_fixture()["value"]["declaration"]
+schema_projection_input = {**request_input, "action": {"schema_projection": {"prepare": {"source": projection_stored, "target": projection_stored}}}}
+schema_projection_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(schema_projection_input)).digest())}
+with tempfile.TemporaryDirectory(prefix="transit-schema-projection-contract-") as directory:
+    signing_key = Key(Path(directory), "public-test-key", 9)
+    schema_projection_request = {**schema_projection_input, "proof": {"claim": schema_projection_claim,
+        "signature": signing_key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(schema_projection_claim)).digest())}}
+validator.validate(schema_projection_request)
+for field in ("source", "target"):
+    invalid = copy.deepcopy(schema_projection_request)
+    del invalid["action"]["schema_projection"]["prepare"][field]
+    assert not validator.is_valid(invalid), field
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-schema-projection-v1.json",
+        (json.dumps({"request": schema_projection_request, "public_key": public_key}, indent=2) + "\n").encode())
 
 
 # Independent language-neutral history oracle: all u64 identities remain decimal

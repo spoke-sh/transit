@@ -84,6 +84,7 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
 fn applySelected(comptime action_tag: std.meta.Tag(w.Action), allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action: *const w.Action, delegation: ?c.DirectReadDelegation, execution: Execution) anyerror!w.Result {
     switch (action_tag) {
         .branch => return .{ .branch = try branch(allocator, catalog, policy, action.branch) },
+        .schema_projection => return .{ .schema_projection = try c.DirectSchemaProjection.dispatch(allocator, catalog, policy, action.schema_projection) },
         .historical_catalog => return .{ .historical_catalog = try historical(allocator, catalog, policy, action.historical_catalog) },
         .kv => {
             var scratch: std.heap.ArenaAllocator = .init(catalog.allocator);

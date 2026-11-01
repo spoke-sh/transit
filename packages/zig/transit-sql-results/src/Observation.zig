@@ -3,7 +3,21 @@ const std = @import("std");
 const r = @import("root.zig");
 const d = r.protocol.DataLifecycle;
 const Self = @This();
-pub const Table = struct { object: d.Object, interpretation: d.Definition, accepted: d.Position, changed_lsn: u64, pin: d.Content, commitment: [32]u8, schema: [32]u8 };
+pub const Projection = struct {
+    source: d.Definition,
+    target: d.Definition,
+    declaration: d.Content,
+    schema: [32]u8,
+    accepted_lsn: u64,
+    policy: enum { stable_columns_add_origins },
+    pub fn validate(self: Projection) !void {
+        try self.source.validate();
+        try self.target.validate();
+        try self.declaration.validate();
+        if (!std.meta.eql(self.source.object, self.target.object) or self.source.revision > self.target.revision or self.accepted_lsn == 0 or std.mem.allEqual(u8, &self.schema, 0)) return error.InvalidProjectionObservation;
+    }
+};
+pub const Table = struct { object: d.Object, interpretation: d.Definition, accepted: d.Position, changed_lsn: u64, pin: d.Content, commitment: [32]u8, schema: [32]u8, projection: ?Projection = null };
 pub const Data = union(enum) {
     source: struct { kind: r.fuze.Unified.SourceKind, resource: u64, position: union(enum) { native_revision: u64, table: [32]u8 }, contract: [32]u8, schema: [32]u8 },
     table: Table,
@@ -22,10 +36,18 @@ pub const Metadata = struct {
     session_settings: ?[32]u8,
     source: ?struct { resource: u64, contract: [32]u8, schema: [32]u8 } = null,
     historical: ?d.Snapshot = null,
+    projections: []const Projection = &.{},
 };
 pub const Value = union(enum) { data: Data, metadata: Metadata };
 pub fn validate(value: Value) !void {
     if (value == .metadata) {
+        if (value.metadata.projections.len > r.fuze.Relational.max_sources) return error.InvalidProjectionObservation;
+        for (value.metadata.projections) |projection| {
+            try projection.validate();
+            for (value.metadata.definitions) |definition| {
+                if (std.meta.eql(definition, projection.source)) break;
+            } else return error.InvalidProjectionObservation;
+        }
         if (value.metadata.historical) |snapshot| {
             try snapshot.validate();
             if (snapshot.definition != r.protocol.Growth.current_definition) return error.IncompatibleDefinition;
@@ -37,6 +59,7 @@ pub fn validate(value: Value) !void {
         }
         return;
     }
+    if (value.data == .table) try validateTableProjection(value.data.table);
     if (value.data == .historical) {
         const historical = value.data.historical;
         try historical.snapshot.validate();
@@ -44,6 +67,7 @@ pub fn validate(value: Value) !void {
         if (historical.snapshot.source_count == 0 or historical.sources.len == 0 or historical.sources.len > r.fuze.Relational.max_sources) return error.InvalidHistoricalObservation;
         var distinct: u64 = 0;
         for (historical.sources, 0..) |source, i| {
+            try validateTableProjection(source);
             try source.object.validate();
             try source.pin.validate();
             try historical.snapshot.requireSource(.{ .interpretation = source.interpretation, .manifest = null, .checkpoint_lsn = 0, .accepted = source.accepted });
@@ -70,6 +94,13 @@ pub fn validate(value: Value) !void {
     for (view.sources) |source| {
         try source.validate();
         if (!std.meta.eql(source.cut, view.cut) or !std.meta.eql(source.revision, view.revision) or source.last_statement != view.last_statement) return error.InvalidTransactionObservation;
+    }
+}
+
+fn validateTableProjection(source: Table) !void {
+    if (source.projection) |projection| {
+        try projection.validate();
+        if (!std.meta.eql(source.interpretation, projection.source)) return error.InvalidProjectionObservation;
     }
 }
 
@@ -130,3 +161,29 @@ pub const PublishedResourceObservation = struct {
         if (caller_revoked or current_policy_epoch < self.verified_policy_epoch) return error.AuthorizationRevokedMidStream;
     }
 };
+
+test "explicit projection observation preserves source schema and rejects foreign target attribution" {
+    const t = std.testing;
+    const object: d.Object = .{ .scope = .{ .realm = 1, .resource = 2, .catalog = 3 }, .branch = 1, .object = 4 };
+    const original: d.Definition = .{ .object = object, .revision = 1, .digest = @splat(1) };
+    const target: d.Definition = .{ .object = object, .revision = 3, .digest = @splat(3) };
+    const projection: Projection = .{ .source = original, .target = target, .declaration = .{ .bytes = 104, .sha256 = @splat(3) }, .schema = @splat(4), .accepted_lsn = 7, .policy = .stable_columns_add_origins };
+    var table: Table = .{ .object = object, .interpretation = original, .accepted = .{ .partition = 5, .next_lsn = 6 }, .changed_lsn = 6, .pin = .{ .bytes = 100, .sha256 = @splat(5) }, .commitment = @splat(6), .schema = @splat(2), .projection = projection };
+    try validate(.{ .data = .{ .table = table } });
+    const fingerprinted = try fingerprint(t.allocator, .{ .data = .{ .table = table } });
+    table.projection = null;
+    try t.expect(!std.meta.eql(fingerprinted, try fingerprint(t.allocator, .{ .data = .{ .table = table } })));
+    table.projection = projection;
+    table.projection.?.source.revision += 1;
+    try t.expectError(error.InvalidProjectionObservation, validate(.{ .data = .{ .table = table } }));
+    table.projection = projection;
+    table.projection.?.target.object.object += 1;
+    try t.expectError(error.InvalidProjectionObservation, validate(.{ .data = .{ .table = table } }));
+    table.projection = projection;
+    table.projection.?.accepted_lsn = 0;
+    try t.expectError(error.InvalidProjectionObservation, validate(.{ .data = .{ .table = table } }));
+    var metadata: Value = .{ .metadata = .{ .kind = .plan, .consistency = .exact_definitions, .namespace = 1, .definitions = &.{original}, .configuration_revision = null, .session_settings = null, .projections = &.{projection} } };
+    try validate(metadata);
+    metadata.metadata.definitions = &.{target};
+    try t.expectError(error.InvalidProjectionObservation, validate(metadata));
+}

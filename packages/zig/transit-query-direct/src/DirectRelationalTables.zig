@@ -21,6 +21,10 @@ pub fn open(allocator: std.mem.Allocator, client: c.DirectTableClient, snapshots
     return openAt(allocator, client, snapshots, sources, requests, cancellation, null);
 }
 pub fn openAt(allocator: std.mem.Allocator, client: c.DirectTableClient, snapshots: []const c.DirectTableProtocol.Snapshot, sources: []const r.Source, requests: u64, cancellation: ?*const std.atomic.Value(bool), catalog: ?q.protocol.DataLifecycle.Snapshot) !Self {
+    return openProjectedAt(allocator, client, snapshots, sources, requests, cancellation, catalog, &.{});
+}
+pub fn openProjectedAt(allocator: std.mem.Allocator, client: c.DirectTableClient, snapshots: []const c.DirectTableProtocol.Snapshot, sources: []const r.Source, requests: u64, cancellation: ?*const std.atomic.Value(bool), catalog: ?q.protocol.DataLifecycle.Snapshot, projections: []const ?c.DirectSchemaProjection.Accepted) !Self {
+    if (projections.len != 0 and projections.len != sources.len) return error.InvalidRelationalSources;
     if (sources.len == 0 or sources.len > r.max_sources or snapshots.len != sources.len) return error.InvalidRelationalSources;
     var self: Self = .{ .allocator = allocator, .client = client, .declarations = sources, .request_limit = requests };
     errdefer self.deinit();
@@ -28,6 +32,7 @@ pub fn openAt(allocator: std.mem.Allocator, client: c.DirectTableClient, snapsho
         if (self.requests >= requests) return error.QueryPageBudget;
         self.scans[i] = if (catalog) |cut| try Scan.openCatalog(allocator, client, cut, snapshot.object.object, requests - self.requests, cancellation) else try Scan.open(allocator, client, snapshot, requests - self.requests, cancellation);
         const scan = &self.scans[i].?;
+        if (projections.len != 0) if (projections[i]) |target| try scan.projectTo(target);
         self.requests += scan.requests;
         const basis = scan.reader.basis;
         if ((basis.workspace != null) != (client.transaction != null)) return error.InvalidTransactionRead;

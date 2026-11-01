@@ -56,7 +56,7 @@ class Faults:
                         # hide a release-after-pin or eager scan.
                         for name in table:
                             owner.explain_actions[name] = owner.explain_actions.get(name, 0) + 1
-                        explain_failure = any(name not in ('lookup', 'check', 'check_set', 'client_progress', 'historical_catalog') for name in table)
+                        explain_failure = any(name not in ('lookup', 'check', 'check_set', 'client_progress', 'historical_catalog', 'schema_projection') for name in table)
                         if 'historical_catalog' in table:
                             historical = table['historical_catalog']
                             for name in historical:
@@ -64,6 +64,12 @@ class Faults:
                                 owner.explain_actions[key] = owner.explain_actions.get(key, 0) + 1
                             explain_failure |= any(name not in ('lookup', 'source', 'namespace', 'list') for name in historical)
                             explain_failure |= historical.get('source', {}).get('rows', False)
+                        if 'schema_projection' in table:
+                            projection = table['schema_projection']
+                            for name in projection:
+                                key = 'schema_projection.' + name
+                                owner.explain_actions[key] = owner.explain_actions.get(key, 0) + 1
+                            explain_failure |= set(projection) != {'prepare'}
                         if 'client_progress' in table:
                             explain_failure |= set(table['client_progress']) != {'inspect'}
                         for check in table.get('check_set', []):

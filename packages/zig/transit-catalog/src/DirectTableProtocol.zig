@@ -315,6 +315,7 @@ pub const Action = union(enum) {
     pub const json_schema_sequence_bounds = .{ .check_set = 16 };
     branch: c.DirectBranch.Request,
     historical_catalog: c.DirectHistory.Request,
+    schema_projection: c.DirectSchemaProjection.Request,
     transaction: c.DirectTransactionRequest.Request,
     client_token: c.DirectClientToken.Request,
     client_progress: c.DirectClientToken.ProgressRequest,
@@ -482,6 +483,7 @@ pub const Request = struct {
             },
             .branch => |value| try value.validate(connection),
             .historical_catalog => |value| try value.validate(connection),
+            .schema_projection => |value| try value.validate(connection),
             .transaction => |value| {
                 try value.validate();
                 if (!std.meta.eql(value.key().connection, connection)) return error.CatalogIdentityConflict;
@@ -827,6 +829,7 @@ pub const StateList = struct { entries: [8]?D.Listed, next: ?u64, directory_posi
 pub const Result = union(enum) {
     branch: c.DirectBranch.Result,
     historical_catalog: c.DirectHistory.Result,
+    schema_projection: c.DirectSchemaProjection.Result,
     transaction: c.DirectTransactionRequest.Result,
     record: c.DirectRecord.Result,
     client_token: ?c.DirectClientToken.Receipt,

@@ -4855,7 +4855,8 @@
         "packages/zig/transit-data-client/src/Catalog.zig",
         "packages/zig/transit-catalog/src/DirectHistory.zig",
         "packages/zig/transit-catalog/src/DirectHistorySelector.zig",
-        "packages/zig/transit-catalog/src/DirectCatalogHistory.zig"
+        "packages/zig/transit-catalog/src/DirectCatalogHistory.zig",
+        "packages/zig/transit-catalog/src/DirectSchemaProjection.zig"
       ],
       "exclude": [],
       "registry": "packages/zig/transit-catalog/src/DirectCallerCodes.zig",
@@ -5276,6 +5277,14 @@
         "InvalidTableReadBudget": {
           "code": "catalog.invalid_read_budget",
           "category": "limit"
+        },
+        "InvalidSchemaProjection": {
+          "code": "catalog.invalid_schema_projection",
+          "category": "integrity"
+        },
+        "IncompatibleSchemaProjection": {
+          "code": "catalog.incompatible_schema_projection",
+          "category": "unsupported"
         }
       },
       "exceptions": [

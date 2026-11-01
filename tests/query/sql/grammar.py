@@ -87,7 +87,10 @@ def check():
         tree(statement + " AS OF SNAPSHOT 'selector'")
         tree(statement + " AS OF SNAPSHOT 'selector' IN SCHEMA public")
         tree(statement + " AS OF SNAPSHOT 'selector' IN SCHEMA \"Old Schema\"")
-    for invalid in ('FOR SYSTEM_TIME AS OF 240', "DELETE FROM items AS OF SNAPSHOT 'selector'"):
+        if statement != 'SHOW TABLES':
+            tree(statement + " AS OF SNAPSHOT 'source' PROJECTING TO CURRENT")
+            tree(statement + " AS OF SNAPSHOT 'source' IN SCHEMA public PROJECTING TO SNAPSHOT 'target'")
+    for invalid in ('FOR SYSTEM_TIME AS OF 240', "DELETE FROM items AS OF SNAPSHOT 'selector'", "SHOW TABLES AS OF SNAPSHOT 'source' PROJECTING TO CURRENT"):
         try: tree(invalid)
         except ValueError: pass
         else: raise AssertionError(('invalid historical syntax accepted', invalid))

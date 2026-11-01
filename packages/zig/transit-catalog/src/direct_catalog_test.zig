@@ -7264,3 +7264,92 @@ test "historical common transaction collection and abandonment preserve independ
         }
     }
 }
+
+test "signed schema projection freezes CURRENT without data pins and preserves historical cuts after DROP" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const create = try creation(7, 1, "events");
+    _ = try catalog.admit(create, access.policy());
+    _ = try catalog.perform(create.binding, access.policy());
+    _ = try catalog.settle(create.binding, access.policy());
+    var last: P.Evidence = undefined;
+    for (10..20) |operation| last = try insertSelectedTable(&catalog, &access, "events", operation);
+    const pin = try catalog.pinRows(create.binding.target, .{ .scope = scope, .principal = 1, .operation = 100 }, last.outcome.position, access.policy());
+    const snapshot: c.DirectTableProtocol.Snapshot = .{ .object = create.binding.target, .handle = pin };
+    var original = try catalog.snapshotDefinition(t.allocator, snapshot.object, pin, access.policy());
+    defer original.deinit();
+    const acquisition = try historyRequest(&catalog, &access, 200, 1, &.{"events"});
+    var history = try catalog.acquireHistory(acquisition, access.policy());
+    for (0..8) |_| {
+        if (history.state.phase == .published) break;
+        history = try catalog.advanceHistory(acquisition.key, .advance, access.policy());
+    } else return error.FixtureBudget;
+    const historical = history.state.snapshot.?;
+    var view = (try resolve(&catalog, &access, "events")).?;
+    const add = try edit(&view, 201, .{ .alter = .{ .add = .{ .name = "score", .type = .int64, .nullable = false, .default = .{ .value = .{ .atom = .{ .signed = 7 } } } } } });
+    view.deinit();
+    _ = try catalog.admit(add, access.policy());
+    _ = try catalog.perform(add.binding, access.policy());
+    _ = try catalog.settle(add.binding, access.policy());
+    var output = std.heap.ArenaAllocator.init(t.allocator);
+    defer output.deinit();
+    const source = original.root.declared();
+    const before = catalog.store.root;
+    const puts = objects.puts;
+    access.visible_despite_denied_privileges = true;
+    access.denied_privileges = .{ .id = 107, .mask = a.select };
+    const prepared = (try SignedDispatch.call(&output, &catalog, &access, .{ .schema_projection = .{ .prepare = .{ .source = source, .target = null } } })).schema_projection.prepared;
+    try t.expectEqual(puts, objects.puts);
+    try t.expectEqualDeep(before, catalog.store.root);
+    const read: c.DirectSchemaProjection.Request = .{ .scan = .{ .source = .{ .snapshot = snapshot }, .target = prepared.target.declaration, .after = null, .limits = .{} } };
+    try t.expectError(error.CatalogDenied, SignedDispatch.call(&output, &catalog, &access, .{ .schema_projection = read }));
+    access.denied_privileges = null;
+    const first = (try SignedDispatch.call(&output, &catalog, &access, .{ .schema_projection = read })).schema_projection.page;
+    try t.expectEqualDeep(source, first.source.interpretation);
+    try t.expectEqualDeep(prepared.target, first.target);
+    try t.expectEqual(@as(usize, 8), first.source.rows.len);
+    var target_schema = try c.fuze.TableSchema.decode(t.allocator, try prepared.schema.decode(output.allocator(), c.fuze.TableSchema.max_bytes));
+    defer target_schema.deinit();
+    var row = try c.fuze.TableRow.decode(t.allocator, target_schema.schema, try first.source.rows[0].decode(output.allocator(), c.fuze.TableRow.max_bytes));
+    defer row.deinit();
+    try t.expectEqual(@as(i128, 7), row.row().cells[1].value.atom.signed);
+    var tail = read;
+    tail.scan.after = first.source.next;
+    // Later defaults and DROP do not replace the frozen target or old data.
+    view = (try resolve(&catalog, &access, "events")).?;
+    const change_default = try edit(&view, 202, .{ .alter = .{ .default = .{ .column = 2, .value = .{ .value = .{ .atom = .{ .signed = 9 } } } } } });
+    view.deinit();
+    _ = try catalog.admit(change_default, access.policy());
+    _ = try catalog.perform(change_default.binding, access.policy());
+    _ = try catalog.settle(change_default.binding, access.policy());
+    view = (try resolve(&catalog, &access, "events")).?;
+    const drop = try edit(&view, 203, .drop);
+    view.deinit();
+    _ = try catalog.admit(drop, access.policy());
+    _ = try catalog.perform(drop.binding, access.policy());
+    _ = try catalog.settle(drop.binding, access.policy());
+    try catalog.recover();
+    const final = (try SignedDispatch.call(&output, &catalog, &access, .{ .schema_projection = tail })).schema_projection.page;
+    try t.expectEqual(@as(usize, 2), final.source.rows.len);
+    try t.expectEqual(null, final.source.next);
+    var spliced = tail;
+    spliced.scan.target = source;
+    try t.expectError(error.InvalidTableSnapshotCursor, SignedDispatch.call(&output, &catalog, &access, .{ .schema_projection = spliced }));
+    const retained: c.DirectSchemaProjection.Request = .{ .scan = .{ .source = .{ .historical = .{ .snapshot = historical, .object = 7 } }, .target = prepared.target.declaration, .after = null, .limits = .{} } };
+    const historical_first = (try SignedDispatch.call(&output, &catalog, &access, .{ .schema_projection = retained })).schema_projection.page;
+    try t.expectEqualDeep(historical, historical_first.catalog.?);
+    try t.expectEqualDeep(historical.consistency.single_partition, historical_first.historical_source.?.accepted);
+    access.denied_privileges = .{ .id = 107, .mask = a.select };
+    try t.expectError(error.CatalogDenied, SignedDispatch.call(&output, &catalog, &access, .{ .schema_projection = tail }));
+    access.denied_privileges = null;
+    _ = try catalog.advanceHistory(acquisition.key, .release, access.policy());
+    try t.expectError(error.HistoricalSnapshotReleased, SignedDispatch.call(&output, &catalog, &access, .{ .schema_projection = retained }));
+    // Releasing the historical catalog does not release the independent pin.
+    _ = try SignedDispatch.call(&output, &catalog, &access, .{ .schema_projection = tail });
+}

@@ -1259,8 +1259,8 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
         .table_root => |*value| {
             const root = value.root;
             const controls = value.role == .current or value.role == .recovery or value.role == .workspace;
-            const directories = [_]?s.TreeStore.pages.Reference{ root.rows, root.scan_rows, root.identities, root.ordered_rows, root.physical_schemas, root.column_origins, if (controls) root.receipts else null, if (controls) root.operations else null, if (controls) root.pending else null, if (controls) root.pins else null, if (controls) root.history_pins else null, if (value.role == .current) root.archive.directory else null };
-            const kinds = [_]Walk.Kind{ .rows, .scan_rows, .pages_only, .ordered_rows, .physical_schemas, .column_origins, .receipts, .operations, .pages_only, .pins, .pages_only, .pages_only };
+            const directories = [_]?s.TreeStore.pages.Reference{ root.rows, root.scan_rows, root.identities, root.ordered_rows, root.physical_schemas, root.column_origins, root.definitions, if (controls) root.receipts else null, if (controls) root.operations else null, if (controls) root.pending else null, if (controls) root.pins else null, if (controls) root.history_pins else null, if (value.role == .current) root.archive.directory else null };
+            const kinds = [_]Walk.Kind{ .rows, .scan_rows, .pages_only, .ordered_rows, .physical_schemas, .column_origins, .definitions, .receipts, .operations, .pages_only, .pins, .pages_only, .pages_only };
             if (value.slot > directories.len + 1) return error.InvalidTableStorageGraph;
             if (value.slot == directories.len + 1) return true;
             const slot = value.slot;
@@ -1284,6 +1284,10 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
                 .index => |root| try workspace.enqueue(.{ .table_walk = .{ .walk = try Walk.init(context, root), .archive = value.archive, .live_pins = value.live_pins } }),
                 .segment => |content| try workspace.enqueue(.{ .segment = content }),
                 .declaration => |stored| try workspace.enqueue(.{ .declaration = stored }),
+                .definition => |accepted| {
+                    try workspace.enqueue(.{ .declaration = accepted.declaration });
+                    if (accepted.origins) |root| try workspace.enqueue(.{ .table_walk = .{ .walk = try Walk.init(context, .{ .reference = root, .kind = .column_origins }), .archive = value.archive, .live_pins = false } });
+                },
                 .wal => |position| try workspace.enqueue(.{ .wal = .{ .context = context, .archive = value.archive, .lsn = position.next_lsn - 1 } }),
                 .snapshot => |handle| try workspace.enqueue(.{ .snapshot = .{ .context = context, .archive = value.archive, .handle = handle, .live = value.live_pins } }),
                 .evidence => |evidence| try workspace.enqueue(.{ .evidence = .{ .context = context, .edge = evidence } }),

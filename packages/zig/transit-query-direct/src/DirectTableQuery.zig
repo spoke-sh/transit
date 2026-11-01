@@ -77,6 +77,7 @@ pub fn openPreparedRetained(allocator: std.mem.Allocator, client: c.DirectTableC
     errdefer scan.deinit();
     scan.requests += 2;
     scan.request_limit = limits.requests;
+    if (prepared.projection) |target| try scan.projectTo(target);
     try qualify(scan.reader.schema.schema);
     var compiled = try prepared.instantiate(allocator, client.connection, scan.reader.basis.interpretation, scan.reader.schema.schema, try scan.fingerprint(), values, detail);
     errdefer compiled.deinit();

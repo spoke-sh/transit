@@ -181,3 +181,12 @@ SQL `AS OF SNAPSHOT` binds that catalog before names and schemas; historical
 SELECT observations carry its immutable identity and exact source evidence.
 Metadata observations retain catalog attribution without claiming row execution.
 An independent source vector is not an atomic cross-Table cut.
+
+Explicit projections preserve `Table.interpretation` and `Table.schema` as the
+original source definition and schema fingerprint. Its optional `projection`
+identifies source/target definitions, accepted target declaration content, target
+schema, acceptance LSN and `stable_columns_add_origins` policy. Metadata results
+carry a bounded `projections` vector, whose source definitions must appear in
+`definitions`. Every target belongs to the same stable object and has an equal
+or later revision. This evidence remains immutable through result completion;
+it neither grants current access nor retains source rows.

@@ -4876,6 +4876,22 @@ pub fn projectionLocations(self: *Self, object: d.Object, handle: P.SnapshotHand
     return access.view.table.inspectProjectionLocations(scratch.allocator(), handle, after, access.current);
 }
 
+pub fn prepareSchemaProjection(self: *Self, allocator: std.mem.Allocator, source: c.storage.TableDeclaration.Stored, target: ?c.storage.TableDeclaration.Stored, policy: Policy) !P.AcceptedDefinition {
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    var access = try self.storageAccess(scratch.allocator(), source.interpretation.object, policy, false);
+    defer access.view.deinit();
+    return access.view.table.prepareProjection(allocator, source, target, access.current);
+}
+
+pub fn scanSchemaProjection(self: *Self, allocator: std.mem.Allocator, snapshot: c.DirectTableProtocol.Snapshot, target: c.storage.TableDeclaration.Stored, after: ?P.SnapshotCursor, limits: P.ReadLimits, policy: Policy) !P.ProjectedPage {
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    var access = try self.snapshotAccess(scratch.allocator(), snapshot.object, snapshot.handle.owner, policy, false);
+    defer access.view.deinit();
+    return access.view.table.scanSnapshotProjected(allocator, snapshot.handle, target, after, limits, access.current);
+}
+
 pub fn snapshotRead(self: *Self, allocator: std.mem.Allocator, object: d.Object, handle: P.SnapshotHandle, policy: Policy) !SnapshotRead {
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
