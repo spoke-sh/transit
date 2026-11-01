@@ -4,7 +4,7 @@ const ucs2length = lengthModule.default ?? lengthModule;
 "use strict";
 export const ReadRequest = validate53;
 const schema20 = {"type":"object","additionalProperties":false,"properties":{"definition":{"$ref":"#/$defs/ReadRequest/$defs/T1"},"action":{"$ref":"#/$defs/ReadRequest/$defs/T2"}},"required":["definition","action"]};
-const schema21 = {"type":"string","enum":["fddf3f8395a3626c57f1c0626de4d6bb37c783d861b00befe41d5132475957c3"]};
+const schema21 = {"type":"string","enum":["c666eb3e7d02691aaaa255879a3fb28b8d3691c6f56b2aa82c44d884aae554ca"]};
 
 function validate55(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -20,7 +20,7 @@ if(typeof data !== "string"){
 validate55.errors = [{instancePath,schemaPath:"#/type",keyword:"type",params:{type: "string"}}];
 return false;
 }
-if(!(data === "fddf3f8395a3626c57f1c0626de4d6bb37c783d861b00befe41d5132475957c3")){
+if(!(data === "c666eb3e7d02691aaaa255879a3fb28b8d3691c6f56b2aa82c44d884aae554ca")){
 validate55.errors = [{instancePath,schemaPath:"#/enum",keyword:"enum",params:{allowedValues: schema21.enum}}];
 return false;
 }
@@ -734,7 +734,7 @@ if(typeof data !== "string"){
 validate77.errors = [{instancePath,schemaPath:"#/type",keyword:"type",params:{type: "string"}}];
 return false;
 }
-if(!(data === "fddf3f8395a3626c57f1c0626de4d6bb37c783d861b00befe41d5132475957c3")){
+if(!(data === "c666eb3e7d02691aaaa255879a3fb28b8d3691c6f56b2aa82c44d884aae554ca")){
 validate77.errors = [{instancePath,schemaPath:"#/enum",keyword:"enum",params:{allowedValues: schema21.enum}}];
 return false;
 }

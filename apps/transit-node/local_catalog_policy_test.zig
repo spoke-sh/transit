@@ -1860,6 +1860,9 @@ test "shared refusals distinguish current denial from storage and missing-owner 
     try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.WorkloadResultUnavailable).code);
     try t.expectEqual(p.ErrorCode.Conflict, failure.table(error.WorkloadResultConflict).code);
     try t.expectEqual(p.ErrorCode.Conflict, failure.table(error.WorkloadResultClosed).code);
+    try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.InvalidWorkloadProjection).code);
+    try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.WorkloadProjectionUnavailable).code);
+    try t.expectEqual(p.ErrorCode.Conflict, failure.table(error.WorkloadProjectionSourceChanged).code);
     try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.ClientTokenBudget).code);
     try t.expectEqual(p.ErrorCode.AuthorityUnavailable, failure.table(error.WorkloadServiceUnavailable).code);
     try t.expectEqual(p.ErrorCode.Conflict, failure.table(error.ClientOperationPending).code);

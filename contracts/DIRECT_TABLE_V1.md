@@ -341,11 +341,23 @@ original work; a body alone does not establish token acceptance.
 
 `DirectWorkloadIntent` uses format `WLI1` (`0x574c4931`) for canonical JSON
 containing mandatory current `definition`, `connection`, complete source
-declaration/schema and native Stream/Queue mutation with its nullable payload.
+declaration/schema, native Stream/Queue mutation with its nullable payload, and
+an explicit nullable `projection` (no missing-field default).
 The source matches the exact original target; append/enqueue payload bytes,
 row attribution, schema and partition routing are validated before staging.
 The 4 MiB record ceiling includes base64 and metadata overhead. Restoring rejects
 noncanonical bytes and missing/foreign definitions; it never resolves a new name.
+When present, `projection` contains an ordered input layout and encoded Fuze
+plan. Validation binds it to the exact native operation, source schema (including
+collations), stable column IDs and selected metadata fields. The canonical body
+owns the plan, aliases and literals independently of compiler buffers. Restoration
+decodes the saved plan without reparsing SQL or resolving a current source name.
+Current projections support application columns, partition and offset, plus
+original lease epoch and attempt for claims. They cannot aggregate or impose a
+result limit; native acquisition and coverage retain their own bounds. Predicates
+are supported only for Stream consumption; claim filtering must precede lease
+acquisition. The native result action still returns raw original rows. SQL
+projection execution and result delivery are separate unfinished consumers.
 Its reference binds connection, namespace, canonical workload binding, original
 stored declaration and the account-scoped record. The shared helper loads that
 body before inspect/execute/cancel and checks the complete reference again.

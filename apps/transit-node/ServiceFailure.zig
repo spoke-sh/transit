@@ -13,6 +13,8 @@ pub fn table(err: anyerror) Refusal {
         error.InvalidLogIntent, error.InvalidWorkloadIntent, error.ClientTokenBudget => .InvalidRequest,
         error.InvalidWorkloadResultBudget, error.WorkloadResultRowTooLarge, error.WorkloadResultUnavailable => .InvalidRequest,
         error.WorkloadResultConflict, error.WorkloadResultClosed => .Conflict,
+        error.InvalidWorkloadProjection, error.WorkloadProjectionUnavailable => .InvalidRequest,
+        error.WorkloadProjectionSourceChanged => .Conflict,
         error.InvalidQueueWait, error.InvalidStreamWait, error.InvalidWaitHint => .InvalidRequest,
         error.QueueWaitCapacity, error.StreamWaitCapacity, error.NotificationCapacityExceeded => .ControlCapacity,
         error.CatalogDenied, error.TableDelegationDenied, error.InvalidAuthorizationCredential, error.AuthorizationChanged, error.TransactionAuthorityChanged => .AccessDenied,

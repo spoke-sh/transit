@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "fddf3f8395a3626c57f1c0626de4d6bb37c783d861b00befe41d5132475957c3"
+definition = "c666eb3e7d02691aaaa255879a3fb28b8d3691c6f56b2aa82c44d884aae554ca"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -545,7 +545,7 @@ persist(root / "packages/zig/transit-catalog/src/fixtures/direct-log-token-v1.js
 saved_workload_shape = schema
 for segment in schema["$defs"]["SavedWorkloadIntent"]["$ref"].split("/")[1:]:
     saved_workload_shape = saved_workload_shape[segment]
-assert set(saved_workload_shape["required"]) == {"definition", "connection", "source", "work"}
+assert set(saved_workload_shape["required"]) == {"definition", "connection", "source", "work", "projection"}
 workload_vectors = []
 workload_result_vectors = []
 for workload_kind, workload, fixture_value in (("stream", stream_work, stream_fixture), ("queue", queue_work, queue_fixture)):

@@ -7582,7 +7582,34 @@ test "workload results reopen original payload and selections without mutation a
                         } }, .payload = null } });
                         try t.expect(assigned.operation.? == .assign);
                     }
-                    var intent = try c.DirectWorkloadIntent.create(t.allocator, connection, source, work);
+                    var intent = projected: {
+                        const projection_source: c.fuze.WorkloadProjection.Source = .{ .binding = try work.binding(t.allocator), .schema = declaration_request.intent.action.create.schema };
+                        const fields = [_]c.fuze.WorkloadProjection.Field{ .{ .column = 1 }, .offset };
+                        var compiled = try c.fuze.WorkloadProjection.compile(t.allocator, projection_source, &fields, "result", "SELECT id AS value, _offset FROM result", null);
+                        defer compiled.deinit();
+                        var plan_buffer: [c.fuze.LogicalPlanCodec.max_bytes]u8 = undefined;
+                        const plan = try c.DirectTableProtocol.Binary.encode(t.allocator, try c.fuze.WorkloadProjection.encode(projection_source, &fields, compiled.plan, t.allocator, &plan_buffer));
+                        defer t.allocator.free(plan.base64);
+                        const projection: c.DirectWorkloadIntent.Projection = .{ .fields = &fields, .plan = plan };
+                        var changed = work;
+                        switch (changed) {
+                            .stream => |*value| switch (value.work) {
+                                .append => |*request| request.operation.operation += 1,
+                                .consume => |*request| request.operation.operation += 1,
+                                else => unreachable,
+                            },
+                            .queue => |*value| switch (value.work) {
+                                .enqueue => |*request| request.operation.operation += 1,
+                                .claim => |*request| request.operation.operation += 1,
+                                else => unreachable,
+                            },
+                        }
+                        try t.expectError(error.SourceChanged, c.DirectWorkloadIntent.createProjected(t.allocator, connection, source, changed, projection));
+                        const missing = try p.Json.valueAllocBounded(t.allocator, .{ .definition = p.Growth.current_definition, .connection = connection, .source = source, .work = work }, c.DirectRecord.max_bytes);
+                        defer t.allocator.free(missing);
+                        try t.expectError(error.MissingField, c.DirectWorkloadIntent.restore(t.allocator, missing));
+                        break :projected try c.DirectWorkloadIntent.createProjected(t.allocator, connection, source, work, projection);
+                    };
                     defer intent.deinit();
                     const frozen = try intent.reference(@splat(7));
                     _ = try c.DirectRecord.store(objects.objectStore(), frozen.record.scope, c.DirectWorkloadIntent.format, intent.bytes);
@@ -7625,6 +7652,12 @@ test "workload results reopen original payload and selections without mutation a
                 // A result is still the original claim after its lease expires.
                 owners.clock.now = .exact(1000);
                 for (references) |reference| {
+                    var saved = try c.DirectWorkloadIntent.load(t.allocator, objects.objectStore(), reference.intent);
+                    defer saved.deinit();
+                    var projection = try saved.parsed.value.projection.?.restore(t.allocator, .{ .binding = reference.intent.binding, .schema = declaration_request.intent.action.create.schema });
+                    defer projection.deinit();
+                    try t.expectEqualStrings("value", projection.plan.output_names[0].?);
+                    try t.expectEqualSlices(u8, &.{ 0, 1 }, projection.plan.projection);
                     const api = c.DirectWorkloadResultProtocol;
                     const open_request: api.Request = .{ .open = .{ .intent = reference.intent, .limits = reference.limits } };
                     const opened = try api.apply(t.allocator, &catalog, access.policy(), open_request, native);

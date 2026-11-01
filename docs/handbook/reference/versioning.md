@@ -108,7 +108,7 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`fddf3f8395a3626c57f1c0626de4d6bb37c783d861b00befe41d5132475957c3`.
+`c666eb3e7d02691aaaa255879a3fb28b8d3691c6f56b2aa82c44d884aae554ca`.
 It binds direct KV, mixed state/log transactions and frozen Stream/Queue
 declaration intents together with retained Table branches and installed worker
 rotation. Catalog roots require branch identity, name and retention-owner
@@ -132,6 +132,11 @@ normal recovery and current-authorization gates. Catalog storage traversal roots
 accepted workload bodies and source declarations. These stored token and graph
 variants require the same current definition; no older artifact gains them by
 default.
+
+Saved workload bodies require an explicit nullable projection. A present plan
+binds the exact native operation, ordered column/metadata layout and frozen
+schema, including semantic descriptors. Missing projection fields in earlier
+bodies reject rather than acquiring an inferred result shape.
 
 The signed direct service also exposes original workload result opening and
 paging. Mandatory references bind the frozen intent, accepted selection and

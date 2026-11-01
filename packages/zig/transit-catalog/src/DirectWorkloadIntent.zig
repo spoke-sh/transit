@@ -84,11 +84,26 @@ pub const Reader = struct {
     }
 };
 
+/// Borrowed input descriptor; createProjected copies it into the canonical
+/// body. Fuze owns interpretation. This descriptor grants no source authority.
+pub const Projection = struct {
+    pub const json_schema_sequence_bounds = .{ .fields = c.fuze.TableSchema.max_columns };
+    fields: []const c.fuze.WorkloadProjection.Field,
+    plan: w.Binary,
+
+    pub fn restore(self: Projection, allocator: std.mem.Allocator, source: c.fuze.WorkloadProjection.Source) !c.fuze.LogicalPlanCodec.Owned {
+        const bytes = try self.plan.decode(allocator, c.fuze.LogicalPlanCodec.max_bytes);
+        defer allocator.free(bytes);
+        return c.fuze.WorkloadProjection.restore(allocator, source, self.fields, bytes);
+    }
+};
+
 pub const Saved = struct {
     definition: p.Growth.Definition,
     connection: w.Connection,
     source: c.DirectLogProtocol.Definition,
     work: Work,
+    projection: ?Projection,
 
     pub fn validate(self: Saved, allocator: std.mem.Allocator) !void {
         if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
@@ -101,6 +116,10 @@ pub const Saved = struct {
         _ = try self.source.declaration.partition(target.partition);
         var declaration = try c.DirectLogProtocol.decodeMetadata(allocator, self.connection, self.source);
         defer declaration.deinit();
+        if (self.projection) |projection| {
+            var plan = try projection.restore(allocator, .{ .binding = try self.work.binding(allocator), .schema = declaration.definition.schema });
+            defer plan.deinit();
+        }
         if (self.work.append()) |request| {
             const bytes = try self.work.payload().?.decode(allocator, c.DirectRecord.max_bytes);
             defer allocator.free(bytes);
@@ -177,7 +196,10 @@ bytes: []u8,
 parsed: std.json.Parsed(Saved),
 
 pub fn create(allocator: std.mem.Allocator, connection: w.Connection, source: c.DirectLogProtocol.Definition, work: Work) !Self {
-    const value: Saved = .{ .definition = p.Growth.current_definition, .connection = connection, .source = source, .work = work };
+    return createProjected(allocator, connection, source, work, null);
+}
+pub fn createProjected(allocator: std.mem.Allocator, connection: w.Connection, source: c.DirectLogProtocol.Definition, work: Work, projection: ?Projection) !Self {
+    const value: Saved = .{ .definition = p.Growth.current_definition, .connection = connection, .source = source, .work = work, .projection = projection };
     try value.validate(allocator);
     const bytes = p.Json.valueAllocBounded(allocator, value, c.DirectRecord.max_bytes) catch |err| return if (err == error.WriteFailed) error.CatalogRecordTooLarge else err;
     errdefer allocator.free(bytes);
@@ -192,7 +214,7 @@ pub fn restore(allocator: std.mem.Allocator, bytes: []const u8) !Self {
     if (bytes.len == 0 or bytes.len > c.DirectRecord.max_bytes) return error.InvalidWorkloadIntent;
     const parsed = try p.Json.parseFromSlice(Saved, allocator, bytes);
     defer parsed.deinit();
-    var result = try create(allocator, parsed.value.connection, parsed.value.source, parsed.value.work);
+    var result = try createProjected(allocator, parsed.value.connection, parsed.value.source, parsed.value.work, parsed.value.projection);
     errdefer result.deinit();
     if (!std.mem.eql(u8, bytes, result.bytes)) return error.InvalidWorkloadIntent;
     return result;
