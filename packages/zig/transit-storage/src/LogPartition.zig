@@ -699,6 +699,11 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             scanned: u16,
             candidate: ?DeadLetterCandidate,
         };
+        pub const DeadLetterWork = struct {
+            request: p.Transaction.TerminalTransfer,
+            /// Borrows the caller's encoding buffer, never owner scratch.
+            payload: []const u8,
+        };
 
         /// Returns at most one blocked item's exact accepted exhaustion and
         /// destination. Discovery writes nothing, claims no lease and supplies
@@ -734,6 +739,37 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             result.cursor = cursor;
             try authorize(guard);
             return result;
+        }
+
+        /// Materialize the exact source row for a prospective paired transfer.
+        /// No attempt, transaction, append or source settlement is accepted here.
+        /// The caller must retain this work before dispatch; current destination
+        /// authority and trusted exhaustion time are checked by the transaction.
+        pub fn deadLetterWork(self: *Self, declared: Declaration.Stored, selected: DeadLetterCandidate, source_operation: d.Operation, destination: q.Partition, destination_operation: d.Operation, buffer: []u8, guard: Guard) !DeadLetterWork {
+            try selected.source.target.requireOperation(source_operation);
+            try destination.requireOperation(destination_operation);
+            if (!std.meta.eql(selected.destination, destination.interpretation)) return error.InvalidTransactionTransfer;
+            try authorize(guard);
+            try self.requireReady();
+            if (self.private_position != null) return error.PrivateLogWorkspace;
+            const cut = try self.root.retainedCut(declared);
+            try cut.target.requireSame(selected.source.target);
+            if (selected.source.offset < cut.retained_from or selected.source.offset >= cut.next) return error.QueueStateConflict;
+            var bitmap: Bitmap = undefined;
+            const index = self.queueIndex(&bitmap);
+            const item = try index.item(self.root.queue.?, selected.source.offset);
+            if (try index.state(self.root.queue.?, item) != .available or item.blocked != .dead_letter or
+                item.epoch != selected.source.lease_epoch or item.attempts != selected.source.attempt or
+                item.blocked_after_ms != selected.source.not_before_ms or !std.meta.eql(item.blocked.dead_letter, selected.destination)) return error.QueueStateConflict;
+            const bytes = try self.encodeTransferPayload(destination, destination_operation, item.offset, buffer, guard);
+            const request: p.Transaction.TerminalTransfer = .{
+                .operation = source_operation,
+                .source = .{ .exhausted = selected.source },
+                .destination = .{ .target = destination, .operation = destination_operation, .kind = .queue, .producer = null, .rows = 1, .payload = Batch.content(bytes) },
+            };
+            try request.validate();
+            try authorize(guard);
+            return .{ .request = request, .payload = bytes };
         }
 
         /// No operation binding, selection artifact or WAL record is published.
@@ -994,17 +1030,20 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             try authorize(guard);
         }
         fn verifyTransferPayload(self: *Self, request: p.Transaction.TerminalTransfer, buffer: []u8, guard: Guard) !void {
+            const bytes = try self.encodeTransferPayload(request.destination.target, request.destination.operation, transferOffset(request), buffer, guard);
+            if (!std.meta.eql(Batch.content(bytes), request.destination.payload)) return error.LogPayloadConflict;
+        }
+        fn encodeTransferPayload(self: *Self, target: q.Partition, identity: d.Operation, offset: u64, buffer: []u8, guard: Guard) ![]const u8 {
             var source = try Declaration.load(self.allocator, self.objects, self.root.declared);
             defer source.deinit();
-            var destination = try Declaration.resolve(self.allocator, self.objects, request.destination.target.interpretation);
+            var destination = try Declaration.resolve(self.allocator, self.objects, target.interpretation);
             defer destination.deinit();
             if (destination.definition.retired or destination.definition.configuration.policy != .queue or
-                request.destination.target.partition >= destination.definition.configuration.partitioning.count) return error.InvalidQueueDestination;
+                target.partition >= destination.definition.configuration.partitioning.count) return error.InvalidQueueDestination;
             var normalized = destination.definition.schema;
             normalized.object = source.definition.schema.object;
             normalized.revision = source.definition.schema.revision;
             if (!std.mem.eql(u8, &try normalized.fingerprint(), &try source.definition.schema.fingerprint())) return error.QueueDestinationSchemaMismatch;
-            const offset = transferOffset(request);
             const cut = try self.root.retainedCut(self.root.declared);
             var borrowed = try self.borrowAt(cut, self.root.batches, self.root.segments, .empty, offset, guard) orelse return error.QueueItemMissing;
             defer borrowed.deinit();
@@ -1013,9 +1052,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 if (row.ordinal != offset - borrowed.receipt.first) continue;
                 defer _ = self.scratch.reset(.retain_capacity);
                 const decoded = try row.decode(self.scratch.allocator(), source.definition.schema, borrowed.receipt.append.operation);
-                const bytes = try Batch.encode(destination.definition.schema, request.destination.operation, .queue, &.{decoded}, buffer);
-                if (!std.meta.eql(Batch.content(bytes), request.destination.payload)) return error.LogPayloadConflict;
-                return;
+                return Batch.encode(destination.definition.schema, identity, .queue, &.{decoded}, buffer);
             }
             return error.QueueItemMissing;
         }

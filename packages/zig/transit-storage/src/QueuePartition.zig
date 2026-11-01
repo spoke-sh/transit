@@ -26,6 +26,7 @@ pub const ClaimReadiness = Owner.ClaimReadiness;
 pub const DeadLetterCandidate = Owner.DeadLetterCandidate;
 pub const DeadLetterCursor = Owner.DeadLetterCursor;
 pub const DeadLetterPage = Owner.DeadLetterPage;
+pub const DeadLetterWork = Owner.DeadLetterWork;
 
 owner: Owner,
 
@@ -51,6 +52,9 @@ pub fn observe(self: *Self, declared: Declaration.Stored, guard: Guard) !p.Strea
 
 pub fn deadLetterNext(self: *Self, declared: Declaration.Stored, after: ?DeadLetterCursor, maximum: u16, guard: Guard) !DeadLetterPage {
     return self.owner.deadLetterNext(declared, after, maximum, guard);
+}
+pub fn deadLetterWork(self: *Self, declared: Declaration.Stored, candidate: DeadLetterCandidate, source_operation: p.DataLifecycle.Operation, destination: p.StreamQueue.Partition, destination_operation: p.DataLifecycle.Operation, buffer: []u8, guard: Guard) !DeadLetterWork {
+    return self.owner.deadLetterWork(declared, candidate, source_operation, destination, destination_operation, buffer, guard);
 }
 pub fn transactionPinState(self: *Self, owner: p.DataLifecycle.Operation, guard: Guard) !@import("LogTransaction.zig").PinState {
     return self.owner.transactionPinState(owner, guard);

@@ -834,9 +834,12 @@ test "queue partition dead letter discovery bounds sweeps preserves recorded des
     var base = try declaration();
     defer base.deinit();
     var definition = base.definition;
-    var destination = (try base.stored()).declaration.interpretation;
-    destination.object.object = 9;
-    destination.digest = @splat(9);
+    var destination_definition = base.definition;
+    destination_definition.object.object = 9;
+    destination_definition.schema.object = 9;
+    var destination_owned = try s.LogDeclaration.prepare(t.allocator, destination_definition);
+    defer destination_owned.deinit();
+    const destination = (try s.LogDeclaration.stage(objects.objectStore(), &destination_owned)).declaration.interpretation;
     definition.configuration.policy.queue.maximum_attempts = 1;
     definition.configuration.policy.queue.dead_letter = destination;
     var declared = try s.LogDeclaration.prepare(t.allocator, definition);
@@ -873,6 +876,35 @@ test "queue partition dead letter discovery bounds sweeps preserves recorded des
     later.append.producer = null;
     _ = try owner.enqueue(initial.declared, later.append, later.payload, policy.guard());
     const before = owner.owner.root;
+    clock.value = null;
+    const destination_target: q.Partition = .{ .definition = p.Growth.current_definition, .interpretation = destination, .partition = 0 };
+    const calls_before_work = policy.calls;
+    const work = try owner.deadLetterWork(initial.declared, found, operation(6), destination_target, operation(7), &bytes, policy.guard());
+    const work_checks = policy.calls - calls_before_work;
+    try t.expect(work_checks >= 2);
+    try t.expectEqualDeep(found.source, work.request.source.exhausted);
+    try t.expectEqualDeep(destination_target, work.request.destination.target);
+    _ = owner.owner.scratch.reset(.retain_capacity);
+    // The expected source row and its original visibility are independent of
+    // discovery. Encoding owns caller memory after all owner scratch is reset.
+    const expected_cells = [_]f.Types.Values.Cell{ .{ .value = .{ .atom = .{ .bytes = "Alpha" } } }, .{ .value = .{ .atom = .{ .bytes = "payload" } } } };
+    var expected_buffer: [8192]u8 = undefined;
+    const expected_payload = try s.LogBatch.encode(destination_owned.definition.schema, operation(7), .queue, &.{.{ .cells = &expected_cells, .visible_ms = 1000 }}, &expected_buffer);
+    try t.expectEqualSlices(u8, expected_payload, work.payload);
+    try t.expectEqualDeep(s.LogBatch.content(expected_payload), work.request.destination.payload);
+    var changed = found;
+    changed.source.lease_epoch += 1;
+    try t.expectError(error.QueueStateConflict, owner.deadLetterWork(initial.declared, changed, operation(6), destination_target, operation(7), &bytes, policy.guard()));
+    changed = found;
+    changed.source.not_before_ms += 1;
+    try t.expectError(error.QueueStateConflict, owner.deadLetterWork(initial.declared, changed, operation(6), destination_target, operation(7), &bytes, policy.guard()));
+    changed = found;
+    changed.destination.digest[0] ^= 1;
+    try t.expectError(error.InvalidTransactionTransfer, owner.deadLetterWork(initial.declared, changed, operation(6), destination_target, operation(7), &bytes, policy.guard()));
+    try t.expectError(error.InvalidTransactionTransfer, owner.deadLetterWork(initial.declared, found, operation(7), destination_target, operation(7), &bytes, policy.guard()));
+    policy.deny_at = policy.calls + work_checks;
+    try t.expectError(error.PermissionDenied, owner.deadLetterWork(initial.declared, found, operation(6), destination_target, operation(7), &bytes, policy.guard()));
+    policy.deny_at = std.math.maxInt(usize);
     const second = try owner.deadLetterNext(initial.declared, first.cursor, 1, policy.guard());
     try t.expect(second.candidate == null and !second.cursor.complete());
     const last = try owner.deadLetterNext(initial.declared, second.cursor, 1, policy.guard());
@@ -891,6 +923,7 @@ test "queue partition dead letter discovery bounds sweeps preserves recorded des
     policy.deny_at = std.math.maxInt(usize);
     owner.owner.private_position = before.position();
     try t.expectError(error.PrivateLogWorkspace, owner.deadLetterNext(initial.declared, null, 1, policy.guard()));
+    try t.expectError(error.PrivateLogWorkspace, owner.deadLetterWork(initial.declared, found, operation(6), destination_target, operation(7), &bytes, policy.guard()));
     owner.owner.private_position = null;
     try t.expectEqualDeep(before, owner.owner.root);
     try t.expectEqual(before.next_lsn, try wal.log().tail(initial.partition));
@@ -903,6 +936,8 @@ test "queue partition dead letter discovery bounds sweeps preserves recorded des
     const edited_stored = try s.LogDeclaration.stage(objects.objectStore(), &edited);
     const after_edit = try owner.deadLetterNext(edited_stored, null, 1, policy.guard());
     try t.expectEqualDeep(destination, after_edit.candidate.?.destination);
+    const edited_work = try owner.deadLetterWork(edited_stored, after_edit.candidate.?, operation(6), destination_target, operation(7), &bytes, policy.guard());
+    try t.expectEqualSlices(u8, expected_payload, edited_work.payload);
     try t.expectError(error.LogPartitionConflict, owner.deadLetterNext(edited_stored, first.cursor, 1, policy.guard()));
     try owner.deinit();
     objects.deinit();
@@ -916,6 +951,16 @@ test "queue partition dead letter discovery bounds sweeps preserves recorded des
     try t.expectEqualDeep(found, recovered.candidate.?);
     try t.expectEqualDeep(before, owner.owner.root);
     try t.expectEqual(before.next_lsn, try wal.log().tail(initial.partition));
+    _ = try owner.flush(owner.owner.root.position(), policy.guard());
+    try owner.deinit();
+    owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    while (!(try owner.recoverStep(policy.guard(), 2)).complete) {}
+    const sealed_before = owner.owner.root;
+    const sealed_work = try owner.deadLetterWork(initial.declared, found, operation(6), destination_target, operation(7), &bytes, policy.guard());
+    try t.expectEqualSlices(u8, expected_payload, sealed_work.payload);
+    try t.expectEqualDeep(work.request, sealed_work.request);
+    try t.expectEqualDeep(sealed_before, owner.owner.root);
+    try t.expectEqual(sealed_before.next_lsn, try wal.log().tail(initial.partition));
 }
 
 test "queue partition expiry fences renewed deadlines and records bounded retries across downtime" {

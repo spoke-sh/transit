@@ -81,6 +81,13 @@ time across later policy edits and reopen. Discovery neither writes nor checks
 the current clock, acquires a lease or dispatches a transfer. Automatic scheduling
 still needs a durable original attempt and the paired transaction owner.
 
+`deadLetterWork` rechecks that candidate and encodes its verified source row
+under the recorded destination schema into a caller-owned buffer. It preserves
+the original values and visibility from hot or sealed payload storage, survives
+owner scratch resets, and rechecks authorization before returning. It accepts
+no work and publishes neither an append nor a settlement. The transaction still
+checks current destination authority and trusted exhaustion time at its decision.
+
 `QueueAffinity` accelerates FIFO head lookup using the exact immutable key root
 and full canonical key. The Queue owner preallocates 64 hash buckets by default
 (`Options.queue_affinity_rows`, 1–4,096) and twice as many replacement slots.
