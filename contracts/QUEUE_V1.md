@@ -92,6 +92,36 @@ necessary after buffering; missing receipts, timeouts and stopped waits are not
 closure evidence. The Stream contract's control-capacity, declaration,
 transaction-barrier and lost-reply rules apply equally to Queue closure.
 
+## Opaque lease descriptor codec
+
+`transit-protocol.QueueLeaseHandle` encodes an exact `StreamQueue.Lease` as
+168 bytes beginning with `QLH1`. It is a fenced descriptor for transport, not a
+signature, bearer credential or proof of current liveness. Decoding performs no
+I/O and grants no rights. The Queue owner must still verify the accepted original
+claim, exact current lease, current caller rights and authoritative time at the
+settlement boundary. Changing the encoded expiry cannot renew a lease.
+
+All integers use unsigned little-endian encoding. The exact layout is:
+
+| Offset | Bytes | Value |
+| --- | --- | --- |
+| 0 | 4 | `QLH1` |
+| 4 | 32 | Current contract definition bytes |
+| 36 | 24 | Scope: realm, resource, catalog, each 8 bytes |
+| 60 | 16 | Stable object branch and object ID, each 8 bytes |
+| 76 | 8 | Exact interpretation revision |
+| 84 | 32 | Exact interpretation digest |
+| 116 | 4 | Logical partition ordinal |
+| 120 | 16 | Original claimant principal and claim operation, each 8 bytes |
+| 136 | 32 | Message offset, lease epoch, attempt, expiry milliseconds, each 8 bytes |
+
+The claim scope is the target scope; native validation requires their equality.
+Inputs must have exactly 168 bytes, the exact magic and an explicit matching
+current definition before any lease is constructed. Missing, foreign, truncated,
+trailing or structurally invalid data refuse. Encoding uses a caller-owned fixed
+buffer and decoding allocates nothing. These helpers do not yet expose SQL
+`_receipt_handle` or admit settlement SQL; those adapters remain separate work.
+
 ## Lease identity and time
 
 The declaration's Queue policy selects `unordered` or `key_fifo`. FIFO requires

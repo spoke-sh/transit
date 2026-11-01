@@ -25,6 +25,7 @@ pub const LogWorkload = @import("LogWorkload.zig");
 pub const LogWorkloadResult = @import("LogWorkloadResult.zig");
 pub const StreamRead = @import("StreamRead.zig");
 pub const QueueRead = @import("QueueRead.zig");
+pub const QueueLeaseHandle = @import("QueueLeaseHandle.zig");
 pub const StreamQueueDeclaration = @import("StreamQueueDeclaration.zig");
 pub const DocumentDeclaration = @import("DocumentDeclaration.zig");
 pub const DocumentProfile = @import("DocumentProfile.zig");
@@ -83,6 +84,7 @@ test {
     _ = Branch;
     _ = IndexLifecycle;
     _ = StreamQueue;
+    _ = QueueLeaseHandle;
     _ = LogWorkload;
     _ = LogWorkloadResult;
     _ = StreamQueueDeclaration;

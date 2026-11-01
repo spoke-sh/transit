@@ -62,6 +62,11 @@ selection from observed Queue state and lease liveness. Its shared clock bounds,
 state and blocked-reason types also serve the storage owner. These descriptors
 are read attribution, not consumption proofs, grants or present settlement
 authority.
+`QueueLeaseHandle` provides an allocation-free, fixed-size opaque encoding of an
+exact lease. It checks the explicit current definition before decoding; it grants
+no authority and cannot establish acceptance or freshness. The
+[Queue contract](../../../contracts/QUEUE_V1.md#opaque-lease-descriptor-codec)
+defines its layout. SQL handle projection and settlement are not yet enabled.
 
 [`LogWorkload`](src/LogWorkload.zig) supplies canonical Stream/Queue mutation
 requests, binding shapes and operation-kind tags. It computes the complete

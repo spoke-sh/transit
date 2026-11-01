@@ -21468,6 +21468,27 @@
         "std"
       ]
     },
+    "packages/zig/transit-protocol/src/QueueLeaseHandle.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidQueueLeaseHandle": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "decode()": "<inferred>",
+        "encode()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 22,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-protocol/src/QueueRead.zig": {
       "errors": {
         "InvalidQueueCursor": 1,
@@ -22308,6 +22329,7 @@
         "LogWorkload.zig",
         "LogWorkloadResult.zig",
         "NativePayload.zig",
+        "QueueLeaseHandle.zig",
         "QueueRead.zig",
         "Runtime.zig",
         "Schema.zig",
