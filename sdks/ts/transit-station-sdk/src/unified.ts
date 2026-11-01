@@ -358,13 +358,17 @@ export function planWire(plan: Plan): WireBundle["plan"] {
     (!Array.isArray(plan.outputNames) || plan.outputNames.length !== plan.projection.length)
   )
     throw new TypeError("Output names must match the projection width");
+  const scalarProgram =
+    plan.scalarProgram === undefined ? new Uint8Array([0]) : owned(plan.scalarProgram, 8448);
+  const scalarCount = scalarProgram[0];
+  if (scalarCount === undefined || scalarCount > 32)
+    throw new TypeError("Expected a bounded scalar program");
+  // Native validation binds the complete program to its exact source schema.
+  // Only declared instructions can extend the 128 input slots.
   return {
     version: 1,
-    projection: plan.projection.map((v) => integer(v, "column", 0, 159)),
-    scalar_program:
-      plan.scalarProgram === undefined
-        ? "00"
-        : Buffer.from(owned(plan.scalarProgram, 8448)).toString("hex"),
+    projection: plan.projection.map((v) => integer(v, "column", 0, 127 + scalarCount)),
+    scalar_program: Buffer.from(scalarProgram).toString("hex"),
     output_names:
       plan.outputNames === undefined
         ? null

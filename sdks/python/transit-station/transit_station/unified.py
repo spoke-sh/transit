@@ -323,7 +323,12 @@ class Plan:
         if self.output_names is not None:
             for name in self.output_names:
                 if name is not None: _name(name)
-        return {'version': 1, 'projection': [integer(v, 'column', minimum=0, maximum=159) for v in self.projection], 'scalar_program': self.scalar_program.hex(),
+        if not self.scalar_program or self.scalar_program[0] > 32:
+            raise ValueError('Expected a bounded scalar program')
+        # The native owner validates the complete program against the source.
+        # Only its declared instruction count can extend the 128 input slots.
+        maximum_column = 127 + self.scalar_program[0]
+        return {'version': 1, 'projection': [integer(v, 'column', minimum=0, maximum=maximum_column) for v in self.projection], 'scalar_program': self.scalar_program.hex(),
             'output_names': self.output_names,
             'predicate': {'all': {}} if self.predicate is None else self.predicate._wire(),
             'limit': None if self.limit is None else str(_wide(self.limit, 'limit')), 'aggregate': self.aggregate.value}

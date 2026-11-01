@@ -125,6 +125,10 @@ async function codecs() {
     predicate: {kind: 'compare', column: 127, comparison: 'eq', value: {kind: 'unsigned', value: (1n << 128n) - 1n}}},
     {pages: 1n, segments: 1n, resultBytes: 65536n});
   assert.ok(wideBundle.data.length > 1000);
+  const derivedBundle = await q.Bundle.prepare(wideSource,
+    {projection: [128], scalarProgram: new Uint8Array([1, 1, 127])},
+    {pages: 1n, segments: 1n, resultBytes: 65536n});
+  assert.ok(derivedBundle.data.length > 1000);
   for (const bad of [{projection: [128]}, {projection: [0], outputNames: ['\ud800']}])
     await assert.rejects(q.Bundle.prepare(wideSource, bad, {pages: 1n, segments: 1n, resultBytes: 65536n}));
   const codec = await logical.Codec.open();

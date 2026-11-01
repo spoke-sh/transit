@@ -63,6 +63,8 @@ test("lookup preserves direct interpretation, schema and full-width frontier", a
             },
             collations: ["none", "none"],
             semantics: schemaWire(source.schema).columns.map((column) => column.semantics),
+            historical: null,
+            projection: null,
           },
         },
       },
