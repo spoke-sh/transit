@@ -61,15 +61,30 @@ fixture. These failures remain in `/tmp/transit-m12-final-installed-retry.log`,
 
 The shared current-v1 definition is
 `082c5ef4fcfe2d1daa385774f5843ecf933af68d68a91df4b7d1281faf55dca1`.
-All 58 fast checks pass at `a826d6754`, and all 19 contract checks pass there
-without inherited outputs. Schemas, signing fixtures and binding resources use
-that definition. Complete clean `interfaces-relational` and `interfaces-sql`
+All 58 fast checks pass at `d05b55374`, and all 19 contract checks pass at
+`a826d6754` without inherited outputs. Schemas, signing fixtures and binding
+resources use that definition. Complete clean `interfaces-relational` and `interfaces-sql`
 lanes pass at `c2316c8ce385` and `35cc77b97534`, respectively; logs are retained
 as `/tmp/transit-m12-qualified-clean-interfaces-{relational,sql}.log`.
 These selections do not establish full qualification: SDK interop encountered
 MinIO `XMinioStorageFull`/HTTP 507, and the broader core/storage runs were
 interrupted to reduce shared-host I/O contention. Successful preceding checks
 do not qualify unfinished suffixes.
+
+The clean `installation-ui` attempt at `d05b55374` passes Board/documentation
+and Node binding checks, observability, server logging, single-executable startup,
+direct Tables, both managed fixtures together, installed direct faults and SQL
+lifetimes. The later `test::server-sql` fails on its read after TLS trust
+replacement with a generic request failure and no typed cause in the manager
+log. An unchanged rerun using the exact binaries reproduces that failure. Two
+diagnostic runs using those binaries with separately captured node stderr pass,
+at debug and normal info verbosity; they do not explain or clear the failures.
+The remaining installation tasks were not run. Evidence is retained in
+`/tmp/transit-m12-submission-clean-installation.log`,
+`/tmp/transit-m12-final-server-sql-exact.log`,
+`/tmp/transit-m12-final-server-sql-diagnostic.log` and
+`/tmp/transit-m12-final-server-sql-info.log`. The lane is incomplete; the source
+and fixture of its passing managed task are both `d05b55374`.
 
 This evidence does not close the full crash matrix, cardinality growth gates,
 dedicated installed revocation schedule, or T5/T8 implementation correspondence.
