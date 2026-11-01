@@ -70,6 +70,7 @@ pub const TableTransaction = @import("TableTransaction.zig");
 pub const TablePartition = @import("TablePartition.zig");
 pub const TableDmlIntent = @import("TableDmlIntent.zig");
 pub const TransactionDirectory = @import("TransactionDirectory.zig");
+pub const LogTransactionActions = @import("LogTransactionActions.zig");
 pub const TableWorkspace = @import("TableWorkspace.zig");
 pub const TransactionDecisionLog = @import("TransactionDecisionLog.zig");
 
@@ -129,5 +130,6 @@ test {
     _ = @import("table_statement_test.zig");
     _ = @import("table_snapshot_scan_test.zig");
     _ = @import("transaction_directory_test.zig");
+    _ = @import("log_transaction_actions_test.zig");
     _ = @import("transaction_decision_test.zig");
 }

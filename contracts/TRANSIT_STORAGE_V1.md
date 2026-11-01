@@ -102,8 +102,36 @@ directory groups appends and settlements under one physical owner's guard;
 it contributes one write and requires one exact preparation. Acquired guards
 and prepared predecessors are kind-specific. Complete membership validation
 checks these neutral shapes, while the current decision journal and catalog
-still require executable Table participants. Non-Table shapes do not enable
+require executable Table or direct KV participants. Other shapes do not enable
 log pin acquisition, append reservations, common visibility or terminal transfer.
+
+`LogTransactionActions` metadata uses `TXLACT1` followed by one zero byte,
+the mandatory definition at `8..40`, and canonical typed JSON within 16 KiB.
+`transaction-log-actions/<sha256>.data` binds the complete encoded object.
+An action object contains mandatory `work` (`Transaction.LogAction`) and
+`offset_cursor` fields. The cursor is non-null exactly for Stream offset work;
+its coverage and principal must match that work. Its original read handle and
+authentication bytes are preserved for the partition owner's verification.
+A root stores
+`definition`, `identity`, exact `guard`, optional `entries` and `operations`
+tree roots, `count`, cumulative `payload_bytes`, and optional `last` containing
+the final cursor and statement intent. Empty roots have no trees or final cursor.
+Entry keys are a nonzero eight-byte big-endian statement sequence followed by
+a nonzero four-byte big-endian ordinal; values use the directory content
+descriptor encoding above. Operation-index keys are eight-byte big-endian
+original operation IDs, with the exact twelve-byte entry key as their value.
+All operations share the root's transaction principal and scope. Duplicate
+operations or conflicting bytes at an existing cursor reject.
+
+Payload objects are exact append bytes at
+`transaction-log-payload/<sha256>.data`. Their digest and byte count are the
+append's content identity, and their size is bounded by the ordinary log batch
+format. Directory metadata does not inline payloads. Explicit action and payload
+quotas bound admitted private work independently of index-cache residency.
+The statement owner must retain this graph, verify payload schemas and complete
+statement membership, and preserve consumed identities across savepoint rollback.
+No object in this directory establishes an append reservation, lease settlement,
+partition preparation or transaction decision.
 
 `TransactionDecisionLog` records start with `TXDEC1` followed by two zero bytes,
 the same mandatory definition and canonical JSON within 16 KiB total. JSON stores

@@ -34543,6 +34543,67 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-storage/src/LogTransactionActions.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidStreamPayload": 2,
+        "InvalidTransactionActions": 19,
+        "InvalidTransactionCoverage": 2,
+        "InvalidTransactionLimits": 1,
+        "InvalidTransactionStatement": 1,
+        "LogBatchTooLarge": 1,
+        "LogPayloadConflict": 4,
+        "MissingTransactionActions": 1,
+        "MissingTransactionPayload": 1,
+        "OutOfMemory": 1,
+        "TransactionActionLimit": 2,
+        "TransactionDecodeLimit": 1,
+        "TransactionIdentityConflict": 3,
+        "TransactionMemoryLimit": 1,
+        "TransactionWorkspaceLimit": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Root.validate()": "<inferred>",
+        "contentOf()": "<inferred>",
+        "encode()": "<inferred>",
+        "entryKey()": "<inferred>",
+        "get()": "<inferred>",
+        "init()": "<inferred>",
+        "keyCursor()": "<inferred>",
+        "load()": "<inferred>",
+        "loadEntry()": "<inferred>",
+        "objectKey()": "<inferred>",
+        "operationKey()": "<inferred>",
+        "page()": "<inferred>",
+        "payloadKey()": "<inferred>",
+        "put()": "<inferred>",
+        "putEntry()": "<inferred>",
+        "putOffset()": "<inferred>",
+        "readPayload()": "<inferred>",
+        "reference()": "<inferred>",
+        "requireAction()": "<inferred>",
+        "requireEntry()": "<inferred>",
+        "restore()": "<inferred>",
+        "seal()": "<inferred>",
+        "stage()": "<inferred>",
+        "verify()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 66,
+        "catch": 1
+      },
+      "imports": [
+        "LogBatch.zig",
+        "LogPartitionRecord.zig",
+        "TransitObjectStore.zig",
+        "TreeStore.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-storage/src/LogView.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
@@ -36593,6 +36654,7 @@
         "LogStorageRoots.zig",
         "LogTail.zig",
         "LogTime.zig",
+        "LogTransactionActions.zig",
         "LogView.zig",
         "NvmeCache.zig",
         "OrderedKeyIndex.zig",
