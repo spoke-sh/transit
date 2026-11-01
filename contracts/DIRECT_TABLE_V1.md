@@ -339,6 +339,20 @@ is required for staging and reading; these records never grant data or execution
 rights. Accepted references and subsequent progress records retain complete
 original work; a body alone does not establish token acceptance.
 
+`DirectWorkloadIntent` uses format `WLI1` (`0x574c4931`) for canonical JSON
+containing mandatory current `definition`, `connection`, complete source
+declaration/schema and native Stream/Queue mutation with its nullable payload.
+The source matches the exact original target; append/enqueue payload bytes,
+row attribution, schema and partition routing are validated before staging.
+The 4 MiB record ceiling includes base64 and metadata overhead. Restoring rejects
+noncanonical bytes and missing/foreign definitions; it never resolves a new name.
+Its reference binds connection, namespace, canonical workload binding, original
+stored declaration and the account-scoped record. The shared helper loads that
+body before inspect/execute/cancel and checks the complete reference again.
+This preparation format is not yet a `DirectIntent.Reference` variant: client
+token acceptance, pending reconciliation and SQL result reopening do not yet
+select it. Native workload execution continues through the existing owners.
+
 An optional signed request `lease` contains a token key and exact recovery
 revision. Its scope/principal/audience must match the request. The local host
 holds shared Catalog access through execution/disclosure; updates take exclusive

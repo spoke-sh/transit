@@ -54,6 +54,13 @@ pub const Page = struct { entries: [8]?L.Definition, next: ?u64, position: d.Pos
 pub const PendingPage = struct { entries: [8]?L.Operation, next: ?u64, position: d.Position };
 
 pub fn validateMetadata(allocator: std.mem.Allocator, connection: w.Connection, value: Definition) !void {
+    var owned = try decodeMetadata(allocator, connection, value);
+    defer owned.deinit();
+}
+
+/// Reconstruct the exact declared schema and policy into caller-owned storage.
+/// This verifies the descriptor's commitment; it grants no current permission.
+pub fn decodeMetadata(allocator: std.mem.Allocator, connection: w.Connection, value: Definition) !c.storage.LogDeclaration.Owned {
     const definition = value.declaration;
     try definition.validate();
     try connection.object(definition.stored.declaration.interpretation.object);
@@ -63,6 +70,7 @@ pub fn validateMetadata(allocator: std.mem.Allocator, connection: w.Connection, 
     defer decoded.deinit();
     var properties: [c.storage.LogDeclaration.max_properties_bytes]u8 = undefined;
     var candidate = try c.storage.LogDeclaration.prepare(allocator, .{ .object = definition.stored.declaration.interpretation.object, .revision = definition.stored.declaration.interpretation.revision, .schema = decoded.schema, .properties = try definition.properties.encode(&properties), .configuration = definition.stored.declaration.configuration, .limits = definition.stored.declaration.limits, .retired = definition.stored.retired });
-    defer candidate.deinit();
+    errdefer candidate.deinit();
     if (!std.meta.eql(try candidate.stored(), definition.stored)) return error.InvalidTableResponse;
+    return candidate;
 }

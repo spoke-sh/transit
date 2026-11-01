@@ -49,6 +49,15 @@ recovery resumes the existing declaration owner without resolving a new name or
 recompiling a proposal. Accepted work remains pending through incomplete partition
 initialization; only the owner's actual terminal observation permits settlement.
 
+`DirectWorkloadIntent` prepares a canonical Stream/Queue workload body containing
+the exact source definition/schema, original native request and payload. It
+validates encoded rows and routing against that frozen definition and uses the
+existing account-scoped `DirectRecord` store. The complete JSON body, including
+base64 schema/payload, must fit its 4 MiB bound. Its typed reference can inspect,
+execute or cancel that saved native operation; staging creates neither an
+operation reservation nor acceptance. Workload references are not yet selectable
+by `DirectClientToken` or SQL result recovery.
+
 `DirectLogPreparedDdl` binds the shared `LogDdl` compiler to current Catalog
 metadata and resolves named DLQ references to exact definitions. Native preview
 checks current declaration and destination rights before staging.

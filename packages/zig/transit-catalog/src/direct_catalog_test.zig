@@ -7198,3 +7198,95 @@ test "direct Queue cancellation retains one terminal identity through waits muta
     cached = null;
     try t.expectEqualDeep(refused, try queueCall(&catalog, &access, &cached, &clock, .{ .operation = settlement }, 256));
 }
+
+test "workload intent freezes complete schema payload and operation without admission" {
+    inline for (.{ c.DirectLog.Kind.stream, c.DirectLog.Kind.queue }) |kind| {
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        var access: Access = .{};
+        try catalog.initialize(access.policy());
+        const declaration_request = try logCreation(kind, 10, 1, "frozen-work", 1);
+        _ = try catalog.admitLog(declaration_request, access.policy());
+        _ = try catalog.logOperation(declaration_request.binding, .execute, access.policy());
+        const definition = (try catalog.logOperation(declaration_request.binding, .execute, access.policy())).operation.resulting.?;
+        const connection: c.DirectTableProtocol.Connection = .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null };
+        var schema_bytes: [c.fuze.TableSchema.max_bytes]u8 = undefined;
+        const schema = try c.DirectTableProtocol.Binary.encode(t.allocator, try declaration_request.intent.action.create.schema.encode(&schema_bytes));
+        defer t.allocator.free(schema.base64);
+        const source: c.DirectLogProtocol.Definition = .{ .declaration = definition, .schema = schema };
+        const identity: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 100 };
+        var bytes: [8192]u8 = undefined;
+        const payload = try s.LogBatch.encode(declaration_request.intent.action.create.schema, identity, kind, &.{.{ .cells = &.{.{ .value = .{ .atom = .{ .signed = 42 } } }} }}, &bytes);
+        const encoded = try c.DirectTableProtocol.Binary.encode(t.allocator, payload);
+        defer t.allocator.free(encoded.base64);
+        const append: p.StreamQueue.Append = .{ .target = .{ .definition = p.Growth.current_definition, .interpretation = definition.stored.declaration.interpretation, .partition = 0 }, .operation = identity, .kind = if (kind == .stream) .stream else .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(payload) };
+        const work: c.DirectWorkloadIntent.Work = if (kind == .stream)
+            .{ .stream = .{ .work = .{ .append = append }, .payload = encoded } }
+        else
+            .{ .queue = .{ .work = .{ .enqueue = append }, .payload = encoded } };
+        var intent = try c.DirectWorkloadIntent.create(t.allocator, connection, source, work);
+        defer intent.deinit();
+        const reference = try intent.reference(@splat(7));
+        try t.expectEqualDeep(identity, reference.identity());
+        var transport = c.client.Client.init(t.allocator, t.io, "http://127.0.0.1:1");
+        defer transport.deinit();
+        var caller: c.DirectTableClient = .{ .allocator = t.allocator, .authority = &transport, .service = &transport, .connection = connection, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(1)) };
+        caller.connection.branch += 1;
+        try t.expectError(error.CatalogIdentityConflict, intent.stage(caller, @splat(7)));
+        try t.expectError(error.CatalogIdentityConflict, reference.operation(caller, .inspect));
+        try t.expectError(error.CatalogIdentityConflict, reference.operation(caller, .execute));
+        try t.expectError(error.CatalogIdentityConflict, reference.operation(caller, .cancel));
+        const prior = try wal.log().tail(definition.first_partition);
+        const record = try c.DirectRecord.store(objects.objectStore(), reference.record.scope, c.DirectWorkloadIntent.format, intent.bytes);
+        try reference.record.requireSame(record);
+        var loaded = try c.DirectWorkloadIntent.load(t.allocator, objects.objectStore(), reference);
+        defer loaded.deinit();
+        try t.expectEqualSlices(u8, intent.bytes, loaded.bytes);
+        try t.expectEqual(prior, try wal.log().tail(definition.first_partition));
+        const known = if (kind == .stream)
+            try c.OperationBinding.lookupStream(t.allocator, objects.objectStore(), identity) != null
+        else
+            try c.OperationBinding.lookupQueue(t.allocator, objects.objectStore(), identity) != null;
+        try t.expect(!known);
+        const selection: c.DirectWorkloadIntent.Work = if (kind == .stream)
+            .{ .stream = .{ .work = .{ .consume = .{ .target = append.target, .operation = identity, .group = null, .from = 0, .until = null, .timestamp = null } }, .payload = null } }
+        else
+            .{ .queue = .{ .work = .{ .claim = .{ .target = append.target, .operation = identity, .maximum = 1, .lease_ms = 100 } }, .payload = null } };
+        var saved_selection = try c.DirectWorkloadIntent.create(t.allocator, connection, source, selection);
+        defer saved_selection.deinit();
+        const selected = try saved_selection.reference(@splat(7));
+        try t.expect(!std.meta.eql(reference.binding, selected.binding));
+        var unexpected_payload = selection;
+        if (kind == .stream) unexpected_payload.stream.payload = encoded else unexpected_payload.queue.payload = encoded;
+        try t.expectError(if (kind == .stream) error.InvalidStreamPayload else error.InvalidQueuePayload, c.DirectWorkloadIntent.create(t.allocator, connection, source, unexpected_payload));
+        var changed = reference;
+        changed.namespace += 1;
+        try t.expectError(error.DataIdentityConflict, c.DirectWorkloadIntent.load(t.allocator, objects.objectStore(), changed));
+        changed = reference;
+        changed.record.scope.account[0] ^= 1;
+        try t.expectError(error.DirectRecordMissing, c.DirectWorkloadIntent.load(t.allocator, objects.objectStore(), changed));
+        const foreign = try t.allocator.dupe(u8, intent.bytes);
+        defer t.allocator.free(foreign);
+        const definition_at = std.mem.indexOf(u8, foreign, @tagName(p.Growth.current_definition)).?;
+        @memset(foreign[definition_at..][0..64], '0');
+        try t.expectError(error.InvalidJsonShape, c.DirectWorkloadIntent.restore(t.allocator, foreign));
+        const spaced = try std.fmt.allocPrint(t.allocator, " {s}", .{intent.bytes});
+        defer t.allocator.free(spaced);
+        try t.expectError(error.InvalidWorkloadIntent, c.DirectWorkloadIntent.restore(t.allocator, spaced));
+        var wrong_payload = work;
+        if (kind == .stream) wrong_payload.stream.work.append.payload.sha256[0] ^= 1 else wrong_payload.queue.work.enqueue.payload.sha256[0] ^= 1;
+        try t.expectError(error.LogPayloadConflict, c.DirectWorkloadIntent.create(t.allocator, connection, source, wrong_payload));
+        var wrong_source = source;
+        wrong_source.declaration.stored.declaration.interpretation.revision += 1;
+        try t.expectError(error.InvalidWorkloadIntent, c.DirectWorkloadIntent.create(t.allocator, connection, wrong_source, work));
+        var foreign_connection = connection;
+        foreign_connection.principal += 1;
+        try t.expectError(error.CatalogDenied, c.DirectWorkloadIntent.create(t.allocator, foreign_connection, source, work));
+    }
+}
