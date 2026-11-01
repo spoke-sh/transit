@@ -400,7 +400,11 @@ container combinations, including the nine pairings for three representations.
 For error-bounded scientific float blocks (`.float_zfp` under $\kappa_{\text{numeric}}$),
 prove the pointwise $L_\infty$ reconstruction bound
 ($\|\hat{u} - u\|_\infty \le \varepsilon_{\text{abs}}$) and exact 0th-coefficient
-block mean preservation.
+block mean preservation; for biological sequences (`.seq_2bit`, `.cram_ref_delta`,
+`.fm_bwt`), chemical Morgan fingerprints (`(fp_mol & fp_query) == fp_query`), and
+audio waveforms (`.wave_lpc_pyramid`), prove lossless round-trip, `LF`-mapping
+bijection, zero-false-negative substructure screening, and `(min_peak, max_peak, rms)`
+envelope zone-map pruning soundness.
 Keep algorithm selection with the structure owner. Use independent byte fixtures,
 allocation bounds and fuzzing to cover implementation behavior outside the
 formal encoding functions.
