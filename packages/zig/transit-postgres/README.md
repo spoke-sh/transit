@@ -39,6 +39,16 @@ the requested minor version so the session can explicitly negotiate protocol
 3.0; it does not silently apply startup settings. Decoded fields borrow the
 caller-owned startup payload.
 
+`StartupSession` drives the complete connection handshake through `Wire.Startup`
+events: bounded startup input, GSS/SSL negotiation, cancellation, SCRAM exchanges
+and admission before authentication success, parameters and ReadyForQuery. It
+owns fixed startup/password buffers and a reusable output buffer. `poll` exposes
+one request; `complete` acknowledges its token and partial byte count. TLS becomes
+active only after the host completes the upgrade. Credentials, cryptography and
+session authority remain with the host. Abort fences late completions; join host
+work before `deinit`, which erases sensitive input and proof storage. After
+initialization, the bounded handshake performs no heap allocation.
+
 `Backend` builds bounded authentication, parameter, metadata, row, completion and
 error frames. It preserves full uint64 counts, binary numeric metadata, NULL
 length markers and negotiated field formats. Returned bytes borrow its reusable

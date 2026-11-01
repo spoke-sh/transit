@@ -69,9 +69,16 @@ rights immediately before writing buffered bytes, including an empty result or
 completion. A resumed write reply observes its original accepted outcome without
 executing the SQL again. Immediate output from one bounded batch shares a check.
 
-The host retains authentication and TLS orchestration. Full-password requests
-require TLS; explicit loopback trust uses the same native admission without a
-password exchange. See the
+`StartupSession` drives greeting, exact SSLRequest negotiation, credential
+selection, full-password authentication and admission through `Wire.Startup`
+events. It owns fixed input and reusable output storage; partial reads and writes
+advance token sequences without retrying prefixes. TLS becomes active only after
+the host completes the upgrade. Full-password requests require TLS; explicit
+loopback trust uses the same native admission without a password exchange.
+The host owns credential reads, password verification and session authority and
+reserves command resources before acknowledging admission. Abort fences late
+completions; join host work before `deinit`, which erases sensitive input. The
+bounded handshake allocates no heap memory after initialization. See the
 [gateway application](../../../apps/transit-sql-gateway/README.md) for policy.
 
 Build with `zig build test` or `zig build check` inside `nix develop`.

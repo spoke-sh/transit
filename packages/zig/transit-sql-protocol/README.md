@@ -10,6 +10,18 @@ batches and session limits. PostgreSQL, MySQL and SQL execution share these
 definitions without importing the execution service into a codec. The package
 build walks transitive imports and rejects runtime and transport dependencies.
 
+`Wire.Startup` defines the connection admission continuation. Input, output, TLS
+upgrade, credential selection, password verification, cancellation and final
+session admission are explicit requests. The host owns I/O, randomness, verifier
+files and authority; a decoded handshake cannot authenticate a caller. Each
+completion carries the connection generation and event sequence. Partial reads
+and writes retain their buffer and advance the sequence; stale completions
+cannot advance a later request. Failed I/O or TLS upgrade closes the continuation.
+The host must join every borrower before erasing or freeing startup memory.
+SCRAM challenges borrow host storage through the next poll; proofs are copied.
+Successful admission requires rechecking credentials and authority and reserving
+command resources before any login-success output.
+
 `Wire.Session` defines one pending host request or borrowed output at a time.
 Each completion carries a connection generation and a monotonically increasing
 event sequence. Wrong-generation, duplicate and cancelled completions reject

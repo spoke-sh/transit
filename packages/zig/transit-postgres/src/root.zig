@@ -1,3 +1,4 @@
+pub const StartupSession = @import("StartupSession.zig");
 pub const protocol = @import("transit_sql_protocol");
 pub const wire = protocol.Wire;
 pub const Backend = @import("Backend.zig");
@@ -8,6 +9,7 @@ pub const Scalar = @import("Scalar.zig");
 pub const Frontend = @import("Frontend.zig");
 pub const Session = @import("Session.zig");
 test {
+    _ = @import("startup_session_test.zig");
     _ = @import("backend_test.zig");
     _ = @import("scalar_test.zig");
     _ = @import("session_test.zig");
