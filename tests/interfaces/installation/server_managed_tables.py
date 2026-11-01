@@ -77,7 +77,7 @@ def run(cli, node, host, board, gateway):
         assert not any(probe.delta(before).values()), 'Idle managed computation polled storage'
         fixture.console('RETIRE DATAFLOW managed_projection;\n')
         assert observation(fixture)['observation']['head']['control']['state'] == 'retired'
-        fixture.console('CREATE TABLE failed_output (id BIGINT PRIMARY KEY);\nINSERT INTO managed_input (id) VALUES (1),(2);\nCREATE DATAFLOW failed_projection INTO failed_output AS SELECT 1 AS id FROM managed_input;\nAUTHORIZE DATAFLOW failed_projection;\nACTIVATE DATAFLOW failed_projection;\n')
+        fixture.console('CREATE TABLE failed_input (id BIGINT NOT NULL);\nCREATE TABLE failed_output (id BIGINT PRIMARY KEY);\nINSERT INTO failed_input (id) VALUES (1),(1);\nCREATE DATAFLOW failed_projection INTO failed_output AS SELECT id FROM failed_input;\nAUTHORIZE DATAFLOW failed_projection;\nACTIVATE DATAFLOW failed_projection;\n')
         deadline = time.monotonic() + 180
         while True:
             failed = observation(fixture, 'failed_projection')['observation']['head']
