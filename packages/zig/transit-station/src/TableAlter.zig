@@ -85,6 +85,10 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Write.
     if (!std.mem.eql(u8, &try original_schema.schema.fingerprint(), &try request.schema.fingerprint())) return error.TableSchemaChanged;
     var columns: [f.TableSchema.max_columns]f.TableSchema.Column = undefined;
     const transition = try f.TableEvolution.apply(original_schema.schema, request.change, &columns);
+    // This Publication-backed owner stores one decoder per head. Projection-only
+    // changes in TablePartition still require its existing bounded row rewrite;
+    // publishing the new schema over old row blobs would lose their decoder.
+    const work: f.TableEvolution.Work = if (!std.mem.eql(u8, &try transition.before.layoutFingerprint(), &try transition.after.layoutFingerprint())) .rewrite_rows else transition.work;
     var result = prior orelse blk: {
         var reserved = head;
         reserved.revision = try add(head.revision, 1);
@@ -92,7 +96,7 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Write.
         // The schema owns the first ID; row overlays have a complete interval.
         reserved.next_record = try add(head.next_record, 1 + Candidate.max_records);
         const admitted: Write.Status = .{ .reference = reference, .route = .alter, .admitted_input = turn.originalAuthorizedInput(), .basis_revision = head.revision, .first_record = head.next_record, .end_record = reserved.next_record, .state = .building };
-        const progress: Statement.Progress = .{ .digest = reference.digest, .head_revision = reserved.revision, .index = if (transition.work == .rewrite_rows) .{} else head.index };
+        const progress: Statement.Progress = .{ .digest = reference.digest, .head_revision = reserved.revision, .index = if (work == .rewrite_rows) .{} else head.index };
         try head.replace(turn, reserved);
         try turn.write(reference.key(), try admitted.encode());
         try progress.save(turn, reference);
@@ -102,13 +106,13 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Write.
     if (result.end_record - result.first_record < 1 + Candidate.max_records) return error.InvalidTableStatementProgress;
     var progress = try Statement.Progress.load(turn, result, head);
     if (progress.ordinal != 0 or progress.matched > head.rows or progress.changed > head.rows) return error.InvalidTableStatementProgress;
-    const expected_rows = if (transition.work == .rewrite_rows) progress.matched else head.rows;
+    const expected_rows = if (work == .rewrite_rows) progress.matched else head.rows;
     const entries = std.math.mul(u64, expected_rows, if (transition.after.primary_key.len == 0) 1 else 2) catch return error.TableCapacity;
     if (entries != if (progress.index.root) |root| root.entries else 0) return error.InvalidTableStatementProgress;
-    if (transition.work == .rewrite_rows) {
+    if (work == .rewrite_rows) {
         if (progress.changed != progress.matched) return error.InvalidTableStatementProgress;
     } else if (progress.changed != 0 or !std.meta.eql(progress.index, head.index)) return error.InvalidTableStatementProgress;
-    if (transition.work == .metadata and (progress.cursor != null or progress.matched != 0)) return error.InvalidTableStatementProgress;
+    if (work == .metadata and (progress.cursor != null or progress.matched != 0)) return error.InvalidTableStatementProgress;
     const pages: Pages = .{ .resource = reference.resource, .object = reference.object };
     var schema_buffer: [f.TableSchema.max_bytes]u8 = undefined;
     const schema_bytes = try transition.after.encode(&schema_buffer);
@@ -118,7 +122,7 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Write.
     // Keep schema staging (including multi-block quota metadata) separate from
     // rewrite progress and terminal catalog controls, each with its own budget.
     if (progressCount(turn) != before_schema) return result;
-    if (transition.work == .metadata) return finish(turn, head, result, progress, schema_ref);
+    if (work == .metadata) return finish(turn, head, result, progress, schema_ref);
     var reader: Pages.Reader(*Turn) = .{ .pages = pages, .source = turn };
     const original: Data = .{ .schema = transition.before, .index = head.index };
     var row = (try original.next(allocator, &reader, progress.cursor)) orelse {
@@ -145,7 +149,7 @@ pub fn step(allocator: std.mem.Allocator, turn: *Turn, request: Request) !Write.
     };
     progress.cursor = row.identity;
     progress.matched = try add(progress.matched, 1);
-    if (transition.work == .validate_rows) {
+    if (work == .validate_rows) {
         try progress.save(turn, reference);
         return result;
     }

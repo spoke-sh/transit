@@ -1584,7 +1584,10 @@ test "Table change pairs retain both schemas and allocation failure never advanc
         previous = transaction.after;
     }
     try t.expect(transition != null);
-    try t.checkAllAllocationFailures(t.allocator, allocationChanges, .{ &store, transition.? });
+    // Arena growth must exercise a stable allocation sequence regardless of
+    // whether the backing allocator happens to extend an earlier block in place.
+    var no_resize = t.FailingAllocator.init(t.allocator, .{ .resize_fail_index = 0 });
+    try t.checkAllAllocationFailures(no_resize.allocator(), allocationChanges, .{ &store, transition.? });
 }
 test "point write publication retains exact counts, rejection and receipts after retirement after explicit predecessor staging" {
     var store: Store = .{};

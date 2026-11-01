@@ -157,7 +157,10 @@ Current cleanup authority remains the enclosing owner's responsibility.
 `TableAlter.step` derives a schema transition from the exact original schema and
 one selected change. Metadata changes share the old root; validation-only changes
 check every frozen row; physical changes build a complete successor with the same
-row identities and rebuilt keys. Schema staging finishes before source row reads.
+row identities and rebuilt keys. This Publication-backed owner has one row decoder
+per head, so ADD/DROP COLUMN and other row-layout changes use that bounded rewrite.
+The direct TablePartition owner separately retains physical schema generations
+for lazy projection. Schema staging finishes before source row reads.
 The final turn swaps schema/root and saves the outcome together. A later-row
 constraint or exact-conversion failure preserves the original head and records
 its specific rejection. Interrupted work uses the shared progress/cancellation
