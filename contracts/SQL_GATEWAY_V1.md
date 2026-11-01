@@ -124,6 +124,10 @@ rules, including PostgreSQL's single valid Sync boundary, then open the retained
 result of that original operation. PostgreSQL emits `PRODUCE n` or `ENQUEUE n`
 after verified exhaustion; MySQL uses its ordinary row-result completion.
 Commands without RETURNING report the native receipt's accepted row count.
+PostgreSQL carries that count in the custom command tag. Upstream libpq's
+`PQcmdTuples` recognizes a fixed set of PostgreSQL tags and returns no count for
+`PRODUCE` or `ENQUEUE`; clients must inspect the command tag instead. MySQL
+commands without RETURNING carry the count in the affected-rows field.
 The host owns a separate original-result descriptor until reader close, so
 reusing a prepared SQL template cannot replace the result's frozen projection.
 

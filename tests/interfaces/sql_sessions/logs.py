@@ -274,7 +274,10 @@ def appends(root, port, postgres, mysql_options, restart, authorize, console, co
             assert cursor.fetchall() == [(65, 'default', 65)]
             assert cursor.statusmessage == 'PRODUCE 1'
             cursor.execute('PRODUCE INTO append_events (value) VALUES (%s)', (66,), prepare=True)
-            assert cursor.rowcount == 1 and cursor.statusmessage == 'PRODUCE 1'
+            # libpq derives affected-row counts only for its recognized command
+            # tags. The custom tag retains the authoritative native count.
+            assert cursor.statusmessage == 'PRODUCE 1', cursor.statusmessage
+            assert cursor.rowcount == -1, cursor.rowcount
     with mysql.connector.connect(**mysql_options) as wire:
         with wire.cursor(prepared=True) as cursor:
             cursor.execute('ENQUEUE INTO append_work VALUES (%s) RETURNING value, _offset', (18,))
