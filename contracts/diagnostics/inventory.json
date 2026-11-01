@@ -21798,6 +21798,7 @@
         "ManagedTableNameConflict": 1,
         "ManagedTableResultBudget": 3,
         "ManagedTableSchemaMismatch": 2,
+        "Overflow": 1,
         "QueryPageBudget": 1,
         "QueryResultBudget": 1,
         "Rejected": 2,
