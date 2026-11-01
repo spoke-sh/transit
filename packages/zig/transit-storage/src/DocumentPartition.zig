@@ -21,9 +21,14 @@ const Guard = @import("PublicationGuard.zig");
 const Records = @import("DocumentPartitionRecord.zig");
 const pages = TreeStore.pages;
 const Self = @This();
+const Logical = @import("DocumentLogicalState.zig");
+const LogicalChange = @import("transit_document").LogicalChange;
+const LogicalIndex = @import("DocumentIndex.zig");
+const LogicalTree = @import("transit_document").CausalTree(LogicalIndex);
 
 pub const Options = struct {
     resident_pages: usize = 16,
+    logical: LogicalIndex.Store.Options = .{ .pending_records = 512, .segment_bytes = 256 * 1024, .scratch_bytes = 2 * 1024 * 1024 },
     index_work_bytes: usize = 8 * 1024 * 1024,
     /// Stable owner-supplied key; reopening must preserve retained cursor authority.
     read_secret: [32]u8,
@@ -70,6 +75,7 @@ allocator: std.mem.Allocator,
 log: Log.Log,
 objects: Objects.ObjectStore,
 store: TreeStore,
+logical_store: LogicalIndex.Store,
 scratch: std.heap.ArenaAllocator,
 authority: Read.Authority,
 options: Options,
@@ -88,12 +94,15 @@ pub fn open(
     try requireRecoveryBudget(options.recovery_records);
     const authority = try Read.Authority.init(options.read_secret);
     const initial = try Initialization.observe(allocator, log, objects, request, guard);
-    const store = try TreeStore.init(allocator, objects, options.resident_pages);
+    var store = try TreeStore.init(allocator, objects, options.resident_pages);
+    errdefer store.deinit();
+    const logical_store = try LogicalIndex.Store.init(allocator, objects, .{ .document = request.declared.declaration.interpretation.object.object, .epoch = 1, .type_revision = std.math.cast(u32, request.declared.declaration.interpretation.revision) orelse return error.InvalidLogicalState }, options.logical);
     var self: Self = .{
         .allocator = allocator,
         .log = log,
         .objects = objects,
         .store = store,
+        .logical_store = logical_store,
         .scratch = .init(allocator),
         .authority = authority,
         .options = options,
@@ -113,12 +122,16 @@ pub fn open(
         .commitment = initial.record.sha256,
         .ready = false,
     };
-    errdefer self.deinit();
+    errdefer {
+        self.logical_store.deinit();
+        self.scratch.deinit();
+    }
     _ = try self.recoverStep(guard, options.recovery_records);
     return self;
 }
 
 pub fn deinit(self: *Self) void {
+    self.logical_store.deinit();
     self.store.deinit();
     self.scratch.deinit();
     self.* = undefined;
@@ -186,12 +199,104 @@ fn requireRecoveryBudget(budget: u16) !void {
     if (budget == 0 or budget > 256) return error.InvalidDocumentRecoveryBudget;
 }
 
-pub fn applyMutation(
+/// Evaluate a canonical causal map-tree change, seal private .tseg records,
+/// then publish exactly one fenced WAL decision. No supplied state is accepted.
+pub fn applyCausal(self: *Self, mutation: doc.Mutation, payload: []const u8, guard: Guard) !doc.MutationReceipt {
+    defer _ = self.scratch.reset(.retain_capacity);
+    try mutation.validate();
+    try self.requirePartition(mutation.target.partition);
+    try authorize(guard);
+    try self.requireReady();
+    const limits = self.root.declared.declaration.limits;
+    if (payload.len > limits.change_bytes or mutation.operations > limits.operations_per_change) return error.DocumentMutationLimitExceeded;
+    if (payload.len != mutation.payload.bytes or !std.mem.eql(u8, &LogicalChange.hash(payload), &mutation.payload.sha256)) return error.InvalidDocumentMutation;
+    var decoder = try LogicalChange.Decoder.init(payload);
+    const header = decoder.header;
+    if (!std.mem.eql(u8, &header.definition, &p.Growth.definition_bytes)) return error.IncompatibleDefinition;
+    if (!std.meta.eql(mutation.target.partition.interpretation, self.root.declared.declaration.interpretation)) return error.DocumentPartitionConflict;
+    const replica = mutation.lineage.replica orelse return error.InvalidDocumentLineage;
+    if (mutation.lineage.profile != .causal_crdt or mutation.lineage.raw_span != null or mutation.lineage.parent_revision != null or
+        self.root.declared.declaration.configuration.profile != .causal_crdt or
+        !std.mem.eql(u8, &header.document, &mutation.target.document) or header.epoch != mutation.lineage.merge_epoch or
+        !std.mem.eql(u8, &header.replica, &replica.id) or header.epoch != replica.epoch or header.sequence != replica.sequence or
+        header.preceding_sequence != replica.preceding_sequence or header.operations != mutation.operations) return error.InvalidDocumentLineage;
+    // Validate the complete input before staging, including trailing bytes.
+    while (try decoder.next() != null) {}
+    if (try self.findOutcome(mutation.operation)) |existing| {
+        if (existing != .mutation) return error.DocumentOperationConflict;
+        try existing.mutation.requireMutation(mutation);
+        try authorize(guard);
+        return existing.mutation;
+    }
+    const head = try self.getDocumentHead(mutation.target.document);
+    var base: LogicalIndex = .{};
+    var summary: LogicalTree.Summary = .{};
+    if (head) |h| {
+        const state = try Logical.load(self.scratch.allocator(), self.objects, h.cut.state);
+        try state.target.requireSame(mutation.target);
+        if (state.epoch != header.epoch) return error.DocumentEpochFenced;
+        base.root = state.index;
+        summary.conflicts = state.conflicts;
+    }
+    var history_key: [25]u8 = undefined;
+    history_key[0] = 'H';
+    history_key[1..17].* = header.replica;
+    std.mem.writeInt(u64, history_key[17..25], header.sequence, .big);
+    const history = try LogicalIndex.Key.init(&history_key);
+    if (try base.get(&self.logical_store, history)) |entry| {
+        if (entry.len != 48 or !std.mem.eql(u8, entry.data[16..48], &mutation.payload.sha256)) return error.DocumentReplicaConflict;
+        const original_operation: d.Operation = .{ .scope = mutation.operation.scope, .principal = std.mem.readInt(u64, entry.data[0..8], .big), .operation = std.mem.readInt(u64, entry.data[8..16], .big) };
+        const outcome = try self.findOutcome(original_operation) orelse return error.InvalidLogicalState;
+        if (outcome != .mutation) return error.InvalidLogicalState;
+        var expected = outcome.mutation.mutation;
+        expected.operation = mutation.operation;
+        if (!std.meta.eql(expected, mutation)) return error.DocumentReplicaConflict;
+        return self.acceptCausalAlias(mutation, outcome.mutation, guard);
+    }
+    var logical_tree: LogicalTree = .{ .index = try self.logical_store.begin(base, self.options.index_work_bytes), .summary = summary, .limits = .{ .depth = limits.path_depth, .conflicts = limits.unresolved_conflicts, .steps = limits.read_steps } };
+    defer self.logical_store.abort();
+    decoder = try LogicalChange.Decoder.init(payload);
+    var ordinal: u16 = 0;
+    while (try decoder.next()) |op| : (ordinal += 1) try logical_tree.applyOperation(&self.logical_store, header.dot(ordinal), op);
+    var identity: [48]u8 = undefined;
+    std.mem.writeInt(u64, identity[0..8], mutation.operation.principal, .big);
+    std.mem.writeInt(u64, identity[8..16], mutation.operation.operation, .big);
+    identity[16..48].* = mutation.payload.sha256;
+    logical_tree.index = try logical_tree.index.put(&self.logical_store, history, try LogicalIndex.Value.init(&identity));
+    const sealed = try self.logical_store.seal(logical_tree.index);
+    const state: Logical.State = .{ .definition = p.Growth.current_definition, .target = mutation.target, .epoch = header.epoch, .conflicts = logical_tree.summary.conflicts, .index = sealed.root.? };
+    var bytes: [Logical.max_bytes]u8 = undefined;
+    return self.acceptMutation(mutation, payload, try Logical.encode(state, &bytes), logical_tree.summary.conflicts, true, guard);
+}
+
+fn acceptCausalAlias(self: *Self, mutation: doc.Mutation, original: doc.MutationReceipt, guard: Guard) !doc.MutationReceipt {
+    var receipt = original;
+    receipt.mutation = mutation;
+    receipt.accepted = try self.nextPosition();
+    const evidence = try Evidence.stage(self.objects, .{ .mutation = receipt });
+    try self.store.begin(self.options.index_work_bytes);
+    defer self.store.end();
+    var root = self.root;
+    root.next_lsn = receipt.accepted.next_lsn;
+    root.operations_root = try self.tree().put(root.operations_root, try operationKey(mutation.operation), try self.encodeValue(evidence));
+    try self.publishRecord(.{ .definition = p.Growth.current_definition, .previous_commitment = self.commitment, .root = root, .action = .{ .mutation = receipt }, .evidence = evidence }, .row_delta, guard);
+    return receipt;
+}
+
+/// Opaque receipt-owner component seam. Logical documents must use applyCausal;
+/// this seam cannot introduce or replace an integrated logical root.
+pub fn applyMutation(self: *Self, mutation: doc.Mutation, payload_bytes: []const u8, state_bytes: []const u8, unresolved_conflicts: u16, guard: Guard) !doc.MutationReceipt {
+    if (std.mem.startsWith(u8, state_bytes, Logical.magic)) return error.DocumentLogicalEvaluationRequired;
+    return self.acceptMutation(mutation, payload_bytes, state_bytes, unresolved_conflicts, false, guard);
+}
+
+fn acceptMutation(
     self: *Self,
     mutation: doc.Mutation,
     payload_bytes: []const u8,
     state_bytes: []const u8,
     unresolved_conflicts: u16,
+    logical: bool,
     guard: Guard,
 ) !doc.MutationReceipt {
     defer _ = self.scratch.reset(.retain_capacity);
@@ -227,6 +332,7 @@ pub fn applyMutation(
 
     const current_head = try self.getDocumentHead(mutation.target.document);
     if (current_head) |head| {
+        if (!logical and try Logical.isLogical(self.objects, head.cut.state)) return error.DocumentLogicalEvaluationRequired;
         if (mutation.lineage.merge_epoch != head.cut.merge_epoch) {
             return error.DocumentEpochFenced;
         }
@@ -348,6 +454,7 @@ pub fn publishCheckpoint(
 ) !doc.CheckpointReceipt {
     defer _ = self.scratch.reset(.retain_capacity);
     try checkpoint.validate();
+    if (std.mem.startsWith(u8, checkpoint_bytes, Logical.magic)) return error.DocumentLogicalEvaluationRequired;
     try self.requirePartition(checkpoint.target.partition);
     try authorize(guard);
     try self.requireReady();
@@ -360,6 +467,7 @@ pub fn publishCheckpoint(
     }
 
     const head = (try self.getDocumentHead(checkpoint.target.document)) orelse return error.DocumentHistoryUnavailable;
+    if (try Logical.isLogical(self.objects, head.cut.state)) return error.DocumentLogicalCheckpointUnsupported;
     if (checkpoint.previous_epoch != head.cut.merge_epoch or
         checkpoint.checkpoint_revision != head.cut.accepted_revision or
         checkpoint.retained_from < head.cut.retained_from or
@@ -562,6 +670,135 @@ pub fn readNextRevision(
         .state = state_bytes,
         .cursor = next_cursor,
     };
+}
+
+/// A storage-component cursor for one pinned revision and one exact typed map
+/// path. Byte offsets may split UTF-8; consumers assemble the declared value.
+pub const CausalCursor = struct {
+    read: doc.Read.Handle,
+    revision: u64,
+    path: [32]u8,
+    assignment: u32 = 0,
+    offset: u32 = 0,
+    steps: u32 = 0,
+    bytes: u32 = 0,
+    complete: bool = false,
+    authentication: [32]u8 = @splat(0),
+};
+pub const CausalPage = struct {
+    status: LogicalTree.Status,
+    alternatives: u32,
+    dot: ?LogicalChange.Dot = null,
+    kind: ?LogicalChange.Kind = null,
+    total_bytes: u32 = 0,
+    offset: u32 = 0,
+    data: LogicalIndex.Value = .{},
+    cursor: CausalCursor,
+};
+fn requireCausalPath(self: *Self, path: []const []const u8) !void {
+    const limits = self.root.declared.declaration.limits;
+    if (path.len == 0 or path.len > limits.path_depth) return error.DocumentPathCapacity;
+    var bytes: usize = 0;
+    for (path) |name| {
+        if (name.len > limits.change_bytes - bytes) return error.DocumentPathCapacity;
+        bytes += name.len;
+        if (name.len == 0 or !std.unicode.utf8ValidateSlice(name)) return error.InvalidLogicalOperation;
+    }
+}
+fn pathHash(path: []const []const u8) ![32]u8 {
+    var hasher = std.crypto.hash.sha2.Sha256.init(.{});
+    for (path) |name| {
+        var length: [4]u8 = undefined;
+        std.mem.writeInt(u32, &length, std.math.cast(u32, name.len) orelse return error.DocumentPathCapacity, .big);
+        hasher.update(&length);
+        hasher.update(name);
+    }
+    var digest: [32]u8 = undefined;
+    hasher.final(&digest);
+    return digest;
+}
+fn signCausal(self: *Self, value: CausalCursor) !CausalCursor {
+    var out = value;
+    out.authentication = @splat(0);
+    var buffer: [2048]u8 = undefined;
+    var writer: std.Io.Writer = .fixed(&buffer);
+    var encoder: std.json.Stringify = .{ .writer = &writer };
+    try p.Json.write(out, &encoder);
+    var mac = std.crypto.auth.hmac.sha2.HmacSha256.init(&self.options.read_secret);
+    mac.update("transit.document.causal.page.v1\x00");
+    mac.update(&p.Growth.definition_bytes);
+    mac.update(writer.buffered());
+    mac.final(&out.authentication);
+    return out;
+}
+pub fn causalCursor(self: *Self, receipt: doc.Read.Receipt, path: []const []const u8, guard: Guard) !CausalCursor {
+    _ = try self.readCursor(receipt, guard);
+    if (receipt.request.from_revision != receipt.through_revision) return error.DocumentSingleRevisionRequired;
+    try self.requireCausalPath(path);
+    const result = try self.signCausal(.{ .read = receipt.handle(), .revision = receipt.through_revision, .path = try pathHash(path) });
+    try authorize(guard);
+    return result;
+}
+/// One bounded page owns its bytes inline. Every page, including terminal and
+/// missing results, rechecks the live pin and current disclosure authority.
+pub fn readCausalPage(self: *Self, cursor: CausalCursor, path: []const []const u8, guard: Guard) !?CausalPage {
+    return self.readCausalPageInner(cursor, path, guard) catch |err| switch (err) {
+        error.DocumentEvaluationBudget => error.DocumentReadLimitExceeded,
+        else => err,
+    };
+}
+fn readCausalPageInner(self: *Self, cursor: CausalCursor, path: []const []const u8, guard: Guard) !?CausalPage {
+    defer _ = self.scratch.reset(.retain_capacity);
+    try authorize(guard);
+    try self.requireReady();
+    try self.requireCausalPath(path);
+    const signed = try self.signCausal(cursor);
+    if (!std.crypto.timing_safe.eql([32]u8, signed.authentication, cursor.authentication) or !std.mem.eql(u8, &cursor.path, &try pathHash(path))) return error.InvalidDocumentCursor;
+    const pin = try self.requireLivePin(cursor.read);
+    const source = try Read.load(self.scratch.allocator(), self.objects, pin.source);
+    try self.requirePartition(source.cut.target.partition);
+    if (source.request.from_revision != cursor.revision or source.through_revision != cursor.revision or cursor.steps > source.request.max_steps or cursor.bytes > source.request.max_bytes) return error.DocumentReadConflict;
+    if (cursor.complete) {
+        try authorize(guard);
+        return null;
+    }
+    if (cursor.steps == source.request.max_steps) return error.DocumentReadLimitExceeded;
+    const value = try self.tree().get(self.root.revisions_root, try revisionKey(source.cut.target.document, cursor.revision)) orelse return error.DocumentHistoryUnavailable;
+    const revision = try self.decodeValue(RevisionEntry, value);
+    const state = try Logical.load(self.scratch.allocator(), self.objects, revision.state);
+    try state.target.requireSame(source.cut.target);
+    var logical_tree: LogicalTree = .{ .index = .{ .root = state.index }, .summary = .{ .conflicts = state.conflicts }, .limits = .{ .depth = self.root.declared.declaration.limits.path_depth, .conflicts = self.root.declared.declaration.limits.unresolved_conflicts, .steps = source.request.max_steps - cursor.steps } };
+    const view = logical_tree.lookup(&self.logical_store, path) catch |err| switch (err) {
+        error.DocumentEvaluationBudget => return error.DocumentReadLimitExceeded,
+        else => return err,
+    };
+    var page: CausalPage = .{ .status = view.status, .alternatives = view.count, .cursor = cursor };
+    if (view.slot) |slot| {
+        if (cursor.assignment >= view.count) return error.InvalidDocumentCursor;
+        const assigned = try logical_tree.assignmentAt(&self.logical_store, slot, cursor.assignment);
+        page.dot = assigned.dot;
+        page.kind = assigned.value.kind;
+        page.total_bytes = assigned.value.bytes;
+        page.offset = cursor.offset;
+        if (cursor.offset > assigned.value.bytes or cursor.offset % @import("transit_document").CausalTreeChunkBytes != 0) return error.InvalidDocumentCursor;
+        if (assigned.value.bytes != 0) {
+            const length = @min(@import("transit_document").CausalTreeChunkBytes, assigned.value.bytes - cursor.offset);
+            if (length > source.request.max_bytes - cursor.bytes) return error.DocumentReadLimitExceeded;
+            page.data = try logical_tree.valueChunk(&self.logical_store, assigned.dot, cursor.offset / @import("transit_document").CausalTreeChunkBytes);
+            if (page.data.len != length) return error.InvalidLogicalState;
+        }
+        page.cursor.offset += page.data.len;
+        page.cursor.bytes += page.data.len;
+        if (page.cursor.offset == assigned.value.bytes) {
+            page.cursor.offset = 0;
+            page.cursor.assignment += 1;
+            page.cursor.complete = page.cursor.assignment == view.count;
+        }
+    } else page.cursor.complete = true;
+    page.cursor.steps += logical_tree.work;
+    page.cursor = try self.signCausal(page.cursor);
+    try authorize(guard);
+    return page;
 }
 
 pub fn releaseRead(
