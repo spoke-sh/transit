@@ -2175,7 +2175,7 @@ fn branchDispatch(service: *@import("LocalTableService.zig"), owner_role: u64) !
     const scope = service.configuration.scope;
     const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
     const schema: c.fuze.TableSchema.Schema = .{ .object = 100000, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
-    const intent: D.Intent = .{ .namespace = 1, .name = try .init("branch_source"), .action = .{ .create = .{ .schema = schema, .owner = owner_role } } };
+    const intent: D.Intent = .{ .kind = .table, .namespace = 1, .name = try .init("branch_source"), .action = .{ .create = .{ .schema = schema, .owner = owner_role } } };
     const binding: p.DataLifecycle.Binding = .{ .definition = g.current_definition, .identity = .{ .scope = scope, .principal = 101, .operation = 100000 }, .target = .{ .scope = scope, .branch = 1, .object = 100000 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(t.allocator) };
     var encoded: [65536]u8 = undefined;
     const binary = try w.Binary.encode(t.allocator, try schema.encode(&encoded));

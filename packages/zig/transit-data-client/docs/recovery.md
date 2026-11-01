@@ -4,7 +4,7 @@
 frozen operations and later owner evidence. It grants no dispatch, observation or
 execution permission. `SqlRecovery` connects that store to the existing SQL
 executor; no background worker, SQL replay or credential discovery is started.
-Both are available through `transit_data_client` in the public Zig SDK.
+`KVRecovery` connects the same store to named direct KV mutations. All are available through `transit_data_client` in the public Zig SDK.
 
 ## Ownership and bounds
 
@@ -122,4 +122,51 @@ Missing status is uncertainty, including a record saved before a send that never
 occurred. An error after submission leaves the original record enumerable even
 when `execute` cannot return an `Execution`. These APIs provide no automatic
 receipt-retention policy, browser storage, Catalog staging/settlement adapter or
-installed foreign-language host. Their remaining integration belongs to M9.
+installed foreign-language host.
+
+
+## Direct KV adapter
+
+`KVRecovery` composes `Context.callKV` with the existing
+[`DirectKVClient.Saved`](../../transit-catalog/docs/direct-kv.md) codec. It uses the
+same record-sized buffer, configurable parsing reserve and single-borrower rules
+as the SQL adapter. `load` returns an owned original and optional validated receipt;
+call `Loaded.deinit` when finished. Give untrusted loads a bounded output allocator.
+
+Prepare a mutation with `DirectKVClient.prepareMutation`, then call
+`execute(context, handle, output, mutation, admission)`. The adapter validates the
+handle's frozen connection and saves/synchronizes the exact prepared work before
+dispatch. Keep inputs immutable until it returns. The `admission` argument uses
+the context's immediate-refusal or finite-wait policy; its deadline applies to
+admission after persistence. A saved record can exist even if admission or a later
+local step refuses. Enumerate the store or compute `key(original_identity)` to
+recover it. A persisted original alone never establishes acceptance.
+
+The key hashes the KV mutation domain, current definition and little-endian
+realm/resource/catalog/principal/operation identity. The original includes the
+full connection, target branch/object, expectations, content commitment and exact
+mutation. Reusing an identity with different content or connection refuses.
+Records contain application data but no signing seed, credential or endpoint.
+Endpoint replacement preserves the original signed connection scope.
+
+`Execution.outcome` is the ordinary arena-owned KV result/failure and its dispatch
+evidence. `attempt` retains the store key/revision. `persistence_failure` separately
+reports receipt validation/storage failure; it never hides a known service result.
+Leave enough record capacity for the original **and** its later receipt. A legal
+service batch can exceed the default local store or parsing reserve; preparation
+refuses before send when those bounds are insufficient. No record is automatically
+forgotten after a successful mutation or receipt save.
+
+`observe(context, handle, output, key, admission)` loads the exact original,
+checks the full connection, and inspects its original operation through the
+control lane. It never resubmits a mutation. The service rechecks current
+permission; a saved receipt cannot bypass that check. A missing observation is
+uncertainty, including when no send occurred. An observed receipt is validated
+against the exact binding and the storage owner's accepted-evidence rules before
+revision-checked persistence. Conflicting receipts refuse replacement. `save`
+and `saveReceipt` expose the same persistence steps for explicit callers.
+
+This adapter covers standalone mutations. Declaration settlement, retained pin
+recovery, transactions and other data kinds continue to use their explicit owner
+APIs and saved-operation contracts. It does not create a recovery loop or a
+principal-sequence allocator.
