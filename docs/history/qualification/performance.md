@@ -75,6 +75,41 @@ enqueue `1200001`; inspection of its original private installation also found
 no receipt. Different populations and host conditions prevent a matched speedup
 claim. Both failed runs remain failures, independent of later improvements.
 
+### Clock-envelope regression follow-up
+
+The [local clock owner](../../../apps/transit-node/LocalLogClock.zig) now uses
+the configured uncertainty envelope rather than the varying reported kernel
+error. This prevents a narrower error estimate from moving the accepted upper
+bound backwards while UTC advances. Actual UTC rollback, missing authority and
+samples outside the configured allowance still refuse. The failed measurement
+above did not capture the clock samples needed to establish this as its cause.
+
+On clean pre-rebase source `c8cf13a0a766b9d7ff178426cc5189a1da1e4e11`, with
+definition `88f775c8616770581cd647680929e7352ca239d43ecb51c9552da5d660c3ec65`,
+the following component/native composition check passed all four tests:
+
+```sh
+zig build test-local-catalog \
+  -Dlocal-catalog-filter='local log clock' \
+  -Dlocal-catalog-filter='log privileges' \
+  -Doptimize=ReleaseSafe --summary all
+```
+
+The controlled-time Queue fixture checks timeout at UTC 154 with a five-ms
+allowance (lower bound 149), then visibility at UTC 155 (lower bound 150) and
+accepted upper bound 160. Its one-second wait budget is unchanged. The run also
+executes the existing native log authorization and physical-maintenance checks.
+Compilation took four minutes with 3 GB reported peak RSS; execution took
+fourteen minutes with 89 MB reported peak RSS. These are check-run resource
+observations, not workload latency measurements.
+
+Raw output is retained at `/var/tmp/transit-m6-log-clock-tests3.log`, SHA-256
+`09f161c5b2de879e0810fe3d9e462dd04da33bc88f6f99f140eebdd86936da6f`.
+An earlier run with the old controlled-time expectation was deliberately stopped
+and is not a pass. The later rebase retains the clock patch but adopts main's
+different current definition; this earlier pass does not qualify those new
+binaries or complete the failed six-profile benchmark.
+
 ## Installed Station handler baseline — 2026-11-01
 
 The [handler workload](../../../tests/performance/load/station_turn.md) passed
