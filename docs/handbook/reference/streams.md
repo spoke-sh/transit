@@ -121,7 +121,17 @@ the destination append share one decision. The transfer preserves the original
 logical row and visibility time, checks current rights on both Queues, and leaves
 the source nonterminal if the destination cannot accept it. Exhausted items expose
 their recorded destination and `blocked_after_ms`; later source policy changes
-cannot redirect them. Automatic scheduling of these transfers remains unfinished.
+cannot redirect them. The internal catalog composition owner can retain one
+protected transaction for an exhausted item, recover its original statement and
+decision, and preserve its source binding after either commit or abort. It uses
+the standard transaction workspace and decision log. The local node's optional
+[`table.queue_transfers`](../../../apps/transit-node/docs/growing.md) identity
+enables automatic discovery and recovery alongside native maintenance. It needs
+separate current database grants. Destination keys use canonical declared
+routing; unkeyed transfers use source ordinal modulo destination partition count.
+Changing the worker or its account never reissues an already bound source.
+The public wire surface supports original transaction inspection; protected
+transfer mutations remain with the internal composition owner.
 
 Typed transaction selection can retain Stream/Queue partition cuts as read
 dependencies alongside Table/KV state. Serializable completion checks those

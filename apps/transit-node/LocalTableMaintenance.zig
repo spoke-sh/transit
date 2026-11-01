@@ -18,7 +18,8 @@ allocator: std.mem.Allocator,
 memory: c.fuze.MemoryBudget = .{ .parent = undefined, .limit = 0 },
 streams: @import("LocalLogMaintenance.zig").Owner(.stream) = .{},
 queues: @import("LocalLogMaintenance.zig").Owner(.queue) = .{},
-next_kind: enum { table, stream, queue } = .table,
+transfers: @import("LocalQueueTransfers.zig") = .{},
+next_kind: enum { table, stream, queue, transfer } = .table,
 cursors: struct {
     flush: c.DirectCatalog.MaintenanceCursor = .{},
     archive: c.DirectCatalog.MaintenanceCursor = .{},
@@ -57,6 +58,7 @@ const Age = struct { object: u64, since_ms: i64 };
 pub fn deinit(self: *Self) void {
     self.streams.deinit();
     self.queues.deinit();
+    self.transfers.deinit();
     std.debug.assert(self.memory.used == 0);
     self.* = undefined;
 }
@@ -67,6 +69,7 @@ pub fn step(raw: *anyopaque, engine: *backend.DataAuthority.Engine, settings: c.
     if (self.memory.limit != settings.resident_bytes) {
         self.streams.deinit();
         self.queues.deinit();
+        self.transfers.deinit();
         std.debug.assert(self.memory.used == 0);
         self.memory = .{ .parent = self.allocator, .limit = settings.resident_bytes };
     }
@@ -75,13 +78,14 @@ pub fn step(raw: *anyopaque, engine: *backend.DataAuthority.Engine, settings: c.
     self.last_rows = 0;
     self.last_object = null;
     self.last_class = null;
-    for (0..3) |_| {
+    for (0..4) |_| {
         const selected = self.next_kind;
-        self.next_kind = @fromBackingInt(@intCast((@backingInt(selected) + 1) % 3));
+        self.next_kind = @fromBackingInt(@intCast((@backingInt(selected) + 1) % 4));
         const worked = switch (selected) {
             .table => self.tableStep(engine, settings, signed),
             .stream => self.logStep(.stream, engine, settings, signed),
             .queue => self.logStep(.queue, engine, settings, signed),
+            .transfer => self.transferStep(engine, signed),
         };
         if (worked) |progress| {
             if (progress) return true;
@@ -91,6 +95,15 @@ pub fn step(raw: *anyopaque, engine: *backend.DataAuthority.Engine, settings: c.
         }
     }
     return false;
+}
+
+fn transferStep(self: *Self, engine: *backend.DataAuthority.Engine, signed: g.SignedRequest) !bool {
+    defer {
+        self.last_object = self.transfers.last_object;
+        self.last_rows = self.transfers.last_rows;
+        self.last_class = null;
+    }
+    return self.transfers.step(self.memory.allocator(), self.host, engine, signed);
 }
 
 fn logStep(self: *Self, comptime kind: c.protocol.StreamQueueDeclaration.Kind, engine: *backend.DataAuthority.Engine, settings: c.protocol.Storage.Maintenance, signed: g.SignedRequest) !bool {

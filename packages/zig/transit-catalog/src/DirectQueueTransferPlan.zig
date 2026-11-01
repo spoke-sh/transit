@@ -14,12 +14,8 @@ key: c.DirectClientToken.Key,
 namespace: u64,
 operation: d.Operation,
 transfer: x.TerminalTransfer,
-transaction: struct {
-    key: c.DirectClientToken.Key,
-    operation: d.Operation,
-    limits: x.Limits,
-    budget: c.DirectClientToken.Budget,
-},
+limits: x.Limits,
+budget: c.DirectClientToken.Budget,
 settlement: d.Operation,
 
 pub const format: u32 = 0x44515031; // DQP1, immutable plan, never progress.
@@ -30,17 +26,15 @@ pub fn validate(self: Self) !void {
     try self.key.validate();
     try c.Model.nativeId(self.namespace);
     try (c.DirectTransactionLogWork.Work{ .queue_transfer = self.transfer }).validate();
-    try self.transaction.key.validate();
-    try self.transaction.limits.validate();
-    try self.transaction.budget.validate();
-    if (self.transfer.source != .exhausted or
-        !std.meta.eql(self.key.scope(), self.transaction.key.scope()) or
-        std.mem.eql(u8, &self.key.token, &self.transaction.key.token) or
-        self.transaction.limits.participants < 2)
+    try self.limits.validate();
+    try self.budget.validate();
+    if (self.transfer.source != .exhausted or self.limits.participants != 2 or self.limits.statements != 1)
         return error.InvalidTransactionTransfer;
+    // Retain the frozen plan and payload even before a workspace is acquired.
+    if (self.budget.bytes < try std.math.add(u64, max_bytes, self.transfer.destination.payload.bytes)) return error.ClientTokenBudget;
     try self.key.connection.object(self.transfer.target().interpretation.object);
     try self.key.connection.object(self.transfer.destination.target.interpretation.object);
-    const identities = [_]d.Operation{ self.operation, self.transaction.operation, self.settlement, self.transfer.operation, self.transfer.destination.operation };
+    const identities = [_]d.Operation{ self.operation, self.settlement, self.transfer.operation, self.transfer.destination.operation };
     for (identities, 0..) |identity, i| {
         try self.key.connection.owner(identity);
         for (identities[0..i]) |earlier| if (std.meta.eql(identity, earlier)) return error.TransactionIdentityConflict;
@@ -52,7 +46,12 @@ pub fn validate(self: Self) !void {
 /// changing the maintenance signer must not implicitly create a fresh attempt.
 pub fn sourceKey(self: Self) ![32]u8 {
     try self.validate();
-    const source = self.transfer.source.exhausted;
+    return sourceDigest(self.transfer.source.exhausted);
+}
+
+/// Identity only; discovery and admission separately validate this tuple. This
+/// lets a scheduler inspect the permanent binding before proposing new work.
+pub fn sourceDigest(source: @FieldType(@FieldType(x.TerminalTransfer, "source"), "exhausted")) [32]u8 {
     const object = source.target.interpretation.object;
     var hash = std.crypto.hash.sha2.Sha256.init(.{});
     hash.update("transit.catalog.queue-transfer.source.v1\x00");
@@ -107,6 +106,59 @@ pub fn load(allocator: std.mem.Allocator, objects: c.storage.TransitObjectStore.
     return value;
 }
 
+/// The frozen plan belongs to this original standard transaction. An ordinary
+/// transaction cannot adopt it, nor may another account or begin identity use it.
+pub fn requireReceipt(self: Self, receipt: c.DirectClientToken.Receipt) !void {
+    try self.validate();
+    try receipt.validate();
+    try self.key.requireSame(receipt.binding.key);
+    if (receipt.binding.intent != .transaction) return error.InvalidTransactionTransfer;
+    const reference = receipt.binding.intent.transaction;
+    const begin_value = reference.begin;
+    if (reference.purpose != .queue_transfer or reference.namespace != self.namespace or
+        !std.meta.eql(begin_value.identity.begin, self.operation) or
+        !std.meta.eql(begin_value.limits, self.limits) or !std.meta.eql(receipt.binding.budget, self.budget) or
+        begin_value.mode != .serializable or begin_value.selection != .explicit_objects or
+        begin_value.objects.count != 2 or
+        !std.mem.eql(u8, &receipt.binding.fingerprint, &try self.digest())) return error.InvalidTransactionTransfer;
+}
+
+pub fn fromReceipt(allocator: std.mem.Allocator, objects: c.storage.TransitObjectStore.ObjectStore, receipt: c.DirectClientToken.Receipt) !Self {
+    try receipt.validate();
+    if (receipt.binding.intent != .transaction or receipt.binding.intent.transaction.purpose != .queue_transfer) return error.TransactionOperationRequired;
+    const value = try load(allocator, objects, receipt.binding.intent.transaction.purpose.queue_transfer);
+    try value.requireReceipt(receipt);
+    return value;
+}
+
+/// Recovery validates the protected purpose as well as the common transaction
+/// envelope. A terminal index update must carry the original decision/cleanup.
+pub fn requireProgress(self: Self, allocator: std.mem.Allocator, objects: c.storage.TransitObjectStore.ObjectStore, progress: c.DirectClientToken.Progress) !void {
+    try self.requireReceipt(progress.receipt);
+    try progress.validate();
+    if (progress.cancel) return error.InvalidTransactionTransfer;
+    const reference = progress.record orelse {
+        if (!progress.pending) return error.InvalidTransactionTransfer;
+        return;
+    };
+    if (reference.format == c.DirectTransactionControl.format) {
+        const control = try c.DirectTransactionControl.load(allocator, objects, progress);
+        if (!std.meta.eql(control.binding.attempt.operation, self.settlement)) return error.TransactionIdentityConflict;
+        if (control.workspace) |head| try self.requireWorkspace(head);
+        if (control.decision) |decision| if (decision.outcome == .committed and
+            (control.binding.attempt.last_statement != 1 or control.binding.attempt.writes != 2)) return error.InvalidTransactionTransfer;
+    } else try self.requireWorkspace(try c.DirectTransactionWorkspace.recover(allocator, objects, progress));
+}
+
+pub fn requireWorkspace(self: Self, head: c.DirectTransactionWorkspace.Head) !void {
+    if (head.last_control != 0 or head.controls != null or head.savepoints != null or head.savepoint_count != 0 or
+        head.pending_control != null or head.tables != null or head.last_statement > 1) return error.InvalidTransactionWorkspace;
+    if (head.pending) |pending| {
+        if (pending != .log or pending.log.statement.sequence != 1 or pending.log.work != .queue_transfer or
+            !std.meta.eql(pending.log.work.queue_transfer, self.transfer)) return error.InvalidTransactionWorkspace;
+    }
+}
+
 /// The caller owns targets for the lifetime of the returned request. Resolving
 /// this selection does not replace the exact definitions in transfer: staging
 /// and decision must still validate those original interpretations and rights.
@@ -117,7 +169,7 @@ pub fn begin(self: Self, targets: *[2]x.Target) !c.DirectTransactionRequest.Begi
         .{ .object = self.transfer.destination.target.interpretation.object, .kind = .queue, .partition = self.transfer.destination.target.partition },
     };
     if (targets[0].order(targets[1]) == .gt) std.mem.swap(x.Target, &targets[0], &targets[1]);
-    const result: c.DirectTransactionRequest.Begin = .{ .key = self.transaction.key, .fingerprint = try self.digest(), .operation = self.transaction.operation, .namespace = self.namespace, .mode = .serializable, .selection = .{ .explicit_objects = targets }, .limits = self.transaction.limits, .budget = self.transaction.budget };
+    const result: c.DirectTransactionRequest.Begin = .{ .key = self.key, .fingerprint = try self.digest(), .operation = self.operation, .namespace = self.namespace, .mode = .serializable, .selection = .{ .explicit_objects = targets }, .limits = self.limits, .budget = self.budget };
     try result.validate();
     return result;
 }
@@ -125,14 +177,13 @@ pub fn begin(self: Self, targets: *[2]x.Target) !c.DirectTransactionRequest.Begi
 fn fixture() Self {
     const scope: d.Scope = .{ .realm = 1, .resource = 3, .catalog = 1 };
     const key: c.DirectClientToken.Key = .{ .definition = p.Growth.current_definition, .connection = .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null }, .account = @splat(8), .token = @splat(1) };
-    var transaction_key = key;
-    transaction_key.token = @splat(2);
     return .{
         .definition = p.Growth.current_definition,
         .key = key,
         .namespace = 1,
         .operation = .{ .scope = scope, .principal = 1, .operation = 10 },
-        .transaction = .{ .key = transaction_key, .operation = .{ .scope = scope, .principal = 1, .operation = 11 }, .limits = c.DirectTransaction.default_limits, .budget = .{} },
+        .limits = .{ .resident_bytes = 16 * 1024 * 1024, .workspace_bytes = 1024 * 1024, .participants = 2, .statements = 1, .savepoints = 1 },
+        .budget = .{ .bytes = 16 * 1024 },
         .settlement = .{ .scope = scope, .principal = 1, .operation = 12 },
         .transfer = .{
             .operation = .{ .scope = scope, .principal = 1, .operation = 13 },
@@ -151,11 +202,8 @@ test "Queue transfer plan retains global source identity across policy and calle
     changed.transfer.source.exhausted.target.interpretation.digest = @splat(7);
     changed.transfer.destination.target.interpretation.revision += 1;
     changed.key.account = @splat(9);
-    changed.transaction.key.account = changed.key.account;
     changed.key.connection.principal = 2;
-    changed.transaction.key.connection.principal = 2;
     inline for (.{ "operation", "settlement" }) |name| @field(changed, name).principal = 2;
-    changed.transaction.operation.principal = 2;
     changed.transfer.operation.principal = 2;
     changed.transfer.destination.operation.principal = 2;
     try t.expectEqual(source, try changed.sourceKey());
@@ -181,20 +229,20 @@ test "Queue transfer plan binds distinct original identities and caller-owned so
     try t.expectEqual(@as(u64, 8), targets[0].object.object);
     try t.expectEqual(@as(u64, 9), targets[1].object.object);
     try t.expectEqual(@as(u32, 1), targets[1].partition.?);
-    try t.expectEqualDeep(original.transaction.key, request.key);
-    try t.expectEqualDeep(original.transaction.operation, request.operation);
+    try t.expectEqualDeep(original.key, request.key);
+    try t.expectEqualDeep(original.operation, request.operation);
     try t.expectEqual(try original.digest(), request.fingerprint);
     var changed = original;
     changed.settlement = changed.transfer.operation;
     try t.expectError(error.TransactionIdentityConflict, changed.validate());
     changed = original;
-    changed.transaction.key = changed.key;
+    changed.limits.statements = 2;
     try t.expectError(error.InvalidTransactionTransfer, changed.validate());
     changed = original;
-    changed.transaction.key.account[0] ^= 1;
-    try t.expectError(error.InvalidTransactionTransfer, changed.validate());
+    changed.budget.bytes = 512;
+    try t.expectError(error.ClientTokenBudget, changed.validate());
     changed = original;
-    changed.transaction.limits.participants = 1;
+    changed.limits.participants = 1;
     try t.expectError(error.InvalidTransactionTransfer, changed.validate());
 }
 

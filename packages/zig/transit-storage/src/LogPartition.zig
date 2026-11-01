@@ -772,6 +772,32 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             return .{ .request = request, .payload = bytes };
         }
 
+        /// Automatic transfers honor the destination's canonical key routing.
+        /// Without a routing key, preserve the source ordinal modulo the
+        /// destination count. The selected ordinal is frozen with the attempt.
+        pub fn deadLetterRoutedWork(self: *Self, declared: Declaration.Stored, selected: DeadLetterCandidate, source_operation: d.Operation, destination_operation: d.Operation, buffer: []u8, guard: Guard) !DeadLetterWork {
+            var work = try self.deadLetterWork(declared, selected, source_operation, .{ .definition = p.Growth.current_definition, .interpretation = selected.destination, .partition = 0 }, destination_operation, buffer, guard);
+            var destination = try Declaration.resolve(self.allocator, self.objects, selected.destination);
+            defer destination.deinit();
+            const routing = destination.definition.configuration.partitioning;
+            var ordinal = selected.source.target.partition % routing.count;
+            if (routing.key_column) |column_id| {
+                defer _ = self.scratch.reset(.retain_capacity);
+                const schema = destination.definition.schema;
+                var rows = try Batch.Iterator.init(work.payload, schema, .queue, 1);
+                const row = try (try rows.next() orelse return error.InvalidLogBatch).decode(self.scratch.allocator(), schema, destination_operation);
+                if (try rows.next() != null) return error.InvalidLogBatch;
+                const ci = try schema.index(column_id);
+                const column = schema.columns[ci];
+                const key = try f.Collation.encodeSortKey(row.cells[ci], column.type, column.collation, self.key_buffer);
+                ordinal = try routing.select(key);
+            }
+            work.request.destination.target.partition = ordinal;
+            try work.request.validate();
+            try authorize(guard);
+            return work;
+        }
+
         /// No operation binding, selection artifact or WAL record is published.
         /// Hosts serialize this probe with the subsequent claim. Running the
         /// actual selection also preserves budget, capacity and time refusals.

@@ -45,8 +45,18 @@ changing logical lease state or requiring a clock. Its frozen inputs and Queue
 basis remain retained until accepted progress releases them; recovery rederives
 each complete successor. The [storage contract](TRANSIT_STORAGE_V1.md#private-scheduling-source-composition)
 defines these bounds and publication rules. Explicit dead-letter transfers use
-the same native transaction decision; automatic blocked-item transfer scheduling
-remains unimplemented.
+the same native transaction decision. The internal protected transfer composition
+in [direct operations](DIRECT_TABLE_V1.md#durable-client-token-bindings) retains
+one original attempt per exhausted source and recovers it through that owner.
+The local node enables automatic transfers only with native maintenance and an
+explicit `table.queue_transfers` database identity. Current CONNECT, schema
+USAGE, source ownership/read and destination read/append rights remain required.
+Destination routing uses its declared canonical key; without a routing key it
+uses the source partition ordinal modulo the destination partition count. That
+ordinal, the recorded destination definition and all original identities are
+frozen before dispatch. Permission, definition or capacity refusals retain the
+blocked source and any original accepted attempt; they do not authorize another
+attempt or a source-only archival.
 
 The shared [Stream contract](STREAM_V1.md) owns partition and append attribution.
 The [data lifecycle schema](data-lifecycle-v1.schema.json) and

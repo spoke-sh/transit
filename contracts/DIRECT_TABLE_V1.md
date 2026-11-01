@@ -137,10 +137,13 @@ the declaration owner. Pending removal requires a complete, rejected or cancelle
 owner observation. Retrying a token cannot substitute a changed declaration,
 account, operation or name. Immutable staging records retain the existing saved
 record lifetime and remain outside physical collection authority. The SQL
-compiler does not yet accept Stream/Queue declaration syntax.
+compiler accepts Stream/Queue declaration and named inspection syntax; workload
+verbs have separate, unfinished execution contracts.
 
-A transaction reference fixes the connection, selected namespace and
-`Transaction.Begin` descriptor. Initial acceptance checks the exact Catalog
+A transaction reference fixes the connection, selected namespace,
+`Transaction.Begin` descriptor and mandatory `purpose`. Ordinary requests use
+`interactive`. Missing purpose fields do not default to that value. Initial
+acceptance checks the exact Catalog
 observation, the complete paged selection of read-only Table/KV and partitioned
 Stream/Queue descriptors and
 configured limits. Admission accepts `explicit_objects`; it rejects the neutral
@@ -155,6 +158,41 @@ CONNECT authorizes saving and recovering this caller-supplied descriptor. The
 descriptor grants no Table access and establishes no acquired cut, retained pin,
 workspace or decision. Selection descriptors do not make nonexistent Tables
 readable. Execution must independently acquire and authorize its complete cut.
+
+The internal exhausted-Queue transfer owner uses `purpose.queue_transfer`, an
+immutable `DQP1` plan reference. It admits exactly two Queue participants and one
+paired transfer statement. The plan fixes one account/token, the begin,
+settlement, source transfer and destination append identities, exact exhausted
+tuple and recorded destination. Admission reconstructs and verifies the payload
+under current source administration, both participants' read rights and
+destination append rights before one
+catalog acceptance publishes the token, permanent source binding and pending
+recovery index. The account's byte charge covers the plan and payload; ordinary
+transaction reservations also apply. The retained storage graph includes those
+definitions and payload before source pins or a workspace exist.
+
+If the immutable begin reservation survives a failed catalog append, the
+protected owner reuses its exact plan, token and selection even after unrelated
+catalog publication. Both admission and replay verify that original reservation;
+ordinary transactions still require the current catalog observation. A private
+reservation alone is not acceptance or a retention pin. Missing pre-acceptance
+artifacts refuse recovery rather than selecting new work under the old identity.
+
+The source key excludes caller/account, policy revision and destination, so a
+changed worker cannot create another attempt for the same exhausted item.
+Generic token binding, transaction mutations and caller-record access cannot
+create or modify this protected purpose. Internal advance uses the existing
+workspace to save the exact request before execution and the existing decision
+owner for commit/abort and cleanup. Only verified cleanup removes the pending
+entry; the source binding survives either outcome. An abort cannot replace a
+commit, and an aborted attempt does not authorize automatic fresh identities.
+The library requires exclusive host serialization across admission and each
+advance. The local node's optional `table.queue_transfers` worker uses these
+operations under its separately configured database signer. Recovery scans the
+paged pending index and advances one original transaction unit; discovery
+retains one finite Queue sweep. A worker cannot adopt another signer's or
+account's binding. The public wire surface exposes the existing transaction
+inspection; protected transfer mutation remains internal to this owner.
 
 The typed `transaction.begin` control accepts an ordered array of exact
 `Transaction.Target` values for `explicit_objects`, bounded by 100,000 and the

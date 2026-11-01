@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "082c5ef4fcfe2d1daa385774f5843ecf933af68d68a91df4b7d1281faf55dca1"
+definition = "2e2c775950d2d0cfa6d6ea66e078fcdfa8381c16e522c5ac7d91fb243714c7f3"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -511,7 +511,7 @@ transaction_begin = {
     "limits": {"resident_bytes": 65536, "workspace_bytes": 1048576,
                "participants": 100, "statements": 1000, "savepoints": 32},
 }
-transaction_reference = {"connection": request_input["connection"], "namespace": 1, "begin": transaction_begin}
+transaction_reference = {"connection": request_input["connection"], "namespace": 1, "begin": transaction_begin, "purpose": {"interactive": {}}}
 transaction_binding = {**token_binding, "intent": {"transaction": transaction_reference}}
 transaction_input = {**request_input, "action": {"client_token": {"bind": transaction_binding}}}
 transaction_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(transaction_input)).digest())}
@@ -520,6 +520,9 @@ with tempfile.TemporaryDirectory(prefix="transit-transaction-contract-") as dire
     transaction_request = {**transaction_input, "proof": {"claim": transaction_claim,
         "signature": signing_key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(transaction_claim)).digest())}}
 validator.validate(transaction_request)
+missing_purpose = copy.deepcopy(transaction_request)
+del missing_purpose["action"]["client_token"]["bind"]["intent"]["transaction"]["purpose"]
+assert not validator.is_valid(missing_purpose), 'transaction purpose is mandatory'
 for field in transaction_begin:
     invalid = copy.deepcopy(transaction_request)
     del invalid["action"]["client_token"]["bind"]["intent"]["transaction"]["begin"][field]

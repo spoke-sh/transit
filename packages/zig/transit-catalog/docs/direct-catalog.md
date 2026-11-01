@@ -21,7 +21,12 @@ Signed Stream payload operations and finite notification waits use
 namespace for standalone enqueue, claim, original payload pages and fenced
 settlements. Both share current native policy and declaration serialization.
 The local node schedules bounded Queue expiry under its maintenance authority.
-DLQ transfer, mixed transactions and Stream/Queue SQL remain unavailable.
+Native mixed transactions and explicit paired DLQ transfers share the common
+decision owner. Stream/Queue SQL declarations and inspection use this catalog;
+their workload verbs remain unavailable. Protected exhausted-item transfer
+transactions use internal admission/recovery methods. The local node's optional
+`table.queue_transfers` worker calls them under its own current database identity;
+native maintenance authority alone grants no transfer rights.
 
 `DirectBranch` adds named immutable single-Table cuts through the same service.
 The paged `branches`, `branch_names` and `branch_owners` catalog directories point

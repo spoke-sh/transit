@@ -98,7 +98,7 @@ fn recoverSinceOptions(self: *Self, prior: ?RecoveryState, retain_cache: bool) !
         next = record.root;
         chain = r.hash(frame.payload);
     }
-    for ([_]?pages.Reference{ next.schemas, next.schema_names, next.namespace_claims, next.namespace_pending, next.objects, next.names, next.operations, next.pending, next.native_allocations, next.dependents, next.dependencies, next.client_tokens, next.client_operations, next.client_pending, next.client_accounts, next.branches, next.branch_names, next.branch_owners }) |slot| if (slot) |reference| {
+    for ([_]?pages.Reference{ next.schemas, next.schema_names, next.namespace_claims, next.namespace_pending, next.objects, next.names, next.operations, next.pending, next.native_allocations, next.dependents, next.dependencies, next.client_tokens, next.client_operations, next.client_pending, next.client_accounts, next.branches, next.branch_names, next.branch_owners, next.queue_transfer_sources, next.queue_transfer_pending }) |slot| if (slot) |reference| {
         _ = try self.index.load(reference);
     };
     self.root = next;
@@ -205,6 +205,7 @@ fn operationAt(self: *Self, basis: r.Root, binding: p.DataLifecycle.Binding) !?r
 
 fn operationTransition(self: *Self, before: r.Root, record: r.Record) !void {
     if (record.action == .client_token) return self.clientTokenTransition(before, record);
+    if (!std.meta.eql(before.queue_transfer_sources, record.root.queue_transfer_sources) or !std.meta.eql(before.queue_transfer_pending, record.root.queue_transfer_pending)) return error.InvalidDirectCatalogTransition;
     if (!std.meta.eql(before.branches, record.root.branches) or !std.meta.eql(before.branch_names, record.root.branch_names) or !std.meta.eql(before.branch_owners, record.root.branch_owners)) return error.InvalidDirectCatalogTransition;
     if (!std.meta.eql(before.client_tokens, record.root.client_tokens) or before.client_token_count != record.root.client_token_count or !std.meta.eql(before.client_operations, record.root.client_operations) or !std.meta.eql(before.client_pending, record.root.client_pending) or !std.meta.eql(before.client_accounts, record.root.client_accounts)) return error.InvalidDirectCatalogTransition;
     if (record.action != .resource and !std.meta.eql(before.native_allocations, record.root.native_allocations)) return error.InvalidDirectCatalogTransition;
@@ -331,6 +332,7 @@ pub fn clientUsage(self: *Self, basis: r.Root, key: c.DirectClientToken.Key) !?c
 pub fn clientIndices(self: *Self, next: *r.Root, state: c.DirectClientToken.Progress) !void {
     const key = state.receipt.binding.key;
     if (state.receipt.binding.intent == .branch) try self.branchIndices(next, state);
+    if (queueTransfer(state)) try self.queueTransferIndices(next, state);
     const prior = try self.clientTokenAt(self.root, key);
     const usage = (try self.clientUsage(self.root, key)) orelse c.DirectClientToken.Usage.initial(state.receipt.binding.budget.limits);
     const updated = try usage.transition(prior, state);
@@ -362,14 +364,27 @@ fn clientTokenTransition(self: *Self, before: r.Root, record: r.Record) !void {
         if (!std.meta.eql(accepted, c.DirectClientToken.Progress.initial(accepted.receipt)) or
             record.root.client_token_count != try std.math.add(u64, before.client_token_count, 1)) return error.InvalidDirectCatalogTransition;
         if (accepted.receipt.coordination) |partition| {
+            const transaction = accepted.receipt.binding.intent.transaction;
             if (partition != before.next_partition or record.root.next_partition != try std.math.add(u64, before.next_partition, 1) or
-                accepted.receipt.binding.intent.transaction.begin.catalog.partition != before.configuration.partition or
-                accepted.receipt.binding.intent.transaction.begin.catalog.next_lsn != before.next_lsn)
+                transaction.begin.catalog.partition != before.configuration.partition or
+                transaction.begin.catalog.next_lsn > before.next_lsn)
                 return error.InvalidDirectCatalogTransition;
+            if (transaction.begin.catalog.next_lsn != before.next_lsn) {
+                // Only an exact, already durable protected reservation can
+                // retain an earlier selection after unrelated publication.
+                if (transaction.purpose != .queue_transfer) return error.InvalidDirectCatalogTransition;
+                const saved = try c.OperationBinding.lookupTransaction(self.allocator, self.objects, transaction.identity()) orelse return error.InvalidDirectCatalogTransition;
+                if (!std.meta.eql(saved.reference, transaction) or !std.mem.eql(u8, &saved.token, &try key.digest())) return error.InvalidDirectCatalogTransition;
+            }
         }
     }
     var unchanged = record.root;
     try self.branchTransition(before, record);
+    try self.queueTransferTransition(before, record);
+    if (queueTransfer(accepted)) {
+        unchanged.queue_transfer_sources = before.queue_transfer_sources;
+        unchanged.queue_transfer_pending = before.queue_transfer_pending;
+    }
     if (accepted.receipt.binding.intent == .branch) {
         unchanged.branches = before.branches;
         unchanged.branch_names = before.branch_names;
@@ -724,6 +739,85 @@ pub fn branchByDigest(self: *Self, digest: pages.Value) !c.DirectClientToken.Pro
     const progress = try self.tokenFromIndexValue(self.root, digest);
     if (progress.receipt.binding.intent != .branch) return error.InvalidBranchState;
     return progress;
+}
+
+fn queueTransfer(progress: c.DirectClientToken.Progress) bool {
+    return progress.receipt.binding.intent == .transaction and progress.receipt.binding.intent.transaction.purpose == .queue_transfer;
+}
+
+/// Permanent source identity is independent of worker, account and policy
+/// revision. Only the owning catalog API may disclose or advance this result.
+pub fn queueTransferSource(self: *Self, source: [32]u8) !?c.DirectClientToken.Progress {
+    try self.ready();
+    const value = try self.tree().get(self.root.queue_transfer_sources, try pages.Key.init(&source)) orelse return null;
+    const progress = try self.tokenFromIndexValue(self.root, value);
+    const plan = try c.DirectQueueTransferPlan.fromReceipt(self.allocator, self.objects, progress.receipt);
+    if (!std.mem.eql(u8, &source, &try plan.sourceKey())) return error.InvalidDirectCatalogTransition;
+    return progress;
+}
+
+pub const QueueTransferPage = struct { entries: [8]?c.DirectClientToken.Progress = @splat(null), next: ?[32]u8 = null };
+pub fn queueTransferPending(self: *Self, after: ?[32]u8) !QueueTransferPage {
+    try self.ready();
+    const page = try self.tree().scan(self.root.queue_transfer_pending, if (after) |key| try pages.Key.init(&key) else null);
+    var result: QueueTransferPage = .{};
+    for (page.entries, 0..) |slot, i| {
+        const entry = slot orelse break;
+        if (entry.key.len != 32) return error.InvalidDirectCatalogTransition;
+        const progress = try self.tokenFromIndexValue(self.root, entry.value);
+        const plan = try c.DirectQueueTransferPlan.fromReceipt(self.allocator, self.objects, progress.receipt);
+        if (!progress.pending or !std.mem.eql(u8, entry.key.slice(), &try plan.sourceKey())) return error.InvalidDirectCatalogTransition;
+        result.entries[i] = progress;
+    }
+    if (page.next) |key| {
+        if (key.len != 32) return error.InvalidDirectCatalogTransition;
+        result.next = key.data[0..32].*;
+    }
+    return result;
+}
+
+fn queueTransferIndices(self: *Self, next: *r.Root, progress: c.DirectClientToken.Progress) !void {
+    const plan = try c.DirectQueueTransferPlan.fromReceipt(self.allocator, self.objects, progress.receipt);
+    try plan.requireProgress(self.allocator, self.objects, progress);
+    const source = try pages.Key.init(&try plan.sourceKey());
+    const prior = try self.clientTokenAt(self.root, plan.key);
+    const digest = try pages.Value.init(&try plan.key.digest());
+    if (prior == null) {
+        if (try self.tree().get(next.queue_transfer_sources, source) != null) return error.ClientTokenConflict;
+        next.queue_transfer_sources = try self.tree().put(next.queue_transfer_sources, source, digest);
+        next.queue_transfer_pending = try self.tree().put(next.queue_transfer_pending, source, digest);
+    } else if (prior.?.pending and !progress.pending) {
+        const control = try c.DirectTransactionControl.load(self.allocator, self.objects, progress);
+        if (!control.cleanup_complete or control.decision == null) return error.InvalidTransactionControl;
+        next.queue_transfer_pending = try self.tree().remove(next.queue_transfer_pending, source);
+    }
+}
+
+fn queueTransferTransition(self: *Self, before: r.Root, record: r.Record) !void {
+    const progress = record.action.client_token;
+    if (!queueTransfer(progress)) {
+        if (!std.meta.eql(before.queue_transfer_sources, record.root.queue_transfer_sources) or
+            !std.meta.eql(before.queue_transfer_pending, record.root.queue_transfer_pending)) return error.InvalidDirectCatalogTransition;
+        return;
+    }
+    const plan = try c.DirectQueueTransferPlan.fromReceipt(self.allocator, self.objects, progress.receipt);
+    try plan.requireProgress(self.allocator, self.objects, progress);
+    const source = try pages.Key.init(&try plan.sourceKey());
+    const expected = try pages.Value.init(&try plan.key.digest());
+    const prior = try self.clientTokenAt(before, plan.key);
+    if (prior) |old| {
+        if (!std.meta.eql(before.queue_transfer_sources, record.root.queue_transfer_sources)) return error.InvalidDirectCatalogTransition;
+        if (old.pending == progress.pending and !std.meta.eql(before.queue_transfer_pending, record.root.queue_transfer_pending)) return error.InvalidDirectCatalogTransition;
+    } else if (!progress.pending or try self.tree().get(before.queue_transfer_sources, source) != null or
+        try self.tree().get(before.queue_transfer_pending, source) != null) return error.InvalidDirectCatalogTransition;
+    if (!std.meta.eql(@as(?pages.Value, expected), try self.tree().get(record.root.queue_transfer_sources, source))) return error.InvalidDirectCatalogTransition;
+    const pending = try self.tree().get(record.root.queue_transfer_pending, source);
+    if (progress.pending) {
+        if (!std.meta.eql(@as(?pages.Value, expected), pending)) return error.InvalidDirectCatalogTransition;
+    } else {
+        const control = try c.DirectTransactionControl.load(self.allocator, self.objects, progress);
+        if (pending != null or !control.cleanup_complete or control.decision == null) return error.InvalidDirectCatalogTransition;
+    }
 }
 pub fn branchById(self: *Self, id: u64) !?c.DirectClientToken.Progress {
     const value = try self.tree().get(self.root.branches, try r.idKey(id)) orelse return null;

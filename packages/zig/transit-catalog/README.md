@@ -33,7 +33,8 @@ row identities, byte budgets and exact cursor advance. The signed `queue` action
 and `DirectQueueClient` expose standalone operations through the native service.
 Saved work preserves the exact original mutation and payload commitment. The
 local node performs bounded automatic lease expiry through catalog maintenance.
-SQL workload verbs and automatic DLQ transfer scheduling remain unavailable.
+SQL workload verbs remain unavailable. The local node can schedule protected
+DLQ transfers with an explicitly configured database signer.
 
 `DirectLogIntent` freezes complete Stream/Queue declaration work in an immutable,
 account-scoped record before caller-token acceptance. The Catalog verifies the
@@ -69,13 +70,19 @@ ordered row identities, byte budgets and finite coverage. Pages carry the
 original source declaration, including after a later ALTER or DROP.
 
 `DirectQueueTransferPlan` freezes an exhausted item's exact paired transfer,
-caller tokens, transaction limits and original operation identities into one
-immutable descriptor. Its source key excludes mutable policy and caller fields,
-so a future admission owner can reject a fresh attempt after a signer or policy
-change. The descriptor reconstructs a sorted two-Queue begin request and verifies
-canonical records after disk reopen. It grants no authority, retains no payload
-by itself and performs no admission, scheduling or completion. Automatic DLQ
-still requires a catalog-owned source binding and recoverable execution owner.
+one caller token, limits and four original operation identities. The internal
+`DirectCatalog.admitQueueTransfer` verifies the source, recorded destination,
+payload and current grants before admitting a standard transaction with a
+protected purpose. One catalog acceptance binds its source key and pending
+recovery entry. The source key excludes mutable policy and caller fields; its
+permanent binding prevents a replacement signer or account from reissuing work.
+`advanceQueueTransfer` uses the existing statement workspace and decision log;
+`abortQueueTransfer` settles the original identity and cannot undo a commit.
+Generic transaction mutations cannot modify these entries. The retained graph
+protects the plan's payload and definitions before acquisition. These library
+operations require the host's exclusive database publication/collection gate.
+The node's optional `table.queue_transfers` worker composes this owner; generic
+wire callers can inspect its original transaction but cannot mutate its purpose.
 
 `DirectStream.apply` composes Stream append, original-operation inspection,
 finite reads, consumer assignment and offset settlement with the current catalog
@@ -208,7 +215,9 @@ admit or execute data. See the
 for identity, quota and uncertainty rules. SQL account recovery uses these
 Catalog records independently of Station.
 
-`DirectTransaction.Reference` binds a begin descriptor through that token owner.
+`DirectTransaction.Reference` binds a begin descriptor and mandatory purpose
+through that token owner. Ordinary callers use `interactive`; protected purposes
+can be admitted and changed only by their catalog composition owner.
 Acceptance reserves one coordination partition and preserves it across lost
 replies and retries. The paged selection remains a descriptor: this operation
 does not acquire a common cut or execute a transaction. Its limits and current

@@ -65,6 +65,28 @@ Configuration selects a service owner and storage placement, not application
 definitions or a second permission store. Ursula nodes do not provide this
 direct Table route.
 
+`table.queue_transfers` is optional and defaults to null. With local native
+`maintenance` enabled, it supplies the database identity used to compose
+automatic dead-letter transfers: `principal`, `seed_file`, nullable `role`, a
+nonzero 32-byte `account`, transaction `limits` and client-token `budget`.
+Use a dedicated credential and account. The identity must already have database
+CONNECT, source/destination schema USAGE, source Queue ownership/read and
+destination Queue read/append privileges. Configuration never grants them;
+the registrar and native maintenance signer are independent authorities.
+
+Transfer `limits` must reserve exactly two participants and one statement,
+with positive resident/workspace byte and savepoint ceilings within
+`table.transaction_limits`. The protected owner prohibits savepoint commands.
+The token budget charges at least 8 KiB plus the canonical row payload; its
+account limits and normal transaction reservations also apply. A smaller byte
+charge refuses a candidate before admission. The executor shares
+`storage.maintenance.resident_bytes` and the unchanged maintenance deadline.
+Missing clock, denied or changed destinations, storage quota and pending-work
+capacity leave the source blocked. Accepted attempts remain inspectable through
+their original client-token and transaction status. Only verified transaction
+cleanup removes pending work; changing this identity or account cannot create
+a replacement attempt for an already bound source.
+
 `table.statement_scan_rows` defaults to 1,000,000 decoded row visits and
 `table.statement_scan_bytes` to 64 MiB of canonical input bytes per typed
 UPDATE/DELETE execution attempt. Both must be positive and count all passes,

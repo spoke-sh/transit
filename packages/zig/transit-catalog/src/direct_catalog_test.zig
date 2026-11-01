@@ -2814,7 +2814,7 @@ fn transactionToken(catalog: *D, operation: u64, token: u8, count: u64) !c.Direc
         .guard = .{ .source = .{ .interpretation = .{ .object = .{ .scope = scope, .branch = 1, .object = i + 1000 }, .revision = 1, .digest = @splat(1) }, .accepted = .{ .partition = i + 1000, .next_lsn = 1 } }, .changed_lsn = 1 },
         .access = .read,
     } } });
-    const reference: c.DirectTransaction.Reference = .{ .connection = connection, .namespace = 1, .begin = .{
+    const reference: c.DirectTransaction.Reference = .{ .connection = connection, .namespace = 1, .purpose = .interactive, .begin = .{
         .definition = p.Growth.current_definition,
         .identity = identity,
         .mode = .serializable,
@@ -6657,4 +6657,395 @@ test "direct KV and Document dependencies preserve kind rights recovery and DROP
     document_drop.operation = 11;
     _ = try catalog.resourceOperation(document_drop, .admit, access.policy());
     try t.expect((try catalog.resourceOperation(document_drop, .execute, access.policy())).operation.retired);
+}
+
+const AutomaticQueueTransferFixture = struct {
+    plan: c.DirectQueueTransferPlan,
+    claim: p.StreamQueue.ClaimReceipt,
+    destination_authority: u64,
+};
+fn prepareAutomaticQueueTransfer(catalog: *D, access: *Access, clock: *QueueClock) !AutomaticQueueTransferFixture {
+    var cached: ?c.DirectQueue.Cached = null;
+    defer if (cached) |*value| value.deinit();
+    try catalog.initialize(access.policy());
+    const destination = try logCreation(.queue, 12, 2, "dead_letters", 1);
+    _ = try catalog.admitLog(destination, access.policy());
+    _ = try catalog.logOperation(destination.binding, .execute, access.policy());
+    const definition = (try catalog.resolveLog(1, try .init("dead_letters"), access.policy())).?;
+    const destination_authority = definition.properties.authorization;
+    const target: p.StreamQueue.Partition = .{ .definition = p.Growth.current_definition, .interpretation = definition.stored.declaration.interpretation, .partition = 0 };
+    var source = try logCreation(.queue, 11, 1, "inbox", 1);
+    source.intent.action.create.configuration.policy.queue.maximum_attempts = 1;
+    source.intent.action.create.configuration.policy.queue.dead_letter = target.interpretation;
+    source.binding.intent = try source.intent.digest(t.allocator);
+    _ = try catalog.admitLog(source, access.policy());
+    _ = try catalog.logOperation(source.binding, .execute, access.policy());
+    const source_definition = (try catalog.resolveLog(1, try .init("inbox"), access.policy())).?;
+    var source_target: p.StreamQueue.Partition = .{ .definition = p.Growth.current_definition, .interpretation = source_definition.stored.declaration.interpretation, .partition = 0 };
+    const operation: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 600 };
+    const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 42 } } }};
+    var bytes: [8192]u8 = undefined;
+    const payload = try s.LogBatch.encode(source.intent.action.create.schema, operation, .queue, &.{.{ .cells = &cells, .visible_ms = 75 }}, &bytes);
+    const encoded = try c.DirectTableProtocol.Binary.encode(t.allocator, payload);
+    defer t.allocator.free(encoded.base64);
+    _ = try queueCall(catalog, access, &cached, clock, .{ .mutate = .{ .work = .{ .enqueue = .{ .target = source_target, .operation = operation, .kind = .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(payload) } }, .payload = encoded } }, 256);
+    const claim = (try queueCall(catalog, access, &cached, clock, .{ .mutate = .{ .work = .{ .claim = .{ .target = source_target, .operation = .{ .scope = scope, .principal = 1, .operation = 601 }, .maximum = 1, .lease_ms = 100 } }, .payload = null } }, 256)).operation.?.claim;
+    const page = try queueCall(catalog, access, &cached, clock, .{ .page = .{ .cursor = .{ .receipt = claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } }, 256);
+    defer page.deinit(t.allocator);
+    _ = try queueCall(catalog, access, &cached, clock, .{ .mutate = .{ .work = .{ .settle = .{ .operation = .{ .scope = scope, .principal = 1, .operation = 604 }, .lease = page.page.rows[0].lease.original, .action = .{ .nack = .{ .visible_ms = 0 } } } }, .payload = null } }, 256);
+    // Exhaustion recorded the destination. A later source policy edit cannot
+    // redirect it or turn the original blocked item into ordinary retry work.
+    var configuration_value = source.intent.action.create.configuration;
+    configuration_value.policy.queue.dead_letter = null;
+    const policy_edit = try logEdit(source_definition, 605, .{ .alter = .{ .configuration = configuration_value, .limits = source.intent.action.create.limits } });
+    _ = try catalog.admitLog(policy_edit, access.policy());
+    _ = try catalog.logOperation(policy_edit.binding, .execute, access.policy());
+    source_target.interpretation = (try catalog.resolveLog(1, try .init("inbox"), access.policy())).?.stored.declaration.interpretation;
+    const blocked = try queueCall(catalog, access, &cached, clock, .{ .page = .{ .cursor = .{ .receipt = claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } }, 256);
+    defer blocked.deinit(t.allocator);
+    const item = blocked.page.rows[0].lease;
+    const template = try transactionToken(catalog, 9000, 1, 0);
+    const enqueued: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 603 };
+    const transferred = try s.LogBatch.encode(destination.intent.action.create.schema, enqueued, .queue, &.{.{ .cells = &cells, .visible_ms = 75 }}, &bytes);
+    const plan: c.DirectQueueTransferPlan = .{
+        .definition = p.Growth.current_definition,
+        .key = template.key,
+        .namespace = 1,
+        .operation = template.intent.transaction.identity(),
+        .settlement = .{ .scope = scope, .principal = 1, .operation = 9001 },
+        .transfer = .{
+            .operation = .{ .scope = scope, .principal = 1, .operation = 602 },
+            .source = .{ .exhausted = .{ .target = source_target, .offset = item.original.offset, .lease_epoch = item.epoch, .attempt = item.attempt, .not_before_ms = item.blocked_after_ms.? } },
+            .destination = .{ .target = target, .operation = enqueued, .kind = .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(transferred) },
+        },
+        .limits = .{ .resident_bytes = 16 * 1024 * 1024, .workspace_bytes = 1024 * 1024, .participants = 2, .statements = 1, .savepoints = 1 },
+        .budget = .{ .bytes = 16 * 1024 },
+    };
+    return .{ .plan = plan, .claim = claim, .destination_authority = destination_authority };
+}
+
+test "automatic Queue transfer reopens its original source binding at every durable append" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{ .exclusive = true };
+    const fixture = setup: {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        var clock: QueueClock = .{};
+        break :setup try prepareAutomaticQueueTransfer(&catalog, &access, &clock);
+    };
+    var original: ?p.Transaction.Decision = null;
+    var faults: usize = 0;
+    var partitions: std.AutoHashMapUnmanaged(u64, void) = .empty;
+    defer partitions.deinit(t.allocator);
+    for (0..128) |restart| {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        if (try catalog.store.queueTransferSource(try fixture.plan.sourceKey())) |progress| {
+            try fixture.plan.requireReceipt(progress.receipt);
+            const status = try catalog.inspectTransaction(fixture.plan.key, access.policy());
+            if (status.observation == .decided) {
+                if (original) |known| try t.expectEqualDeep(known, status.observation.decided);
+                original = status.observation.decided;
+            }
+        }
+        var clock: QueueClock = .{ .now = if (original == null) .exact(100) else null };
+        const environment: c.DirectTransactionLog.Environment = .{ .clock = clock.source() };
+        catalog.log_environment = &environment;
+        var fault: TransactionLogFault = .{ .underlying = wal.log(), .refuse_append = restart % 2 == 0, .lose_reply = restart % 2 != 0 };
+        catalog.store.log = fault.log();
+        catalog.data_log = fault.log();
+        const attempt = struct {
+            fn run(value: *D, plan: c.DirectQueueTransferPlan, policy: D.Policy) !c.DirectTransactionControl.Status {
+                _ = try value.admitQueueTransfer(plan, policy);
+                for (0..32) |_| {
+                    const status = try value.advanceQueueTransfer(plan.key, 1, policy);
+                    if (status.cleanup_complete) return status;
+                }
+                return error.FixtureBudget;
+            }
+        }.run(&catalog, fixture.plan, access.policy()) catch |err| {
+            const failed = fault.failed orelse return err;
+            switch (err) {
+                error.InjectedAppendFailure, error.InjectedReplyLoss, error.LogAppendUncertain => {},
+                else => return err,
+            }
+            try t.expectEqual(failed.before + @as(u64, @intFromBool(failed.accepted)), try wal.log().tail(failed.partition));
+            try partitions.put(t.allocator, failed.partition, {});
+            faults += 1;
+            continue;
+        };
+        try t.expect(fault.failed == null);
+        try t.expect(attempt.cleanup_complete);
+        try t.expectEqual(.committed, attempt.observation.decided.outcome);
+        try t.expectEqualDeep(original.?, attempt.observation.decided);
+        try t.expect(faults >= 12);
+        try t.expectEqual(@as(u32, 4), partitions.count());
+        try t.expect((try catalog.store.queueTransferPending(null)).entries[0] == null);
+        try t.expectEqual(@as(u64, 1), (try catalog.store.clientUsage(catalog.store.root, fixture.plan.key)).?.operations);
+        try t.expectEqual(@as(u64, 0), (try catalog.store.clientUsage(catalog.store.root, fixture.plan.key)).?.transactions.count);
+        fault.refuse_append = false;
+        fault.lose_reply = false;
+        var cached: ?c.DirectQueue.Cached = null;
+        defer if (cached) |*value| value.deinit();
+        clock.now = .exact(1000);
+        const page = try queueCall(&catalog, &access, &cached, &clock, .{ .page = .{ .cursor = .{ .receipt = fixture.claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } }, 256);
+        defer page.deinit(t.allocator);
+        try t.expectEqual(.archived, page.page.rows[0].lease.state);
+        try t.expectEqual(@as(u64, 1), (try queueCall(&catalog, &access, &cached, &clock, .{ .observe = fixture.plan.transfer.destination.target }, 256)).cut.next);
+        const receipt = (try queueCall(&catalog, &access, &cached, &clock, .{ .operation = .{ .enqueue = fixture.plan.transfer.destination } }, 256)).operation.?.enqueue;
+        try t.expectEqualDeep(fixture.plan.transfer.destination, receipt.append);
+        std.debug.print("automatic Queue transfer: {d} append faults across {d} durable logs; one original source, decision and cleanup recovered\n", .{ faults, partitions.count() });
+        break;
+    } else return error.FixtureBudget;
+}
+
+test "automatic Queue transfer preserves one protected transaction across admission and decision reply loss" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{ .exclusive = true };
+    var plan: c.DirectQueueTransferPlan = undefined;
+    var claim: p.StreamQueue.ClaimReceipt = undefined;
+    var destination_authority: u64 = undefined;
+    for (0..3) |restart| {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        catalog.options.resident_pages = (D.Options{}).resident_pages;
+        var clock: QueueClock = .{};
+        const environment: c.DirectTransactionLog.Environment = .{ .clock = clock.source() };
+        if (restart < 2) catalog.log_environment = &environment;
+        var cached: ?c.DirectQueue.Cached = null;
+        defer if (cached) |*value| value.deinit();
+        if (restart == 0) {
+            const fixture = try prepareAutomaticQueueTransfer(&catalog, &access, &clock);
+            plan = fixture.plan;
+            claim = fixture.claim;
+            destination_authority = fixture.destination_authority;
+            var forged = plan;
+            forged.transfer.destination.payload.sha256[0] ^= 1;
+            try t.expectError(error.InvalidTransactionTransfer, catalog.admitQueueTransfer(forged, access.policy()));
+            try t.expect(try catalog.store.queueTransferSource(try plan.sourceKey()) == null);
+            access.denied_privileges = .{ .id = destination_authority, .mask = c.LogAuthority.append };
+            try t.expectError(error.CatalogDenied, catalog.admitQueueTransfer(plan, access.policy()));
+            access.denied_privileges = .{ .id = destination_authority, .mask = c.LogAuthority.read };
+            try t.expectError(error.CatalogDenied, catalog.admitQueueTransfer(plan, access.policy()));
+            const source_authority = (try catalog.resolveLog(1, try .init("inbox"), access.policy())).?.properties.authorization;
+            access.denied_privileges = .{ .id = source_authority, .mask = c.LogAuthority.read };
+            try t.expectError(error.CatalogDenied, catalog.admitQueueTransfer(plan, access.policy()));
+            access.denied_privileges = null;
+            try t.expect(try catalog.store.queueTransferSource(try plan.sourceKey()) == null);
+            catalog.store.lose_reply = true;
+            try t.expectError(error.LostAcknowledgement, catalog.admitQueueTransfer(plan, access.policy()));
+            catalog.store.lose_reply = false;
+            const original = (try catalog.store.queueTransferSource(try plan.sourceKey())).?;
+            try plan.requireReceipt(original.receipt);
+            try t.expect(original.record == null);
+            var graph: @import("direct_storage_graph_test.zig").Workspace = .{};
+            defer graph.deinit();
+            try graph.enqueue(.{ .transaction = .{ .root = catalog.store.root, .progress = original } });
+            var at: usize = 0;
+            while (at < graph.jobs.items.len) : (at += 1) {
+                var current = graph.jobs.items[at];
+                while (true) {
+                    const before = graph.jobs.items.len;
+                    const done = try c.DirectStorageGraph.step(t.allocator, &catalog.store.index, wal.log(), &current, &graph);
+                    try t.expect(graph.jobs.items.len - before <= 3);
+                    if (done) break;
+                }
+            }
+            var payload_key: [96]u8 = undefined;
+            try t.expect(graph.marks.contains(try s.LogTransactionActions.payloadKey(plan.transfer.destination.payload, &payload_key)));
+        } else if (restart == 1) {
+            const recovered = (try catalog.store.queueTransferSource(try plan.sourceKey())).?;
+            try plan.requireReceipt(recovered.receipt);
+            const pending = try catalog.store.queueTransferPending(null);
+            try t.expectEqualDeep(recovered, pending.entries[0].?);
+            var changed = plan;
+            changed.key.account[0] ^= 1;
+            try t.expectError(error.DataIdentityConflict, catalog.admitQueueTransfer(changed, access.policy()));
+            try t.expectEqualDeep(recovered.receipt, try catalog.admitQueueTransfer(plan, access.policy()));
+            try t.expectError(error.TransactionOperationRequired, catalog.clientToken(.{ .bind = recovered.receipt.binding }, access.policy()));
+            try t.expectError(error.TransactionOperationRequired, catalog.acquireTransaction(plan.key, access.policy()));
+            try t.expectError(error.TransactionOperationRequired, catalog.settleTransaction(plan.key, plan.settlement, .abort, 1, access.policy()));
+            var indirect = recovered.receipt.binding;
+            indirect.key.token[0] ^= 1;
+            indirect.intent = .{ .transaction_call = .{ .connection = plan.key.connection, .namespace = plan.namespace, .operation = 9999, .work = .{ .settle = .{ .key = plan.key, .operation = plan.settlement, .command = .abort } } } };
+            indirect.budget.bytes = c.DirectTransactionCall.reservation_bytes;
+            try t.expectError(error.TransactionOperationRequired, catalog.clientToken(.{ .bind = indirect }, access.policy()));
+            try t.expect(try catalog.store.clientToken(indirect.key) == null);
+            var targets: [2]p.Transaction.Target = undefined;
+            try t.expectError(error.TransactionOperationRequired, catalog.beginTransaction(try plan.begin(&targets), access.policy()));
+            _ = try catalog.advanceQueueTransfer(plan.key, 1, access.policy());
+            access.denied_privileges = .{ .id = destination_authority, .mask = c.LogAuthority.append };
+            try t.expectError(error.CatalogDenied, catalog.advanceQueueTransfer(plan.key, 1, access.policy()));
+            access.denied_privileges = null;
+            // First freeze the attempt and prepare one participant. Losing the
+            // freeze reply is not losing a commit decision; abort could still win.
+            for (0..16) |_| {
+                const status = try catalog.advanceQueueTransfer(plan.key, 1, access.policy());
+                if (status.attempt != null) {
+                    try t.expect(status.observation != .decided);
+                    break;
+                }
+            } else return error.FixtureBudget;
+            catalog.lose_transaction_reply = true;
+            var lost = false;
+            for (0..32) |_| {
+                _ = catalog.advanceQueueTransfer(plan.key, 1, access.policy()) catch |err| {
+                    if (err != error.LostAcknowledgement) return err;
+                    lost = true;
+                    break;
+                };
+            }
+            try t.expect(lost);
+            const decided = try catalog.inspectTransaction(plan.key, access.policy());
+            try t.expectEqual(.committed, decided.observation.decided.outcome);
+        } else {
+            // The original common decision resolves after replacement without
+            // a clock, even when an explicit abort races its cleanup.
+            var status = try catalog.abortQueueTransfer(plan.key, 1, access.policy());
+            for (0..32) |_| {
+                if (status.cleanup_complete) break;
+                status = try catalog.advanceQueueTransfer(plan.key, 1, access.policy());
+            }
+            try t.expect(status.cleanup_complete);
+            try t.expectEqual(.committed, status.observation.decided.outcome);
+            try t.expect((try catalog.store.queueTransferPending(null)).entries[0] == null);
+            const original = (try catalog.store.queueTransferSource(try plan.sourceKey())).?;
+            try t.expect(!original.pending);
+            try plan.requireReceipt(original.receipt);
+            clock.now = .exact(1000);
+            const source = try queueCall(&catalog, &access, &cached, &clock, .{ .page = .{ .cursor = .{ .receipt = claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } }, 256);
+            defer source.deinit(t.allocator);
+            try t.expectEqual(.archived, source.page.rows[0].lease.state);
+            try t.expectEqual(@as(u64, 1), (try queueCall(&catalog, &access, &cached, &clock, .{ .observe = plan.transfer.destination.target }, 256)).cut.next);
+            const receipt = (try queueCall(&catalog, &access, &cached, &clock, .{ .operation = .{ .enqueue = plan.transfer.destination } }, 256)).operation.?.enqueue;
+            try t.expectEqualDeep(plan.transfer.destination, receipt.append);
+            try t.expectEqualDeep(original.receipt, try catalog.admitQueueTransfer(plan, access.policy()));
+        }
+    }
+}
+
+test "automatic Queue transfer abort releases reservations but never reissues its exhausted source" {
+    for ([_]bool{ false, true }) |evaluate| {
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        var access: Access = .{ .exclusive = true };
+        var fixture: AutomaticQueueTransferFixture = undefined;
+        for (0..2) |restart| {
+            var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+            defer wal.deinit();
+            var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+            defer objects.deinit();
+            var catalog = try owner(&wal, &objects);
+            defer catalog.deinit();
+            var clock: QueueClock = .{};
+            const environment: c.DirectTransactionLog.Environment = .{ .clock = clock.source() };
+            if (restart == 0) {
+                catalog.log_environment = &environment;
+                fixture = try prepareAutomaticQueueTransfer(&catalog, &access, &clock);
+                const quota = catalog.options.client_token_quota;
+                catalog.options.client_token_quota = 0;
+                try t.expectError(error.ClientTokenCapacity, catalog.admitQueueTransfer(fixture.plan, access.policy()));
+                try t.expect(try catalog.store.queueTransferSource(try fixture.plan.sourceKey()) == null);
+                catalog.options.client_token_quota = quota;
+                _ = try catalog.admitQueueTransfer(fixture.plan, access.policy());
+                if (evaluate) {
+                    _ = try catalog.advanceQueueTransfer(fixture.plan.key, 1, access.policy());
+                    _ = try catalog.advanceQueueTransfer(fixture.plan.key, 1, access.policy());
+                    const staged = try catalog.advanceQueueTransfer(fixture.plan.key, 1, access.policy());
+                    try t.expect(staged.last_statement == 1 and !staged.pending_statement and staged.attempt == null);
+                }
+                _ = try catalog.abortQueueTransfer(fixture.plan.key, 1, access.policy());
+            } else {
+                var terminal = try catalog.advanceQueueTransfer(fixture.plan.key, 1, access.policy());
+                for (0..32) |_| {
+                    if (terminal.cleanup_complete) break;
+                    terminal = try catalog.advanceQueueTransfer(fixture.plan.key, 1, access.policy());
+                }
+                try t.expect(terminal.cleanup_complete);
+                try t.expectEqual(.aborted, terminal.observation.decided.outcome);
+                const progress = (try catalog.store.queueTransferSource(try fixture.plan.sourceKey())).?;
+                try t.expect(!progress.pending);
+                try t.expect((try catalog.store.queueTransferPending(null)).entries[0] == null);
+                try t.expectEqual(@as(u64, 0), (try catalog.store.clientUsage(catalog.store.root, fixture.plan.key)).?.transactions.count);
+                try t.expectEqualDeep(progress.receipt, try catalog.admitQueueTransfer(fixture.plan, access.policy()));
+                var repeated = fixture.plan;
+                repeated.key.token[0] ^= 1;
+                try t.expectError(error.DataIdentityConflict, catalog.admitQueueTransfer(repeated, access.policy()));
+                var cached: ?c.DirectQueue.Cached = null;
+                defer if (cached) |*value| value.deinit();
+                clock.now = .exact(1000);
+                const source = try queueCall(&catalog, &access, &cached, &clock, .{ .page = .{ .cursor = .{ .receipt = fixture.claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } }, 256);
+                defer source.deinit(t.allocator);
+                try t.expectEqual(.available, source.page.rows[0].lease.state);
+                try t.expect(source.page.rows[0].lease.blocked == .dead_letter);
+                try t.expectEqual(@as(u64, 0), (try queueCall(&catalog, &access, &cached, &clock, .{ .observe = fixture.plan.transfer.destination.target }, 256)).cut.next);
+                try t.expect((try queueCall(&catalog, &access, &cached, &clock, .{ .operation = .{ .enqueue = fixture.plan.transfer.destination } }, 256)).operation == null);
+            }
+        }
+    }
+}
+
+test "automatic Queue transfer resumes its frozen pre-admission reservation after unrelated catalog publication" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{ .exclusive = true };
+    var fixture: AutomaticQueueTransferFixture = undefined;
+    var reserved: c.DirectTransaction.Reference = undefined;
+    for (0..2) |restart| {
+        errdefer std.debug.print("frozen Queue transfer reservation restart {d} failed\n", .{restart});
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        var clock: QueueClock = .{};
+        const environment: c.DirectTransactionLog.Environment = .{ .clock = clock.source() };
+        catalog.log_environment = &environment;
+        if (restart == 0) {
+            fixture = try prepareAutomaticQueueTransfer(&catalog, &access, &clock);
+            var fault: TransactionLogFault = .{ .underlying = wal.log(), .refuse_append = true };
+            catalog.store.log = fault.log();
+            try t.expectError(error.InjectedAppendFailure, catalog.admitQueueTransfer(fixture.plan, access.policy()));
+            try t.expect(fault.failed != null and !fault.failed.?.accepted);
+            reserved = (try c.OperationBinding.lookupTransaction(t.allocator, objects.objectStore(), fixture.plan.operation)).?.reference;
+        } else {
+            try t.expect(try catalog.store.clientToken(fixture.plan.key) == null);
+            const unrelated = try creation(99, 8888, "unrelated");
+            _ = try catalog.admit(unrelated, access.policy());
+            _ = try catalog.perform(unrelated.binding, access.policy());
+            try t.expect(catalog.store.root.next_lsn > reserved.begin.catalog.next_lsn);
+            const receipt = catalog.admitQueueTransfer(fixture.plan, access.policy()) catch |err| {
+                std.debug.print("reserved Queue transfer admission: {s}\n", .{@errorName(err)});
+                return err;
+            };
+            try t.expectEqualDeep(reserved, receipt.binding.intent.transaction);
+            for (0..64) |_| {
+                const status = catalog.advanceQueueTransfer(fixture.plan.key, 1, access.policy()) catch |err| {
+                    std.debug.print("reserved Queue transfer advancement: {s}\n", .{@errorName(err)});
+                    return err;
+                };
+                if (status.cleanup_complete) {
+                    try t.expectEqual(.committed, status.observation.decided.outcome);
+                    break;
+                }
+            } else return error.FixtureBudget;
+            try t.expectEqual(@as(u64, 1), catalog.store.root.client_token_count);
+            try t.expect((try catalog.store.queueTransferPending(null)).entries[0] == null);
+        }
+    }
 }

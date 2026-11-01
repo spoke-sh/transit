@@ -20,6 +20,8 @@ pub const Config = struct {
     client_token_quota: u64 = 1_000_000,
     transaction_limits: c.protocol.Transaction.Limits = c.DirectTransaction.default_limits,
     transaction_account_limits: c.DirectClientToken.TransactionReservations = .defaults,
+    /// Optional explicit database identity; the registrar grants no DLQ rights.
+    queue_transfers: ?@import("LocalQueueTransfers.zig").Config = null,
 };
 
 configuration: c.DirectCatalog.Configuration,
@@ -39,6 +41,7 @@ control_residents: [2]ResidentSlot = @splat(.{}),
 /// requests/responses. Data exhaustion cannot consume the control reserve.
 resident_memory: @import("DirectRequestMemory.zig") = .{},
 log_waits: ?*LogWaits = null,
+queue_transfers: ?@import("LocalQueueTransfers.zig").Identity = null,
 
 /// The embedding owner joins every request before closing retained workspaces.
 pub fn deinit(self: *Self) void {
@@ -53,6 +56,7 @@ pub fn deinit(self: *Self) void {
 pub fn init(allocator: std.mem.Allocator, io: std.Io, config: Config, engine: *backend.DataAuthority.Engine) !Self {
     try config.catalog.validate();
     try config.transaction_limits.validate();
+    if (config.queue_transfers) |transfers| try transfers.validate(config.transaction_limits);
     inline for (@typeInfo(c.DirectClientToken.TransactionReservations).@"struct".field_names) |name| {
         if (@field(config.transaction_account_limits, name) == 0) return error.InvalidTableConfiguration;
     }
@@ -70,7 +74,8 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, config: Config, engine: *b
     // does not initialize or execute an application's catalog declaration.
     try catalog.recover();
     const recovered = try catalog.recoveryState();
-    return .{ .configuration = config.catalog, .registrar = .{ .principal = config.registrar.principal, .key = key, .role = config.registrar.role }, .options = options, .recovery = recovered, .log_waits = try LogWaits.create(allocator, io) };
+    const transfers: ?@import("LocalQueueTransfers.zig").Identity = if (config.queue_transfers) |value| .{ .principal = value.principal, .key = try @import("transit_client").readKey(allocator, io, value.seed_file), .role = value.role, .account = value.account, .limits = value.limits, .budget = value.budget } else null;
+    return .{ .configuration = config.catalog, .registrar = .{ .principal = config.registrar.principal, .key = key, .role = config.registrar.role }, .options = options, .recovery = recovered, .log_waits = try LogWaits.create(allocator, io), .queue_transfers = transfers };
 }
 /// Publication, policy changes and maintenance only prompt current checks.
 pub fn notifyLogs(self: *Self) void {

@@ -126,7 +126,7 @@ fn write(init: std.process.Init, client: c.DirectTableClient, profile: *Profile,
     try logWrite(init, client, profile, profile_path);
     // Server-owned cut records cannot be supplied through caller-owned record
     // staging. This is a request refusal, not transport/storage uncertainty.
-    for ([_]u32{ c.DirectTransaction.Acquired.format, c.DirectTransactionWorkspace.head_format, c.DirectTransactionWorkspace.table_format, c.DirectTransactionWorkspace.statement_format }) |format|
+    for ([_]u32{ c.DirectTransaction.Acquired.format, c.DirectTransactionWorkspace.head_format, c.DirectTransactionWorkspace.table_format, c.DirectTransactionWorkspace.statement_format, c.DirectQueueTransferPlan.format }) |format|
         try t.expectError(error.Rejected, c.DirectRecord.stage(client, @splat(91), format, "caller-supplied workspace"));
     // Capacity is refused before reading a staged selection. The nonexistent
     // selection below must not turn a quota refusal into a server error or admit
@@ -136,7 +136,7 @@ fn write(init: std.process.Init, client: c.DirectTableClient, profile: *Profile,
     const quota: c.DirectClientToken.Binding = .{
         .key = .{ .definition = g.current_definition, .connection = client.connection, .account = @splat(91), .token = @splat(71) },
         .fingerprint = @splat(72),
-        .intent = .{ .transaction = .{ .connection = client.connection, .namespace = 1, .begin = .{
+        .intent = .{ .transaction = .{ .connection = client.connection, .namespace = 1, .purpose = .interactive, .begin = .{
             .definition = g.current_definition,
             .identity = .{ .begin = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 900001 }, .branch = 1 },
             .mode = .serializable,

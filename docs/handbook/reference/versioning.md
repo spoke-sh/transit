@@ -108,7 +108,7 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`082c5ef4fcfe2d1daa385774f5843ecf933af68d68a91df4b7d1281faf55dca1`.
+`2e2c775950d2d0cfa6d6ea66e078fcdfa8381c16e522c5ac7d91fb243714c7f3`.
 It binds direct KV, mixed state/log transactions and frozen Stream/Queue
 declaration intents together with retained Table branches and installed worker
 rotation. Catalog roots require branch identity, name and retention-owner
@@ -117,6 +117,12 @@ owner. Installation records require per-worker enrollment receipts and the last
 accepted public key. Restart conditionally rotates that key and ownership
 without re-granting permissions. Earlier installations cannot synthesize these
 fields and reject before starting authority.
+
+Transaction references also require an explicit purpose. Protected exhausted-Queue
+transfers retain their original paired request and use the ordinary workspace,
+decision and cleanup owner. Catalog roots require permanent source-binding and
+pending-recovery directories. Earlier roots and transaction references reject;
+missing purpose or directories never default to ordinary work or empty indexes.
 
 Caller-token records now carry an explicit log-declaration reference and its
 account-scoped immutable body. The saved body requires the current definition;

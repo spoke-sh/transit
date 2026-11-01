@@ -238,6 +238,7 @@ fn replay(allocator: std.mem.Allocator, events: []const Event, out: *std.Io.Writ
                     .intent = .{ .transaction = .{
                         .connection = connection,
                         .namespace = 1,
+                        .purpose = .interactive,
                         .begin = .{ .definition = p.Growth.current_definition, .identity = tx_id, .mode = .serializable, .selection = .explicit_objects, .objects = try selected.seal(), .catalog = .{ .partition = 1, .next_lsn = catalog.store.root.next_lsn }, .limits = .{ .resident_bytes = 16 * 1024 * 1024, .workspace_bytes = 256 * 1024, .participants = 100, .statements = 100, .savepoints = 16 } },
                     } },
                 };

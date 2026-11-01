@@ -178,6 +178,12 @@ pub fn claimTransaction(allocator: std.mem.Allocator, objects: Objects.ObjectSto
 pub fn claimTransactionInTree(allocator: std.mem.Allocator, index: *c.storage.TreeStore, reference: c.DirectTransaction.Reference, token: [32]u8) !void {
     return claimStoredInTree(allocator, index, .{ .transaction = .{ .reference = reference, .token = token } });
 }
+/// Immutable reservation may precede catalog acceptance. Recovery must retain
+/// this original selection instead of recomputing it after another publication.
+pub fn lookupTransaction(allocator: std.mem.Allocator, objects: Objects.ObjectStore, operation: d.Operation) !?@FieldType(Stored, "transaction") {
+    const stored = try lookupStored(allocator, objects, operation) orelse return null;
+    return if (stored == .transaction) stored.transaction else error.DataIdentityConflict;
+}
 pub fn lookup(allocator: std.mem.Allocator, objects: Objects.ObjectStore, operation: d.Operation) !?d.Binding {
     const stored = try lookupStored(allocator, objects, operation) orelse return null;
     return switch (stored) {

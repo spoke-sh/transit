@@ -56,6 +56,9 @@ pub fn deadLetterNext(self: *Self, declared: Declaration.Stored, after: ?DeadLet
 pub fn deadLetterWork(self: *Self, declared: Declaration.Stored, candidate: DeadLetterCandidate, source_operation: p.DataLifecycle.Operation, destination: p.StreamQueue.Partition, destination_operation: p.DataLifecycle.Operation, buffer: []u8, guard: Guard) !DeadLetterWork {
     return self.owner.deadLetterWork(declared, candidate, source_operation, destination, destination_operation, buffer, guard);
 }
+pub fn deadLetterRoutedWork(self: *Self, declared: Declaration.Stored, candidate: DeadLetterCandidate, source_operation: p.DataLifecycle.Operation, destination_operation: p.DataLifecycle.Operation, buffer: []u8, guard: Guard) !DeadLetterWork {
+    return self.owner.deadLetterRoutedWork(declared, candidate, source_operation, destination_operation, buffer, guard);
+}
 pub fn transactionPinState(self: *Self, owner: p.DataLifecycle.Operation, guard: Guard) !@import("LogTransaction.zig").PinState {
     return self.owner.transactionPinState(owner, guard);
 }

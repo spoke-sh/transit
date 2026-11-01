@@ -146,6 +146,7 @@ fn makeTxBinding(allocator: std.mem.Allocator, catalog: *D, access: *Access, ope
     }
     const reference: c.DirectTransaction.Reference = .{
         .connection = connection,
+        .purpose = .interactive,
         .namespace = 1,
         .begin = .{
             .definition = p.Growth.current_definition,

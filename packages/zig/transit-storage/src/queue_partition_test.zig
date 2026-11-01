@@ -837,6 +837,7 @@ test "queue partition dead letter discovery bounds sweeps preserves recorded des
     var destination_definition = base.definition;
     destination_definition.object.object = 9;
     destination_definition.schema.object = 9;
+    destination_definition.configuration.partitioning = .{ .count = 7, .key_column = 1, .hash = .sha256_64 };
     var destination_owned = try s.LogDeclaration.prepare(t.allocator, destination_definition);
     defer destination_owned.deinit();
     const destination = (try s.LogDeclaration.stage(objects.objectStore(), &destination_owned)).declaration.interpretation;
@@ -892,6 +893,14 @@ test "queue partition dead letter discovery bounds sweeps preserves recorded des
     const expected_payload = try s.LogBatch.encode(destination_owned.definition.schema, operation(7), .queue, &.{.{ .cells = &expected_cells, .visible_ms = 1000 }}, &expected_buffer);
     try t.expectEqualSlices(u8, expected_payload, work.payload);
     try t.expectEqualDeep(s.LogBatch.content(expected_payload), work.request.destination.payload);
+    const routed = try owner.deadLetterRoutedWork(initial.declared, found, operation(6), operation(7), &bytes, policy.guard());
+    try t.expectEqualSlices(u8, expected_payload, routed.payload);
+    var canonical_key: [256]u8 = undefined;
+    const folded = try f.Collation.encodeSortKey(.{ .value = .{ .atom = .{ .bytes = "aLPHa" } } }, .utf8, .ascii_ci, &canonical_key);
+    var route_digest: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(folded, &route_digest, .{});
+    try t.expectEqual(@as(u32, @intCast(std.mem.readInt(u64, route_digest[0..8], .big) % 7)), routed.request.destination.target.partition);
+    try t.expectEqualDeep(work.request.source, routed.request.source);
     var changed = found;
     changed.source.lease_epoch += 1;
     try t.expectError(error.QueueStateConflict, owner.deadLetterWork(initial.declared, changed, operation(6), destination_target, operation(7), &bytes, policy.guard()));

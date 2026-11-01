@@ -91,6 +91,7 @@ pub const Work = union(enum) {
     catalog_history: c.DirectCatalogRoots,
     branch: struct { root: r.Root, progress: c.DirectClientToken.Progress },
     transaction: struct { root: r.Root, progress: c.DirectClientToken.Progress, slot: u8 = 0 },
+    queue_transfer_plan: c.DirectClientToken.Progress,
     transaction_walk: struct { walk: c.DirectCatalogWalk, head: W.Head, scope: c.DirectRecord.Scope, tables: bool },
     transaction_intent: W.Request,
     transaction_log_intent: c.DirectTransactionLogWork.Request,
@@ -445,6 +446,7 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             const progress = value.progress;
             const begin = progress.receipt.binding.intent.transaction.begin;
             if (value.slot == 0) {
+                if (progress.receipt.binding.intent.transaction.purpose == .queue_transfer) try workspace.enqueue(.{ .queue_transfer_plan = progress });
                 var selected = try s.TransactionDirectory.init(allocator, index.store, begin.identity, .participants, begin.limits.participants, 0, 1);
                 defer selected.deinit();
                 try selected.restore(begin.objects);
@@ -504,6 +506,21 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             }
             value.slot += 1;
             return false;
+        },
+        .queue_transfer_plan => |progress| {
+            const plan = try c.DirectQueueTransferPlan.fromReceipt(allocator, index.store, progress.receipt);
+            var source = try s.LogDeclaration.resolve(allocator, index.store, plan.transfer.target().interpretation);
+            defer source.deinit();
+            var destination = try s.LogDeclaration.resolve(allocator, index.store, plan.transfer.destination.target.interpretation);
+            defer destination.deinit();
+            try workspace.enqueue(.{ .log_declaration = try source.stored() });
+            try workspace.enqueue(.{ .log_declaration = try destination.stored() });
+            if (progress.pending) {
+                const bytes = (try c.DirectTransactionLogWork.loadPayload(allocator, index.store, .{ .queue_transfer = plan.transfer })).?;
+                defer allocator.free(bytes);
+                const content = plan.transfer.destination.payload;
+                try markContent(workspace, try s.LogTransactionActions.payloadKey(content, &key_buffer), content);
+            }
         },
         .transaction_walk => |*value| {
             const edge = try value.walk.next(allocator, index) orelse return true;
@@ -646,7 +663,7 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
         },
         .catalog_root => |*value| {
             const root = value.root;
-            const directories = [_]?s.TreeStore.pages.Reference{ root.schemas, root.schema_names, root.namespace_claims, root.namespace_pending, root.objects, root.names, root.operations, root.pending, root.native_allocations, root.dependents, root.dependencies, root.client_tokens, root.client_operations, root.client_pending, root.client_accounts, root.branches, root.branch_names, root.branch_owners };
+            const directories = [_]?s.TreeStore.pages.Reference{ root.schemas, root.schema_names, root.namespace_claims, root.namespace_pending, root.objects, root.names, root.operations, root.pending, root.native_allocations, root.dependents, root.dependencies, root.client_tokens, root.client_operations, root.client_pending, root.client_accounts, root.branches, root.branch_names, root.branch_owners, root.queue_transfer_sources, root.queue_transfer_pending };
             if (value.slot > directories.len) return error.InvalidDirectCatalogHistory;
             if (value.slot == directories.len) return true;
             const slot = value.slot;
