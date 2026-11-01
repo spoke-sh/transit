@@ -9,6 +9,36 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Retained managed Table revisions — 2026-11-01
+
+Implementation `2dcef5e5d` and test extension `21a54d2ea` add the R0/R1a
+finite-Table retained-result profile described by the
+[query reference](../../handbook/reference/queries.md#managed-table-computations)
+and [contract](../../../contracts/DATAFLOW_V1.md#retained-finite-revision-reads).
+The shared current-v1 definition is
+`06608a32002ec9b1e28472ff806328920e5f89e233c1ef9131c733f7fdcc952a`.
+The manifest and revision key share the original output/checkpoint decision;
+historical rows come from immutable pages, independently of later output writes.
+
+During implementation, the protocol package's `ReleaseSafe` tests, all 59 fast
+checks and all 20 contract checks passed. The documentation check passed strict
+types, ten site tests and the production build. These were working-tree checks,
+not clean-checkout lane qualification. Local raw results are
+`.cache/checks/fast.json`, `.cache/checks/contracts.json` and
+`.cache/m12-docs-check.log` in the implementation worktree.
+
+The expanded real-node fixtures cover retained nonempty/empty revisions after
+successors, output changes and process replacement; source/output/control
+revocation; row/byte limits; early close; and an interrupted page read after a
+delivered prefix. Installed SQL checks fixed-revision attribution and invalid or
+missing revision selection. Executing these assertions and clean committed-source
+lanes is a separate gate from the development checks above.
+
+This scope does not establish abandoned-record collection, expiry/release,
+historical SQL row fetching, ordered change consumers, multi-source execution,
+the full lifecycle crash/growth matrix, or a zero-allocation/performance guarantee.
+R1b and the rest of Milestone 12 remain open.
+
 ## M6 progress integration — 2026-11-01
 
 Production code, contracts and generated consumers at

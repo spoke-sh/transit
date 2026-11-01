@@ -326,6 +326,26 @@ remain open. The unresolved server-SQL failure after TLS trust replacement,
 SDK storage-full failure and interrupted clean lanes must be resolved and rerun;
 diagnostic passes do not clear them.
 
+### Retained completed Table revisions — 2026-11-01
+
+The R0/R1a implementation adds `DFR1` manifests published with the original
+output/checkpoint transaction. Each manifest retains its exact declaration,
+source/output definitions, common cut, output schema and immutable result pages.
+`ManagedRevision` consumes one fixed revision with explicit row/byte bounds,
+caller-owned rows and current source/output/control read checks. SQL exposes
+`SHOW DATAFLOW name REVISION number` metadata through the existing statement
+result lifecycle. Output edits and retirement do not rewrite saved results.
+
+This is the first review unit below, not completion of R0 or R1 as a whole.
+The current-v1 cutover replaces the old checkpoint-only revision value and
+migrates schemas, signatures and binding resources together. Existing
+`DirectRecord.Reference` roots retain indefinitely outside collection authority.
+R1b still owns creation/closure fences, graph registration and abandoned-work
+collection. Historical SQL row fetching, history consumers, multi-source
+execution, the full fault/growth matrix and T5/T8 correspondence remain open.
+The [qualification record](../history/qualification/query.md#retained-managed-table-revisions--2026-11-01)
+records executed checks and their source-specific limits.
+
 ### Source assessment at the plan baseline
 
 | Boundary | Present at the plan baseline | Work identified by the plan |
