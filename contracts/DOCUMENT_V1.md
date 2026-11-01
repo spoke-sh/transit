@@ -149,9 +149,9 @@ unless stated otherwise. Native struct padding is never serialized.
 | --- | --- |
 | Magic | Eight bytes `DCHANGE1` |
 | Definition | Mandatory current shared definition, 32 bytes |
-| Logical document | 16 nonzero identity bytes, distinct from the catalog object |
+| Logical document | 16-byte identity, not all zero; distinct from the catalog object |
 | Merge epoch | `u64`, positive |
-| Replica | 16 nonzero identity bytes |
+| Replica | 16-byte identity, not all zero |
 | Sequence / predecessor | Two `u64`; sequence positive, predecessor exactly sequence minus one |
 | Operation count | Positive `u16`, exactly the number of encoded operations |
 | Each operation | Object dot; `u32` field-name length and UTF-8 bytes; `u16` observed count and dots; value tag and optional value body |

@@ -652,6 +652,16 @@ test "document partition evaluates causal trees pages large values and recovers 
     policy.deny_at = std.math.maxInt(usize);
     const short_read = try owner.beginRead(.{ .target = target, .operation = operation(5), .from_revision = 1, .through_revision = 1, .max_steps = 4096, .max_bytes = 100 }, policy.guard());
     try t.expectError(error.DocumentReadLimitExceeded, owner.readCausalPage(try owner.causalCursor(short_read, path, policy.guard()), path, policy.guard()));
+    const short_steps = try owner.beginRead(.{ .target = target, .operation = operation(20), .from_revision = 1, .through_revision = 1, .max_steps = 1, .max_bytes = 6000 }, policy.guard());
+    try t.expectError(error.DocumentReadLimitExceeded, owner.readCausalPage(try owner.causalCursor(short_steps, path, policy.guard()), path, policy.guard()));
+    var foreign_buffer: [16384]u8 = undefined;
+    @memcpy(foreign_buffer[0..bytes.len], bytes);
+    foreign_buffer[8] ^= 1;
+    const foreign_bytes = foreign_buffer[0..bytes.len];
+    var foreign = mutation;
+    foreign.operation = operation(21);
+    foreign.payload = .{ .bytes = foreign_bytes.len, .sha256 = hashBytes(foreign_bytes) };
+    try t.expectError(error.IncompatibleDefinition, owner.applyCausal(foreign, foreign_bytes, policy.guard()));
     var next_header = header;
     next_header.sequence = 2;
     next_header.preceding_sequence = 1;
