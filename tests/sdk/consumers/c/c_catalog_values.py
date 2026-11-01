@@ -98,8 +98,10 @@ static std::string read(const char *name) { std::ifstream f(name); return {std::
     summary = dict(id=dict(definition=definition, digest='11'*32), namespace=1, binding=dict(table=binding))
     saved = dict(table=dict(definition=definition, namespace=1, bytes='ab'*300000))
     compiled = dict(summary=summary, saved=saved)
-    schema = dict(definition=definition, object=maximum, revision='1', next_column='3', columns=[dict(id='1', name='id', type={'int128': {}}, nullable=True, default=None, max_characters=None, encoding='rle', collation='none'),
-        dict(id='2', name='text', type={'utf8': {}}, nullable=True, default=None, max_characters=None, encoding='ebcdic', collation='ebcdic_1047_nopad')], primary_key=[])
+    semantics = dict(rounding=None, metric=None, timezone=None, spatial=None)
+    schema = dict(definition=definition, object=maximum, revision='1', next_column='3', columns=[dict(id='1', name='id', type={'int128': {}}, nullable=True, default=None, max_characters=None, encoding='rle', collation='none', semantics=semantics),
+        dict(id='2', name='text', type={'utf8': {}}, nullable=True, default=None, max_characters=None, encoding='ebcdic', collation='ebcdic_1047_nopad', semantics=semantics)],
+        primary_key=[], integrity=dict(next_id=1, checks=[], foreign_keys=[]))
     metadata = dict(binding=basis, schema=schema, authorization=101, position=position, changed_lsn='3', row_count='9')
     entry = dict(interpretation=interpretation, namespace=1, name='items', position=position, changed_lsn='3')
     cursor = dict(definition=definition, connection=connection, selection=dict(tables=1), position=position, after='8')
@@ -152,7 +154,7 @@ static std::string read(const char *name) { std::ifstream f(name); return {std::
             check(command, dict(compiled=dict(compiled, summary=dict(summary, binding=dict(table=bound)))))
             action = json.loads((target / 'captured').read_bytes())['prepare']['action']
             if kind == 'create': assert action['create']['schema']['columns'][0]['encoding'] == 'ebcdic' and action['create']['schema']['columns'][0]['collation'] == 'ebcdic_037_pad'
-            else: assert action['alter']['change'] == dict(physical=dict(column='1', encoding='fsst', collation='ascii_ci'))
+            else: assert action['alter']['change'] == dict(physical=dict(column='1', encoding='fsst', collation='ascii_ci', semantics=None))
         for command in ('physical_invalid', 'oversize'):
             calls = (target / 'calls').read_bytes(); check(command, dict(compiled=compiled), 1); assert (target / 'calls').read_bytes() == calls
         for change in [lambda v: v['summary'].update(namespace=2), lambda v: v['summary']['binding']['table']['identity'].update(operation='11'), lambda v: v['summary']['binding']['table']['identity'].update(principal=18), lambda v: v['summary']['binding']['table']['target'].update(branch='2'), lambda v: v['summary']['binding']['table'].pop('prerequisite'), lambda v: v['summary']['binding']['table'].update(action='update'), lambda v: (v['summary']['binding']['table']['target'].update(object='1'), v['summary']['binding']['table']['expected_definition']['object'].update(object='1'))]:
