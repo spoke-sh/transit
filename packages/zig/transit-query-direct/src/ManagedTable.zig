@@ -737,7 +737,9 @@ fn abort(self: Self, value: Declaration, token: c.DirectClientToken.Key, progres
     const observed = try self.inspect(value);
     if (observed.head.pending) |pending| if (std.meta.eql(pending, token)) {
         var next = observed.head;
-        next.blocked = disposition;
+        // A newer accepted control already superseded this worker. Closing its
+        // original transaction must not block a resume that raced cleanup.
+        next.blocked = if (disposition == .lease_fenced) .none else disposition;
         try self.put(value, observed.storage, observed.position, next, self.operation(value, "abandoned", observed.position.next_lsn), .present);
     };
     var completed = original;

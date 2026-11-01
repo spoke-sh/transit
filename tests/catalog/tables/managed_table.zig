@@ -143,12 +143,14 @@ pub fn recover(init: std.process.Init, client: c.DirectTableClient, path: []cons
     const pending = (try manager.start(declaration)).?;
     try t.expect(try manager.step(pending, init.io, .cwd(), null));
     try control(manager, declaration, .suspend_computation, 652008);
+    try control(manager, declaration, .resume_computation, 652009);
     for (0..20) |_| {
         if (!try manager.step(pending, init.io, .cwd(), null)) break;
     }
     try count(client, 3);
-    try t.expect(try manager.start(declaration) == null);
-    try control(manager, declaration, .resume_computation, 652009);
+    const resumed = try manager.inspect(declaration);
+    try t.expectEqual(.active, resumed.head.control.state);
+    try t.expectEqual(.none, resumed.head.blocked);
     try drain(manager, declaration, init.io, .cwd());
     try count(client, 4);
     try t.expectEqual(@as(u64, 2), (try manager.inspect(declaration)).head.revision);
