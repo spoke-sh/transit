@@ -17,7 +17,11 @@ const Event = enum {
     AcquireCut,
     AdmitStmt1,
     AdmitStmt2,
+    AdmitLog1,
+    AdmitLog2,
     ExecuteStmt,
+    Savepoint,
+    RollbackSavepoint,
     Autocommit1,
     InspectWorkspace,
     TogglePolicy,
@@ -55,8 +59,8 @@ const Access = struct {
         const native: u64 = switch (kind) {
             .database => profile.database,
             .schema => if (id == 1) profile.initial_schema_authority else 20000 + id,
-            .table => 100 + id,
-            .stream, .queue, .kv => return null,
+            .table, .stream => 100 + id,
+            .queue, .kv => return null,
         };
         return .{
             .reference = a.reference(native),
@@ -68,8 +72,8 @@ const Access = struct {
             .parent = switch (kind) {
                 .database => null,
                 .schema => a.reference(profile.database),
-                .table => a.reference(profile.initial_schema_authority),
-                .stream, .queue, .kv => return null,
+                .table, .stream => a.reference(profile.initial_schema_authority),
+                .queue, .kv => return null,
             },
             .revision = 1,
         };
@@ -189,6 +193,93 @@ fn makeStmtRequest(allocator: std.mem.Allocator, catalog: *D, access: *Access, k
     };
 }
 
+// Concrete mixed schedules supplement the state-only TLC counterexamples.
+// Their expected results belong to the Python driver, not this adapter.
+fn createStream(allocator: std.mem.Allocator, catalog: *D, access: *Access) !void {
+    const intent: c.DirectLog.Intent = .{ .kind = .stream, .namespace = 1, .name = try .init("events"), .action = .{ .create = .{
+        .owner = 0,
+        .schema = .{ .object = 20, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{} },
+        .configuration = .{
+            .partitioning = .{ .count = 1, .key_column = null, .hash = .sha256_64 },
+            .retention = .{ .max_age_ms = null },
+            .policy = .{ .stream = .{ .compact_key_column = null, .timestamp_column = null } },
+        },
+        .limits = .{ .append_rows = 128, .append_bytes = 1024 * 1024, .claim_rows = 16, .read_rows = 128, .read_bytes = 1024 * 1024, .active_leases = 64, .waiters = 64, .timer_steps = 64 },
+    } } };
+    const request: c.DirectLog.Request = .{ .intent = intent, .binding = .{
+        .definition = p.Growth.current_definition,
+        .identity = .{ .scope = scope, .principal = 1, .operation = 102 },
+        .target = .{ .scope = scope, .branch = 1, .object = 20 },
+        .action = .create,
+        .expected_definition = null,
+        .expected_data = null,
+        .intent = try intent.digest(allocator),
+    } };
+    _ = try catalog.admitLog(request, access.policy());
+    _ = try catalog.logOperation(request.binding, .execute, access.policy());
+}
+
+fn beginFirst(allocator: std.mem.Allocator, catalog: *D, access: *Access, mixed: bool) !c.DirectClientToken.Receipt {
+    const binding = try makeTxBinding(allocator, catalog, access, 900, 1);
+    if (!mixed) return (try catalog.clientToken(.{ .bind = binding }, access.policy())).?;
+    const targets = [_]p.Transaction.Target{
+        .{ .object = .{ .scope = scope, .branch = 1, .object = 10 }, .kind = .table, .partition = null },
+        .{ .object = .{ .scope = scope, .branch = 1, .object = 11 }, .kind = .table, .partition = null },
+        .{ .object = .{ .scope = scope, .branch = 1, .object = 20 }, .kind = .stream, .partition = 0 },
+    };
+    var limits = binding.intent.transaction.begin.limits;
+    // The separate concrete profile includes a third participant and log action
+    // directories. The original 128-KiB TLC quota control is unchanged.
+    limits.workspace_bytes = 1024 * 1024;
+    return catalog.beginTransaction(.{
+        .key = binding.key,
+        .fingerprint = binding.fingerprint,
+        .operation = binding.intent.transaction.begin.identity.begin,
+        .namespace = 1,
+        .mode = .serializable,
+        .selection = .{ .explicit_objects = &targets },
+        .limits = limits,
+        .budget = binding.budget,
+    }, access.policy());
+}
+
+fn streamTarget(catalog: *D, access: *Access) !p.StreamQueue.Partition {
+    const value = (try catalog.resolveLog(1, try .init("events"), access.policy())).?;
+    return .{ .definition = p.Growth.current_definition, .interpretation = value.stored.declaration.interpretation, .partition = 0 };
+}
+
+fn makeLogRequest(catalog: *D, access: *Access, key: c.DirectClientToken.Key, sequence: u64) !c.DirectTransactionLogWork.Request {
+    const target = try streamTarget(catalog, access);
+    const operation: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 500 + sequence - 1 };
+    const schema: c.fuze.TableSchema.Schema = .{ .object = 20, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{} };
+    const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = @intCast(operation.operation) } } }};
+    var bytes: [8192]u8 = undefined;
+    const payload = try s.LogBatch.encode(schema, operation, .stream, &.{.{ .cells = &cells }}, &bytes);
+    const status = try catalog.inspectTransaction(key, access.policy());
+    return catalog.stageTransactionLog(key, status.revision, sequence, .{ .append = .{
+        .target = target,
+        .operation = operation,
+        .kind = .stream,
+        .producer = null,
+        .rows = 1,
+        .payload = s.LogBatch.content(payload),
+    } }, payload, access.policy());
+}
+
+fn publicLogRows(allocator: std.mem.Allocator, catalog: *D, access: *Access) !u64 {
+    var scratch = std.heap.ArenaAllocator.init(allocator);
+    defer scratch.deinit();
+    var cached: ?c.DirectStream.Cached = null;
+    defer if (cached) |*value| value.deinit();
+    const result = try c.DirectStream.apply(scratch.allocator(), allocator, catalog, &cached, .{
+        .resident_pages = 1,
+        .batch_bytes = 8192,
+        .key_bytes = 256,
+        .tail = .{ .slots = 1, .borrow_slots = 2, .slot_bytes = 8192, .resident_bytes = 16384 },
+    }, .{ .authority = try s.LogRead.Authority.init(@splat(4)), .clock = null }, .{ .observe = try streamTarget(catalog, access) }, access.policy());
+    return result.cut.next;
+}
+
 fn expectedError(err: anyerror) ![]const u8 {
     return switch (err) {
         error.InvalidClientToken,
@@ -216,6 +307,10 @@ fn replay(allocator: std.mem.Allocator, events: []const Event, out: *std.Io.Writ
     try catalog.initialize(access.policy());
     try createTable(allocator, &catalog, &access, 10, 100, "selected_0");
     try createTable(allocator, &catalog, &access, 11, 101, "selected_1");
+    const mixed = for (events) |event| {
+        if (event == .AdmitLog1 or event == .AdmitLog2) break true;
+    } else false;
+    if (mixed) try createStream(allocator, &catalog, &access);
 
     var binding1: ?c.DirectClientToken.Binding = null;
     var receipt1: ?c.DirectClientToken.Receipt = null;
@@ -224,19 +319,17 @@ fn replay(allocator: std.mem.Allocator, events: []const Event, out: *std.Io.Writ
     var advance_epoch_on_cut = false;
     var last_error: []const u8 = "none";
     var disclosed: []const u8 = "none";
-    var current_pending: ?c.DirectTransactionWorkspace.Request = null;
 
     for (events) |event| {
         last_error = "none";
         switch (event) {
             .Init, .PinSelected => {},
             .Begin1 => {
-                const b1 = try makeTxBinding(allocator, &catalog, &access, 900, 1);
-                if (catalog.clientToken(.{ .bind = b1 }, access.policy())) |rec| {
-                    binding1 = b1;
-                    receipt1 = rec.?;
+                if (beginFirst(allocator, &catalog, &access, mixed)) |rec| {
+                    binding1 = rec.binding;
+                    receipt1 = rec;
                     active_tx += 1;
-                    var bad = rec.?;
+                    var bad = rec;
                     bad.coordination = 1;
                     bad.validate() catch |err| {
                         last_error = try expectedError(err);
@@ -270,9 +363,7 @@ fn replay(allocator: std.mem.Allocator, events: []const Event, out: *std.Io.Writ
                 access.allowed = true;
                 const req = try makeStmtRequest(allocator, &catalog, &access, binding1.?.key, 1, 500);
                 access.allowed = saved;
-                if (catalog.admitTransactionStatement(binding1.?.key, req, access.policy())) |_| {
-                    current_pending = req;
-                } else |err| {
+                if (catalog.admitTransactionStatement(binding1.?.key, req, access.policy())) |_| {} else |err| {
                     last_error = try expectedError(err);
                 }
             },
@@ -281,20 +372,54 @@ fn replay(allocator: std.mem.Allocator, events: []const Event, out: *std.Io.Writ
                 access.allowed = true;
                 const req = try makeStmtRequest(allocator, &catalog, &access, binding1.?.key, 2, 501);
                 access.allowed = saved;
-                if (catalog.admitTransactionStatement(binding1.?.key, req, access.policy())) |_| {
-                    current_pending = req;
-                } else |err| {
+                if (catalog.admitTransactionStatement(binding1.?.key, req, access.policy())) |_| {} else |err| {
+                    last_error = try expectedError(err);
+                }
+            },
+            .AdmitLog1, .AdmitLog2 => {
+                const sequence: u64 = if (event == .AdmitLog1) 1 else 2;
+                const req = makeLogRequest(&catalog, &access, binding1.?.key, sequence) catch |err| {
+                    last_error = try expectedError(err);
+                    continue;
+                };
+                if (catalog.admitTransactionLog(binding1.?.key, req, access.policy())) |_| {} else |err| {
                     last_error = try expectedError(err);
                 }
             },
             .ExecuteStmt => {
-                if (current_pending) |req| {
-                    if (catalog.executeTransactionStatement(binding1.?.key, req, access.policy())) |_| {
-                        current_pending = null;
-                    } else |err| {
-                        last_error = try expectedError(err);
+                // Recover the pending request from accepted progress, including
+                // after CrashRecover. No volatile request survives replacement.
+                const progress = catalog.clientProgress(.{ .inspect = binding1.?.key }, access.policy()) catch |err| {
+                    last_error = try expectedError(err);
+                    continue;
+                };
+                const head = try c.DirectTransactionWorkspace.recover(allocator, catalog.data_objects, progress.state.?);
+                if (head.pending) |pending| {
+                    switch (pending) {
+                        .state => |req| if (catalog.executeTransactionStatement(binding1.?.key, req, access.policy())) |_| {} else |err| {
+                            last_error = try expectedError(err);
+                        },
+                        .log => |req| if (catalog.executeTransactionLog(binding1.?.key, req, access.policy())) |_| {} else |err| {
+                            last_error = try expectedError(err);
+                        },
                     }
                 }
+            },
+            .Savepoint, .RollbackSavepoint => {
+                const key = binding1.?.key;
+                const status = try catalog.inspectTransaction(key, access.policy());
+                const name = try a.Name.init("keep");
+                const request: c.DirectTransactionSavepoint.Request = .{
+                    .transaction = status.begin.identity,
+                    .operation = .{ .scope = scope, .principal = 1, .operation = if (event == .Savepoint) 800 else 801 },
+                    .sequence = status.last_control + 1,
+                    .basis = status.revision,
+                    .action = if (event == .Savepoint) .{ .create = name } else .{ .rollback = name },
+                };
+                for (0..8) |_| {
+                    const result = try catalog.transactionSavepoint(key, request, 8, access.policy());
+                    if (result.completed != null) break;
+                } else return error.IncompleteTraceControl;
             },
             .Autocommit1 => {
                 const saved = access.allowed;
@@ -349,12 +474,23 @@ fn replay(allocator: std.mem.Allocator, events: []const Event, out: *std.Io.Writ
     var private_rows: u64 = 0;
     var last_seq: u64 = 0;
     var pending_seq: u64 = 0;
+    var pending_kind: []const u8 = "none";
+    var private_log_actions: u64 = 0;
     if (binding1) |b1| {
         if (cut_acquired) {
             const progress = (try catalog.clientProgress(.{ .inspect = b1.key }, auditor.policy())).state.?;
             const head = try c.DirectTransactionWorkspace.recover(allocator, catalog.data_objects, progress);
             last_seq = head.last_statement;
             pending_seq = if (head.pending) |req| req.statement().sequence else 0;
+            pending_kind = if (head.pending) |req| @tagName(req) else "none";
+            if (head.logs) |directory| {
+                const begin = head.acquired.cut.begin;
+                var logs = try s.TransactionDirectory.init(allocator, catalog.data_objects, begin.identity, .participants, begin.limits.participants, 1, 1024 * 1024);
+                defer logs.deinit();
+                try logs.restore(directory);
+                const entry = (try logs.get(.{ .object = .{ .scope = scope, .branch = 1, .object = 20 }, .kind = .stream, .partition = 0 })).?;
+                private_log_actions = entry.participant.log.actions.?.count;
+            }
             const state = try catalog.transactionTableState(b1.key, view.table.root.interpretation.object, auditor.policy());
             private_rows = state.root.live_rows;
         }
@@ -366,6 +502,9 @@ fn replay(allocator: std.mem.Allocator, events: []const Event, out: *std.Io.Writ
         .cut_acquired = cut_acquired,
         .last_seq = last_seq,
         .pending_seq = pending_seq,
+        .pending_kind = pending_kind,
+        .private_log_actions = private_log_actions,
+        .public_log_rows = if (mixed) try publicLogRows(allocator, &catalog, &auditor) else @as(u64, 0),
         .private_rows = private_rows,
         .public_rows = public_rows,
         .disclosed = disclosed,
