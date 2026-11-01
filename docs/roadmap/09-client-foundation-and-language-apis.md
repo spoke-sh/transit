@@ -492,6 +492,96 @@ where attribution supports them. Re-run correctness/recovery and all affected
 language consumers with each shared change. Report SDK improvements against their
 own baseline; #211's historical SQL target is not a blanket SDK speedup claim.
 
+#### SDK performance implementation sequence — 2026-11-01
+
+**Status: Planned within P0/P8.** Coordinate with the
+[M8 follow-up delivery plan](08-gateway-architecture-and-protocol-ingress.md#follow-up-performance-delivery--2026-11-01)
+at merged source `a000b8d18449fdee7901955d0c94417ceeab32eb`. Its startup probes
+and the existing SDK conformance results do not establish SDK performance.
+Start measurement on current installed APIs while P2–P6 continue; the following
+work neither requires the new data ABI first nor marks those packages complete.
+
+The application journey is to open an installed client, inspect a declared Table,
+write/read typed values, consume a complete bounded result and close or recover
+the original operation. Use the capability matrix to select public operations
+that actually execute in each language. Raw send admission, a completed Station
+call, a direct Table mutation and a terminal SQL statement are different cases.
+
+| PR or split series | Implementation owner and dependency | Deliverable and exit |
+| --- | --- | --- |
+| Installed benchmark driver and oracle | `tests/performance/`, installed packaging from `tests/sdk/`, fixtures/reporting from `tests/harness/`; no new API prerequisite | One workload manifest, neutral report schema and independent value/count oracle; public Zig, Python sync/async and Node consumers execute supported cases from isolated installations |
+| Baseline and attribution | Existing shared Zig/native ABI/port plus each language host; depends on the driver | Frozen uninstrumented measurements and separate diagnostics for cold startup, persistent operations, conversions, allocations, resources and recovery; per-case budgets declared before optimization |
+| Shared-client optimization | `transit-data-client`, `transit-client`, `transit-sql-client`, query/value owners as attribution selects | One measured bottleneck per PR, preserving bounded scratch/output ownership, current authorization, exact outcomes and joined close; all affected consumers pass |
+| Bridge and language optimization | Existing bindings and `sdks/<language>/`; depends on the corresponding baseline and shared contracts | Measured reductions in serialization/copies, per-row conversion, repeated setup or language allocation, with lifetime/cancellation/GC checks and installed package comparisons |
+| Coverage and regression gates | P8 with P3/P5/P6 as adapters land; remaining languages via M20 | Same workload/oracle across supported languages, new context/SQL/transaction cases only when executable, reproducible matched scorecards and enforceable budgets |
+
+**Driver contract.** Implement a small operation-owned runner under
+`tests/performance/` through `tests/runner/launch.py` and a corresponding `just`
+entry. Reuse installed consumer builds and private service fixtures; do not
+import SDK source from the checkout or include compilation/package installation
+in client startup timing. Package preparation has its own recorded duration.
+Specify deterministic input values, workload seed, row/byte counts, batch sizes,
+completion boundary and expected outputs once, with thin language adapters.
+Keep setup writes outside read timings and verify them before each measurement.
+Streaming verification must itself use bounded memory.
+
+Each sample identifies operation/API/transport, package and native binary hashes,
+server/driver revisions and definition, language runtime, host/resource/cache
+profile, warmup and repetition. Store attempted, complete, failed, incomplete and
+unsupported outcomes explicitly. Unsupported combinations are absent capability,
+not zero-time passes. Record first-row and verified terminal time separately,
+rows/bytes processed, elapsed/CPU time, RSS/PSS, threads/processes, native backing
+allocation counts/bytes, copies and language allocation/GC where supported.
+Unavailable measurements are explicitly unavailable, not zero. Never retain
+credentials or application payloads in benchmark reports.
+
+Add reporting/oracle controls that reject a fast wrong result, a missing terminal
+batch, omitted failed attempts, definition/package mismatch, incompatible workload
+settings and silently substituted unsupported APIs. These controls qualify the
+driver; they do not replace executing real installed consumers. Requalify both
+arms with the same driver when its timing or completion semantics change.
+
+**First baseline campaign.** Freeze the public Zig, Python and Node capability
+matrix and Linux x86_64 environment. Measure process/module/native-host startup
+separately from persistent-client calls. Include empty/one-row and point/range/full
+reads, supported single/batch writes, metadata, fresh readback after mutation,
+narrow/wide/nested values and results spanning multiple batches. Add slow readers,
+early close, cancellation, lost replies, restart and current revocation using
+existing fault owners. Use ordinary SQL, transaction and shared-context cases
+only in languages whose installed adapters support them; record the expansion
+dependency rather than benchmarking a private substitute.
+
+Run diagnostics separately at the shared Zig, ABI/port and language boundary with
+the same typed values and completion semantics. Measure settled idle activity,
+control delay and saturation at the current supported admission/concurrency
+limits; keep rejection distinct from queued work. Host scheduling or new fair
+queues depend on the P2 contract and cannot be added solely by the benchmark.
+Populate per-case latency/throughput, memory/allocation and cancel/close budgets
+from reproducible controls before selecting changes. Preserve the source-attributed
+baseline even when a later API or package placement supersedes it.
+
+**Optimization and completion.** Rank costs from these measurements. Reuse
+connections/buffers and bounded scratch, reduce duplicate conversions or copies,
+and batch host transitions only where the corresponding measurements support
+them. Borrowed data must retain its documented owner/lifetime; zero-copy or fewer
+allocations cannot hide an unbounded retained result. Shared changes run affected
+language conformance and recovery checks, not only the representative three.
+Incompatible ABI or stored recovery changes first update the shared contract,
+definition and generated fixtures under the current-v1 cutover policy.
+
+For each claimed steady-state improvement use at least three alternating matched
+pairs and 50 samples per arm/case, with independent cold-start observations and
+the same installed inputs. Establish offered-load/tail campaigns separately.
+The representative gate closes only when the supported matrix passes correctness,
+failure/recovery and frozen resource/latency budgets on one committed revision.
+Add report/oracle and scoped warmed-allocation checks to ordinary CI; run full
+timings on the controlled performance runner and retain raw artifacts. Broader
+language coverage stays explicit until executed. Update the
+[SDK proof ledger](../history/qualification/sdk.md),
+[performance evidence](../history/qualification/performance.md), active budget
+inputs and public SDK owners together; do not claim an overall 10–100× SDK gain
+from a local codec or admission benchmark.
+
 ### Package and contract decisions
 
 Keep the low-level `transit-client` implementation independent of Catalog:
