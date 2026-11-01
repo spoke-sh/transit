@@ -724,6 +724,10 @@ pub fn main(init: std.process.Init) !void {
         if (std.mem.eql(u8, args[2], "log-baseline-measure") or std.mem.eql(u8, args[2], "log-baseline-recover")) {
             try @import("fixture_log_runtime").execute(init, client, profile.role, args[3], std.mem.eql(u8, args[2], "log-baseline-recover"), &output.interface);
             return output.interface.flush();
+        } else if (std.mem.startsWith(u8, args[2], "log-baseline-inspect-")) {
+            const operation_id = try std.fmt.parseInt(u64, args[2]["log-baseline-inspect-".len..], 10);
+            try @import("fixture_log_runtime").inspectOriginal(init, client, args[3], operation_id, &output.interface);
+            return output.interface.flush();
         } else if (std.mem.eql(u8, args[2], "callers")) {
             (try client.call(.initialize)).deinit();
             try Conditions.callers(init.gpa, client);

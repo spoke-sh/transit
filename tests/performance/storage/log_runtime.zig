@@ -316,3 +316,36 @@ pub fn execute(init: std.process.Init, client: c.DirectTableClient, owner: u64, 
         .queue => try run(.queue, init, client, owner, path, config.value, recover, out),
     }
 }
+
+fn inspect(comptime kind: Kind, init: std.process.Init, client: c.DirectTableClient, path: []const u8, config: Config, operation_id: u64, out: *std.Io.Writer) !void {
+    const Client = if (kind == .stream) c.DirectStreamClient else c.DirectQueueClient;
+    var probe: Probe = .{ .parent = init.gpa };
+    var caller = try data.Catalog.init(probe.allocator(), init.io, .{ .url = client.service.url, .connection = client.connection, .timeout_ms = 30000 }, @splat(29));
+    defer caller.deinit();
+    var output: std.heap.ArenaAllocator = .init(probe.allocator());
+    defer output.deinit();
+    var runner: Runner(kind) = .{ .init = init, .caller = &caller, .output = &output, .probe = &probe, .out = out, .directory = std.fs.path.dirname(path) orelse ".", .config = config, .next_operation = 0, .stage = .recovery };
+    var buffer: [1024]u8 = undefined;
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, try runner.path(operation_id, "request", &buffer), init.gpa, .limited(4 * 1024 * 1024));
+    defer init.gpa.free(bytes);
+    const saved = try Client.load(init.gpa, bytes);
+    defer saved.deinit();
+    if (!std.meta.eql(saved.value.connection, client.connection) or saved.value.work.work.identity().operation != operation_id) return error.OriginalOperationMismatch;
+    // A missing receipt is only an observation, never rejection or permission to
+    // submit a replacement. This mode cannot mutate, even without a final State.
+    const receipt = (try runner.call(.{ .operation = saved.value.work.work })).operation;
+    const observation = .{ .event = "inspection", .profile = config.id, .operation = operation_id, .receipt = receipt };
+    try write(init, try runner.path(operation_id, "inspection", &buffer), observation);
+    try emit(init, out, observation);
+}
+
+pub fn inspectOriginal(init: std.process.Init, client: c.DirectTableClient, path: []const u8, operation_id: u64, out: *std.Io.Writer) !void {
+    var buffer: [1024]u8 = undefined;
+    const config = try read(Config, init, try std.fmt.bufPrint(&buffer, "{s}.baseline.json", .{path}));
+    defer config.deinit();
+    try config.value.validate();
+    switch (config.value.kind) {
+        .stream => try inspect(.stream, init, client, path, config.value, operation_id, out),
+        .queue => try inspect(.queue, init, client, path, config.value, operation_id, out),
+    }
+}

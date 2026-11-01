@@ -44,6 +44,15 @@ retains the original operation or cursor, records each recovery-progress respons
 and includes its time in that logical call. The recovery wait has a 30-second
 budget. Mutations and waits are never automatically repeated by the driver.
 
+For a failed partial run, the matching proof caller also accepts
+`URL log-baseline-inspect-OPERATION_ID PROFILE_PATH`. Reopen the retained private
+installation with its matching node and configuration first. Inspection loads
+and validates the saved canonical request, checks its original connection and
+operation identity, and performs only the public operation lookup. It writes a
+private `.inspection` observation beside the request without requiring the
+successful run's final state file. A null receipt leaves the outcome unresolved;
+this mode never resubmits work or converts missing evidence into rejection.
+
 `report.json` retains source, driver and binary identities, all phase outcomes,
 raw stdout/diagnostic identities, machine/load observations and the configured
 budgets. Raw JSONL stdout records every attempted and successful call and each
