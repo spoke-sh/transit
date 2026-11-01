@@ -16,7 +16,35 @@ review baseline, dependencies, commit boundaries and acceptance gates. The
 [earlier source audit](#source-baseline-and-remaining-gaps) and dated progress
 records preserve their original attribution. Delivery-sequence SQL examples
 below illustrate proposed scope; use the [SQL reference](../handbook/reference/sql/streaming.md)
-for the exact executable declaration and inspection subset.
+for the current executable declarations, workload operations and inspection forms.
+
+## Progress checkpoint — 2026-11-01
+
+The implementation branch has been rebased onto `f4abc3b18` from `origin/main`,
+including the managed-computation, logical Document and compact-string changes.
+The combined current-v1 definition is
+`22ddc953c1268d7f6a785c40860c62c727050223f8916e052f626b434974cb10`.
+SQL workloads and managed computations retain separate operation identities;
+older saved artifacts cannot acquire either interpretation implicitly.
+
+This checkpoint adds original-operation recovery and bounded result delivery for
+SQL append, positional Stream consumption, routed Queue claims and receipt-based
+ACK. Native work also covers authenticated Stream progress intervals, mixed
+state/log transactions and protected automatic Queue terminal transfers. Queue
+candidate persistence now stages only the reachable new index and bitmap objects,
+including frozen timer-merge roots and FIFO-key child directories. It preserves
+accepted roots, time checks, lease durations and resident quotas.
+
+M6 remains **In Progress**. The installed 65-row claim profile failed before the
+staging optimization, and installed receipt/ACK qualification remains open. The
+Stream/Queue performance profile also needs its cold-recovery failure resolved;
+its unfinished profiles do not supply baselines. Earlier installed passes retain
+their own source attribution. The remaining work includes executable SQL renewal
+and NACK, acquisition predicates, consumer groups/WAIT/offset settlement,
+`STREAM_SLICE` integration, real transactional Station handlers and effects,
+Table commit-path/performance gates, and final resource/fault/provider qualification.
+Table retains the numeric performance gate; Stream, Queue and Station turns need
+measured baseline budgets before later target refinement.
 
 ## Prerequisites and architectural rationale
 
