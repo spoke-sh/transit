@@ -279,6 +279,22 @@ def run(node, catalog, gateway):
             call(gateway, 'app-config', 5432)
             framing = call(gateway, 'session-framing')
             assert framing == dict(framing_refusals=17, exact_repeats=15, advanced_recoveries=2, revoked_results=3), framing
+            staged = call(gateway, 'workload-stage')
+            assert staged == dict(workloads=5, pending=True), staged
+            original_bindings = (root/'sql-workload-bindings.json').read_bytes()
+            authority.kill(); authority.wait(timeout=10)
+            authority = start()
+            workload_first = call(gateway, 'workload-read')
+            assert workload_first == dict(workloads=5, rows=116, batches=8,
+                                         originals_verified=False, revoked_terminals=5), workload_first
+            original_observations = (root/'sql-workload-observations.json').read_bytes()
+            authority.kill(); authority.wait(timeout=10)
+            authority = start()
+            workload_recovered = call(gateway, 'workload-read')
+            assert workload_recovered == dict(workloads=5, rows=116, batches=8,
+                                             originals_verified=True, revoked_terminals=5), workload_recovered
+            assert original_bindings == (root/'sql-workload-bindings.json').read_bytes()
+            assert original_observations == (root/'sql-workload-observations.json').read_bytes()
             with subprocess.Popen([gateway, url, 'idle', str(root)], stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE, text=True) as idle:
                 deadline = time.monotonic() + 60
@@ -302,6 +318,7 @@ def run(node, catalog, gateway):
                                   explicit_execute_repeated=repeated, saved_receipt_recoveries=saved_recoveries,
                                   exact_counts=True, history=history,
                                   framing=framing, exact_capacity_retries=capacity_repeats, cleanup_cancelled_and_joined=True,
+                                  workload_recovery=workload_recovered, workload_process_deaths=2,
                                   settled_idle_upstream_requests=idle_requests,
                                   lost_foreground_bind_recovered=True, lost_settlement_reply_recovered=True,
                                   station_sends=sends, station_turns=turns,

@@ -189,6 +189,163 @@ fn refuseFrame(init: std.process.Init, sessions: *gateway.Registry, request: gat
         return error.ExpectedFramingRefusal;
     } else |err| if (err != error.OutOfMemory) return err;
 }
+const WorkloadBindings = struct { definition: native.Definition, bindings: [5]c.DirectClientToken.Binding };
+const WorkloadObservations = struct { definition: native.Definition, values: [5]gateway.results.Workload.Observation };
+fn stageWorkloads(init: std.process.Init, caller: *gateway.Client, config: Config, runtime: *gateway.DatabaseRuntime, directory: []const u8) !void {
+    _ = try enqueue(init, caller, config, 9100, "CREATE STREAM workload_events (value BIGINT NOT NULL) WITH (read_rows=16)");
+    _ = try enqueue(init, caller, config, 9101, "CREATE QUEUE workload_items (value BIGINT NOT NULL) WITH (read_rows=2)");
+    runtime.notify();
+    try drain(runtime, caller);
+    const table = caller.table(config.binding);
+    var saved: WorkloadBindings = .{ .definition = native.current_definition, .bindings = undefined };
+    for (&saved.bindings, 0..) |*binding, index| {
+        const kind: c.DirectLog.Kind = if (index < 2) .stream else .queue;
+        const name = if (kind == .stream) "workload_events" else "workload_items";
+        const response = try table.call(.{ .log_lookup = .{ .namespace = config.binding.namespace, .name = name } });
+        defer response.deinit();
+        const metadata = response.value.result.log_lookup orelse return error.MissingWorkloadDeclaration;
+        var declared = try c.DirectLogProtocol.decodeMetadata(init.gpa, table.connection, metadata);
+        defer declared.deinit();
+        const target: p.StreamQueue.Partition = .{ .definition = native.current_definition, .interpretation = metadata.declaration.stored.declaration.interpretation, .partition = 0 };
+        const operation: p.DataLifecycle.Operation = .{ .scope = table.connection.scope, .principal = table.connection.principal, .operation = 97000 + index };
+        var payload: [32768]u8 = undefined;
+        var cells: [75][1]c.fuze.Types.Values.Cell = undefined;
+        var rows: [75]c.storage.LogBatch.Row = undefined;
+        var work: c.DirectWorkloadIntent.Work = undefined;
+        var binary: ?c.DirectTableProtocol.Binary = null;
+        defer if (binary) |value| init.gpa.free(value.base64);
+        if (index == 0 or index == 3) {
+            const count: usize = if (index == 0) 75 else 3;
+            for (cells[0..count], rows[0..count], 0..) |*cell, *row, ordinal| {
+                cell[0] = .{ .value = .{ .atom = .{ .signed = @intCast(ordinal) } } };
+                row.* = .{ .cells = cell };
+            }
+            const bytes = try c.storage.LogBatch.encode(declared.definition.schema, operation, if (kind == .stream) .stream else .queue, rows[0..count], &payload);
+            binary = try c.DirectTableProtocol.Binary.encode(init.gpa, bytes);
+            const append: p.StreamQueue.Append = .{ .target = target, .operation = operation, .kind = if (kind == .stream) .stream else .queue, .producer = null, .rows = count, .payload = c.storage.LogBatch.content(bytes) };
+            work = if (kind == .stream) .{ .stream = .{ .work = .{ .append = append }, .payload = binary } } else .{ .queue = .{ .work = .{ .enqueue = append }, .payload = binary } };
+        } else if (index == 1) {
+            work = .{ .stream = .{ .work = .{ .consume = .{ .target = target, .operation = operation, .group = null, .from = 0, .until = null, .timestamp = null } }, .payload = null } };
+        } else work = .{ .queue = .{ .work = .{ .claim = .{ .target = target, .operation = operation, .maximum = 3, .lease_ms = 1000 } }, .payload = null } };
+        const source: c.fuze.WorkloadProjection.Source = .{ .binding = try work.binding(init.gpa), .schema = declared.definition.schema };
+        const layout = [_]c.fuze.WorkloadProjection.Field{ .{ .column = 1 }, .offset, .lease_epoch, .attempt };
+        const fields = layout[0..if (index == 2 or index == 4) @as(usize, 4) else 2];
+        const sql = if (index == 1) "SELECT value, _offset FROM original WHERE value >= 40" else if (fields.len == 4) "SELECT value, _offset, _lease_epoch, _attempt FROM original" else "SELECT value, _offset FROM original";
+        var compiled = try c.fuze.WorkloadProjection.compile(init.gpa, source, fields, "original", sql, null);
+        defer compiled.deinit();
+        var plan_bytes: [c.fuze.LogicalPlanCodec.max_bytes]u8 = undefined;
+        const plan = try c.DirectTableProtocol.Binary.encode(init.gpa, try c.fuze.WorkloadProjection.encode(source, fields, compiled.plan, init.gpa, &plan_bytes));
+        defer init.gpa.free(plan.base64);
+        var frozen = try c.DirectWorkloadIntent.createProjected(init.gpa, table.connection, metadata, work, .{ .fields = fields, .plan = plan });
+        defer frozen.deinit();
+        // Save the exact body before its first accepting token dispatch.
+        try support.saveBytes(init, directory, try std.fmt.allocPrint(init.arena.allocator(), "sql-workload-{d}.json", .{index}), frozen.bytes);
+        const reference: c.DirectIntent.Reference = .{ .workload = try frozen.stage(table, caller.execution.configuration.account) };
+        binding.* = .{ .key = .{ .definition = native.current_definition, .connection = table.connection, .account = caller.execution.configuration.account, .token = @splat(@intCast(90 + index)) }, .fingerprint = try reference.digest(), .intent = reference, .budget = caller.execution.configuration.budget(try reference.workload.reservationBytes()) };
+    }
+    try support.save(init, directory, "sql-workload-bindings.json", saved);
+    for (saved.bindings) |binding| _ = try c.DirectClientToken.bind(table, binding);
+    return support.print(init, .{ .workloads = saved.bindings.len, .pending = true });
+}
+
+fn readWorkloads(init: std.process.Init, runtime: *gateway.DatabaseRuntime, directory: []const u8) !void {
+    const api = gateway.session_protocol;
+    const saved = try support.load(WorkloadBindings, init, directory, "sql-workload-bindings.json");
+    if (saved.definition != native.current_definition) return error.IncompatibleDefinition;
+    const previous: ?WorkloadObservations = support.load(WorkloadObservations, init, directory, "sql-workload-observations.json") catch |err| if (err == error.FileNotFound) null else return err;
+    var observed: WorkloadObservations = .{ .definition = native.current_definition, .values = undefined };
+    var configuration = try support.load(gateway.Configuration, init, directory, "sql-gateway.json");
+    const credential = try gateway.Session.loadCredential(init.gpa, init.io, &configuration.accounts[0]);
+    var sessions = try gateway.Registry.init(init.gpa, init.io, &configuration, &.{runtime}, @splat(71));
+    defer sessions.deinit();
+    var total: usize = 0;
+    var batches: usize = 0;
+    for (saved.bindings, 0..) |binding, index| {
+        var source = try runtime.ingress.source();
+        const deadline: gateway.DatabaseRuntime.Deadline = .{ .start = std.Io.Clock.awake.now(init.io), .milliseconds = 60000 };
+        var state = (try source.lookup(binding.key.token, binding.fingerprint)) orelse return error.MissingWorkloadToken;
+        while (state.pending) {
+            try deadline.check(init.io);
+            try runtime.waitProgress(20);
+            state = (try source.lookup(binding.key.token, binding.fingerprint)).?;
+        }
+        try std.testing.expectEqualDeep(binding, state.receipt.binding);
+        const slot = try sessions.create(0, credential, "data", .transit, true);
+        slot.mutex.unlock(init.io);
+        defer {
+            slot.mutex.lockUncancelable(init.io);
+            sessions.remove(slot);
+            slot.mutex.unlock(init.io);
+        }
+        const status = try runtime.status(init.gpa, &slot.host.?.observer, &slot.host.?.table, binding.intent.namespace(), state.id());
+        if (status.phase != .terminal or status.outcome != .applied or status.result_kind != .rows or status.identity.kind != .workload) return error.InvalidWorkloadStatus;
+        const request: api.Request = .{ .version = 1, .definition = native.current_definition, .instance = sessions.instance, .session = slot.id, .action = .{ .result = status.identity } };
+        var bytes = try sessions.request(init.gpa, init.gpa, request, .{});
+        defer init.gpa.free(bytes);
+        var frame = try api.ResultFrame.parseBorrowed(init.arena.allocator(), bytes);
+        const observation = frame.description.?.observation;
+        try status.workload.?.requireObservation(observation.data.workload);
+        observed.values[index] = observation.data.workload;
+        if (previous) |prior| {
+            if (prior.definition != native.current_definition) return error.IncompatibleDefinition;
+            try std.testing.expectEqualDeep(prior.values[index], observed.values[index]);
+        }
+        const schema = try api.results.Types.decodeInto(init.arena.allocator(), frame.description.?.schema);
+        const expected: u64 = switch (index) {
+            0 => 75,
+            1 => 35,
+            2 => 0,
+            else => 3,
+        };
+        var count: u64 = 0;
+        var claimed: [3]bool = @splat(false);
+        var fetch = request;
+        fetch.action = .{ .fetch = .{ .cursor = frame.cursor, .batch = 0 } };
+        while (true) {
+            if (frame.rows != @min(api.max_rows, expected - count)) return error.InvalidWorkloadRows;
+            const rows = try api.ResultColumns.decode(init.gpa, init.arena.allocator(), schema.structure, frame.columns, frame.rows);
+            for (0..rows.len) |row| {
+                const ordinal = if (index == 4) std.math.cast(u64, rows.cell(row, 1).value.atom.unsigned) orelse return error.InvalidWorkloadValue else count + row + (if (index == 1) @as(u64, 40) else 0);
+                if (rows.cell(row, 0).value.atom.signed != ordinal or rows.cell(row, 1).value.atom.unsigned != ordinal) return error.InvalidWorkloadValue;
+                if (index == 4) {
+                    if (ordinal >= claimed.len or claimed[@intCast(ordinal)]) return error.InvalidWorkloadValue;
+                    claimed[@intCast(ordinal)] = true;
+                    if (rows.cell(row, 2).value.atom.unsigned == 0 or rows.cell(row, 3).value.atom.unsigned != 1) return error.ChangedOriginalLease;
+                }
+            }
+            count += frame.rows;
+            batches += 1;
+            total += frame.rows;
+            const repeated = try sessions.request(init.gpa, init.gpa, fetch, .{});
+            defer init.gpa.free(repeated);
+            if (!std.mem.eql(u8, bytes, repeated)) return error.ChangedRetainedBatch;
+            if (frame.completion) |completion| {
+                if (count != expected or completion.rows != expected) return error.InvalidWorkloadCompletion;
+                try completion.validate(observation);
+                if (index == 1 and completion.workload.?.position.consume.coverage.rows != 75) return error.LostNativeCoverage;
+                if (index == 4 and !std.mem.allEqual(bool, &claimed, true)) return error.InvalidWorkloadValue;
+                break;
+            }
+            fetch.action.fetch.batch += 1;
+            const next = try sessions.request(init.gpa, init.gpa, fetch, .{});
+            init.gpa.free(bytes);
+            bytes = next;
+            frame = try api.ResultFrame.parseBorrowed(init.arena.allocator(), bytes);
+        }
+        var revoked = credential;
+        revoked.enabled = false;
+        try support.save(init, directory, "gateway-credential.json", revoked);
+        defer support.save(init, directory, "gateway-credential.json", credential) catch unreachable;
+        if (sessions.request(init.gpa, init.gpa, fetch, .{})) |disclosed| {
+            init.gpa.free(disclosed);
+            return error.DisclosedRevokedBatch;
+        } else |err| if (err != error.InvalidAuthentication) return err;
+        if (slot.cursor != null) return error.RetainedDeniedCursor;
+    }
+    try support.save(init, directory, "sql-workload-observations.json", observed);
+    return support.print(init, .{ .workloads = saved.bindings.len, .rows = total, .batches = batches, .originals_verified = previous != null, .revoked_terminals = saved.bindings.len });
+}
+
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len < 4) return error.Usage;
@@ -327,7 +484,12 @@ pub fn main(init: std.process.Init) !void {
         if (runtime.ready.load(.acquire) or runtime.read_cleanup_failure.load(.acquire) != 0) return error.CleanupCancellationMisclassified;
         return support.print(init, .{ .cleanup_cancelled = true, .joined = true });
     }
-    if (std.mem.startsWith(u8, mode, "runtime") or std.mem.eql(u8, mode, "session-framing") or std.mem.eql(u8, mode, "idle")) {
+    if (std.mem.eql(u8, mode, "workload-stage")) {
+        const runtime = try startRuntime(init, args[1], directory, &config, registry);
+        defer runtime.deinit();
+        return stageWorkloads(init, &caller, config, runtime, directory);
+    }
+    if (std.mem.startsWith(u8, mode, "runtime") or std.mem.eql(u8, mode, "session-framing") or std.mem.eql(u8, mode, "workload-read") or std.mem.eql(u8, mode, "idle")) {
         const runtime = try startRuntime(init, args[1], directory, &config, registry);
         defer runtime.deinit();
         if (!std.mem.startsWith(u8, mode, "runtime")) {
@@ -345,6 +507,7 @@ pub fn main(init: std.process.Init) !void {
             try init.io.sleep(.fromMilliseconds(2), .awake);
         }
         if (std.mem.eql(u8, mode, "session-framing")) return sessionFraming(init, runtime, directory);
+        if (std.mem.eql(u8, mode, "workload-read")) return readWorkloads(init, runtime, directory);
         if (std.mem.eql(u8, mode, "idle")) {
             const configuration = try support.load(gateway.Configuration, init, directory, "sql-gateway.json");
             var sessions = try gateway.Registry.init(init.gpa, init.io, &configuration, &.{runtime}, @splat(71));

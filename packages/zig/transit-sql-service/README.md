@@ -88,3 +88,10 @@ counts are the recovery oracle; a helper's nonzero exit alone is not evidence
 that a commit reply was lost. Failed private installations are retained for
 original-outcome investigation. This process-death schedule does not establish
 host power-loss durability.
+
+The same suite stages five frozen workload tokens, kills the node before SQL
+recovery, and checks append/consume/claim results through session batches. It
+restarts again and compares original observations. The independent row oracle
+covers an empty claim before enqueue, filtered Stream output versus native
+coverage, batching across smaller native pages, exact repeats and revoked
+terminal disclosure. This exercises native tokens; it does not admit workload SQL.
