@@ -107,33 +107,17 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 
 ## Current native definition
 
-The installed worker rotation and durable Table branch cutovers use the shared
-definition `04cd820c132773e6cd69e1d4174f1dff012f8e0f286a82dc35512327a252c6d6`.
-Catalog roots require branch identity, name and retention-owner directories;
-typed branch operations share the original client-token decision owner.
-Installation records require per-worker enrollment receipts and the last accepted
-public key. Restart conditionally rotates that key and ownership without
-re-granting permissions. Earlier installations cannot synthesize these fields;
-they reject before starting authority. Earlier checkpoints, signed requests and
-histories reject rather than being silently
-The partitioned transaction participant cutover replaces the shared definition with
-`7e644f25075291fae16bb7c8789cdc5e2142233e070ea51abb7894fd1a33245e`.
-The named direct KV cutover replaces the shared definition with
-`7888257e78cabc3bbea6790f7b5a5c2839b2eeefad3818c04256008421333e50`.
-The Table/KV transaction cutover replaces the shared definition with
-`959f82fed0e8ff7c9231173a71deae4a6ee73ac3ede967cc5c61d8bb8b04203d`.
-The retained log-transaction cutover replaces the shared definition with
-`d5f2961e680883a4eb9d568e38a7de935779d0f17d777422612331807f5c584e`.
-The log transaction decision cutover replaces the shared definition with
-`8a98dbe8ab42641f64a79d7103a53770b67148a32d5087afa95513cc8df0e4b7`.
-The catalog log transaction cutover replaces the shared definition with
-`e43dc2b9d4e7bb5c5412694a505e50588680570ab346dde42c9745832769ebd4`.
-The catalog log statement cutover replaces the shared definition with
-`edcac1ee9f98bce6a0cb6d93c14d38566b33af3a48ef8282fa6024ea8bb964b9`.
-The atomic Queue transfer cutover replaces the shared definition with
-`840c402d628b33eaca53001138fdababf605d5d82b94e95731748b72fe8b8a24`.
-The frozen Stream/Queue declaration-intent cutover replaces the shared definition with
-`ef37b3e1d667c952bd655f98ae8af50fc2e88eca05c95e05deaaa569af70b655`.
+The current shared definition is
+`82d06193f789b53ed2a0c6bf391f8870f4a0b7a5c954ecfb616e11f33de48efc`.
+It binds direct KV, mixed state/log transactions and frozen Stream/Queue
+declaration intents together with retained Table branches and installed worker
+rotation. Catalog roots require branch identity, name and retention-owner
+directories; typed branch operations share the original client-token decision
+owner. Installation records require per-worker enrollment receipts and the last
+accepted public key. Restart conditionally rotates that key and ownership
+without re-granting permissions. Earlier installations cannot synthesize these
+fields and reject before starting authority.
+
 Caller-token records now carry an explicit log-declaration reference and its
 account-scoped immutable body. The saved body requires the current definition;
 schema, policy, limits and original operation cannot be reconstructed from a
