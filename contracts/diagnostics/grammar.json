@@ -81,6 +81,11 @@
       "source": "packages/zig/transit-fuze/src/LogSettlementSql.zig",
       "contract": "contracts/QUEUE_V1.md",
       "behavior": "Pure receipt and lease-extension preparation; no current authority or native settlement."
+    },
+    "managed": {
+      "source": "packages/zig/transit-sql/src/ManagedSql.zig",
+      "contract": "contracts/DATAFLOW_V1.md",
+      "behavior": "Pure shared declaration/control parsing with finite relational syntax, including EXPLAIN prefix routing. No metadata lookup, authorization, publication or execution."
     }
   },
   "cases": [
@@ -7478,6 +7483,119 @@
       "profile": "log_settlement",
       "grammar": "sql",
       "root": "logSettlementStatement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "managed-create",
+      "sql": "CREATE DATAFLOW projection INTO output AS SELECT id FROM items",
+      "profile": "managed",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "managed-authorize",
+      "sql": "AUTHORIZE DATAFLOW projection",
+      "profile": "managed",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "managed-activate",
+      "sql": "ACTIVATE DATAFLOW projection",
+      "profile": "managed",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "managed-suspend",
+      "sql": "SUSPEND DATAFLOW projection",
+      "profile": "managed",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "managed-resume",
+      "sql": "RESUME DATAFLOW projection",
+      "profile": "managed",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "managed-refresh",
+      "sql": "REFRESH DATAFLOW projection",
+      "profile": "managed",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "managed-retire",
+      "sql": "RETIRE DATAFLOW projection",
+      "profile": "managed",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "managed-explain",
+      "sql": "EXPLAIN CREATE DATAFLOW projection INTO output AS SELECT id FROM items",
+      "profile": "managed",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "managed-show-query-refusal",
+      "sql": "SHOW DATAFLOW projection",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.unsupported_catalog",
+        "category": "unsupported",
+        "kind": "unsupported"
+      }
+    },
+    {
+      "id": "managed-keyword-identifiers",
+      "sql": "CREATE TABLE named (dataflow BIGINT, authorize BIGINT, activate BIGINT, suspend BIGINT, resume BIGINT, refresh BIGINT, retire BIGINT)",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
       "reference": true,
       "expected": {
         "accepted": true
