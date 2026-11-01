@@ -105,6 +105,82 @@ The final observer counts these retryable responses within the original deadline
 requires actual readiness and still rejects denial. Neither preliminary failure
 is erased or relabeled as a passing sample.
 
+Post-integration correctness checks use source
+`c4b2390f91fb691c8896c28966eff4185f88b931` and later test/fixture corrections;
+they do not replace the frozen-binary timing campaign above. The local storage
+schedule passes 193 SIGKILL cases and 13 injected I/O failures, and native
+collection passes 29 SIGKILL cases. The object-publication model passes its
+one-/two-key configurations (397/3,907 distinct states) and five removed-barrier
+negative controls per configuration. These are process-death, injected-error and
+finite-model results, respectively, not physical power-loss qualification.
+SQL lifetime and installation-fault schedules pass, including recovery of the
+original worker-rotation receipt after manager loss and refusal after principal
+revocation. Debug startup observations complete with 375 fresh and 24 retained
+work records without telemetry loss.
+
+The full server lifecycle passes with the co-hosted fault-node build from
+`40beb9521` and diagnostic driver from `b9502896e` in 170.60 seconds. An earlier
+attempt at the same runtime source returns `SqlOutcomeUnknown` during
+`ALTER TABLE` after transient authority connection closure. Its installation
+and logs remain retained; the later pass does not establish that failure's cause
+or resolution. Configuration inventory and reply-loss injection were corrected
+to cover the existing request-memory budgets and co-hosted execution boundary.
+The logging proof now validates the documented flat loss records explicitly;
+it requires unchanged loss counts across its SQL replacement assertions.
+The performance observer continues to refuse any telemetry loss.
+
+Ignored records in the same evidence directory include `storage-faults.log`,
+`object-publication-model.log`, `server-faults.log`, `integrated-lifetimes.log`,
+`integrated-debug.jsonl`, `server-core-owner.log` (failed),
+`server-core-owner-diagnostic.log` (passed) and
+`server-logging-loss-records.log`. Their scope does not establish a full-suite
+pass, retained-history performance or the final startup targets.
+
+The clean installation/UI lane at `9ce0bc22e` passes thirteen tasks before
+failing the Station launcher readiness proof: native request deadlines cause
+owner reopening, and the proxy records connection refusal/closure despite
+completing the timed replacement/query assertions. A second run of that clean
+source passes nine tasks before the configured SQL test fails its final read
+after explicit TLS replacement. Neither cause is resolved by these observations;
+the lane is not qualified. The workbench/declarative-browser tasks are not reached.
+Both runs and their private installations remain retained, with top-level logs
+`clean-installation-ui-9ce0bc22eb82.log` and
+`clean-installation-ui-9ce0bc22eb82-retry.log` in the same evidence directory.
+An earlier logging-parser failure is corrected by explicit loss-record validation;
+that correction does not turn the two later failures into passes.
+
+Clean core, storage/query, SQL interface and SDK checks subsequently use source
+`190066c07a7de83e6f551543afd2af4e565118e6`. The earlier core attempt found an
+application-signing digest fixture that still used the preceding definition;
+the regenerated fixture passes both the independent Python generator and focused
+Zig signing check. That core run was interrupted after the known failure. The
+corrected core attempt passes 58 fast checks before interruption to serialize
+disk validation; neither attempt completes the core lane.
+
+The clean storage/query lane passes thirteen of its twenty-four tasks, including
+the complete local-catalog proof and direct Table/Queue service profiles. Its
+fourteenth task, direct Table maintenance, fails during concurrent foreground
+writes and retained reads: a two-second maintenance timeout leaves the native
+owner requiring recovery, and the writer, reader and inspection receive
+`AuthorityUnavailable`. The operation plan and failed installation remain
+retained. The cause is unresolved, and the ten later tasks are not executed.
+Neither the operation deadlines nor correctness assertions are relaxed.
+
+The clean SQL interface lane passes all five tasks: TLS, result allocations,
+wire gateway, sessions and transactions. The complete run takes 2,032.87 seconds,
+including preparation within the tasks. The clean SDK conformance lane passes
+all seven tasks in 1,690.74 seconds: declarations, native bindings, logical values,
+interoperability, SQL packages, gRPC faults and connector preparation. Its
+interoperability proof passes all ten installed-language counter/query pairings,
+including restart and lost-receipt recovery. These results qualify the selected
+checks at the recorded source, not a full-suite or release pass.
+
+The local `qualification-artifacts.json` index records hashes for 28 focused logs,
+clean-lane logs and copied reports under `clean-reports/` in the same evidence
+directory. Its SHA-256 is
+`cddd34e7e135e1bca147e62248b9387c7594ac9db13347897e696e1353c011c8`.
+It retains the failed and interrupted attempts alongside the completed checks.
+
 ## Installed startup phase attribution — 2026-10-31
 
 The [startup workload](../../../tests/performance/console/startup.py) measures
