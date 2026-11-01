@@ -146,7 +146,8 @@ The key hashes the KV mutation domain, current definition and little-endian
 realm/resource/catalog/principal/operation identity. The original includes the
 full connection, target branch/object, expectations, content commitment and exact
 mutation. Reusing an identity with different content or connection refuses.
-Records contain application data but no signing seed, credential or endpoint.
+The adapter adds no signing seed, session credential or endpoint. The original
+can contain private application data and signed prerequisite guards.
 Endpoint replacement preserves the original signed connection scope.
 
 `Execution.outcome` is the ordinary arena-owned KV result/failure and its dispatch
