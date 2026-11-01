@@ -20,7 +20,9 @@ close cancellation and remaining boundaries.
 
 `LocalRecoveryStore` supplies explicit, bounded Linux local-file recovery storage.
 `SqlRecovery` persists the SQL executor's original attempt before dispatch and
-keeps receipt-storage errors separate from verified command outcomes. See the
+keeps receipt-storage errors separate from verified command outcomes. `KVRecovery`
+saves direct KV mutations before dispatch and observes their original receipts
+through the context. See the
 [recovery guide](docs/recovery.md) for ownership, atomic publication, original-token
 observation and qualification limits.
 

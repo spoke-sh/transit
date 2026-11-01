@@ -339,6 +339,34 @@ Keep M9 open until the complete installed representative matrix, all promised
 facets and common-revision resource/recovery gates pass. M35/M36 can combine and
 distribute that evidence later; they cannot substitute for M9's own exit gates.
 
+### Implemented context and KV recovery increment — 2026-11-01
+
+The source assessment above remains tied to its recorded base. This increment
+adds `Context.callKV` with the existing direct owner's data/control classification,
+plus opt-in finite admission waits for Catalog, KV/log/Stream/Queue and SQL leases.
+Queue metadata is preallocated, lanes remain separate, eligible waiters keep FIFO
+order and cancelled/expired/closing data waiters release their facet ownership.
+Control waits survive closing until joined. Queue counts bound metadata, not the
+host's stacks, borrowed buffers or whole-process memory.
+
+`KVRecovery` reuses `LocalRecoveryStore` and the existing saved-mutation codec.
+It persists before dispatch, observes the original binding under current rights,
+validates accepted evidence with the storage owner and keeps receipt-storage
+failure separate from the known service outcome. The installed KV schedule now
+kills the caller after acceptance and before reply delivery, removes the old
+standalone fixture save, and replaces both caller and node before recovery from
+the store. Its executed results belong in the qualification record; adding the
+schedule alone does not establish a pass.
+
+P0/P2/P4/P5 remain **In Progress**. Direct data requests use domain operation
+identities and signed proofs, so they do not consume or allocate native principal
+sequences. Native sequence coordination remains required when native commands
+join the context. The resource baseline, aggregate byte accounting, ordinary
+Catalog/log settlement, managed results/native transactions, independent data
+ABI/port, installed Python/Node matrix and Document handoff remain open. This
+increment does not close M9 or substitute local queue tests for host scheduling
+or installed-language evidence.
+
 ## Remaining implementation plan — 2026-10-31
 
 Historical source assessment and delivery order, superseded by the

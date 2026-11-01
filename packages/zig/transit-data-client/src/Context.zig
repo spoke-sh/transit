@@ -208,6 +208,14 @@ fn validate(self: *Self, handle: Handle) !*Slot {
     return slot;
 }
 
+/// Copy the frozen connection for preparation/recovery scope checks. This is
+/// local configuration, not an authorization observation or an active lease.
+pub fn catalogConnection(self: *Self, handle: Handle) !c.DirectTableProtocol.Connection {
+    try self.mutex.lock(self.io);
+    defer self.mutex.unlock(self.io);
+    return (try self.validate(handle)).caller.?.connection;
+}
+
 /// Does not cancel work or free a transport that is still borrowed.
 pub fn closeCatalog(self: *Self, handle: Handle) !void {
     self.mutex.lockUncancelable(self.io);
