@@ -55,7 +55,15 @@ fn unsigned(value: u64) f.Types.Values.Cell {
 }
 pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
     const selection = try g.database.HistoricalSql.select(sql, host.dialect);
-    if (selection.snapshot != null and (host.source != null or host.table.transaction != null)) return error.UnsupportedHistoricalTransaction;
+    if (selection.snapshot != null and host.table.transaction != null) return error.UnsupportedHistoricalTransaction;
+    if (selection.snapshot != null and host.source != null) {
+        var lexer: f.Sql.Lexer = .{ .text = selection.statement, .dialect = host.dialect };
+        const first = try lexer.next();
+        // SELECT is prepared by SourceSession against the retained Table basis.
+        // This metadata adapter must not reject it before that owner runs.
+        if (first.tag == .word and std.ascii.eqlIgnoreCase(first.text, "SELECT")) return null;
+        return error.UnsupportedHistoricalKind;
+    }
     if (host.source) |source| return if (host.native_profile) prepareSource(host, source, sql) else null;
     var arena: std.heap.ArenaAllocator = .init(host.allocator);
     errdefer arena.deinit();
