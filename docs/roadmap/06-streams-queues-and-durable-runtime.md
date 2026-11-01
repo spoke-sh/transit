@@ -1434,7 +1434,8 @@ recovery and partial Stream settlement within a mixed transaction; see the
 `b3300394e` adds pure positional Catalog binding with five focused tests.
 `a5965727d` admits positional consumption through the SQL workload runtime;
 its [component and grammar checks](../history/qualification/query.md#positional-sql-consumption-admission--2026-11-01)
-pass, with installed consumption qualification still pending. SQL group binding,
+pass. Its [installed positional profile](../history/qualification/query.md#installed-positional-consumption)
+also passes with explicitly attributed runtime and corrected-driver revisions. SQL group binding,
 waits, offset-settlement admission, Queue acquisition/settlement, the finite
 analytical bridge, mixed SQL and the remaining installed fault matrix are open.
 `0816018a7` adds pure Queue acquisition preparation with

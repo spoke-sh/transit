@@ -147,6 +147,63 @@ An earlier combined build named a nonexistent `test-diagnostic-grammar` target;
 it executed no checks and failed (`grammar1`, SHA-256
 `c01ab9f1e20c361a7c570e121c209a227125d23742339370582e80652f0f1c92`).
 
+### Installed positional consumption
+
+The installed `sessions-log` profile passes using clean runtime binaries from
+`b23bdbd25853f2517695bc8f418a471b18fccd4b` and the corrected independent driver
+`5c0922652968f44c221b572294eed6bdcbd0ca91`. The wrapper checks that their only
+source difference is `tests/interfaces/sql_sessions/consumes.py`, that the worktree
+is clean throughout the run, and that all seven binary hashes match the recorded
+clean build. This is explicit binary/driver attribution, not a claim that the
+console was rebuilt at the driver's revision. The definition is unchanged.
+
+The registered fixture passes native SQL, PostgreSQL prepared execution, MySQL
+prepared execution and the real console. It checks 65 rows in 32/32/1 batches;
+a three-row filtered result with native coverage `[2,8)` inside the original
+`[2,65)` cut; filtered-empty exhaustion; LIMIT 0; exhaustion below LIMIT; an
+empty tail; exact partition routing; typed parameters; and current authorization
+for buffered, partial-limit and empty terminal results. It saves the original
+SQL/token before dispatch, appends another row, replaces the SQL gateway, then
+checks status, same-token submission and result reopening against the unchanged
+original cut. A changed statement cannot reuse the token. Declaration and append
+regressions also pass in this run.
+
+The final runtime build used
+`zig build test-sql-wire-build -Doptimize=ReleaseSafe --summary all -j2` in the
+SQL-wire development shell: **22/22 steps passed**. The installed command invoked
+`tests/interfaces/sql_wire/gateway.py` with the seven recorded binaries and
+`sessions-log`. Runtime/service replacement is exercised; this profile does not
+kill the native node, drop a consumption reply, qualify provider replacement,
+named groups, WAIT, SQL offset settlement or performance. No deadlines or budgets
+were raised. Later branch work still requires its own combined-source checks.
+
+| Binary | Bytes | SHA-256 |
+| --- | --- | --- |
+| `transit-node` | 108343112 | `c9fb48322076851cf1f746e24643f449827371814409751ab2b0cfd99fc7fd24` |
+| `transit-sql-catalog-proof` | 29885792 | `4a81e3b0b073c4ec3a6dcffe157631f4463d5eb774b66b2f3caa81939977053a` |
+| `transit-sql-gateway-proof` | 50326064 | `28f3412df8faab7c3c9990e633e94ec4af6d63c4f92891a40ed8a98a867da124` |
+| `transit-query-host` | 35453560 | `5a95d4be899d64b1197899be9728ecb472220f8562f67f0ac3c2a125be88f09e` |
+| `transit-sql-gateway` | 46518544 | `4d33147a6aa86c1e4a5fa53d00f9718e113d83afae9e63d533a27a3977fc217e` |
+| `transit-configuration-probe` | 28566496 | `774833c5603cfcec5e8b678dc5bbf059c440c3515978d8114aafe018f9826ffc` |
+| `transit` | 131892176 | `5af5e27c762c0853e7de31adf44a91a5d4983ac7b83c8515c2b28fbd734585f6` |
+
+| Run | Result | Log SHA-256 |
+| --- | --- | --- |
+| `build2` | 22/22, clean `15f1ef4db` | `f54930622381ec2b134f1737eb8b977399f8fcf1c47b0005e696ce3ebcf822c1` |
+| `build3` | 22/22, clean runtime source above | `d617b1f443c7e11f2bd77b09bac108778d77bb8e884bc75ab000227bda542b57` |
+| `installed1` | FAILED: operation envelope incorrectly expected nullable counts | `4d754b2942da6349831ba7dc5188252c8974c12a7bd78aac0803c87c35b15f39` |
+| `installed2` | FAILED: fixture addressed workload outside the observation data basis | `a973939e6e7f77a4d7c4df936f6bb1bfebdcb9b8c7d2f3e9b8d72abcb791b886` |
+| `installed3` | PASS: declarations, appends and positional consumption | `8291b3ccb91e168e05afd23e70a4843755827ecf24be6442d3a997c3702aff32` |
+
+The first two installed failures were independent fixture-shape mistakes, not
+passed runs. Session operation envelopes use zero placeholders where shared
+completion counts are inapplicable; workload observation lives under `data`.
+The corrected assertions retain the original semantic requirements. Their
+installations remain private at `/var/tmp/transit-direct-sql-wire-0tqestip` and
+`/var/tmp/transit-direct-sql-wire-bm38yts7`; no uncertain write was submitted as
+fresh work. The successful installation was removed by the harness only after
+all assertions and cleanup completed.
+
 ## Bounded consumption results and authenticated intervals — 2026-11-01
 
 The local implementation committed as `02acf0253867858ff460c8259a6569d5f60d9a80` replaces the current v1
