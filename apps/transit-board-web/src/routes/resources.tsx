@@ -1,7 +1,7 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { DeclaredView } from "../declared";
 import { useScope } from "../state";
-import { Resources } from "../resources";
+import { ResourcePage } from "../features";
 
 export const Route = createFileRoute("/resources")({
   validateSearch: (search: Record<string, unknown>): { resource?: number } => ({
@@ -13,22 +13,3 @@ export const Route = createFileRoute("/resources")({
   component: () =>
     useScope().scope?.profile === "native_v1" ? <DeclaredView /> : <ResourcePage />,
 });
-function ResourcePage() {
-  const { resource } = Route.useSearch();
-  return (
-    <main>
-      <Link to="/" search={{ status: "all", sort: "pid" }}>
-        ← Processes
-      </Link>
-      <p className="eyebrow">STATE RESOURCES</p>
-      <h1>{resource === undefined ? "Durable state" : `Resource ${resource}`}</h1>
-      <p>Authorized resource metadata, lifetime contracts and committing-turn evidence.</p>
-      {resource !== undefined && (
-        <Link to="/resources" search={{}}>
-          All authorized resources
-        </Link>
-      )}
-      <Resources key={resource ?? "all"} resource={resource} />
-    </main>
-  );
-}

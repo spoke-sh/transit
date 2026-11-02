@@ -1,5 +1,5 @@
-import { BoardError } from "@transit/board-client";
-import { message } from "./state";
+import { BoardError } from "@transit/board-client/request";
+import { message } from "./inspection-state";
 import { useRead } from "./use-observation";
 export function useMetadata<T>(
   resource: number,

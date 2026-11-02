@@ -1,13 +1,9 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
-import {
-  ApplicationTransportError,
-  generation,
-  presentation,
-  readInterface,
-  type Compiled,
-  type Definition,
-} from "@transit/application";
+import { ApplicationTransportError } from "@transit/application/error";
+import { generation, presentation } from "@transit/application/definition";
+import { readInterface } from "@transit/application/interface";
+import { type Compiled, type Definition } from "@transit/application";
 import type { Deployment } from "@transit/board-client";
 import "./shell.css";
 import { useRead } from "./use-observation";

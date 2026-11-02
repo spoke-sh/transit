@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { useStateObservation } from "./state";
+import { useStateObservation } from "./inspection-state";
 import { present } from "./components";
 import { Framework } from "./framework";
 

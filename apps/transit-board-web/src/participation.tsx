@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { BoardError, participation, type ParticipationCursor } from "@transit/board-client";
-import { message } from "./state";
+import { BoardError } from "@transit/board-client/request";
+import { participation } from "@transit/board-client/evidence";
+import { type ParticipationCursor } from "@transit/board-client";
+import { message } from "./inspection-state";
 import { useRead } from "./use-observation";
 /** A bounded projection, never a second registry or an activity measurement. */
 export function Participation({ resource }: { resource: number }) {

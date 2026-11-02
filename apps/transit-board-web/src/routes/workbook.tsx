@@ -1,5 +1,6 @@
+import { DataRoute } from "../data-route";
 import { createFileRoute } from "@tanstack/react-router";
-import { WorkbookPage, DataRoute } from "../data-workbench";
+import { WorkbookPage } from "../features";
 export const Route = createFileRoute("/workbook")({
   component: () => (
     <DataRoute path="/workbook">

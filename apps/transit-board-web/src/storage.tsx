@@ -1,16 +1,13 @@
 import { useEffect, useId, useState } from "react";
 import { Link } from "@tanstack/react-router";
+import { DataCatalog } from "@transit/board-client/catalog";
+import { storage } from "@transit/board-client/storage";
 import {
-  DataCatalog,
-  relationalQuery,
-  storage,
   type CatalogEntry,
   type CatalogNamespaces,
   type CatalogStorage,
   type CatalogTables,
-  type RelationalDescription,
 } from "@transit/board-client";
-import { QueryError } from "@transit/query-client";
 import { useRead } from "./use-observation";
 import { useScope } from "./state";
 import { ReadStatus } from "./read-status";
@@ -493,34 +490,6 @@ function CatalogTableStorage({ entry }: { entry: CatalogEntry }) {
     const table = await catalog.table(entry.namespace, entry.name, entry.interpretation, signal);
     return catalog.storage(table.metadata.binding, signal);
   });
-  return state.value ? (
-    <TableStorageView page={state.value} />
-  ) : (
-    <ReadStatus failure={state.failure} retry={state.retry} subject="Table storage" />
-  );
-}
-
-type Source = RelationalDescription["sources"][number];
-export function TableStorage({ source, route }: { source: Source; route: number }) {
-  const [visible, setVisible] = useState(false);
-  return (
-    <section aria-label={`Storage for ${source.alias}`}>
-      <button onClick={() => setVisible(!visible)}>
-        {visible ? "Hide" : "Inspect"} storage for {source.alias}
-      </button>
-      {visible && <TableStorageRead source={source} route={route} />}
-    </section>
-  );
-}
-function TableStorageRead({ source, route }: { source: Source; route: number }) {
-  const state = useRead(
-    JSON.stringify(["relational-storage", route, source.binding]),
-    async (signal) => {
-      const result = await relationalQuery({ storage: { route, binding: source.binding } }, signal);
-      if (!("storage" in result)) throw new QueryError(0, "InvalidResponse");
-      return result.storage;
-    },
-  );
   return state.value ? (
     <TableStorageView page={state.value} />
   ) : (

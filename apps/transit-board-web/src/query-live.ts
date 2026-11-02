@@ -1,7 +1,11 @@
-import { BoardError, unifiedQuery as query } from "@transit/board-client";
-import { LiveView, ReactiveError, Session } from "@transit/reactive-client";
+import { BoardError } from "@transit/board-client/request";
+import { unifiedQuery as query } from "@transit/board-client/query";
+import { LiveView, Session } from "@transit/reactive-client";
+import { ReactiveError } from "@transit/reactive-client/error";
 import { verifiedPage, type ResultPage } from "./unified-result";
-import { DraftSession, QueryError, RefreshPreparation } from "@transit/query-client";
+import { DraftSession } from "@transit/query-client/draft";
+import { RefreshPreparation } from "@transit/query-client/refresh";
+import { QueryError } from "@transit/query-client/error";
 import { FollowRecovery } from "./follow-recovery";
 
 export const liveDraft = new DraftSession(query);

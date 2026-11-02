@@ -2,7 +2,7 @@ import { bytes as byteLabel } from "./quantities";
 import { ExactBytes } from "./quantity";
 import { Link } from "@tanstack/react-router";
 import type { Event, Process, Response } from "@transit/board-client";
-import type { useObservation } from "./state";
+import type { useObservation } from "./inspection-state";
 export const present = <T,>(value: T | null): value is T => value !== null;
 export function text(hex: string): string {
   const bytes = new Uint8Array(hex.match(/../g)?.map((value) => parseInt(value, 16)) ?? []);

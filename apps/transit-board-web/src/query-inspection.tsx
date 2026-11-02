@@ -1,5 +1,5 @@
 import { ByteSize } from "./quantity";
-import { logicalTypeText } from "@transit/query-client";
+import { logicalTypeText } from "@transit/query-client/logical";
 import type { UnifiedQueryResponse } from "@transit/board-client";
 
 export type Inspection = Extract<UnifiedQueryResponse, { inspection: unknown }>["inspection"];

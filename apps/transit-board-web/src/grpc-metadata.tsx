@@ -1,6 +1,6 @@
 import { ByteSize } from "./quantity";
 import { CaptureFailure } from "./capture-failure";
-import { grpcMetadata } from "@transit/board-client";
+import { grpcMetadata } from "@transit/board-client/evidence";
 import { useMetadata } from "./use-metadata";
 const hex = (bytes: readonly number[]) =>
   bytes.map((byte) => byte.toString(16).padStart(2, "0")).join("");

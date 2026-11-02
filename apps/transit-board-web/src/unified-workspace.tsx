@@ -1,13 +1,12 @@
 import { ByteSize } from "./quantity";
-import { sourcePositionText, prepareCapture } from "@transit/query-client";
-import { logicalTypeText } from "@transit/query-client";
+import { sourcePositionText } from "@transit/query-client/profile";
+import { prepareCapture } from "@transit/query-client/capture";
+import { logicalTypeText } from "@transit/query-client/logical";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import {
-  BoardError,
-  unifiedQuery as query,
-  unifiedCellText,
-  type UnifiedQueryResponse,
-} from "@transit/board-client";
+import { BoardError } from "@transit/board-client/request";
+import { unifiedQuery as query } from "@transit/board-client/query";
+import { logicalCellText as unifiedCellText } from "@transit/query-client/logical";
+import type { UnifiedQueryResponse } from "@transit/board-client";
 
 import { acquireCaller } from "@transit/reactive-client";
 import { QueryRecovery, saveQueryReference, terminalQuery } from "./query-recovery";

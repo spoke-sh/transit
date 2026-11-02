@@ -1,6 +1,6 @@
 import { ByteSize } from "./quantity";
 import { CaptureFailure } from "./capture-failure";
-import { httpMetadata } from "@transit/board-client";
+import { httpMetadata } from "@transit/board-client/evidence";
 import { useMetadata } from "./use-metadata";
 
 export function HttpMetadata({ resource, exchange }: { resource: number; exchange: string }) {

@@ -1,4 +1,5 @@
-import { StatementReader, type ResultView } from "@transit/query-client";
+import { StatementReader } from "@transit/query-client/read";
+import { type ResultView } from "@transit/query-client";
 import { readFailure } from "./observation";
 import {
   initialStatement,

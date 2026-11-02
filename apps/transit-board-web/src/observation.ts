@@ -1,7 +1,7 @@
-import { ApplicationTransportError } from "@transit/application";
-import { ReactiveError } from "@transit/reactive-client";
-import { QueryError } from "@transit/query-client";
-import { BoardError } from "@transit/board-client";
+import { ApplicationTransportError } from "@transit/application/error";
+import { ReactiveError } from "@transit/reactive-client/error";
+import { QueryError } from "@transit/query-client/error";
+import { BoardError } from "@transit/board-client/request";
 
 export type ReadFailure = {
   kind:

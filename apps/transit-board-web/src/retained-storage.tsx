@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
+import { DataCatalog } from "@transit/board-client/catalog";
 import {
-  DataCatalog,
   type HistoricalTables,
   type HistoricalCoverage,
   type CatalogDefinitions,
 } from "@transit/board-client";
-import { logicalTypeText } from "@transit/query-client";
+import { logicalTypeText } from "@transit/query-client/logical";
 import { useRead } from "./use-observation";
 import { useScope } from "./state";
 import { ReadStatus } from "./read-status";

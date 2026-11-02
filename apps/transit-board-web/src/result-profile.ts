@@ -1,4 +1,5 @@
-import { unifiedCellText, type ResultView } from "@transit/query-client";
+import { logicalCellText as unifiedCellText } from "@transit/query-client/logical";
+import type { ResultView } from "@transit/query-client";
 export const states = ["value", "null", "missing", "type_error", "conflict"] as const;
 export function profileResult(view: ResultView, index: number) {
   const counts = { value: 0, null: 0, missing: 0, type_error: 0, conflict: 0 };
