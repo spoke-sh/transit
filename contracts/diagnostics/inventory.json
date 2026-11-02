@@ -120,6 +120,7 @@
         "InvalidReadPosition": 1,
         "InvalidReadStatement": 1,
         "InvalidSequence": 1,
+        "InvalidTableConnection": 1,
         "QueryAccessDenied": 1,
         "QueryBusy": 1,
         "QueryChanged": 1,
@@ -133,6 +134,7 @@
         "ReadWorkspaceCapacity": 1,
         "ReadWorkspaceExpired": 1,
         "Rejected": 1,
+        "RelationalCallerChanged": 1,
         "RemoteOriginRequiresTLS": 1,
         "ResourceUnavailable": 1,
         "SqlObservationDenied": 1,
@@ -3287,7 +3289,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 84,
+        "try": 87,
         "catch": 0
       },
       "imports": [
@@ -3307,6 +3309,9 @@
           "retained",
           "reclaimed",
           "current_state"
+        ],
+        "Deployment.profile": [
+          "native_v1"
         ],
         "Edge.relation": [
           "input_to_turn",
@@ -5349,9 +5354,10 @@
     },
     "packages/zig/transit-catalog/src/DirectCatalogRead.zig": {
       "errors": {
-        "CatalogDefinitionChanged": 1,
+        "CatalogDefinitionChanged": 4,
         "CatalogNameNotFound": 1,
-        "IncompatibleDefinition": 1
+        "IncompatibleDefinition": 1,
+        "RelationalCallerChanged": 1
       },
       "outcomes": {
         "Request.action": [
@@ -5362,6 +5368,7 @@
           "tables",
           "resources",
           "table",
+          "storage",
           "dependencies"
         ],
         "Response": [
@@ -5370,16 +5377,18 @@
           "definitions",
           "resources",
           "table",
+          "storage",
           "dependencies"
         ]
       },
       "error_sets": {},
       "error_returns": {
-        "apply()": "<inferred>"
+        "apply()": "<inferred>",
+        "storage()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 17,
+        "try": 24,
         "catch": 0
       },
       "imports": [
@@ -11520,6 +11529,46 @@
         "transit_sql_client"
       ]
     },
+    "packages/zig/transit-document-profiles/src/Container.zig": {
+      "errors": {
+        "DocumentContainerComplete": 1,
+        "DocumentContainerFailed": 3,
+        "DocumentContainerNoPart": 2,
+        "DocumentContainerPartActive": 2,
+        "DocumentProfileContainerLimitExceeded": 4,
+        "DocumentProfileManifestConflict": 3,
+        "DocumentProfilePartConflict": 2,
+        "DocumentProfilePartOrder": 1,
+        "DocumentWorkLimitExceeded": 1,
+        "IncompleteDocumentFrame": 3,
+        "InvalidDocumentContainerLimits": 1,
+        "InvalidDocumentWorkBudget": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Limits.validate()": "<inferred>",
+        "addRelationship()": "<inferred>",
+        "append()": "<inferred>",
+        "beginPart()": "<inferred>",
+        "charge()": "<inferred>",
+        "endPart()": "<inferred>",
+        "finish()": "<inferred>",
+        "init()": "<inferred>",
+        "requireActive()": "<inferred>",
+        "verifiedManifest()": "<inferred>",
+        "verify()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 18,
+        "catch": 0
+      },
+      "imports": [
+        "Profile.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-document-profiles/src/Event.zig": {
       "errors": {},
       "outcomes": {
@@ -11569,7 +11618,7 @@
         "InvalidDocumentWorkBudget": 1,
         "InvalidJsonEscape": 1,
         "InvalidJsonLiteral": 1,
-        "InvalidJsonNumber": 10,
+        "InvalidJsonNumber": 1,
         "InvalidJsonString": 1,
         "InvalidJsonSyntax": 4,
         "InvalidJsonUnicode": 5,
@@ -11595,16 +11644,6 @@
           "value",
           "comma_or_end"
         ],
-        "Number": [
-          "minus",
-          "zero",
-          "integer",
-          "dot",
-          "fraction",
-          "exponent_mark",
-          "exponent_sign",
-          "exponent"
-        ],
         "Token": [
           "none",
           "string",
@@ -11626,14 +11665,112 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 25,
+        "try": 28,
         "catch": 2
       },
       "imports": [
         "Event.zig",
+        "JsonNumber.zig",
         "Profile.zig",
         "Utf8.zig",
         "std"
+      ]
+    },
+    "packages/zig/transit-document-profiles/src/JsonNumber.zig": {
+      "errors": {
+        "InvalidJsonNumber": 11
+      },
+      "outcomes": {
+        "State": [
+          "minus",
+          "zero",
+          "integer",
+          "dot",
+          "fraction",
+          "exponent_mark",
+          "exponent_sign",
+          "exponent"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "State.finish()": "<inferred>",
+        "State.next()": "<inferred>",
+        "State.start()": "<inferred>",
+        "State.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 3,
+        "catch": 0
+      },
+      "imports": []
+    },
+    "packages/zig/transit-document-profiles/src/JsonWriter.zig": {
+      "errors": {
+        "DocumentDepthLimitExceeded": 1,
+        "DocumentExpansionLimitExceeded": 1,
+        "DocumentInputLimitExceeded": 1,
+        "DocumentNodeLimitExceeded": 1,
+        "DocumentTokenLimitExceeded": 1,
+        "DocumentWorkLimitExceeded": 1,
+        "DocumentWorkspaceTooSmall": 1,
+        "DocumentWriterBusy": 3,
+        "DocumentWriterComplete": 1,
+        "DocumentWriterFailed": 2,
+        "DocumentWriterNoToken": 1,
+        "IncompleteDocumentFrame": 1,
+        "InvalidDocumentEvent": 5,
+        "InvalidDocumentWorkBudget": 1,
+        "InvalidJsonSyntax": 5,
+        "TrailingDocumentBytes": 1
+      },
+      "outcomes": {
+        "Frame.kind": [
+          "object",
+          "array"
+        ],
+        "Pending.stage": [
+          "prefix",
+          "value",
+          "suffix",
+          "end"
+        ],
+        "Token": [
+          "object_start",
+          "object_end",
+          "array_start",
+          "array_end",
+          "key",
+          "string",
+          "number",
+          "boolean",
+          "null_value"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "begin()": "<inferred>",
+        "beginEvent()": "<inferred>",
+        "charge()": "<inferred>",
+        "drain()": "<inferred>",
+        "finish()": "<inferred>",
+        "init()": "<inferred>",
+        "prepare()": "<inferred>",
+        "requireActive()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 9,
+        "catch": 2
+      },
+      "imports": [
+        "Event.zig",
+        "JsonNumber.zig",
+        "Profile.zig",
+        "Utf8.zig",
+        "std",
+        "transit_protocol"
       ]
     },
     "packages/zig/transit-document-profiles/src/Profile.zig": {
@@ -11782,7 +11919,92 @@
         "Event.zig",
         "Profile.zig",
         "Utf8.zig",
+        "XmlLexical.zig",
         "std"
+      ]
+    },
+    "packages/zig/transit-document-profiles/src/XmlLexical.zig": {
+      "errors": {
+        "InvalidXmlName": 2,
+        "UnsupportedXmlNamespace": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "requireName()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "std"
+      ]
+    },
+    "packages/zig/transit-document-profiles/src/XmlWriter.zig": {
+      "errors": {
+        "DocumentAttributeLimitExceeded": 1,
+        "DocumentDepthLimitExceeded": 1,
+        "DocumentExpansionLimitExceeded": 1,
+        "DocumentInputLimitExceeded": 1,
+        "DocumentNodeLimitExceeded": 1,
+        "DocumentTokenLimitExceeded": 7,
+        "DocumentWorkLimitExceeded": 1,
+        "DocumentWorkspaceTooSmall": 3,
+        "DocumentWriterBusy": 3,
+        "DocumentWriterComplete": 1,
+        "DocumentWriterFailed": 2,
+        "DuplicateXmlAttribute": 1,
+        "IncompleteDocumentFrame": 1,
+        "InvalidDocumentEvent": 4,
+        "InvalidDocumentWorkBudget": 1,
+        "InvalidXmlAttribute": 1,
+        "InvalidXmlCharacter": 1,
+        "InvalidXmlComment": 1,
+        "InvalidXmlSyntax": 3,
+        "TrailingDocumentBytes": 1,
+        "UnsupportedXmlDeclaration": 1,
+        "UnsupportedXmlNamespace": 1,
+        "WriteFailed": 1
+      },
+      "outcomes": {
+        "Token": [
+          "element_start",
+          "element_end",
+          "attribute",
+          "text",
+          "comment",
+          "processing_instruction"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "begin()": "<inferred>",
+        "beginEvent()": "<inferred>",
+        "charge()": "<inferred>",
+        "checkBytes()": "<inferred>",
+        "checkName()": "<inferred>",
+        "checkText()": "<inferred>",
+        "drain()": "<inferred>",
+        "escaped()": "<inferred>",
+        "finish()": "<inferred>",
+        "init()": "<inferred>",
+        "prepare()": "<inferred>",
+        "requireActive()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 53,
+        "catch": 4
+      },
+      "imports": [
+        "Event.zig",
+        "Profile.zig",
+        "Utf8.zig",
+        "XmlLexical.zig",
+        "std",
+        "transit_protocol"
       ]
     },
     "packages/zig/transit-document-profiles/src/root.zig": {
@@ -11796,11 +12018,14 @@
         "catch": 0
       },
       "imports": [
+        "Container.zig",
         "Event.zig",
         "Json.zig",
+        "JsonWriter.zig",
         "Profile.zig",
         "Reader.zig",
-        "Xml.zig"
+        "Xml.zig",
+        "XmlWriter.zig"
       ]
     },
     "packages/zig/transit-document/src/Bytes.zig": {
@@ -22311,6 +22536,53 @@
         "catch": 0
       },
       "imports": [
+        "DocumentProfileContainer.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-protocol/src/DocumentProfileContainer.zig": {
+      "errors": {
+        "DocumentProfileContainerLimitExceeded": 3,
+        "DocumentProfileCoverageGap": 1,
+        "DocumentProfilePartOrder": 1,
+        "DocumentProfileRelationshipConflict": 2,
+        "IncompatibleDefinition": 1,
+        "InvalidDocumentProfileManifest": 5,
+        "InvalidDocumentProfileRevision": 1
+      },
+      "outcomes": {
+        "Relationship.kind": [
+          "contains",
+          "references",
+          "derived_from",
+          "response_to",
+          "attachment"
+        ],
+        "Relationship.to": [
+          "local",
+          "external"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Commitment.addPart()": "<inferred>",
+        "Commitment.addRelationship()": "<inferred>",
+        "Commitment.finish()": "<inferred>",
+        "Commitment.init()": "<inferred>",
+        "Manifest.requireExact()": "<inferred>",
+        "Manifest.validate()": "<inferred>",
+        "Reference.validate()": "<inferred>",
+        "Relationship.validate()": "<inferred>",
+        "Revision.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 9,
+        "catch": 5
+      },
+      "imports": [
+        "DocumentProfile.zig",
         "root.zig",
         "std"
       ]
@@ -26044,7 +26316,6 @@
     },
     "packages/zig/transit-query/src/RelationalWorkspace.zig": {
       "errors": {
-        "CatalogDefinitionChanged": 3,
         "FileNotFound": 1,
         "IncompatibleDefinition": 1,
         "InvalidQueryCursor": 2,
@@ -26052,7 +26323,7 @@
         "InvalidRelationalRecovery": 15,
         "InvalidRelationalSources": 3,
         "QueryIdentityMismatch": 5,
-        "RelationalCallerChanged": 2,
+        "RelationalCallerChanged": 1,
         "RelationalRecoveryRequired": 1,
         "RelationalRecoverySyncFailed": 1,
         "RelationalSourceChanged": 1,
@@ -26108,7 +26379,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 71,
+        "try": 66,
         "catch": 6
       },
       "imports": [
