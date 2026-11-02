@@ -33,13 +33,19 @@ export function InterfaceShell({ scope, children }: { scope: Deployment; childre
           : generation(scope.realm, compiled.definition.name, value.published.head),
     };
   });
+  // A revalidated generation has the same immutable bindings. Preserve their
+  // object identity so its consumers do not restart effects on every refresh.
+  const qualified = useRef<Current | null>(null);
+  if (!observed.value) qualified.current = null;
+  else if (qualified.current?.identity !== observed.value.identity)
+    qualified.current = observed.value;
   // Only the public built-in shell may survive hiding/revalidation. Never retain
   // a published definition or install a built-in fallback after failed access.
   const builtin = useRef<Current | null>(null);
   if (observed.value) builtin.current = observed.value.published ? null : observed.value;
   if (observed.failure) builtin.current = null;
   const current =
-    observed.value ??
+    qualified.current ??
     (builtin.current?.compiled.definition.realm === scope.realm ? builtin.current : null);
   const error = observed.failure?.code ?? "";
   const definition = current?.compiled.definition;
