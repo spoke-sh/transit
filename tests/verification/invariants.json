@@ -2814,6 +2814,32 @@
       "limits": "Scalar reference interpretation only; XML has ASCII names, no namespaces or DTD/custom/external entities. Caller-owned non-overlapping buffers and declared limits. Events are provisional until complete. No Document publication, storage shredding, schema validation, SIMD qualification, gateway integration, dispatch or remote-outcome authority.",
       "qualification": "Runnable component and independent oracle assertions. Registration alone is not a pass or installed-runtime evidence.",
       "model": null
+    },
+    {
+      "id": "BOARD-STATE-01",
+      "claim": "Finite Board observation and statement transitions fence stale disclosure and preserve explicit Run; transport admission bounds active reads and controls",
+      "owner": "docs/handbook/internals/service-interfaces.md",
+      "implementation": [
+        "apps/transit-board-web/src/observation.ts",
+        "apps/transit-board-web/src/observation-owner.ts",
+        "apps/transit-board-web/src/statement-state.ts",
+        "apps/transit-board-web/src/statement-owner.ts",
+        "apps/transit-board-web/src/request-scheduler.ts"
+      ],
+      "profile": "Two independent observations with generations 0..3; separate single-reader statement and active-permit models",
+      "tasks": [
+        "test::board-model",
+        "transit-board::check",
+        "transit-board::workbench-browser"
+      ],
+      "scenarios": [
+        "Every exported finite edge replays state, reader identity and effect projection against production TypeScript",
+        "Three removed model guards violate named invariants; isolated production mutations fail correspondence",
+        "Actual transport adapters cover ignored abort, queued cancellation, saturated read/control lanes and lost original Run replies"
+      ],
+      "limits": "Safety only. Models compose neither server authority nor browser/network scheduling and do not prove progress, latency, arbitrary owner counts or the asynchronous queue. Bounded queue and timer behavior have separate deterministic adapter tests.",
+      "model": "tests/verification/models/BoardObservation.tla",
+      "qualification": "Executed source and finite counts belong in qualification history and .cache/verification/board-model/evidence.json."
     }
   ]
 }

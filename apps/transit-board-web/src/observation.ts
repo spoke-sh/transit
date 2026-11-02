@@ -1,3 +1,5 @@
+import { ApplicationTransportError } from "@transit/application";
+import { ReactiveError } from "@transit/reactive-client";
 import { QueryError } from "@transit/query-client";
 import { BoardError } from "@transit/board-client";
 
@@ -16,17 +18,26 @@ export type ReadFailure = {
 
 /** Preserve typed causes. Transport loss never establishes an empty result. */
 export function readFailure(cause: unknown): ReadFailure {
-  if (!(cause instanceof QueryError) && !(cause instanceof BoardError))
+  if (
+    !(cause instanceof QueryError) &&
+    !(cause instanceof BoardError) &&
+    !(cause instanceof ApplicationTransportError) &&
+    !(cause instanceof ReactiveError)
+  )
     return { kind: "unavailable", code: "ConnectionUnavailable", retryable: true };
-  const code = cause.code;
+  const code = cause instanceof ReactiveError ? cause.reason : cause.code;
   if (code === "QueryDisabled") return { kind: "unconfigured", code, retryable: false };
   if (cause.status === 403) return { kind: "denied", code, retryable: false };
   if (cause.status === 429 || code === "QueryBusy" || code === "ReadWorkspaceCapacity")
     return { kind: "limited", code, retryable: true };
   if (
     code === "InvalidResponse" ||
+    code === "ResultIdentityChanged" ||
     code === "IncompatibleDefinition" ||
-    code === "ResponseTooLarge"
+    code === "ResponseTooLarge" ||
+    code === "invalid_response" ||
+    code === "response_too_large" ||
+    code === "incompatible_definition"
   )
     return { kind: "incompatible", code, retryable: false };
   if (cause.status === 409 || cause.status === 410)

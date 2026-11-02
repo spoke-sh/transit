@@ -18,8 +18,8 @@ test.each(["AuthorityUnavailable", "AuthorityTimeout"])(
     await expect(readInterface()).rejects.toMatchObject({ status: 503, code });
     expect(fetcher).toHaveBeenCalledTimes(5);
     fetcher.mockClear();
-    await expect(readInterface(AbortSignal.abort())).rejects.toMatchObject({ status: 503, code });
-    expect(fetcher).toHaveBeenCalledTimes(1);
+    await expect(readInterface(AbortSignal.abort())).rejects.toMatchObject({ name: "AbortError" });
+    expect(fetcher).not.toHaveBeenCalled();
   },
 );
 
@@ -35,4 +35,11 @@ test("unknown interface failure and revoked observations never inherit availabil
     await expect(readInterface()).rejects.toMatchObject({ status, code });
     expect(fetcher).toHaveBeenCalledTimes(1);
   }
+});
+
+test("malformed interface data is typed as incompatible without automatic transport retry", async () => {
+  const fetcher = vi.fn().mockResolvedValue(new Response("{malformed"));
+  vi.stubGlobal("fetch", fetcher);
+  await expect(readInterface()).rejects.toMatchObject({ status: 0, code: "InvalidResponse" });
+  expect(fetcher).toHaveBeenCalledTimes(1);
 });

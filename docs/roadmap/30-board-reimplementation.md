@@ -2,10 +2,10 @@
 
 [Roadmap](README.md) · **Status:** In Progress
 
-Start with the [Operations and observation delivery](#operations-and-observation-delivery--2026-11-01)
-and [remaining implementation plan](#remaining-implementation-plan--2026-11-01).
-They prioritize visual operational inspection and an explicit reactive UI state
-model, while retaining the full workbench gates.
+Start with the [R1 reactive ownership delivery](#reactive-ownership-delivery-r1--2026-11-02)
+and the [approved implementation sequence after PR 326](#next-implementation-sequence-after-pr-326--2026-11-01).
+Storage placement and computation inspection are the next deliveries; installed
+performance and the full workbench completion gates remain open.
 
 Reimplement Board as the installed interface for discovering data, explaining
 computations and reviewing governed changes. Deliver the focused catalog,
@@ -141,14 +141,334 @@ Executed browser/API evidence, the clean browser preparation workaround and the
 incomplete installation lane are recorded in the
 [Operations proof account](../history/qualification/interfaces.md#board-operational-inspection-and-connection-states--2026-11-01).
 
+## Reactive ownership delivery (R1) — 2026-11-02
+
+R1 centralizes ordinary observation effects and adapts statement presentation
+around the shared `StatementReader`. Configuration, visibility, scope replacement,
+deadlines and typed refusals now invalidate disclosure through explicit owners.
+Reconnection observes the original result without resubmitting SQL. Lost cleanup
+replies remain visibly unconfirmed. Process/resource inspection retains its
+existing explicitly stale evidence policy during transient loss; denial and
+scope replacement clear that evidence.
+
+All public browser transports use one per-tab scheduler: two active read slots,
+one separate control/cleanup slot, bounded queues and staggered read starts.
+Query/Live, reviewed publication and relational recovery retain their shared
+domain owners and original saved intents. The
+[frontend owner inventory](../../apps/transit-board-web/README.md) records their
+distinct lifecycles; the workbench guide and Internals own current semantics.
+
+Independent finite observation, statement and admission graphs replay against
+production TypeScript with model and implementation negative controls. Concrete
+tests separately cover asynchronous dispatch, queue cancellation and response-body
+ownership. Real installation fixtures provision all four Catalog/SQL combinations
+with distinct read subjects and exercise same-origin local forwarding. These
+checks do not establish arbitrary network progress, SSH security or the proposed
+R4 resource/performance targets. Executed source-specific results, corrected
+regressions and remaining limits are recorded in the
+[R1 qualification account](../history/qualification/interfaces.md#board-reactive-ownership-and-independent-connection-profiles--2026-11-02).
+
+The next implementation PR is R2's retained-storage placement and maintenance
+inspection, followed by R3's managed-computation projection and neighborhood.
+R4 retains the unresolved historical TLS-replacement cause, the newly observed
+managed-table authorization refusal after replacement/resume, installed capacity
+refusals and the SQL-only Run timeout, measured resource budgets and broader
+accessibility checks. R5 and the original milestone gates
+remain required; this delivery does not complete M30.
+
+## Next implementation sequence after PR 326 — 2026-11-01
+
+**Review status:** Approved for implementation; R1 is the current delivery. **Source basis:** `origin/main` at
+`db0bb4a8f`, the merge of [PR #326](https://github.com/spoke-sh/transit/pull/326).
+This sequence scopes separate implementation PRs. R2–R4 follow the R1 delivery;
+R5 retains its service prerequisites. Executed evidence is attributed separately
+below. M30 remains **In Progress**.
+
+The next outcome is a Board whose visible state and background work have explicit
+owners, followed by richer explanations of where data resides and why a
+computation has or has not produced a newer result. Keep the existing horizontal
+activities, paired visualization/grid and one Inspector. The removed Operations
+panels stay removed; original relational work remains reachable through recovery.
+
+### Delivered baseline and remaining obligations
+
+PR #326 delivered independent configuration discovery, usable inspection-only
+landing, typed observation failures, node/Table storage visualizations and the
+Operations separation. Catalog, dataset metadata, SQL connection metadata and
+storage use the deterministic observation reducer. Result readers, process and
+resource inspection, finite Live and published interfaces retain other lifecycle
+owners. The next work composes those owners and their effects; it does not give
+the observation reducer authority over SQL settlement or Live controls.
+
+The [qualification record](../history/qualification/interfaces.md#board-operational-inspection-and-connection-states--2026-11-01)
+establishes focused final-source browser/API checks and an earlier clean browser
+lane. It leaves three concrete gaps relevant to this sequence: separately
+provisioned catalog-only/SQL-only installations, independent model-to-implementation
+trace replay, and a complete installation lane. The installation lane stopped at
+a SQL read after TLS replacement; its cause remains unresolved. No earlier pass
+qualifies a later source automatically.
+
+### PR boundaries and dependency order
+
+| Review unit | Concrete result | Dependency and existing plan coverage |
+| --- | --- | --- |
+| **R1 — Reactive ownership and executable state evidence** | Shared read scheduling, composed lifecycle adapters, independent finite model/replay and real independent-configuration fixtures | First implementation PR; completes the remaining P0/P1/P4 obligations within the supported profiles and preserves P2 |
+| **R2 — Storage placement and maintenance inspection** | Selected retained-definition/row-placement diagram and maintenance budget/state view, each linked to its exact grid and Inspector | R1 plus existing M10 historical callers; completes remaining P3 visual work and the storage part of P5 |
+| **R3 — Computation evidence** | Read-only public projection and bounded source → computation → output inspection with last-complete and pending evidence | R1 plus M12 managed lifecycle/revision owners; follows R2 for delivery, without depending on its storage renderer |
+| **R4 — Installed and measured acceptance** | Common-revision installation/browser/model results, performance budgets and accessibility evidence for R1–R3 | Measure and investigate from R1 onward; final run follows R3. Closes this delivery sequence, not all of P7 or M30 |
+| **R5 — Durable workbooks and governed changes** | Shared persistent investigations, transaction presentation, comparisons and Changes workflows | Separate later implementation plans after the owning M20/M27/M28/M29 services meet the prerequisites below; retains P6 and full P7 closure |
+
+Keep logical commits within each PR: transition/contract owner, consumers,
+adversarial or installed proof, then current documentation and executed evidence.
+If a prerequisite needs an owner fix, land and qualify that fix separately before
+the dependent Board adapter. This sequence does not defer the original
+[full completion journeys](#completion-evidence).
+
+### R1 — Complete reactive ownership and prove it
+
+**Lifecycle inventory.** Record each route's scope key, retained identity,
+visibility behavior, timer, permitted retry, current disclosure rule and cleanup
+owner before replacing hooks. Cover `state.tsx`, `atlas-observation.ts`,
+`use-metadata.ts`, `records.tsx`, `participation.tsx`, `interface.tsx`,
+`workbench-result.tsx`, `unified-workspace.tsx`, `live-table.tsx` and
+`relational-workspace.tsx` in
+[`transit-board-web`](../../apps/transit-board-web/README.md). Remove duplicate
+polling implementations only as their callers migrate. Reconcile stale component
+documentation that still places the relational worksheet on Operations.
+
+**Deterministic transitions and effects.** Extend
+[`observation.ts`](../../apps/transit-board-web/src/observation.ts) and its
+[`effect adapter`](../../apps/transit-board-web/src/use-observation.ts) with an
+explicit scoped scheduler. Use exhaustive event/effect unions and injected time
+for deterministic checks. Carry scope, view/request generation and, for results,
+original reader identity through queued work and replies. Scope replacement,
+hide, denial and disposal invalidate queued work before another effect starts.
+Selection stores identities; chart, grid and Inspector read one authorized owner.
+
+Use these proposed scheduling limits:
+
+- At most two simultaneous observation/result read requests per tab, one active
+  request chain and one coalesced pending refresh per mounted owner. Register
+  outgoing reads at the adapter boundary so composite reads cannot bypass the
+  limit or deadlock by holding a permit while acquiring another.
+- One separately bounded slot for explicit submission/control and original-work
+  cleanup. It cannot carry ordinary background reads or authorize new work.
+  Preserve per-owner serialization and the existing deployment-wide reader limits.
+- Keep the five-second successful observation cadence, 15-second read deadline
+  and 30-second transient backoff ceiling as the initial policy. Stagger reads,
+  honor available rate-limit evidence and prevent automatic retries of permanent
+  refusal. Manual retries coalesce with current work.
+- Hiding cancels observation timers and queued reads and clears disclosure under
+  the owning contract. Only already-required bounded cleanup may finish; it cannot
+  create a repeating hidden-tab loop. Visibility restoration revalidates the
+  original subject/result. It never reruns a statement or resets a Live budget.
+
+Keep `StatementReader` responsible for logical results, completion, window
+advancement and close. Adapt presentation around it. Keep finite Live/Follow's
+qualified retained-result and exact-control recovery rules in its shared owner;
+do not apply metadata's clearing policy indiscriminately. Definition publication
+and relational pin recovery keep their saved original intents. Editing, selection,
+refresh, reconnect and graph expansion cannot submit new SQL or controls; explicit
+authorized Live execution retains its separately enabled finite semantics.
+
+**Independent finite model.** Add a Board model beside the existing
+[console/result models](../../tests/verification/models/README.md), using the
+pinned TLC runner conventions. Begin with two scopes, two observation owners,
+one statement owner and current/stale request classes; use distinct outstanding
+identities rather than wrapping a tiny generation counter into an ABA match.
+Explore visibility, selection replacement, deadline, denial, configuration,
+explicit Run, lost replies and scheduler admission. Export the reachable graph
+and replay every exported transition against the actual TypeScript reducer and
+effect-dispatch boundary, comparing state, identities and effects.
+
+Require invariants for cleared protected disclosure, stale-reply rejection,
+bounded in-flight/queued work and original-operation preservation. Add negative
+controls removing generation matching, denial clearing and explicit-Run guarding;
+each must produce its named violation, and isolated implementation mutations of
+those guards must fail the replay/race suite. Reject unknown actions, incomplete
+exports, missing replay edges and timeouts. State finite bounds and any progress
+assumption explicitly; neither this check nor the existing 870-transition unit
+exploration proves arbitrary browser scheduling, network fairness or latency.
+Register the real runner and evidence in the formal task inventory; do not add a
+placeholder passing task.
+
+**Installed fixtures.** Extend
+[`board_workbench.py`](../../tests/interfaces/installation/board_workbench.py)
+and the owning browser suites to start four actual configurations: inspection-only,
+catalog-only, SQL-only and both. Use real configuration files and separate least-
+privilege upstream identities; discovery-response interception is insufficient.
+Check `/?status=all&sort=pid`, `/workbook`, dataset/schema access and preview gates.
+Exercise same-origin forwarding through a local TCP tunnel and reject mismatched
+Host/Origin without adding credentials to the browser.
+
+**R1 exit gate.** Every inventoried owner either uses the shared scheduler or has
+an explicitly tested adapter for its distinct lifecycle; none retains an
+unaccounted polling loop. Deterministic and installed schedules cover old success
+after denial/hide/scope change, 429, unavailable upstream, malformed/incompatible
+responses, service replacement, empty/multi-window results, changed drafts, lost
+Run and close replies. Unrelated authorized views remain usable; no protected
+DOM/Inspector data returns; no replacement query is created. All four real
+deployment profiles pass. Model/replay and its negative controls pass, with
+source-attributed limits. R1 does not depend on adding new storage/computation UI.
+
+### R2 — Explain retained storage placement and maintenance
+
+Reuse the existing `HistoricalObject` reads in
+[`data-workbench.tsx`](../../apps/transit-board-web/src/data-workbench.tsx),
+[`DataCatalog`](../../packages/ts/transit-board-client/src/catalog.ts) and the
+[historical catalog contract](../../contracts/HISTORICAL_CATALOG_V1.md#historical-interpretation-coverage).
+Extract a selected-object inspection component usable from the dataset and
+Operations contexts. A supplied retained selector plus stable object and coverage
+kind identifies the observation; selection does not acquire a snapshot or pin.
+
+Show logical definition → physical definition and returned row → WAL/segment
+placement relationships using only the selected page. Physical-definition
+inspection remains available with metadata rights; row placement requires
+SELECT. Keep their continuations separate. The current owner returns one physical
+schema generation or at most eight row locations per page. Label partial traversal
+and distinguish directory exhaustion from payload verification or query completion.
+Do not infer segment sizes, live row counts, reclaimability or complete inventory.
+
+Add the node maintenance diagram using existing configured budgets, state,
+activity counters and failure fields. Preserve independent units and reset
+semantics. Match Table frontier lanes to their exact partition and boundary
+conventions; retain full-width integer labels, unknown versus zero and bounded
+backlog coverage. All visuals share selection and evidence with their exact grids.
+
+Register the next review in the
+[board-data sequence](../design/board-data/README.md) for monochrome placement,
+maintenance and computation wireframes, including narrow layout, keyboard focus,
+empty/denied/partial states and Inspector behavior. Design fixtures remain labeled
+synthetic; installed screenshots and acceptance use real public evidence.
+
+**R2 exit gate.** Traverse more than one retained page after schema evolution and
+rename, then test changed selection, expired retention, revoked metadata and
+revoked SELECT independently. Compare diagram/grid identities with an independent
+public caller. Inspect accepted WAL data, observed maintenance and a reopened
+disk-backed fixture without browser writes. Selection, expansion and paging
+neither execute SQL nor start maintenance. Keyboard and pointer selection agree.
+
+### R3 — Explain completed and pending computation
+
+Start with the installed single-source/single-output managed Table profile from
+[M12](12-sql-and-dataflows.md#retained-completed-table-revisions--2026-11-01).
+Use [`ManagedTable`](../../packages/zig/transit-query-direct/src/ManagedTable.zig),
+its retained revision owner and [DATAFLOW_V1](../../contracts/DATAFLOW_V1.md).
+Publication, activation, progress, committed completion and retained result
+disclosure remain distinct. Output chaining, multi-source execution and historical
+SQL row fetching are outside this delivered profile.
+
+Before adding a graph, define a bounded typed public inspection composition for
+exact declaration lookup, current observation and selected completed revision.
+Board currently has no dedicated adapter for these facts. Put reusable read
+composition with the public query/catalog caller, then adapt it in Board's Zig
+service and generated browser client. Audit the current grants for each field,
+including source/output/control evidence and post-buffering disclosure; a
+control-head read alone must not grant access to a retained result. If discovery
+cannot use an existing bounded public directory, start with explicit scoped
+lookup and deliver the missing directory through its owner before enabling browse.
+Do not scan raw storage, guess catalog token layouts or issue hidden Workbook SQL.
+
+The projection must identify declaration/object/definition, control epoch,
+observed lifecycle and failure, last completed revision/decision, exact source
+and output definitions/cut, and pending work only where supplied by the owner.
+Validate neutral responses at runtime. Contract additions or incompatible changes
+follow the current-v1 generation/cutover policy and migrate consumers together.
+Reading the projection must never initialize, activate, refresh, suspend or
+retire a computation, acquire retention or consume result payloads.
+
+Render a directed source → computation → output neighborhood with a shared exact
+grid and Inspector. Keep the last completed revision distinct from a pending,
+blocked or failed successor while current authorization permits its disclosure.
+Known denial clears affected evidence. Independent observations carry separate
+bases; only an owner-proved common decision is presented as atomic. Start with
+the actual three-node profile; cap any later explicit neighborhood expansion at
+32 nodes/64 edges and label truncation. Registered dependency edges do not imply
+that output chaining or incremental execution is supported.
+
+**R3 exit gate.** An independent typed/SQL caller agrees with the Board projection.
+A real managed fixture completes a revision, advances its source, then exposes
+pending and blocked/failed successor evidence without replacing the completed
+revision. Cover empty output, source-definition replacement, suspended restart,
+retirement, missing revision and revoked source/output/control access. Advance
+the fixture through its owning caller, never through graph rendering. Exact
+recorded observations replace timing guesses for transient states. Metadata-only
+inspection creates no work or result readers.
+
+### R4 — Qualify the installed sequence and its resource budgets
+
+Begin investigation of the recorded post-TLS-replacement SQL failure during R1.
+Reproduce it on the merged baseline and capture the owning SQL/transport cause,
+original accepted identity and replacement trust state. Fix the responsible
+owner or fixture with a focused regression; a passing retry, skipped assertion
+or larger timeout does not settle the cause. The later installation tasks must
+actually run before the lane is reported complete.
+
+Collect baseline measurements before changing scheduling, then apply these
+**proposed acceptance targets**, not claims about current performance. Use the
+pinned Chromium, ordinary ReleaseSafe binaries, a named local host, disk-backed
+fixtures and recorded viewport/build; report remote-tunnel latency separately.
+
+| Measure | Proposed target and measurement boundary |
+| --- | --- |
+| First useful observation | p95 at most 2 seconds warm and 5 seconds with a fresh browser context, from navigation start against an already-ready local service to the first authorized primary view; report service startup separately |
+| Selection and rendering | p95 at most 100 ms for chart/grid/Inspector selection and for painting a bounded page after response validation; record both intervals separately |
+| Scheduling | At most two observation/result reads plus the single bounded explicit-control/cleanup slot per tab; no hidden observation retries and no read-per-render behavior |
+| Residency | At most the existing four cells, 100-row/2-MiB window per reader and four readers shared by the deployment; metadata/graph residency stays within selected-page/display caps |
+| Retained memory | After 100 settled navigation/open/close cycles and test-only GC, retained JS heap increases by at most 5 MiB over the equivalently settled baseline; report peak heap separately |
+
+Use at least 30 samples for latency percentiles, record raw timings, and freeze
+the named fixture and thresholds before acceptance runs. A missed proposed target
+requires a measured explanation and an explicit plan revision, not silent budget
+inflation. Exercise one, two and four visible tabs plus a hidden tab under the
+same deployment capacity, including reader-capacity refusal and lost cleanup
+acknowledgements. No cross-tab leader election is proposed; shared service limits
+remain authoritative. Increasing retained catalog size must not increase the
+selected display's resident pages or trigger a full scan.
+
+Check keyboard-only use, focus return, screen-reader descriptions, reduced motion,
+200% zoom, narrow layouts and the original desktop layouts. Retain the 128-file/
+8-MiB embedded-asset bounds and five-JavaScript-asset/900-kB checks. Record manual
+screen-reader evidence separately from automated accessibility scans.
+
+For each PR, run its owning component/API/browser checks. For final acceptance,
+run committed-HEAD clean `installation-ui` and `browser` lanes, plus `formal`
+for R1 and `interfaces`/`core` when shared contract or authority changes require
+them. Establish the model, caller and browser evidence at the same final revision;
+report preparation failures and incomplete tasks explicitly. Publish supported
+behavior in the Board guide/API/component docs, the state model in service-interface
+Internals and executed results in qualification history. Settle the applicable
+initial-pass checkboxes with those results; keep full M30 completion open.
+
+### R5 prerequisites and full milestone closure
+
+The local inspection profile remains usable while later owners develop:
+
+| Later Board delivery | Required service evidence before implementation |
+| --- | --- |
+| Durable workbook save/share/resume | M28 public identity, revisions, concurrent editing, disclosure and retained investigation/result lifetimes, exercised by a non-browser caller across replacement and revocation |
+| Transaction presentation | Existing M4/M5/M9 statement/session owners and a separately authorized Board profile for provisional results, commit/rollback and original uncertain-operation settlement; read-only inspection/Workbook admission remains enforced |
+| Branch comparison and Changes | M20 exact comparison bases and conflicts, M27 current policy and M29 candidate-bound review/conditional publication, including moved targets and lost replies |
+| Richer workload inspection | M11/M13/M17/M18 and distributed owners supply the particular index, measured resource, spatial/layout or recovery projections; synthetic studies supply no metrics or access |
+
+Plan and qualify each adapter after its non-browser lifecycle is established.
+Workbooks must not acquire a browser-local persistence/permission authority, and
+an independently run cell must not be relabeled as a shared snapshot. M29 remains
+Planned at this source basis. R1–R4 can complete independently, but durable
+workbooks, transaction/review journeys, the remaining full-milestone inspection
+requirements and common-revision cutover evidence still gate M30 completion.
+
 ## Remaining implementation plan — 2026-11-01
 
-**Source basis:** `origin/main` at `0c64c4b03` (2026-11-01), after the M6 workload,
-M10 historical-catalog and M12 retained-computation-revision integrations. This
-is a delivery plan, not new implementation or executed qualification. The
-milestone remains **In Progress**. The initial-pass plan below retains its
-dated scope; this section supersedes its remaining sequencing and placement
-of the relational worksheet on Operations.
+**Original design basis:** `origin/main` at `0c64c4b03` (2026-11-01), before
+PR #326. This section retains the P0–P7 boundaries, source assessment and acceptance
+matrix that guided that delivery. The
+[post-merge sequence](#next-implementation-sequence-after-pr-326--2026-11-01)
+now owns the next PR boundaries and proposed limits; the
+[delivery record](#operations-and-observation-delivery--2026-11-01) identifies
+implemented behavior. The milestone remains **In Progress**. Earlier imperative
+steps below are original design requirements, not a claim that their work is
+still wholly unimplemented.
 
 ### Outcomes and immediate decisions
 

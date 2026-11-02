@@ -9,6 +9,171 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Board reactive ownership and independent connection profiles — 2026-11-02
+
+The question is whether Board can bound background work and preserve original
+result/control identities while each view reacts to configuration, visibility,
+refusal and replacement. This implements R1 of the approved
+[M30 sequence](../../roadmap/30-board-reimplementation.md#next-implementation-sequence-after-pr-326--2026-11-01).
+The broad integration source is committed `8b91285ac`, including `origin/main` at
+`095544060`. Final runtime source `a72de1a76` additionally stops automatic
+retries after a changed shared result identity, preserves binding objects for a
+revalidated interface generation, formats the formal Nix environment and handles
+typed control-capacity refusals in the installed GET fixture. Fixture source
+`250b97117` extends that bounded recovery to the exact read-only catalog POST.
+Current semantics belong in the
+[workbench guide](../../../apps/transit-board/docs/workbench.md#operations-and-observation-states),
+[owner inventory](../../../apps/transit-board-web/README.md) and
+[observation account](../../handbook/internals/service-interfaces.md#board-observation-state).
+
+The clean formal lane passes all 15 tasks at `8b91285ac`. Independent TLC graphs
+exhaust 52,165 observation states/1,167,674 edges, 885 statement states/11,567 edges
+and 15 admission states/60 edges. Every exported edge replays against the production
+TypeScript transitions and their returned effects. Removing generation matching,
+denial clearing or the explicit-Run guard produces its named model violation;
+the corresponding isolated production mutations fail replay. Compiler failures
+do not satisfy those controls. Source hashes, tool paths, complete exports and
+outcomes are retained under ignored
+`.cache/ci/clean/8b91285ac415-transit-ci-i91oxto1/verification/board-model/`.
+
+These are separate finite safety graphs, not a combined browser/network model.
+The observation graph has two owners and generations zero through three without
+wraparound; the statement graph has two possible Run identities. Admission models
+active permits, while concrete tests cover queue bounds, queued cancellation,
+delayed transport settlement and read/control separation. The graphs do not prove
+network fairness, browser scheduling, arbitrary lifetimes, latency or queue
+liveness. Async owner/timer tests and installed browsers provide separate evidence.
+Explicitly stale process/resource evidence is a separately tested projection,
+not a current observation or an additional modeled result state. See the
+[model owner](../../../tests/verification/models/README.md#board-observation-statement-presentation-and-admission).
+
+Contract generation/drift, formatting, strict TypeScript and component checks
+pass in the clean installation checkout at `8b91285ac`: 123 Board tests in 19
+files, 67 query-client tests, 13 application-client tests and seven diagnostic
+tests. All 64 fast checks also pass after formatting the formal Nix environment;
+that later whitespace change does not change its inputs or behavior.
+The final clean fast run at `250b97117` passes all 64 checks, including all eight
+inspection-retry controls, with source and outcome records under ignored
+`.cache/ci/clean/250b97117da0-transit-ci-v1907hvz/`.
+
+At `967bf3a79`, a fresh isolated checkout at
+`/var/tmp/transit-r1-final-rto_czv9/src` passes formatting, lint, strict TypeScript,
+all 124 Board tests and the complete Board model/replay with all six negative
+controls. The extra test uses the actual shared reader to refuse a changed result
+identity, clear disclosure, retain the original reader and stop automatic retries.
+The focused run's source/tool/command records are in that checkout's ignored
+`.cache/r1-focused/`; model hashes and outputs are in `.cache/verification/board-model/`.
+This focused evidence does not retroactively attribute the earlier full lanes to
+the later source.
+
+The same isolated checkout advances to clean `a72de1a76` for the final component
+and installed checks. Formatting, lint, strict TypeScript and all 124 Board tests
+pass again. Eight inspection-retry controls pass, including same-read recovery
+from `HttpCapacity` and `ControlCapacity`, immediate failure for SQL submissions
+or other refusals, and the unchanged ten-second deadline. The published-interface
+browser/API schedule passes at this final source: SQL/Form/Canvas editing, frozen
+signed publication, lost replies, disk/worker replacement and current read denial.
+Its command/source records are retained in `.cache/r1-installed-final/`.
+
+The clean `installation-ui` lane at `8b91285ac` passes its first seven tasks:
+Board checks, handbook checks/build, Node bindings, observability, server logging,
+single-executable installation and direct Tables. Its eighth task,
+`test::managed-tables`, passes the direct managed-table schedule but fails the
+installed schedule after suspend, abrupt replacement and resume. Revisions one
+and two were verified; the next observed head remains at completed revision two
+with `control.state=active`, `control.epoch=5`, `attempt=7` and
+`blocked=authorization`. The runtime maps several underlying refusals to that
+reason; the recorded diagnostics do not distinguish which one occurred.
+The lane stops there, so its remaining nine tasks do not run. The checkout and
+automatic task records remain at `/var/tmp/transit-ci-6sa1vqxu`; the private failed
+installation remains at `/var/tmp/transit-server-proof-nx6znogy`. The managed-table
+runtime and installed driver are unchanged from `095544060`; this source
+comparison does not establish the failure's cause or a passing baseline. No
+authorization guard or assertion was relaxed.
+
+Earlier failures are preserved rather than relabeled by subsequent passes.
+The first installed-profile attempt exposed an embedded JavaScript chunk cycle
+when transport adapters imported the entire reactive package. The dedicated
+request-scheduling entry point removes that cycle. A clean browser run at
+`c19a4e04b` then caught process inspection clearing its last evidence on a transient
+outage. The fix preserves one scoped observation with its original time and an
+explicit stale label, clearing it on denial, expiry, incompatibility, hiding or
+scope replacement; the existing browser assertion remains unchanged. All seven
+inspection browser scenarios and relational replacement/recovery pass at
+`8b91285ac`.
+
+The initial clean-browser wrapper stops in Playwright's `--with-deps` preparation
+because this host cannot authenticate `sudo`. Installing the pinned Chromium
+without OS package installation succeeds. The unchanged browser inventory runs
+in the retained clean checkout `/var/tmp/transit-ci-7dbzkzl9/src`, using the pinned
+`ci-experience` shell and available host libraries. This continuation uses that
+checkout's own build cache and is distinct from successful clean-wrapper
+preparation. An earlier `c19a4e04b` installation lane was interrupted after four
+passing tasks to include the stale-evidence correction and newer main; that
+incomplete run is not qualification of the final source.
+
+The continued browser lane at `8b91285ac` passes its first seven tasks: inspection
+and relational recovery, query recovery, HTTP and gRPC capture, reactive transport,
+finite Live views and Live lifecycle. Its final workbench task passes the first
+three real connection profiles, then stops on a typed native `ControlCapacity`
+refusal from the fourth profile's first storage GET. The separate installed run
+at `967bf3a79` observes the same failure. Both failed private installations are
+retained at `/var/tmp/transit-server-proof-0aqpw_4c` and
+`/var/tmp/transit-server-proof-vnfq6arr`, respectively. The fixture previously
+retried only `HttpCapacity` on this pure read; `a72de1a76` also handles the recorded
+control-capacity cause within the same deadline. It does not retry a SQL Run or
+infer success from an unavailable response. These failed full-lane attempts remain
+failed; focused final workbench evidence is separate.
+
+At `a72de1a76`, all four actual profiles pass, then the workbench's first catalog
+POST encounters the same typed `ControlCapacity` refusal. The failed run remains
+recorded in `.cache/r1-installed-final/`, with its private installation at
+`/var/tmp/transit-server-proof-6uqnvw6h`. The `250b97117` fixture correction
+allows the same bounded recovery only for GETs and the read-only
+`POST /api/v1/catalog` projection. Its controls verify the identical request body,
+the unchanged deadline, and immediate failure for SQL submissions, denial or
+other native causes. It does not broaden the production retry policy.
+
+The focused installed schedule at clean fixture source `250b97117` uses the
+same ReleaseSafe runtime binaries built at `a72de1a76`; the intervening diff
+contains only qualification prose and the installed read fixture/controls.
+Binary hashes, source, tools, command and outcome are recorded in the isolated
+checkout's `.cache/r1-workbench-final/`. Inspection-only and catalog-only pass;
+the SQL-only profile's explicit Run then fails with HTTP 503 `IncompleteResult`,
+diagnostic cause `SqlRequestTimeout`. Nearby manager diagnostics record native
+`ControlCapacity` refusals, but do not establish that they caused this request's
+timeout. Its private installation remains at
+`/var/tmp/transit-server-proof-7qcblmzq`. The fixture does not resubmit the SQL;
+the remaining profiles and workbench schedule do not execute in that attempt.
+
+One unchanged diagnostic repetition at `250b97117`, with identical binary
+hashes, passes all four real connection profiles and all six workbench Chromium
+scenarios (38.4 seconds). The complete API schedule also passes: exact 145-row
+traversal, empty/metadata results, definition guards, read-only admission,
+capacity, retained definitions/placement and terminal revocation. Automatic
+source, binary, command and completed exit-zero evidence is retained separately
+in `.cache/r1-workbench-repeat/`. This qualifies those executed checks but leaves
+the preceding intermittent SQL timeout unresolved; it does not turn the earlier
+failed browser/installation lanes into passes.
+
+The prior post-TLS-replacement SQL failure remains a separate investigation.
+A focused `test::server-sql` run on the merged baseline `1a8b48799` passes, including
+that assertion, but does not establish the cause of the earlier failures. A new
+focused run from the retained clean `8b91285ac` checkout reproduces the failure
+at the final reader count after explicit certificate/CA replacement. Enrollment,
+both TLS protocols, retained data, credential rotation, persistent revocation
+and original-operation recovery with listeners disabled pass first. The final
+response is again `Request failed; inspect admitted work before retrying SQL`,
+with no recorded `sql.request.failed` cause. This separate run does not complete
+the stopped installation lane. Its automatic record is in that checkout's
+`.cache/r1-sql/`, and its private installation is retained at
+`/var/tmp/transit-server-proof-m515y4yb`.
+No timeout or recovery assertion was weakened. R4's latency percentiles, retained
+heap/multiple-tab measurements and manual screen-reader review have not run.
+Local TCP forwarding does not qualify SSH encryption or arbitrary remote-network
+latency. R2 storage placement, R3 computation inspection and the remaining
+governed-workbench gates remain outside this delivery; M30 is still In Progress.
+
 ## Board operational inspection and connection states — 2026-11-01
 
 The question is whether Operations can explain actual storage evidence without

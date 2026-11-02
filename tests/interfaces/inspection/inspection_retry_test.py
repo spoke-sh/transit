@@ -1,5 +1,6 @@
 """Original-request recovery across a temporary native listener withdrawal."""
 import json
+import io
 from pathlib import Path
 import tempfile
 import unittest
@@ -7,6 +8,7 @@ from unittest.mock import Mock, patch
 import urllib.error
 
 from interfaces.inspection import inspection
+from interfaces.installation import server_board
 
 
 class Retry(unittest.TestCase):
@@ -68,6 +70,56 @@ class Retry(unittest.TestCase):
         with patch.object(inspection, "Fixture") as fixture:
             inspection.System("node", "admin")
         fixture.assert_called_once_with(None, retain_on_failure=True)
+
+    @staticmethod
+    def board_response(status, cause=None):
+        data = {} if status == 200 else dict(err='Unavailable', diagnostic=dict(
+            cause='AuthorityUnavailable', facts=[dict(field='native_cause', value=dict(text=cause))]))
+        response = io.BytesIO(json.dumps(data).encode())
+        response.status = status
+        return response
+
+    def test_board_capacity_retries_only_the_original_read(self):
+        for cause, method, path, body in (
+            (cause, method, path, body)
+            for cause in ('HttpCapacity', 'ControlCapacity')
+            for method, path, body in [('GET', '/api/v1/storage', None),
+                ('POST', '/api/v1/catalog', b'{"action":{"tables":{"namespace":1,"cursor":null}}}')]
+        ):
+            with self.subTest(cause=cause, method=method):
+                board = object.__new__(server_board.Board)
+                board.board_url = 'http://localhost:1'
+                board.http = Mock()
+                board.http.open.side_effect = [self.board_response(503, cause), self.board_response(200)]
+                with patch.object(server_board.time, 'sleep'), patch.object(server_board.time, 'monotonic', return_value=0):
+                    self.assertEqual(board.request(path, method=method, body=body), b'{}')
+                self.assertEqual(board.http.open.call_count, 2)
+                for call in board.http.open.call_args_list:
+                    self.assertEqual(call.args[0].full_url, 'http://localhost:1' + path)
+                    self.assertEqual(call.args[0].method, method)
+                    self.assertEqual(call.args[0].data, body)
+
+    def test_board_capacity_does_not_retry_sql_or_other_refusals(self):
+        for method, status, cause in [('POST', 503, 'ControlCapacity'), ('GET', 503, 'AccessDenied'), ('GET', 403, 'ControlCapacity')]:
+            with self.subTest(method=method, status=status, cause=cause):
+                board = object.__new__(server_board.Board)
+                board.board_url = 'http://localhost:1'
+                board.http = Mock()
+                board.http.open.return_value = self.board_response(status, cause)
+                with self.assertRaises(AssertionError):
+                    board.request('/api/v1/sql-read', method=method, body=b'{}' if method == 'POST' else None)
+                board.http.open.assert_called_once()
+
+    def test_board_capacity_keeps_the_existing_read_deadline(self):
+        board = object.__new__(server_board.Board)
+        board.board_url = 'http://localhost:1'
+        board.http = Mock()
+        board.http.open.return_value = self.board_response(503, 'ControlCapacity')
+        with patch.object(server_board.time, 'sleep') as sleep, patch.object(server_board.time, 'monotonic', side_effect=[0, 10]):
+            with self.assertRaises(AssertionError):
+                board.request('/api/v1/storage')
+        board.http.open.assert_called_once()
+        sleep.assert_not_called()
 
 
 if __name__ == "__main__":

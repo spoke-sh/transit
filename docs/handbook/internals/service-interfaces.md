@@ -669,8 +669,8 @@ caller still performs its own current authorization; one denied connection
 does not disable unrelated callers.
 
 The implemented [observation reducer](../../../apps/transit-board-web/src/observation.ts)
-owns Catalog, dataset metadata, Workbook connection metadata and Operations
-reads. Its state contains a phase, request generation, bounded failure count
+owns Catalog, dataset metadata, Workbook connection metadata, Operations,
+process/resource/record metadata and published-interface reads. Its state contains a phase, request generation, bounded failure count
 and either a qualified value or a typed failure. The
 [React adapter](../../../apps/transit-board-web/src/use-observation.ts) executes
 read, cancel and schedule effects outside the deterministic transition function.
@@ -693,21 +693,31 @@ transport can ignore an abort. Both generation and phase guards reject that
 completion. A failed read cannot become a successful empty observation; an empty
 value is accepted only through the success transition. Storage charts, grids and
 Inspector details derive from that same value, so failure or hiding removes all
-three projections together. A refreshing value is the last qualified observation,
+three projections together. Process/resource inspection has a separately tested
+[evidence projection](../../../apps/transit-board-web/src/inspection-evidence.ts):
+one last-observed page may remain during transient unavailability or capacity
+refusal, explicitly labeled stale with its original cut/time. It survives a retry
+without becoming current; denial, expiry, incompatibility, hiding and scope
+replacement clear it. The finite reducer graph does not model this projection.
+A refreshing value is the last qualified observation,
 not a claim that the in-flight authorization check has already succeeded.
 
 Each read has a 15-second deadline and at most one active request chain per owner.
 Visible successful reads normally refresh after five seconds. Transient failure
 backoff is capped at 30 seconds; configuration, denial, expiry and incompatible
-responses require explicit action. These are local scheduling bounds, not a
-global per-tab scheduler or a response-time guarantee. Progress depends on a
+responses require explicit action. A tab scheduler bounds transport chains to two reads plus one explicit
+submission/control/cleanup slot, with 75-ms read staggering and at most 64 queued
+requests. Queued cancellation prevents dispatch; active permits last through
+settlement. These bounds do not establish a response-time guarantee. Progress depends on a
 responsive event loop and a later successful upstream read.
 
 The [workbench guide](../../../apps/transit-board/docs/workbench.md#operations-and-observation-states)
 describes result composition: unavailable connection metadata hides rows while
 retaining the original shared `StatementReader`; reconnection observes that
-reader instead of submitting SQL again. Existing process, query, reactive and
-published-interface state owners are outside this reducer. Configuration
+reader instead of submitting SQL again. The statement presentation state machine
+guards explicit Run. Query, finite Live and publication settlement
+remain in their shared owners, with scheduled transports; they do not inherit
+metadata retry or clearing rules. Configuration
 discovery remains visible across tab hiding because it contains no protected
 resource observation.
 
@@ -721,9 +731,12 @@ browser interleaving. The installed
 exercise the effect boundary. Reproduce through the
 [Board checks](../../../tasks/transit-board.just); source-attributed outcomes
 belong in [qualification history](../../history/qualification/interfaces.md).
-One typed owner makes refusal and cleanup rules reviewable without introducing
-another result protocol. Extending it to the remaining UI lifecycles still
-requires preserving each owner's paging, recovery and disclosure semantics.
+The independent [Board models](../../../tests/verification/models/README.md#board-observation-statement-presentation-and-admission)
+replay every exported finite transition against the production state/effect
+projections and require three model and implementation negative controls.
+The graphs bound generations without wrapping and keep observation, statement
+and admission exploration separate. Async queue/timer behavior has separate
+adapter tests; no arbitrary interleaving or network progress claim follows.
 
 ## Declarations and controls
 

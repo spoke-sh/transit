@@ -362,7 +362,7 @@ export function UnifiedWorkspace({
         if (!document.hidden) setAuthorized(true);
         setError("");
       });
-      if (!disposed)
+      if (!disposed && !document.hidden)
         timer = setTimeout(
           () => void poll(),
           work.current.bundle || work.current.input !== null ? 500 : 5000,
@@ -371,6 +371,8 @@ export function UnifiedWorkspace({
     const visibility = () => {
       clearTimeout(timer);
       if (document.hidden) {
+        abort.current.abort();
+        abort.current = new AbortController();
         void liveQuery.pause();
         liveDraft.pause();
         setAuthorized(false);

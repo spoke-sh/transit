@@ -1,6 +1,7 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
+  ApplicationTransportError,
   generation,
   presentation,
   readInterface,
@@ -9,66 +10,44 @@ import {
 } from "@transit/application";
 import type { Deployment } from "@transit/board-client";
 import "./shell.css";
+import { useRead } from "./use-observation";
 type Current = { compiled: Compiled; identity: string; published: boolean };
 const Interface = createContext<Current | null>(null);
 export const useInterface = () => useContext(Interface);
 export function InterfaceShell({ scope, children }: { scope: Deployment; children: ReactNode }) {
-  const [current, setCurrent] = useState<Current | null>(null);
-  const [error, setError] = useState("");
-  const [retry, setRetry] = useState(0);
   const [density, setDensity] = useState<"comfortable" | "compact" | null>(null);
   const [navigation, setNavigation] = useState(false);
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const [area, setArea] = useState<"workspace" | "operations">("workspace");
-  useEffect(() => {
-    const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout>;
-    let reading = false;
-    async function refresh() {
-      if (controller.signal.aborted || document.hidden || reading) return;
-      reading = true;
-      try {
-        const value = await readInterface(controller.signal);
-        const compiled = "builtin" in value ? value.builtin : value.published.compiled;
-        if (compiled.definition.realm !== scope.realm) throw new Error("Interface realm changed");
-        if (!controller.signal.aborted && !document.hidden) {
-          const identity =
-            "builtin" in value
-              ? `builtin/${scope.realm}/${compiled.spec.digest.join(".")}`
-              : generation(scope.realm, compiled.definition.name, value.published.head);
-          setCurrent((previous) =>
-            previous?.identity === identity
-              ? previous
-              : { compiled, identity, published: "published" in value },
-          );
-          setError("");
-        }
-      } catch (cause) {
-        if (!controller.signal.aborted) {
-          // A failed published acquisition cannot authorize stale navigation or
-          // install a built-in fallback. Recovery has an independent fixed route.
-          setCurrent(null);
-          setError(cause instanceof Error ? cause.message : "Interface unavailable");
-        }
-      } finally {
-        reading = false;
-        if (!controller.signal.aborted) timer = setTimeout(() => void refresh(), 5000);
-      }
-    }
-    const visibility = () => {
-      clearTimeout(timer);
-      if (document.hidden) {
-        setCurrent((value) => (value?.published ? null : value));
-      } else void refresh();
+  const observed = useRead<Current>(`interface/${scope.realm}`, async (signal) => {
+    const value = await readInterface(signal);
+    const compiled = "builtin" in value ? value.builtin : value.published.compiled;
+    if (compiled.definition.realm !== scope.realm)
+      throw new ApplicationTransportError(0, "InvalidResponse");
+    return {
+      compiled,
+      published: "published" in value,
+      identity:
+        "builtin" in value
+          ? `builtin/${scope.realm}/${compiled.spec.digest.join(".")}`
+          : generation(scope.realm, compiled.definition.name, value.published.head),
     };
-    void refresh();
-    document.addEventListener("visibilitychange", visibility);
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-      document.removeEventListener("visibilitychange", visibility);
-    };
-  }, [scope.realm, retry]);
+  });
+  // A revalidated generation has the same immutable bindings. Preserve their
+  // object identity so its consumers do not restart effects on every refresh.
+  const qualified = useRef<Current | null>(null);
+  if (!observed.value) qualified.current = null;
+  else if (qualified.current?.identity !== observed.value.identity)
+    qualified.current = observed.value;
+  // Only the public built-in shell may survive hiding/revalidation. Never retain
+  // a published definition or install a built-in fallback after failed access.
+  const builtin = useRef<Current | null>(null);
+  if (observed.value) builtin.current = observed.value.published ? null : observed.value;
+  if (observed.failure) builtin.current = null;
+  const current =
+    qualified.current ??
+    (builtin.current?.compiled.definition.realm === scope.realm ? builtin.current : null);
+  const error = observed.failure?.code ?? "";
   const definition = current?.compiled.definition;
   const dataPage =
     pathname === "/catalog" ||
@@ -232,7 +211,7 @@ export function InterfaceShell({ scope, children }: { scope: Deployment; childre
             <main>
               <h1>Definition unavailable</h1>
               <p role="status">{error || "Reading the current interface…"}</p>
-              <button onClick={() => setRetry((value) => value + 1)}>Retry definition read</button>
+              <button onClick={observed.retry}>Retry definition read</button>
             </main>
           )}
         </div>

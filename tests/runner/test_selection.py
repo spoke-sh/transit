@@ -64,6 +64,14 @@ class Selection(unittest.TestCase):
         # A mixed change cannot hide a shared native dependency behind a known SDK path.
         self.assertTrue(select(["sdks/rust/transit-client/src/lib.rs", "packages/zig/transit-client/src/root.zig"])["full"])
 
+    def test_board_transition_changes_keep_model_correspondence(self):
+        for path in ("apps/transit-board-web/src/observation.ts",
+                     "apps/transit-board-web/src/statement-state.ts",
+                     "apps/transit-board-web/src/request-scheduler.ts"):
+            plan = select([path])
+            self.assertIn("test::board-model", plan["lanes"]["formal"])
+            self.assertIn("transit-board::check", plan["lanes"]["installation-ui"])
+
     def test_shadow_keeps_full_qualification_and_records_proposal(self):
         plan = select(["sdks/go/client/types.go"], mode="shadow")
         self.assertTrue(plan["full"])

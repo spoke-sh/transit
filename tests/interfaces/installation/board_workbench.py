@@ -12,6 +12,7 @@ import sys
 from http.client import IncompleteRead, RemoteDisconnected
 
 from runner.paths import ROOT
+from interfaces.installation import board_profiles
 from interfaces.installation.server_board import Board
 from harness.local_installation import freeze_executables
 from interfaces.http.serving import compact
@@ -186,6 +187,10 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
     else:
         fixture.config['executables']['sql_gateway'] = str(Path(gateway).resolve())
         freeze_executables(fixture)
+    # Loopback-only trust is a disposable test profile. Browser clients still
+    # receive no upstream credentials; native subjects have explicit SELECT only.
+    fixture.config['sql'].update(native=dict(local=True, http=dict(port=fixture.reserve_port(), tls=False)),
+        accounts=[dict(name=name, role=name, authentication='trust') for name in ('board_catalog', 'board_sql')])
     config_file = fixture.root / 'workbench.json'
     config_file.write_text('{}')
     fixture.config['board']['workbench_file'] = str(config_file)
@@ -217,7 +222,11 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
         fixture.console('CREATE TABLE empty_metrics (id BIGINT);\n')
         for index in range(8):
             fixture.console(f'CREATE TABLE zz_catalog_{index} (id BIGINT);\n')
+        strong_connections = json.loads(config_file.read_text())
+        limited_connections = board_profiles.configure(fixture)
+        board_profiles.qualify(fixture, config_file, limited_connections, browser)
         fixture.stop()
+        config_file.write_text(json.dumps(strong_connections))
         fixture.start()
         fixture.ready()
         configured = json.loads(fixture.request('/api/v1/deployment'))

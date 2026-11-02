@@ -1,140 +1,44 @@
 import { useEffect, useId, useRef, useState } from "react";
-import {
-  StatementReader,
-  QueryError,
-  logicalTypeText,
-  unifiedCellText,
-  type ResultView,
-} from "@transit/query-client";
+import { logicalTypeText, unifiedCellText, type ResultView } from "@transit/query-client";
 import { InspectorPanel, useInspector } from "./workbench-layout";
 import { profileResult, states } from "./result-profile";
+import { StatementOwner } from "./statement-owner";
+import { statementBusy } from "./statement-state";
 
 export function useStatement(onDenied?: () => void, available = true) {
-  const availability = useRef(available);
-  availability.current = available;
-  const reader = useRef<StatementReader | null>(null);
-  const controller = useRef<AbortController | null>(null);
-  const generation = useRef(0);
-  const [view, setView] = useState<ResultView | null>(null);
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [submitted, setSubmitted] = useState("");
+  const owner = useRef<StatementOwner | null>(null);
+  const [, render] = useState(0);
   const denial = useRef(onDenied);
   denial.current = onDenied;
-  const fail = (cause: unknown) => {
-    setView(null);
-    setError(cause instanceof Error ? cause.message : "Result unavailable");
-    if (cause instanceof QueryError && cause.status === 403) {
-      denial.current?.();
-      void reader.current?.close().catch(() => {});
-      reader.current = null;
-    }
-  };
-  async function load(kind: "refresh" | "next") {
-    const current = reader.current;
-    if (!current || controller.current || !availability.current) return;
-    const abort = new AbortController();
-    controller.current = abort;
-    setBusy(true);
-    try {
-      const value = await current[kind](abort.signal);
-      if (!abort.signal.aborted && reader.current === current && !document.hidden) {
-        setView(value);
-        setError("");
-      }
-    } catch (cause) {
-      if (!abort.signal.aborted && reader.current === current) fail(cause);
-    } finally {
-      if (controller.current === abort) {
-        controller.current = null;
-        setBusy(false);
-      }
-    }
-  }
   useEffect(() => {
-    if (available) void load("refresh");
-    else {
-      controller.current?.abort();
-      controller.current = null;
-      setView(null);
-      setBusy(false);
-    }
-  }, [available]);
-  useEffect(() => {
-    const timer = setInterval(() => {
-      if (!document.hidden) void load("refresh");
-    }, 5000);
-    const visibility = () => {
-      if (document.hidden) {
-        controller.current?.abort();
-        controller.current = null;
-        setView(null);
-        setBusy(false);
-      } else void load("refresh");
-    };
+    const current = new StatementOwner(
+      () => render((value) => value + 1),
+      () => denial.current?.(),
+    );
+    owner.current = current;
+    const visibility = () => current.send({ type: "visibility", value: !document.hidden });
+    visibility();
     document.addEventListener("visibilitychange", visibility);
     return () => {
-      generation.current++;
-      clearInterval(timer);
       document.removeEventListener("visibilitychange", visibility);
-      controller.current?.abort();
-      controller.current = null;
-      void reader.current?.close().catch(() => {});
-      reader.current = null;
+      current.send({ type: "dispose" });
+      if (owner.current === current) owner.current = null;
     };
   }, []);
-  async function run(sql: string, expected: string | null = null) {
-    if (!availability.current) return;
-    const ticket = ++generation.current;
-    controller.current?.abort();
-    controller.current = null;
-    const previous = reader.current;
-    reader.current = null;
-    setView(null);
-    setError("");
-    setBusy(true);
-    await previous?.close().catch(() => {});
-    if (ticket !== generation.current) return;
-    if (document.hidden || !availability.current) {
-      setBusy(false);
-      return;
-    }
-    const current = new StatementReader(sql, undefined, undefined, expected);
-    reader.current = current;
-    setSubmitted(sql);
-    const abort = new AbortController();
-    controller.current = abort;
-    try {
-      const value = await current.run(abort.signal);
-      if (!abort.signal.aborted && reader.current === current && !document.hidden) setView(value);
-    } catch (cause) {
-      if (!abort.signal.aborted && reader.current === current) fail(cause);
-    } finally {
-      if (controller.current === abort) {
-        controller.current = null;
-        setBusy(false);
-      }
-    }
-  }
-  function close() {
-    generation.current++;
-    controller.current?.abort();
-    controller.current = null;
-    void reader.current?.close().catch(() => {});
-    reader.current = null;
-    setView(null);
-    setBusy(false);
-    setError("Result closed. Closing a view does not rerun its statement.");
-  }
+  useEffect(() => {
+    owner.current?.send({ type: "availability", value: available });
+  }, [available]);
+  const current = owner.current;
   return {
-    view: available ? view : null,
-    error,
-    busy,
-    submitted,
-    run,
-    close,
-    next: () => load("next"),
-    refresh: () => load("refresh"),
+    view: available ? (current?.view ?? null) : null,
+    error: current?.state.failure?.code ?? "",
+    cleanup: current?.cleanup ?? "",
+    busy: current ? statementBusy(current.state) : false,
+    submitted: current?.submitted ?? "",
+    run: (sql: string, expected: string | null = null) => owner.current?.run(sql, expected),
+    close: () => owner.current?.send({ type: "close" }),
+    next: () => owner.current?.send({ type: "next" }),
+    refresh: () => owner.current?.send({ type: "observe" }),
   };
 }
 
@@ -175,6 +79,7 @@ export function ResultPanel({
           not run.
         </p>
       )}
+      {state.cleanup && <p role="status">{state.cleanup}</p>}
       {state.busy && <p role="status">Reading authorized results…</p>}
       {state.error && (
         <div role="alert" className="workbench-notice problem">

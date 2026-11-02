@@ -120,3 +120,11 @@ detail with generic connection advice. Source unavailability, including a retire
 source, retains the last disclosed snapshot and its exact basis; it does not
 establish permission denial, session expiry or a new query outcome. Current denial
 still clears protected state.
+
+The composition root may install `setRequestScheduler` once to bound transport
+operations across public clients. It receives a read/control lane, a work closure
+and optional abort signal. The default dispatches directly. Board installs its
+per-tab scheduler; permits cover body consumption and existing retry chains.
+This hook never grants access, changes frozen operation identities or introduces
+retries. Callers must not wrap a composite operation that then acquires nested
+permits. Finite event streams hold a read permit until their bounded stream ends.

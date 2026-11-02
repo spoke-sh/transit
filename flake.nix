@@ -120,7 +120,7 @@
               pkgs.shellcheck
             ];
           };
-          ci-formal = import ./nix/ci-formal.nix { inherit pkgs zig; };
+          ci-formal = import ./nix/ci-formal.nix { inherit pkgs zig vite-plus; };
           docs = pkgs.mkShellNoCC {
             packages = [
               pkgs.just

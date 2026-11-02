@@ -15,7 +15,8 @@
       "test::statement-result-model",
       "test::table-transaction-model",
       "test::write-lifecycle-model",
-      "test::object-publication-model"
+      "test::object-publication-model",
+      "test::board-model"
     ],
     "core": [
       "check::core",
@@ -379,7 +380,12 @@
   "environments": {
     "formal": {
       "shell": "ci-formal",
-      "prepare": []
+      "prepare": [
+        [
+          "just",
+          "transit-board::install"
+        ]
+      ]
     },
     "core": {
       "shell": "default",
@@ -1205,6 +1211,33 @@
           "native-build",
           "private-disk-authority",
           "browser"
+        ]
+      },
+      "board-state-proof": {
+        "paths": [
+          "tests/verification/models/BoardObservation.tla",
+          "tests/verification/models/BoardObservation.cfg",
+          "tests/verification/models/BoardStatement.tla",
+          "tests/verification/models/BoardStatement.cfg",
+          "tests/verification/models/BoardScheduler.tla",
+          "tests/verification/models/BoardScheduler.cfg",
+          "tests/verification/models/board_model.py",
+          "tests/verification/models/board-replay.test.ts",
+          "tests/verification/models/board-replay.config.ts",
+          "apps/transit-board-web/src/observation.ts",
+          "apps/transit-board-web/src/observation-owner.ts",
+          "apps/transit-board-web/src/statement-state.ts",
+          "apps/transit-board-web/src/statement-owner.ts",
+          "apps/transit-board-web/src/request-scheduler.ts"
+        ],
+        "depends_on": [
+          "tlc-support"
+        ],
+        "tasks": [
+          "test::board-model"
+        ],
+        "resources": [
+          "formal-cpu"
         ]
       }
     }

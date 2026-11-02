@@ -1,4 +1,5 @@
-import { acquireCaller, type AcquireCaller } from "@transit/reactive-client";
+import { acquireCaller, type AcquireCaller } from "@transit/reactive-client/caller-gate";
+import { scheduleRequest } from "@transit/reactive-client/request-scheduling";
 import { ownedDiagnostic, type Diagnostic } from "@transit/diagnostics";
 import * as validate from "./validators.js";
 import type {
@@ -27,7 +28,24 @@ export class ApplicationTransportError extends Error {
   }
 }
 export type Transport = (request: HostRequest) => Promise<HostResponse>;
-export async function request(value: HostRequest): Promise<HostResponse> {
+export function request(value: HostRequest): Promise<HostResponse> {
+  const signal = AbortSignal.timeout(35000);
+  const readOnly = [
+    "info",
+    "compile",
+    "format",
+    "next_upload",
+    "prepare",
+    "prepare_read",
+    "read",
+  ].some((key) => key in value);
+  return scheduleRequest(
+    readOnly ? "read" : "control",
+    () => applicationRequest(value, signal),
+    signal,
+  );
+}
+async function applicationRequest(value: HostRequest, signal: AbortSignal): Promise<HostResponse> {
   if (!validate.HostRequest(value)) throw new Error("Invalid application request");
   for (let attempt = 0; ; attempt++) {
     const response = await fetch("/api/v1/application", {
@@ -37,6 +55,7 @@ export async function request(value: HostRequest): Promise<HostResponse> {
       cache: "no-store",
       redirect: "error",
       body: JSON.stringify(value),
+      signal,
     });
     // This endpoint rejects before native admission when throttled. Reuse the
     // entire request, including any frozen native signature.
@@ -379,7 +398,10 @@ async function advancePublication(
 }
 
 export type InterfaceView = Extract<HostResponse, { builtin: unknown } | { published: unknown }>;
-export async function readInterface(signal?: AbortSignal): Promise<InterfaceView> {
+export function readInterface(signal?: AbortSignal): Promise<InterfaceView> {
+  return scheduleRequest("read", () => interfaceRequest(signal), signal);
+}
+async function interfaceRequest(signal?: AbortSignal): Promise<InterfaceView> {
   for (let attempt = 0; ; attempt++) {
     const response = await fetch("/api/v1/interface", {
       cache: "no-store",
@@ -412,14 +434,20 @@ export async function readInterface(signal?: AbortSignal): Promise<InterfaceView
       }
       throw new ApplicationTransportError(response.status, code, diagnosticOf(failure));
     }
-    const result: unknown = await response.json();
+    let result: unknown;
+    try {
+      result = await response.json();
+    } catch (cause) {
+      if (signal?.aborted) throw cause;
+      throw new ApplicationTransportError(0, "InvalidResponse");
+    }
     if (
       !validate.HostResponse(result) ||
       typeof result !== "object" ||
       result === null ||
       !("builtin" in result || "published" in result)
     )
-      throw new Error("Invalid interface observation");
+      throw new ApplicationTransportError(0, "InvalidResponse");
     return result as InterfaceView;
   }
 }

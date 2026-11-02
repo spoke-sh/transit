@@ -158,8 +158,8 @@ export function RelationalWorkspace() {
   }, [attempt, clear, inspect]);
   useEffect(() => {
     if (!page) return;
-    const timer = setInterval(() => void attempt((signal) => read(page.ordinal, signal)), 5000);
-    return () => clearInterval(timer);
+    const timer = setTimeout(() => void attempt((signal) => read(page.ordinal, signal)), 5000);
+    return () => clearTimeout(timer);
   }, [page, read, attempt]);
   const open = () =>
     attempt(async (signal) => {
