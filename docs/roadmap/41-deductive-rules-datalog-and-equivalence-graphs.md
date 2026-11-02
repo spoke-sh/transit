@@ -14,6 +14,11 @@ This is planned deductive computation-lifecycle work beyond single-table linear
 helpers do not establish stratified Datalog execution, unbounded fixpoint
 termination or automatic solver equivalence.
 
+The supporting [on-demand specialization research workflow](on-demand-specialization-research.md)
+uses this milestone's admitted rules and witnesses to evaluate implementation
+candidates. It separates native Fuze semantics from explicitly selected external
+Datalog workers and preserves this milestone's existing delivery gates.
+
 ## Prerequisites and ownership
 
 Build on [data identities](01-declarative-data-lifecycle.md),

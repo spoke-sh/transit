@@ -18,6 +18,12 @@ measurement. The architectural goal is to define **declarative contracts**
 verified against deterministic scalar reference oracles, and evaluated on the
 [qualification scorecard](44-qualification-and-benchmarks.md).
 
+The supporting [on-demand specialization research workflow](on-demand-specialization-research.md)
+defines a bounded candidate-generation, verification, measurement and activation
+loop that this research can consume. It starts with CPU and hardware-analysis
+experiments and keeps optional physical hardware execution separately qualified;
+it adds no dependency to the release gates.
+
 ## Prerequisites and scope
 
 Build on the delivered and planned foundations across

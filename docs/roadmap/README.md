@@ -6,6 +6,10 @@ priorities, not delivery dates.
 The supporting [development workflow implementation plan](development-workflow.md)
 records the completed test directory migration, build reuse and feedback
 qualification alongside this product sequence.
+The supporting [on-demand specialization research workflow](on-demand-specialization-research.md)
+investigates verified CPU specialization, Datalog/RTL analysis and optional
+hardware execution through Nix-packaged experiments and explicit Platform
+handoffs. It adds no milestone or release gate and records no executed result.
 Current behavior belongs in the [public reference](../README.md), mechanisms in
 [Internals](../handbook/internals/README.md), and executed checks in the
 [proof ledger](../history/qualification/README.md). A planned milestone does not establish
