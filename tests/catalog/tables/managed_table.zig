@@ -216,7 +216,15 @@ pub fn recover(init: std.process.Init, client: c.DirectTableClient, path: []cons
     try t.expectError(error.DataflowSourceChanged, manager.publish(cycle));
     try control(manager, cycle, .retire, 652017);
     try t.expect(try manager.start(cycle) == null);
+    try control(manager, declaration, .refresh, 652029);
+    _ = (try manager.start(declaration)).?;
+    const successor = try client.call(.{ .managed_inspection = .{ .namespace = declaration.namespace, .name = declaration.name, .expected = null, .revision = null } });
+    defer successor.deinit();
+    try t.expect(successor.value.result.managed_inspection.observation.?.head.pending != null);
+    try t.expectEqual(@as(u64, 5), successor.value.result.managed_inspection.completed.?.revision.metadata.revision);
+    try t.expectEqual(@as(u64, 4), successor.value.result.managed_inspection.completed.?.revision.metadata.rows);
     try control(manager, declaration, .retire, 652012);
+    try drain(manager, declaration, init.io, .cwd());
     try t.expect(try manager.start(declaration) == null);
     try count(client, 4);
     // Executor refusal must close the original attempt without publishing an
@@ -300,10 +308,16 @@ pub fn verify(init: std.process.Init, client: c.DirectTableClient, path: []const
         .{ .id = authorities[1], .rights = c.TableAuthority.select },
         .{ .id = authorities[2], .rights = c.KVAuthority.inspect | c.KVAuthority.read },
     }) |grant| _ = try admin.change(.{ .grant = .{ .object = c.TableAuthority.reference(grant.id), .grantee = reader_role, .privileges = grant.rights } });
+    const budget_control = (try c.DirectKVClient.apply(&output, client, .{ .lookup = .{ .namespace = 1, .name = "managed_budget" } })).lookup.?;
+    _ = try admin.change(.{ .grant = .{ .object = c.TableAuthority.reference(budget_control.authorization), .grantee = reader_role, .privileges = c.KVAuthority.inspect | c.KVAuthority.read } });
     var viewer = client;
     viewer.connection.principal = 102;
     viewer.connection.role = null;
     viewer.key = reader_key;
+    const blocked = try viewer.call(.{ .managed_inspection = .{ .namespace = 1, .name = try .init("managed_budget"), .expected = null, .revision = null } });
+    defer blocked.deinit();
+    try t.expect(blocked.value.result.managed_inspection.completed == null);
+    try t.expectEqual(c.protocol.Dataflow.Blocked.budget, blocked.value.result.managed_inspection.observation.?.head.blocked);
     var request: c.ManagedInspection.Request = .{ .namespace = declaration.value.namespace, .name = declaration.value.name, .expected = try declaration.value.interpretation(output.allocator()), .revision = null };
     const observed = try viewer.call(.{ .managed_inspection = request });
     defer observed.deinit();
