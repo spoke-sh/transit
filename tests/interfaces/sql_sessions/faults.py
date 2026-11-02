@@ -19,6 +19,7 @@ class Faults:
         self.reopened_view = None
         self.expired_view_attempts = 0
         self.expired_view_refusals = 0
+        self.observed_view_opens = set()
         self.fail_transaction_once = False
         self.transaction_reply_losses = 0
         self.fail_commit_once = False
@@ -63,7 +64,15 @@ class Faults:
                 wait_until = None
                 reopened = False
                 with owner.lock:
-                    if opening is not None and native.get('principal') == owner.expire_view_principal and (owner.expired_view is not None or opening['deadline_ms'] > time.time()*1000 + 500):
+                    # An already forwarded open may have an accepted receipt.
+                    # Delay only a newly observed proposal, never infer rejection
+                    # from expiry of an earlier uncertain accepted command.
+                    fresh = False
+                    if opening is not None:
+                        key = (native.get('principal'), native.get('sequence'), opening['deadline_ms'])
+                        fresh = key not in owner.observed_view_opens
+                        owner.observed_view_opens.add(key)
+                    if opening is not None and native.get('principal') == owner.expire_view_principal and (owner.expired_view is not None or (fresh and opening['deadline_ms'] > time.time()*1000 + 500)):
                         if owner.expired_view is None:
                             owner.expired_view = native
                             owner.expired_view_bytes = content
