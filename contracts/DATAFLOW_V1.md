@@ -164,14 +164,17 @@ The [query reference](../docs/handbook/reference/queries.md#managed-table-comput
 owns supported operators, quotas, inspection, current grants and retention limits.
 This profile uses complete finite recomputation over one Table. It does not
 implement the neutral contract's ordered/net-change consumers or history handoff,
-SQL joins, incremental arrangements or sink effects. Immutable saved records
-remain outside the direct object collector's authority and retain indefinitely;
-common transaction cleanup releases its source pins and preparation barriers.
+SQL joins, incremental arrangements or sink effects. Immutable declaration/work
+records retain indefinitely. Candidate result pages
+and manifests use the transaction-owned record lifecycle in
+[Direct Table](DIRECT_TABLE_V1.md#durable-client-token-bindings); common
+transaction cleanup releases its source pins and preparation barriers.
 
 ## Retained finite revision reads
 
-Result pages and manifests set the DirectRecord guarded-format bit. Their
-immutable envelopes bind read requirements for the source Table, output Table
+Result pages and manifests use transaction-owned `TXR1` envelopes containing
+guarded `DFP1`/`DFR1` payloads. Their immutable envelopes bind read requirements
+for the source Table, output Table
 and control KV. The catalog enforces those requirements on raw record reads as
 well as through the shared revision reader. Changing the format or stripping
 the envelope selects a different immutable object key and cannot bypass policy.

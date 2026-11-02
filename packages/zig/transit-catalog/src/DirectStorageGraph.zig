@@ -89,6 +89,8 @@ const DocumentIndexKind = enum { pages_only, documents, revisions, replicas, ope
 
 pub const Work = union(enum) {
     catalog_history: c.DirectCatalogRoots,
+    transaction_record_directories: struct { root: r.Root, walk: c.DirectCatalogWalk },
+    transaction_records: struct { walk: c.DirectCatalogWalk, scope: c.DirectRecord.Scope, retain: bool },
     branch: struct { root: r.Root, progress: c.DirectClientToken.Progress },
     historical: struct { root: r.Root, progress: c.DirectClientToken.Progress, slot: u8 = 0 },
     historical_directory: struct { catalog: r.Root, owner: d.Operation, branch: u64, kind: c.DirectHistoryDirectory.Kind, reference: c.DirectHistoryDirectory.Reference, slot: u8 = 0 },
@@ -156,7 +158,7 @@ pub fn collectible(key: []const u8) bool {
     // Saved staging references and permanent operation-to-target reservations
     // have independent lifetimes. Unknown generic object namespaces also remain
     // outside this collector's authority.
-    for ([_][]const u8{ "catalog-history/", "catalog-definitions/", "catalog-definition-intents/", "catalog-foreign/", "data-index/", "bitmap-containers/", "data-maintenance/", "catalog-intents/", "catalog-log-intents/", "log-definitions/", "log-evidence/", "log-reads/", "log-tx-sources/", "log-preparations/", "transaction-log-actions/", "transaction-log-payload/", "log-checkpoints/", "log-segments/", "log-segment-metadata/", "queue-selections/", "queue-time-buffers/", "queue-time-runs/", "document-definitions/", "document-evidence/", "document-reads/", "document-checkpoints/", "document-payloads/", "document-states/", "document-segment/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
+    for ([_][]const u8{ "transaction-records/", "catalog-history/", "catalog-definitions/", "catalog-definition-intents/", "catalog-foreign/", "data-index/", "bitmap-containers/", "data-maintenance/", "catalog-intents/", "catalog-log-intents/", "log-definitions/", "log-evidence/", "log-reads/", "log-tx-sources/", "log-preparations/", "transaction-log-actions/", "transaction-log-payload/", "log-checkpoints/", "log-segments/", "log-segment-metadata/", "queue-selections/", "queue-time-buffers/", "queue-time-runs/", "document-definitions/", "document-evidence/", "document-reads/", "document-checkpoints/", "document-payloads/", "document-states/", "document-segment/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
         if (std.mem.startsWith(u8, key, prefix)) return true;
     }
     return false;
@@ -524,7 +526,7 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             } else {
                 if (progress.record == null) return true;
                 const control = if (progress.record.?.format == c.DirectTransactionControl.format) try c.DirectTransactionControl.load(allocator, index.store, progress) else null;
-                if (value.slot == 9) {
+                if (value.slot == 10) {
                     if (control) |state| {
                         try workspace.enqueue(.{ .transaction_directory = .{ .catalog = value.root, .identity = begin.identity, .directory = state.binding.attempt.participants, .kind = .participants } });
                         if (state.preparations) |directory| try workspace.enqueue(.{ .transaction_directory = .{ .catalog = value.root, .identity = begin.identity, .directory = directory, .kind = .preparations } });
@@ -570,6 +572,14 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
                     },
                     8 => if (control == null or !control.?.cleanup_complete) {
                         if (retained.logs) |directory| try workspace.enqueue(.{ .transaction_directory = .{ .catalog = value.root, .identity = begin.identity, .directory = directory, .kind = .participants } });
+                    },
+                    9 => {
+                        const records = try c.DirectTransactionRecord.directory(allocator, index, value.root.transaction_records, progress.receipt.binding.key);
+                        // Historical token versions never revive closed ownership.
+                        // Committed result records retain independently of mutable
+                        // output Tables; only completed abort cleanup closes them.
+                        const retain = control == null or !control.?.cleanup_complete or control.?.decision.?.outcome != .aborted;
+                        if (records.entries) |reference| try workspace.enqueue(.{ .transaction_records = .{ .walk = try .init(value.root, .{ .reference = reference, .kind = .values }), .scope = progress.receipt.binding.key.scope(), .retain = retain } });
                     },
                     else => return error.InvalidTableStorageGraph,
                 }
@@ -731,14 +741,60 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             try markContent(workspace, try s.TableTransaction.key(value.reference, &key_buffer), value.reference.content);
             if (value.archive) |archive| try workspace.enqueue(.{ .table_root = .{ .root = preparation.workspace.root, .archive = archive, .role = .workspace } });
         },
+        .transaction_record_directories => |*value| {
+            const edge = try value.walk.next(allocator, index) orelse return true;
+            switch (edge) {
+                .page => |page| {
+                    try markPage(index, workspace, page.reference);
+                    if (try workspace.visited(try scope(.{ .transaction_record_directory = page.reference }))) try value.walk.skip();
+                },
+                .value => |entry| {
+                    const directory = try r.fromValue(c.DirectTransactionRecord.Directory, allocator, entry.value);
+                    try directory.validate();
+                    if (entry.key.len != 32) return error.InvalidTransactionRecord;
+                    // Replay validates historical registration transitions. It
+                    // needs inventory metadata, never abandoned payload bytes.
+                    if (directory.entries) |reference| try workspace.enqueue(.{ .catalog_walk = try .init(value.root, .{ .reference = reference, .kind = .pages_only }) });
+                },
+                .declaration => return error.InvalidTransactionRecord,
+            }
+            return false;
+        },
+        .transaction_records => |*value| {
+            const edge = try value.walk.next(allocator, index) orelse return true;
+            switch (edge) {
+                .page => |page| try markPage(index, workspace, page.reference),
+                .value => |entry| {
+                    const record = try r.fromValue(c.DirectTransactionRecord.Entry, allocator, entry.value);
+                    try record.validate();
+                    if (!std.meta.eql(entry.key, try c.DirectTransactionRecord.entryKey(record.content))) return error.InvalidTransactionRecord;
+                    if (value.retain) {
+                        const reference: c.DirectRecord.Reference = .{ .scope = value.scope, .format = c.DirectTransactionRecord.format, .content = record.content };
+                        const path = try c.DirectRecord.key(reference, &key_buffer);
+                        // Reservation can precede physical creation. If absent,
+                        // a later put belongs to the backend's newer allocation
+                        // epoch and cannot be swept by this cut. Ready bytes must
+                        // exist; missing accepted storage fails graph validation.
+                        if (record.ready or try index.store.head(path) != null)
+                            try markContent(workspace, path, reference.content);
+                    }
+                },
+                .declaration => return error.InvalidTransactionRecord,
+            }
+            return false;
+        },
         .catalog_root => |*value| {
             const root = value.root;
-            const directories = [_]?s.TreeStore.pages.Reference{ root.schemas, root.schema_names, root.namespace_claims, root.namespace_pending, root.objects, root.names, root.operations, root.pending, root.native_allocations, root.dependents, root.dependencies, root.client_tokens, root.client_operations, root.client_pending, root.client_accounts, root.branches, root.branch_names, root.branch_owners, root.history_transactions, root.descriptor_definitions, root.queue_transfer_sources, root.queue_transfer_pending };
+            const directories = [_]?s.TreeStore.pages.Reference{ root.schemas, root.schema_names, root.namespace_claims, root.namespace_pending, root.objects, root.names, root.operations, root.pending, root.native_allocations, root.dependents, root.dependencies, root.client_tokens, root.client_operations, root.client_pending, root.client_accounts, root.branches, root.branch_names, root.branch_owners, root.history_transactions, root.descriptor_definitions, root.queue_transfer_sources, root.queue_transfer_pending, root.transaction_records };
             if (value.slot > directories.len) return error.InvalidDirectCatalogHistory;
             if (value.slot == directories.len) return true;
             const slot = value.slot;
             value.slot += 1;
-            if (directories[slot]) |reference| try workspace.enqueue(.{ .catalog_walk = try .init(root, .{ .reference = reference, .kind = if (slot == 4) .objects else if (slot == 19) .values else .pages_only }) });
+            if (directories[slot]) |reference| {
+                if (slot == directories.len - 1) {
+                    try workspace.enqueue(.{ .transaction_record_directories = .{ .root = root, .walk = try .init(root, .{ .reference = reference, .kind = .values }) } });
+                } else try workspace.enqueue(.{ .catalog_walk = try .init(root, .{ .reference = reference, .kind = if (slot == 4) .objects else if (slot == 19) .values else .pages_only }) });
+            }
             return false;
         },
         .catalog_walk => |*walk| {

@@ -99,7 +99,7 @@ fn recoverSinceOptions(self: *Self, prior: ?RecoveryState, retain_cache: bool) !
         next = record.root;
         chain = r.hash(frame.payload);
     }
-    for ([_]?pages.Reference{ next.schemas, next.schema_names, next.namespace_claims, next.namespace_pending, next.objects, next.names, next.operations, next.pending, next.native_allocations, next.dependents, next.dependencies, next.client_tokens, next.client_operations, next.client_pending, next.client_accounts, next.branches, next.branch_names, next.branch_owners, next.history_transactions, next.descriptor_definitions, next.queue_transfer_sources, next.queue_transfer_pending }) |slot| if (slot) |reference| {
+    for ([_]?pages.Reference{ next.schemas, next.schema_names, next.namespace_claims, next.namespace_pending, next.objects, next.names, next.operations, next.pending, next.native_allocations, next.dependents, next.dependencies, next.client_tokens, next.client_operations, next.client_pending, next.client_accounts, next.branches, next.branch_names, next.branch_owners, next.history_transactions, next.descriptor_definitions, next.queue_transfer_sources, next.queue_transfer_pending, next.transaction_records }) |slot| if (slot) |reference| {
         _ = try self.index.load(reference);
     };
     self.root = next;
@@ -204,7 +204,38 @@ fn operationAt(self: *Self, basis: r.Root, binding: p.DataLifecycle.Binding) !?r
     return record.action.operation;
 }
 
+fn transactionRecordTransition(self: *Self, before: r.Root, record: r.Record) !void {
+    const R = c.DirectTransactionRecord;
+    const accepted = record.action.transaction_record;
+    const key = accepted.transaction;
+    const progress = try self.clientTokenAt(before, key) orelse return error.InvalidDirectCatalogTransition;
+    try key.requireSame(progress.receipt.binding.key);
+    if (progress.receipt.binding.intent != .transaction or !progress.pending or progress.cancel or
+        progress.record == null or progress.record.?.format == c.DirectTransactionControl.format) return error.InvalidDirectCatalogTransition;
+    const begin = progress.receipt.binding.intent.transaction.begin;
+    const prior = try R.directory(self.allocator, &self.index, before.transaction_records, key);
+    const after = try R.directory(self.allocator, &self.index, record.root.transaction_records, key);
+    const old = try R.entry(self.allocator, &self.index, prior, accepted.entry.content);
+    const next = try R.entry(self.allocator, &self.index, after, accepted.entry.content) orelse return error.InvalidDirectCatalogTransition;
+    if (!std.meta.eql(next, accepted.entry)) return error.InvalidDirectCatalogTransition;
+    if (old) |entry| {
+        if (entry.ready or !next.ready or after.count != prior.count or after.bytes != prior.bytes or
+            prior.pending == 0 or after.pending != prior.pending - 1) return error.InvalidDirectCatalogTransition;
+    } else {
+        if (next.ready or after.count != try std.math.add(u64, prior.count, 1) or
+            after.pending != try std.math.add(u64, prior.pending, 1) or
+            after.bytes != try std.math.add(u64, prior.bytes, try std.math.add(u64, next.content.bytes, R.metadata_charge))) return error.InvalidDirectCatalogTransition;
+    }
+    if (begin.mode == .read_only or after.bytes > begin.limits.workspace_bytes) return error.InvalidDirectCatalogTransition;
+    var unchanged = record.root;
+    unchanged.next_lsn = before.next_lsn;
+    unchanged.transaction_records = before.transaction_records;
+    if (!std.meta.eql(unchanged, before)) return error.InvalidDirectCatalogTransition;
+}
+
 fn operationTransition(self: *Self, before: r.Root, record: r.Record) !void {
+    if (record.action == .transaction_record) return self.transactionRecordTransition(before, record);
+    if (!std.meta.eql(before.transaction_records, record.root.transaction_records)) return error.InvalidDirectCatalogTransition;
     if (record.action == .descriptor) return self.descriptorTransition(before, record);
     if (!std.meta.eql(before.descriptor_definitions, record.root.descriptor_definitions)) return error.InvalidDirectCatalogTransition;
     if (record.action == .client_token) return self.clientTokenTransition(before, record);

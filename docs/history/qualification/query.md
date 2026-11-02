@@ -9,6 +9,69 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Transaction-owned managed result candidates — 2026-11-02
+
+Production source `9a30f1bfc910`, race-test refinement `6ff7b88095d5`
+and guarded-fixture correction `353146ef2` start from `db0bb4a8f129`.
+The shared current-v1 definition is
+`c3cbdfe99cdb08a8a21cc2429783fd746b1311b096d9ca8371058e1abb037b64`.
+The [record ownership contract](../../../contracts/DIRECT_TABLE_V1.md#durable-client-token-bindings)
+and [managed query reference](../../handbook/reference/queries.md#managed-table-computations)
+own current semantics. The question is whether private result candidates can be
+reclaimed after abort without losing uncertain work or a completed revision.
+
+Transaction-owned `TXR1` envelopes retain guarded result pages and manifests.
+Registration precedes creation, readiness precedes commit, and frozen owners
+cannot add or reconstruct records. The catalog inventory retains ownership and
+retry evidence after abort; physical collection releases only payloads after
+complete authoritative cleanup. Generic declaration/work records remain retained.
+
+Executed with the pinned Nix Zig 0.17 development toolchain:
+
+| Check | Outcome and boundary |
+| --- | --- |
+| Catalog package `zig build test -Dtest-filter="transaction record"` | Passed signed-request binding, disk recovery after lost reservation/readiness replies, quota refusal, read revocation, frozen-owner refusal, missing accepted bytes and graph traversal across more than one inventory leaf with one resident page |
+| `TMPDIR=/var/tmp zig build test-local-catalog -Dlocal-catalog-filter="transaction owned" -Doptimize=ReleaseSafe` | Passed on local disk: 697 bounded collection steps and two confirmed reclaimed allocations. Active and committed payloads remained readable; a closed abort could not recreate its reclaimed payload. A reserved payload created after marking, during grace, survived the original cut's sweep and catalog recovery |
+| Signed-service half of `just test::managed-tables` | Passed lost original stage reply, prepared-participant process replacement, atomic output, retained nonempty/empty revisions, bounded reads, early close, incomplete prefix and current source/output/control denial |
+| Installed managed SQL fixture | Passed separately using the retained runtime binaries built at `6ff7b88095d5`: SQL publication/control, five complete revisions including empty successors, retained attribution after replacement/retirement/output edits, idle parking, constraint failure and checked overflow. The later fixture-only commit does not change those binaries |
+| Full catalog package | All 281 tests passed in ReleaseSafe at `353146ef2`, after fixing the existing incomplete connection fixture |
+| `just check::fast` | All 64 checks passed |
+| `just ci::clean --check contracts` at `9a30f1bfc910` | All 20 checks passed in an isolated clone without inherited workspace build outputs; schemas, independent signatures and generated host/browser resources agree |
+| Docs link check and `just transit-docs::check` | Passed local links, frontend checks, types, content tests and production site build |
+
+An earlier development disk run also completed two collector passes, including
+reclamation of the prior pass's private maintenance objects. The final fixture
+moves creation into the first pass's grace interval to test the allocation race
+directly. A model fixture initially omitted a Table recovery root and failed after
+collection; the corrected fixture supplies both catalog and Table roots. The
+physical collector schedule supplies the allocation-race evidence. An initial
+baseline-labelled launch ran during in-flight edits and failed compilation; it
+is not an untouched-source baseline or a performance comparison.
+
+The first installed attempt stopped on an unresolved `CREATE DATAFLOW` outcome;
+reopening its retained installation confirmed original operation `16` was terminal
+and applied without resubmitting SQL. A second attempt verified revisions 1 and 2,
+then stopped on `AccessDenied` during metadata observation after suspend/restart/
+resume. Reopening that installation completed revision 3 and verified its five
+retained/output rows; this recovery observation does not turn the interrupted
+fixture into a pass. The same unmodified installed fixture passed on untouched
+base `db0bb4a8f129` in a detached worktree. A final isolated run of the branch
+binaries also passed. All runs used the same deadlines and assertions. The
+comparison does not establish a cause for the earlier failures or a performance
+baseline; the combined `just test::managed-tables` attempt remains a failed run.
+
+The full catalog compile also exposed a pre-existing guarded-record fixture that
+omitted mandatory connection audience/role fields. `353146ef2` supplies them;
+the production connection contract is unchanged.
+
+These checks exercise the existing local single-source finite Table profile.
+They do not establish declaration/work-record reclamation, completed-result
+expiry, the full crash/revocation/resource matrix, Ursula behavior, WAL history
+consumers or incremental execution. The original result, source/output/control
+read requirements and unlimited completed-revision retention remain distinct
+from physical cleanup. Raw development and final logs are retained locally under
+`.cache/verification/m12-owned-staging-20261101/`; they are not a full-CI claim.
+
 ## Retained managed Table revisions — 2026-11-01
 
 Production source `c02b40bdc000954ad38bac81c1ccd44ff5309032` integrates the

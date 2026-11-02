@@ -134,9 +134,10 @@ pub const Root = struct {
     descriptor_definitions: ?pages.Reference,
     queue_transfer_sources: ?pages.Reference,
     queue_transfer_pending: ?pages.Reference,
+    transaction_records: ?pages.Reference,
     pub fn empty(config: Configuration) !Root {
         try config.validate();
-        return .{ .configuration = config, .next_lsn = 0, .next_partition = config.partition + 1, .initialized = false, .schemas = null, .schema_names = null, .namespace_claims = null, .namespace_pending = null, .objects = null, .names = null, .operations = null, .pending = null, .native_allocations = null, .dependents = null, .dependencies = null, .client_tokens = null, .client_token_count = 0, .client_operations = null, .client_pending = null, .client_accounts = null, .branches = null, .branch_names = null, .branch_owners = null, .history_transactions = null, .descriptor_definitions = null, .queue_transfer_sources = null, .queue_transfer_pending = null };
+        return .{ .configuration = config, .next_lsn = 0, .next_partition = config.partition + 1, .initialized = false, .schemas = null, .schema_names = null, .namespace_claims = null, .namespace_pending = null, .objects = null, .names = null, .operations = null, .pending = null, .native_allocations = null, .dependents = null, .dependencies = null, .client_tokens = null, .client_token_count = 0, .client_operations = null, .client_pending = null, .client_accounts = null, .branches = null, .branch_names = null, .branch_owners = null, .history_transactions = null, .descriptor_definitions = null, .queue_transfer_sources = null, .queue_transfer_pending = null, .transaction_records = null };
     }
     pub fn validate(self: Root) !void {
         try self.configuration.validate();
@@ -195,11 +196,16 @@ pub const Record = struct {
     definition: p.Growth.Definition,
     previous: [32]u8,
     root: Root,
-    action: union(enum) { initialize, operation: Operation, assertion: c.NameAssertion.Outcome, namespace: c.DirectNamespace.Operation, dependency: c.DirectDependency.Outcome, resource: c.DirectResource.Operation, log: c.DirectLog.Operation, descriptor: c.DirectDefinition.Operation, client_token: c.DirectClientToken.Progress },
+    action: union(enum) { initialize, operation: Operation, assertion: c.NameAssertion.Outcome, namespace: c.DirectNamespace.Operation, dependency: c.DirectDependency.Outcome, resource: c.DirectResource.Operation, log: c.DirectLog.Operation, descriptor: c.DirectDefinition.Operation, client_token: c.DirectClientToken.Progress, transaction_record: c.DirectTransactionRecord.Publication },
     pub fn validate(self: Record, position: u64) !void {
         try self.root.validate();
         if (self.root.next_lsn != try std.math.add(u64, position, 1) or !self.root.initialized) return error.InvalidDirectCatalogHistory;
         switch (self.action) {
+            .transaction_record => |value| {
+                try value.transaction.validate();
+                try value.entry.validate();
+                if (position == 0 or !value.transaction.connection.matches(self.root.configuration)) return error.InvalidDirectCatalogHistory;
+            },
             .descriptor => |value| {
                 try value.validate();
                 if (position == 0 or !std.meta.eql(value.binding.target.scope, self.root.configuration.scope) or value.binding.target.branch != self.root.configuration.branch or value.position.partition != self.root.configuration.partition or value.position.next_lsn != self.root.next_lsn) return error.InvalidDirectCatalogHistory;

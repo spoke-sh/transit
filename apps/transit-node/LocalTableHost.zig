@@ -93,6 +93,7 @@ pub fn warm(self: *Self, engine: *backend.DataAuthority.Engine) !void {
 fn exclusive(action: w.Action) bool {
     return switch (action) {
         .branch, .transaction, .descriptor => true,
+        .record => |value| value == .stage_transaction,
         .historical_catalog => |value| value.mutation(),
         .kv_declaration => |value| value.mutation(),
         .client_token => |value| value == .bind,
