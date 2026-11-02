@@ -9,6 +9,195 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Board readable storage and deferred features — 2026-11-02
+
+R2 implements readable binary quantities, retained-definition/row-placement
+inspection and maintenance evidence, initially on `origin/main` source `ffbf2e9b1`. It also
+addresses the requested bundle decomposition with coarse dynamic feature imports,
+narrow public client entries and generated validator groups. Current behavior
+belongs in the [Board guide](../../handbook/guides/inspect-board.md),
+[workbench guide](../../../apps/transit-board/docs/workbench.md) and
+[frontend owner inventory](../../../apps/transit-board-web/README.md).
+The [D4 installed figures](../../design/board-data/D4.md#installed-figures) retain
+actual fixture values and distinguish them from the synthetic design study.
+The branch subsequently rebases onto `origin/main` at `30721c55f`, producing
+implementation source `5f9a4a332`. Earlier observations below retain their original
+source attribution. Main's saved-declaration and historical-operation recovery
+handles typed capacity refusals within the existing 32-step bound, preserving
+the original binding, intent and budget; it also retains native SQL rejection
+diagnostics. The rebase preserves those changes and the independent placement
+caller introduced here.
+
+The frontend at `f94b173ac` has **705,640 bytes across four bootstrap scripts**
+(about 689 KiB). Its largest script is **479,615 bytes** (about 468 KiB).
+The preceding eager R2 build loaded approximately 3.125 MB of JavaScript upfront;
+this comparison is bootstrap bytes, not time-to-interactive. A cold Catalog then
+loads its 436,775-byte feature. Operations, Dataset, Workbook, statement results,
+inspection, recovery, finite queries and Live views load through their feature
+boundaries. All assets remain embedded. Build guards preserve the 900,000-byte
+per-script limit and add bootstrap/feature-dependency limits. A deliberately eager
+Operations import fails the build at six bootstrap scripts / 1,178,048 bytes;
+the negative-control source was restored. Private logs and measurements are in
+`transit-m30-storage-plan/.cache/r2-evidence/`, including `bundle-sizes.json` and
+`lazy-negative.log`. Transfer compression, browser parse time, latency percentiles
+and heap usage are not established by these byte measurements.
+
+`just transit-board::check` passes at `41b11abc9`: generated contract/validator
+drift, strict TypeScript, formatting/lint, 132 Board tests in 22 files, 67
+query-client tests, 13 application tests and seven diagnostic tests. An existing
+reactive-client `no-ex-assign` warning remains. Later route-fallback changes pass
+frontend checking/build at `f94b173ac`. The Board API package's standalone
+`zig build test` passes the `fa1a36844` historical-cursor classification and its
+HTTP-response regression. No schema, protocol definition or authorization rule
+changes. Version/pin and documentation-link checks have separate recorded scope.
+
+At clean `164078f14`, the focused Board model exhausts 52,165 observation
+states/1,167,674 edges, 885 statement states/11,567 edges and 15 admission
+states/60 edges. Every exported edge replays against production transitions;
+all three model and three implementation negative controls detect their intended
+violations. The earlier run at `41b11abc9` was **inconclusive**, because copied
+mutation files could not resolve the new public client subpaths. The correction
+resolves each package's declared exports in the replay harness; transition guards
+and models are unchanged. Compilation failure is not a successful negative
+control. Evidence remains in `.cache/verification/board-model/evidence.json` and
+`lazy-installed-replay.log`. These finite safety models do not establish browser
+scheduling, network fairness or performance.
+
+The focused installed run at **`fa1a36844` passes** the complete workbench API
+schedule, all seven workbench browser cases (60 seconds) and the new retained
+placement browser case (11 seconds). Board is rebuilt with embedded production
+assets; the other frozen ReleaseSafe binaries come from the earlier R2 build
+with unchanged native implementations. The private source/binary hashes and
+exit-zero record are `lazy-focused-source.json` and `lazy-workbench-cursor.log`.
+The successful disposable installation is cleaned up by its driver.
+
+The fixture uses public owning callers to flush ten rows, add a column, append
+ten WAL rows and retain the source. An independent signed caller checks every
+stable identity, physical revision, WAL LSN/offset/size/digest and segment
+identity/row/content against Board's projection. Two physical generations,
+ADD-time origin, bounded 8/8/4 location pages, rename and disk reopen preserve the
+same retained basis. Authorized empty pages remain distinct from failure.
+Cross-kind continuations are rejected; releasing both populated and empty retained
+sources causes terminal reads to fail. The existing 145-row SQL traversal,
+metadata/empty results, read-only admission, result capacity and actual final
+principal revocation also pass. Board issues none of the fixture's setup,
+retention, flush or mutation commands.
+
+Browser checks exercise cold lazy entry, delayed/failed module download, explicit
+reload, retained shell navigation, actual deferred script requests, exact-byte
+copy, diagram/grid/Inspector agreement, keyboard focus, page and mode changes,
+hiding, reduced motion and automated accessibility. Denial of location reads
+while metadata remains visible, and a retained-page expiry during polling, use
+injected HTTP responses to qualify presentation clearing. The final API principal
+revocation and retention releases are real authority operations. Independently
+provisioned metadata-only versus SELECT-only subjects for the new placement
+fixture, a manual screen-reader pass and native browser zoom remain unqualified;
+200% CSS zoom and a 390-pixel viewport are separate checks. No screenshot proves
+complete inventory, payload verification or per-Table maintenance progress.
+
+The focused driver option `--workbench-only` explicitly omits the independent
+connection-profile matrix. Default and CI invocations retain it. Earlier full
+attempts remain failed: the pre-split run crosses the 900,000-byte script limit
+at 905,147 bytes; a subsequent eager build reaches the both-connections profile
+but receives `UnsupportedQuery` without a diagnostic. At `164078f14`, inspection
+and catalog profiles pass through the local forwarding fixture, then SQL-only
+Run returns HTTP 503 `IncompleteResult` with `SqlRequestTimeout`. Nearby native
+capacity refusals do not establish causation. The latter private installation is
+retained at `/var/tmp/transit-server-proof-9vwzbt71`; its log is
+`lazy-installed-replay.log`. No SQL resubmission or increased timeout was added.
+Local forwarding does not qualify SSH encryption or arbitrary remote latency.
+
+Two subsequent focused failures also remain recorded. At `e70d7e836`, six of
+seven browser cases pass, but a nearer router Suspense boundary hides the custom
+outer loading fallback. `f94b173ac` puts pending/error presentation at the router
+boundary and all seven cases pass. That run then fails the cross-kind historical
+cursor assertion with HTTP 500 and `InvalidHistoricalCursor`; `fa1a36844` adds the
+missing binding classification and proves HTTP 400 `InvalidQuery`. The failing
+logs are `lazy-workbench-focused.log` and `lazy-workbench-final.log`. The small
+static-asset substitution run used while diagnosing router loading is not embedded
+artifact qualification; the final installed pass is separate.
+
+The initial clean-browser wrapper at `5a2b1a936` stops during Playwright's
+`--with-deps` preparation because this host cannot authenticate `sudo`.
+Installing the pinned Chromium without OS package installation succeeds. The
+retained isolated checkout `/var/tmp/transit-ci-gx3lag7z/src` advances to clean
+**`fa1a36844`** and runs the unchanged browser inventory in `ci-experience`,
+with its own build outputs and available host libraries. This is a clean-source
+continuation, not a successful clean-wrapper preparation.
+
+That browser lane passes its first seven tasks: inspection/relational recovery,
+query recovery, HTTP and gRPC capture, reactive transport, finite Live views and
+Live lifecycle. In the final workbench task, all four actual connection profiles
+and their forwarding/browser checks pass. Retained-definition setup then fails
+with HTTP 503 `ControlCapacity` while accepting a saved descriptor declaration,
+before the workbench API/browser schedule. The accept action and failure assertion
+are unchanged from the baseline; this does not establish the failure's cause.
+That attempt adds no mutation retry or timeout increase. The original request and
+private installation remain at `/var/tmp/transit-server-proof-vxyvpk3a`.
+The full lane remains failed, separately from the focused installed pass above.
+Automatic source, task and outcome records are in the checkout's
+`.cache/ci/browser.json`, `.cache/ci/browser.meta.json` and attributed task logs;
+`/var/tmp/transit-ci-gx3lag7z/browser.log` is the combined log.
+
+The same isolated, clean `fa1a36844` checkout passes **all 15 formal tasks** in
+`ci-formal`, including complete Board graph replay and all six Board negative
+controls. The lane uses the already installed locked frontend dependencies;
+models, exports and implementation-replay evidence remain in its own
+`.cache/verification/`. Its `.cache/ci/formal.json` and `formal.meta.json` record
+completed exit-zero outcomes and clean source attribution. The combined log is
+`/var/tmp/transit-ci-gx3lag7z/formal.log`. This sequential continuation inherits
+only outputs generated in this isolated checkout, not the developer worktree's
+build artifacts.
+
+The clean **`fa1a36844` installation-ui lane fails task 16 after 15 passes**.
+Component/contract checks, the handbook build, Node binding checks, observability,
+logging, single-executable packaging, direct Tables, managed Tables, direct-data
+faults, SQL lifetimes, both SQL installation profiles, Board native inspection,
+query recovery and the local Station launcher pass. In particular, managed
+replacement/resume and SQL certificate/CA replacement pass in this attempt;
+that does not explain or erase R1's earlier failures.
+
+All four connection profiles pass in task 16, then retained-definition setup
+again returns HTTP 503 `ControlCapacity` for the original saved declaration.
+The workbench API schedule and final declarative-browser task are not reached.
+The private installation remains at `/var/tmp/transit-server-proof-q4xd0d_6`.
+The lane records 1,594.83 seconds, clean source and its failed outcome in
+`.cache/ci/installation-ui.json`, `installation-ui.meta.json` and
+`runs/installation-ui-w5vhpmk6/`; the combined log is
+`/var/tmp/transit-ci-gx3lag7z/installation-ui.log`. The full lane remains failed.
+
+After that lane finishes, the isolated checkout advances to clean rebased
+`5f9a4a332` for focused component/API and default workbench-browser checks.
+Component/contract checks and standalone Board API unit tests pass. The full
+workbench browser attempt passes all four connection profiles and the injected
+saved-declaration conflict recovery, then fails with HTTP 503 `ControlCapacity`
+during `historical_catalog.select`, before the storage/workbench schedule.
+No selection retry is added. The private installation remains at
+`/var/tmp/transit-server-proof-30nes5cp`; source, task outcomes and log hashes are
+in `.cache/r2-rebase/`, with combined log
+`/var/tmp/transit-ci-gx3lag7z/rebase-checks.log`. This attempt does not establish
+that main's saved-declaration correction resolves all setup capacity failures.
+The earlier inventories and their source attribution remain intact.
+
+The subsequent focused run at the same clean **`5f9a4a332` passes**, using all
+five matching rebuilt ReleaseSafe executables. The seven workbench browser cases
+pass in 58.5 seconds and the separate retained-placement case passes in 11 seconds.
+The complete API schedule also passes, including native rejection diagnostics,
+independent signed-caller comparison, empty pages, rename/reopen, retained release
+and terminal revocation. `--workbench-only` omits the connection-profile prelude;
+this focused pass does not turn the failed default schedule into a pass.
+Source, executable hashes, exact commands, log hashes and completed exit-zero
+outcome are retained in `.cache/r2-rebase-focused/`; the combined log is
+`/var/tmp/transit-ci-gx3lag7z/rebase-focused.log`. The successful disposable
+installation is cleaned up. The final documentation check passes 10,991 local
+links across 729 files; all 160 package versions and pins agree.
+
+R1's SQL-only timeout/native-capacity, managed-table replacement/resume and
+post-certificate-replacement SQL investigations remain distinct; later passes
+alone do not establish their causes. R4 retains performance/multiple-tab
+measurements and remaining accessibility work; R3 computation inspection and
+the governed-workbench gates are outside this delivery. M30 remains In Progress.
+
 ## Board reactive ownership and independent connection profiles — 2026-11-02
 
 The question is whether Board can bound background work and preserve original

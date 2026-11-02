@@ -44,7 +44,7 @@ this item is `D5.md`.
 
 ## Supporting material
 
-- [D4 storage structure and evidence](D4.md#visual-studies), [monochrome wireframe](d4-storage.svg).
+- [D4 storage structure and evidence](D4.md#visual-studies), [monochrome wireframe](d4-storage.svg), [installed figures](D4.md#installed-figures).
 
 - [D3 topology studies and figures](D3.md#visual-studies),
   [interactive prototype](d3.html), [interaction source](d3.js),

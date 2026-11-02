@@ -2,11 +2,12 @@
 
 [Roadmap](README.md) · **Status:** In Progress
 
-Review the [R2 storage implementation plan](#r2--explain-retained-storage-placement-and-maintenance)
-alongside the [local connections and Document persistence plan](#local-connections-and-document-persistence-plan--2026-11-02)
-and the [R1 reactive ownership delivery](#reactive-ownership-delivery-r1--2026-11-02).
-Computation inspection, installed performance and the full workbench completion
-gates remain open.
+Start with the [R2 delivery and remaining gates](#readable-storage-delivery-r2--2026-11-02):
+readable binary quantities, retained storage placement, maintenance inspection
+and features loaded on demand. R1 and automatic local data access are merged;
+R2 is implemented for review. The [local connections and Document persistence plan](#local-connections-and-document-persistence-plan--2026-11-02)
+records the parallel persistence scope. R3 computation inspection, installed
+performance and the full workbench completion gates remain open.
 
 Reimplement Board as the installed interface for discovering data, explaining
 computations and reviewing governed changes. Deliver the focused catalog,
@@ -452,19 +453,49 @@ R4 resource/performance targets. Executed source-specific results, corrected
 regressions and remaining limits are recorded in the
 [R1 qualification account](../history/qualification/interfaces.md#board-reactive-ownership-and-independent-connection-profiles--2026-11-02).
 
-The next implementation PR is R2's retained-storage placement and maintenance
-inspection, followed by R3's managed-computation projection and neighborhood.
+R2's retained-storage placement and maintenance inspection are now implemented
+for review, followed by R3's managed-computation projection and neighborhood.
 R4 retains the unresolved historical TLS-replacement cause, the newly observed
 managed-table authorization refusal after replacement/resume, installed capacity
 refusals and the SQL-only Run timeout, measured resource budgets and broader
 accessibility checks. R5 and the original milestone gates
 remain required; this delivery does not complete M30.
 
+## Readable storage delivery (R2) — 2026-11-02
+
+R2 implements binary byte quantities with exact detail/copy, shared retained
+catalog inspection in Data and Operations, linked physical-definition and
+row-placement diagrams/grids, and maintenance settings/state. It uses the
+existing public read operations and one selected page; inspection acquires no
+retention and starts no query or maintenance. A mismatched historical cursor
+now retains its binding diagnosis instead of becoming an internal failure.
+
+The user's bundle refinement is implemented as dynamic feature boundaries and
+narrow public client/validator entries. The measured bootstrap is about 689 KiB
+across four scripts; the largest script is about 468 KiB. Build guards and
+installed delayed/failed-download checks preserve the embedded host's limits
+and shell navigation. The [source-attributed account](../history/qualification/interfaces.md#board-readable-storage-and-deferred-features--2026-11-02)
+records the exact byte comparison, checks, failures and remaining gaps.
+
+The focused installed storage/API/browser schedule passes at rebased `5f9a4a332`,
+with all matching executables rebuilt from that source.
+[Real D4 figures](../design/board-data/D4.md#installed-figures) are ready for
+layout review. The default browser attempt at the same source passes all four
+independent connection profiles, then stops at a capacity refusal during
+retained-history selection; the focused pass does not qualify that full schedule
+or erase earlier failures. The branch includes `origin/main` at `30721c55f`
+and its saved-declaration recovery.
+This does not close R2's full acceptance matrix: metadata-only/SELECT-only
+subjects for the new placement fixture need a separate authority schedule,
+and manual screen-reader/native-browser-zoom review remains open. Broader
+clean-lane outcomes belong in the qualification account. R3 and R4 retain their
+separate computation and reliability/performance scopes; M30 remains In Progress.
+
 ## Next implementation sequence after PR 326 — 2026-11-01
 
 **Review status:** The sequence was approved; R1 merged in
 [PR #332](https://github.com/spoke-sh/transit/pull/332). The expanded R2 plan below
-is **Approved; implementation under qualification**. **Original source basis:** `origin/main` at `db0bb4a8f`, the
+is **Approved; implemented for review with qualification gaps**. **Original source basis:** `origin/main` at `db0bb4a8f`, the
 merge of [PR #326](https://github.com/spoke-sh/transit/pull/326). R2 records its
 newer source separately. This sequence scopes separate implementation PRs; R5
 retains its service prerequisites. Executed evidence is attributed separately
@@ -599,11 +630,12 @@ source-attributed limits. R1 does not depend on adding new storage/computation U
 
 ### R2 — Explain retained storage placement and maintenance
 
-**Implementation plan — 2026-11-02. Status: Approved; implementation under qualification.** Source basis:
+**Implementation plan — 2026-11-02. Status: Approved; implemented for review with qualification gaps.** Source basis:
 `origin/main` at `ffbf2e9b1`, including Board R1 in PR #332 and the subsequent
 Stream/Queue integration in PR #333. Planning starts in a separate worktree on
-`docs/m30-storage-inspection-plan`. This section specifies the next implementation
-PR; no new UI, contract or runtime qualification is established by this plan.
+`docs/m30-storage-inspection-plan`. The original implementation scope is preserved below; the
+[delivery account](#readable-storage-delivery-r2--2026-11-02) and linked evidence
+record what was executed. The plan itself establishes no runtime qualification.
 
 #### Outcome and review scope
 
@@ -809,7 +841,8 @@ actual computation projection.
 
 #### Acceptance and verification
 
-All checks below are planned, not executed by this planning change.
+This is the original acceptance matrix. Executed outcomes and outstanding gates
+are recorded in the [delivery account](#readable-storage-delivery-r2--2026-11-02).
 
 | Layer | Required evidence |
 | --- | --- |
