@@ -1383,6 +1383,8 @@ fn requireTransactionRecord(self: *Self, allocator: std.mem.Allocator, key: c.Di
 /// Serialized with transaction freeze and storage collection by the host.
 /// Inventory admission never changes the transaction's retained read revision.
 fn stageTransactionRecord(self: *Self, allocator: std.mem.Allocator, request: TransactionRecord.Request, policy: Policy, current: P.Guard) !c.DirectRecord.Result {
+    TransactionRecord.diagnostics.add("stage_calls", 1);
+    errdefer TransactionRecord.diagnostics.add("stage_failures", 1);
     const key = request.transaction;
     const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
     try key.requireSame(progress.receipt.binding.key);
@@ -1407,6 +1409,7 @@ fn stageTransactionRecord(self: *Self, allocator: std.mem.Allocator, request: Tr
         const retained = try c.DirectRecord.load(allocator, self.data_objects, reference);
         defer allocator.free(retained);
         try check(current);
+        TransactionRecord.diagnostics.add("reused_returns", 1);
         return .{ .reference = reference, .bytes = null };
     }
     const head = try TransactionWorkspace.recover(allocator, self.data_objects, progress);
@@ -1417,15 +1420,18 @@ fn stageTransactionRecord(self: *Self, allocator: std.mem.Allocator, request: Tr
         directory.bytes = try std.math.add(u64, directory.bytes, try std.math.add(u64, bytes.len, TransactionRecord.metadata_charge));
         if (try std.math.add(u64, head.charged_bytes, directory.bytes) > head.acquired.cut.begin.limits.workspace_bytes) return error.TransactionWorkspaceLimit;
         try self.publishTransactionRecord(key, &directory, .{ .content = reference.content, .ready = false }, current);
+        TransactionRecord.diagnostics.add("reservation_logical_bytes", bytes.len + TransactionRecord.metadata_charge);
     } else if (known.?.ready) {
         // Do not silently recreate a lost accepted object.
         const retained = try c.DirectRecord.load(allocator, self.data_objects, reference);
         defer allocator.free(retained);
         try check(current);
+        TransactionRecord.diagnostics.add("reused_returns", 1);
         return .{ .reference = reference, .bytes = null };
     }
     try check(current);
     try reference.requireSame(try c.DirectRecord.store(self.data_objects, key.scope(), TransactionRecord.format, bytes));
+    TransactionRecord.diagnostics.add("stored_bytes", bytes.len);
     directory.pending = try std.math.sub(u64, directory.pending, 1);
     try self.publishTransactionRecord(key, &directory, .{ .content = reference.content, .ready = true }, current);
     try check(current);
@@ -1433,6 +1439,7 @@ fn stageTransactionRecord(self: *Self, allocator: std.mem.Allocator, request: Tr
 }
 
 fn publishTransactionRecord(self: *Self, key: c.DirectClientToken.Key, directory: *TransactionRecord.Directory, owned: TransactionRecord.Entry, current: P.Guard) !void {
+    if (owned.ready) TransactionRecord.diagnostics.add("readiness_attempts", 1) else TransactionRecord.diagnostics.add("reservation_attempts", 1);
     var next = self.store.root;
     next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
     var batch: s.TreeStore.Batch = .{};
@@ -1442,6 +1449,7 @@ fn publishTransactionRecord(self: *Self, key: c.DirectClientToken.Key, directory
     try directory.validate();
     next.transaction_records = try self.store.tree().put(next.transaction_records, try TransactionRecord.ownerKey(key), try r.pageValue(directory.*));
     try self.store.publish(next, .{ .transaction_record = .{ .transaction = key, .entry = owned } }, current);
+    if (owned.ready) TransactionRecord.diagnostics.add("readiness_returns", 1) else TransactionRecord.diagnostics.add("reservation_returns", 1);
 }
 
 /// Read policy belongs to the storage owner, including raw record reads. A

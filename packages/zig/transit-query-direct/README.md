@@ -83,3 +83,9 @@ collection. Committed records retain indefinitely.
 
 See [managed Table computations](../../../docs/handbook/reference/queries.md#managed-table-computations)
 for supported SQL, current-policy checks and retention limits.
+
+`ManagedTable.diagnostics` provides opt-in, fixed-cardinality process observations
+of recovery phases and successful result-page staging. Hosts configure it before
+starting workers and never reset it during work. The private SQL deployment
+inspection composes it with the catalog's owned-record counters; neither supplies
+completion or cleanup authority. See the [measurement semantics](../../../docs/handbook/reference/observability.md).
