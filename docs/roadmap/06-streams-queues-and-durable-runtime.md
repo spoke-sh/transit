@@ -40,6 +40,12 @@ admission/recovery, and M9's SQL caller retains the original token. The operatio
 is outside M5's attached SQL transaction profile; it does not implement a Station
 turn, M7 Document participation or M12 continuous activation.
 
+The [executed NACK qualification](../history/qualification/query.md#sql-queue-nack-settlement-and-recovery--2026-11-02)
+records all eight clean SQL tasks and all 28 clean core tasks, the original
+response-failure investigation, and the independently reproduced signing-fixture
+correction. Its source identities and limits remain separate from the broader
+M6 qualification gates.
+
 M6 remains **In Progress**. This supersedes the earlier checkpoint's statement
 that all NACK SQL is absent, without closing all of Batch 3 or 4b. Renewal still
 needs returned-handle semantics; predicates, waits, group progress/offset SQL,

@@ -9,6 +9,116 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## SQL Queue NACK settlement and recovery — 2026-11-02
+
+This review unit starts from `ffbf2e9b12dceca856000faf15eebbc252ae580c`.
+SQL runtime and workload fixture source is
+`0bf1fff78abd4594f89a0a9b61f0d0eb85d17120`. The subsequent signing-fixture
+correction `059e0d951` changes no runtime code; the later evidence-only commit
+also leaves those binaries unchanged. Current semantics belong to the
+[SQL reference](../../handbook/reference/sql/streaming.md#return-queue-work-for-retry)
+and [Queue contract](../../../contracts/QUEUE_V1.md#opaque-lease-descriptor-codec).
+The existing current-v1 definition remains
+`c3cbdfe99cdb08a8a21cc2429783fd746b1311b096d9ca8371058e1abb037b64`:
+NACK's native request, saved intent and result encodings predate this SQL binding.
+
+The question is whether receipt-bound SQL NACK preserves the original lease,
+absolute requested visibility and operation identity through preparation,
+replacement and loss of the first response, while native lease, authorization,
+retry and FIFO rules remain authoritative. The binder freezes an optional
+nonnegative UTC timestamp at whole-millisecond precision. Omission records zero;
+the native Queue owner still applies retry backoff. Renewal is not enabled.
+
+Executed with the pinned Nix Zig 0.17 development toolchain:
+
+| Check | Outcome and boundary |
+| --- | --- |
+| Fuze `zig build test -Doptimize=ReleaseSafe -Dtest-filter='NACK SQL'` | Passed typed/default visibility, whole-millisecond and nonnegative limits, NULL/type/gap refusals and parameter diagnostic location |
+| Catalog `zig build test -Doptimize=ReleaseSafe -Dtest-filter='log settlement Catalog'` | Passed ACK/NACK ownership and allocation-failure checks, including frozen intent recovery after SQL/receipt buffers are overwritten |
+| `just test::table-dml-sql` | Passed independent compiler comparisons, including all 23 settlement corpus cases |
+| `just test::diagnostic-grammar` | Passed 680 compiler cases and all 1,013 grammar coverage obligations |
+| PostgreSQL package tests | Passed the exact independent NACK completion frame after the regression first failed without the encoder arm |
+| `just ci clean --lane interfaces-sql` at `0bf1fff78abd` | All eight tasks passed in an isolated clone: TLS, allocation checks, wire gateway, sessions, integrity, history, Stream/Queue workloads and transactions |
+| `just ci clean --lane core` at `059e0d951d09` | All 28 tasks passed in an isolated clone, including native safety/recovery checks, all 45 standalone packages, packaged runtime/SDK boundaries, SQL wire contracts, Station, storage, service, authorization, callers, inspection and state |
+| Diagnostic inventory, documentation links and `just transit-docs::check` | Passed generated inventory agreement, local links, frontend checks, types, content tests and production site build; final evidence links checked separately |
+
+The installed workload fixture saves the complete SQL token and parameters before
+dispatch, discards the first NACK response body after HTTP headers, replaces the
+SQL service and recovers with that exact token. It checks original lease epoch,
+expiry and definition revision after compatible ALTER; a delayed `key_fifo` head
+blocks its following key member while another key progresses. A fresh settlement
+with the old lease is fenced, changed parameters conflict with the original token,
+and current authorization gates status and duplicate admission. After DROP and
+another replacement, both status and the original token retain the original
+applied outcome. Claim payload-read lifetime stays separate. PostgreSQL, MySQL
+and the installed console cover NACK command completion; the console also covers
+omitted visibility and absent relational counts.
+
+The first exploratory installed attempt failed at PostgreSQL completion with
+`UnsupportedWireCompletion`, after native NACK assertions had executed. The
+build began before the PostgreSQL encoder fix while the working tree was still
+changing. Its failure-time metadata names `0bf1fff78abd` with a clean tree, but
+that is not the build source identity. Retained gateway executable SHA-256 is
+`33d413914c64a1057ffbde02bb9f82ba3e9c63d2ad3c5b2ed99b64e52664dc43`.
+The independent exact-frame PostgreSQL regression test failed without the encoder
+arm and passed with it; completion emits `NACK` without a row count.
+
+The failed installation remains at
+`/var/tmp/transit-direct-sql-wire-e0mq32lr`. An initial observation helper refused
+`WorkloadOperationRequired` because it only handles Table operations; the first
+native-service observation launch failed against the stopped test proxy. Neither
+is evidence of operation rejection. Reopening the retained node and configuration
+service, replacing the SQL service with the next ordinary coordinator generation,
+and issuing only native SQL status for original workload operation `385` confirmed
+`terminal`, `applied`, `nack`, with requested visibility `4102444800000`.
+No SQL was resubmitted and no durable store was initialized or reset. The service
+could perform its ordinary recovery bookkeeping. All probe processes joined
+without forced termination. This recovered observation does not turn the failed
+exploratory fixture into a pass.
+
+Earlier compiler corpus checks exposed two incorrect expected error categories;
+the fixtures were corrected to the existing strict parser result. Grammar
+coverage initially failed for an uncovered timestamp-literal alternative; an
+explicit case closed that gap. Neither failure was addressed by admitting extra
+syntax, weakening assertions or changing deadlines, leases or resource limits.
+
+The first clean core attempt at `0bf1fff78abd` found stale application request
+and query digests in `native-signing-v1.json`. The independent Python oracle and
+native signing test both failed; the completed native run passed 2,264 of 2,265
+tests. The first core task failed, so its remaining 27 lane tasks did not run.
+The same Python check failed on untouched base
+`ffbf2e9b12dc` in a separate detached worktree; neither its oracle nor the fixture
+had been changed by NACK. `059e0d951` regenerates only those two expected digests
+using the existing independent oracle, which already names the current definition.
+The Python check and focused native signing test then passed. No production
+signing, scope, grant or compatibility check changed.
+
+Preparation for the failed core attempt reached the pinned-dependency fetch's
+existing 120-second timeout; the runner terminated it and its second bounded
+attempt succeeded in 21.122 seconds. Preparation for the corrected clean core run
+succeeded on its first attempt. No dependency revision, timeout or test assertion
+was changed.
+
+Raw development logs, original-operation observation methods/results, the base
+reproduction and failed-core reports are retained locally under
+`.cache/verification/m6-nack-20261102/`, with a SHA-256 manifest. The failed
+core checkout also remains at `/var/tmp/transit-ci-m8d3nacf`. Successful clean
+reports and per-task logs are retained under:
+
+- `.cache/ci/clean/0bf1fff78abd-transit-ci-tzll7q7w/` for SQL; `interfaces-sql.json`
+  SHA-256 `397e9b0e56fa4d035ba2649b1516e5ecdd0803bc31d1fc4b0e7e8fccb0d699f3`.
+- `.cache/ci/clean/059e0d951d09-transit-ci-5ave_vn9/` for core; `core.json`
+  SHA-256 `a577e65b829a11bcf590ae8b1c48463127991d735fcdd82bda9eec12f6e9e132`.
+
+Both successful lane reports record completed tasks, zero exits and clean source
+identities. They qualify selected lanes, not the full CI suite.
+
+The new SQL lost-response schedule is not power-loss or WAL fault injection.
+These selected lanes do not establish an Ursula/provider qualification, a latency
+baseline, or completion of M6's common-revision resource and mixed-transaction
+matrix. This work adds no renewal, predicates, waits, consumer-group/offset SQL,
+`STREAM_SLICE`, mixed SQL transaction participation or Station/effect cutover.
+
 ## Transaction-owned managed result candidates — 2026-11-02
 
 Production source `9a30f1bfc910`, race-test refinement `6ff7b88095d5`
