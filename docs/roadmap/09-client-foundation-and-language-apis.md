@@ -793,9 +793,11 @@ own baseline; #211's historical SQL target is not a blanket SDK speedup claim.
 #### SDK performance implementation sequence — 2026-11-01
 
 **Status: In Progress within P0/P8.** Coordinate with the
-[M8 current-main delivery plan](08-gateway-architecture-and-protocol-ingress.md#current-main-performance-implementation--2026-11-01),
-integrated on `242499474`. Source-attributed measurements and clean conformance
-checks have distinct scope; neither completes the broader SDK performance gate.
+[M8 post-merge review plan](08-gateway-architecture-and-protocol-ingress.md#post-merge-performance-delivery-plan--2026-11-01)
+at merged source `86df3afb5`. Its F0/R1/V2/C4/Q8 packets define baseline,
+reliability, build-time validators, shared-client optimization and final budgets.
+Source-attributed measurements and clean conformance checks have distinct scope;
+neither completes the broader SDK performance gate.
 Start measurement on current installed APIs while P2–P6 continue; the following
 work neither requires the new data ABI first nor marks those packages complete.
 

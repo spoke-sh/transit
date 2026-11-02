@@ -445,6 +445,11 @@ their own measurements pass.
 
 #### Current-main performance implementation — 2026-11-01
 
+The first packet below landed in [PR #325](https://github.com/spoke-sh/transit/pull/325).
+The [post-merge review plan](#post-merge-performance-delivery-plan--2026-11-01)
+defines the next implementation sequence; the earlier source bases and outcomes
+remain historical evidence, including the unresolved failures.
+
 **Status: In Progress.** Initial source basis `f4abc3b18d9a621eb9fcb2f2c10ee72a48aa2ae1`
 includes performance PR #313 and the connection, string, managed computation,
 Document, profile-parser and spatial increments #314–#319. Track the installed
@@ -575,6 +580,403 @@ releases local memory, and this profile has no result expiry/release/collection
 operation. Measure retained storage growth without inventing cleanup semantics.
 The [retained-revision contract at that source](https://github.com/spoke-sh/transit/blob/0c64c4b0362e9fe54daa66388745430e9050eee0/contracts/DATAFLOW_V1.md#retained-finite-revision-reads)
 defines this separate workload.
+
+#### Post-merge performance delivery plan — 2026-11-01
+
+**Plan status: In Progress.** The implementation sequence is approved; the first
+tranche covers F0, R1a–c and V2. M8 remains In Progress. Source basis is
+merged main `86df3afb5f7bce9aeb9714f3d657082f49c8e512`, containing PR #325 and
+PR #324's retained managed revisions. This is the detailed next-delivery plan for
+[#211](https://github.com/spoke-sh/transit/issues/211), coordinated with
+[#76](https://github.com/spoke-sh/transit/issues/76),
+[M9](09-client-foundation-and-language-apis.md#sdk-performance-implementation-sequence--2026-11-01)
+and [M12](12-sql-and-dataflows.md#retained-completed-table-revisions--2026-11-01).
+It refines the earlier performance packets without replacing M8 P0–P6, startup
+S0–S6, or the other milestones' acceptance obligations. The tasks below are planned,
+not executed qualification or a claim that the 10–100× goals have been achieved.
+
+The application outcome is to start Transit, access declared data through the
+console or an installed SDK, observe the complete authorized result or original
+durable mutation outcome, and recover that work within measured resource and
+latency budgets. The first qualification profile is pinned ReleaseSafe on Linux
+x86_64 with native-local synchronous durability and automatic maintenance.
+Other providers/platforms retain separate qualification requirements.
+
+##### Starting evidence and success criteria
+
+The [last measurement packet](../history/qualification/performance.md#integrated-performance-measurement-packet--2026-11-01)
+ran at `a7d659b85`, before the retained-revision cutover now on main. Its numbers
+identify investigation priorities, not current-main scores. Rebuild matching
+runtime/native/SDK artifacts for definition
+`afac2bd84560136ca90c0683afdffb8f71d5f96568b05dd3de773ce3c5339b2a` before measuring
+this source. Never open an old failed installation with an incompatible build.
+
+| Recorded observation | What it establishes | Work it motivates |
+| --- | --- | --- |
+| Installed Node import 6.398 → 2.807 s; 15 samples per arm; median peak RSS down 16.5% | 2.28× module-import improvement from sharing eager validators | Remove remaining measured compilation cost while preserving validation |
+| Managed successors for 17–19 rows take 19.033–27.484 s | Complete finite output is expensive even at small cardinality | Attribute and batch immutable result staging, statement preparation and publication |
+| That fixture's foreground median rises from 34.4 to 143.3 ms during successors | Foreground reads are slower during the measured refreshes | Measure fairness, admission wait and foreground progress alongside completion |
+| Small retained startup about 0.9 s; managed 19-row restart 9.621 s | Empty/small startup misses computation/history costs; this is not a matched causal ratio | Extend startup across retained objects, revisions and recovery work |
+| 739–741 installation threads; wire capacity reserves 528 I/O workers | Large configured residency and blocking-concurrency costs | Replace deadline races and blocking waits before changing pool sizing |
+| Isolated SDK campaign passes 224 operations; default maintenance fails | The oracle works in the isolated profile; normal-operation qualification remains open | Fix snapshot lifecycle and quantify each shared-client phase |
+| Captured Table recovery times out; ordinary console SELECT is canceled | Merging the PR did not resolve these original outcomes | Explain and fix failures before accepting complete default-profile scores |
+
+Retain the existing numerical objectives; do not assign every operation the same
+historical denominator:
+
+| User-visible boundary | Goal and acceptance basis |
+| --- | --- |
+| Server readiness, default and headless separately | p50 ≤5 s fresh / ≤1 s retained; empirical p95 ≤10 s / ≤2 s. Record first verified result separately. History-bearing profiles get explicit budgets in F0 rather than silently inheriting an empty-fixture target. |
+| Small durable INSERT through persistent console | First p50 ≤190 ms, then ≤19 ms. The historical 1,912 ms observation supplies the goal's origin; a speedup claim requires a matched control or a justified reproducible historical fixture. |
+| Warm SELECT / fresh SELECT after a mutation | p50 targets 10–20 ms / 20–50 ms, exact values and terminal coverage. |
+| UPDATE, DELETE and future TRUNCATE | Separate point, unchanged/empty and bounded multi-row baselines. TRUNCATE needs its owning execution contract before a runnable benchmark or completion claim. |
+| SDK imports and supported operations, managed revisions and connection pressure | Freeze operation-specific latency/resource budgets after F0. Report import, full operation and throughput gains independently; no blanket 100× SDK target. |
+| Correctness and resource use | Original outcomes, current authorization, complete results, bounded resident work and joined cleanup remain mandatory. Errors, rejected load and recovery debt are part of every score. |
+
+The 19 ms objective needs a measured durable-storage synchronization floor.
+If the target is incompatible with the selected host/profile, report that result
+and the required architectural tradeoff for review; do not weaken durability or
+silently change the target. The traced 104 ms INSERT observation is not a matched
+proof of achieving the 10× gate, and an incomplete campaign is not a score.
+
+##### Delivery map and dependencies
+
+Each row is a reviewable PR or the explicitly split series below. One shared
+contract/owner change may affect multiple languages; avoid separate protocol or
+recovery implementations in each SDK.
+
+| Packet | Deliverable | Depends on | Exit evidence |
+| --- | --- | --- | --- |
+| F0 | Matching baseline, failure inventory and bounded phase attribution | This plan | Attributed artifacts, all attempts retained, predeclared campaign matrix and initial cost breakdown |
+| R1a–c | Captured Table, snapshot and console reliability fixes | F0 diagnosis | Explained failures, controlled regressions, original-outcome evidence and passing affected default profiles |
+| V2 | Build-time SDK validators | F0 import profile | Equivalent validation, matched installed import improvement and no first-result regression |
+| M3a–c | Bounded managed result/statement batches | F0 and R1 for accepted installed comparisons; M12 retained-revision contract | Exact atomic revisions, crash/revocation proofs, lower completion/publication cost and foreground regression check |
+| C4a–b | Shared SQL/SDK lifecycle and durable-write cost reduction | F0 and affected R1 fixes | Reduced attributed costs with the same public lifecycle, durable outcome and recovery obligations |
+| D5a–b | Deadline handling, resumable connections and bounded pools | F0; existing protocol continuations | Progress under stalled peers, qualified cancellation/join and lower residency/CPU |
+| S6a–b | Startup/restart with retained history | F0/R1; D5 where worker changes contribute | Startup distribution, first-result evidence and original recovery across the declared growth matrix |
+| E7 | New workload measurements through existing owners | F0; each public capability's actual availability | Independent values/counts/coverage and source-attributed latency/resource/growth reports |
+| Q8 | Combined baseline, regression budgets and completion assessment | Landed packets above | Matching integrated artifacts, required correctness lanes, complete paired campaigns and explicit achieved/open targets |
+
+F0 starts first. R1 is the critical path to trustworthy default-profile results.
+V2 can be developed independently once its import baseline exists. M3, C4 and D5
+have separate owners and controls, but shared durability/contract changes must
+be integrated and requalified in order. Run owned heavy builds, disk proofs and
+timings sequentially. If a reliability reproducer proves that a focused D5 or C4
+change is necessary, bring that change forward with its own regression evidence;
+do not make a broad optimization a prerequisite without a demonstrated cause.
+
+##### F0 — Freeze the baseline and locate the costs
+
+Owners: existing [console](../../tests/performance/console/console_latency.py),
+[SDK](../../tests/performance/sdk/README.md),
+[installed workload](../../tests/performance/load/installed.md) runners and
+[domain-owned telemetry](../handbook/reference/observability.md).
+
+1. Build the current runtime, Zig consumer, native clients and installed packages
+   once from a committed source. Record source/definition, driver and binary hashes,
+   runtime/toolchain versions, host/CPU quota, filesystem/device, cache policy,
+   ordinary limits, maintenance and durability. Freeze both comparison arms before
+   timing; package installation and native compilation have separate durations.
+2. Re-run the existing small startup, console, SDK, managed and connection profiles.
+   Preserve failures and original private fixtures. Treat disabled-maintenance and
+   instrumented runs as separate diagnostics. Successful read consumption alone
+   does not establish snapshot release or joined client close.
+3. Add bounded owner counters/timers for admission/lock wait, catalog lookup,
+   snapshot acquisition, retained-state load, execution, row/byte encoding,
+   immutable staging, statement preparation, commit/publication, response delivery,
+   settlement and cleanup. Report file writes/syncs, logical WAL appends, physical
+   bytes and transport attempts separately. Do not add overlapping spans as wall
+   time or call every observed request a foreground commit.
+4. Record startup phase entry/completion and nested work totals, including worker
+   creation, recovery discovery and first-result setup. For clients, split module
+   import, native-host/open, first row, verified terminal, release and close.
+   Add warmed allocation/copy measurements at the owning boundary where feasible;
+   unavailable counts remain unavailable, and RSS is not an allocation count.
+5. Use stable bounded tags, existing correlation identities and explicit telemetry
+   drops/suppression. Keep payloads/credentials out of reports and machine stdout
+   intact. Prefer a bounded per-operation summary over increasing per-row logs;
+   telemetry failure must not stall progress or establish an outcome.
+6. Publish the proposed per-case budgets, sampling schedule and comparison controls
+   before optimization. Separate finite pressure tests from independently offered
+   load, and process-cold startup from a genuinely cold storage/cache experiment.
+
+**Exit:** one reproducible baseline artifact set, one failure inventory, and a
+cost breakdown sufficient to choose a concrete change. Failed cases stay open;
+F0 completion is not default-profile qualification.
+
+##### R1a–c — Explain and fix the original failure classes
+
+Use the [SQL session contract](../../contracts/SQL_SESSION_V1.md),
+[caller semantics](../handbook/reference/callers.md), `Registry`/`SourceSession`,
+the shared Catalog snapshot owner and the Query requester/worker. Investigate
+three cases separately until evidence establishes a shared cause:
+
+| PR | Reproducer and investigation | Required result |
+| --- | --- | --- |
+| R1a: captured Table recovery | Original operation 63 remains `ready` after gateway replacement and the 270-second wait. Trace saved request, fixed source cut, source lane, requester exit, `AuthorityTimeout` and rejected `open_view`/`DeadlineExpired`. Distinguish an expired execution attempt from the accepted operation's durable outcome. | Recover or report the original operation according to its contract; eliminate lost-wake/worker-exit stalls once dependencies and authorization permit progress. Prove replacement, delayed replies, expiry, denial and cancellation with unchanged deadlines. |
+| R1b: snapshot acquisition/release | Diagnose the earlier acquisition `Conflict` and the later Python `release_snapshot` uncertainty separately. Follow pin identity, maintenance epoch, publication/receipt loss, retained caller files and cleanup scheduling. | Lost acquisition/release replies settle through the original identity; changed cuts and unknown outcomes stay explicit. Reads retain their exact cut through maintenance; early close and process loss do not leak undiscoverable work. |
+| R1c: console cancellation | Reproduce first SELECT after DELETE failing after 36 verified statements. Identify the owner and trigger of cancellation, including result lifetime, lease, maintenance and deadline state. The traced fresh pass is a control, not an explanation. | Controlled regression, authoritative DELETE outcome and exact subsequent SELECT; cancellation/timeout remains distinct from rejection and completion. |
+
+Inspect retained failure artifacts using their matching source/definition. New
+current-main reproductions are separate installations and cannot settle an old
+operation. If the original outcome cannot be observed, retain that uncertainty
+explicitly. Tests should inject the identified event ordering rather than rely
+only on repeated timing runs. Split fixes by owner; combine only when a common
+cause and regression schedule justify it.
+
+**Exit:** documented causal explanation and meaningful negative control for each
+fix, passing default-maintenance console and all supported SDK cases, and complete
+`interfaces-sql` qualification including the previously unreached integrity,
+history, log-declaration and transaction tasks. Preserve existing fault/revocation
+checks. A new passing fixture alone does not close any retained uncertainty.
+
+##### V2 — Remove remaining measured SDK import compilation
+
+Owners: `sdks/ts/transit-client`, `sdks/ts/transit-station-sdk` and their package
+build/generation tooling. The shared eager validator map from #325 remains the
+control; do not repeat that optimization or defer work into the first call.
+
+1. Profile installed imports and inventory all runtime validator compilations,
+   including structured diagnostics. Confirm how much of import time and memory
+   belongs to compilation versus module loading/native package preparation.
+2. Generate validators at package build time from the canonical schemas with the
+   pinned compiler/options. Package generated JavaScript deterministically, add
+   regeneration/drift checks, and remove runtime compilation only where replaced.
+   Preserve strict validation, full-width values, errors and public diagnostics.
+3. Compare valid and invalid fixtures across both implementations, including nested
+   values, missing/foreign definitions, integer boundaries and malformed replies.
+   Test real installed packages and clean builds with no checkout-local dependency.
+4. Alternate fresh-process controls/candidates. Measure import wall/CPU/peak RSS,
+   package size/preparation, client open and first verified service result. Check
+   warm calls as well, so costs are not merely moved to another boundary.
+
+**Exit:** equivalent validation and a measured improvement with matching inputs.
+If compilation is no longer dominant, keep the profile and select the next proven
+cost rather than introducing a generator without an attributable benefit. Shared
+native changes, if needed later, require the other affected language checks.
+
+##### M3a–c — Batch managed output through the common transaction
+
+Owners: [`ManagedTable`](../../packages/zig/transit-query-direct/src/ManagedTable.zig),
+[`ManagedRevision`](../../packages/zig/transit-query-direct/src/ManagedRevision.zig),
+`DirectRecord` and `DirectTransactionClient`. Preserve
+[DATAFLOW_V1](../../contracts/DATAFLOW_V1.md) and the installed finite recomputation
+profile; this work does not introduce incremental computation.
+
+**M3a: representation and recovery contract.** Measure evaluation, guarded page
+encoding/staging, repeated schema/lookup work, per-row statement staging/execution,
+revision manifest publication and cleanup separately. Define byte/row-bounded
+multi-row pages and statement batches with exact sequence, ordinal, row-count,
+transaction and source-cut evidence. Model empty/final/partial batches and recovery
+between stages before wiring the implementation. Changes to persisted work/page
+meaning require a coordinated current-v1 definition cutover, generated fixtures
+and rejection of incompatible artifacts, not fallback decoding.
+
+**M3b: implementation.** Reuse bounded schema/preparation state within its valid
+lifetime, encode several rows per immutable page and stage bounded DML batches.
+Keep scratch reusable and retained/output allocations explicit. Yield between
+bounded recovery units so foreground/control work can advance. Batches remain
+private participants of one original transaction: output replacement, checkpoint,
+retained revision root and completion still publish in one common decision.
+Current authorization, lease fences and coverage checks remain at their owning
+boundaries; a cache is not permission to disclose or publish.
+
+**M3c: installed comparison and growth.** Start with the existing 3/16-row profiles,
+then 64/256 rows within unchanged public budgets. Vary history separately from
+output size. Verify every value, final count, immutable revision and first result
+after restart. Inject failure after page staging, after statement preparation,
+around the common decision and before cleanup; cover revoke/suspend/retire races,
+lost replies, empty results and the final batch's deadline.
+
+**Exit:** fewer measured staged records/statements/publications, lower full
+successor latency, and bounded memory without regressing foreground latency or
+recovery. A count reduction alone is insufficient. If evaluations dominate after
+batching, hand the measured operator cost to M12/M13 instead of claiming that
+finite recomputation has become incremental.
+
+##### C4a–b — Reduce shared SQL/SDK and durable-write overhead
+
+Owners: [shared data client](../../packages/zig/transit-data-client/README.md),
+[SQL client](../../packages/zig/transit-sql-client/README.md), `DatabaseRuntime`,
+Catalog token/transaction owners and local storage publication. Reuse implemented
+context, result and recovery abstractions; ordinary language SQL adapters remain
+an M9 capability dependency, not a benchmark-only substitute.
+The [direct Table contract](../../contracts/DIRECT_TABLE_V1.md) owns the acceptance,
+original-token, snapshot and common-transaction boundaries being optimized.
+
+**C4a: shared lifecycle costs.** Compare the same public operation in Zig and
+installed languages. Attribute metadata/pin work, durable caller-file writes,
+host crossings, conversions/copies, result consumption and release. Reuse clients,
+bounded buffers and immutable decoded state where existing lifetime/authority
+rules allow it. Add counting-allocator and ownership checks to selected warmed
+hot paths. Do not replace a durable snapshot query with an unpinned read to obtain
+a better number, or compare that lifecycle directly with a warm console SELECT.
+
+**C4b: durable write composition.** Measure single-client INSERT/UPDATE/DELETE
+first, separating token binding, intent staging, Table acceptance, commit evidence
+and settlement. Distinguish indispensable recovery records from reconstructible
+coordination/index state. Preserve already-landed publication batching. Select
+one reduction at a time: eliminate a redundant publication, batch independent
+barriers under proven ordering, or compose token/commit evidence in the owning
+database transaction. Do not add a lone-writer batch-fill delay.
+
+Before changing synchronization or accepted-state layout, extend the relevant
+write-lifecycle, object-publication, WAL and transaction models/correspondence
+checks. Run real-I/O failure and process-death schedules around every changed
+boundary, including lost commit replies, original-token replay after later writes,
+revocation and the existing 67-row atomic write. Process SIGKILL is not proof of
+host power-loss durability. Incompatible persisted meanings use the same current-v1
+cutover rules as M3.
+
+**Exit:** lower full console/SDK latency and measured publication/allocation work
+with the same durable semantics; no hidden growth in cleanup or maintenance debt.
+Stop a candidate that only improves bulk throughput while worsening the targeted
+interactive operation. Evaluate direct I/O/io_uring or broader compilation work
+only if the remaining profile and owning roadmap justify it.
+
+##### D5a–b — Make waits resumable before reducing workers
+
+Owners: `transit-sql-host`, `transit-http-server`, shared signed transport and
+`transit-io`. Reuse the existing sans-I/O protocol continuations and frame reserves.
+
+**D5a: deadline ownership.** Inventory timer-task races and authentication polling.
+Use absolute socket deadlines supported by the pinned I/O layer; specify the
+remaining non-socket/storage cancellation and completion ownership explicitly.
+Handle partial headers/frames, TLS progress, transport close and cancel/complete
+races without resetting budgets on each partial read. Join outstanding work
+before reusing buffers, connection slots or credentials.
+
+**D5b: scheduling and pool policy.** Move authentication and connection progress
+onto readiness-driven resumable work, then make runnable pools proportional to
+available CPU capacity with bounded admission and reserved control progress.
+Account for all co-hosted pools and blocking fallback work, not just SQL wire
+workers. Keep session, TLS, pending-I/O and stack reservations visible and bounded.
+Changing the multiplier from eight to a smaller constant is not this design.
+
+**Exit:** real PostgreSQL/MySQL and native clients pass fragmented input, stalled
+TLS/login, slow readers/writers, capacity refusal, revoke/cancel and joined shutdown
+schedules. Under identical admitted load, report thread count, CPU, RSS/PSS,
+queueing and foreground/control latency. Prove progress at the proposed pool size
+before making it the default. Maintain typed refusals separately from successful
+latency and do not infer a capacity cause from authentication SQLSTATE.
+
+##### S6a–b — Optimize the boot loop with realistic retained state
+
+Owners: installed server startup/SQL enrollment, node activation and their existing
+recovery owners. Preserve the readiness meaning and original installation identity.
+
+**S6a: extend the workload.** Keep default and headless fresh/restart profiles.
+Vary one dimension at a time: accounts, Tables/catalog entries, active computations,
+retained revisions, output rows and settled versus pending recovery. Begin with
+small bounded grids such as 1/4 accounts, 0/1/4 computations and 1/10/100 revisions;
+declare the actual combinations and budgets in F0. Add interrupted provisioning,
+unclean restart and unavailable-storage cases through existing fault owners.
+Distinguish expected refusal/readiness withdrawal from a successful fast boot.
+
+**S6b: measured changes.** Use phase and work counters to remove redundant reads,
+decoding, derived-file rewrites and recovery scans only where validated durable
+evidence makes them unnecessary. Retain paged discovery rather than fixed arrays
+or complete in-memory history. Overlap independent startup work only after its
+dependency, authorization and publication ordering is explicit. Measure D5's worker
+initialization contribution separately from journal/activation changes.
+
+**Exit:** readiness and first verified result improve on the matching profiles,
+including retained computation output. Preserve full artifact verification,
+disabled-account behavior, pending-work recovery and interrupted-bootstrap checks.
+If required recovery dominates, expose that work and optimize its owner; do not
+declare readiness early to move the latency into the first user request.
+
+##### E7 — Measure new main capabilities without conflating lifecycles
+
+This packet supplies controls for the other optimizations and extends existing
+owners as their public operations become available. M12 measurements are needed
+before accepting M3; the other profiles need not delay an independent V2 change.
+
+| Capability / owner | Measurements and correctness controls |
+| --- | --- |
+| Retained revisions / M12 | Manifest publication, fixed-revision open, first row, complete consumption, early close; authorization/root checks after buffering and at empty/terminal disclosure; encoded bytes, read attempts, checksum/decode/copy/allocation work and resident/storage growth. Verify original values/schema after successors, output edits, retirement and restart. |
+| Streams, queues and Station / M6 | Extend [log-runtime](../../tests/performance/storage/log_runtime.md) and [Station-turn](../../tests/performance/load/station_turn.md) owners: warm/sealed/cold reads, group settlement, key skew, delays, lease expiry, redelivery and offered load. Retain original accepted work and cold Queue recovery failures. Missing workload SQL/Station composition is a capability dependency. |
+| Catalogs and column semantics / M10 | Named capture/enumeration, historical metadata and release, schema projection, defaults/generated columns, composite/foreign-key integrity and collations. Vary object/column/history counts; distinguish metadata retention from data pins and accepted writes from pre-admission refusals. |
+| Encoded strings / M14 | Plain/dictionary/FSST controls through the real reader, with cardinality/selectivity/collation variation, verified raw values, page reads, materialized bytes and warmed allocations. Installed UTF-8 SDK coverage does not establish codec throughput. |
+| Incoming Document/parser/spatial work / M7, M16, M17 | Keep component paging/replay, parse-and-verify and spatial costs with their owners. Add installed profiles only when public adapters execute those contracts; do not manufacture private substitutes. |
+| Developer boot loop | Clean/incremental native compile/link, frontend build, package preparation and process startup separately, with exact cache identities. These do not contribute to a claimed runtime speedup. |
+
+For current M12, SQL revision inspection returns metadata; historical rows use
+the shared Zig reader. Saved roots/pages retain indefinitely and have no expiry,
+release or collection operation. Reader close frees local memory only. Measure
+retained storage growth; reclamation requires M12's separate lifetime contract.
+Datalog, hardware specialization and AOT query research remain later dependencies;
+future comparisons must include search, verification, compilation and activation.
+
+##### Q8 — Qualification, sampling and regression gates
+
+Every implementation PR includes its owner documentation, meaningful regression
+and fault checks, a matched measurement where applicable, and an explicit list
+of remaining failures. Keep contract/generated changes, implementation, consumer
+migration and evidence in logical commits; never leave an incompatible cutover
+split across mergeable partial PRs. Build from committed implementation HEAD.
+
+| Change | Required validation selection, expanded for actual dependencies |
+| --- | --- |
+| R1 / shared lifecycle | Owning deterministic/fault regressions; `interfaces-sql`, `sdks-scripting`, `installation-ui`; `interfaces-relational` and `storage-query` where Query/Catalog owners change |
+| V2 | Schema/diagnostic equivalence and generation checks; installed Node package tests and affected clean scripting/package checks |
+| M3 / C4 durable publication | Relevant model/negative controls and real storage/recovery schedules; affected `formal`, `storage-query`, `interfaces-sql`, `installation-ui` and client lanes |
+| D5 | Deadline/cancellation/allocation units and real wire pressure/fault schedules; affected `core`, `interfaces-sql`, `installation-ui` and other consumers of changed transport |
+| S6 / E7 | Owning installation/recovery or workload checks, independent report/oracle controls and affected clean lanes |
+
+Run `just ci clean --check fast` and affected `just ci clean --lane NAME` checks
+from the pinned environment before pushing implementation/test infrastructure.
+Use the repository's dependency selection; the table is not permission to omit
+additional affected lanes. Full clean integration/release qualification is a
+separate completion gate. A stopped lane leaves later tasks unreached, not passed.
+Documentation-only changes need link/fence/whitespace and affected site checks.
+
+For accepted final performance claims:
+
+1. Freeze control/candidate workload, host/storage settings, completion semantics
+   and drivers. Use at least three alternating matched pairs and at least 50
+   steady samples per arm/case. Use independent fresh processes for import/cold
+   startup; propose at least 50 imports per arm for its regression budget.
+2. Keep startup's separate schedule of 50 fresh and 50 retained starts per arm
+   for each default/headless profile. Declare additional growth/fault schedules
+   separately. State every sample count; do not infer p99 or an SLO from sparse data.
+3. Retain all warmups, failures, refusals, incomplete outcomes and cleanup results.
+   Include CPU, resident memory, allocations/copies where available, physical work,
+   foreground delay and maintenance/recovery debt. No retries or changed limits
+   may erase failed attempts. External host activity remains an explicit confounder.
+4. Separate diagnostics from uninstrumented timing. If a cutover changes the
+   definition, each arm uses its own matching artifacts and fresh fixture. Extend
+   comparison tooling only after the logical workload/outcome correspondence is
+   explicit; never disable the existing mismatch rejection to obtain a ratio.
+5. Add deterministic oracle, ownership and warmed-allocation checks to ordinary CI.
+   Enforce noisy wall-clock budgets on a controlled performance runner. Record
+   predeclared budgets before evaluating a candidate, and require a reasoned
+   tradeoff when latency, memory, CPU or recovery costs move in different directions.
+6. Rebuild and measure the combined merged source. Publish achieved versus open
+   objectives, raw artifact references/hashes, exact check selections and original
+   failure status. Update #211/#76 and M8/M9/M12; merged code or one microbenchmark
+   cannot close their broader gates.
+
+**Program completion:** the supported default workload matrix passes correctness
+and recovery at one committed source; its measured startup/statement goals and
+frozen SDK/resource budgets pass; comparisons justify each claimed improvement;
+and no unbounded backlog, hidden cleanup obligation or authorization weakening
+finances the gain. If a target remains unmet, select the next dominant measured
+cost and keep that target open rather than closing the program after one tranche.
+
+##### Recommended review and implementation order
+
+Approve the scope and measurement policy first: native-local default maintenance,
+the existing numeric targets, separate lifecycle scores, and model/fault gates for
+publication changes. F0 will propose the new workload budgets and feasible sample
+matrix from actual measurements; it does not invent performance guarantees now.
+
+The first implementation tranche is F0, R1a–c and V2. Follow with M3a–c and its
+retained-revision measurements, then measured C4 changes. D5 can be developed
+independently once F0 identifies its waits; integrate it before qualifying its S6
+startup contribution. E7 grows alongside the relevant owners. Q8 combines and
+qualifies the landed changes. A reliability cause may reorder a focused fix, but
+every optimization retains its own before/after control and recovery gates.
 
 #### Follow-up performance delivery — 2026-11-01
 
