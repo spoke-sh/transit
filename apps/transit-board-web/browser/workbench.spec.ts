@@ -27,9 +27,21 @@ test("home and feature access follow catalog and SQL configuration independently
   ).toBeVisible();
   catalog = true;
   sql = false;
+  let sqlRequests = 0;
+  page.on("request", (request) => {
+    if (request.url().endsWith("/api/v1/sql-read")) sqlRequests++;
+  });
   await page.goto("/");
   await expect(page).toHaveURL(/\/catalog$/);
   await expect(page.getByRole("link", { name: "items", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "items", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Preview rows", exact: true })).toBeDisabled();
+  await expect(page.getByText(/SQL connection is not configured\. Open Workbook/)).toBeVisible();
+  await page.getByRole("tab", { name: "Schema", exact: true }).click();
+  await expect(
+    page.getByRole("table", { name: "Declared logical types, codecs and collations", exact: true }),
+  ).toBeVisible();
+  expect(sqlRequests).toBe(0);
   await page.goto("/workbook");
   await expect(
     page.getByRole("heading", { name: "Workbook SQL connection is not configured" }),

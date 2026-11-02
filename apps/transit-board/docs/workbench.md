@@ -17,8 +17,10 @@ or SQL configuration is explained inside its workspace; navigation grants no
 additional access. The deployment-discovery route reports safe configuration
 flags independently of upstream authorization and health. Unconfigured pages
 issue no data reads and offer **Check availability** after configuring and
-restarting Board. Catalog-only and SQL-only configurations are supported;
-forwarding the HTTP listener through SSH does not create either connection.
+restarting Board. Catalog-only and SQL-only configurations are supported.
+Without SQL configuration, dataset definitions and relationships remain readable
+and **Preview rows** is disabled. Forwarding the HTTP listener through SSH does
+not create either connection.
 
 Dataset and workbook pages share one **Inspector**. **Dataset details** shows
 the selected definition and metadata basis. Selecting a schema column shows its

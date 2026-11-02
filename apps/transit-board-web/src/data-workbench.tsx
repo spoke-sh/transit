@@ -614,12 +614,13 @@ export function DatasetPage({ object, search }: { object: string; search: Datase
   );
 }
 function DatasetPageContent({ object, search }: { object: string; search: DatasetSearch }) {
+  const sqlConfigured = Boolean(useScope().scope?.features.sql);
   const [tab, setTab] = useState<"preview" | "schema" | "dependencies">("preview");
   const owner = useId();
   const [relationshipCursors, setRelationshipCursors] = useState<
     Record<"dependencies" | "dependents", CatalogDependencies["next"]>
   >({ dependencies: null, dependents: null });
-  const statement = useStatement();
+  const statement = useStatement(undefined, sqlConfigured);
   const state = useMetadata(
     JSON.stringify([object, search, tab === "dependencies", relationshipCursors]),
     async (signal) => {
@@ -717,7 +718,7 @@ function DatasetPageContent({ object, search }: { object: string; search: Datase
                   <div className="workbench-toolbar">
                     <button
                       className="primary"
-                      disabled={statement.busy}
+                      disabled={statement.busy || !sqlConfigured}
                       onClick={() =>
                         void statement.run(table.preview_sql, table.expected_definition)
                       }
@@ -729,8 +730,14 @@ function DatasetPageContent({ object, search }: { object: string; search: Datase
                       Explicit read · bounded window · no automatic query
                     </span>
                   </div>
+                  {!sqlConfigured && (
+                    <p role="status">
+                      SQL connection is not configured. Open Workbook for connection setup; dataset
+                      definitions and relationships remain available.
+                    </p>
+                  )}
                   <ResultPanel state={statement} preview parent={table.metadata.binding.name} />
-                  {!statement.view && !statement.error && !statement.busy && (
+                  {sqlConfigured && !statement.view && !statement.error && !statement.busy && (
                     <div className="workbench-empty">
                       <h2>Explore this dataset</h2>
                       <p>
