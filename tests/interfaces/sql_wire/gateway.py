@@ -209,6 +209,10 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                             config = json.loads(path.read_text())
                             config['tables']['url'] = session_faults.url
                             path.write_text(json.dumps(config))
+                            requester_path = root/'session-table-requester.json'
+                            requester = json.loads(requester_path.read_text())
+                            requester['url'] = session_faults.url
+                            requester_path.write_text(json.dumps(requester))
                         source_processes[name] = [start(host, root/f'session-{name}-{role}.json') for role in ('source', 'requester', 'courier')]
                 def restart_sessions(peer=False, wire=True, session_lease_ms=None, transaction_limits=None):
                     nonlocal server
@@ -438,6 +442,9 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                 session_faults.close()
                 if sys.exc_info()[0]:
                     print('Recent session authority rejections:', session_faults.rejections, file=sys.stderr)
+                    print('Expired view fault:', dict(attempts=session_faults.expired_view_attempts,
+                                                     refusals=session_faults.expired_view_refusals,
+                                                     reopened=session_faults.reopened_view is not None), file=sys.stderr)
             if sys.exc_info()[0]:
                 for log in logs:
                     log.flush()

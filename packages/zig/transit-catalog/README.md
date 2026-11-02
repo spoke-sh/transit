@@ -464,3 +464,14 @@ owner. `DirectCatalogDefinitions` projects bounded, owned metadata reads into
 metadata separately from Table pins; zero-source metadata catalogs are explicit.
 The [interpretation contract](../../../contracts/CATALOG_DEFINITIONS_V1.md) owns
 publication, identity, execution limits, current access and artifact verification.
+
+## Transaction-owned immutable records
+
+`DirectTransactionRecord.stage` registers guarded immutable result bytes against
+an acquired read-write transaction before creating them. Exact retries preserve
+the original reservation; commit refuses unfinished registration, and frozen
+transactions cannot add or recreate bytes. The paged catalog inventory shares
+the transaction workspace quota. `DirectStorageGraph` retains uncertain and
+committed records and releases aborted payloads only after complete cleanup.
+Ordinary saved records remain protected. See the [record ownership
+contract](../../../contracts/DIRECT_TABLE_V1.md#durable-client-token-bindings).

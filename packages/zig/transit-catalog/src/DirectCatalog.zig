@@ -1313,8 +1313,10 @@ pub fn directRecord(self: *Self, allocator: std.mem.Allocator, request: c.Direct
     if (!scope.connection.matches(self.config()) or scope.connection.principal != policy.subject.principal()) return error.CatalogDenied;
     const current = try self.guard(allocator, policy, null, null, .database);
     try check(current);
+    if (request == .stage_transaction) return self.stageTransactionRecord(allocator, request.stage_transaction, policy, current);
     const format = switch (request) {
         inline .stage, .read => |value| value.format,
+        .stage_transaction => unreachable,
     };
     // The cut is server-owned evidence. Generic caller records only check
     // CONNECT and cannot bypass its complete current Table disclosure checks.
@@ -1324,7 +1326,9 @@ pub fn directRecord(self: *Self, allocator: std.mem.Allocator, request: c.Direct
     if (format == c.DirectTransaction.Acquired.format or c.DirectTransactionWorkspace.reserved(format)) return error.TransactionOperationRequired;
     var disclosure: ?P.Guard = null;
     const result: c.DirectRecord.Result = switch (request) {
+        .stage_transaction => unreachable,
         .stage => |value| blk: {
+            if (value.format == c.DirectTransactionRecord.format) return error.TransactionOperationRequired;
             const bytes = try value.bytes.decode(allocator, c.DirectRecord.max_bytes);
             defer allocator.free(bytes);
             if (value.format & c.DirectRecord.guarded_bit != 0) {
@@ -1340,13 +1344,104 @@ pub fn directRecord(self: *Self, allocator: std.mem.Allocator, request: c.Direct
         .read => |value| blk: {
             const bytes = try c.DirectRecord.load(allocator, self.data_objects, value);
             defer allocator.free(bytes);
-            if (value.format & c.DirectRecord.guarded_bit != 0) disclosure = try self.recordReadGuard(allocator, scope.connection, bytes, policy);
+            if (value.format == c.DirectTransactionRecord.format) {
+                const envelope = try p.Json.parseFromSlice(c.DirectTransactionRecord.Envelope, allocator, bytes);
+                defer envelope.deinit();
+                try envelope.value.validate(value);
+                try self.requireTransactionRecord(allocator, envelope.value.transaction, value, policy);
+                const payload = try envelope.value.payload.decode(allocator, c.DirectRecord.max_bytes);
+                defer allocator.free(payload);
+                disclosure = try self.recordReadGuard(allocator, scope.connection, payload, policy);
+            } else if (value.format & c.DirectRecord.guarded_bit != 0) disclosure = try self.recordReadGuard(allocator, scope.connection, bytes, policy);
             break :blk .{ .reference = value, .bytes = try c.DirectTableProtocol.Binary.encode(allocator, bytes) };
         },
     };
     if (disclosure) |required| try check(required);
     try check(current);
     return result;
+}
+
+const TransactionRecord = c.DirectTransactionRecord;
+
+fn transactionRecords(self: *Self, key: c.DirectClientToken.Key) !TransactionRecord.Directory {
+    return TransactionRecord.directory(self.allocator, &self.store.index, self.store.root.transaction_records, key);
+}
+
+fn requireTransactionRecord(self: *Self, allocator: std.mem.Allocator, key: c.DirectClientToken.Key, reference: c.DirectRecord.Reference, policy: Policy) !void {
+    const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
+    try key.requireSame(progress.receipt.binding.key);
+    if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
+    const records = try self.transactionRecords(key);
+    const owned = try TransactionRecord.entry(allocator, &self.store.index, records, reference.content) orelse return error.InvalidTransactionRecord;
+    if (!owned.ready) return error.TransactionRecordPending;
+    if (progress.record) |saved| if (saved.format == TransactionControl.format) {
+        const control = try TransactionControl.load(allocator, self.data_objects, progress);
+        if (control.decision) |decision| if (decision.outcome == .aborted) return error.TransactionRecordClosed;
+    };
+}
+
+/// Serialized with transaction freeze and storage collection by the host.
+/// Inventory admission never changes the transaction's retained read revision.
+fn stageTransactionRecord(self: *Self, allocator: std.mem.Allocator, request: TransactionRecord.Request, policy: Policy, current: P.Guard) !c.DirectRecord.Result {
+    const key = request.transaction;
+    const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
+    try key.requireSame(progress.receipt.binding.key);
+    if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
+    try self.requireTransactionMutation(progress.receipt);
+    const payload = try request.bytes.decode(allocator, c.DirectRecord.max_bytes);
+    defer allocator.free(payload);
+    const guarded = try p.Json.parseFromSlice(c.DirectRecord.Guarded, allocator, payload);
+    defer guarded.deinit();
+    try guarded.value.validate(key.connection);
+    const bytes = try TransactionRecord.encode(allocator, key, request.format, payload);
+    defer allocator.free(bytes);
+    const reference = try c.DirectRecord.reference(key.scope(), TransactionRecord.format, bytes);
+    var directory = try self.transactionRecords(key);
+    const known = try TransactionRecord.entry(allocator, &self.store.index, directory, reference.content);
+    // Once frozen, even an exact retry cannot create bytes. A ready committed
+    // record can still return its original reference, subject to current rights.
+    if (progress.record != null and progress.record.?.format == TransactionControl.format) {
+        const control = try TransactionControl.load(allocator, self.data_objects, progress);
+        if (control.decision) |decision| if (decision.outcome == .aborted) return error.TransactionRecordClosed;
+        if (known == null or !known.?.ready) return error.TransactionFrozen;
+        const retained = try c.DirectRecord.load(allocator, self.data_objects, reference);
+        defer allocator.free(retained);
+        try check(current);
+        return .{ .reference = reference, .bytes = null };
+    }
+    const head = try TransactionWorkspace.recover(allocator, self.data_objects, progress);
+    if (head.acquired.cut.begin.mode == .read_only) return error.ReadOnlyTransaction;
+    if (known == null) {
+        directory.count = try std.math.add(u64, directory.count, 1);
+        directory.pending = try std.math.add(u64, directory.pending, 1);
+        directory.bytes = try std.math.add(u64, directory.bytes, try std.math.add(u64, bytes.len, TransactionRecord.metadata_charge));
+        if (try std.math.add(u64, head.charged_bytes, directory.bytes) > head.acquired.cut.begin.limits.workspace_bytes) return error.TransactionWorkspaceLimit;
+        try self.publishTransactionRecord(key, &directory, .{ .content = reference.content, .ready = false }, current);
+    } else if (known.?.ready) {
+        // Do not silently recreate a lost accepted object.
+        const retained = try c.DirectRecord.load(allocator, self.data_objects, reference);
+        defer allocator.free(retained);
+        try check(current);
+        return .{ .reference = reference, .bytes = null };
+    }
+    try check(current);
+    try reference.requireSame(try c.DirectRecord.store(self.data_objects, key.scope(), TransactionRecord.format, bytes));
+    directory.pending = try std.math.sub(u64, directory.pending, 1);
+    try self.publishTransactionRecord(key, &directory, .{ .content = reference.content, .ready = true }, current);
+    try check(current);
+    return .{ .reference = reference, .bytes = null };
+}
+
+fn publishTransactionRecord(self: *Self, key: c.DirectClientToken.Key, directory: *TransactionRecord.Directory, owned: TransactionRecord.Entry, current: P.Guard) !void {
+    var next = self.store.root;
+    next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
+    var batch: s.TreeStore.Batch = .{};
+    try self.store.index.beginBatch(self.options.index_work_bytes, &batch);
+    defer self.store.index.end();
+    directory.entries = try self.store.tree().put(directory.entries, try TransactionRecord.entryKey(owned.content), try r.pageValue(owned));
+    try directory.validate();
+    next.transaction_records = try self.store.tree().put(next.transaction_records, try TransactionRecord.ownerKey(key), try r.pageValue(directory.*));
+    try self.store.publish(next, .{ .transaction_record = .{ .transaction = key, .entry = owned } }, current);
 }
 
 /// Read policy belongs to the storage owner, including raw record reads. A
@@ -2596,7 +2691,8 @@ pub fn publishTransactionWorkspace(self: *Self, prior: c.DirectClientToken.Progr
     // Reserve the fixed metadata ceiling before staging. This conservative
     // charge includes header growth without a self-referential byte count.
     const charge = try std.math.add(u64, staging.used, TransactionWorkspace.max_bytes);
-    if (charge > staging.limit) return error.TransactionWorkspaceLimit;
+    const records = try self.transactionRecords(prior.receipt.binding.key);
+    if (try std.math.add(u64, charge, records.bytes) > staging.limit) return error.TransactionWorkspaceLimit;
     var progress = prior;
     var next = self.store.root;
     next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
@@ -3087,6 +3183,7 @@ fn freezeTransaction(self: *Self, progress: *c.DirectClientToken.Progress, opera
     const begin = progress.receipt.binding.intent.transaction.begin;
     const head = if (progress.record != null) try TransactionWorkspace.recover(self.allocator, self.data_objects, progress.*) else null;
     if (command == .commit) {
+        if ((try self.transactionRecords(progress.receipt.binding.key)).pending != 0) return error.TransactionRecordPending;
         if (head == null) return error.TransactionCutNotAcquired;
         if (head.?.pending_control != null) return error.TransactionControlPending;
         if (head.?.pending != null) return error.TransactionStatementPending;

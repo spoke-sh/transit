@@ -110,7 +110,12 @@ their exact WAL/archive frames. Explicit `TablePartition.expireHistory` can make
 old history eligible; collection separately establishes whether remaining owners
 need it. Releasing a snapshot does not expire logical history. Unknown object
 namespaces, permanent operation identity reservations and saved direct-intent
-references stay retained.
+references stay retained. The `transaction-records/` namespace is collectible:
+its paged catalog inventory protects active, uncertain and committed transaction
+records, and releases only payloads whose authoritative abort cleanup completed.
+Historical inventory pages remain replay evidence. Missing pending payloads are
+allowed before creation; missing ready payloads fail the pass. Later creation
+uses a newer allocation epoch. Generic `direct-records/` remains retained.
 
 Stream roots retain their current and recovery directories, accepted checkpoint,
 exact declarations, producer/group progress, original receipts and live finite

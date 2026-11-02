@@ -9244,3 +9244,185 @@ test "historical metadata-only foreign catalog retains decoder and captured byte
     } else return error.FixtureBudget;
     try t.expectError(error.HistoricalSnapshotReleased, catalog.historicalDefinition(allocator, snapshot, 1, try .init("mainframe"), false, access.policy()));
 }
+
+fn ownedRecordTransaction(catalog: *D, access: *Access, operation: u64, token: u8, mode: p.Transaction.Mode, workspace_bytes: u64) !c.DirectClientToken.Key {
+    const template = try transactionToken(catalog, operation, token, 0);
+    var limits = c.DirectTransaction.default_limits;
+    limits.workspace_bytes = workspace_bytes;
+    const receipt = try catalog.beginTransaction(.{
+        .key = template.key,
+        .fingerprint = template.fingerprint,
+        .operation = template.intent.transaction.identity(),
+        .namespace = 1,
+        .mode = mode,
+        .selection = .authorized_catalog_tables,
+        .limits = limits,
+        .budget = template.budget,
+    }, access.policy());
+    _ = try catalog.acquireTransaction(receipt.binding.key, access.policy());
+    return receipt.binding.key;
+}
+
+// These are storage-owner tests. The installed managed-table schedule separately
+// exercises the real service, transaction settlement and retained reader.
+test "transaction record reservation retry quota disclosure and abort closure survive disk recovery" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const create = try creation(10, 100, "events");
+    _ = try catalog.admit(create, access.policy());
+    _ = try catalog.perform(create.binding, access.policy());
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const R = c.DirectTransactionRecord;
+    const key = try ownedRecordTransaction(&catalog, &access, 9500, 20, .serializable, 1024 * 1024);
+    const guarded = try c.DirectRecord.encodeGuarded(allocator, key.connection, .{ create.binding.target, null, null }, "candidate");
+    const request: c.DirectRecord.Request = .{ .stage_transaction = .{ .transaction = key, .format = c.DirectRecord.guarded_bit | 17, .bytes = try c.DirectTableProtocol.Binary.encode(allocator, guarded) } };
+    const bytes = try R.encode(allocator, key, request.stage_transaction.format, guarded);
+    const reference = try c.DirectRecord.reference(key.scope(), R.format, bytes);
+    const prior = (try catalog.clientProgress(.{ .inspect = key }, access.policy())).state.?;
+    catalog.store.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.directRecord(allocator, request, access.policy()));
+    catalog.deinit();
+    catalog = try owner(&wal, &objects);
+    var inventory = try R.directory(allocator, &catalog.store.index, catalog.store.root.transaction_records, key);
+    try t.expectEqual(@as(u64, 1), inventory.pending);
+    const settlement: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 9600 };
+    try t.expectError(error.TransactionRecordPending, catalog.settleTransaction(key, settlement, .commit, 32, access.policy()));
+    // After the reservation's lost reply, lose the ready publication's reply.
+    // The immutable bytes exist, but neither loss changes the retained read cut.
+    catalog.store.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.directRecord(allocator, request, access.policy()));
+    catalog.deinit();
+    catalog = try owner(&wal, &objects);
+    try reference.requireSame((try catalog.directRecord(allocator, request, access.policy())).reference);
+    inventory = try R.directory(allocator, &catalog.store.index, catalog.store.root.transaction_records, key);
+    try t.expectEqual(@as(u64, 0), inventory.pending);
+    try t.expectEqual(@as(u64, 1), inventory.count);
+    try t.expectEqualDeep(prior.revision, (try catalog.clientProgress(.{ .inspect = key }, access.policy())).state.?.revision);
+    _ = try catalog.directRecord(allocator, .{ .read = reference }, access.policy());
+    access.denied_privileges = .{ .id = 110, .mask = a.select };
+    try t.expectError(error.CatalogDenied, catalog.directRecord(allocator, .{ .read = reference }, access.policy()));
+    access.denied_privileges = null;
+    try t.expectError(error.TransactionOperationRequired, catalog.directRecord(allocator, .{ .stage = .{ .scope = key.scope(), .format = R.format, .bytes = try c.DirectTableProtocol.Binary.encode(allocator, bytes) } }, access.policy()));
+    for (0..8) |_| {
+        const status = try catalog.settleTransaction(key, settlement, .abort, 32, access.policy());
+        if (status.cleanup_complete) break;
+    } else return error.FixtureBudget;
+    try t.expectError(error.TransactionRecordClosed, catalog.directRecord(allocator, request, access.policy()));
+    try t.expectError(error.TransactionRecordClosed, catalog.directRecord(allocator, .{ .read = reference }, access.policy()));
+    var name: [96]u8 = undefined;
+    try objects.objectStore().delete(try c.DirectRecord.key(reference, &name));
+    catalog.deinit();
+    catalog = try owner(&wal, &objects);
+    try t.expectError(error.TransactionRecordClosed, catalog.directRecord(allocator, request, access.policy()));
+    try t.expect(try objects.objectStore().head(try c.DirectRecord.key(reference, &name)) == null);
+    const read_only = try ownedRecordTransaction(&catalog, &access, 9501, 21, .read_only, 1024 * 1024);
+    var refused = request;
+    refused.stage_transaction.transaction = read_only;
+    try t.expectError(error.ReadOnlyTransaction, catalog.directRecord(allocator, refused, access.policy()));
+    const small = try ownedRecordTransaction(&catalog, &access, 9502, 22, .serializable, 16 * 1024);
+    refused.stage_transaction.transaction = small;
+    try t.expectError(error.TransactionWorkspaceLimit, catalog.directRecord(allocator, refused, access.policy()));
+}
+
+test "transaction record graph retains uncertain and committed payloads and releases closed aborts" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const create = try creation(10, 100, "events");
+    _ = try catalog.admit(create, access.policy());
+    _ = try catalog.perform(create.binding, access.policy());
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    var references: [3]c.DirectRecord.Reference = undefined;
+    var requests: [3]c.DirectRecord.Request = undefined;
+    for (&references, &requests, 0..) |*reference, *request, i| {
+        const key = try ownedRecordTransaction(&catalog, &access, 9500 + i, @intCast(20 + i), .serializable, 1024 * 1024);
+        const guarded = try c.DirectRecord.encodeGuarded(allocator, key.connection, .{ create.binding.target, null, null }, "candidate");
+        request.* = .{ .stage_transaction = .{ .transaction = key, .format = c.DirectRecord.guarded_bit | 17, .bytes = try c.DirectTableProtocol.Binary.encode(allocator, guarded) } };
+        reference.* = (try catalog.directRecord(allocator, request.*, access.policy())).reference;
+        // Cross multiple durable inventory leaves with one resident page.
+        for (0..17) |ordinal| {
+            var extra = request.*;
+            extra.stage_transaction.format += @intCast(ordinal + 1);
+            _ = try catalog.directRecord(allocator, extra, access.policy());
+        }
+        if (i == 0) continue; // Still uncertain: no terminal decision exists.
+        for (0..8) |_| {
+            const status = try catalog.settleTransaction(key, .{ .scope = scope, .principal = 1, .operation = 9600 + i }, if (i == 1) .commit else .abort, 32, access.policy());
+            if (status.cleanup_complete) break;
+        } else return error.FixtureBudget;
+    }
+    // A committed retry may observe an existing record but cannot add a new one.
+    try references[1].requireSame((try catalog.directRecord(allocator, requests[1], access.policy())).reference);
+    var frozen_extra = requests[1];
+    frozen_extra.stage_transaction.format += 100;
+    try t.expectError(error.TransactionFrozen, catalog.directRecord(allocator, frozen_extra, access.policy()));
+    var workspace: @import("direct_storage_graph_test.zig").Workspace = .{};
+    defer workspace.deinit();
+    try workspace.enqueue(.{ .catalog_history = try .init(try catalog.store.recoveryState()) });
+    {
+        var view = (try resolve(&catalog, &access, "events")).?;
+        defer view.deinit();
+        const cut = try view.table.recoveryState();
+        try workspace.enqueue(.{ .table_history = try .init(.{ .root = cut.root, .chain = cut.chain }) });
+    }
+    var at: usize = 0;
+    var steps: usize = 0;
+    while (at < workspace.jobs.items.len) : (at += 1) {
+        var work = workspace.jobs.items[at];
+        while (true) {
+            const done = try c.DirectStorageGraph.step(t.allocator, &catalog.store.index, wal.log(), &work, &workspace);
+            steps += 1;
+            if (steps > 100000) return error.FixtureBudget;
+            if (done) break;
+        }
+    }
+    var name: [96]u8 = undefined;
+    for (references, 0..) |reference, i| {
+        const path = try c.DirectRecord.key(reference, &name);
+        try t.expect(c.DirectStorageGraph.collectible(path));
+        try t.expectEqual(i != 2, workspace.marks.contains(path));
+    }
+    try t.expect(!c.DirectStorageGraph.collectible("direct-records/unrelated.data"));
+    at = 0;
+    while (at < objects.objects.items.len) {
+        const item = objects.objects.items[at];
+        if (c.DirectStorageGraph.collectible(item.key) and !workspace.marks.contains(item.key)) try objects.objectStore().delete(item.key) else at += 1;
+    }
+    catalog.deinit();
+    catalog = try owner(&wal, &objects);
+    for (references[0..2]) |reference| _ = try catalog.directRecord(allocator, .{ .read = reference }, access.policy());
+    for (requests, 0..) |request, i| {
+        for (0..17) |ordinal| {
+            var extra = request;
+            extra.stage_transaction.format += @intCast(ordinal + 1);
+            if (i == 2) {
+                try t.expectError(error.TransactionRecordClosed, catalog.directRecord(allocator, extra, access.policy()));
+            } else {
+                const reference = (try catalog.directRecord(allocator, extra, access.policy())).reference;
+                _ = try catalog.directRecord(allocator, .{ .read = reference }, access.policy());
+            }
+        }
+    }
+    try t.expectError(error.TransactionRecordClosed, catalog.directRecord(allocator, requests[2], access.policy()));
+    try t.expect(try objects.objectStore().head(try c.DirectRecord.key(references[2], &name)) == null);
+    // Accepted committed bytes cannot be reconstructed if storage loses them.
+    try objects.objectStore().delete(try c.DirectRecord.key(references[1], &name));
+    try t.expectError(error.DirectRecordMissing, catalog.directRecord(allocator, requests[1], access.policy()));
+}

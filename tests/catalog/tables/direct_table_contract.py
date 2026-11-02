@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "afac2bd84560136ca90c0683afdffb8f71d5f96568b05dd3de773ce3c5339b2a"
+definition = "c3cbdfe99cdb08a8a21cc2429783fd746b1311b096d9ca8371058e1abb037b64"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -697,6 +697,26 @@ token_digest = hashlib.sha256(b"transit.catalog.client-token.v1\0" +
     struct.pack("<4Q", 42, 3, 2**64 - 1, 4) + bytes([11] * 32) + bytes([12] * 16)).digest()
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-client-token-v1.json",
         (json.dumps({"request": token_request, "public_key": public_key, "key_digest": list(token_digest)}, ensure_ascii=False, indent=2) + "\n").encode())
+
+# Transaction-owned records bind the original owner, inner guarded format and
+# immutable payload in the signed native request. Missing/foreign owners reject.
+owned_input = {**request_input, "action": {"record": {"stage_transaction": {
+    "transaction": token_key, "format": 0xC4465031, "bytes": {"base64": base64.b64encode(b"guarded-fixture").decode()}}}}}
+owned_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(owned_input)).digest())}
+with tempfile.TemporaryDirectory(prefix="transit-owned-record-contract-") as directory:
+    signing_key = Key(Path(directory), "public-test-key", 9)
+    owned_request = {**owned_input, "proof": {"claim": owned_claim,
+        "signature": signing_key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(owned_claim)).digest())}}
+validator.validate(owned_request)
+for field in ("transaction", "format", "bytes"):
+    invalid = copy.deepcopy(owned_request)
+    del invalid["action"]["record"]["stage_transaction"][field]
+    assert not validator.is_valid(invalid), field
+invalid = copy.deepcopy(owned_request)
+invalid["action"]["record"]["stage_transaction"]["transaction"]["definition"] = "0" * 64
+assert not validator.is_valid(invalid)
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-transaction-record-v1.json",
+        (json.dumps({"request": owned_request, "public_key": public_key}, ensure_ascii=False, indent=2) + "\n").encode())
 
 # A log declaration token commits to its complete canonical saved body before
 # declaration admission. Content, account and the original binding are explicit.

@@ -594,8 +594,12 @@ SQL computations use 16 MiB each for query resident memory, spill and encoded
 result pages, at most 10,000 result rows, 1,000,000 execution steps and 10,000
 source requests. Immutable declaration/work/result records and revision keys
 use paged durable storage and the existing catalog/account quotas. Saved records
-have unlimited retention; this profile does not reclaim abandoned immutable
-staging records or expire completed revisions. Retirement is not data deletion.
+keep declaration/work recovery evidence and completed revisions indefinitely.
+Candidate result pages and manifests belong to their original transaction.
+The direct collector can reclaim them only after an authoritative abort and
+complete transaction cleanup; uncertain work remains protected. Each staged
+record charges its encoded envelope plus 32 KiB of metadata allowance against
+the transaction workspace quota. Retirement is not data deletion.
 
 The consumer is `finite_recomputation`: it can consolidate intervening source
 changes into a new complete relation. It does not expose every-change delivery,

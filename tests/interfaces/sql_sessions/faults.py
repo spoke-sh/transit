@@ -13,6 +13,13 @@ from urllib.parse import urlsplit
 class Faults:
     def __init__(self, url):
         target = urlsplit(url)
+        self.expire_view_principal = None
+        self.expired_view = None
+        self.expired_view_bytes = None
+        self.reopened_view = None
+        self.expired_view_attempts = 0
+        self.expired_view_refusals = 0
+        self.observed_view_opens = set()
         self.fail_transaction_once = False
         self.transaction_reply_losses = 0
         self.fail_commit_once = False
@@ -49,6 +56,41 @@ class Faults:
                 envelope = request.get('query', {})
                 query = envelope.get('kind', {})
                 table = request.get('action', {}) if self.path == '/table/v1' else {}
+                # Keep one original signed view open until its real read window
+                # expires. The worker must retry those exact bytes through lost
+                # waits, then renew only after the authority rejects that open.
+                native = request.get('request', {})
+                opening = native.get('command', {}).get('open_view')
+                wait_until = None
+                reopened = False
+                with owner.lock:
+                    # An already forwarded open may have an accepted receipt.
+                    # Delay only a newly observed proposal, never infer rejection
+                    # from expiry of an earlier uncertain accepted command.
+                    fresh = False
+                    if opening is not None:
+                        key = (native.get('principal'), native.get('sequence'), opening['deadline_ms'])
+                        fresh = key not in owner.observed_view_opens
+                        owner.observed_view_opens.add(key)
+                    if opening is not None and native.get('principal') == owner.expire_view_principal and (owner.expired_view is not None or (fresh and opening['deadline_ms'] > time.time()*1000 + 500)):
+                        if owner.expired_view is None:
+                            owner.expired_view = native
+                            owner.expired_view_bytes = content
+                        original = owner.expired_view
+                        previous = original['command']['open_view']
+                        if opening['deadline_ms'] == previous['deadline_ms']:
+                            assert native == original and content == owner.expired_view_bytes, 'Uncertain view open changed before rejection'
+                            owner.expired_view_attempts += 1
+                            wait_until = previous['deadline_ms'] / 1000 + .05
+                        elif owner.reopened_view is None:
+                            assert {key: value for key, value in opening.items() if key != 'deadline_ms'} == {
+                                key: value for key, value in previous.items() if key != 'deadline_ms'}, 'Renewal changed the original input or view basis'
+                            assert native['sequence'] == original['sequence'], 'Rejected open consumed a sequence'
+                            assert opening['deadline_ms'] > previous['deadline_ms']
+                            assert owner.expired_view_refusals > 0, 'View renewed before explicit rejection'
+                            reopened = True
+                if wait_until is not None:
+                    time.sleep(max(0, wait_until-time.time()))
                 before_pin = None
                 explain_failure = False
                 with owner.lock:
@@ -143,6 +185,12 @@ class Faults:
                         content_type = response.getheader('Content-Type', 'application/json')
                     finally:
                         upstream.close()
+                with owner.lock:
+                    if wait_until is not None and status == 422 and json.loads(body).get('err') == 'DeadlineExpired':
+                        owner.expired_view_refusals += 1
+                    if reopened and status == 200:
+                        owner.reopened_view = native
+                        owner.expire_view_principal = None
                 # Lose a successful data-owner reply after it has reached the
                 # proxy. The service must recover this original frozen request.
                 with owner.lock:

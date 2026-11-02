@@ -37,6 +37,25 @@ async def resolved(value):
     return await value if inspect.isawaitable(value) else value
 
 
+async def snapshot_failure(client, root, owner, operation):
+    # Read only the original owner. Preserve this failed sample even when status
+    # proves the pin exists or the release completed after its reply was lost.
+    try:
+        status = await resolved(client.snapshot_status(owner))
+        record = dict(owner=json.loads(owner.save()),
+                      current_position=dict(partition=str(status.current_position.partition),
+                                            next_lsn=str(status.current_position.next_lsn)),
+                      snapshot=json.loads(status.snapshot.save()) if status.snapshot else None,
+                      released=status.released, retired=status.retired)
+        persist(root / 'snapshot-failure.json', json.dumps(record))
+        print(json.dumps(dict(phase='snapshot_failure', operation=operation,
+                              retained=status.snapshot is not None, released=status.released,
+                              retired=status.retired)), file=sys.stderr, flush=True)
+    except Exception as failure:
+        print(json.dumps(dict(phase='snapshot_status_failed', error_type=type(failure).__name__)),
+              file=sys.stderr, flush=True)
+
+
 async def main(mode, config_file):
     assert Path(m.__file__).is_relative_to(Path(sys.prefix)), 'SDK is not installed'
     config = json.loads(Path(config_file).read_text())
@@ -75,7 +94,11 @@ async def main(mode, config_file):
                 current = await resolved(client.lookup(request['name']))
                 acquisition = client.prepare_snapshot(current.basis, current.position, int(request['id']))
                 persist(root / 'pending.json', acquisition.save())
-                snapshot = await resolved(client.acquire_snapshot(acquisition))
+                try:
+                    snapshot = await resolved(client.acquire_snapshot(acquisition))
+                except Exception:
+                    await snapshot_failure(client, root, acquisition.owner, 'acquire')
+                    raise
                 persist(root / 'snapshot.json', snapshot.save())
                 opened = None
                 try:
@@ -112,7 +135,11 @@ async def main(mode, config_file):
                         if opened is not None:
                             await resolved(query.close_query(opened.reference))
                     finally:
-                        await resolved(client.release_snapshot(snapshot))
+                        try:
+                            await resolved(client.release_snapshot(snapshot))
+                        except Exception:
+                            await snapshot_failure(client, root, acquisition.owner, 'release')
+                            raise
             elif operation == 'write':
                 work = await resolved(client.compile_sql(request['sql'], m.Identity(int(request['id']))))
                 persist(root / 'pending.json', work.saved.save())
@@ -141,4 +168,20 @@ async def main(mode, config_file):
 
 
 if __name__ == '__main__':
-    asyncio.run(main(*sys.argv[1:]))
+    try:
+        asyncio.run(main(*sys.argv[1:]))
+    except BaseException as failure:
+        # Retain public failure classification without serializing saved work,
+        # diagnostics, credentials or values. The driver still fails the campaign.
+        causes = []
+        current = failure
+        for _ in range(4):
+            if current is None:
+                break
+            code = getattr(current, 'code', None)
+            causes.append(dict(error_type=type(current).__name__,
+                               status=getattr(current, 'status', None),
+                               code=code if isinstance(code, str) and code.isascii() and code.isidentifier() and len(code) <= 96 else None))
+            current = current.__cause__ or current.__context__
+        print(json.dumps(dict(phase='consumer_failure', causes=causes)), file=sys.stderr, flush=True)
+        raise

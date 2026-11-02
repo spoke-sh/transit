@@ -1978,6 +1978,7 @@
         "Two consoles, independent settings across HTTP replacement, shared capacity with independently admitted controls, idle expiry and no cross-session cancellation",
         "Exact last-batch retry, invalid ordinal interruption, cached-batch revocation and failed snapshot acquisition without publishing a partial cursor",
         "Table/configuration/captured tokens survive SQL service replacement, conflicting content rejects, original retained source results are verified, and captured cancellation settles published steps",
+        "Captured Table recovery preserves byte-identical uncertain view opens through deadline expiry, then renews only after definitive rejection without changing the original SQL operation or its retained rows",
         "Lost execute reply discovers the original operation, rejected ingress creates no operation, paused owner or client output does not hold another console",
         "Local enrollment and recovery preserve authority across restart; optional wire listeners are independent of native admission",
         "Direct Table EXPLAIN derives typed traits using metadata-only grants, rejects SELECT without read rights, acquires no data pins or scans, and rechecks authorization on repeated terminal disclosure"

@@ -35,7 +35,12 @@ owned work and releases native buffers; read results retain their documented
 ownership. See [caller semantics](../docs/handbook/reference/callers.md).
 
 `just bindings::generate` regenerates declarations and embedded schemas from Zig
-exports. `just bindings::check` detects drift. No legacy generic handler package,
+exports. It also compiles the Node SDK validators and records their deterministic
+digests and declarations; the generated JavaScript is an ignored build output.
+`just bindings::check` verifies those digests and regenerates the JavaScript.
+Node packaging repeats the check and installs the generated functions alongside
+the compiled SDK. `just bindings::node-check` compares validation and complete
+Ajv error details with the runtime compiler across valid and malformed fixtures. No legacy generic handler package,
 compatibility alias or alternative protocol profile is installed.
 
 ## Source ownership

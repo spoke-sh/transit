@@ -53,6 +53,15 @@ signed operation. Renewal reobserves the same durable input and current command
 sequence; an earlier accepted view-open command has already consumed its sequence.
 This worker recovery rule does not reopen an interrupted SQL result cursor.
 
+A host can call `GenServer.retryExpiredOpen(failure, now_ms)` after dispatch
+fails. It permits another view-open proposal only for an explicit
+`DeadlineExpired` rejection after the proposed read deadline. Native receipt
+lookup precedes deadline validation, so this rejection establishes that the
+original open was not accepted. Transport loss, another rejection, a deadline
+still in the future, or a pending turn commit leaves the exact proposal intact.
+The next poll reobserves current metadata and the same durable input before
+proposing a new read window. Local clock passage alone never permits renewal.
+
 An unresolved operation stays ahead of the next handler as an exact signed
 proposal. The same host retries those bytes. After host loss, acquire fresh
 ownership before recomputation: the previous activation is fenced and the

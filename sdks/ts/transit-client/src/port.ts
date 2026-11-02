@@ -3,7 +3,7 @@ import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Ajv, type AnySchema, type ValidateFunction } from "ajv";
+import type { Validator } from "./validation.ts";
 import {
   Busy,
   Closed,
@@ -47,12 +47,6 @@ function boundedJson(value: unknown, maximum: number): boolean {
   }
   return visit(value, 0);
 }
-export function validators(schemas: Record<string, unknown>): Record<string, ValidateFunction> {
-  const ajv = new Ajv({ strict: true });
-  return Object.fromEntries(
-    Object.entries(schemas).map(([name, schema]) => [name, ajv.compile(schema as AnySchema)]),
-  );
-}
 interface Pending {
   readonly resolve: (value: unknown) => void;
   readonly reject: (error: TransitError) => void;
@@ -61,14 +55,14 @@ interface Pending {
   readonly timer: ReturnType<typeof setTimeout>;
   readonly phase: string;
   readonly mutation: boolean;
-  readonly validator?: ValidateFunction;
+  readonly validator?: Validator;
 }
 
 /** Internal package interface. No caller protocol or Station semantics live here. */
 export class Port {
   readonly #child: ChildProcessWithoutNullStreams;
   readonly #directory: string;
-  readonly #requestValidator: ValidateFunction;
+  readonly #requestValidator: Validator;
   readonly #maximumLine: number;
   readonly #exit: Promise<void>;
   #pending: Pending | undefined;
@@ -80,7 +74,7 @@ export class Port {
     executable: string,
     file: string,
     directory: string,
-    validate: ValidateFunction,
+    validate: Validator,
     maximum: number,
   ) {
     this.#directory = directory;
@@ -102,7 +96,7 @@ export class Port {
   static async open(
     executable: string,
     configuration: object,
-    validate: ValidateFunction,
+    validate: Validator,
     maximum: number = maximumLine,
   ): Promise<Port> {
     if (!Number.isSafeInteger(maximum) || maximum < 1 || maximum > 64 * 1024 * 1024)
@@ -201,7 +195,7 @@ export class Port {
   }
   request(
     input: object,
-    options: { phase: string; mutation?: boolean; validator?: ValidateFunction },
+    options: { phase: string; mutation?: boolean; validator?: Validator },
   ): Promise<unknown> {
     if (this.#closed || this.#closing) return Promise.reject(new Closed("Native host is closed"));
     if (this.#pending) return Promise.reject(new Busy("One native request per host"));

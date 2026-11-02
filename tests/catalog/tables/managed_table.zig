@@ -142,6 +142,10 @@ pub fn prepare(init: std.process.Init, client: c.DirectTableClient, path: []cons
     try count(client, 0);
     try t.expectError(error.DataflowRevisionNotFound, q.ManagedRevision.open(manager, declaration, 1, .{}));
     const pending = (try manager.start(declaration)).?;
+    try t.expect(try manager.step(pending, init.io, .cwd(), null)); // Acquire.
+    try t.expectError(error.AuthorityUnavailable, manager.step(pending, init.io, .cwd(), null));
+    try t.expectEqualDeep(pending, (try pendingWork(manager, declaration)).?);
+    try count(client, 0);
     // Leave a real accepted common transaction and private staged rows for the
     // replacement process, while fresh readers still see the old complete output.
     for (0..5) |_| try t.expect(try manager.step(pending, init.io, .cwd(), null));

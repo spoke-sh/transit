@@ -141,7 +141,7 @@ pub const Revision = struct {
             (self.pages == null) != (self.metadata.rows == 0)) return error.InvalidManagedTableRecord;
         if (self.pages) |page| {
             try page.validate();
-            if (page.format != page_format or !std.meta.eql(page.scope.connection, self.transaction.connection) or
+            if (page.format != c.DirectTransactionRecord.format or !std.meta.eql(page.scope.connection, self.transaction.connection) or
                 !std.mem.eql(u8, &page.scope.account, &self.transaction.account)) return error.InvalidManagedTableRecord;
         }
     }
@@ -174,7 +174,7 @@ pub fn revisionReferenceInto(self: Self, value: Declaration, revision: u64, aren
     const parsed = try p.Json.parseFromSlice(c.DirectRecord.Reference, arena.allocator(), cell.value.atom.bytes);
     const reference = parsed.value;
     try reference.validate();
-    if (reference.format != revision_format or !std.meta.eql(reference.scope.connection, self.client.connection)) return error.InvalidManagedTableRecord;
+    if (reference.format != c.DirectTransactionRecord.format or !std.meta.eql(reference.scope.connection, self.client.connection)) return error.InvalidManagedTableRecord;
     return reference;
 }
 client: c.DirectTableClient,
@@ -275,24 +275,36 @@ fn store(self: Self, selected: [32]u8, format: u32, value: anytype) !c.DirectRec
 fn readObjects(value: Declaration) [3]?d.Object {
     return .{ value.source.interpretation.interpretation.object, value.output.interpretation.interpretation.object, value.object };
 }
-fn storeRevision(self: Self, declaration: Declaration, selected: [32]u8, value: Revision) !c.DirectRecord.Reference {
+fn storeRevision(self: Self, declaration: Declaration, value: Revision) !c.DirectRecord.Reference {
     const bytes = try p.Json.valueAllocBounded(self.client.allocator, value, c.DirectRecord.max_bytes);
     defer self.client.allocator.free(bytes);
     const guarded = c.DirectRecord.encodeGuarded(self.client.allocator, self.client.connection, readObjects(declaration), bytes) catch |err| return if (err == error.WriteFailed) error.ManagedTableResultBudget else err;
     defer self.client.allocator.free(guarded);
-    return c.DirectRecord.stage(self.client, selected, revision_format, guarded);
+    return c.DirectTransactionRecord.stage(self.client, value.transaction, revision_format, guarded);
 }
 pub fn load(self: Self, comptime T: type, reference: c.DirectRecord.Reference, format: u32) !std.json.Parsed(T) {
-    if (reference.format != format or !std.meta.eql(reference.scope.connection, self.client.connection)) return error.InvalidManagedTableRecord;
+    const owned = format == page_format or format == revision_format;
+    if (reference.format != (if (owned) c.DirectTransactionRecord.format else format) or !std.meta.eql(reference.scope.connection, self.client.connection)) return error.InvalidManagedTableRecord;
     const bytes = try c.DirectRecord.read(self.client.allocator, self.client, reference);
     defer self.client.allocator.free(bytes);
-    if (format & c.DirectRecord.guarded_bit != 0) {
-        const guarded = try p.Json.parseFromSlice(c.DirectRecord.Guarded, self.client.allocator, bytes);
+    if (owned) {
+        const envelope = try p.Json.parseFromSlice(c.DirectTransactionRecord.Envelope, self.client.allocator, bytes);
+        defer envelope.deinit();
+        try envelope.value.validate(reference);
+        if (envelope.value.format != format) return error.InvalidManagedTableRecord;
+        const inner = try envelope.value.payload.decode(self.client.allocator, c.DirectRecord.max_bytes);
+        defer self.client.allocator.free(inner);
+        const guarded = try p.Json.parseFromSlice(c.DirectRecord.Guarded, self.client.allocator, inner);
         defer guarded.deinit();
         try guarded.value.validate(self.client.connection);
         const payload = try guarded.value.payload.decode(self.client.allocator, c.DirectRecord.max_bytes);
         defer self.client.allocator.free(payload);
-        return p.Json.parseFromSliceOwned(T, self.client.allocator, payload);
+        const result = try p.Json.parseFromSliceOwned(T, self.client.allocator, payload);
+        errdefer result.deinit();
+        if (comptime T == Page or T == Revision) {
+            try envelope.value.transaction.requireSame(result.value.transaction);
+        } else return error.InvalidManagedTableRecord;
+        return result;
     }
     return p.Json.parseFromSliceOwned(T, self.client.allocator, bytes);
 }
@@ -728,7 +740,7 @@ fn stepInner(self: Self, token: c.DirectClientToken.Key, io: std.Io, directory: 
                     .pages = work.pages,
                 };
                 try revision.validate();
-                const root = try self.storeRevision(value, work.transaction.account, revision);
+                const root = try self.storeRevision(value, revision);
                 const revision_bytes = try p.Json.valueAllocBounded(arena.allocator(), root, max_definition_bytes);
                 const mutation_ = try KV.prepareMutation(&arena, .{ .definition = p.Growth.current_definition, .identity = self.operation(value, "checkpoint", work.lease.epoch), .target = value.object, .action = .insert, .expected_definition = read.interpretation.interpretation, .expected_data = null, .intent = @splat(0) }, spec, &.{
                     .{ .put = .{ .key = head_key, .value = .{ .value = .{ .atom = .{ .bytes = checkpoint_bytes } } }, .expect = .present } },
@@ -789,9 +801,10 @@ fn evaluate(self: Self, value: Declaration, work: *Work, io: std.Io, directory: 
         const page: Page = .{ .definition = p.Growth.current_definition, .transaction = work.transaction, .ordinal = rows, .previous = previous, .row = try w.Binary.encode(scratch.allocator(), encoded) };
         const page_bytes = try p.Json.valueAllocBounded(scratch.allocator(), page, c.DirectRecord.max_bytes);
         const guarded = c.DirectRecord.encodeGuarded(scratch.allocator(), self.client.connection, readObjects(value), page_bytes) catch |err| return if (err == error.WriteFailed) error.ManagedTableResultBudget else err;
-        retained_bytes = try std.math.add(u64, retained_bytes, guarded.len);
+        const owned = c.DirectTransactionRecord.encode(scratch.allocator(), work.transaction, page_format, guarded) catch |err| return if (err == error.WriteFailed) error.ManagedTableResultBudget else err;
+        retained_bytes = try std.math.add(u64, retained_bytes, owned.len);
         if (retained_bytes > value.options.budgets.result_bytes) return error.ManagedTableResultBudget;
-        previous = try c.DirectRecord.stage(self.client, work.transaction.account, page_format, guarded);
+        previous = try c.DirectTransactionRecord.stage(self.client, work.transaction, page_format, guarded);
         rows += 1;
         _ = scratch.reset(.retain_capacity);
     }

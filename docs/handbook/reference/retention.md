@@ -110,7 +110,10 @@ compaction preserves values and resource revisions. The separate
 retains complete catalog control history, Table recovery, unexpired history, live
 snapshots, original receipts and admitted work. It reclaims expired graph objects
 only after proving that none of those owners need them. Saved direct-intent
-references and permanent identity reservations remain retained. The local
+references and permanent identity reservations remain retained. Transaction-owned
+managed result candidates become eligible only after authoritative abort and
+complete cleanup. Uncertain attempts and committed revisions remain protected;
+retirement alone does not release them. The local
 maintenance executor schedules native and direct collection using separate
 source-allocation activity and durable pass progress. It resumes an incomplete
 pass before starting another and still requires current maintenance authority

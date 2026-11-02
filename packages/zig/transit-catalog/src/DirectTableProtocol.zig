@@ -422,7 +422,7 @@ pub const Request = struct {
             .descriptor => |value| value.mutation(),
             inline .kv, .kv_declaration => |value| value.mutation(),
             .transaction => |value| value.mutation(),
-            .record => |value| value == .stage,
+            .record => |value| value != .read,
             .client_token => |value| value == .bind,
             .client_progress => |value| value == .update,
             .initialize, .stage, .admit_saved, .commit_saved, .admit_ddl, .admit_rows, .admit_statement, .pin, .retain_history, .release, .flush => true,

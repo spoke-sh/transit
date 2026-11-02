@@ -29,3 +29,6 @@ target/
 # Documentation build metadata and generated specification downloads.
 docs/handbook/.docusaurus/
 docs/handbook/.generated/
+
+# SDK validator programs are reproduced from checked canonical schemas/digests.
+/sdks/ts/*/src/validators.js
