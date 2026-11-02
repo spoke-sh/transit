@@ -78,6 +78,7 @@ pub const Client = struct {
         return switch (status) {
             .forbidden => error.AccessDenied,
             .conflict => error.Conflict,
+            .not_found => if (code == .NotFound) error.NotFound else error.AuthorityUnavailable,
             .bad_request, .unprocessable_entity => error.Rejected,
             else => error.AuthorityUnavailable,
         };
@@ -345,6 +346,7 @@ pub const Client = struct {
             .ok => {},
             .forbidden => return error.AccessDenied,
             .conflict => return error.Conflict,
+            .not_found => return if (self.last_rejection == .NotFound) error.NotFound else error.AuthorityUnavailable,
             .bad_request, .unprocessable_entity => return error.Rejected,
             else => return error.AuthorityUnavailable,
         }

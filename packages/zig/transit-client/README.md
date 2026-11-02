@@ -9,7 +9,8 @@ that a PID has expired.
 connection and incomplete I/O failures. HTTP 502, 503 and 504 also report
 `AuthorityUnavailable` when an intermediary supplies an empty or opaque body.
 Only a validated native error envelope sets `last_rejection`; an upstream status
-never proves that a mutation was rejected. The client performs no retry. Worker
+never proves that a mutation was rejected. A validated native HTTP 404 `NotFound` stays `NotFound`, including local owner
+dispatch; an opaque 404 cannot establish absence. The client performs no retry. Worker
 loops can retry observations and exactly frozen proposals through availability
 failures. Access, fencing, malformed successful/rejection responses and rejected
 commands remain separate decisions.

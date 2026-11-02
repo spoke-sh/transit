@@ -8,6 +8,10 @@ test "upstream unavailability cannot become a receipt or an authority rejection"
     const t = std.testing;
     const Case = struct { status: std.http.Status, bytes: []const u8, expected: anyerror, rejection: ?wire.protocol.ErrorCode = null };
     const cases = [_]Case{
+        .{ .status = .not_found, .bytes = "{\"err\":\"NotFound\"}", .expected = error.NotFound, .rejection = .NotFound },
+        .{ .status = .not_found, .bytes = "<html>Missing route</html>", .expected = error.InvalidAuthorityResponse },
+        .{ .status = .service_unavailable, .bytes = "{\"err\":\"NotFound\"}", .expected = error.AuthorityUnavailable, .rejection = .NotFound },
+
         .{ .status = .service_unavailable, .bytes = "{\"err\":\"HttpCapacity\"}", .expected = error.AuthorityUnavailable, .rejection = .HttpCapacity },
         .{ .status = .service_unavailable, .bytes = "", .expected = error.AuthorityUnavailable },
         .{ .status = .service_unavailable, .bytes = "upstream connection unavailable", .expected = error.AuthorityUnavailable },
