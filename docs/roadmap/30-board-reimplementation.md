@@ -2,6 +2,10 @@
 
 [Roadmap](README.md) · **Status:** In Progress
 
+Start with the [remaining implementation plan](#remaining-implementation-plan--2026-11-01)
+for the next delivery slices. It prioritizes visual operational inspection and
+an explicit reactive UI state model, while retaining the full workbench gates.
+
 Reimplement Board as the installed interface for discovering data, explaining
 computations and reviewing governed changes. Deliver the focused catalog,
 dataset previews, relationships, SQL workbooks, directed lineage and change
@@ -96,6 +100,295 @@ No synthetic study values or unsupported actions enter the installed interface.
 The milestone remains **In Progress**. Executed controls, clean-checkout outcomes
 and remaining qualification limits are recorded in the
 [Inspector proof account](../history/qualification/interfaces.md#board-contextual-inspector--2026-10-30).
+
+## Remaining implementation plan — 2026-11-01
+
+**Source basis:** `origin/main` at `0c64c4b03` (2026-11-01), after the M6 workload,
+M10 historical-catalog and M12 retained-computation-revision integrations. This
+is a delivery plan, not new implementation or executed qualification. The
+milestone remains **In Progress**. The initial-pass plan below retains its
+dated scope; this section supersedes its remaining sequencing and placement
+of the relational worksheet on Operations.
+
+### Outcomes and immediate decisions
+
+Use two journeys to drive the remaining implementation:
+
+1. **Understand the running system.** Open Operations, select an installation or
+   data object, compare a visualization with its exact grid, then inspect the
+   evidence explaining storage, progress or a failure. Keep system introspection
+   useful without a configured SQL connection.
+2. **Understand the interface's state.** Open Board through the installed URL or
+   an SSH forward and immediately distinguish a usable inspection deployment,
+   an unconfigured data feature, a denied read and a broken connection. Every
+   visible action follows an explicit state transition and has a bounded owner.
+
+Remove **Relational worksheet** and **Declared dependencies** from `/operations`.
+The latter currently lists the installed interface's bindings; it is not a
+storage dependency graph. Keep interface bindings with Definition and actual
+object dependencies with the selected dataset/computation. Ordinary SQL belongs
+in Workbook. Move original relational-session inspection and pin cleanup to a
+dedicated recovery surface before removing their current entry point. Preserve
+per-Table storage inspection independently of SQL editing.
+
+Retain D3's horizontal activities and one contextual Inspector. Implement the
+state model in the existing strict TypeScript/React application, with effects
+calling shared clients. Reactive UI behavior means reacting to typed events;
+it does not enable Live SQL, continuous queries, automatic administrative work,
+or M32 subscriptions. Existing finite Live/Follow retain their qualified owners.
+
+### Source assessment and milestone handoffs
+
+| Evidence at the source basis | Consequence for this plan |
+| --- | --- |
+| [`foundations.tsx`](../../apps/transit-board-web/src/foundations.tsx) renders Storage, `RelationalWorkspace` and interface bindings together. [`storage.tsx`](../../apps/transit-board-web/src/storage.tsx) obtains Table storage through the relational description's prepared source binding. | Extract the useful Table inspection and recovery paths before removing the worksheet; deleting the component alone would strand both. |
+| [`Capabilities`](../../packages/zig/transit-board-api/src/root.zig) reports the older `query_enabled` and `reactive_table` capabilities, but no separate catalog/SQL-workbench configuration. [`main.zig`](../../apps/transit-board/main.zig) returns `404 QueryDisabled` when the corresponding workbench configuration is absent. | Add explicit per-feature configuration discovery. The older query flag cannot decide whether Catalog or Workbook works. Configuration evidence is not authorization. |
+| [`data-workbench.tsx`](../../apps/transit-board-web/src/data-workbench.tsx) collapses metadata errors to strings, retries every five seconds and uses the same unavailable panel for Catalog and Workbook. [`state.tsx`](../../apps/transit-board-web/src/state.tsx), [`use-metadata.ts`](../../apps/transit-board-web/src/use-metadata.ts) and [`workbench-result.tsx`](../../apps/transit-board-web/src/workbench-result.tsx) separately own request and visibility transitions. | Replace these overlapping transitions with typed state/effect owners and feature-specific diagnostics; preserve each client's existing disclosure and recovery semantics. |
+| [M4](04-statement-results-and-consumption.md) supplies `Executor`, `ResultSet`, `ReadView`, `ReadWorkspace` and the browser `StatementReader`. [M8](08-gateway-architecture-and-protocol-ingress.md) supplies co-hosted execution and event-driven recovery; [M9](09-client-foundation-and-language-apis.md) is integrating shared contexts and recovery. | Consume logical results and original-operation recovery. The UI machine owns presentation and request lifetimes, not SQL parsing, native fetch sequencing, accepted-work settlement or service recovery polling. |
+| [M6's current checkpoint](06-streams-queues-and-durable-runtime.md#progress-checkpoint--2026-11-01) adds SQL workload outcomes, Stream intervals and Queue receipts/ACK, with installed and performance gates still open. [M7](07-document-storage-and-station-decoupling.md) is integrating direct Documents and replacing Station consumers. | Extend kind-specific inspection only through their public callers. Queue claim/ACK and Stream offset settlement are mutations even when they return rows; Workbook's read-only admission must continue to refuse them. Do not infer a completed Station cutover or enable a workload from parser support. |
+| [M10's progress scope](10-standards-and-catalogs.md#progress-pr-scope--2026-11-01), merged in `9d7a15fd6`, includes historical catalogs/SQL, physical definitions, row placement, constraints, collations and versioned interpretation descriptors; Board already contains read-only historical inspection. | Reuse these real projections for storage drilldown and exact definitions. Separate metadata rights from SELECT for row placement, directory coverage from payload verification, and current permissions from historical data. Final installed/browser qualification remains required. |
+| [M12's installed finite lifecycle](12-sql-and-dataflows.md#installed-table-implementation-slice--2026-11-01) and [retained revisions](12-sql-and-dataflows.md#retained-completed-table-revisions--2026-11-01), integrated by `0c64c4b03`, supply observed controls, output/checkpoint commits and `DFR1` revision manifests. | Prioritize computation inspection showing last completed output, pending/blocked work and exact source/output revisions. Retained revision metadata is not historical SQL row fetching, incremental execution, multi-source support or complete M12 qualification. |
+| [M11](11-indexing-and-access-paths.md), [M13](13-data-structures-and-performance.md), [M20](20-branches-merges-and-restore.md) and the distributed operations milestones own index coverage, measured resources, branch roots and recovery evidence. | Request missing bounded projections from these owners before drawing segment inventories, index readiness, shared/exclusive/reclaimable bytes, cache hit rates or replication lag. D3's synthetic numbers establish none of them. |
+| [M27](27-control-and-policy-plane.md) and [M28](28-published-resources-and-investigations.md) have contracts and component evidence; [M29](29-reviewed-data-collaboration.md) remains Planned. | Keep the local shared-scope profile independent. Gate durable investigations, policy-aware sharing and reviewed publication on qualified public services and non-browser callers; component fixtures do not establish installed workflow support. |
+| [M31](31-mcp-service-and-apps.md) follows Board; [M32](32-reactive-context-and-agent-activation.md) owns later durable interests and activation. | Share semantic projections and suitable presentational components without making MCP depend on Board or inherit its credentials. A UI refresh event is not a durable subscription or a completed computation. |
+
+Preserve the [Inspector qualification](../history/qualification/interfaces.md#board-contextual-inspector--2026-10-30)
+and [initial workbench evidence](../history/qualification/interfaces.md#board-catalog-and-bounded-read-workbench--2026-10-28),
+including their interrupted clean lanes. Their passes remain attributed to
+their revisions; this newer source is not qualified by combining earlier runs.
+
+### Capability discovery and the reported tunnel journey
+
+The reported `/` and `/workbook` pages are consistent with missing workbench
+configuration: their catalog and SQL-read API requests receive `QueryDisabled`
+when those connections are absent.
+This is a source-based explanation, not a diagnosis of the remote installation.
+An SSH tunnel alone neither enables a catalog nor grants SQL access. The current
+`/health` endpoint checks Board's listener boundary, not upstream data readiness.
+
+Extend the existing generated Board capability projection with independent
+descriptors for inspection, node storage, catalog metadata, SQL reads, relational
+recovery, finite Live and application operations. Each identifies implementation
+support, configuration state, safe scope identity and applicable limits. Discovery
+does not execute a query or test every resource. Access and readiness are learned
+from the corresponding authorized read; a descriptor never grants permission.
+Do not disclose credentials, secret file paths or arbitrary connection strings.
+Keep existing descriptor fields only for their distinct capabilities; migrate
+incompatible shapes through the current-v1 definition cutover.
+
+The current capability handler also performs an upstream inspection-identity
+read. Separate safe deployment configuration discovery from that authorized
+observation so an unavailable inspection upstream cannot suppress the shell or
+unrelated configured features. Keep private admission and Host/Origin checks;
+withhold identity, resource and policy evidence when its read fails. Configuration
+discovery is not a replacement for that read or for per-operation authorization.
+
+For the built-in interface, resolve `/` after capability discovery: Catalog when
+configured, otherwise Workbook when SQL reads are configured, otherwise
+Operations. A configured feature that later fails remains selected with its
+actual failure; do not bounce between routes to conceal an outage. Published
+interfaces retain their declared entry and reserved recovery routes. Normalize
+the former root's `status=all&sort=pid` search parameters without forwarding them
+as catalog filters or triggering reads. Explicit deep links remain addressable.
+
+| Condition | Expected presentation and permitted next step |
+| --- | --- |
+| Inspection available; catalog and SQL unconfigured | Root opens useful Operations. Data/Workbook navigation identifies unavailable configuration. Their direct routes say which connection is unconfigured, link setup documentation and Operations, and issue no periodic disabled data requests. |
+| Catalog configured; SQL unconfigured | Catalog and definitions work. Preview/Run are unavailable with an SQL-specific reason; an explicit Workbook link explains setup. A catalog connection is not an SQL connection. |
+| SQL configured; catalog unconfigured | Workbook works independently. Catalog explains its missing connection; do not gate SQL on catalog discovery. |
+| Configured read denied | Say which feature/scope was denied, clear its protected data and offer an explicit access recheck after an operator correction. Do not label it missing configuration or ask a viewer to sign in. |
+| Transport/upstream unavailable | Show the failing boundary when evidenced, last observation status and bounded read retry. Keep unrelated authorized surfaces usable. Reconnection cannot execute a statement again. |
+| Invalid Host/Origin or incompatible definition | Show the typed refusal and deployment/build remedy. Do not relax origin checks, retry indefinitely or interpret an incompatible response. |
+| Successful zero-row result or empty catalog page | Show verified empty result or page-scoped absence respectively. Neither missing configuration nor a failed read is an empty dataset. |
+
+Configuration is currently loaded at startup. The setup remedy must name that
+restart requirement until its owner implements reload. A **Check availability**
+action can re-read descriptors after correction; **Retry read** is not the cure
+for a connection that has never been configured. Use same-origin relative API
+requests through the forwarded Board URL. Test localhost and 127.0.0.1 as their
+own origins, including rejected mismatches; never weaken the private boundary.
+
+### Reactive UI state and effect ownership
+
+Define a deterministic `state + event -> next state + effects` reducer with
+exhaustive discriminated unions. React renders selectors and dispatches events;
+an effect runner performs client calls, timers, aborts and cleanup and returns
+typed completion events. Keep domain readers in their existing shared packages;
+route/selection composition belongs in `transit-board-web`. Do not introduce a
+new runtime package or state-machine dependency without a demonstrated need.
+
+Use composed machines, rather than a global `loading/error/connected` flag:
+
+| Owner | State and retained identity |
+| --- | --- |
+| Shell | Bootstrapping, usable or failed discovery; build/definition and current configured scope. Failure to inspect a resource does not erase unrelated feature state. |
+| Feature | Implementation/configuration disposition (`unsupported`, `unconfigured`, `configured`) and independent observed access/connectivity. Configured does not mean authorized or reachable. |
+| Observation | Idle, loading, ready, refreshing, unavailable, denied, incompatible or expired; exact resource/definition, observation basis, continuation and request generation. Hidden/disposed visibility is separate. |
+| Statement presentation | Draft revision, submitted revision and original reader identity; submitting/observing/advancing/closing request state, shared result outcome and cleanup status. Verified completion, consumer exhaustion, display limit and remote release remain separate. |
+| Workbench selection | Route and scoped stable subject; selected row/column, Inspector dimension, expanded layout and focus return. Selection contains identities, not a second protected data cache. |
+| Optional Live/review | Project the existing Live owner or later proposal owner. Their session/candidate/generation, budgets and terminal outcomes never become ordinary observation retry state. |
+
+Every asynchronous event carries its scope generation, view identity and request
+generation; results also carry the original reader identity. Match all applicable
+fields before applying it. An old completion may require cleanup through its
+owner but cannot repopulate a hidden, denied, replaced or differently scoped view.
+Do not invent a server policy epoch where the owner supplies none: local request
+generations fence UI work, while current authority remains checked upstream.
+
+| Event and guard | Transition and effect |
+| --- | --- |
+| Descriptors received for current shell | Resolve feature availability and built-in landing; schedule only eligible metadata reads. |
+| Feature unconfigured/unsupported | Enter explanatory state, cancel feature reads and disable query effects. Recheck only on explicit availability refresh or a real configuration-generation event. |
+| Route/subject selected | Increment generation; abort replaced reads and release obsolete selection. Acquire bounded metadata only. No preview, Run, pin acquisition or maintenance follows selection. |
+| Authorized observation received | Install one validated page and its basis atomically. Grid, visualization and Inspector select from that owner. Empty requires successful page evidence. |
+| Refresh timer or explicit retry, visible/configured/eligible | Schedule at most one read for that owner. Transient failures use capped backoff; rate limiting honors available retry evidence. A permanent refusal requires its stated remedy. |
+| Document hidden or scope replaced | Stop timers, abort current reads and remove protected observation/Inspector content. Preserve only recovery intent allowed by its owner. Visibility restoration revalidates the same owner before disclosure. |
+| Current denial | Clear affected rows, metadata, charts, profiles and sensitive diagnostics/drafts according to the existing owner contract. Preserve unresolved operation evidence privately through its existing recovery owner; no automatic replacement work. |
+| Definition/cut changes or history expires | Clear the invalid observation and continuation; require a fresh selection/read. Do not combine pages or silently bind a name to a replacement object. |
+| Explicit Run, configured/authorized read profile and no conflicting request | Freeze draft revision, release the prior reader and call `StatementReader` once. Later edits mark earlier output; they do not change its basis or execute SQL. |
+| Lost Run/advance reply | Observe the original reader through the shared client when supported. If its owner is gone, show lost/incomplete outcome; never rerun and splice a new result. |
+| Verified terminal / display cap / Stop waiting / Close | Project the distinct shared outcomes. Closure requests cleanup; missing close acknowledgement is not proof of remote release. Native leases continue to bound abandoned ownership. |
+| Graph/grid/Inspector selection | Update shared stable selection and focus only. Drilldown is an explicit bounded metadata read; expanding a view does not execute a query. |
+
+Migrate the existing finite Live/Follow adapter without flattening its retained
+last-result and exact-control recovery rules into the stricter metadata clearing
+rules. Its qualified temporary-unavailability behavior remains owner-specific;
+known denial still clears protected disclosure. Inventory its permitted saved
+control intents separately from prohibited persistence of rows or credentials.
+
+Use the current five-second visible observation interval and existing client
+rate-limit limits as the baseline. A shared scheduler staggers eligible reads,
+allows one in-flight read per owner and proposes at most two data reads per tab,
+with bounded control/cleanup priority. These are client limits, not a relaxation
+of Board's shared service limits. Polling never reruns a SELECT. No hidden tab
+work or tight retry loop is allowed to sustain itself. Keep finite metadata/read
+retries distinct from explicit recovery actions and irreversible effects.
+
+### Operations: visual evidence paired with exact grids
+
+Make Operations a read-only investigation of storage and execution. Keep the
+installation scope and read state visible above its primary visualization/grid;
+use the shared Inspector for a selected fact or object. A visualization and its
+grid consume the **same observation**, share selection, filters and coverage,
+and never fetch independently. Preserve keyboard access, exact values, units,
+null/unavailable distinctions and source links in the grid. A drawing is another
+projection of evidence, not a second measurement or a health authority.
+
+| Inspection question | First visualization and grid | Evidence and limits |
+| --- | --- | --- |
+| What is consuming admission capacity? | Separate capacity bars for accounted storage, data-request allocations and control-request allocations; exact used/limit/peak rows where supplied. | Existing `/api/v1/storage`. Control reserve is not ordinary free space; allocation counters are not filesystem free space or process RSS. Never add unlike counters into a fabricated total. |
+| What maintenance is observed? | Labeled disabled/waiting/running/failed state and configured work-budget diagram, with exact counts and failure category alongside. | Existing node storage response. Volatile step counters reset on owner restart and do not establish per-Table completion, rates or an ETA. |
+| Where is this Table's accepted data relative to maintenance? | Position lanes for accepted/logical-change, pending backlog, archive, recovery and history boundaries; separate fixed-target/activity indicators for archive and compaction. | Existing signed direct Table `storage` operation. Show partition and exclusive/inclusive conventions from the contract. A bounded pending prefix is a lower bound; it cannot produce a percentage-complete or time estimate. |
+| Which retained definition and physical placement explain this row? | Selected physical-definition/placement map linked to the exact bounded directory grid and definition Inspector. | M10 historical catalog reads. Explicit retained selector, metadata-versus-SELECT permission and separate page continuations; no new retention pin, payload scan or claim of complete segment inventory. |
+| Why has a computation not produced a newer result? | Directed, bounded source → computation → output neighborhood with separate last-completed revision and pending/blocked progress rows. | M12 public metadata and registered dependencies, integrated after the storage slice. Independent observations do not become one atomic graph snapshot or a freshness guarantee. |
+
+For Table storage, add the missing exact-bound read composition to the public
+catalog caller before its Board adapter; `DirectCatalogRead` currently has no
+storage action. Reuse the signed direct storage operation and its current rights,
+not raw storage access or a browser-built SQL parser. Keep
+`SHOW STORAGE FOR name` as an independent SQL oracle. Configurations that only
+provide a relational catalog retain a scoped storage adapter over that same
+caller until explicitly migrated; do not borrow inspection or SQL credentials
+or create another authority. No query, pin journal write, flush or compaction is
+needed to inspect storage.
+
+The first slice uses current observations, not an invented history service.
+Position axes compare only the same partition and preserve full-width integer
+labels; scaled visual coordinates cannot replace exact arithmetic. Do not sum
+independent Table observations into installation totals. Charts and grids clear
+together on failed revalidation or lost visibility. Add time series only after
+the public owner supplies restart/reset identity and sample timing semantics;
+then specify a bounded window and explicit gaps before enabling rate charts.
+
+Retain public API bounds: one page per selected source, the existing 1,024-row
+pending-backlog examination bound, and explicit Next/Refresh for catalogs and
+retained placement. Propose at most 32 visible graph nodes and 64 edges, with
+visible truncation and explicit neighborhood expansion; these are display caps,
+not new authority page limits or evidence of complete lineage. No background
+whole-catalog scan, graph layout on undisclosed data or per-row heap of readers.
+
+Richer segment sizes, tombstones, retention blockers, shared/exclusive bytes,
+reclaimability, index build coverage, replication and WLM belong in subsequent
+owner-backed projections. Every added metric must specify units, population,
+observation/reset identity, pagination, current authorization and unavailable
+semantics. Until that contract exists, omit the visualization or mark the
+dimension unavailable. Never reconstruct provider internals from paths or
+promote a synthetic D3 fixture into an installed fact.
+
+### Reviewable implementation sequence
+
+| Slice | Owners and concrete work | Exit gate |
+| --- | --- | --- |
+| **P0 — Capability and diagnostic contract** | `transit-board-api`, Board `main.zig`/`Workbench.zig`, generated `@transit/board-client` and launcher configuration. Add independent descriptors, typed failure classification and the route/retained-work inventory. Resolve safe configuration versus access evidence before views depend on it. | Contract/validator checks and direct API tests distinguish unconfigured, denied, incompatible and unreachable; neither discovery nor a stronger configured credential bypasses read-only admission. |
+| **P1 — State machine and usable landing** | Board frontend reducers/effect runner, `state.tsx`, metadata hooks, `interface.tsx`, root/catalog/workbook routes and shared-client adapters. Implement the transition tables, capability-driven root and feature-specific setup/refusal states. | Reproduce both reported URLs with no workbench configuration: usable Operations landing and explicit Workbook setup state, no repeated disabled calls or false empty data. Catalog-only and SQL-only deployments work independently. |
+| **P2 — Operations separation** | `foundations.tsx`, `relational-workspace.tsx`, `storage.tsx`, public catalog read composition and service routing. Remove both named panels from Operations. Place interface-binding detail in Definition; put supported relational active-result inspection and exact pin cleanup under a proposed `/recovery/relational` route. Preserve new-read access through Workbook or an explicitly named remaining qualified read profile until equivalence is proved. | No SQL editor or interface-binding table on `/operations`. Existing Table-storage detail, original query inspection/close and restart pin cleanup remain reachable; opening recovery executes no query. Published-interface validation, deep links and fixtures migrate with the route. |
+| **P3 — Storage visualization and grid** | Shared observation selectors and Inspector plus Operations renderers. Deliver the first three storage views above; register the next `board-data` design review for visual/interaction choices using monochrome wireframes. | Real node and Table values match both projections and an independent public caller. Unknowns, zero, bounded prefixes, restart and maintenance failure remain distinct; pointer and keyboard selection agree. Design review does not substitute for installed evidence. |
+| **P4 — Workbench state integration** | `data-workbench.tsx`, `workbench-result.tsx`, Inspector and `@transit/query-client`. Apply the same lifecycle composition to catalog paging, historical selection, previews and session cells; migrate duplicate hooks without recreating shared result truth. | Delayed replies, route/scope changes, hidden tabs, earlier drafts, lost Run replies, empty/multi-window results and revocation cannot disclose stale data, lose original identity or execute twice. |
+| **P5 — Richer object and computation evidence** | Existing M10 catalog/history/definition callers, M12 lifecycle/revision readers, and shared dependency projections. Add bounded physical placement and directed computation inspection; later add M11/M13/M20/distributed metrics only as their owners qualify. | Every node/edge/metric links to exact public evidence; missing evidence stays missing. Historical inspection does not acquire retention, and a completed output remains distinct from a pending successor. |
+| **P6 — Durable workbooks and governed changes** | M28 investigation/publication services, M20 comparisons, M27 policy and M29 review operations, then Board adapters. Complete the existing full-milestone workbook, transaction, comparison and separate Changes workflows. Define workbook identity/save/concurrency/disclosure in the public owner before adding persistence. | Non-browser lifecycle qualification precedes UI integration. Shared basis versus independent runs, moved candidates, changed targets, denial and uncertain publication preserve original identities. Local inspection remains useful without these profiles. |
+| **P7 — Installed cutover and closure** | Embedded assets, installed/local/Compose configurations, browser/API fixtures, public documentation and qualification history. Remove superseded view implementations and migrate callers/contracts together. | The focused acceptance matrix below and the full milestone completion evidence both pass at an attributed common revision; remaining initial-pass checkboxes and interrupted lanes are explicitly settled. |
+
+Start with P0 → P1 → P2 → P3. P4 builds on P1; P5 consumes qualified owner
+projections without blocking the initial Operations improvement. P6 is a full
+milestone dependency gate, not a prerequisite for correcting the reported
+experience. P7 qualifies each landed slice and closes the full milestone only
+when P6 and all original completion journeys are delivered.
+
+Inventory retained relational pin journals and active sessions before retiring
+their execution path. Migrate overlapping new reads to the shared logical reader
+only after supported types, source attribution and cleanup parity pass. Retain
+distinct supported profiles explicitly; do not add a fallback decoder, silently
+delete journals or retire unresolved original work. Update the owning Board
+guides/API and generated contracts in the same implementation changes.
+
+### State, browser and installed acceptance
+
+Specify a finite Board interaction model alongside the existing
+[console/result models](../../tests/verification/models/README.md). Use bounded
+scopes, readers and request generations to explore event reorderings, hidden
+views, denial and reconnect. Export traces and replay them against the actual
+TypeScript reducer/effect boundary. Include negative controls that remove
+generation matching, denial clearing or explicit-Run guarding; an independent
+model without implementation replay is insufficient. This proves only the
+stated finite safety properties, not arbitrary browser scheduling or latency.
+
+| Scenario | Required oracle and forbidden outcome |
+| --- | --- |
+| Reported startup and SSH forwarding | Real embedded inspection-only Board at `/?status=all&sort=pid` and `/workbook`, plus catalog-only, SQL-only and fully configured fixtures. Same-origin forwarded requests succeed; wrong Host/Origin rejects. No generic connection error for known missing configuration, credential copying or indefinite `QueryDisabled` loop. |
+| Failure classification | Inject disabled configuration, 403, 429, unavailable upstream, malformed/incompatible response and service restart separately. Assert typed state, offered remedy, bounded request count and continued use of unrelated authorized views. |
+| Visual/grid agreement | Independent signed storage and `SHOW STORAGE FOR` observations with known fixture changes; assert identical basis within each visual/grid pair. Exercise null, zero, wide counters, partial backlog and changed definition. Never compare independently acquired cuts as if identical. |
+| Storage lifecycle | Write accepted WAL data, observe bounded maintenance and reopen the durable fixture; distinguish logical change from physical progress and volatile counters from durable frontiers. No browser mutation or invented deletion/reclaimability conclusion. |
+| Race and disclosure | Delay an old success across selection, denial, hide/show and scope replacement. Both chart and grid stay cleared; Inspector cannot resurrect old data. Revoke only one feature and verify unrelated authorized features remain usable. |
+| Statement lifecycle | Explicit Run once, change draft, lose response, advance windows, receive verified empty/completion, close early and lose close acknowledgement. Shared-client oracle preserves identity, partial coverage and cleanup uncertainty; no fresh SELECT on retry or visibility. |
+| Removal and recovery | Assert both named sections absent from Operations, Table storage reachable without Explain, bindings reachable in Definition, and exact active-session/pin recovery through the replacement route after browser and service replacement. |
+| Historical/computation evidence | Traverse retained definitions and row locations with separate grants; inspect a completed managed revision while a successor blocks/fails. No auto-pin, fabricated full coverage or replacement of last-complete evidence by pending progress. |
+| Accessibility and bounds | Real keyboard grid/visual selection, focus return, screen-reader descriptions, reduced motion, zoom and narrow layouts. Bounded catalog/graph/reader/request counts under concurrent tabs and large retained data; no protected values in browser persistence or transition logs. |
+
+Use the existing [Board tasks](../../tasks/transit-board.just): `check`, `test`,
+`workbench-test`, `workbench-browser`, `relational-test` and
+`relational-browser`, plus query/Live/application and affected connector checks
+when their adapters change. Extend the real fixtures in
+[`tests/interfaces/board`](../../tests/interfaces/board/),
+[`board_workbench.py`](../../tests/interfaces/installation/board_workbench.py)
+and the existing Playwright suites. Owner contract changes require their
+catalog/SQL/protocol tests and regenerated neutral fixtures before browser work.
+
+Before pushing implementation, select affected committed-HEAD clean lanes from
+the current CI inventory: `installation-ui` and `browser`, plus `interfaces`,
+`core` and `formal` where shared contracts or models change. Record skipped,
+failed and incomplete tasks explicitly. Preserve existing 128-file/8-MiB
+embedded assets and five-JavaScript-asset/900-kB checks. Measure request counts,
+first useful observation, render/selection delay, resident memory and reader
+release under named fixtures; fix numeric acceptance budgets before P7 rather
+than claiming performance from wireframes. Keep bounded DOM and data residency
+independent of retained cardinality.
+
+Current behavior and setup remedies land in the Board guide/API and component
+workbench/configuration guides with each implementation. Publish the UI state
+model and its assumptions in the owning service-interface Internals account;
+visual rationale stays in the registered `board-data` review sequence. Record
+executed source-attributed results in qualification history. This planning
+change runs documentation checks only and establishes no new runtime evidence.
 
 ## Initial-pass implementation plan
 
