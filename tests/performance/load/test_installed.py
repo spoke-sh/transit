@@ -1,8 +1,9 @@
 """Independent encoded values and rejection of failed or altered experiments."""
 import copy
 import unittest
+from unittest.mock import patch
 
-from performance.load.installed import admission_refusal, integers
+from performance.load.installed import admission_refusal, integers, settle
 from performance.load.report import compare, inventory, summarize
 
 
@@ -24,6 +25,30 @@ def campaign():
 
 
 class InstalledReportTest(unittest.TestCase):
+    def test_final_verified_output_must_arrive_within_deadline(self):
+        for final, late in ((180, False), (180.001, True)):
+            record = {}
+            with patch('performance.load.installed.time.monotonic', side_effect=(0, 0, final)), \
+                 patch('performance.load.installed.head', return_value=dict(blocked='none', revision=1, pending=None)), \
+                 patch('performance.load.installed.read', return_value=[['030000000000000000']]):
+                if late:
+                    with self.assertRaisesRegex(AssertionError, 'deadline'):
+                        settle(None, 1, 1, record)
+                else:
+                    self.assertEqual(settle(None, 1, 1, record), 1)
+            self.assertEqual(record['rows'], 1)
+            self.assertTrue(record['verified'])
+            self.assertEqual(len(record['foreground_ns']), 1)
+
+    def test_failed_observation_retains_progress_without_repeating(self):
+        record = {}
+        with patch('performance.load.installed.head', return_value=dict(blocked='none', revision=0, pending={})) as observed, \
+             patch('performance.load.installed.read', side_effect=BrokenPipeError):
+            with self.assertRaises(BrokenPipeError):
+                settle(None, 1, 1, record)
+        observed.assert_called_once()
+        self.assertEqual(record, dict(foreground_ns=[], pending_observations=1, observation_polls=1))
+
     def test_admission_refusal_does_not_hide_transport_failure(self):
         diagnostic = RuntimeError('connection failed: FATAL:  Account or database access denied\n')
         self.assertEqual(admission_refusal('postgres', diagnostic),

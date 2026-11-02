@@ -47,6 +47,9 @@ finished. Samples include 50 ms observation pauses, output verification and
 result closure. The fixed completion bound is 180 seconds / 2,000 observations;
 queries keep the server's ordinary deadlines. Failed reads fail the experiment;
 there is no resampling, mutation replay or automatic replacement snapshot.
+The final verified output must also arrive within that completion bound. A late
+known output remains in the failed sample, and a failed observation retains its
+completed foreground timings and observed progress without restarting the read.
 
 Typed local attempt deltas and process CPU surround the operation, including
 background activity and observations. They are not unique commits, physical

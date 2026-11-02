@@ -140,19 +140,22 @@ def head(client):
 def settle(client, expected_revision, expected_rows, record):
     deadline = time.monotonic() + 180
     foreground = []
-    pending = 0
+    record.update(foreground_ns=foreground, pending_observations=0, observation_polls=0)
     while True:
+        assert time.monotonic() < deadline and record['observation_polls'] < 2000, 'managed completion deadline exceeded'
         observed = head(client)
+        record['observation_polls'] += 1
         assert observed['blocked'] == 'none', 'managed execution was blocked'
-        pending += int(observed['pending'] is not None)
+        record['pending_observations'] += int(observed['pending'] is not None)
         began = time.perf_counter_ns()
         assert integers(read(client, 'SELECT id FROM perf_input WHERE id = 0')) == [0]
         foreground.append(time.perf_counter_ns() - began)
         if observed['revision'] >= expected_revision and observed['pending'] is None:
             assert integers(read(client, 'SELECT id FROM perf_output')) == list(range(expected_rows))
-            record.update(verified=True, rows=expected_rows, revision=observed['revision'],
-                          foreground_ns=foreground, pending_observations=pending,
-                          observation_polls=len(foreground))
+            record.update(verified=True, rows=expected_rows, revision=observed['revision'])
+            # Preserve a late verified outcome, but fail its measurement. Final
+            # output verification belongs inside the same completion budget.
+            assert time.monotonic() <= deadline, 'managed completion deadline exceeded'
             return observed['revision']
         assert time.monotonic() < deadline and len(foreground) < 2000, 'managed completion deadline exceeded'
         time.sleep(.05)
