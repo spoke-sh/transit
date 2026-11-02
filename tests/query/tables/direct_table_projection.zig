@@ -106,12 +106,12 @@ pub fn run(client: c.DirectTableClient, admin: anytype, role: u64) !void {
     }
     try t.expect(reader.complete and reader.consumed == 18);
     try t.expectEqual(@as(i128, 1), first.rows[0].?.row().cells[1].value.atom.signed);
-    var query = try open(client, snapshot, "projected_rows", "SELECT score AS first, score AS second FROM projected_rows WHERE label = 'ALPHA'");
+    var query = try open(client, snapshot, "projected_rows", "SELECT score AS first, score AS second FROM projected_rows WHERE label >= 'ALPHA' AND score > 0 AND label < 'B'");
     defer query.deinit();
     try scores(&query);
-    var prepared = try q.direct.DirectTablePrepared.prepare(a, client, 1, "SELECT score AS first, score AS second FROM projected_rows WHERE label = $1", .transit, null);
+    var prepared = try q.direct.DirectTablePrepared.prepare(a, client, 1, "SELECT score AS first, score AS second FROM projected_rows WHERE label = $1 AND score > 0 AND label < $2", .transit, null);
     defer prepared.deinit();
-    var bound = try q.direct.DirectTableQuery.openPreparedRetained(client.allocator, client, snapshot, &prepared, &.{.{ .bytes = "aLPHa" }}, .{ .requests = 200, .rows = 64, .result_bytes = 65536 }, null, null, .{});
+    var bound = try q.direct.DirectTableQuery.openPreparedRetained(client.allocator, client, snapshot, &prepared, &.{ .{ .bytes = "aLPHa" }, .{ .bytes = "b" } }, .{ .requests = 200, .rows = 64, .result_bytes = 65536 }, null, null, .{});
     defer bound.deinit();
     try scores(&bound);
     try filters(client, snapshot);
@@ -143,7 +143,7 @@ pub fn run(client: c.DirectTableClient, admin: anytype, role: u64) !void {
         }
     };
     var revoke: Revoke = .{ .admin = admin, .object = object };
-    var denied = try q.direct.DirectTableQuery.openRetained(client.allocator, client, snapshot, "projected_rows", "SELECT score FROM projected_rows WHERE score > 16", .{ .requests = 100, .rows = 8, .result_bytes = 8192 }, null, null, .{ .runner = .{ .context = &revoke, .evaluate = Revoke.evaluate } });
+    var denied = try q.direct.DirectTableQuery.openRetained(client.allocator, client, snapshot, "projected_rows", "SELECT score FROM projected_rows WHERE label >= 'ALPHA' AND score > 16 AND label < 'B'", .{ .requests = 100, .rows = 8, .result_bytes = 8192 }, null, null, .{ .runner = .{ .context = &revoke, .evaluate = Revoke.evaluate } });
     defer denied.deinit();
     try t.expectError(error.AccessDenied, denied.nextBatch(8));
     try t.expectError(error.AccessDenied, query.nextBatch(8));
@@ -160,7 +160,7 @@ pub fn run(client: c.DirectTableClient, admin: anytype, role: u64) !void {
     (try client.call(.{ .release = released })).deinit();
     try t.expectError(error.Conflict, closed.nextBatch(8));
     try t.expectEqual(q.protocol.ErrorCode.QueryExpired, closed.native_rejection.?);
-    std.debug.print("Table projection: wide segments and WAL rows, 1 KiB pages, column-bound cursors, exact retained coverage, owned rows, prepared ASCII_CI predicates, named duplicates, aggregates, ordered failures and post-compute/terminal revocation passed.\n", .{});
+    std.debug.print("Table projection: wide segments and WAL rows, 1 KiB pages, column-bound cursors, exact retained coverage, owned rows, interleaved/prepared ASCII_CI predicates, named duplicates, aggregates, ordered failures and post-compute/terminal revocation passed.\n", .{});
 }
 
 fn states(client: c.DirectTableClient, role: u64, a: std.mem.Allocator) !void {

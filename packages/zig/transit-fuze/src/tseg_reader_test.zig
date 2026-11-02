@@ -227,6 +227,8 @@ fn filteredAllocationCase(allocator: std.mem.Allocator, bytes: []u8) !void {
         .{ .atom = .{ .column = 0, .predicate = .{ .compare = .{ .op = .ge, .value = .{ .signed = 6 } } } } },
         .{ .atom = .{ .column = 1, .predicate = .{ .compare = .{ .op = .ne, .value = .{ .bytes = "zzz" } } } } },
         .conjunction,
+        .{ .atom = .{ .column = 1, .predicate = .{ .compare = .{ .op = .ne, .value = .{ .bytes = "xxx" } } } } },
+        .conjunction,
     };
     var group = try reader.filteredProgram(allocator, input.source(), schema, 3, &.{ 0, 1 }, .{ .instructions = &instructions }, .{}, &failure);
     defer group.deinit();
@@ -358,6 +360,22 @@ test "TSeg encoded programs arbitrate eager failures by row then instruction" {
         .{ .atom = .{ .column = 1, .predicate = predicate } },
         .conjunction,
     };
+    // Grouping physical work must not reorder nonadjacent atom failures.
+    const interleaved = [_]Instruction{
+        .{ .atom = .{ .column = 0, .predicate = .{ .state = .value } } },
+        .{ .atom = .{ .column = 1, .predicate = predicate } },
+        .conjunction,
+        .{ .atom = .{ .column = 0, .predicate = predicate } },
+        .conjunction,
+    };
+    const before_interleaved = input.calls;
+    var shared = try reader.decisions(t.allocator, input.source(), definition, 0, .{ .instructions = &interleaved }, .{});
+    defer shared.deinit();
+    try t.expectEqual(before_interleaved + 2, input.calls);
+    try t.expectEqual(.conflict, shared.rows[0].failure.?.outcome);
+    try t.expectEqual(@as(u8, 1), shared.rows[0].failure.?.instruction);
+    try t.expectEqual(.type_error, shared.rows[1].failure.?.outcome);
+    try t.expectEqual(@as(u8, 1), shared.rows[1].failure.?.instruction);
     // The first column fails on row 1, but the second column fails on row 0.
     // Physical evaluation order must not choose the column-0 error first.
     const program: ColumnPredicate.Program = .{ .instructions = &code };
@@ -895,4 +913,33 @@ test "TSeg selected decoding charges skipped string validation to the shared mem
     try t.expect(selected.allocatedBytes() < 4096);
     try t.expect(selected.peakAllocatedBytes() >= large.len);
     try t.expect(selected.peakAllocatedBytes() <= 32768);
+}
+
+test "TSeg encoded programs read each distinct predicate column once" {
+    const instructions = [_]ColumnPredicate.Program.Instruction{
+        .{ .atom = .{ .column = 1, .predicate = .{ .compare = .{ .op = .ge, .value = .{ .bytes = "seven" } } } } },
+        .{ .atom = .{ .column = 0, .predicate = .{ .compare = .{ .op = .ge, .value = .{ .signed = 6 } } } } },
+        .conjunction,
+        .{ .atom = .{ .column = 1, .predicate = .{ .compare = .{ .op = .ne, .value = .{ .bytes = "six" } } } } },
+        .conjunction,
+        .{ .atom = .{ .column = 0, .predicate = .all } },
+        .conjunction,
+    };
+    var buffer: [16384]u8 = undefined;
+    var input: Input = .{ .bytes = try fixture(&buffer) };
+    var reader = try Reader.open(t.allocator, input.source(), input.bytes.len, 8192);
+    defer reader.deinit();
+    const before = input.calls;
+    const bytes_before = input.read_bytes;
+    var decisions = try reader.decisions(t.allocator, input.source(), schema, 3, .{ .instructions = &instructions }, .{});
+    defer decisions.deinit();
+    try t.expectEqual(before + 2, input.calls);
+    var expected_bytes: usize = 0;
+    for (reader.footer.row_groups[3].pages) |page| expected_bytes += page.length;
+    try t.expectEqual(bytes_before + expected_bytes, input.read_bytes);
+    try t.expect(!decisions.rows[0].selected and decisions.rows[0].failure == null);
+    try t.expect(decisions.rows[1].selected and decisions.rows[1].failure == null);
+    // Deferred outcomes own no page or caller literal storage.
+    @memset(input.bytes, 0xaa);
+    try t.expect(!decisions.rows[0].selected and decisions.rows[1].selected);
 }

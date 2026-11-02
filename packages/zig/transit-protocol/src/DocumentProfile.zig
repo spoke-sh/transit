@@ -4,6 +4,10 @@ const std = @import("std");
 const p = @import("root.zig");
 const d = p.DataLifecycle;
 
+pub const fixture_json = @embedFile("fixtures/document-profile-v1.json");
+
+pub const Container = @import("DocumentProfileContainer.zig");
+
 pub const Format = enum(u8) {
     json = 1,
     xml = 2,
@@ -210,6 +214,9 @@ pub const SchemaTypes = struct {
     provenance: Provenance,
     capture: Capture,
     validation: Validation,
+    container: Container.Manifest,
+    reference: Container.Reference,
+    relationship: Container.Relationship,
 };
 
 test "document profile independent fixture and interpretation commitments" {
@@ -222,6 +229,10 @@ test "document profile independent fixture and interpretation commitments" {
     try sample.span.validate();
     try sample.provenance.validate();
     try sample.validation.validate();
+    try sample.container.validate();
+    try sample.reference.validate();
+    try sample.relationship.validate(sample.container.parts);
+    try t.expectError(error.DocumentProfileCoverageGap, sample.container.requireExact());
     try t.expectEqual(@as(u64, std.math.maxInt(u64)), sample.span.part_id);
     try t.expectError(error.DocumentProfileCoverageGap, sample.part.requireExact());
     var changed = sample.descriptor;

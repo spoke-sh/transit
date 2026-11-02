@@ -168,6 +168,12 @@ test "A1 & P3 compressed-domain .dictionary and .fsst string predicates and late
                     }
                 }
                 try std.testing.expect(workspace.reset(.retain_capacity));
+                const batched = try PhysicalCodecs.evaluateColumnPredicates(workspace.allocator(), workspace.allocator(), col, page, &predicates);
+                for (predicates, 0..) |predicate, i| for (raw_values, batched.predicate(i)) |cell, actual| {
+                    try std.testing.expectEqual(try predicate.evaluate(col, cell), actual);
+                };
+                try std.testing.expectEqual(@as(usize, 5), batched.evaluated_values);
+                try std.testing.expect(workspace.reset(.retain_capacity));
                 const a = workspace.allocator();
                 const selected = [_]u32{ 1, 2, 4, 6 };
                 const materialized = try PhysicalCodecs.decodeColumnPageSelected(a, a, col, page, &selected);
@@ -328,4 +334,96 @@ test "compressed predicates and empty selections validate unselected conflict de
         try std.testing.expectError(error.InvalidConflict, PhysicalCodecs.evaluateColumnPage(a, a, col, page, .all));
         try std.testing.expectError(error.InvalidConflict, PhysicalCodecs.decodeColumnPageSelected(a, a, col, page, &.{}));
     }
+}
+
+test "compressed predicate batches preserve states and share physical visits" {
+    const predicates = [_]ColumnPredicate.Predicate{
+        .{ .compare = .{ .op = .ge, .value = .{ .bytes = "A" } } },
+        .{ .compare = .{ .op = .lt, .value = .{ .bytes = "same-prefix-ab" } } },
+        .{ .starts_with = "a" },
+        .null_compare,
+        .{ .state = .conflict },
+        .all,
+    };
+    const alternatives = [_]Values.Alternative{
+        .{ .counter = 1, .replica = 1, .value = .null },
+        .{ .counter = 2, .replica = 1, .value = .{ .value = .{ .atom = .{ .bytes = "conflict" } } } },
+    };
+    const rows = [_]Values.Cell{
+        .{ .value = .{ .atom = .{ .bytes = "A" } } },
+        .{ .value = .{ .atom = .{ .bytes = "a " } } },
+        .{ .value = .{ .atom = .{ .bytes = "same-prefix-aa" } } },
+        .{ .value = .{ .atom = .{ .bytes = "A" } } },
+        .null,
+        .missing,
+        .{ .type_error = .utf8 },
+        .{ .conflict = &alternatives },
+    };
+    for ([_]TableSchema.Encoding{ .plain, .dictionary, .fsst }) |encoding| {
+        for ([_]TableSchema.Collation{ .utf8_binary, .ascii_ci, .ebcdic_cp037, .ebcdic_037_pad, .ebcdic_1047_nopad }) |collation| {
+            const column: TableSchema.Column = .{ .id = 1, .name = "s", .type = .utf8, .encoding = encoding, .collation = collation };
+            var buffer: [8192]u8 = undefined;
+            const page = try PhysicalCodecs.encodeColumnPage(std.testing.allocator, column, &rows, &buffer);
+            const result = try PhysicalCodecs.evaluateColumnPredicates(std.testing.allocator, std.testing.allocator, column, page, &predicates);
+            defer std.testing.allocator.free(result.outcomes);
+            try std.testing.expectEqual(rows.len, result.row_count);
+            try std.testing.expectEqual(predicates.len, result.predicate_count);
+            try std.testing.expectEqual(@as(usize, if (encoding == .dictionary) 3 else 4), result.evaluated_values);
+            for (predicates, 0..) |predicate, i| {
+                for (rows, result.predicate(i)) |cell, actual| try std.testing.expectEqual(try predicate.evaluate(column, cell), actual);
+            }
+            if (encoding == .fsst) {
+                const streams = collation == .utf8_binary or collation == .ascii_ci;
+                try std.testing.expectEqual(@as(usize, if (streams) 4 else 0), result.streamed_strings);
+                try std.testing.expectEqual(@as(usize, if (streams) 0 else 4), result.materialized_strings);
+                const mixed = [_]ColumnPredicate.Predicate{ predicates[0], .{ .contains = "prefix" } };
+                const fallback = try PhysicalCodecs.evaluateColumnPredicates(std.testing.allocator, std.testing.allocator, column, page, &mixed);
+                defer std.testing.allocator.free(fallback.outcomes);
+                try std.testing.expectEqual(@as(usize, 0), fallback.streamed_strings);
+                try std.testing.expectEqual(@as(usize, 4), fallback.materialized_strings);
+                for (mixed, 0..) |predicate, i| for (rows, fallback.predicate(i)) |cell, actual| {
+                    try std.testing.expectEqual(try predicate.evaluate(column, cell), actual);
+                };
+            }
+        }
+    }
+}
+
+test "compressed predicate dictionaries bound outcome width and detach from text" {
+    var strings: [32][1024]u8 = @splat(@splat('x'));
+    var rows: [32]Values.Cell = undefined;
+    for (&strings, &rows, 0..) |*string, *row, i| {
+        string[0] = @as(u8, @intCast(i)) + 'A';
+        row.* = .{ .value = .{ .atom = .{ .bytes = string } } };
+    }
+    const column: TableSchema.Column = .{ .id = 1, .name = "s", .type = .utf8, .encoding = .dictionary, .collation = .utf8_binary };
+    var page_buffer: [65536]u8 = undefined;
+    const page = try PhysicalCodecs.encodeColumnPage(std.testing.allocator, column, &rows, &page_buffer);
+    const predicates = [_]ColumnPredicate.Predicate{ .{ .starts_with = "A" }, .{ .starts_with = "B" } };
+    // The two active atoms fit; caching the 64-atom maximum per entry would not.
+    var scratch_bytes: [512]u8 = undefined;
+    var scratch = std.heap.FixedBufferAllocator.init(&scratch_bytes);
+    const result = try PhysicalCodecs.evaluateColumnPredicates(scratch.allocator(), std.testing.allocator, column, page, &predicates);
+    defer std.testing.allocator.free(result.outcomes);
+    try std.testing.expectEqual(@as(usize, 32), result.evaluated_values);
+    @memset(&page_buffer, 0xaa);
+    @memset(&scratch_bytes, 0xbb);
+    for (0..32) |row| {
+        try std.testing.expectEqual(if (row == 0) ColumnPredicate.Outcome.yes else .no, result.predicate(0)[row]);
+        try std.testing.expectEqual(if (row == 1) ColumnPredicate.Outcome.yes else .no, result.predicate(1)[row]);
+    }
+}
+
+test "compressed predicate batch bounds and malformed suffixes reject before success" {
+    const column: TableSchema.Column = .{ .id = 1, .name = "s", .type = .utf8, .encoding = .fsst, .collation = .utf8_binary };
+    const a = std.testing.allocator;
+    const too_many: [ColumnPredicate.Program.max_instructions + 1]ColumnPredicate.Predicate = @splat(.all);
+    try std.testing.expectError(error.InvalidPredicateProgram, PhysicalCodecs.evaluateColumnPredicates(a, a, column, "", &.{}));
+    try std.testing.expectError(error.InvalidPredicateProgram, PhysicalCodecs.evaluateColumnPredicates(a, a, column, "", &too_many));
+    var bytes: [1024]u8 = undefined;
+    const malformed = try fsstPage(&bytes, 2, "a", &.{ 0, 0xfe });
+    const predicates = [_]ColumnPredicate.Predicate{ .all, .{ .compare = .{ .op = .eq, .value = .{ .bytes = "z" } } } };
+    try std.testing.expectError(error.InvalidFsstStream, PhysicalCodecs.evaluateColumnPredicates(a, a, column, malformed, &predicates));
+    const invalid_utf8 = try fsstPage(&bytes, 1, "\xc3", &.{0});
+    try std.testing.expectError(error.InvalidUtf8, PhysicalCodecs.evaluateColumnPredicates(a, a, column, invalid_utf8, &predicates));
 }

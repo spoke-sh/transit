@@ -477,11 +477,39 @@ pub const Evaluated = struct {
 /// validation work. All framing and every value are checked before success.
 /// Source type errors/conflicts remain row-addressed outcomes, not hidden rows.
 pub fn evaluateColumnPage(scratch: std.mem.Allocator, arena: std.mem.Allocator, column: TableSchema.Column, bytes: []const u8, predicate: ColumnPredicate.Predicate) !Evaluated {
-    try predicate.validate(column);
-    var sink: PredicateSink = .{ .arena = arena, .column = column, .predicate = predicate };
+    const result = try evaluateColumnPredicates(scratch, arena, column, bytes, &.{predicate});
+    return .{ .outcomes = result.outcomes, .evaluated_values = result.evaluated_values, .streamed_strings = result.streamed_strings, .materialized_strings = result.materialized_strings };
+}
+
+pub const EvaluatedPredicates = struct {
+    /// Predicate-major outcomes. Each predicate retains one byte per row;
+    /// no value or literal borrows the decoder's scratch after return.
+    outcomes: []ColumnPredicate.Outcome,
+    row_count: usize,
+    predicate_count: usize,
+    /// Physical values visited, independent of the number of predicates.
+    evaluated_values: usize,
+    streamed_strings: usize,
+    materialized_strings: usize,
+
+    pub fn predicate(self: EvaluatedPredicates, index: usize) []ColumnPredicate.Outcome {
+        std.debug.assert(index < self.predicate_count);
+        return self.outcomes[index * self.row_count ..][0..self.row_count];
+    }
+};
+
+/// Validate and traverse a page once for all atoms bound to this column.
+/// Outcomes preserve each atom independently; the caller composes them in the
+/// original instruction order. A dictionary retains only predicate outcomes,
+/// and FSST streams all supported atoms together or decodes each value once.
+/// The caller frees outcomes and supplies scratch/output allocation budgets.
+pub fn evaluateColumnPredicates(scratch: std.mem.Allocator, arena: std.mem.Allocator, column: TableSchema.Column, bytes: []const u8, predicates: []const ColumnPredicate.Predicate) !EvaluatedPredicates {
+    if (predicates.len == 0 or predicates.len > ColumnPredicate.Program.max_instructions) return error.InvalidPredicateProgram;
+    for (predicates) |predicate| try predicate.validate(column);
+    var sink: PredicateSink = .{ .arena = arena, .column = column, .predicates = predicates };
     errdefer arena.free(sink.outcomes);
-    _ = try decodeInto(false, scratch, column, bytes, &sink);
-    return .{ .outcomes = sink.outcomes, .evaluated_values = sink.evaluated_values, .streamed_strings = sink.streamed_strings, .materialized_strings = sink.materialized_strings };
+    const rows = try decodeInto(false, scratch, column, bytes, &sink);
+    return .{ .outcomes = sink.outcomes, .row_count = rows, .predicate_count = predicates.len, .evaluated_values = sink.evaluated_values, .streamed_strings = sink.streamed_strings, .materialized_strings = sink.materialized_strings };
 }
 
 fn decodePage(scratch: std.mem.Allocator, arena: std.mem.Allocator, column: TableSchema.Column, bytes: []const u8, rows: ?[]const u32) !Selected {
@@ -651,35 +679,40 @@ const DecodeSink = struct {
 const PredicateSink = struct {
     arena: std.mem.Allocator,
     column: TableSchema.Column,
-    predicate: ColumnPredicate.Predicate,
+    predicates: []const ColumnPredicate.Predicate,
     tags: []const u8 = &.{},
     outcomes: []ColumnPredicate.Outcome = &.{},
     next_row: usize = 0,
     evaluated_values: usize = 0,
     streamed_strings: usize = 0,
     materialized_strings: usize = 0,
-    const Cached = ColumnPredicate.Outcome;
+    const Cached = [ColumnPredicate.Program.max_instructions]ColumnPredicate.Outcome;
     fn start(self: *PredicateSink, tags: []const u8) !void {
         self.tags = tags;
-        self.outcomes = try self.arena.alloc(ColumnPredicate.Outcome, tags.len);
+        self.outcomes = try self.arena.alloc(ColumnPredicate.Outcome, tags.len * self.predicates.len);
     }
     fn nonValue(self: *PredicateSink, row: usize, cell: Values.Cell) !void {
-        self.outcomes[row] = try self.predicate.evaluate(self.column, cell);
+        for (self.predicates, 0..) |predicate, i| self.outcomes[i * self.tags.len + row] = try predicate.evaluate(self.column, cell);
     }
     fn prepare(self: *PredicateSink, cell: Values.Cell) !Cached {
         try validatePhysicalCell(self.column, cell);
         self.evaluated_values += 1;
-        return self.predicate.evaluate(self.column, cell);
+        var result: Cached = undefined;
+        for (self.predicates, 0..) |predicate, i| result[i] = try predicate.evaluate(self.column, cell);
+        return result;
     }
     fn emit(self: *PredicateSink, cell: Values.Cell, repeat: usize) !void {
         var cached = try self.prepare(cell);
         try self.emitCached(&cached, repeat);
     }
     fn emitCached(self: *PredicateSink, cached: *Cached, repeat: usize) !void {
+        return self.emitOutcomes(cached[0..self.predicates.len], repeat);
+    }
+    fn emitOutcomes(self: *PredicateSink, cached: []const ColumnPredicate.Outcome, repeat: usize) !void {
         for (0..repeat) |_| {
             while (self.next_row < self.tags.len and self.tags[self.next_row] != 0) self.next_row += 1;
             if (self.next_row == self.tags.len) return error.InvalidColumnPage;
-            self.outcomes[self.next_row] = cached.*;
+            for (cached, 0..) |outcome, i| self.outcomes[i * self.tags.len + self.next_row] = outcome;
             self.next_row += 1;
         }
     }
@@ -834,18 +867,37 @@ fn encodeDictionaryValues(allocator: std.mem.Allocator, writer: *std.Io.Writer, 
 fn decodeDictionaryValues(scratch: std.mem.Allocator, temporary: *std.heap.ArenaAllocator, reader: *std.Io.Reader, count: usize, sink: anytype) !void {
     const dict_len = try reader.takeInt(u32, .little);
     if (dict_len > count) return error.InvalidDictionaryCode;
-    // Decoding caches a borrowed/owned value; evaluation caches only its
-    // outcome. Each physical dictionary value is validated/evaluated once.
-    const dict = try scratch.alloc(@TypeOf(sink.*).Cached, dict_len);
-    defer scratch.free(dict);
-    for (dict) |*entry| {
-        const value = try readCanonicalValue(temporary.allocator(), reader, sink.column.type);
-        entry.* = try sink.prepare(.{ .value = value });
-    }
-    for (0..count) |_| {
-        const code = try reader.takeInt(u32, .little);
-        if (code >= dict.len) return error.InvalidDictionaryCode;
-        try sink.emitCached(&dict[code], 1);
+    if (comptime @TypeOf(sink.*) == PredicateSink) {
+        // Reserve only the actual predicate width, not a maximum-sized cache
+        // entry per dictionary value. Scalar payloads borrow the encoded page;
+        // only outcomes survive evaluation, independent of total text size.
+        const width = sink.predicates.len;
+        const dict = try scratch.alloc(ColumnPredicate.Outcome, @as(usize, dict_len) * width);
+        defer scratch.free(dict);
+        for (0..dict_len) |i| {
+            const value = try readCanonicalValue(temporary.allocator(), reader, sink.column.type);
+            const outcomes = try sink.prepare(.{ .value = value });
+            @memcpy(dict[i * width ..][0..width], outcomes[0..width]);
+        }
+        for (0..count) |_| {
+            const code = try reader.takeInt(u32, .little);
+            if (code >= dict_len) return error.InvalidDictionaryCode;
+            try sink.emitOutcomes(dict[@as(usize, code) * width ..][0..width], 1);
+        }
+    } else {
+        // Projection retains borrowed dictionary values until selected copies
+        // detach; unlike predicate outcomes these still need their payloads.
+        const dict = try scratch.alloc(@TypeOf(sink.*).Cached, dict_len);
+        defer scratch.free(dict);
+        for (dict) |*entry| {
+            const value = try readCanonicalValue(temporary.allocator(), reader, sink.column.type);
+            entry.* = try sink.prepare(.{ .value = value });
+        }
+        for (0..count) |_| {
+            const code = try reader.takeInt(u32, .little);
+            if (code >= dict.len) return error.InvalidDictionaryCode;
+            try sink.emitCached(&dict[code], 1);
+        }
     }
 }
 
@@ -970,8 +1022,8 @@ fn decodeFsstValues(temporary: *std.heap.ArenaAllocator, reader: *std.Io.Reader,
         if (@as(u64, decoded_len) > @as(u64, token_len) * 8) return error.InvalidFsstStream;
         if (decoded_len > (Types.Limits{}).value_bytes) return error.ValueBudgetExceeded;
         if (comptime @TypeOf(sink.*) == PredicateSink) {
-            if (try streamFsstPredicate(symbols[0..symbol_count], tokens, decoded_len, sink.column, sink.predicate)) |outcome| {
-                var cached = outcome;
+            var cached: PredicateSink.Cached = undefined;
+            if (try streamFsstPredicates(symbols[0..symbol_count], tokens, decoded_len, sink.column, sink.predicates, &cached)) {
                 try sink.emitCached(&cached, 1);
                 sink.evaluated_values += 1;
                 sink.streamed_strings += 1;
@@ -1017,15 +1069,16 @@ fn validatePhysicalCell(column: TableSchema.Column, cell: Values.Cell) !void {
 /// lexical decision. Even after a decision is known, consume and validate every
 /// token, scalar and decoded-length claim. CP037 and complex patterns use the
 /// shared bounded decoder until they have an equivalent streaming kernel.
-fn streamFsstPredicate(symbols: []const []const u8, tokens: []const u8, decoded_len: u32, column: TableSchema.Column, predicate: ColumnPredicate.Predicate) !?ColumnPredicate.Outcome {
-    if (column.collation != .none and column.collation != .utf8_binary and column.collation != .ascii_ci) return null;
-    const target: []const u8 = switch (predicate) {
+fn streamFsstPredicates(symbols: []const []const u8, tokens: []const u8, decoded_len: u32, column: TableSchema.Column, predicates: []const ColumnPredicate.Predicate, outcomes: *PredicateSink.Cached) !bool {
+    if (column.collation != .none and column.collation != .utf8_binary and column.collation != .ascii_ci) return false;
+    var targets: [ColumnPredicate.Program.max_instructions][]const u8 = undefined;
+    var orders: [ColumnPredicate.Program.max_instructions]std.math.Order = @splat(.eq);
+    for (predicates, 0..) |predicate, i| targets[i] = switch (predicate) {
         .compare => |cmp| cmp.value.bytes,
         .starts_with => |prefix| prefix,
         .all, .state, .null_compare => "",
-        else => return null,
+        else => return false,
     };
-    var order: std.math.Order = .eq;
     var position: usize = 0;
     var cursor: usize = 0;
     var scalar: [4]u8 = undefined;
@@ -1055,10 +1108,12 @@ fn streamFsstPredicate(symbols: []const []const u8, tokens: []const u8, decoded_
                     characters += 1;
                 }
             }
-            if (order == .eq and position < target.len) {
-                const left = if (column.collation == .ascii_ci) Collation.asciiLower(byte) else byte;
-                const right = if (column.collation == .ascii_ci) Collation.asciiLower(target[position]) else target[position];
-                order = std.math.order(left, right);
+            for (targets[0..predicates.len], orders[0..predicates.len]) |target, *order| {
+                if (order.* == .eq and position < target.len) {
+                    const left = if (column.collation == .ascii_ci) Collation.asciiLower(byte) else byte;
+                    const right = if (column.collation == .ascii_ci) Collation.asciiLower(target[position]) else target[position];
+                    order.* = std.math.order(left, right);
+                }
             }
             position += 1;
         }
@@ -1066,23 +1121,29 @@ fn streamFsstPredicate(symbols: []const []const u8, tokens: []const u8, decoded_
     if (position != decoded_len) return error.InvalidFsstStream;
     if (scalar_len != 0) return error.InvalidUtf8;
     if (column.max_characters) |maximum| if (characters > maximum) return error.CharacterLimitExceeded;
-    if (order == .eq and predicate != .starts_with) order = std.math.order(position, target.len);
-    const selected = switch (predicate) {
-        .all => true,
-        .state => |state| state == .value,
-        .null_compare => return .unknown,
-        .starts_with => order == .eq and position >= target.len,
-        .compare => |cmp| switch (cmp.op) {
-            .eq => order == .eq,
-            .ne => order != .eq,
-            .lt => order == .lt,
-            .le => order != .gt,
-            .gt => order == .gt,
-            .ge => order != .lt,
-        },
-        else => unreachable,
-    };
-    return if (selected) .yes else .no;
+    for (predicates, targets[0..predicates.len], orders[0..predicates.len], outcomes[0..predicates.len]) |predicate, target, initial_order, *outcome| {
+        const order = if (initial_order == .eq and predicate != .starts_with) std.math.order(position, target.len) else initial_order;
+        const selected = switch (predicate) {
+            .all => true,
+            .state => |state| state == .value,
+            .null_compare => {
+                outcome.* = .unknown;
+                continue;
+            },
+            .starts_with => order == .eq and position >= target.len,
+            .compare => |cmp| switch (cmp.op) {
+                .eq => order == .eq,
+                .ne => order != .eq,
+                .lt => order == .lt,
+                .le => order != .gt,
+                .gt => order == .gt,
+                .ge => order != .lt,
+            },
+            else => unreachable,
+        };
+        outcome.* = if (selected) .yes else .no;
+    }
+    return true;
 }
 
 fn valuesEqual(expected: Types.Type, a: Values.Value, b: Values.Value) bool {
