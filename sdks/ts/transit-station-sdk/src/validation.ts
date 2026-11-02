@@ -1,6 +1,5 @@
-// One eagerly compiled schema collection for the package. Sharing validators
-// removes repeated compilation without moving validation into the first call.
-import { validators } from "@transit/client/internal";
-import schemas from "./schemas.json" with { type: "json" };
+// Generated functions validate immediately without runtime schema compilation.
+import type { ValidateFunction } from "ajv";
+import * as compiled from "./validators.js";
 
-export const validation = validators(schemas);
+export const validation: Record<string, ValidateFunction> = compiled;

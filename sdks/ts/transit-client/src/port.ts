@@ -3,7 +3,7 @@ import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Ajv, type AnySchema, type ValidateFunction } from "ajv";
+import type { ValidateFunction } from "ajv";
 import {
   Busy,
   Closed,
@@ -46,12 +46,6 @@ function boundedJson(value: unknown, maximum: number): boolean {
     return true;
   }
   return visit(value, 0);
-}
-export function validators(schemas: Record<string, unknown>): Record<string, ValidateFunction> {
-  const ajv = new Ajv({ strict: true });
-  return Object.fromEntries(
-    Object.entries(schemas).map(([name, schema]) => [name, ajv.compile(schema as AnySchema)]),
-  );
 }
 interface Pending {
   readonly resolve: (value: unknown) => void;

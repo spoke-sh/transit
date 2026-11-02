@@ -10,11 +10,11 @@ import {
   record,
   text,
 } from "./values.ts";
-import { Port, validators } from "./port.ts";
-import schemas from "./schemas.json" with { type: "json" };
+import { Port } from "./port.ts";
+import { validation } from "./validation.ts";
 import type { OperationMetadata } from "./wire.ts";
 
-export const validation = validators(schemas);
+export { validation };
 const utf8 = new TextDecoder("utf-8", { fatal: true });
 export function frozenText(bytes: Uint8Array): string {
   return utf8.decode(owned(bytes, limits.max_body));
