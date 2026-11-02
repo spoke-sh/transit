@@ -15,7 +15,21 @@ pub const Action = union(enum) {
     status: void,
 };
 const Request = struct { definition: p.Growth.Definition, action: Action };
-pub const Status = struct { definition: p.Growth.Definition, fingerprint: ?[32]u8, state: enum { stopped, running, failed }, failure: ?[]const u8 = null, refusal: ?[]const u8 = null, local_requests: Placement.Snapshot = .{} };
+pub const Performance = struct {
+    instance: [16]u8,
+    managed: g.direct.ManagedTable.Diagnostics.Snapshot,
+    owned_records: g.catalog.DirectTransactionRecord.Diagnostics.Snapshot,
+};
+/// Configure once before starting workers. These process-lifetime counters do
+/// not reset on SQL activation or local storage-owner replacement.
+pub fn enablePerformance(enabled: bool) void {
+    g.direct.ManagedTable.diagnostics.enabled = enabled;
+    g.catalog.DirectTransactionRecord.diagnostics.enabled = enabled;
+}
+fn performance(instance: [16]u8) ?Performance {
+    return .{ .instance = instance, .managed = g.direct.ManagedTable.diagnostics.snapshot() orelse return null, .owned_records = g.catalog.DirectTransactionRecord.diagnostics.snapshot() orelse return null };
+}
+pub const Status = struct { definition: p.Growth.Definition, fingerprint: ?[32]u8, state: enum { stopped, running, failed }, failure: ?[]const u8 = null, refusal: ?[]const u8 = null, local_requests: Placement.Snapshot = .{}, performance: ?Performance = null };
 
 pub fn socketPath(allocator: std.mem.Allocator, io: std.Io, runtime: ?[]const u8, installation: []const u8) ![]const u8 {
     const location = try Discovery.locate(allocator, io, runtime, installation, true);
@@ -122,6 +136,8 @@ pub fn serve(init: std.process.Init, config: Config, endpoint: host.LocalEndpoin
         std.Io.Dir.cwd().deleteFile(init.io, config.socket) catch {};
     }
     var placement: Placement = .{ .base = endpoint };
+    var instance: [16]u8 = undefined;
+    try init.io.randomSecure(&instance);
     var running: ?*Running = null;
     defer if (running) |value| value.destroy();
     while (true) {
@@ -141,20 +157,20 @@ pub fn serve(init: std.process.Init, config: Config, endpoint: host.LocalEndpoin
         apply(init, config, placement.endpoint(), diagnostics, &running, request.value.action) catch |err| {
             if (err == error.Canceled) return err;
             try transport.resetDeadline(5000);
-            send(init.gpa, &transport, observe(running, &placement, @errorName(err))) catch |failure| {
+            send(init.gpa, &transport, observe(running, &placement, instance, @errorName(err))) catch |failure| {
                 if (failure == error.Canceled) return failure;
             };
             continue;
         };
         try transport.resetDeadline(5000);
-        send(init.gpa, &transport, observe(running, &placement, null)) catch |failure| {
+        send(init.gpa, &transport, observe(running, &placement, instance, null)) catch |failure| {
             if (failure == error.Canceled) return failure;
         };
     }
 }
-fn observe(running: ?*Running, placement: *const Placement, refusal: ?[]const u8) Status {
+fn observe(running: ?*Running, placement: *const Placement, instance: [16]u8, refusal: ?[]const u8) Status {
     const done = if (running) |value| value.done.load(.acquire) else false;
-    return .{ .definition = p.Growth.current_definition, .local_requests = placement.snapshot(), .fingerprint = if (running) |value| value.fingerprint else null, .state = if (running == null) .stopped else if (done) .failed else .running, .failure = if (done and running.?.failure != null) @errorName(running.?.failure.?) else null, .refusal = refusal };
+    return .{ .definition = p.Growth.current_definition, .local_requests = placement.snapshot(), .performance = performance(instance), .fingerprint = if (running) |value| value.fingerprint else null, .state = if (running == null) .stopped else if (done) .failed else .running, .failure = if (done and running.?.failure != null) @errorName(running.?.failure.?) else null, .refusal = refusal };
 }
 fn apply(init: std.process.Init, config: Config, endpoint: host.LocalEndpoint, diagnostics: *g.wire.observability.telemetry.Runtime, running: *?*Running, action: Action) !void {
     switch (action) {

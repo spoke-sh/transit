@@ -9,6 +9,20 @@ const R = c.DirectRecord;
 
 pub const format: u32 = 0x54585231; // TXR1
 pub const metadata_charge: u64 = 32 * 1024;
+/// Process observations, including failed/repeated attempts. Publication returns
+/// are not durable counts: a lost acknowledgement can undercount accepted work.
+pub const Diagnostics = c.client.observability.Counters(struct {
+    stage_calls: u64,
+    stage_failures: u64,
+    reservation_attempts: u64,
+    reservation_returns: u64,
+    readiness_attempts: u64,
+    readiness_returns: u64,
+    reused_returns: u64,
+    stored_bytes: u64,
+    reservation_logical_bytes: u64,
+});
+pub var diagnostics: Diagnostics = .{};
 pub const Request = struct {
     transaction: c.DirectClientToken.Key,
     format: u32,
