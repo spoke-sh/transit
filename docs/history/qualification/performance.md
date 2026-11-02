@@ -9,6 +9,181 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## SDK validator initialization and captured-read recovery — 2026-11-02
+
+This packet starts the approved [post-merge delivery plan](../../roadmap/08-gateway-architecture-and-protocol-ingress.md#post-merge-performance-delivery-plan--2026-11-01).
+The import comparison freezes the runtime/compiler control at `6e61f637e`
+(main `86df3afb5` plus the plan) and candidate at `4789964e6`. Both use
+shared definition `afac2bd84560136ca90c0683afdffb8f71d5f96568b05dd3de773ce3c5339b2a`
+and identical native client artifacts. Neither later recovery changes nor Board
+PR #326 are part of this import comparison. Later clean qualification is recorded
+separately below.
+
+Node builds now generate standalone validators from the canonical schemas with
+the pinned Ajv compiler/options. Runtime validation, complete Ajv diagnostics and
+public value decoding remain enabled; imports do not compile schemas. The
+checked-in generated digest and declaration check binds the ignored JavaScript
+build output. Differential checks compare 3,008 valid/malformed cases against
+the former runtime compiler, including nested values and full-width integers.
+
+### Installed import result
+
+AB/BA/AB pairs use 17/17/16 fresh processes per arm: all 100 imports complete.
+The installer, driver/program and native archives match. Every process imports
+both real installed packages outside the checkout. OS pages remain warm;
+package installation, client open and network/service work are excluded.
+Owned builds and physical checks are stopped during timing. Other jobs on this
+48-logical-CPU shared host are uncontrolled; these observations are not a tail SLO.
+
+| Metric | Runtime compiler (n=50) | Standalone functions (n=50) |
+| --- | ---: | ---: |
+| Module import median | 2,884.30 ms | 313.10 ms |
+| Launch through verified import median | 2,964.50 ms | 360.15 ms |
+| Import process CPU median | 3,920.85 ms | 339.10 ms |
+| Process peak RSS median | 344.33 MiB | 121.99 MiB |
+
+This is **9.21× faster import**, **11.56× less import CPU** and **64.57% lower
+peak RSS**. The predeclared exploratory median limits (500 ms import and
+343 MiB peak RSS) pass. They are not a whole-SDK/service or zero-allocation claim.
+Combined public SDK archives grow from 467,009 to 1,737,209 compressed bytes;
+unpacked payload grows from 7,657,735 to 22,889,429 bytes. Native archives are
+unchanged. Packaging durations are retained but were not paired timing experiments.
+
+### Cold open through verified metadata
+
+A second AB/BA/AB campaign uses the same package archives, 17/17/16 fresh
+processes per arm and one fixed headless native-local service with automatic
+maintenance. All 100 processes open both native clients, verify the declared
+Table's 70 rows and two columns through public metadata, then close and join.
+A deliberately wrong 71-row oracle fails, as required. The identical extended
+driver/program is committed at `0fc13c175` and copied onto the control checkout;
+the retained control patch changes only those measurement files. Service binaries
+are frozen at `7759e6f9f`, before Board PR #326, with exact hashes in
+`first-result-service.json`.
+
+| Metric | Runtime compiler (n=50) | Standalone functions (n=50) |
+| --- | ---: | ---: |
+| Launch through verified first metadata median | 2,931.69 ms | 396.81 ms |
+| Native client open median | 27.69 ms | 35.38 ms |
+| Joined close median | 83.78 ms | 36.19 ms |
+| Entire client lifecycle median | 3,016.46 ms | 435.56 ms |
+
+The first verified metadata result is **7.39× faster**, meeting the predeclared
+no-regression gate. This verifies that import savings survive opening clients
+and making a service call. It does not qualify SELECT consumption, snapshot
+cleanup, service startup or a combined all-language SDK campaign. Metadata-profile
+import CPU is explicitly unavailable; native hosts are separate processes.
+
+### Current default profiles and retained failures
+
+The current-definition default-maintenance console baseline passes all 47
+statements and process cleanup. Warm SELECT median is 36.8 ms (n=6), INSERT
+590.5 ms, UPDATE 861.5 ms, DELETE 805.0 ms and SELECT after DELETE 740.2 ms
+(n=5 each); one first SELECT takes 2.606 s. This does not explain or close the
+older `Canceled (HY000)` failure. These sparse unpaired samples do not qualify
+the durable-write or startup targets.
+
+The all-language SDK baseline fails in Zig's first full-result acquisition,
+before Python or Node runs. Its saved pending owner is 1000021; the last saved
+snapshot belongs to 1000020. The original fixture
+`/var/tmp/transit-server-proof-sfy8r0gr` was backed up and reopened with its exact
+matching frozen binaries/definition. Public status for owner 1000021 shows no
+snapshot and partition 3 at next LSN 37, beyond the proposed 36. That original
+exact acquisition was not accepted and cannot match the advanced frontier; there
+is no pin to release. Saved pending/snapshot files remain unchanged.
+
+New consumer diagnostics inspect only the original pin owner after acquire or
+release failure and preserve its status privately. Separate default-maintenance
+fixtures exercise all four consumers (70 rows, one warmup plus three measured
+iterations per case):
+
+| Consumer | Completed operations | Outcome |
+| --- | ---: | --- |
+| Node | 9 | Empty-read acquisition conflict; original owner has no snapshot, partition frontier 10 → 11 |
+| Python synchronous | 39 | Full-text acquisition conflict; no snapshot, frontier 39 → 40 |
+| Python asynchronous | 56 | All cases and joined cleanup pass |
+| Zig | 39 | Full-text acquisition conflict; no snapshot, frontier 40 → 41 |
+
+The failed fixtures and original identities remain retained. These are separate
+diagnostics, not a passing combined campaign or accepted speed comparison.
+Frontier movement establishes an exact-cut conflict, not its causal attribution
+to a particular maintenance operation. A shared current-read lifecycle must
+establish the original outcome before any new acquisition; silently substituting
+a later cut inside an exact acquire would change the contract.
+
+The older Python release fixture `/var/tmp/transit-server-proof-fc6c8_0s` was
+backed up and reopened with its original `a7d659b85` binaries, installed SDK and
+`7c81d0916913d774febe2bec8f739f95a194f3ca88056c9f1214c0f77f22fa89` definition.
+Status proves owner 2000023 still retains its original pin at partition 3 next
+LSN 69, with `released=false`. One explicit release of that original handle
+succeeds; subsequent status reports the same handle with `released=true`.
+Saved identity files are unchanged and all restarted processes join. This settles
+and cleans up the original pin; the initial release failure's cause remains open
+and its failed measurement remains failed. Older acquisition fixture
+`/var/tmp/transit-server-proof-v4g4vupo` was not requalified by these inspections.
+
+The console/default SDK baseline runtime was built from unchanged runtime
+sources at `6e61f637e` with an explicitly recorded dirty marker from concurrent
+SDK/test edits. It is not a clean-source runtime qualification. Later SDK
+diagnostics use the frozen `7759e6f9f` candidate binaries. These source scopes
+must not be combined into an integrated current-main performance score.
+
+### Recovery qualification
+
+A captured read can retain an unaccepted `open_view` proposal after its read
+window expires. The authority definitively rejects it with `DeadlineExpired`;
+the former QueryHost exits with `Rejected`, leaving the accepted SQL operation
+ready but unfinished. The host now renews only an explicitly rejected expired
+open, preserving its durable input and reobserving current sequence, resource
+revision and authorization. Lost replies retain the original signed command;
+pending commits and other refusals are not discarded. Native duplicate receipt
+lookup precedes deadline validation, so an already accepted open retains its
+original receipt rather than being classified by the new deadline branch.
+
+The committed SQL-session fault driver at `aa9d78d2e` holds only a previously
+unforwarded proposal past its real 30-second read window. It verifies exact bytes
+for uncertain retries, then forwards it and requires the actual authority's
+422 `DeadlineExpired` response. Renewal must preserve the input, resource,
+revision and sequence while advancing only the proposed deadline. Existing
+five-second transport and 270-second statement completion budgets remain intact.
+
+- **Old-host negative control:** exits 1 as expected. The proxy records 52 exact
+  attempts, one explicit deadline refusal and no successful renewed open. The
+  original captured operation 56 remains ready/unblocked when its existing
+  completion budget expires. The failed installation is retained.
+- **Fixed-host control:** exits 0. The proxy records 65 exact attempts, one
+  explicit refusal and a successful renewal. Original operation 55 completes;
+  all 41 independent UTF-8 values verify across 32- and 9-row batches, followed
+  by the remaining selected captured-recovery schedule and joined cleanup.
+- Station owner unit tests pass for uncertain transport, future deadlines,
+  stale generations, pending commits and preservation of the durable input.
+
+The initial private orchestration postprocessor returned failure because it also
+required a rate-limited application log message. The dedicated proxy counter
+records only an actual authority deadline refusal and proves the negative control
+independently of that lossy log. `recovery-analysis.json` records this correction;
+the original process exit codes, output and raw record are unchanged.
+
+### Evidence and remaining gates
+
+Raw invocations, manifests, package/driver/binary identities, samples, failed
+fixtures and predeclared policies are retained under
+`.cache/performance/recovery-validators/`. `summary.json`,
+`first-result-summary.json`, `recovery-checks.json`, `recovery-analysis.json`,
+`original-inspection.json`, `original-release-settlement.json` and
+`sdk-diagnostic-invocations.json` attribute the separate experiments.
+The validator differential corpus passes all 3,008 cases and the installed Node
+check includes an import with string code generation disabled. Clean-checkout
+qualification on the integrated source including main `db0bb4a8f` is pending;
+these component and physical controls do not substitute for it.
+
+R1a and V2 have implemented controls and measured evidence. R1b's original release
+outcome is settled but its failure cause is not; exact snapshot acquisition and
+R1c's earlier console cancellation remain reliability obligations. Managed
+batching, shared SQL/SDK settlement, deadline scheduling, history-bearing startup
+and new workload measurements remain the subsequent M3/C4/D5/S6/E7 packets.
+Issue #211 and the 10–100× program remain open.
+
 ## Integrated performance measurement packet — 2026-11-01
 
 This packet implements the [current-main performance plan](../../roadmap/08-gateway-architecture-and-protocol-ingress.md#current-main-performance-implementation--2026-11-01).

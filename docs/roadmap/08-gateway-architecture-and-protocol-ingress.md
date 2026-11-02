@@ -602,6 +602,16 @@ latency budgets. The first qualification profile is pinned ReleaseSafe on Linux
 x86_64 with native-local synchronous durability and automatic maintenance.
 Other providers/platforms retain separate qualification requirements.
 
+The [first implementation packet](../history/qualification/performance.md#sdk-validator-initialization-and-captured-read-recovery--2026-11-02)
+delivers R1a's explicit expired-open recovery and V2's generated SDK validators:
+50 samples per arm show 9.21× faster installed imports and 7.39× faster cold first
+metadata, with separate source-attributed controls. Main `db0bb4a8f` (Board
+observations, PR #326) is integrated for clean qualification and adds the Board
+measurement row under E7. F0's default diagnostics retain acquisition conflicts;
+R1b's original Python pin is now released with public outcome evidence, but the
+initial failure cause remains open. R1c's earlier cancellation remains unexplained.
+These partial deliveries do not complete R1, F0, Q8 or the program's latency goals.
+
 ##### Starting evidence and success criteria
 
 The [last measurement packet](../history/qualification/performance.md#integrated-performance-measurement-packet--2026-11-01)

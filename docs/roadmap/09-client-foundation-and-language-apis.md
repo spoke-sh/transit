@@ -813,15 +813,19 @@ and long UTF-8 values. All 224 operations pass in the isolated profile. The
 default-maintenance campaign stops at an uncertain Python snapshot release;
 complete integrated default-profile qualification remains open.
 
-Station now eagerly compiles one shared validator collection per module graph.
-Three alternating installed-package pairs (15 fresh processes per arm) measure
-Node import median 6.398 → 2.807 seconds, with 16.5% lower peak RSS. This is a
-2.28× cold module-import observation, not a whole-SDK or steady-state budget
-claim. Remaining compilation is a candidate for build-time generation after
-preserving validator behavior and diagnostics. Allocation/copy attribution,
-broader values/languages, future context/SQL adapters and numeric regression
-budgets remain open; import savings must still be distinguished from native
-startup and the first verified service result.
+The earlier shared eager validator collection reduced cold module import by
+2.28× at its recorded source. The subsequent
+[validator/recovery packet](../history/qualification/performance.md#sdk-validator-initialization-and-captured-read-recovery--2026-11-02)
+generates standalone functions during packaging, retaining validation and complete
+Ajv diagnostics. Three alternating installed-package pairs with 50 fresh processes
+per arm measure 2.884 → 0.313 seconds for imports, with 64.57% lower peak RSS.
+A separate 50-per-arm cold-open comparison verifies metadata in 2.932 → 0.397
+seconds, including native clients and joined cleanup. Larger archives are the
+measured tradeoff. These are import/first-metadata results, not full-query or
+all-language qualification. The original Python pin was inspected and released;
+the cause of its earlier release failure and current exact-acquisition conflicts
+remain open. Allocation/copy attribution, broader values/languages, future
+context/SQL adapters and numeric operation regression budgets remain open.
 
 The application journey is to open an installed client, inspect a declared Table,
 write/read typed values, consume a complete bounded result and close or recover
