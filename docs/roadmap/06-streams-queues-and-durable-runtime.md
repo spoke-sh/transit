@@ -20,14 +20,16 @@ for the current executable declarations, workload operations and inspection form
 
 ## Progress checkpoint — 2026-11-01
 
-The implementation branch has been rebased onto `f4abc3b18` from `origin/main`,
-including the managed-computation, logical Document and compact-string changes.
-The combined current-v1 definition is
-`22ddc953c1268d7f6a785c40860c62c727050223f8916e052f626b434974cb10`.
+The current source assessment starts at `origin/main` commit `0c64c4b03`,
+including M6 progress #321, M7 logical storage #319, M8 ingress #315,
+M10 catalog/column semantics #320 and M12 retained revisions #324. The combined
+current-v1 definition is
+`afac2bd84560136ca90c0683afdffb8f71d5f96568b05dd3de773ce3c5339b2a`.
 SQL workloads and managed computations retain separate operation identities;
-older saved artifacts cannot acquire either interpretation implicitly.
+older saved artifacts cannot acquire either interpretation implicitly. Earlier
+rebase and cutover evidence retains its own source and definition attribution.
 
-This checkpoint adds original-operation recovery and bounded result delivery for
+The implemented owners provide original-operation recovery and bounded result delivery for
 SQL append, positional Stream consumption, routed Queue claims and receipt-based
 ACK. Native work also covers authenticated Stream progress intervals, mixed
 state/log transactions and protected automatic Queue terminal transfers. Queue
@@ -35,10 +37,12 @@ candidate persistence now stages only the reachable new index and bitmap objects
 including frozen timer-merge roots and FIFO-key child directories. It preserves
 accepted roots, time checks, lease durations and resident quotas.
 
-M6 remains **In Progress**. The installed 65-row claim profile failed before the
-staging optimization, and installed receipt/ACK qualification remains open. The
-Stream/Queue performance profile also needs its cold-recovery failure resolved;
-its unfinished profiles do not supply baselines. Earlier installed passes retain
+M6 remains **In Progress**. The later
+[installed claim/ACK fixture closure](../history/qualification/query.md#installed-sql-queue-claim-and-ack-fixture-closure--2026-11-01)
+passes against frozen current-main binaries; common-revision qualification remains
+open. The selected large unordered Queue profile now
+[passes its workload and cold-recovery gate](../history/qualification/performance.md#queue-profile-4-recovery-gate-closure--2026-11-01)
+with unchanged budgets; unfinished profiles do not supply complete baselines. Earlier installed passes retain
 their own source attribution. The remaining work includes executable SQL renewal
 and NACK, acquisition predicates, consumer groups/WAIT/offset settlement,
 `STREAM_SLICE` integration, real transactional Station handlers and effects,
@@ -1250,8 +1254,9 @@ that can be treated as delivered or qualified at this revision.
 This is the current next-change sequence for R0–R10. It replaces the delivery
 ordering after PR #303, while preserving that
 [review's attribution](#review-baseline-after-pr-303--2026-11-01), the earlier
-source audit and each dated implementation/evidence record. All checks proposed
-here remain unexecuted by this documentation change. M6 stays **In Progress**.
+source audit and each dated implementation/evidence record. Proposed checks are
+not qualification; subsequent source-specific evidence above records which gates
+have actually run. M6 stays **In Progress**.
 
 **Completion journey:** declare a Stream and Queue; publish and recover typed
 work; consume a finite retained interval or acquire an exact lease; atomically
@@ -1279,9 +1284,9 @@ requirement. SQL result tags or compiler helpers alone do not prove admission.
 | Queue operations | Exact claims/pages, ACK/NACK/renewal, bounded native waits, durable scheduling, FIFO affinity, terminal retention and explicit read release | Predicate-aware native acquisition and SQL waits/NACK/renewal; integrated concurrency, time and resource evidence |
 | Mixed decisions and DLQ | `DirectTransaction`, private state/log workspaces and `TransactionDecisionLog` compose Table/KV, Stream/Queue appends and offset/ACK settlements. Protected automatic transfers use that same owner | Complete preparation/decision/finalization faults, model correspondence and integrated maintenance/collection budgets. Automatic transfer scheduling is delivered, with source-specific installed evidence |
 | Workload identity/results | [`DirectWorkloadIntent`](../../packages/zig/transit-catalog/src/DirectWorkloadIntent.zig), [`DirectWorkloadResult`](../../packages/zig/transit-catalog/src/DirectWorkloadResult.zig), [`WorkloadOperations`](../../packages/zig/transit-sql/src/WorkloadOperations.zig) and [`WorkloadRead`](../../packages/zig/transit-sql/src/WorkloadRead.zig) retain outcomes, closures and original bounded results | Extend these owners for the missing verbs and wait/progress handoff; do not implement another outcome/result protocol |
-| Executable workload SQL | Single-partition PRODUCE/ENQUEUE with RETURNING, positional CONSUME, partition-routed CLAIM and binary-receipt ACK | Installed claim/receipt/ACK proof remains open; payload acquisition predicates, groups, waits, offset settlement, NACK, renewal, finite TVF and mixed SQL remain unfinished |
+| Executable workload SQL | Single-partition PRODUCE/ENQUEUE with RETURNING, positional CONSUME, partition-routed CLAIM and binary-receipt ACK; the corrected installed fixture passes against frozen main binaries | Common-revision runtime qualification; payload acquisition predicates, groups, waits, offset settlement, NACK, renewal, finite TVF and mixed SQL remain unfinished |
 | Station | Native GenServer, durable calls/timers/names/supervision, private Table/Query helpers and recorded effects retain their existing semantics | Real database-transaction handlers, durable service migration and coherent consumer/effect/delivery cutover |
-| Performance tools | Registered `log-runtime-baseline` and `station-turn-baseline` drivers with independent oracles | Complete the failed log profile and broaden coverage; compare the new runtime with the existing measured Station workload |
+| Performance tools | Registered `log-runtime-baseline` and `station-turn-baseline` drivers with independent oracles | Preserve the passing profile 4 recovery gate, complete all baseline profiles and broaden coverage; compare the new runtime with the existing measured Station workload |
 | Formal adapter | `transaction_workspace_state.zig` now uses `StatementWork` variants and `statement()` | The old compilation repair is no longer a new task. Establish concrete Stream/Queue/mixed/runtime correspondence and run the integrated formal gate |
 
 Current bounds remain distinct: native append/enqueue admits at most 1 MiB;
@@ -1298,13 +1303,25 @@ The evidence gives three immediate priorities:
    failed its unchanged 90-second client wait at `29fa45dcc`, with repeated
    `ClockUnavailable`. The reachable-candidate staging optimization subsequently
    passed component checks; the [rebased integration](../history/qualification/query.md#m6-progress-integration--2026-11-01)
-   does not include a passing installed claim/receipt/ACK run.
+   does not include a passing installed claim/receipt/ACK run. The subsequent
+   [fixture closure](../history/qualification/query.md#installed-sql-queue-claim-and-ack-fixture-closure--2026-11-01)
+   passes the full installed profile using frozen binaries from this plan's
+   main revision. It corrects expected-refusal and MySQL cursor assertions;
+   it neither changes lease deadlines nor attributes the prior failure to the
+   later cache optimization. Common-revision qualification remains separate.
 2. The [six-profile log baseline](../history/qualification/performance.md#installed-streamqueue-baseline-and-cold-recovery-deadline--2026-11-01)
    failed Queue original-operation recovery after 3,151 durable mutations.
    Read-only follow-ups advanced replay but exceeded the same 30-second budget,
    including with the verified-page cache change. Descriptor-open attribution
    points to bitmap/index traversal; it does not prove the cause of all latency.
    Profiles 5–6 did not execute, so there is no complete log baseline.
+   [Bounded cache reuse](../history/qualification/storage.md#bounded-queue-cache-reuse--2026-11-01)
+   now prevents private replay pages from evicting verified provider pages and
+   lets small Queue state containers share the existing bitmap byte slab.
+   Its component read-count and corruption checks do not close the recovery gate.
+   The subsequent verified eligibility-prefix change
+   [passes the registered profile 4 workload and restart](../history/qualification/performance.md#queue-profile-4-recovery-gate-closure--2026-11-01)
+   with unchanged limits. Other profiles and broader baseline extensions remain open.
 3. The [Station handler baseline](../history/qualification/performance.md#installed-station-handler-baseline--2026-11-01)
    already passed 20 measured turns plus restart verification at `6c4e10116`
    (p50 440.153 ms, p95 607.804 ms). Preserve that workload and its measurement

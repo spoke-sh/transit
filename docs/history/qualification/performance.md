@@ -77,6 +77,128 @@ and `96d82bd3bb184530b450b22c51a32390c3c6e739a5395cadb333fabcbc4ac77b`.
 The wrapper's zero exit means that it retained its report; the recorded caller
 exit is one and the recovery gate remains failed.
 
+## Queue profile 4 recovery gate closure — 2026-11-01
+
+The registered ReleaseSafe baseline **passes profile 4** on clean committed
+source `41b371ff69e97a692e27750df0791333a1d82909`. It uses three warmups, twenty
+measured iterations, 128-row unordered enqueues, sixteen-row claims, unlimited
+retention, sixty-second leases, 64 active leases, one native cache page and the
+unchanged catalog/log owner budgets. Automatic maintenance remains disabled.
+
+All **3,335 workload calls** succeed, covering **3,151 durable mutations** and
+**2,944 rows**, in 358.46 seconds. After SIGTERM/restart, all **3,519 recovery and
+readback calls** succeed and verify the same 2,944 rows. The recovery phase takes
+77.50 seconds across its individual calls, including 24 bounded recovery-progress
+responses. The first original-operation lookup completes in **22.29 seconds**
+under the unchanged per-call 30-second budget; the first retained-page call also
+requires thirteen HTTP calls and completes in 22.13 seconds. There are no refused,
+failed or unknown calls, and shutdown does not require forced kill. Original receipts,
+retained selections and explicit read releases pass the independent oracle.
+
+Observed enqueue/claim/settle p50 values are 379.16/312.30/56.85 ms; p95 values
+are 1,135.59/781.60/292.07 ms. These are sequential end-to-end observations on this
+host, not isolated storage latency or a matched speedup against the earlier
+failed run. No owned compilation or other proof overlaps measurement or recovery;
+other host activity and the OS cache remain uncontrolled. Server allocation
+counts, CPU cycles and physical storage IOPS remain unmeasured.
+
+```sh
+nix develop --option eval-cache false --command zig build \
+  test-log-runtime-baseline -Doptimize=ReleaseSafe -j2 -- \
+  --profiles 4 --output /var/tmp/transit-m6-log-prefix-41b371ff6-profile4
+```
+
+The output directory retains the source/definition/binary/configuration report
+and exact phase stdout/stderr. The report SHA-256 is
+`bfb4ee2476539cd2d3296d22704a5ffb5287811205eb5b7dfce555c1d91cd469`;
+node and caller hashes match the following compatible-recovery probe. The
+build/driver transcript is `/var/tmp/transit-m6-log-prefix-profile4.log`. Normal successful cleanup removes
+the fresh private installation; the earlier failed installation and its original
+requests remain retained separately.
+
+This closes the selected large unordered Queue recovery regression at this
+revision. It does not qualify profiles 1–3 or 5–6 here, the broader baseline
+extensions, provider recovery, transactional Station or the full M6 gate. Earlier
+failed runs and their diagnostic follow-ups remain separate evidence below.
+
+## Queue eligibility prefix recovery probe — 2026-11-01
+
+Clean runtime source `41b371ff6` adds
+[verified prefix reuse](storage.md#verified-queue-eligibility-prefixes-across-transitions--2026-11-01)
+on top of the earlier bounded page/bitmap cache changes. Its ReleaseSafe node
+build passes 7/7 steps. A read-only probe restarts the retained failed
+`9dda42ffd` installation with this compatible node, the original configuration
+and the exact original caller. Definition remains
+`afac2bd84560136ca90c0683afdffb8f71d5f96568b05dd3de773ce3c5339b2a`;
+no stored interpretation changes.
+
+The **first lookup passes in 23.10 seconds** under the original 30-second logical
+budget and verifies the exact original receipt for operation `1200001`. The
+canonical request SHA-256 remains
+`cf1f1fbf50429770b806b7f9ce9dcaff108a637944cd99ca6e2f4f35aecd9232`.
+No mutation or new identity is submitted. Startup takes 1.57 seconds; shutdown
+joins SIGTERM without forced kill. Node read counters increase by 303,585 read
+syscalls and 393,665,978 logical bytes; kernel device-read bytes remain zero.
+These counters describe this probe, not physical IOPS or a matched comparison.
+
+The node SHA-256 is
+`5f8d818a82b70bae7e9405641f91b03a5bb110fb1d4895c82e42f3c716409ece`;
+the caller retains hash
+`a0614d9243348e81a5111c18282b6d81133cece58a5107a02b5b679c4bcc6d0e`.
+The private installation at `/var/tmp/transit-table-log-baseline-t7nf7bt2`
+retains `executables/node-41b371ff6`,
+`m6-prefix-inspection-41b371ff6.json` and paired stdout/stderr. The build
+transcript is `/var/tmp/transit-m6-visibility-node-build.log`.
+
+This establishes compatible original-outcome recovery in one diagnostic probe.
+It does not retroactively pass the earlier failed workload, establish a fresh
+registered workload/restart result, qualify all six profiles or supply a latency
+regression threshold. No owned build or other proof overlaps this probe; other
+host activity and the OS cache remain uncontrolled.
+
+## Queue cache follow-up retains the recovery failure — 2026-11-01
+
+Clean source `9dda42ffd5158bce0b90998dae8f4515e16d01cc` runs the registered
+ReleaseSafe log baseline with `--profiles 4`, three warmups and twenty measured
+iterations. This source includes the
+[bounded Queue cache reuse](storage.md#bounded-queue-cache-reuse--2026-11-01)
+and keeps definition
+`afac2bd84560136ca90c0683afdffb8f71d5f96568b05dd3de773ce3c5339b2a`.
+
+The workload phase verifies all **3,335 calls**, **3,151 durable mutations** and
+**2,944 rows**, with no refused, failed or unknown call. It takes 1,032.74 seconds.
+The node then exits through SIGTERM and restarts. The first original-operation
+lookup **fails** with `OwnerRecoveryBudget`: ten responses each validate 256
+records, reaching partition 2's exclusive position 2,561 without completion.
+The recovery phase takes 32.48 seconds before returning the failure. The logical
+30-second budget, 256-record step bound, original identity `1200001`, native
+one-page cache and catalog/log 16-page caches are unchanged. No mutation is
+attempted during this failed read. The component read-count improvement does
+not establish a completed recovery or an installed speedup.
+
+The report and raw phase transcripts are retained under
+`/var/tmp/transit-m6-log-cache-9dda42ffd-profile4`; the build/fixture transcript is
+`/var/tmp/transit-m6-log-cache-profile4.log`. Original canonical requests,
+receipts and installation remain private at
+`/var/tmp/transit-table-log-baseline-t7nf7bt2`. Its `executables` directory
+preserves matching binaries checked against the report: node SHA-256
+`ba17fba21c3fda870d24dd4a8437267dc6f8cfd4fcb2295a680b551c4468668a` and caller
+`a0614d9243348e81a5111c18282b6d81133cece58a5107a02b5b679c4bcc6d0e`.
+
+A read-only follow-up restarts those same binaries with the original configuration.
+Its first inspection again fails after 32.9 seconds; a second inspection completes
+in 14.0 seconds and verifies byte-equivalent original receipt data. The canonical
+request hash is unchanged. No mutation or new identity is submitted. The retained
+installation's `m6-original-inspection.json` and paired transcripts record both
+attempts. Eventual original-outcome recovery does not pass the first-lookup gate.
+
+This is a failed selected-profile run, not a completed six-profile baseline.
+An owned documentation build overlaps the beginning of workload measurement;
+no owned build or fault run overlaps the restart lookup. Other host activity is
+uncontrolled. Latency distributions in the report therefore remain diagnostic
+observations, not a matched performance comparison. Profiles 1–3 and 5–6 are
+not executed in this run, and the earlier full-profile failure remains intact.
+
 ## Installed Stream/Queue baseline and cold recovery deadline — 2026-11-01
 
 The six-profile installed workload **failed** on clean source

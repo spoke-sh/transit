@@ -541,8 +541,9 @@ and the catalog's retained dependency graph.
 ## Modules
 
 - `BitmapDirectory.zig`: Immutable paged directories of shared Roaring containers
-  spanning unsigned 64-bit offsets. One cached container and caller-owned 8 KiB
-  mutation scratch remain independent of durable cardinality. Container objects
+  spanning unsigned 64-bit offsets. Up to four small containers share one bounded
+  cache slab; caller-owned 8 KiB mutation scratch and cache capacity remain
+  independent of durable cardinality. Container objects
   bind their high offset prefix and current definition; reads verify content
   before cache admission. Borrowed views last until the owner's next cache miss.
   A bounded edit stages its container and directory path under the caller's

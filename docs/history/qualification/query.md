@@ -182,6 +182,47 @@ No installed claim/receipt/ACK, complete Stream/Queue performance profile,
 transactional Station runtime or Table performance gate is newly qualified by
 these checks. M6 remains in progress.
 
+## Installed SQL Queue claim and ACK fixture closure — 2026-11-01
+
+The `sessions-log` run against clean `36559b839` (runtime source from
+`0c64c4b0362e9fe54daa66388745430e9050eee0`) passes the 65-row one-second claim,
+original result reopening, lease-expiry observation and first ACK. It then stops
+because the shared fixture's terminal helper accepts only successful outcomes
+before a duplicate-ACK case can assert its expected `lease_fenced` refusal.
+The accepted work and exact binaries remain private at
+`/var/tmp/transit-direct-sql-wire-v8ywpepp`. This run does not reproduce the
+earlier claim deadline failure and does not retroactively close that earlier
+installation's original operation.
+
+Commit `a3722e153` lets refusal cases explicitly name their expected terminal
+outcome while retaining the helper's success-only default and original-identity
+polling. The next run reaches MySQL ACK, where Connector/Python 9.4.0's pure-Python
+prepared cursor reports zero affected rows but retains the preceding claim's
+column description (`with_rows == True`). Inspection of its installed
+`execute`, `_handle_result` and `_handle_noresultset` implementations confirms
+that the OK-packet path does not clear that description. The Transit adapter
+already emits a command OK with zero affected rows. Failed installations remain
+private; the diagnostic transcript is `/var/tmp/transit-m6-sql-log-fixture.log`.
+
+Commit `9dda42ffd` closes the claim cursor and acknowledges its owned receipt
+handles through a separate prepared cursor. It preserves the zero-row/no-result
+assertion and checks that closing a result does not invalidate lease authority.
+With these fixture changes and the exact frozen `36559b839` binaries, all four
+installed profiles pass: declarations, append/RETURNING, positional consumption,
+and Queue claim/ACK. Native, PostgreSQL, MySQL and console consumers pass, as do
+32/32/1 delivery, original results after append/expiry/service replacement,
+empty claims, current disclosure denial, typed parameters, binary receipts,
+ACK after ALTER, duplicate refusal and original ACK after DROP/replacement.
+
+The successful command uses the registered `tests/interfaces/sql_wire/gateway.py`
+driver with `sessions-log` and the seven binaries in that retained installation's
+`executables` directory. Its transcript is
+`/var/tmp/transit-m6-sql-log-cursors.log`. The runtime and fixture revisions are
+deliberately distinct: this is fixture closure against frozen baseline binaries,
+not installed qualification of the later cache change or a complete clean lane.
+Definition remains
+`afac2bd84560136ca90c0683afdffb8f71d5f96568b05dd3de773ce3c5339b2a`.
+
 ## Installed SQL Queue claim deadline failure — 2026-11-01
 
 The `sessions-log` installed profile **failed** on clean source

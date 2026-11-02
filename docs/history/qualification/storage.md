@@ -418,6 +418,77 @@ The raw log `/var/tmp/transit-m6-schedule-membership-test1.log` has SHA-256
 This is component evidence. The [cold Queue baseline](performance.md) remains
 failed until a separately attributed installed run completes.
 
+## Verified Queue eligibility prefixes across transitions — 2026-11-01
+
+Commit `41b371ff6` carries a bounded eligibility prefix across deterministic
+claims, lease renewal and unordered ACK. Claims remove their exact scheduled
+event; renewal and unordered ACK add no eligible work. The hint binds the exact
+resulting item root and scheduled count. Other root changes, incomplete time
+advancement and exhausted partial prefixes still use durable lookup. Every
+selected event still validates the current item and `.tack` state. There is no
+wire, stored-format, definition, cache-capacity or deadline change.
+
+The focused ReleaseSafe selection (`queue visibility`, `queue index backlog`)
+passes **6/6**. A complete-population oracle checks all 120 removal orders for
+five events at four clock observations with only three resident entries. It
+covers cached and uncached removals, time/offset order differences, exclusive
+cursors, exact root/count/clock matching and absent known events. A disk index
+case retains four of eight prefix entries after four claims, renewal and
+unordered ACK, checks the original root after discarding a candidate and forces
+a refill after NACK. These checks establish semantic reuse, not a throughput
+or cold-recovery result.
+
+The broader `queue`, `Queue`, `index page` selection passes **67/67**, including
+the existing physical-disk recovery, corruption, lost-reply, retention and
+transaction cases. It reports 44 seconds of execution and 31 MiB peak test-process
+RSS. The transcript is `/var/tmp/transit-m6-visibility-tests.log`. These are
+component checks; clean-lane and installed measurements remain separate.
+
+## Bounded Queue cache reuse — 2026-11-01
+
+Implementation `777550e0606df5bfdcfe702e8a4bec741e7ac78c` preserves verified
+provider pages against private replay-cache eviction and packs up to four small
+bitmap containers into the existing 8,252-byte payload slab. It changes no stored
+format, definition, page-count budget, recovery-step limit or lease check. The
+[storage owner](../../../packages/zig/transit-storage/README.md) describes the
+borrow and provenance boundaries.
+
+Two regression cases fail against the preceding implementation: interleaving
+four disjoint Queue states performs 128 whole-object reads instead of four, and
+private reconstruction evicts a verified page, causing a second provider read.
+With the implementation, the focused bitmap, `.tack` and derived-page selection
+passes **13/13**, and the Queue/index selection passes **65/65** in ReleaseSafe.
+The latter reports 42 seconds of execution and 33 MiB peak test-process RSS.
+Both selections ran in the separate checkout used to produce the identical
+implementation commit; they are component evidence, not clean-lane results.
+
+```sh
+cd packages/zig/transit-storage
+zig build test -Doptimize=ReleaseSafe -j1 --summary all \
+  -Dtest-filter='paged bitmap' -Dtest-filter='derived page eviction' \
+  -Dtest-filter='tack'
+zig build test -Doptimize=ReleaseSafe -j1 --summary all \
+  -Dtest-filter='queue' -Dtest-filter='Queue' -Dtest-filter='index page'
+```
+
+The read-count oracle uses the memory provider's whole-object counter, not device
+IOPS. It checks every state against independent offset membership, exercises a
+full-size dense container followed by small-container reloads, rejects a wrong
+prefix and forbids owner heap growth after initialization. The replay case
+reconstructs more private pages than the cache holds while requiring an absent
+accepted provider page to remain missing. Existing disk Queue, lost-reply,
+corruption, retention and transaction tests run in the second selection.
+
+A separate uncommitted diagnostic uses a disk Queue with 65 rows, one resident
+page and a fixed test clock. One claim takes 113 ms before and 111 ms after the
+change, with 1,495 whole-object reads and 24 puts in each run. These single samples
+do not establish a latency improvement or real-clock deadline guarantee. They
+specifically do not attribute the earlier installed claim failure to these cache
+changes. The retained diagnostic patch is
+`/var/tmp/transit-m6-claim-diagnostic.patch`; installed and cold-recovery evidence
+remain separate. All these builds use definition
+`afac2bd84560136ca90c0683afdffb8f71d5f96568b05dd3de773ce3c5339b2a`.
+
 ## Queue replay cache provenance — 2026-11-01
 
 Implementation `16484c8136d5f804fd7f5e303a7999b14c7817e0` retains only
