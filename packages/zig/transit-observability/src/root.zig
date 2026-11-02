@@ -1,6 +1,7 @@
 //! Transit vocabulary only. No core, storage, Board or deployment dependencies.
 const std = @import("std");
 pub const telemetry = @import("telemetry");
+pub const Counters = @import("Counters.zig").Counters;
 const protocol = @import("transit_protocol");
 pub const Kind = enum { client_request, storage_operation, maintenance_step, delivery_step, recovery, runtime_step, provider_operation, caller_turn, caller_activation };
 pub const Observation = struct {

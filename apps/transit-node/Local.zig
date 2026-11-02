@@ -42,6 +42,7 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
     if ((physical.flush.enabled or physical.archive.enabled or physical.compact) and (config.table == null or config.maintenance == null)) return error.LocalTableMaintenanceRequiresOwner;
     if (config.table) |table| if (table.queue_transfers != null and config.maintenance == null) return error.LocalTableMaintenanceRequiresOwner;
     if (mode.maintain) return error.LocalMaintenanceRequiresOwner;
+    @import("transit_sql_host").Deployment.enablePerformance(config.request_metrics);
     // OpenSSL has one process lifetime. SQL replacements join their own bounded
     // worker pools; physical owner reopen must not reinstall its global hooks.
     const crypto = if (!mode.initialize and config.sql_control != null and config.sql_control.?.crypto_capacity != 0)

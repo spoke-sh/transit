@@ -9473,6 +9473,9 @@ fn ownedRecordTransaction(catalog: *D, access: *Access, operation: u64, token: u
 // These are storage-owner tests. The installed managed-table schedule separately
 // exercises the real service, transaction settlement and retained reader.
 test "transaction record reservation retry quota disclosure and abort closure survive disk recovery" {
+    const metrics = &c.DirectTransactionRecord.diagnostics;
+    metrics.* = .{ .enabled = true };
+    defer metrics.* = .{};
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
     var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
@@ -9511,6 +9514,18 @@ test "transaction record reservation retry quota disclosure and abort closure su
     catalog.deinit();
     catalog = try owner(&wal, &objects);
     try reference.requireSame((try catalog.directRecord(allocator, request, access.policy())).reference);
+    // Two lost acknowledgements are attempts, not observed publication returns.
+    // Recovery proves the durable inventory below independently of telemetry.
+    const measured = metrics.snapshot().?.values;
+    try t.expectEqual(3, measured.stage_calls);
+    try t.expectEqual(2, measured.stage_failures);
+    try t.expectEqual(1, measured.reservation_attempts);
+    try t.expectEqual(1, measured.readiness_attempts);
+    try t.expectEqual(0, measured.reservation_returns);
+    try t.expectEqual(0, measured.readiness_returns);
+    try t.expectEqual(0, measured.reservation_logical_bytes);
+    try t.expectEqual(bytes.len, measured.stored_bytes);
+    try t.expectEqual(1, measured.reused_returns);
     inventory = try R.directory(allocator, &catalog.store.index, catalog.store.root.transaction_records, key);
     try t.expectEqual(@as(u64, 0), inventory.pending);
     try t.expectEqual(@as(u64, 1), inventory.count);

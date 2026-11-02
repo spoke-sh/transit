@@ -90,3 +90,9 @@ never opens a retained row reader. Requests explicitly select namespace/name,
 optionally fence the computation definition, and optionally select one positive
 revision. SQL SHOW uses that same native owner. An independent reader needs the
 current source/output/control read conjunction, not publisher credentials.
+
+`ManagedTable.diagnostics` provides opt-in, fixed-cardinality process observations
+of recovery phases and successful result-page staging. Hosts configure it before
+starting workers and never reset it during work. The private SQL deployment
+inspection composes it with the catalog's owned-record counters; neither supplies
+completion or cleanup authority. See the [measurement semantics](../../../docs/handbook/reference/observability.md).
