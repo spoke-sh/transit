@@ -2158,7 +2158,7 @@ fn streamPayloadDispatch(service: *@import("LocalTableService.zig"), declaration
     const consumed = (try c.DirectStreamClient.apply(&output, caller, .{ .page = .{ .cursor = group_cursor, .limits = .{ .rows = 2, .encoded_bytes = 8192, .scanned_rows = 2 } } })).page;
     const commit: c.DirectStreamMutation.Request = .{ .offset = .{
         .commit = .{ .operation = .{ .scope = identity.scope, .principal = 101, .operation = 305 }, .group = group, .coverage = consumed.cursor.coverage, .expected_next = 0, .next = 2 },
-        .cursor = consumed.cursor,
+        .progress = .{ .exhausted = consumed.cursor },
     } };
     try dispatchWithoutOutput(service, .{ .stream = .{ .mutate = .{ .work = commit, .payload = null } } });
     _ = (try c.DirectStreamClient.apply(&output, caller, .{ .operation = commit })).operation.?.offset;
