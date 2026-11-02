@@ -13,6 +13,7 @@ size; these shared chunks still load on initial entry. All assets remain embedde
 in the executable. The browser proof checks the module graph on initial entry,
 navigation and direct nested-route reload, with at most five JavaScript assets
 and each below 900 kB. Vite's separate 500 kB advisory remains enabled.
+Pure quantity, maintenance and placement projections share the inspection asset.
 Relational validators share the query asset; the other Board validators stay
 with inspection. This keeps the same asset count and startup request pattern.
 
@@ -143,23 +144,27 @@ hiding and failed access clear displayed rows and metadata. Browser reload uses
 authorized active-session inspection without rerunning SQL. Query identities
 remain separate from drafts, and no result or credential enters browser storage.
 
-| Source                                           | Owns                                                                              |
-| ------------------------------------------------ | --------------------------------------------------------------------------------- |
-| [routes/](src/routes/)                           | Overview, resource and PID/journey routes; stable URLs and route validation       |
-| [observation.ts](src/observation.ts)             | Deterministic scoped read transitions, generation fencing and typed failures      |
-| [use-observation.ts](src/use-observation.ts)     | Bounded read effects, deadlines, visibility and cleanup                           |
-| [storage.tsx](src/storage.tsx)                   | Paired storage visualizations/grids and selection-based evidence inspection       |
-| [state.tsx](src/state.tsx)                       | Shared process inspection state and polling lifecycle                             |
-| [resources.tsx](src/resources.tsx)               | Resource/association/entry reads and generic state presentation                   |
-| [components.tsx](src/components.tsx)             | Evidence, status and process views                                                |
-| [atlas.tsx](src/atlas.tsx)                       | Growing catalog, emphasis, selection and explicit resource entry                  |
-| [records.tsx](src/records.tsx)                   | Growing record identities and source-backed exchange metadata                     |
-| [http-metadata.tsx](src/http-metadata.tsx)       | Selected HTTP policy, timing, omission and completion evidence                    |
-| [query-workspace.tsx](src/unified-workspace.tsx) | One draft/result, explicit submission, current-policy refresh and denial clearing |
-| [workbench-layout.tsx](src/workbench-layout.tsx) | Shared navigation, selection identities, one inspector and keyboard return        |
-| [data-workbench.tsx](src/data-workbench.tsx)     | Catalog/dataset metadata and temporary SQL workbooks                              |
-| [workbench-result.tsx](src/workbench-result.tsx) | Shared result reader presentation, window profiles and observation evidence       |
-| [model.test.ts](src/model.test.ts)               | Model/client boundary tests                                                       |
+| Source                                                                                           | Owns                                                                                 |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| [routes/](src/routes/)                                                                           | Overview, resource and PID/journey routes; stable URLs and route validation          |
+| [observation.ts](src/observation.ts)                                                             | Deterministic scoped read transitions, generation fencing and typed failures         |
+| [use-observation.ts](src/use-observation.ts)                                                     | Bounded read effects, deadlines, visibility and cleanup                              |
+| [storage.tsx](src/storage.tsx)                                                                   | Paired storage visualizations/grids and selection-based evidence inspection          |
+| [quantities.ts](src/quantities.ts), [quantity.tsx](src/quantity.tsx)                             | Exact integer normalization, binary-unit presentation and accessible exact-byte copy |
+| [maintenance-model.ts](src/maintenance-model.ts)                                                 | Aggregate maintenance settings/activity with separate units and evidence meanings    |
+| [retained-storage.tsx](src/retained-storage.tsx)                                                 | Shared Catalog/Operations selector, bounded directory and scoped coverage reads      |
+| [retained-placement.tsx](src/retained-placement.tsx), [retained-model.ts](src/retained-model.ts) | Stable-ID placement diagrams, equivalent grids and one current-page Inspector        |
+| [state.tsx](src/state.tsx)                                                                       | Shared process inspection state and polling lifecycle                                |
+| [resources.tsx](src/resources.tsx)                                                               | Resource/association/entry reads and generic state presentation                      |
+| [components.tsx](src/components.tsx)                                                             | Evidence, status and process views                                                   |
+| [atlas.tsx](src/atlas.tsx)                                                                       | Growing catalog, emphasis, selection and explicit resource entry                     |
+| [records.tsx](src/records.tsx)                                                                   | Growing record identities and source-backed exchange metadata                        |
+| [http-metadata.tsx](src/http-metadata.tsx)                                                       | Selected HTTP policy, timing, omission and completion evidence                       |
+| [query-workspace.tsx](src/unified-workspace.tsx)                                                 | One draft/result, explicit submission, current-policy refresh and denial clearing    |
+| [workbench-layout.tsx](src/workbench-layout.tsx)                                                 | Shared navigation, selection identities, one inspector and keyboard return           |
+| [data-workbench.tsx](src/data-workbench.tsx)                                                     | Catalog/dataset metadata and temporary SQL workbooks                                 |
+| [workbench-result.tsx](src/workbench-result.tsx)                                                 | Shared result reader presentation, window profiles and observation evidence          |
+| [model.test.ts](src/model.test.ts)                                                               | Model/client boundary tests                                                          |
 
 Import public types and transports from `@transit/board-client`; do not copy
 wire types into a route. Generated route trees and client validators are not

@@ -41,7 +41,9 @@ is missing and offers **Check availability** after setup/restart. It does not
 continually retry a disabled read. SSH forwarding changes how you reach Board;
 it does not provision a catalog/SQL identity or bypass Host/Origin checks.
 
-Operations pairs current capacity/allocation diagrams with exact-value grids.
+Operations pairs current capacity/allocation diagrams with data grids.
+Byte quantities use binary units such as KiB, MiB and GiB; ≈ marks rounding.
+Select a quantity for exact decimal bytes and **Copy exact bytes**.
 Select a measure in either view to inspect its meaning and observation basis.
 Choose one Table in **Table storage** for partition-local accepted, archive,
 recovery and history positions alongside bounded backlog facts. Unknown values
@@ -49,8 +51,22 @@ are distinct from zero; these observations establish neither query snapshots
 nor elapsed age, throughput or deletion eligibility. Storage inspection runs no
 SQL and starts no maintenance. **Processes and resources**, **Activity** and,
 when configured, **Relational queries and recovery** lead to the existing
-inspection and original-query recovery tools. Interface bindings are inspected
-in **Definition**, outside Operations.
+inspection and original-query recovery tools. Maintenance reports the aggregate
+node worker state, its counters and configured thresholds/work bounds separately
+from Table progress. Counters reset when their owner restarts; a retained last
+failure does not mean the current worker is failed. Interface bindings are
+inspected in **Definition**, outside Operations.
+
+With a catalog connection, **Inspect a retained catalog** is available in both
+Catalog and Operations. Supply a saved selector and historical schema, then
+choose an object. **Physical definitions** maps logical columns to one physical
+generation or ADD-time origin per page. **Row placement** requires SELECT and
+links at most eight original row identities to WAL or segment locations. Both
+have a diagram, equivalent grid and the shared Inspector. Page and mode changes
+replace evidence; collapsing inspection stops its reads. These views acquire no
+retention, read no payloads and never infer segment sizes. See the
+[retained inspection guide](../../../apps/transit-board/docs/workbench.md#retained-catalog-inspection)
+for scope and failure behavior.
 
 ## Start from an identity and an observed cut
 
