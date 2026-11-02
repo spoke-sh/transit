@@ -583,19 +583,21 @@ defines this separate workload.
 
 #### Next performance implementation after milestones — 2026-11-02
 
-**Status: proposed for review.** This updates the next implementation order after
-PR #330, using fetched `origin/main` at
-`095544060e2cdf99fa7088210610255cdc3ab024`. It retains the F0/R1/M3/C4/D5/S6/E7/Q8
+**Status: In Progress; implementation sequence approved.** The first F0 packet
+implements bounded owner attribution and diagnostic controls. The initial audit
+followed PR #330 at `095544060e2cdf99fa7088210610255cdc3ab024`; integration now
+includes `origin/main` at `ffbf2e9b1` (PR #333). It retains the F0/R1/M3/C4/D5/S6/E7/Q8
 work packages below, the existing numerical goals and issue
 [#211](https://github.com/spoke-sh/transit/issues/211), coordinated with
 [#76](https://github.com/spoke-sh/transit/issues/76). M8 remains In Progress.
-This source audit and plan establish no new runtime measurement or qualification.
+Qualification remains source-attributed; an implementation or source audit alone
+establishes no latency claim.
 
 The next application outcome is a reliable complete read and a substantially
 cheaper complete managed successor under ordinary maintenance, followed by lower
-interactive write latency and faster recovery with retained history. Start with
-bounded batching of managed results and statements: it removes repeated durable
-work at an identified production boundary. Preserve the original transaction,
+interactive write latency and faster recovery with retained history. Qualify the
+fresh-read lifecycle first, then batch managed results and statements to remove
+repeated durable work at the measured boundary. Preserve the original transaction,
 complete revision, current permissions and cleanup ownership throughout.
 
 ##### What recent milestones change
@@ -607,6 +609,8 @@ complete revision, current permissions and cleanup ownership throughout.
 | [#329](https://github.com/spoke-sh/transit/pull/329), M14 encoded predicates | One encoded column traversal serves multiple atoms, with active-width dictionary scratch and shared FSST validation; projection still reads separately | Establish installed benefit across codecs, atom counts, selectivity and projection. The next candidate is shared page/literal ownership, not another implementation of the delivered traversal. |
 | [#327](https://github.com/spoke-sh/transit/pull/327), M16 construction | Offline bounded JSON/XML writers and compound commitments, with caller-owned workspace and independent semantic/byte oracles | Add parse, construct, drain and commitment component measurements now. Installed Document publication, exchange migration, SIMD/AOT and other formats retain their milestone dependencies. |
 | [#331](https://github.com/spoke-sh/transit/pull/331), qualification repairs | Corrected physical-rewrite refusal fixtures and rendered Board pagination checks; recorded clean core/storage/SQL and separate browser results | Investigate its reported intermittent Board `UnsupportedQuery` on `empty_metrics`. Retain the separately recorded M16 service-wait and M12 publication/observation failures; unrelated successful reruns do not explain them. |
+| [#332](https://github.com/spoke-sh/transit/pull/332), Board observation ownership | Bounded scheduling, visibility/reconnect controls, original result correspondence and independent connection profiles | Add visible/hidden/reconnect and admission-pressure controls to interactive Board measurements. Keep its recorded managed restart/authorization failure separate from later successful schedules. |
+| [#333](https://github.com/spoke-sh/transit/pull/333), M6 Queue recovery | Reuse of verified provider pages, bitmap buffers and eligibility prefixes; selected profile-4 recovery and separate integration evidence | Measure first original-operation lookup and retained-page recovery separately from readiness across all supported profiles, cache bounds and retained histories. Its earlier-definition profile-4 timings are not a current-definition or all-profile baseline. |
 
 The current shared definition is
 `c3cbdfe99cdb08a8a21cc2429783fd746b1311b096d9ca8371058e1abb037b64`.
@@ -767,6 +771,10 @@ Freeze feasible combinations and budgets in F0. Measure default Board-enabled
 and headless profiles separately. Keep developer compile/link/frontend preparation
 outside runtime boot metrics. Begin this measurement alongside M3 so later
 inventory growth or reclamation changes cannot hide a startup regression.
+After #333, include the first original Queue-operation lookup and retained-page
+read in recovery profiles: readiness alone does not establish that their bounded
+replay has completed. Preserve original identities and recovery-progress counts;
+do not combine its older-definition observations with the current Table timings.
 
 ##### E7 — New measurement coverage
 
@@ -797,7 +805,7 @@ Within each PR, make logical commits for: owner contract/neutral fixtures when
 needed; implementation and migrated consumers; deterministic fault/oracle checks;
 matched measurement and owner documentation/evidence. Keep failing original runs
 and unresolved identities. Update #211 when implementation changes its delivered
-status; this review proposal does not mark any checkbox complete.
+status; the first F0 packet does not close the subsequent optimization gates.
 
 Retain the [existing numerical goals](#post-merge-performance-delivery-plan--2026-11-01):
 small durable INSERT p50 at most 190 ms, then 19 ms; warm SELECT 10–20 ms;
@@ -821,8 +829,8 @@ contracts and dependent SDK lanes; owned page/transaction changes require catalo
 storage/query, SQL and installed managed checks; deadline/pool changes require
 native/TLS/gateway and browser/installation progress checks. Preserve the suite
 selector's broader dependencies. Full integration/release qualification remains
-separate from selected local checks. No runtime tests or performance campaigns
-are claimed by this planning update.
+separate from selected local checks. Keep executed checks and performance campaigns
+with their exact source in the [qualification account](../history/qualification/performance.md).
 
 #### Post-merge performance delivery plan — 2026-11-01
 
