@@ -139,6 +139,9 @@ def run(cli, node, host, board, gateway):
         before = fixture.record()
         hosted = placement(fixture)
         assert hosted['state'] == 'running' and hosted['local_requests']['table'] > 0
+        assert hosted.keys() == {'definition', 'fingerprint', 'state', 'failure', 'refusal', 'local_requests'}
+        diagnostic = placement(fixture, dict(performance={}))
+        assert diagnostic == dict(definition=before['definition'], running=True, performance=None)
         assert not any('/sql/gateway.json' in command(pid) for pid in children(fixture.process.pid))
         saved = json.loads((fixture.installation / 'sql/gateway.json').read_text())
         repeated = dict(start=dict(expected=None, configuration=saved))

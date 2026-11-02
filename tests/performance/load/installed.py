@@ -66,8 +66,8 @@ class OwnerProbe:
         self.previous = None
 
     def snapshot(self):
-        status = deployment_call(self.fixture)
-        assert status['state'] == 'running', 'SQL host stopped during attribution'
+        status = deployment_call(self.fixture, dict(performance={}))
+        assert status['running'] is True, 'SQL host stopped during attribution'
         value = status.get('performance')
         instance, counts = owner_snapshot(value)
         if self.previous is not None:
