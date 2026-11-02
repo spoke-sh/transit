@@ -15,7 +15,7 @@ pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, namesp
     var scratch: std.heap.ArenaAllocator = .init(allocator);
     defer scratch.deinit();
     const target = try f.LogSettlementSql.target(scratch.allocator(), text, dialect, location);
-    if (target.kind != .ack) return error.UnsupportedConstruct;
+    if (target.kind == .extend) return error.UnsupportedConstruct;
     const response = try client.call(.{ .log_lookup = .{ .namespace = namespace, .name = target.source.name } });
     defer response.deinit();
     return init(allocator, client.connection, namespace, text, response.value.result.log_lookup orelse return error.CatalogNameNotFound, dialect, location);
@@ -36,7 +36,7 @@ pub fn init(allocator: std.mem.Allocator, connection: w.Connection, namespace: u
     errdefer compiled.deinit();
     // Renewal must return a usable updated lease descriptor through the shared
     // result contract before its SQL execution can be enabled.
-    if (compiled.target.kind != .ack) return error.UnsupportedConstruct;
+    if (compiled.target.kind == .extend) return error.UnsupportedConstruct;
     if (!std.mem.eql(u8, metadata.declaration.properties.name.slice(), compiled.target.source.name)) return error.CatalogDefinitionChanged;
     return .{ .connection = connection, .definition = metadata.declaration, .declaration = declaration, .compiled = compiled };
 }

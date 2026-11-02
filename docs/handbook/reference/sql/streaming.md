@@ -3,7 +3,7 @@
 Transit has durable streams, application materialization and recorded connector
 effects. SQL executes finite reads, Table DDL/DML and Stream/Queue declarations
 and appends, positional Stream consumption, partition-routed Queue claims and
-receipt-bound ACK. The transport of a result in
+receipt-bound ACK/NACK. The transport of a result in
 several batches does not make that query continuous.
 
 ## Operations and SQL coverage
@@ -94,8 +94,8 @@ history. Deployment memory and storage quotas still apply.
 ALTER cannot change schema, partitioning, routing keys, ordering, compaction
 keys or timestamp identity. `IF EXISTS`, `IF NOT EXISTS` and schema evolution
 are outside this SQL profile. Group consumption, waits, `COMMIT OFFSET`,
-`NACK` and `EXTEND LEASE` still require typed native callers. The admitted
-partition-routed CLAIM and receipt-bound ACK profiles are described below.
+`EXTEND LEASE` still require typed native callers. The admitted
+partition-routed CLAIM and receipt-bound ACK/NACK profiles are described below.
 
 Named `SHOW` returns the published object identity, definition revision,
 partition count, configuration and limits. `DESCRIBE` returns typed columns
@@ -237,8 +237,8 @@ Original payload delivery may outlive the lease; the returned epoch and attempt
 are original attribution, not proof of current settlement authority. Current
 read and acquire rights are rechecked before disclosure.
 
-CLAIM is outside attached interactive transactions. NACK and EXTEND LEASE are
-not yet admitted by SQL. Native settlement retains its existing owner and current
+CLAIM is outside attached interactive transactions. EXTEND LEASE is
+not admitted by SQL. Native settlement retains its existing owner and current
 lease checks.
 
 ## Acknowledge Queue work
@@ -267,6 +267,36 @@ accepted result remains recoverable after expiry, rename or retirement without
 acknowledging again. A different token submits a different operation. ACK does not
 release the original claim's payload-read pin or erase its original result.
 ACK is outside attached interactive transactions in this SQL profile.
+
+## Return Queue work for retry
+
+```sql
+NACK ON QUEUE jobs RECEIPT $1;
+NACK ON QUEUE jobs RECEIPT $1
+  WITH (visible_at = TIMESTAMP '2027-01-01T00:00:00Z');
+```
+
+NACK uses the same exact binary receipt, original claimant, current settle rights
+and live-lease checks as ACK. Its own token freezes the native settlement before
+dispatch. Optional `visible_at` is a UTC timestamp literal or parameter with
+whole-millisecond precision at or after the Unix epoch. It requests the earliest
+visibility time; the Queue owner also applies retry backoff from its accepted
+trusted time. Omitting it leaves scheduling to that policy. An old timestamp
+cannot bypass backoff, FIFO ordering or the attempt limit. Relative delays and
+reason strings are not supported.
+
+A delayed FIFO head continues to block later work for its key. Other keys can
+remain eligible. Exhausted work stays blocked for its native dead-letter owner;
+NACK does not discard it or authorize a source-only transfer.
+
+Completion reports `nack` with no result rows or relational counts. PostgreSQL
+emits `NACK`; MySQL emits an OK completion with zero affected rows. Retrying the
+same token returns the original outcome and visibility request, including after
+replacement or DROP. A new token cannot reuse the old lease after NACK commits.
+Current rights still govern recovery. Missing responses remain unresolved until
+the original operation is inspected; stopping a wait does not settle the lease.
+NACK does not release the original claim's payload-read pin and cannot execute
+inside an attached interactive transaction.
 
 ## Connections, sources and sinks
 

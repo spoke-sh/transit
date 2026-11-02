@@ -397,7 +397,7 @@ pub fn logSettlement(text: []const u8, cause: anyerror, binding: sql.Binding) ?S
     result.binding = binding;
     for (@import("SqlCodes.zig").entries) |entry| if (entry.cause == cause and entry.summary != null) return result;
     result.summary = "Queue settlement cannot be compiled";
-    result.hint = "Use ACK ON QUEUE with the original binary RECEIPT, or EXTEND LEASE with a positive BY duration. Preparation grants no settlement authority.";
+    result.hint = "Use ACK/NACK ON QUEUE with the original binary RECEIPT, optional NACK WITH (visible_at = UTC timestamp), or EXTEND LEASE with a positive BY duration. Preparation grants no settlement authority.";
     return result;
 }
 
@@ -407,7 +407,7 @@ pub fn bound(text: []const u8, cause: anyerror, inspection: bool, binding: sql.B
     const first = lexer.next() catch null;
     if (first) |token| if (token.tag == .word and std.ascii.eqlIgnoreCase(token.text, "CONSUME")) return logConsume(text, cause, binding);
     if (first) |token| if (token.tag == .word and std.ascii.eqlIgnoreCase(token.text, "CLAIM")) return logClaim(text, cause, binding);
-    if (first) |token| if (token.tag == .word and (std.ascii.eqlIgnoreCase(token.text, "ACK") or std.ascii.eqlIgnoreCase(token.text, "EXTEND"))) return logSettlement(text, cause, binding);
+    if (first) |token| if (token.tag == .word and (std.ascii.eqlIgnoreCase(token.text, "ACK") or std.ascii.eqlIgnoreCase(token.text, "NACK") or std.ascii.eqlIgnoreCase(token.text, "EXTEND"))) return logSettlement(text, cause, binding);
     var result = query(text, cause, inspection) orelse return null;
     result.binding = binding;
     var out: std.Io.Writer = .fixed(&result.detail);

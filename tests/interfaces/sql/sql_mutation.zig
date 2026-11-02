@@ -39,7 +39,7 @@ fn emit(init: std.process.Init, out: *std.Io.Writer, case: Case, index: usize) !
         var prepared = try f.LogSettlementSql.Prepared.init(init.gpa, case.sql, .transit, null);
         defer prepared.deinit();
         const bound = try prepared.bind(&.{}, null);
-        try std.json.Stringify.value(.{ .index = index, .kind = prepared.target.kind, .name = prepared.target.source.name, .offset = bound.lease.offset, .epoch = bound.lease.epoch, .original_expires_ms = bound.lease.expires_ms, .expires_ms = if (bound.action == .extend) bound.action.extend.expires_ms else null }, .{}, out);
+        try std.json.Stringify.value(.{ .index = index, .kind = prepared.target.kind, .name = prepared.target.source.name, .offset = bound.lease.offset, .epoch = bound.lease.epoch, .original_expires_ms = bound.lease.expires_ms, .expires_ms = if (bound.action == .extend) bound.action.extend.expires_ms else null, .visible_ms = if (bound.action == .nack) bound.action.nack.visible_ms else null }, .{}, out);
         return;
     }
     var declaration = try f.TableDdl.compile(init.gpa, case.basis, null, null);

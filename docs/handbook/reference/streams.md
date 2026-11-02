@@ -76,8 +76,8 @@ exhausted read or an interval between two issued cursors from that same read.
 Both interval boundaries are authenticated; the larger read can remain partial. See the [delivery contract](../../../contracts/DIRECT_TABLE_V1.md#original-workload-result-delivery)
 for budgets, empty results and unavailable retained history. SQL supports
 [append and positional consumption](sql/streaming.md#consume-a-finite-stream-cut);
-group consumption, waits, NACK and renewal retain their native interfaces.
-SQL ACK binds an original binary claim receipt through the shared native
+group consumption, waits and renewal retain their native interfaces.
+SQL ACK and NACK bind an original binary claim receipt through the shared native
 settlement owner.
 
 ## Cancelling original workload operations
@@ -189,8 +189,9 @@ through uncertainty; provisional summaries do not establish public acceptance.
 Lease and retention deadlines are checked immediately before the decision;
 recovery preserves an already accepted decision after those deadlines. See
 [transactional log work](../../../contracts/DIRECT_TABLE_V1.md#transactional-stream-and-queue-work).
-SQL workload verbs, mixed log transaction SQL and Station turn composition remain
-unavailable. [Declaration and named inspection SQL](sql/streaming.md#stream-and-queue-declarations)
+Mixed log transaction SQL and Station turn composition remain unavailable.
+[Workload SQL](sql/streaming.md) supports enqueue, partition-routed claims and
+receipt-bound ACK/NACK. [Declaration and named inspection SQL](sql/streaming.md#stream-and-queue-declarations)
 uses the shared Catalog lifecycle.
 See the [Queue action contract](../../../contracts/DIRECT_TABLE_V1.md#queue-payloads-claims-and-settlements)
 for exact standalone limits and the [Queue contract](../../../contracts/QUEUE_V1.md)

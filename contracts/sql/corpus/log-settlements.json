@@ -10,7 +10,8 @@
         "offset": 11,
         "epoch": 12,
         "original_expires_ms": 1000,
-        "expires_ms": null
+        "expires_ms": null,
+        "visible_ms": null
       }
     },
     {
@@ -21,7 +22,8 @@
         "offset": 11,
         "epoch": 12,
         "original_expires_ms": 1000,
-        "expires_ms": 3000
+        "expires_ms": 3000,
+        "visible_ms": null
       }
     },
     {
@@ -61,6 +63,76 @@
     },
     {
       "sql": "ACK ON QUEUE items RECEIPT X'{receipt}' RETURNING *",
+      "syntax_error": true,
+      "error": "UnsupportedConstruct"
+    },
+    {
+      "sql": "NACK ON QUEUE items RECEIPT X'{receipt}'",
+      "expected": {
+        "kind": "nack",
+        "name": "items",
+        "offset": 11,
+        "epoch": 12,
+        "original_expires_ms": 1000,
+        "expires_ms": null,
+        "visible_ms": 0
+      }
+    },
+    {
+      "sql": "NACK ON QUEUE items RECEIPT X'{receipt}' WITH (visible_at = TIMESTAMP '1970-01-01T00:00:02.000Z');",
+      "expected": {
+        "kind": "nack",
+        "name": "items",
+        "offset": 11,
+        "epoch": 12,
+        "original_expires_ms": 1000,
+        "expires_ms": null,
+        "visible_ms": 2000
+      }
+    },
+    {
+      "sql": "NACK ON QUEUE items RECEIPT X'{receipt}' WITH (visible_at = TIMESTAMP '1969-12-31T23:59:59.999Z')",
+      "error": "InvalidLogVisibilityTime"
+    },
+    {
+      "sql": "NACK ON QUEUE items RECEIPT X'{receipt}' WITH (visible_at = TIMESTAMP '1970-01-01T00:00:00.000001Z')",
+      "error": "InvalidLogVisibilityTime"
+    },
+    {
+      "sql": "NACK ON QUEUE items RECEIPT X'{receipt}' WITH (visible_at = NULL)",
+      "error": "InvalidLogSettlementOperand"
+    },
+    {
+      "sql": "NACK ON QUEUE items RECEIPT X'{receipt}'",
+      "foreign_definition": true,
+      "error": "IncompatibleDefinition"
+    },
+    {
+      "sql": "NACK ON QUEUE items RECEIPT X'00'",
+      "error": "InvalidQueueLeaseHandle"
+    },
+    {
+      "sql": "NACK ON QUEUE items RECEIPT X'{receipt}' WITH (delay = '1s')",
+      "syntax_error": true,
+      "error": "InvalidSqlSyntax"
+    },
+    {
+      "sql": "NACK ON QUEUE items RECEIPT X'{receipt}' WITH (visible_at = TIMESTAMP '1970-01-01T00:00:01Z', visible_at = TIMESTAMP '1970-01-01T00:00:02Z')",
+      "syntax_error": true,
+      "error": "InvalidSqlSyntax"
+    },
+    {
+      "sql": "NACK ON QUEUE items RECEIPT X'{receipt}' RETURNING *",
+      "syntax_error": true,
+      "error": "UnsupportedConstruct"
+    },
+    {
+      "sql": "NACK ON QUEUE items RECEIPT X'{receipt}' REASON 'retry'",
+      "syntax_error": true,
+      "error": "UnsupportedConstruct"
+    },
+    {
+      "sql": "NACK ON QUEUE items RECEIPT X'{receipt}' BY '1s'",
       "syntax_error": true,
       "error": "UnsupportedConstruct"
     }

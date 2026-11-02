@@ -56,14 +56,15 @@ multi-partition Stream requires a predicate that selects exactly one partition.
 Queue partition. Exact `_partition` equality routes multi-partition declarations;
 LIMIT bounds acquisition and never hides accepted result rows. Native FIFO,
 capacity and lease checks remain authoritative. Group consumption, WAIT, Queue
-payload predicates and settlement SQL remain unimplemented; group assignment,
-lease settlement and read-release tokens stay with their native owners.
+payload predicates and lease renewal SQL remain unimplemented; group assignment
+and read-release tokens stay with their native owners.
 
 Run `zig build test` or `zig build check` from this directory. The build graph
 rejects transitive Station imports. Real native-owner, restart and wire proofs
 are registered in the [test index](../../../tests/README.md).
 
-Queue ACK uses the same durable workload admission and recovery path. The
+Queue ACK and NACK use the same durable workload admission and recovery path. The
 statement freezes the binary claim receipt, retains its original lease identity
 across compatible declaration changes, and completes from native settlement
-evidence without relational counts. See [SQL Queue settlement](../../../docs/handbook/reference/sql/streaming.md#acknowledge-queue-work).
+evidence without relational counts. NACK optionally freezes an absolute UTC
+visibility timestamp; native retry/FIFO/attempt policy still applies. See [SQL Queue settlement](../../../docs/handbook/reference/sql/streaming.md#acknowledge-queue-work).
