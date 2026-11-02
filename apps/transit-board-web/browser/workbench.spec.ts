@@ -48,12 +48,46 @@ test("home and feature access follow catalog and SQL configuration independently
   ).toBeVisible();
 });
 
-test("Table storage links visual, grid and inspector without executing SQL", async ({ page }) => {
+test("Table storage links visual, grid and inspector without executing SQL", async ({
+  page,
+  context,
+}) => {
   let runs = 0;
   page.on("request", (request) => {
     if (request.url().endsWith("/api/v1/sql-read") && request.postDataJSON()?.action.run) runs++;
   });
+  const storageRead = page.waitForResponse(
+    (response) => response.url().endsWith("/api/v1/storage") && response.ok(),
+  );
   await page.goto("/operations");
+  const observed = await (await storageRead).json();
+  const capacity = page.getByRole("region", { name: "Capacity and allocation", exact: true });
+  const limitRow = capacity
+    .getByRole("row")
+    .filter({ has: page.getByRole("button", { name: "Ordinary storage limit", exact: true }) });
+  await expect(limitRow).toContainText(/(?:KiB|MiB|GiB|TiB)/);
+  // Exact detail is operable by keyboard and copies the original public count.
+  await limitRow.getByRole("button", { name: /exact size/ }).focus();
+  await page.keyboard.press("Enter");
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await limitRow.getByRole("button", { name: "Copy exact bytes" }).click();
+  await expect(limitRow.getByRole("status")).toHaveText("Exact bytes copied.");
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+    String(observed.limits.bytes),
+  );
+  const maintenance = page.getByRole("region", { name: "Maintenance", exact: true });
+  await expect(maintenance.getByRole("table")).toContainText("Flush work bound");
+  await expect(maintenance.getByRole("table")).toContainText(
+    `${observed.settings.flush.work_rows} rows per step`,
+  );
+  await maintenance
+    .getByRole("table")
+    .getByRole("button", { name: "Worker interval", exact: true })
+    .click();
+  await expect(page.getByRole("complementary", { name: "Inspector" })).toContainText(
+    `${observed.maintenance.interval_ms.toLocaleString()} milliseconds`,
+  );
+  await page.keyboard.press("Escape");
   const explorer = page.getByRole("region", { name: "Table storage explorer", exact: true });
   await expect(explorer.getByRole("table")).toBeVisible();
   if (!(await explorer.getByRole("button", { name: "metrics", exact: true }).count()))
@@ -397,7 +431,7 @@ test("retained catalog inspection is bounded and clears revoked coverage", async
     }
     await route.continue();
   });
-  await page.goto("/");
+  await page.goto("/operations");
   await page.getByText("Inspect a retained catalog", { exact: true }).click();
   await page.getByLabel("Snapshot selector", { exact: true }).fill(selector!);
   await page.getByRole("button", { name: "Inspect snapshot", exact: true }).click();
@@ -414,14 +448,51 @@ test("retained catalog inspection is bounded and clears revoked coverage", async
   await expect(interpretation).toContainText(
     "Payload verification and query completion are separate",
   );
-  const rows = () => interpretation.locator("p").filter({ hasText: /^Row / });
+  const placement = interpretation.getByRole("region", {
+    name: "Row placement evidence",
+    exact: true,
+  });
+  const placementGrid = placement.getByRole("table");
+  const rows = () => placementGrid.locator("tbody tr");
   await expect(rows()).toHaveCount(8);
   const before = await rows().allTextContents();
+  const firstRow = placementGrid.getByRole("button").first();
+  const rowName = await firstRow.innerText();
+  await firstRow.focus();
+  await page.keyboard.press("Enter");
+  const inspector = page.getByRole("complementary", { name: "Inspector" });
+  await expect(inspector).toContainText(rowName);
+  await expect(inspector).toContainText(selector!);
+  await expect(
+    placement
+      .getByRole("group", { name: "Row placement visualization" })
+      .getByRole("button")
+      .first(),
+  ).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("Escape");
+  await expect(firstRow).toBeFocused();
+  await firstRow.click();
   await interpretation.getByRole("button", { name: "Next coverage page", exact: true }).click();
   await expect
     .poll(async () => (await rows().allTextContents()).filter((row) => before.includes(row)).length)
     .toBe(0);
   await expect(rows()).toHaveCount(8);
+  await expect(inspector).toBeHidden();
+  await page.setViewportSize({ width: 780, height: 900 });
+  await placementGrid.getByRole("button").first().click();
+  await expect(inspector.getByRole("button", { name: "Close inspector" })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(placementGrid.getByRole("button").first()).toBeFocused();
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  expect(
+    (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze())
+      .violations,
+  ).toEqual([]);
+  if (process.env.BOARD_SCREENSHOT)
+    await placement.screenshot({
+      path: process.env.BOARD_SCREENSHOT.replace(/\.png$/, "-placement.png"),
+    });
   await catalog.getByText("Inspect retained definitions", { exact: true }).click();
   const definitions = page.getByRole("region", { name: "Retained definitions", exact: true });
   await expect(definitions).toContainText("More definitions are available.");
@@ -436,6 +507,36 @@ test("retained catalog inspection is bounded and clears revoked coverage", async
   await expect(
     page.getByRole("region", { name: "Accepted interpretation", exact: true }),
   ).toHaveCount(0);
+  await page.route("**/api/v1/catalog", async (route) => {
+    if (route.request().postDataJSON().action.history?.locations)
+      await route.fulfill({ status: 403, json: { err: "Forbidden", diagnostic: null } });
+    else await route.fallback();
+  });
+  await expect(interpretation.getByRole("heading", { name: "Access to Data denied" })).toBeVisible({
+    timeout: 12000,
+  });
+  await expect(placement).toHaveCount(0);
+  await interpretation
+    .getByRole("combobox", { name: "Coverage", exact: true })
+    .selectOption("definitions");
+  const physical = interpretation.getByRole("region", {
+    name: "Physical definitions evidence",
+    exact: true,
+  });
+  await expect(physical).toContainText("physical column");
+  await physical.getByRole("table").getByRole("button").first().click();
+  await expect(inspector).toContainText("Exact mapping and physical interpretation");
+  await page.keyboard.press("Escape");
+  // Collapsing removes disclosure and reads; reopening revalidates the supplied selector.
+  await page.getByText("Inspect a retained catalog", { exact: true }).click();
+  await expect(interpretation).toHaveCount(0);
+  const readsBefore = actions.length;
+  await page.waitForTimeout(5500);
+  expect(actions.length).toBe(readsBefore);
+  await page.getByText("Inspect a retained catalog", { exact: true }).click();
+  await expect(catalog).toContainText("single_partition");
+  await catalog.getByRole("button", { name: "metrics", exact: true }).click();
+  await expect(physical).toBeVisible();
   denied = true;
   await expect(page.getByRole("heading", { name: "Access to Data denied" }).first()).toBeVisible({
     timeout: 12000,
