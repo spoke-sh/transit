@@ -150,6 +150,8 @@ class Recorder:
         record = dict(phase='sample', case=case, index=index, outcome='incomplete')
         before = probe.snapshot() if probe else None
         owner_before = self.owner_probe.snapshot() if self.owner_probe and fixture else None
+        if owner_before is not None:
+            record['owner_before'] = owner_before
         cpu = cpu_snapshot(fixture) if fixture else None
         started = time.perf_counter_ns()
         try:
@@ -167,7 +169,7 @@ class Recorder:
                     record['local_attempts'] = probe.delta(before)
                 if owner_before is not None:
                     after = self.owner_probe.snapshot()
-                    record.update(owner_before=owner_before, owner_after=after,
+                    record.update(owner_after=after,
                         owner_counters={owner: {field: after[owner]['values'][field] - owner_before[owner]['values'][field]
                             for field in fields} for owner, fields in OWNER_COUNTERS.items()})
                 if fixture:

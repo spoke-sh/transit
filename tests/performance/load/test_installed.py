@@ -95,6 +95,25 @@ class InstalledReportTest(unittest.TestCase):
             else:
                 self.assertEqual(record['local_attempts'], {'local:table': 2})
 
+    def test_failed_final_inspection_retains_initial_owner_snapshot(self):
+        from unittest.mock import Mock
+        before = self.attributed()[4]['owner_before']
+        output = io.StringIO()
+        recorder = Recorder(output)
+        recorder.owner_probe = Mock()
+        recorder.owner_probe.snapshot.side_effect = [before, RuntimeError('inspection failed')]
+        with self.assertRaisesRegex(BrokenPipeError, 'original'), patch('builtins.print'), \
+                patch('performance.load.installed.cpu_snapshot', return_value={}):
+            with recorder.sample('activation', fixture=object()):
+                raise BrokenPipeError('original')
+        record = json.loads(output.getvalue())
+        self.assertEqual(record['owner_before'], before)
+        self.assertNotIn('owner_after', record)
+        self.assertNotIn('owner_counters', record)
+        self.assertEqual(record['error_type'], 'BrokenPipeError')
+        self.assertEqual(record['observation_error'], 'RuntimeError')
+        self.assertEqual(record['outcome'], 'failed')
+
     def test_final_verified_output_must_arrive_within_deadline(self):
         for final, late in ((180, False), (180.001, True)):
             record = {}
