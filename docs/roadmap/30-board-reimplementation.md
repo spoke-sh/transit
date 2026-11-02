@@ -2,10 +2,10 @@
 
 [Roadmap](README.md) · **Status:** In Progress
 
-Start with the [next implementation sequence after PR 326](#next-implementation-sequence-after-pr-326--2026-11-01)
-and the [delivered Operations and observation scope](#operations-and-observation-delivery--2026-11-01).
-The proposed sequence completes reactive UI ownership, deepens storage and
-computation inspection, and retains the full workbench completion gates.
+Start with the [R1 reactive ownership delivery](#reactive-ownership-delivery-r1--2026-11-02)
+and the [approved implementation sequence after PR 326](#next-implementation-sequence-after-pr-326--2026-11-01).
+Storage placement and computation inspection are the next deliveries; installed
+performance and the full workbench completion gates remain open.
 
 Reimplement Board as the installed interface for discovering data, explaining
 computations and reviewing governed changes. Deliver the focused catalog,
@@ -140,6 +140,40 @@ The milestone remains **In Progress**.
 Executed browser/API evidence, the clean browser preparation workaround and the
 incomplete installation lane are recorded in the
 [Operations proof account](../history/qualification/interfaces.md#board-operational-inspection-and-connection-states--2026-11-01).
+
+## Reactive ownership delivery (R1) — 2026-11-02
+
+R1 centralizes ordinary observation effects and adapts statement presentation
+around the shared `StatementReader`. Configuration, visibility, scope replacement,
+deadlines and typed refusals now invalidate disclosure through explicit owners.
+Reconnection observes the original result without resubmitting SQL. Lost cleanup
+replies remain visibly unconfirmed. Process/resource inspection retains its
+existing explicitly stale evidence policy during transient loss; denial and
+scope replacement clear that evidence.
+
+All public browser transports use one per-tab scheduler: two active read slots,
+one separate control/cleanup slot, bounded queues and staggered read starts.
+Query/Live, reviewed publication and relational recovery retain their shared
+domain owners and original saved intents. The
+[frontend owner inventory](../../apps/transit-board-web/README.md) records their
+distinct lifecycles; the workbench guide and Internals own current semantics.
+
+Independent finite observation, statement and admission graphs replay against
+production TypeScript with model and implementation negative controls. Concrete
+tests separately cover asynchronous dispatch, queue cancellation and response-body
+ownership. Real installation fixtures provision all four Catalog/SQL combinations
+with distinct read subjects and exercise same-origin local forwarding. These
+checks do not establish arbitrary network progress, SSH security or the proposed
+R4 resource/performance targets. Executed source-specific results, corrected
+regressions and remaining limits are recorded in the
+[R1 qualification account](../history/qualification/interfaces.md#board-reactive-ownership-and-independent-connection-profiles--2026-11-02).
+
+The next implementation PR is R2's retained-storage placement and maintenance
+inspection, followed by R3's managed-computation projection and neighborhood.
+R4 retains the unresolved historical TLS-replacement cause, the newly observed
+managed-table authorization refusal after replacement/resume, measured resource
+budgets and broader accessibility checks. R5 and the original milestone gates
+remain required; this delivery does not complete M30.
 
 ## Next implementation sequence after PR 326 — 2026-11-01
 
