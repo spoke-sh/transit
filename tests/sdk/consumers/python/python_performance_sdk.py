@@ -141,4 +141,20 @@ async def main(mode, config_file):
 
 
 if __name__ == '__main__':
-    asyncio.run(main(*sys.argv[1:]))
+    try:
+        asyncio.run(main(*sys.argv[1:]))
+    except BaseException as failure:
+        # Retain public failure classification without serializing saved work,
+        # diagnostics, credentials or values. The driver still fails the campaign.
+        causes = []
+        current = failure
+        for _ in range(4):
+            if current is None:
+                break
+            code = getattr(current, 'code', None)
+            causes.append(dict(error_type=type(current).__name__,
+                               status=getattr(current, 'status', None),
+                               code=code if isinstance(code, str) and code.isascii() and code.isidentifier() and len(code) <= 96 else None))
+            current = current.__cause__ or current.__context__
+        print(json.dumps(dict(phase='consumer_failure', causes=causes)), file=sys.stderr, flush=True)
+        raise
