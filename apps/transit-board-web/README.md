@@ -65,7 +65,12 @@ refresh; no unbounded graph or automatic scan is performed.
 Opaque bytes render as escaped text or an explicit binary label. Timing labels
 refer to the latest observation; no duration or ETA is inferred. State resources
 and associations have generic views with explicit coverage, lifecycle and revision
-evidence. Resource entries render as exact hex bytes after an explicit read.
+evidence. Resource entries render as exact hex bytes after an explicit read. Process/resource
+inspection retains one last-observed page during transient unavailability or
+capacity refusal, with an explicit stale label and its original cut/time. It
+clears on denial, expiry, incompatible response, hiding or scope replacement.
+This qualified evidence adapter is separate from current metadata and result
+state; a retry never relabels old evidence as a new observation.
 
 ## Visual design exploration
 

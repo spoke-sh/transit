@@ -1,8 +1,9 @@
 import { diagnosticLines } from "@transit/query-client";
 import { InterfaceShell } from "./interface";
+import { inspectionEvidence, type InspectionEvidence } from "./inspection-evidence";
 import { useRead } from "./use-observation";
 import { ReadStatus } from "./read-status";
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useRef, useState, type ReactNode } from "react";
 import {
   BoardError,
   deployment,
@@ -87,11 +88,19 @@ function usePagedRead<
     }),
     continuation ? 0 : 5000,
   );
-  const data = state.value?.data ?? null;
+  const retained = useRef<InspectionEvidence<NonNullable<typeof state.value>> | null>(null);
+  retained.current = inspectionEvidence<NonNullable<typeof state.value>>(
+    retained.current,
+    key,
+    state,
+  );
+  const evidence = state.value ?? retained.current?.value;
+  const failure = state.failure ?? retained.current?.failure;
+  const data = evidence?.data ?? null;
   return {
     data,
-    error: state.failure ? message(new BoardError(0, state.failure.code)) : "",
-    observedAt: state.value?.observedAt ?? "",
+    error: failure ? message(new BoardError(0, failure.code)) : "",
+    observedAt: evidence?.observedAt ?? "",
     next: () => {
       if (data?.observation.next != null)
         setContinuation({ cut: data.observation.cut, after: data.observation.next });
