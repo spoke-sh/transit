@@ -100,6 +100,14 @@ can fail with a frontier conflict; the driver retains that attempt and original
 identity, and does not silently choose a new snapshot or resample it. Passing
 the isolated profile does not qualify concurrent maintenance behavior.
 
+After acquisition or release failure, consumers make one read-only status
+request for the original pin owner and retain `snapshot-failure.json` privately.
+Stderr reports only the failing phase, public error classification and bounded
+retained/released/retired flags. Status failure does not replace the original
+failure; successful status does not turn a failed measurement into a pass. Saved
+acquisition and snapshot files remain unchanged, including when they refer to
+different owners because a new acquisition failed before saving its snapshot.
+
 No numeric SDK regression budget is active yet. Qualify at least three
 alternating matched pairs with at least 50 steady samples per arm and case
 before freezing budgets. Repeat cold starts independently and retain every

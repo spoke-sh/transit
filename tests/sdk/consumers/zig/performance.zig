@@ -28,8 +28,19 @@ fn elapsed(io: std.Io, start: std.Io.Timestamp) u64 {
 fn call(client: *data.Catalog, output: *std.heap.ArenaAllocator, action: c.DirectTableBridge.Action) !c.DirectTableBridge.Result {
     return switch ((try client.call(output, action)).value) {
         .result => |value| value,
-        .failure => |failure| failure.cause,
+        .failure => |failure| {
+            std.debug.print("{{\"phase\":\"consumer_failure\",\"action\":\"{s}\",\"error_type\":\"{s}\",\"code\":\"{s}\"}}\n", .{ @tagName(action), @errorName(failure.cause), if (failure.protocol_error) |code| @tagName(code) else "none" });
+            return failure.cause;
+        },
     };
+}
+
+fn snapshotFailure(io: std.Io, client: *data.Catalog, output: *std.heap.ArenaAllocator, owner: c.DirectCatalogRetention.Owner, phase: []const u8) void {
+    // Inspect only the original owner after failure. A later successful status
+    // cannot turn this failed timing sample into success or select a new cut.
+    const status = (call(client, output, .{ .retention = .{ .status = owner } }) catch return).retention.status;
+    persist(io, output.allocator(), "snapshot-failure.json", status) catch return;
+    std.debug.print("{{\"phase\":\"snapshot_failure\",\"operation\":\"{s}\",\"retained\":{},\"released\":{},\"retired\":{}}}\n", .{ phase, status.snapshot != null, status.released, status.retired });
 }
 fn persist(io: std.Io, allocator: std.mem.Allocator, name: []const u8, value: anytype) !void {
     const bytes = try c.protocol.Json.valueAlloc(allocator, value);
@@ -73,10 +84,18 @@ fn execute(io: std.Io, client: *data.Catalog, query: *q.RelationalBridge.Session
         .operation = request.id,
     }, .expected = current.position };
     try persist(io, allocator, "pending.json", acquisition);
-    const snapshot = (try call(client, output, .{ .retention = .{ .acquire = acquisition } })).retention.acquired;
+    const snapshot = (call(client, output, .{ .retention = .{ .acquire = acquisition } }) catch |err| {
+        snapshotFailure(io, client, output, acquisition.owner, "acquire");
+        return err;
+    }).retention.acquired;
     try persist(io, allocator, "snapshot.json", snapshot);
     // On failure the saved acquisition/snapshot remains available to the driver.
-    errdefer _ = call(client, output, .{ .retention = .{ .release = snapshot } }) catch {};
+    var release_attempted = false;
+    errdefer if (!release_attempted) {
+        _ = call(client, output, .{ .retention = .{ .release = snapshot } }) catch {
+            snapshotFailure(io, client, output, acquisition.owner, "release");
+        };
+    };
     const identity = try std.fmt.allocPrint(allocator, "{x:0>32}", .{try c.TableValues.unsigned(request.id)});
     const opened = (try query.apply(allocator, .{ .open = .{ .id = identity, .statement = .{ .sql = request.sql, .routes = &.{0} }, .bindings = &.{current.binding}, .snapshots = &.{snapshot} } }, null)).opened;
     errdefer _ = query.apply(allocator, .{ .close = opened.reference }, null) catch {};
@@ -112,7 +131,11 @@ fn execute(io: std.Io, client: *data.Catalog, query: *q.RelationalBridge.Session
         if (page.row == null) return error.IncompleteResult;
     } else return error.ResultBudgetExceeded;
     _ = try query.apply(allocator, .{ .close = opened.reference }, null);
-    _ = try call(client, output, .{ .retention = .{ .release = snapshot } });
+    release_attempted = true;
+    _ = call(client, output, .{ .retention = .{ .release = snapshot } }) catch |err| {
+        snapshotFailure(io, client, output, acquisition.owner, "release");
+        return err;
+    };
     const ordered = values[0..@intCast(rows)];
     std.mem.sort(Row, ordered, request.representation == .text, struct {
         fn less(text: bool, a: Row, b: Row) bool {
