@@ -25,7 +25,7 @@ class CatalogConflict(Exception):
 
 
 class CatalogCapacity(Exception):
-    """Request capacity is unavailable for a step of the saved acquisition."""
+    """Request capacity is unavailable for a step of the saved operation."""
 
 
 UNCERTAIN_TRANSPORT = (ConnectionError, TimeoutError, IncompleteRead, RemoteDisconnected)
@@ -53,8 +53,9 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030):
         if status == 409 and response == {'err': 'Conflict'} and (
                 'historical_catalog' in action or 'declaration' in action.get('descriptor', {})):
             raise CatalogConflict()
-        if status == 503 and response == {'err': 'ControlCapacity'} and any(
-                step in action.get('historical_catalog', {}) for step in ('acquire', 'inspect', 'advance', 'release')):
+        if status == 503 and response == {'err': 'ControlCapacity'} and (
+                'declaration' in action.get('descriptor', {}) or any(
+                    step in action.get('historical_catalog', {}) for step in ('acquire', 'inspect', 'advance', 'release'))):
             raise CatalogCapacity()
         assert status == 200, (status, data)
         return response['result']
@@ -89,8 +90,8 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030):
                 intent=list(hashlib.sha256(b'transit.catalog.interpretation.intent.v1\0'+compact(intent)).digest()), prerequisite=None)
             saved = dict(binding=binding, intent=intent)
             (fixture.root / f'definition-intent-{object_id}.json').write_text(json.dumps(saved))
-            conflicts, injected = 0, 0
-            for _ in range(32):
+            conflicts, injected, capacity = 0, 0, 0
+            for attempt in range(32):
                 # Exercise bounded registration progress under the installed
                 # request deadline, retaining the same saved declaration.
                 try:
@@ -109,12 +110,20 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030):
                     # conflict, within the original 32-step progress bound.
                     conflicts += 1
                     continue
+                except CatalogCapacity:
+                    # Resume only this saved declaration after admission is
+                    # available, within the same bounded progress schedule.
+                    capacity += 1
+                    if attempt < 31:
+                        time.sleep(.15)
+                    continue
                 if 'operation' in result:
                     assert result['operation']['binding'] == binding, 'Declaration recovery changed the saved binding'
                     assert result['operation']['phase'] == 'applied', result
-                    if conflicts:
+                    if conflicts or capacity:
                         print(json.dumps(dict(profile='board_definition_original_recovery', operation=object_id,
-                            conflict_observations=conflicts-injected, injected_conflicts=injected)), flush=True)
+                            conflict_observations=conflicts-injected, injected_conflicts=injected,
+                            capacity_observations=capacity)), flush=True)
                     break
                 assert result == {'registration_pending': {}}, result
             else:

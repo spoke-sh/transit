@@ -10,6 +10,10 @@ from unittest.mock import Mock, patch
 from interfaces.installation import board_workbench as workbench
 
 
+class DeclarationsFinished(Exception):
+    """Stop the declaration control before beginning the separate history test."""
+
+
 class HistoryRecovery(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
@@ -28,7 +32,7 @@ class HistoryRecovery(unittest.TestCase):
         self.acquisition = dict(acquire=dict(key=self.token, intent=self.intent, budget=self.budget))
         self.actions = []
         self.responses = []
-        identity = dict(body=dict(authorization=dict(body=dict(identity=dict(credential_epoch=1)))))
+        identity = dict(body=dict(authorization=dict(body=dict(identity=dict(credential_epoch=1, login_role=2)))))
         for name, value in (
             ('ExistingKey', Mock(return_value=Mock(sign=Mock(return_value=[0] * 64)))),
             ('native', Mock(return_value={})),
@@ -109,6 +113,53 @@ class HistoryRecovery(unittest.TestCase):
                 with patch.object(workbench.time, 'sleep'), self.assertRaisesRegex(AssertionError, 'changed the saved'):
                     self.retain()
                 self.assertEqual(self.actions[1:], [self.acquisition, dict(inspect=self.token)])
+
+    def declarations(self, failures):
+        requests = []
+
+        def exchange(port, route, request, headers):
+            action = request['action']
+            if 'historical_catalog' in action:
+                raise DeclarationsFinished()
+            descriptor = action['descriptor']
+            if 'stage_input' in descriptor:
+                return 200, json.dumps(dict(result=dict(descriptor=dict(input=dict(bytes=2, sha256=[12] * 32))))).encode()
+            declaration = descriptor['declaration']
+            requests.append(copy.deepcopy(declaration))
+            saved = declaration['request']
+            operation = saved['binding']['identity']['operation']
+            self.assertEqual(json.loads((self.fixture.root / f'definition-intent-{operation}.json').read_text()), saved)
+            self.assertEqual((declaration['command'], declaration['steps']), ('accept', 1))
+            if failures:
+                code, body = failures.pop(0)
+                return code, json.dumps(body).encode()
+            observation = dict(operation=dict(binding=saved['binding'], phase='applied'))
+            return 200, json.dumps(dict(result=dict(descriptor=dict(observation=observation)))).encode()
+
+        workbench.exchange.side_effect = exchange
+        return requests
+
+    def test_declaration_capacity_keeps_the_saved_binding_and_intent(self):
+        requests = self.declarations([(503, {'err': 'ControlCapacity'})])
+        with patch.object(workbench.time, 'sleep') as sleep, self.assertRaises(DeclarationsFinished):
+            workbench.retained_metrics(self.fixture, self.definition, self.connection, 'unused')
+        # One capacity refusal plus the existing injected lost reply address the
+        # same declaration; the remaining four declarations each complete once.
+        self.assertEqual([r['request']['binding']['identity']['operation'] for r in requests],
+                         [900100, 900100, 900100, 900101, 900102, 900103, 900104])
+        self.assertEqual(requests[:3], [requests[0]] * 3)
+        sleep.assert_called_once_with(.15)
+
+    def test_declaration_capacity_is_bounded_and_denials_fail_immediately(self):
+        for failure, attempts, message in [((503, {'err': 'ControlCapacity'}), 32, 'did not settle'),
+                                          ((403, {'err': 'AccessDenied'}), 1, 'AccessDenied'),
+                                          ((503, {'err': 'AuthorityUnavailable'}), 1, 'AuthorityUnavailable')]:
+            with self.subTest(failure=failure):
+                requests = self.declarations([failure] * attempts)
+                with patch.object(workbench.time, 'sleep'), self.assertRaisesRegex(AssertionError, message):
+                    workbench.retained_metrics(self.fixture, self.definition, self.connection, 'unused')
+                self.assertEqual(len(requests), attempts)
+                self.assertEqual(requests, [requests[0]] * attempts)
 
 
 if __name__ == '__main__':
