@@ -64,6 +64,16 @@ class InstalledReportTest(unittest.TestCase):
             changed = copy.deepcopy(records)
             changed[2]['definition'] = 'f'*64
             compare(summarize(records), summarize(changed))
+        changed = copy.deepcopy(records)
+        for name in ('owner_before', 'owner_after'):
+            changed[5][name]['instance'] = [2]*16
+        with self.assertRaisesRegex(ValueError, 'between samples'):
+            summarize(changed)
+        changed = copy.deepcopy(records)
+        changed[4]['owner_after']['managed']['values']['result_rows'] = 1
+        changed[4]['owner_counters']['managed']['result_rows'] = 1
+        with self.assertRaisesRegex(ValueError, 'between samples'):
+            summarize(changed)
 
     def test_failed_operation_retains_counters_without_masking_original_error(self):
         for diagnostic_failure in (False, True):
