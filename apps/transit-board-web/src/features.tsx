@@ -44,3 +44,7 @@ export const ResourcePage = /* @__PURE__ */ lazy(() =>
 export const LiveTable = /* @__PURE__ */ lazy(() =>
   import("./live-table").then((module) => ({ default: module.LiveTable })),
 );
+
+export const Computations = /* @__PURE__ */ lazy(() =>
+  import("./computations").then((module) => ({ default: module.Computations })),
+);

@@ -1,5 +1,5 @@
 import type { CatalogEntry } from "@transit/board-client";
-export function datasetLink(entry: CatalogEntry) {
+export function datasetLink(entry: Pick<CatalogEntry, "namespace" | "name" | "interpretation">) {
   const object = entry.interpretation.object;
   return {
     object: [

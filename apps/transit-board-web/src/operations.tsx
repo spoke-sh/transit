@@ -1,3 +1,5 @@
+import { Suspense, useState } from "react";
+import { Computations } from "./features";
 import { Link } from "@tanstack/react-router";
 import { useScope } from "./state";
 import { Storage, CatalogStorageExplorer } from "./storage";
@@ -6,6 +8,7 @@ import { Workbench, WorkbenchBody } from "./workbench-layout";
 import "./workbench.css";
 export function Operations() {
   const { scope } = useScope();
+  const [computations, setComputations] = useState(false);
   return (
     <Workbench className="operations-workbench">
       <div className="page-heading">
@@ -27,6 +30,26 @@ export function Operations() {
       <WorkbenchBody>
         <Storage />
         <CatalogStorageExplorer />
+        <section aria-label="Computation inspection">
+          <h2>Computations</h2>
+          {scope?.features.catalog ? (
+            <>
+              <button aria-expanded={computations} onClick={() => setComputations(!computations)}>
+                {computations ? "Close computation inspection" : "Inspect a computation"}
+              </button>
+              {computations && (
+                <Suspense fallback={<p role="status">Loading computation inspection…</p>}>
+                  <Computations key={JSON.stringify(scope)} />
+                </Suspense>
+              )}
+            </>
+          ) : (
+            <p>
+              A catalog connection is required to inspect a computation.{" "}
+              <Link to="/catalog">View setup guidance</Link>
+            </p>
+          )}
+        </section>
         {scope?.features.catalog && <HistoricalCatalog key={JSON.stringify(scope)} />}
       </WorkbenchBody>
       <p>
