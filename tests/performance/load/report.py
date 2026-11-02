@@ -99,8 +99,8 @@ def summarize(records):
             manifest['profile'] == 'connections' and key[0] != 'startup' and not key[0].endswith('_idle_peer'))
         if manifest['attribution'] and measured:
             counters(record.get('owner_counters'))
-            before_instance, before = owner_snapshot(record['owner_before'])
-            after_instance, after = owner_snapshot(record['owner_after'])
+            before_instance, before = owner_snapshot(record.get('owner_before'))
+            after_instance, after = owner_snapshot(record.get('owner_after'))
             if before_instance != after_instance or any(
                     after[owner][field] - before[owner][field] != record['owner_counters'][owner][field]
                     for owner, fields in OWNER_COUNTERS.items() for field in fields):
