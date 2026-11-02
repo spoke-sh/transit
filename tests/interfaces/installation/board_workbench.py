@@ -506,7 +506,7 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
         assert placement_coverage('definitions', first_definition['next']) == second_definition
         assert history(dict(source=dict(selector=placement_selector, object=placement_object)))['history']['source']['binding']['name'] == 'placement_probe'
         # A stale continuation cannot be spliced into another kind of coverage.
-        history(dict(locations=dict(placement_input, after=first_definition['next'])), 409)
+        assert history(dict(locations=dict(placement_input, after=first_definition['next'])), 400)['err'] == 'InvalidQuery'
         if browser:
             evidence_file = fixture.root / 'placement-evidence.json'
             evidence_file.write_text(json.dumps(evidence))
