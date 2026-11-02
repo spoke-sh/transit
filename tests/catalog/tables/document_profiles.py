@@ -1,4 +1,5 @@
 """Compare the pure Zig parsers with Python JSON and Expat, including raw spans."""
+import hashlib
 import json
 from pathlib import Path
 import random
@@ -27,6 +28,29 @@ def invoke(binary, family, source, chunk):
         assert 0 <= start <= end <= len(source), (line, source)
         events.append((kind, bytes.fromhex(value).decode("utf-8"), bytes.fromhex(detail).decode("utf-8"), depth, start, end))
     return lines[-1], events
+
+
+def serialize(binary, source, chunk):
+    result = subprocess.run([binary, "json-write", str(chunk), source.hex()],
+                            capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, (source, result.stderr)
+    lines = result.stdout.splitlines()
+    assert lines, result.stdout
+    if lines[-1].startswith("error\t"):
+        return None
+    status, length, digest = lines[-1].split("\t")
+    assert status == "complete", result.stdout
+    output = bytearray()
+    for line in lines[:-1]:
+        label, encoded = line.split("\t")
+        assert label == "bytes"
+        data = bytes.fromhex(encoded)
+        assert 0 < len(data) <= min(chunk, 5, 23)
+        output.extend(data)
+    output = bytes(output)
+    assert len(output) == int(length)
+    assert hashlib.sha256(output).hexdigest() == digest
+    return output
 
 
 def json_events(value, depth=0):
@@ -139,6 +163,19 @@ def main():
                         else:
                             assert raw == {"object_start": b"{", "object_end": b"}", "array_start": b"[", "array_end": b"]"}[kind]
                 schedules += 1
+    constructed = 0
+    for source in json_sources:
+        expected = list(json_events(json.loads(source, object_pairs_hook=Pairs, parse_int=Number, parse_float=Number)))
+        canonical = None
+        for chunk in (1, 3, 17, 8192):
+            encoded = serialize(binary, source, chunk)
+            assert encoded is not None
+            actual = list(json_events(json.loads(encoded, object_pairs_hook=Pairs, parse_int=Number, parse_float=Number)))
+            assert actual == expected, (source, encoded, expected, actual)
+            if canonical is None:
+                canonical = encoded
+            assert encoded == canonical, (source, chunk)
+            constructed += 1
     # These are invalid in the standards, not merely outside the qualified subset.
     negatives = {
         "json": [b"[1,]", b"01", b"true false", b'"\\x"', b'"\xc0\x80"', b"1.", b"{"],
@@ -155,6 +192,8 @@ def main():
                 status, _ = invoke(binary, family, source, chunk)
                 assert status.startswith("error\t"), (family, source, status)
                 schedules += 1
+                if family == "json":
+                    assert serialize(binary, source, chunk) is None, source
     # Mutate a deterministic subset; oracle-invalid bytes must never complete.
     # Valid mutations are covered by the value/order corpus above, avoiding a
     # false full-XML claim for namespace/non-ASCII-name mutations.
@@ -177,6 +216,7 @@ def main():
                     schedules += 1
                 invalid_mutations += 1
     assert invalid_mutations >= 300, invalid_mutations
+    print(f"Document construction: {constructed} independent JSON round trips and byte commitments passed")
     print(f"Document profiles: {schedules} independent JSON/Expat chunk schedules, values, order, provenance and malformed-frame refusals passed")
 
 

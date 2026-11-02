@@ -25,7 +25,8 @@ pub fn main(init: std.process.Init) !void {
         .work = 256 * 1024,
     };
     var token: [1024]u8 = undefined;
-    const format: profiles.Profile.contract.Format = if (std.mem.eql(u8, args[1], "json")) .json else if (std.mem.eql(u8, args[1], "xml")) .xml else return error.InvalidArguments;
+    const write_json = std.mem.eql(u8, args[1], "json-write");
+    const format: profiles.Profile.contract.Format = if (write_json or std.mem.eql(u8, args[1], "json")) .json else if (std.mem.eql(u8, args[1], "xml")) .xml else return error.InvalidArguments;
     const descriptor = try profiles.Profile.descriptor(format, limits);
     var json_frames: [32]profiles.Json.Frame = undefined;
     var xml_frames: [32]profiles.Xml.Frame = undefined;
@@ -46,6 +47,10 @@ pub fn main(init: std.process.Init) !void {
         .coverage = .complete,
         .source = null,
     }, workspace);
+    var writer_frames: [32]profiles.JsonWriter.Frame = undefined;
+    var writer: profiles.JsonWriter = undefined;
+    if (write_json) writer = try profiles.JsonWriter.init(descriptor, 2, &writer_frames);
+    var encoded: [23]u8 = undefined;
     var offset: usize = 0;
     var turns: usize = 0;
     while (turns < input.len * 4 + 100) : (turns += 1) {
@@ -58,6 +63,16 @@ pub fn main(init: std.process.Init) !void {
         offset += step.consumed;
         switch (step.result) {
             .event => |event| {
+                if (write_json) {
+                    try writer.beginEvent(event);
+                    while (writer.needsDrain()) {
+                        const count = try writer.drain(encoded[0..@min(encoded.len, chunk)], 5);
+                        try out.writeAll("bytes\t");
+                        for (encoded[0..count]) |byte| try out.print("{x:0>2}", .{byte});
+                        try out.writeByte('\n');
+                    }
+                    continue;
+                }
                 try out.print("{s}\t{d}\t{d}\t{d}\t", .{ @tagName(event.kind), event.span.byte_start, event.span.byte_end, event.depth });
                 for (event.value) |byte| try out.print("{x:0>2}", .{byte});
                 try out.writeByte('\t');
@@ -66,7 +81,12 @@ pub fn main(init: std.process.Init) !void {
             },
             .complete => {
                 _ = try reader.verifiedPart();
-                try out.writeAll("complete\n");
+                if (write_json) {
+                    const part = try writer.finish();
+                    try out.print("complete\t{d}\t", .{part.bytes});
+                    for (part.sha256) |byte| try out.print("{x:0>2}", .{byte});
+                    try out.writeByte('\n');
+                } else try out.writeAll("complete\n");
                 try out.flush();
                 return;
             },
