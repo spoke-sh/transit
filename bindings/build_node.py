@@ -14,13 +14,17 @@ ROOT = Path(__file__).resolve().parents[1]
 def build(output: Path, packages: list[str], native_prefix: Path) -> None:
     output = output.resolve()
     output.mkdir(parents=True, exist_ok=True)
-    subprocess.run(['vp', 'exec', 'node', 'bindings/node_validators.mjs', '--check'], cwd=ROOT, check=True)
+    validators_ready = False
     for name in packages:
         source = ROOT / name if '/' in name else ROOT / 'sdks/ts' / name
         manifest = json.loads((source / 'package.json').read_bytes())
+        public_sdk = manifest['name'] in ('@transit/client', '@transit/station')
+        if public_sdk and not validators_ready:
+            subprocess.run(['vp', 'exec', 'node', 'bindings/node_validators.mjs', '--check'], cwd=ROOT, check=True)
+            validators_ready = True
         if not name.startswith('transit-native-'):
             subprocess.run(['vp', 'exec', '--filter', manifest['name'], 'tsc'], cwd=ROOT, check=True)
-            if manifest['name'] in ('@transit/client', '@transit/station'):
+            if public_sdk:
                 for generated in ('validators.js', 'validators.d.ts'):
                     shutil.copy2(source / 'src' / generated, source / 'dist' / generated)
         with tempfile.TemporaryDirectory(prefix='transit-node-package-') as temporary:
