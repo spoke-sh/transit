@@ -242,8 +242,8 @@ pub fn recover(init: std.process.Init, client: c.DirectTableClient, path: []cons
     try t.expectEqual(@as(u64, 0), refusal.head.revision);
     try t.expect(refusal.head.pending == null);
     try count(client, 4);
-    try control(manager, limited, .retire, 652025);
-    try t.expect(try manager.start(limited) == null);
+    // Keep this refusal observable across replacement for the independent
+    // reader. Retirement (covered above) clears the current blocked reason.
     try dml(client, "DELETE FROM managed_output", 652028);
     try retained(manager, declaration, 1, &.{ 1, 2, 3 });
     try retained(manager, declaration, 2, &.{ 1, 2, 3, 4 });
