@@ -1200,7 +1200,7 @@
           "transit-board::query-test",
           "launchers::local::test-station",
           "transit-board::workbench-test",
-      "transit-board::computations-test",
+          "transit-board::computations-test",
           "transit-board::browser",
           "transit-board::query-browser",
           "transit-board::http-browser",
@@ -1209,7 +1209,7 @@
           "test::reactive-views",
           "test::reactive-views-lifecycle",
           "transit-board::workbench-browser",
-      "transit-board::computations-browser"
+          "transit-board::computations-browser"
         ],
         "resources": [
           "native-build",

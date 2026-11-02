@@ -2,13 +2,12 @@ import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import type { ComputationResponse } from "@transit/board-client/computations";
-const expected = JSON.parse(
-  readFileSync(process.env.BOARD_COMPUTATION_EVIDENCE!, "utf8"),
-) as ComputationResponse;
-
 test("deferred computation diagram, grid and inspector share verified metadata", async ({
   page,
 }) => {
+  const expected = JSON.parse(
+    readFileSync(process.env.BOARD_COMPUTATION_EVIDENCE!, "utf8"),
+  ) as ComputationResponse;
   const scripts: string[] = [];
   const actions: string[] = [];
   const errors: string[] = [];

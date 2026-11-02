@@ -738,6 +738,45 @@ The graphs bound generations without wrapping and keep observation, statement
 and admission exploration separate. Async queue/timer behavior has separate
 adapter tests; no arbitrary interleaving or network progress claim follows.
 
+### Computation selection and disclosure
+
+Computation inspection needs two independently attributed observations: a current
+control head with its last completed revision, and an explicitly selected retained
+revision. Combining them into one mutable result would let a later completion
+replace the user's selected revision. The
+[computation owner](../../../apps/transit-board-web/src/computation-owner.ts)
+instead composes two observation owners under one immutable definition binding.
+The [public read contract](../../../contracts/DATAFLOW_V1.md) verifies publication
+and committed completion evidence, with current source, output and control read
+grants. Publisher attribution supplies no reader authority.
+
+The first successful lookup fixes the definition for subsequent reads. An explicit
+revision remains selected until the user selects another revision or **Latest
+completed**. A missing revision clears only that result; it cannot substitute the
+current output or infer a failed computation. Denial, expiry or incompatible
+evidence disposes both observations and clears the shared Inspector. Hiding also
+cancels both owners and clears evidence. Returning rechecks the same definition
+and selection. Generation checks plus an abort check before updating the binding
+prevent a late completion from restoring disposed evidence. These statements
+assume the same serial callback ordering as the observation reducer above.
+
+The view uses the tab's existing scheduler and retains at most one current and
+one selected metadata response. It creates no result reader or retention pin.
+The three diagram nodes, equivalent grid and Inspector derive from those same
+validated values. Neither absence of pending work nor active control establishes
+freshness. Current metadata and a selected revision do not form an atomic snapshot.
+
+The [owner tests](../../../apps/transit-board-web/src/computation-owner.test.ts)
+exercise newer completions, late replies, missing revisions, denial, hiding and
+selection replacement. The
+[service fixture](../../../tests/interfaces/board/computations.py) and
+[Chromium scenarios](../../../apps/transit-board-web/browser/computations.spec.ts)
+exercise the signed reader and browser boundary through the
+[Board tasks](../../../tasks/transit-board.just). Their executed outcomes belong
+in [qualification history](../../history/qualification/interfaces.md). This
+composition is not a new temporal proof or a claim about arbitrary scheduling,
+remote-tunnel latency or renderer performance.
+
 ## Declarations and controls
 
 SQL declarations, visual editors and generated modules use the same typed model
