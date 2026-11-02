@@ -5,7 +5,9 @@ test("complete definition editing and exact operator recovery", async ({ page, c
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/definition");
-  await expect(page.getByRole("heading", { name: "Interface bindings", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Interface bindings", exact: true }),
+  ).toBeVisible();
   await expect(page.getByRole("heading", { name: "Definition", exact: true })).toBeVisible();
   await expect(page.getByText("Operator endpoint enabled", { exact: false })).toBeVisible();
   const oldClient = await context.newPage();

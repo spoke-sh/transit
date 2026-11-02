@@ -80,6 +80,9 @@ test("Table storage links visual, grid and inspector without executing SQL", asy
   });
   await expect(table).toHaveCount(0);
   await expect(inspector).toBeHidden();
+  await expect(
+    page.getByRole("region", { name: "Capacity and allocation", exact: true }),
+  ).toBeVisible();
   expect(runs).toBe(0);
 });
 
