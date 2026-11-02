@@ -12,7 +12,7 @@ pub const Frame = struct {
     state: enum { key_or_end, key, colon, value_or_end, value, comma_or_end },
 };
 const Token = enum { none, string, number, literal };
-const Number = enum { minus, zero, integer, dot, fraction, exponent_mark, exponent_sign, exponent };
+const Number = @import("JsonNumber.zig").State;
 const Escape = enum { none, escaped, hex, low_slash, low_u };
 
 part_id: u64,
@@ -154,7 +154,7 @@ fn byte(self: *Self, c: u8) !?Event {
         },
         '-', '0'...'9' => {
             self.mode = .number;
-            self.number = if (c == '-') .minus else if (c == '0') .zero else .integer;
+            self.number = try Number.start(c);
             try self.append(c);
             try self.budget.node();
         },
@@ -270,56 +270,14 @@ fn event(self: *Self, kind: @FieldType(Event, "kind"), value: []const u8) Event 
 }
 
 fn finishNumber(self: *Self) !Event {
-    switch (self.number) {
-        .zero, .integer, .fraction, .exponent => {},
-        else => return error.InvalidJsonNumber,
-    }
+    try self.number.finish();
     self.mode = .none;
     try self.afterValue();
     return self.event(.number, self.token[0..self.used]);
 }
 
 fn numberByte(self: *Self, c: u8) !void {
-    self.number = switch (self.number) {
-        .minus => switch (c) {
-            '0' => .zero,
-            '1'...'9' => .integer,
-            else => return error.InvalidJsonNumber,
-        },
-        .zero => switch (c) {
-            '.' => .dot,
-            'e', 'E' => .exponent_mark,
-            else => return error.InvalidJsonNumber,
-        },
-        .integer => switch (c) {
-            '0'...'9' => .integer,
-            '.' => .dot,
-            'e', 'E' => .exponent_mark,
-            else => return error.InvalidJsonNumber,
-        },
-        .dot => switch (c) {
-            '0'...'9' => .fraction,
-            else => return error.InvalidJsonNumber,
-        },
-        .fraction => switch (c) {
-            '0'...'9' => .fraction,
-            'e', 'E' => .exponent_mark,
-            else => return error.InvalidJsonNumber,
-        },
-        .exponent_mark => switch (c) {
-            '+', '-' => .exponent_sign,
-            '0'...'9' => .exponent,
-            else => return error.InvalidJsonNumber,
-        },
-        .exponent_sign => switch (c) {
-            '0'...'9' => .exponent,
-            else => return error.InvalidJsonNumber,
-        },
-        .exponent => switch (c) {
-            '0'...'9' => .exponent,
-            else => return error.InvalidJsonNumber,
-        },
-    };
+    try self.number.next(c);
     try self.append(c);
 }
 

@@ -91,7 +91,8 @@ from durable partition acceptance.
 
 [`DocumentProfile`](src/DocumentProfile.zig) supplies immutable format/grammar
 descriptors, processing budgets, raw/decoded/derived byte spans and independent
-capture/validation observations. Its [contract](../../../contracts/DOCUMENT_PROFILE_V1.md)
+capture/validation observations, plus streamed compound-manifest commitments
+and exact revision-bound external part references. Its [contract](../../../contracts/DOCUMENT_PROFILE_V1.md)
 separates offline validation from parser capability, durable publication and
 effect authority. It does not change the installed Document or Exchange layout.
 

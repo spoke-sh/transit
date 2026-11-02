@@ -136,7 +136,7 @@ pub fn read(allocator: std.mem.Allocator, client: c.DirectTableClient, value: Re
 
 test "guarded record policy is immutable content and requires a bounded nonempty same-scope conjunction" {
     const t = std.testing;
-    const connection: w.Connection = .{ .scope = .{ .realm = 1, .resource = 2, .catalog = 3 }, .branch = 1, .principal = 0 };
+    const connection: w.Connection = .{ .scope = .{ .realm = 1, .resource = 2, .catalog = 3 }, .branch = 1, .audience = 3, .principal = 0, .role = null };
     const object: p.DataLifecycle.Object = .{ .scope = connection.scope, .branch = 1, .object = 7 };
     const encoded = try encodeGuarded(t.allocator, connection, .{ object, null, null }, "retained bytes");
     defer t.allocator.free(encoded);

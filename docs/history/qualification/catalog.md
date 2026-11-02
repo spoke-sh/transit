@@ -9,6 +9,66 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Offline Document construction and compound commitments — 2026-11-02
+
+This experiment asks whether applications can construct JSON/XML representations
+and verify compound part commitments with bounded resident state, while
+preserving order, exact bytes and explicit incomplete coverage. Current semantics
+belong to the [profile contract](../../../contracts/DOCUMENT_PROFILE_V1.md) and
+[profile library](../../../packages/zig/transit-document-profiles/README.md).
+Implementation source is `0a1715a11`, based on `db0bb4a8f`, using pinned Zig
+`0.17.0-dev.2267+48abf1a34`. The later status/evidence commit changes documentation only.
+
+Standalone protocol tests and profile tests in Debug and ReleaseSafe pass. The
+independent Python/Expat probe passes **656 JSON** and **648 XML** construction
+round trips across four input/output schedules, checking semantic order, exact
+number lexemes, attributes/mixed content and generated SHA-256/length. Its
+**2,170** parser schedules check values, source coordinates, malformed frames and
+completion; invalid-source construction cannot report complete. Package tests
+cover one-byte draining, caller-buffer lifetimes, sticky failures, resource
+refusal, exact event nesting, an independently encoded container fixture and
+metadata/part substitutions. Streams of **100,000** parts/relationships, JSON
+array values and XML siblings use fixed workspace rather than growing node arrays.
+
+At `0a1715a11`, `just ci clean --lane core` passes its first **20** tasks,
+including 64 fast checks, 20 contract checks, 45 standalone package builds,
+Zig SDK/runtime-boundary checks, Station and storage. Task 21, `test::service`,
+fails the coalesced-wait position assertion at
+`tests/interfaces/native/service_wait.py:38`. The unchanged standalone
+`just test::service` retry passes in the same clean checkout. The seven
+remaining core tasks (authorization, authorization CLI/Tables, runtime upgrade,
+callers, inspection and state) also pass there as a separately captured
+continuation. No assertion or deadline was relaxed. The original failure's
+cause remains unresolved; these passes do **not** establish a completed clean
+core lane.
+
+The original clean-run records remain in
+`/var/tmp/transit-ci-34h33s82/src/.cache/ci/core.json`, `core.meta.json` and
+`runs/core-028zvksd/`. The separate continuation's exact source, selection,
+results and hash-verified logs are in the sibling `m16-core-tail/` directory;
+the service retry is `/tmp/transit-m16-service-retry.log`. Copies of those
+records, failed earlier attempts and focused component/site transcripts are
+retained locally under `.cache/ci/m16-profile-construction/`.
+
+The first clean attempt at `3e4c3c87c` failed the diagnostic inventory gate.
+Review covered both new Document owners and existing inventory drift from
+`64fbe58ff`/`9d4504e5f`; semantic mapping checks passed. The next attempt at
+`5c569fcf9` passed fast/contracts and the document oracle, but found an outdated
+application signing fixture and a catalog test missing `audience`/`role`.
+The signing mismatch also reproduced on base `db0bb4a8f`; the refreshed fixture
+passes the independent encoder and Zig signing test. The catalog test passes
+with explicit connection fields. That older clean run was interrupted after
+those failures to restart on the repaired source; it is not a completed lane.
+Failed-attempt evidence remains under `/var/tmp/transit-ci-2m84n8hf` and
+`/var/tmp/transit-ci-ffxg2rr9`.
+
+Documentation links and the pinned documentation site's types, tests and
+production build pass. This evidence covers offline semantic construction and
+local commitment verification. It does not establish installed Document
+publication, external-reference availability or retention, schema/namespace
+support, archive decompression, protocol terminality, gateway/effect recovery,
+SIMD throughput or full integration qualification.
+
 ## Standards and historical catalogs before main integration — 2026-11-01
 
 These experiments ask whether the selected historical catalog preserves exact
