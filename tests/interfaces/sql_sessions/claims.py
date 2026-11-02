@@ -150,7 +150,10 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
     ack_path.write_text(json.dumps(ack_saved))
     ack_bytes = ack_path.read_bytes()
     assert rows(acquired['identity']) == acquired_rows
-    duplicate = client.terminal(client.execute(ack_sql, list(os.urandom(16)), parameters=[encoded])['operation'], outcomes=('rejected',))
+    # A new settlement identity cannot reuse an already ACKed lease. Await the
+    # expected refusal without passing through the helper's success assertion.
+    duplicate = client.terminal(client.execute(ack_sql, list(os.urandom(16)), parameters=[encoded])['operation'],
+                                outcomes=('rejected',))
     assert duplicate['outcome'] == 'rejected' and duplicate['workload']['receipt']['closed']['reason'] == {'refused': 'lease_fenced'}
     authorize(False)
     try:
@@ -189,13 +192,12 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
             acquired = cursor.fetchall()
             assert [row[0] for row in acquired] == [7, 8]
         # Connector/Python 9.4 retains a prepared cursor's prior description
-        # after an OK packet. Assert ACK's shape on its own cursor, also proving
-        # that closing the claim cursor does not invalidate its receipt handles.
+        # after an OK packet. Check ACK's no-row completion on its own cursor.
         with wire.cursor(prepared=True) as cursor:
             for row in acquired:
                 assert len(row[1]) == 168
                 cursor.execute('ACK ON QUEUE claim_mysql RECEIPT %s', (bytes(row[1]),))
-                assert cursor.rowcount == 0 and not cursor.with_rows, (cursor.rowcount, cursor.with_rows)
+                assert cursor.rowcount == 0 and not cursor.with_rows
         with wire.cursor() as cursor:
             cursor.execute("CLAIM value FROM claim_mysql WITH LEASE '30s'")
             assert cursor.fetchall() == []

@@ -204,25 +204,25 @@ fn physicalColumns(allocator: std.mem.Allocator, client: c.DirectTableClient, ro
     }
     const before = try lookup(client, "physical");
     defer before.deinit();
-    // Neither a codec conversion nor a collation change rewrites populated
-    // data synchronously. The refusal precedes any per-row conversion check.
-    var rejected_bindings: [2]d.Binding = undefined;
+    // Populated Tables require a phased rewrite for both codec and collation
+    // changes. Preserve each original refusal across replacement and restart.
+    var rejected: [2]d.Binding = undefined;
     for ([_]u64{ 3, 2 }, 0..) |column, i| {
-        var rewrite: w.Ddl = .{ .binding = binding(client, 7003 + i, .alter, before.value.result.lookup.?), .namespace = 1, .name = "physical", .action = .{ .alter = .{ .physical = .{ .column = column, .encoding = .ebcdic, .collation = .none, .semantics = null } } } };
-        rewrite.binding.intent = try rewrite.digest(allocator);
-        const admission = try client.call(.{ .admit_ddl = rewrite });
+        var invalid: w.Ddl = .{ .binding = binding(client, 7003 + i, .alter, before.value.result.lookup.?), .namespace = 1, .name = "physical", .action = .{ .alter = .{ .physical = .{ .column = column, .encoding = .ebcdic, .collation = .none, .semantics = null } } } };
+        invalid.binding.intent = try invalid.digest(allocator);
+        const admission = try client.call(.{ .admit_ddl = invalid });
         defer admission.deinit();
         try t.expect(admission.value.result.ddl == .admitted);
-        const rejected = (try execute(client, rewrite.binding)).ddl;
-        try t.expect(rejected == .rejected);
-        try t.expectEqual(.rewrite_required, rejected.rejected.reason);
-        rejected_bindings[i] = rewrite.binding;
+        const terminal = (try execute(client, invalid.binding)).ddl;
+        try t.expect(terminal == .rejected);
+        try t.expectEqual(.rewrite_required, terminal.rejected.reason);
+        rejected[i] = invalid.binding;
+        const after = try lookup(client, "physical");
+        defer after.deinit();
+        try t.expectEqualDeep(before.value.result.lookup.?.interpretation, after.value.result.lookup.?.interpretation);
+        try t.expectEqual(before.value.result.lookup.?.changed_lsn, after.value.result.lookup.?.changed_lsn);
     }
-    const after = try lookup(client, "physical");
-    defer after.deinit();
-    try t.expectEqualDeep(before.value.result.lookup.?.interpretation, after.value.result.lookup.?.interpretation);
-    try t.expectEqual(before.value.result.lookup.?.changed_lsn, after.value.result.lookup.?.changed_lsn);
-    const nonbinary = try pin(client, 7102, after.value.result.lookup.?);
+    const nonbinary = try pin(client, 7102, before.value.result.lookup.?);
     var collated = try q.direct.DirectTableQuery.openRetained(allocator, client, nonbinary, "physical", "SELECT COUNT(*) FROM physical", .{ .requests = 100, .rows = 10, .result_bytes = 4096 }, null, null, .{});
     defer collated.deinit();
     var counted = try collated.nextBatch(8);
@@ -231,7 +231,7 @@ fn physicalColumns(allocator: std.mem.Allocator, client: c.DirectTableClient, ro
     try t.expectEqual(@as(u128, 2), counted.rows[0].?.cells[0].value.atom.unsigned);
     const released = try client.call(.{ .release = nonbinary });
     released.deinit();
-    return .{ .snapshots = snapshots, .rejected = rejected_bindings };
+    return .{ .snapshots = snapshots, .rejected = rejected };
 }
 fn verifyPhysical(allocator: std.mem.Allocator, client: c.DirectTableClient, state: CodecState, release: bool) !void {
     for (state.rejected) |original| {

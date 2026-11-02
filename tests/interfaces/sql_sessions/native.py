@@ -140,8 +140,6 @@ class Client:
             time.sleep(.02)
 
     def terminal(self, operation, *, outcomes=('applied', 'unchanged')):
-        # Refusal scenarios opt in explicitly; ordinary callers still require
-        # success after observing the original admitted identity to completion.
         deadline = time.monotonic() + (270 if operation['identity']['kind'] == 'captured' else 90)
         while operation['phase'] != 'terminal':
             assert not operation['blocked'] and time.monotonic() < deadline, operation
