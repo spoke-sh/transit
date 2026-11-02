@@ -1,4 +1,8 @@
-{ pkgs, zig, vite-plus }:
+{
+  pkgs,
+  zig,
+  vite-plus,
+}:
 # Model exploration and concrete Zig/TypeScript replay share the locked tools.
 # Use the same locked Lean version as the wider SQL grammar environment.
 assert pkgs.lean4.version == "4.29.1";
