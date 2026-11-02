@@ -27,6 +27,10 @@ fn change(engine: *Engine, action: a.Action) !?u64 {
 }
 
 fn collectDirect(engine: *Engine, catalog: *D) !void {
+    return collectDirectBeforeSweep(engine, catalog, null);
+}
+const CollectionHook = struct { context: *anyopaque, run: *const fn (*anyopaque) anyerror!void };
+fn collectDirectBeforeSweep(engine: *Engine, catalog: *D, after_mark: ?CollectionHook) !void {
     const Collection = backend.DataCollection.Collector(c.DirectStorageGraph);
     const Clock = struct {
         now: u64,
@@ -52,6 +56,7 @@ fn collectDirect(engine: *Engine, catalog: *D) !void {
         if (steps == 100_000) return error.FixtureBudget;
         try t.expect(try collection.step(engine, .{ .unix_ms = clock.now }));
     }
+    if (after_mark) |hook| try hook.run(hook.context);
     clock.now = (try collection.current()).?.grace_until_ms + 1;
     _ = try command(engine, .{ .storage_fence = {} });
     while ((try collection.current()).?.phase != .complete) : (steps += 1) {
@@ -2553,16 +2558,30 @@ fn ownedRecordsDispatch(service: *@import("LocalTableService.zig"), owner_role: 
         }
     }
     try catalog.recover();
-    try collectDirect(service.engine, &catalog);
+    const CreateDuringGrace = struct {
+        catalog: *D,
+        allocator: std.mem.Allocator,
+        policy: D.Policy,
+        request: c.DirectRecord.Request,
+        reference: c.DirectRecord.Reference,
+        called: bool = false,
+        fn run(raw: *anyopaque) !void {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            try self.reference.requireSame((try self.catalog.directRecord(self.allocator, self.request, self.policy)).reference);
+            self.called = true;
+        }
+    };
+    var creation: CreateDuringGrace = .{ .catalog = &catalog, .allocator = allocator, .policy = policy.policy(), .request = requests[3], .reference = references[3] };
+    // The graph sees a reservation with no bytes. Creation after marking must
+    // survive the original cut's sweep through the backend allocation fence.
+    try collectDirectBeforeSweep(service.engine, &catalog, .{ .context = &creation, .run = CreateDuringGrace.run });
+    try t.expect(creation.called);
     var name: [96]u8 = undefined;
     for (references, 0..) |reference, i| {
-        try t.expectEqual(i < 2, try data.objects().head(try c.DirectRecord.key(reference, &name)) != null);
-        if (i < 2) (try dispatch(service, .{ .record = .{ .read = reference } })).deinit();
+        try t.expectEqual(i != 2, try data.objects().head(try c.DirectRecord.key(reference, &name)) != null);
+        if (i != 2) (try dispatch(service, .{ .record = .{ .read = reference } })).deinit();
     }
     try t.expectError(error.TransactionRecordClosed, catalog.directRecord(allocator, requests[2], policy.policy()));
-    // Creation after the earlier collection cut retains the same reservation.
     try references[3].requireSame((try catalog.directRecord(allocator, requests[3], policy.policy())).reference);
-    try collectDirect(service.engine, &catalog);
-    (try dispatch(service, .{ .record = .{ .read = references[3] } })).deinit();
     try t.expect(try data.objects().head(try c.DirectRecord.key(references[2], &name)) == null);
 }
