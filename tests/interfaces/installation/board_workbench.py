@@ -234,7 +234,7 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030, na
     return selector, release
 
 
-def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
+def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False, profiles=True):
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
     fixture = Board(cli, node, host, board)
     if embedded:
@@ -277,8 +277,11 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
         fixture.console('CREATE TABLE empty_metrics (id BIGINT);\n')
         for index in range(8):
             fixture.console(f'CREATE TABLE zz_catalog_{index} (id BIGINT);\n')
-        limited_connections = board_profiles.configure(fixture)
-        board_profiles.qualify(fixture, config_file, limited_connections, browser)
+        if profiles:
+            limited_connections = board_profiles.configure(fixture)
+            board_profiles.qualify(fixture, config_file, limited_connections, browser)
+        else:
+            print('Focused workbench schedule: independent connection-profile matrix not executed.', flush=True)
         fixture.stop()
         del fixture.config['board']['workbench_file']
         # Automatic local access needs no external SQL listener or account.
@@ -584,4 +587,4 @@ if __name__ == '__main__':
     if sys.argv[1] == '--installed':
         installed(sys.argv[2], browser='--browser' in sys.argv[3:])
     else:
-        run(*sys.argv[1:6], browser='--browser' in sys.argv[6:])
+        run(*sys.argv[1:6], browser='--browser' in sys.argv[6:], profiles='--workbench-only' not in sys.argv[6:])
