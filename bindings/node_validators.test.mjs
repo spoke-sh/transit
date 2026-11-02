@@ -82,14 +82,30 @@ for (const directory of ["transit-client", "transit-station-sdk"]) {
       );
       const fixtures = [valid, ...corruptions(valid)];
       // Exercise recursive wire values and full-width integer strings explicitly.
-      if (name === "ArrowCell")
-        fixtures.push(
-          { int128: "-170141183460469231731687303715884105728" },
-          { uint128: "340282366920938463463374607431768211455" },
-          { utf8: "λ雪\u0000☃" },
-          { utf8: 7 },
-          { nested: { list: [{ value: { atom: { signed: "-1" } } }, { missing: {} }] } },
-        );
+      if (name === "ArrowCell") {
+        const cell = (type, value) => ({ rows: 1, columns: 1, name: "value", type, value });
+        const values = [
+          cell(
+            { int128: {} },
+            { value: { atom: { signed: "-170141183460469231731687303715884105728" } } },
+          ),
+          cell(
+            { uint128: {} },
+            { value: { atom: { unsigned: "340282366920938463463374607431768211455" } } },
+          ),
+          cell({ utf8: {} }, { value: { atom: { utf8: "λ雪\u0000☃" } } }),
+          cell(
+            { list: { type: { int64: {} }, nullable: true } },
+            {
+              value: { list: [{ value: { atom: { signed: "-1" } } }, { null: {} }] },
+            },
+          ),
+        ];
+        for (const value of values) {
+          assert.equal(original(value), true, JSON.stringify(original.errors));
+          fixtures.push(value, ...corruptions(value));
+        }
+      }
       for (const value of fixtures) {
         assert.equal(candidate(value), original(value), `${name} acceptance`);
         assert.deepEqual(candidate.errors ?? null, original.errors ?? null, `${name} diagnostics`);
