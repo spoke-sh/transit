@@ -113,7 +113,10 @@ def release_workflow():
     triggers = workflow[True]['pull_request']['paths']
     assert {'tests/interfaces/installation/board_workbench.py',
             'tests/interfaces/cli/console_terminal.py', 'tests/interfaces/cli/console_edit.py',
-            'apps/transit-board-web/browser/workbench.spec.ts', 'tasks/bindings.just'} <= set(triggers)
+            'apps/transit-board-web/browser/workbench.spec.ts', 'tasks/bindings.just',
+            'tasks/test.just', 'tests/interfaces/installation/board_profiles.py',
+            'tests/interfaces/installation/server_sql.py', 'tests/interfaces/cli/operations/**',
+            'tests/harness/operation_helpers.py'} <= set(triggers)
     jobs = workflow['jobs']
 
     def ancestors(name):
