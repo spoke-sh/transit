@@ -581,6 +581,249 @@ operation. Measure retained storage growth without inventing cleanup semantics.
 The [retained-revision contract at that source](https://github.com/spoke-sh/transit/blob/0c64c4b0362e9fe54daa66388745430e9050eee0/contracts/DATAFLOW_V1.md#retained-finite-revision-reads)
 defines this separate workload.
 
+#### Next performance implementation after milestones — 2026-11-02
+
+**Status: proposed for review.** This updates the next implementation order after
+PR #330, using fetched `origin/main` at
+`095544060e2cdf99fa7088210610255cdc3ab024`. It retains the F0/R1/M3/C4/D5/S6/E7/Q8
+work packages below, the existing numerical goals and issue
+[#211](https://github.com/spoke-sh/transit/issues/211), coordinated with
+[#76](https://github.com/spoke-sh/transit/issues/76). M8 remains In Progress.
+This source audit and plan establish no new runtime measurement or qualification.
+
+The next application outcome is a reliable complete read and a substantially
+cheaper complete managed successor under ordinary maintenance, followed by lower
+interactive write latency and faster recovery with retained history. Start with
+bounded batching of managed results and statements: it removes repeated durable
+work at an identified production boundary. Preserve the original transaction,
+complete revision, current permissions and cleanup ownership throughout.
+
+##### What recent milestones change
+
+| Merged change | Implemented boundary | Consequence for this plan |
+| --- | --- | --- |
+| [#330](https://github.com/spoke-sh/transit/pull/330), SDK initialization/recovery | Generated Node validators and renewal of definitively rejected expired view opens; source-specific import/metadata comparisons and selected clean checks | V2 is delivered. Preserve its checks and remeasure regenerated packages; prioritize full reads, writes and cleanup instead of repeating schema-compilation work. Default SDK acquisition conflicts and earlier console cancellation remain open. |
+| [#328](https://github.com/spoke-sh/transit/pull/328), M12 owned staging | `TXR1` result pages/manifests belong to the original transaction; reservations precede bytes, readiness precedes commit, and authoritative abort cleanup permits payload collection | M3 must batch inside this ownership protocol. Measure reservation/readiness publications, workspace charges, collector work and retained/aborted inventory growth in addition to elapsed refresh time. Declaration/work-record closure and completed-result expiry remain separate M12 work. |
+| [#329](https://github.com/spoke-sh/transit/pull/329), M14 encoded predicates | One encoded column traversal serves multiple atoms, with active-width dictionary scratch and shared FSST validation; projection still reads separately | Establish installed benefit across codecs, atom counts, selectivity and projection. The next candidate is shared page/literal ownership, not another implementation of the delivered traversal. |
+| [#327](https://github.com/spoke-sh/transit/pull/327), M16 construction | Offline bounded JSON/XML writers and compound commitments, with caller-owned workspace and independent semantic/byte oracles | Add parse, construct, drain and commitment component measurements now. Installed Document publication, exchange migration, SIMD/AOT and other formats retain their milestone dependencies. |
+| [#331](https://github.com/spoke-sh/transit/pull/331), qualification repairs | Corrected physical-rewrite refusal fixtures and rendered Board pagination checks; recorded clean core/storage/SQL and separate browser results | Investigate its reported intermittent Board `UnsupportedQuery` on `empty_metrics`. Retain the separately recorded M16 service-wait and M12 publication/observation failures; unrelated successful reruns do not explain them. |
+
+The current shared definition is
+`c3cbdfe99cdb08a8a21cc2429783fd746b1311b096d9ca8371058e1abb037b64`.
+The prior SDK performance campaign used `afac2bd8…`. Keep its frozen binaries for
+original-outcome inspection; never open those failed installations with this new
+build. Previous 9.21× import and
+7.39× first-metadata gains remain scoped to their recorded experiments. Earlier
+19–27-second managed successors, roughly 590 ms INSERT and 739–741 installation
+threads identify hypotheses, not a current-main score or a common denominator.
+
+##### F0 refresh — Establish the comparison and expose amplification
+
+Owners: existing [installed workload runner](../../tests/performance/load/installed.md),
+[SDK driver](../../tests/performance/sdk/README.md), console/startup runners and
+domain-owned telemetry. Deliver this as the first reviewable measurement PR.
+
+1. Freeze one clean ReleaseSafe control at the reviewed main revision, with
+   matching runtime, native libraries and installed SDKs. Record definition,
+   executable/package/driver hashes, compiler/runtimes, CPU quota, filesystem,
+   maintenance, durability, cache state and all admission/resource limits.
+   Separate build/link/package time from process startup and first verified work.
+2. Run diagnostic controls before long timing campaigns: the full console
+   operation sequence, default-maintenance Zig/Python sync/Python async/Node
+   cases, managed 3/16-row workloads, connection pressure and fresh/retained boot.
+   Preserve failures, original identities and cleanup results. An expected
+   exact-cut conflict is not a successful query sample.
+3. Add bounded owner counters for managed evaluation, rows per page, record bytes,
+   reservation/readiness publications, statement preparation/execution, checkpoint,
+   common decision and cleanup. Separate physical object/log writes and syncs from
+   HTTP attempts and observation traffic. Report unavailable counters explicitly;
+   do not subtract overlapping spans to manufacture an exclusive cost breakdown.
+4. Report live allocations, peak resident/workspace bytes, logical quota charges,
+   retained bytes and reclaimable cleanup debt separately. Instrumentation stays
+   outside deterministic transitions, excludes payloads/credentials and cannot
+   block progress. Use instrumented runs for diagnosis and matched uninstrumented
+   runs for elapsed-time comparisons.
+5. Extend reporter controls for every new profile: reject missing cases, failed
+   samples, changed admission outcomes, incomplete result/cleanup and mismatched
+   conditions. Current reporters reject different definitions. Before comparing
+   a persisted-format cutover, define an explicit reviewed migration-comparison
+   manifest with each arm's real definition, separate fresh installations and
+   the same public workload/oracle. Keep ordinary mismatch rejection; never
+   rewrite identities or reuse retained state across incompatible arms.
+
+**Exit:** a source-attributed scorecard and failure inventory that can select the
+next change. A failed profile remains usable diagnostic evidence but supplies no
+accepted latency budget. Independent component work can continue while a specific
+installed lifecycle is being repaired.
+
+##### R1/C4a — Give fresh SDK reads an explicit recoverable lifecycle
+
+There is a concrete API distinction to resolve before optimizing the SDK matrix.
+[`DirectCatalogRetention`](../../packages/zig/transit-catalog/src/DirectCatalogRetention.zig)
+exposes exact acquisition: a lookup followed by an advanced frontier can legitimately
+conflict. The native [`CaptureSelection`](../../packages/zig/transit-catalog/src/DirectTableProtocol.zig)
+also defines current capture, but [DIRECT_TABLE_V1](../../contracts/DIRECT_TABLE_V1.md)
+permits that mode only for delegated snapshot acquisition. Setting a flag in a
+language adapter would not provide an authorized ordinary SDK implementation.
+
+1. Preserve the existing exact-cut API and its conflict tests. Specify a separate
+   explicit fresh retained-read journey in the shared catalog/client owner:
+   interpretation, lower-bound frontier, saved capture identity, first accepted
+   cut, complete result and original-handle release. Reuse delegated capture where
+   its authority model applies; define and prove the direct-caller admission
+   extension before exposing it through SDKs. A per-page `read_current` call does
+   not replace a retained multi-batch result.
+2. Persist the selected semantics before dispatch. Lost replies inspect/recover
+   that owner and cut. No later lookup may replace an accepted pin, and a missing
+   observation does not authorize a new operation. Metadata/rows after buffering
+   still require current authorization. Release uncertainty preserves the original
+   handle and remains distinct from successful row consumption.
+3. Deliver the owner and neutral fixtures first, then generated bridge contracts
+   and Zig/Python/Node surfaces together. Assess saved-intent/ABI changes under the
+   current-v1 cutover policy; never default old persisted requests to new meaning.
+   Keep lifecycle logic in Zig rather than separate language retry loops.
+4. Inject maintenance between lookup/capture, acquisition/release reply loss,
+   mutation after acceptance, restart, revoke, DROP/recreate, empty and multi-batch
+   results, early close and cancellation. Verify stable accepted cuts, exact
+   values, bounded memory and original cleanup. Retain exact-acquisition and
+   fresh-read profiles as different operations in the report.
+5. Investigate console cancellation, M12 post-restart observation failures and
+   Board's empty-Table rejection by original operation, authorization basis and
+   cancellation/deadline owner. Share a fix only after a controlled schedule
+   establishes a common cause. Keep historical original-outcome obligations open
+   independently of new-fixture success.
+
+**Exit:** the ordinary fresh-read profile completes under default maintenance,
+the exact API retains its semantics, and lost replies resolve without replacement
+work. Latency comparisons use the same lifecycle in both arms; changing the read
+contract is not itself a speedup. Expand to other language bindings when the
+shared boundary changes, following M9's capability matrix.
+
+##### M3 — Batch transaction-owned managed work
+
+Source inspection confirms two linear costs still present after #328:
+[`ManagedTable.evaluate`](../../packages/zig/transit-query-direct/src/ManagedTable.zig)
+creates one guarded record per output row, and staging prepares/executes one
+insert statement per row. The catalog's new
+[`stageTransactionRecord`](../../packages/zig/transit-catalog/src/DirectCatalog.zig)
+publishes a reservation and readiness around each newly created record.
+[`DirectTransactionRecord`](../../packages/zig/transit-catalog/src/DirectTransactionRecord.zig)
+also charges 32 KiB of metadata allowance per record. That is a logical quota
+charge, not a measured physical write size. Measure all these costs before tuning.
+
+Deliver the optimization in two implementation PRs, each with its own controls:
+
+1. **M3a: bounded multi-row result pages.** Define page sequence, first ordinal,
+   row count, previous/root links, schema/source commitments and terminal coverage.
+   Select a byte budget after accounting for guarded/owned envelopes and wire
+   encoding; row count is a second bound, not a replacement for bytes. Preserve
+   empty results, rows spanning different page sizes, wide-row refusal and exact
+   logical traversal. Keep one reservation/readiness pair per page through the
+   existing `TXR1` owner. Update `ManagedRevision`, collector graph decoding,
+   quota accounting and independent fixtures in the same current-v1 cutover.
+2. **M3b: bounded transaction statement batches.** Reuse verified schema and
+   preparation state within the original transaction, stage several output rows
+   per DML statement and checkpoint exact batch sequence/ordinal progress.
+   Retry the same frozen batch after uncertainty. Output replacement, checkpoint,
+   retained revision manifest and completion still use one common decision;
+   no independently visible partial output or per-batch commit is introduced.
+   Bound work and yield between recovery units so foreground/control work advances.
+
+For both PRs, preserve reservation-before-bytes, unfinished-reservation commit
+refusal, frozen-owner refusal, no reconstruction of lost accepted bytes, current
+source/output/control checks and collection only after authoritative abort cleanup.
+Test reply loss and process death around reservation, object creation, readiness,
+statement preparation/execution, common decision and cleanup. Include collector
+mark/grace/sweep races, revoke/suspend/retire, constraint failure and overflow.
+Keep the previous complete output readable when a successor fails.
+
+Compare 3/16/64/256 output rows, short/wide values, empty successors and separately
+1/10/100 retained revisions within declared public budgets. Oversized profiles
+produce typed refusals and diagnostic results, not increased limits. Verify every
+output value and original retained revision after replacement and output edits.
+Measure complete successor time, foreground latency, publications/row, records,
+statements, quota/resident/retained bytes and abort-to-reclaim work.
+
+**Exit:** fewer records/statements/publications and lower complete successor time,
+with no hidden cleanup debt or foreground/recovery regression. A 10× improvement
+is a candidate goal for the larger fixed workloads, not a forecast. Do not promise
+100× from batching: if evaluation or unavoidable synchronization dominates, report
+the measured floor and hand the remaining work to M12/M13. WAL-driven incremental
+execution remains M12 R2–R4, not part of this finite batching change.
+
+##### C4b, D5 and S6 — The next measured reductions
+
+| Review unit | Concrete implementation after attribution | Required exit |
+| --- | --- | --- |
+| C4b: small durable writes | Select one redundant intent/token/publication/settlement boundary in the current console path. Reuse the shared SQL executor and database transaction owner; extend the existing write-lifecycle/WAL/publication models before changing barriers or accepted-state layout. | Complete INSERT/UPDATE/DELETE outcomes and matched latency, physical sync/publication counts, original-token recovery after later writes, revocation, 67-row atomic write and unchanged durability. No batch-fill delay for a lone interactive writer. |
+| D5a: absolute deadlines | Replace eligible socket timer races in `transit-sql-host` and `transit-http-server`; specify non-socket cancellation/join separately. Preserve remaining time across TLS, fragmented frames and slow output. | Real stalled-login/header/reader schedules, bounded cancellation and joined buffer/connection ownership, with equal admitted load and current authorization. |
+| D5b: runnable pool sizing | After resumable progress is proved, size the combined host pools from usable CPU capacity and reserve control progress. Account separately for unavoidable blocking work and resident session/TLS/stack state. | Lower complete-installation threads/RSS/idle CPU with no starvation or foreground regression under partial clients and overload. Fewer configured workers alone is not acceptance. |
+| S6: retained-history boot | Measure journal/catalog opening, transaction-record inventory, unfinished reservation/decision recovery, managed activation, artifact verification and pool startup. Remove only proven duplicate work; reuse validated recovery evidence through its owner. | Readiness and first verified retained output, graceful/unclean restart, interrupted provisioning and unavailable storage, with paged bounded memory and original work recovery. No earlier readiness declaration to defer work into the first request. |
+
+Use a one-dimension-at-a-time startup grid before selected mixed cases: 1/4
+accounts, 1/64/256 catalog objects, 0/1/4 managed computations and 1/10/100
+revisions; include settled, uncertain and aborted-but-uncollected transactions.
+Freeze feasible combinations and budgets in F0. Measure default Board-enabled
+and headless profiles separately. Keep developer compile/link/frontend preparation
+outside runtime boot metrics. Begin this measurement alongside M3 so later
+inventory growth or reclamation changes cannot hide a startup regression.
+
+##### E7 — New measurement coverage
+
+| Workload | New dimensions and oracle | Implementation owner / boundary |
+| --- | --- | --- |
+| Owned managed results | Active/pending/committed/aborted ownership, reservation/readiness counts, inventory cardinality, cleanup debt, collection work and retained-reader latency | Installed managed runner plus catalog/storage fault owners; reclamation excludes committed revisions and retained declaration/work records |
+| Encoded strings | Plain/dictionary/FSST; 1/2/4/6 atoms; same/multiple columns; filter-only versus projecting the predicate column; cardinality, selectivity, long strings, five admitted collations; WAL-only/flushed/mixed/historical cuts | M14 independent string oracle and real direct/SQL readers; count range reads, checksum/decode work, copy/allocation bytes and total completion. Preserve malformed-suffix failures and lossless spelling. |
+| JSON/XML construction and compound commitments | Parse versus construct/drain/hash, one-byte and practical output windows, nesting, long scalars, part count and external references; cold setup and warmed reuse | M16 pure package and independent Python/Expat oracle. Fixed workspace and exact bytes/commitments; no installed ingestion, external-part availability or SIMD claim. |
+| Catalog/history and Stream/Queue | Object/column/history growth, retained selection/release, empty/terminal reads; hot/sealed/cold logs, key skew, waits, lease expiry/redelivery and original settlement | M10/M6 public owners and existing log-runtime/Station-turn runners; report actual supported caller surfaces separately from pending SQL/Station composition |
+| Board and published watches | Polling/reconnect/freshness, empty tables, active watches, policy-progress delay, admission refusal, grant/revoke latency, idle CPU and foreground interference | Existing read-only Board and real HTTP/WebSocket fixtures. Observer requests are counted separately; no pin, mutation or additional policy authority is added. |
+
+After M14's baseline, choose plan-owned literal preparation and shared
+filter/projection page ownership as separate measured candidates. Preserve eager
+structural/semantic failure ordering, borrowed lifetimes, current disclosure
+checks and the existing decoded-memory budget. Do not combine packed dictionary
+formats, new search semantics, ANN or AOT into this optimization review.
+
+##### Review sequence and acceptance
+
+The recommended first three PRs are **F0 attribution and current-definition
+controls**, **R1/C4a shared fresh-read lifecycle**, then **M3a owned multi-row result
+pages**. Follow with M3b statement batches. M14/M16 component baselines and S6
+history measurements can progress independently; serialize heavy builds, disk
+proofs and timing campaigns on the shared host. C4b and D5 candidates follow their
+measured cost and correctness gates, rather than a speculative implementation.
+
+Within each PR, make logical commits for: owner contract/neutral fixtures when
+needed; implementation and migrated consumers; deterministic fault/oracle checks;
+matched measurement and owner documentation/evidence. Keep failing original runs
+and unresolved identities. Update #211 when implementation changes its delivered
+status; this review proposal does not mark any checkbox complete.
+
+Retain the [existing numerical goals](#post-merge-performance-delivery-plan--2026-11-01):
+small durable INSERT p50 at most 190 ms, then 19 ms; warm SELECT 10–20 ms;
+fresh read-after-write 20–50 ms; server readiness p50 5 s fresh / 1 s retained,
+with empirical p95 10 s / 2 s for the declared small profiles. History-bearing
+startup, SDK operations and managed successors get explicit workload-specific
+budgets after F0. Derive speedup from matched controls, not the historical goal
+denominator, and never multiply import, query and storage gains together.
+
+Before accepting a timing claim, freeze at least three alternating pairs and 50
+successful samples per arm/case with every failed attempt retained; the complete
+campaign must meet its declared outcome gate, not resample until it has 50 wins.
+Startup uses the existing separate 50 fresh/50 restart schedule per arm/profile.
+Report p50, empirical p95, maxima, errors/refusals, CPU, memory, warmed backing
+allocations, I/O and recovery debt; these sample counts do not establish p99 or
+sustained offered-load capacity. Keep instrumented attribution separate.
+
+Run meaningful owner tests and original-outcome/fault controls first, then affected
+clean-source lanes on committed code. Shared snapshot/ABI changes require generated
+contracts and dependent SDK lanes; owned page/transaction changes require catalog,
+storage/query, SQL and installed managed checks; deadline/pool changes require
+native/TLS/gateway and browser/installation progress checks. Preserve the suite
+selector's broader dependencies. Full integration/release qualification remains
+separate from selected local checks. No runtime tests or performance campaigns
+are claimed by this planning update.
+
 #### Post-merge performance delivery plan — 2026-11-01
 
 **Plan status: In Progress.** The implementation sequence is approved; the first

@@ -55,7 +55,7 @@ reproducible results; correctness, current authorization and accepted-work
 recovery remain part of every performance profile.
 
 The next implementation sequence for startup and the existing 10–100× SQL
-objectives is the [M8 follow-up performance plan](08-gateway-architecture-and-protocol-ingress.md#follow-up-performance-delivery--2026-11-01).
+objectives is the [M8 plan after recent milestones](08-gateway-architecture-and-protocol-ingress.md#next-performance-implementation-after-milestones--2026-11-02).
 Run the [M9 SDK measurement and optimization sequence](09-client-foundation-and-language-apis.md#sdk-performance-implementation-sequence--2026-11-01)
 alongside it using shipped APIs. These plans preserve the milestones' existing
 scope and status; SDK gains require their own measured baselines.
