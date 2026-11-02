@@ -296,6 +296,12 @@ fn remember(self: *Self, reference: pages.Reference, page: pages.Page, accessed:
     for (0..self.cache.len * 2) |_| {
         const index = self.next_slot;
         self.next_slot = (self.next_slot + 1) % self.cache.len;
+        // Replay already retains private bytes in its bounded overlay. Do not
+        // displace independently verified provider pages with those transient
+        // derivations, which are discarded at the next record boundary.
+        if (!verified and self.load_provenance != null) {
+            if (self.cache[index]) |cached| if (cached.verified) continue;
+        }
         if (self.cache[index] != null and self.isUsed(index)) {
             self.clearUsed(index);
             continue;

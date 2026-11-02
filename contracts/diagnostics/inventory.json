@@ -40175,7 +40175,7 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 0,
-        "catch": 0
+        "catch": 1
       },
       "imports": [
         "QueueTimingWheel.zig",

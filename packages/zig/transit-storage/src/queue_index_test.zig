@@ -237,7 +237,11 @@ test "queue index backlog exceeds resident pages and same-batch claims keep disj
     defer declaration.deinit();
     const timer_workspace = try t.allocator.create(s.QueueSchedule.Workspace);
     defer t.allocator.destroy(timer_workspace);
-    const index: Index = .{ .store = &store, .scratch = &scratch, .bitmap = &bitmap, .container = &container, .key_buffer = &key_buffer, .timer_workspace = timer_workspace, .timer_seed = .{ .definition = p.Growth.current_definition, .interpretation = (try declaration.stored()).declaration.interpretation, .partition = 0 } };
+    const Wheel = @import("QueueTimingWheel.zig");
+    const Cache = @import("QueueVisibilityCache.zig");
+    var entries: [8]Wheel.Entry = undefined;
+    var visibility: Cache = .{ .wheel = try Wheel.init(&entries, 10) };
+    const index: Index = .{ .visibility = &visibility, .store = &store, .scratch = &scratch, .bitmap = &bitmap, .container = &container, .key_buffer = &key_buffer, .timer_workspace = timer_workspace, .timer_seed = .{ .definition = p.Growth.current_definition, .interpretation = (try declaration.stored()).declaration.interpretation, .partition = 0 } };
     const names: [40][]const u8 = @splat("same key, unordered");
     const delays: [40]u64 = @splat(0);
     try store.begin(1);
@@ -248,11 +252,17 @@ test "queue index backlog exceeds resident pages and same-batch claims keep disj
     store.end();
     var root = appended.root;
     try t.expect(root.keys == null and root.scheduled == 40);
+    try index.prepareVisibility(root, 10, 64);
+    try t.expectEqual(@as(usize, 8), visibility.wheel.len);
     const claim: p.StreamQueue.Claim = .{ .target = appended.target, .operation = operation(2), .maximum = 4, .lease_ms = 100 };
     try store.begin(8 * 1024 * 1024);
     for (0..4) |offset| root = try index.acquire(root, offset, claim, definition.configuration.policy.queue, .exact(10), .{ .partition = 91, .next_lsn = 3 });
     store.end();
     store.clearCache();
+    try t.expect(visibility.matches(root.items, root.scheduled));
+    try index.prepareVisibility(root, 10, 64);
+    // The remaining prefix survives claims; a refill would have eight entries.
+    try t.expectEqual(@as(usize, 4), visibility.wheel.len);
     try t.expect(root.active == 4 and root.scheduled == 36);
     try t.expectEqual(@as(u64, 4), (try index.firstEligible(root, 10)).?.offset);
     try t.expectEqual(@as(u64, 0), (try index.firstExpired(root, 110)).?.offset);
@@ -278,9 +288,20 @@ test "queue index backlog exceeds resident pages and same-batch claims keep disj
     const renewed = try index.settle(root, .{ .operation = operation(3), .lease = lease, .action = .{ .extend = .{ .expires_ms = 150 } } }, definition.configuration.policy.queue, .exact(20), .{ .partition = 91, .next_lsn = 4 }, null);
     try t.expect(!try filter.keep(Index.timerBasis(renewed), .lease, .{ .at_ms = 110, .offset = 0, .epoch = 1 }));
     try t.expect(try filter.keep(Index.timerBasis(renewed), .lease, .{ .at_ms = 150, .offset = 0, .epoch = 1 }));
+    try t.expect(visibility.matches(renewed.items, renewed.scheduled));
+    const acknowledged = try index.settle(renewed, .{ .operation = operation(5), .lease = (try index.item(renewed, 1)).lease.?, .action = .ack }, definition.configuration.policy.queue, .exact(20), .{ .partition = 91, .next_lsn = 5 }, null);
+    try t.expect(visibility.matches(acknowledged.items, acknowledged.scheduled));
+    try t.expectEqual(@as(usize, 4), visibility.wheel.len);
+    // A discarded candidate must not hide work in the still-accepted root.
+    try t.expectEqual(@as(u64, 0), (try index.firstEligible(appended.root, 10)).?.offset);
+    try index.prepareVisibility(renewed, 30, 64);
+    try t.expect(visibility.matches(renewed.items, renewed.scheduled));
     var exhausted_policy = definition.configuration.policy.queue;
     exhausted_policy.maximum_attempts = 1;
     const blocked = try index.settle(renewed, .{ .operation = operation(4), .lease = (try index.item(renewed, 0)).lease.?, .action = .{ .nack = .{ .visible_ms = 0 } } }, exhausted_policy, .exact(30), .{ .partition = 91, .next_lsn = 5 }, null);
+    try t.expect(!visibility.matches(blocked.items, blocked.scheduled));
+    try index.prepareVisibility(blocked, 30, 64);
+    try t.expectEqual(@as(u64, 4), (try index.firstEligible(blocked, 30)).?.offset);
     try t.expect(!try filter.keep(Index.timerBasis(blocked), .visible, .{ .at_ms = 0, .offset = 0, .epoch = 1 }));
     try t.expect(!try filter.keep(Index.timerBasis(blocked), .lease, .{ .at_ms = 150, .offset = 0, .epoch = 1 }));
 }

@@ -3,6 +3,54 @@ const t = std.testing;
 const s = @import("root.zig");
 const B = s.BitmapDirectory;
 
+test "paged bitmap interleaves Queue states within one container byte budget" {
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var allocator = t.FailingAllocator.init(t.allocator, .{});
+    var tree = try s.TreeStore.init(allocator.allocator(), objects.objectStore(), 1);
+    defer tree.deinit();
+    var directory: B = .{ .store = &tree, .objects = objects.objectStore() };
+    var scratch: B.Container = .{};
+    var references: [4]B.Reference = undefined;
+    try tree.begin(1024 * 1024);
+    for (&references, 0..) |*reference, state| {
+        scratch.clear();
+        for (0..32) |row| _ = scratch.set(@intCast(row * 4 + state));
+        const root = try directory.replace(.empty, 0, &scratch);
+        reference.* = (try directory.reference(root, 0)).?;
+    }
+    tree.end();
+    allocator.fail_index = allocator.alloc_index;
+    const reads = objects.range_reads;
+    for (0..32) |row| for (references, 0..) |reference, state| {
+        const view = try directory.read(0, reference);
+        try t.expect(view.contains(@intCast(row * 4 + state)));
+        try t.expect(!view.contains(@intCast(row * 4 + (state + 1) % 4)));
+    };
+    // Checking disjoint state membership must not reload every state for every
+    // row when their verified encodings fit in the existing byte slab.
+    try t.expectEqual(@as(u64, 4), objects.range_reads - reads);
+    try t.expect(!allocator.has_induced_failure);
+
+    // A dense container consumes the same slab alone; eviction must preserve
+    // exact reference binding when the small state containers are read again.
+    scratch.clear();
+    for (0..32768) |row| _ = scratch.set(@intCast(row * 2));
+    try tree.begin(1024 * 1024);
+    const dense = try directory.replace(.empty, 1, &scratch);
+    const dense_ref = (try directory.reference(dense, 1)).?;
+    tree.end();
+    try t.expectEqual(B.max_container_bytes, dense_ref.bytes);
+    try t.expect((try directory.read(1, dense_ref)).contains(65534));
+    try t.expect(!(try directory.read(1, dense_ref)).contains(65535));
+    for (references, 0..) |reference, state|
+        try t.expect((try directory.read(0, reference)).contains(@intCast(state)));
+    try t.expectError(error.InvalidBitmapContainer, directory.read(1, references[0]));
+    for (references, 0..) |reference, state|
+        try t.expect((try directory.read(0, reference)).contains(@intCast(state)));
+    try t.expect(!allocator.has_induced_failure);
+}
+
 test "paged bitmap exceeds its cache and preserves full-width offsets across disk reopen" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
@@ -82,7 +130,7 @@ test "paged bitmap refuses failed private staging and missing or foreign contain
     try t.expectEqual(reads, objects.range_reads);
     var key: [96]u8 = undefined;
     try objects.objectStore().delete(try B.objectKey(ref, &key));
-    directory.cached = null;
+    directory.clearCache();
     try t.expectError(error.MissingBitmapContainer, directory.contains(root, 42));
 }
 
@@ -122,7 +170,7 @@ test "paged bitmap cache misses and edits use no owner heap after initialization
         root = try directory.edit(root, prefix, &.{.{ .offset = 17, .present = true }}, &scratch);
     }
     tree.clearCache();
-    directory.cached = null;
+    directory.clearCache();
     for (0..40) |prefix| try t.expect(try directory.contains(root, (prefix << 16) | 17));
     try t.expectEqual(initial, allocator.allocated_bytes);
     try t.expect(!allocator.has_induced_failure);
