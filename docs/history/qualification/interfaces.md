@@ -16,10 +16,12 @@ result/control identities while each view reacts to configuration, visibility,
 refusal and replacement. This implements R1 of the approved
 [M30 sequence](../../roadmap/30-board-reimplementation.md#next-implementation-sequence-after-pr-326--2026-11-01).
 The broad integration source is committed `8b91285ac`, including `origin/main` at
-`095544060`. Final runtime/test source `a72de1a76` additionally stops automatic
+`095544060`. Final runtime source `a72de1a76` additionally stops automatic
 retries after a changed shared result identity, preserves binding objects for a
 revalidated interface generation, formats the formal Nix environment and handles
-typed control-capacity refusals in the installed read fixture. Current semantics belong in the
+typed control-capacity refusals in the installed GET fixture. Fixture source
+`250b97117` extends that bounded recovery to the exact read-only catalog POST.
+Current semantics belong in the
 [workbench guide](../../../apps/transit-board/docs/workbench.md#operations-and-observation-states),
 [owner inventory](../../../apps/transit-board-web/README.md) and
 [observation account](../../handbook/internals/service-interfaces.md#board-observation-state).
@@ -50,6 +52,9 @@ pass in the clean installation checkout at `8b91285ac`: 123 Board tests in 19
 files, 67 query-client tests, 13 application-client tests and seven diagnostic
 tests. All 64 fast checks also pass after formatting the formal Nix environment;
 that later whitespace change does not change its inputs or behavior.
+The final clean fast run at `250b97117` passes all 64 checks, including all eight
+inspection-retry controls, with source and outcome records under ignored
+`.cache/ci/clean/250b97117da0-transit-ci-v1907hvz/`.
 
 At `967bf3a79`, a fresh isolated checkout at
 `/var/tmp/transit-r1-final-rto_czv9/src` passes formatting, lint, strict TypeScript,
@@ -119,6 +124,37 @@ retried only `HttpCapacity` on this pure read; `a72de1a76` also handles the reco
 control-capacity cause within the same deadline. It does not retry a SQL Run or
 infer success from an unavailable response. These failed full-lane attempts remain
 failed; focused final workbench evidence is separate.
+
+At `a72de1a76`, all four actual profiles pass, then the workbench's first catalog
+POST encounters the same typed `ControlCapacity` refusal. The failed run remains
+recorded in `.cache/r1-installed-final/`, with its private installation at
+`/var/tmp/transit-server-proof-6uqnvw6h`. The `250b97117` fixture correction
+allows the same bounded recovery only for GETs and the read-only
+`POST /api/v1/catalog` projection. Its controls verify the identical request body,
+the unchanged deadline, and immediate failure for SQL submissions, denial or
+other native causes. It does not broaden the production retry policy.
+
+The focused installed schedule at clean fixture source `250b97117` uses the
+same ReleaseSafe runtime binaries built at `a72de1a76`; the intervening diff
+contains only qualification prose and the installed read fixture/controls.
+Binary hashes, source, tools, command and outcome are recorded in the isolated
+checkout's `.cache/r1-workbench-final/`. Inspection-only and catalog-only pass;
+the SQL-only profile's explicit Run then fails with HTTP 503 `IncompleteResult`,
+diagnostic cause `SqlRequestTimeout`. Nearby manager diagnostics record native
+`ControlCapacity` refusals, but do not establish that they caused this request's
+timeout. Its private installation remains at
+`/var/tmp/transit-server-proof-7qcblmzq`. The fixture does not resubmit the SQL;
+the remaining profiles and workbench schedule do not execute in that attempt.
+
+One unchanged diagnostic repetition at `250b97117`, with identical binary
+hashes, passes all four real connection profiles and all six workbench Chromium
+scenarios (38.4 seconds). The complete API schedule also passes: exact 145-row
+traversal, empty/metadata results, definition guards, read-only admission,
+capacity, retained definitions/placement and terminal revocation. Automatic
+source, binary, command and completed exit-zero evidence is retained separately
+in `.cache/r1-workbench-repeat/`. This qualifies those executed checks but leaves
+the preceding intermittent SQL timeout unresolved; it does not turn the earlier
+failed browser/installation lanes into passes.
 
 The prior post-TLS-replacement SQL failure remains a separate investigation.
 A focused `test::server-sql` run on the merged baseline `1a8b48799` passes, including

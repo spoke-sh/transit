@@ -171,8 +171,9 @@ regressions and remaining limits are recorded in the
 The next implementation PR is R2's retained-storage placement and maintenance
 inspection, followed by R3's managed-computation projection and neighborhood.
 R4 retains the unresolved historical TLS-replacement cause, the newly observed
-managed-table authorization refusal after replacement/resume, measured resource
-budgets and broader accessibility checks. R5 and the original milestone gates
+managed-table authorization refusal after replacement/resume, installed capacity
+refusals and the SQL-only Run timeout, measured resource budgets and broader
+accessibility checks. R5 and the original milestone gates
 remain required; this delivery does not complete M30.
 
 ## Next implementation sequence after PR 326 — 2026-11-01
