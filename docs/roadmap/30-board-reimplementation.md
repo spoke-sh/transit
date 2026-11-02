@@ -2,10 +2,11 @@
 
 [Roadmap](README.md) · **Status:** In Progress
 
-Start with the [R1 reactive ownership delivery](#reactive-ownership-delivery-r1--2026-11-02)
+Review the proposed [local connections and Document persistence plan](#local-connections-and-document-persistence-plan--2026-11-02)
+alongside the [R1 reactive ownership delivery](#reactive-ownership-delivery-r1--2026-11-02)
 and the [approved implementation sequence after PR 326](#next-implementation-sequence-after-pr-326--2026-11-01).
-Storage placement and computation inspection are the next deliveries; installed
-performance and the full workbench completion gates remain open.
+Storage placement and computation inspection retain their existing scope;
+installed performance and the full workbench completion gates remain open.
 
 Reimplement Board as the installed interface for discovering data, explaining
 computations and reviewing governed changes. Deliver the focused catalog,
@@ -16,6 +17,283 @@ horizontal workbench and single-Inspector direction in
 operational inspection and expose each capability through its owning public
 operation; the interface does not become another catalog, query engine or
 permission authority.
+
+## Local connections and Document persistence plan — 2026-11-02
+
+**Status: Planned; proposed for review.** Source basis:
+`ffbf2e9b12dceca856000faf15eebbc252ae580c`. This is an implementation plan;
+it establishes no new runtime behavior or executed proof.
+
+Make the Board started by `transit server` useful with the installation's local
+data account immediately. Store saved workbooks, preferences and explicit
+connection profiles in Transit Documents. Users should not assemble a second
+connection file to inspect the database they just started, and Board should
+exercise the same public data operations as other Transit applications.
+
+This proposal changes the earlier explicit-only local connection policy. It
+also separates saving ordinary workbook drafts from publishing retained results
+and consistent investigations. The latter keeps its M28 dependency. The dated
+delivery records below remain evidence of their original profiles. Acceptance
+of this plan would add L0–L5 below to the implementation sequence; R2–R4 and the
+other full-milestone obligations remain open.
+
+### Current behavior and the missing integration
+
+| Boundary | Current implementation | Required change |
+| --- | --- | --- |
+| Local Board startup | [`server/Board.zig`](../../apps/transit-cli/server/Board.zig) generates the inspection bootstrap and passes nullable `board.workbench_file` | Derive local data connections from the managed installation; retain the narrow operational inspector internally |
+| Local SQL | [`SqlSettings.zig`](../../apps/transit-cli/server/SqlSettings.zig) defines the managed `local` peer account; [`Discovery`](../../packages/zig/transit-sql-client/src/Discovery.zig) identifies its private socket and instance | Connect Board through the existing Unix socket and shared SQL client, without requiring another listener or password account |
+| Catalog reads | [`Workbench.zig`](../../apps/transit-board/Workbench.zig) composes `DirectCatalogRead` with an explicitly supplied native data connection | Have the supervisor supply the managed account's exact catalog/branch/role binding through bootstrap, with the same public read checks |
+| Browser SQL | [`ReadWorkspace`](../../packages/zig/transit-sql-client/src/ReadWorkspace.zig) and [`Executor.read`](../../packages/zig/transit-sql-client/src/Executor.zig) enforce typed read-only admission and bounded results | Preserve those owners; saving a workbook is a separate typed data mutation, never permission to execute its SQL |
+| Workbook state | The [workbench guide](../../apps/transit-board/docs/workbench.md#workbook-and-results) describes four temporary cells discarded on navigation | Add durable identity, accepted revisions, explicit Save/Open and exact save recovery through Documents |
+| Document storage | [Direct partition components](../../packages/zig/transit-storage/docs/document-partitions.md) implement bounded recovery and a causal map-tree slice; the [installed Document API](../handbook/reference/documents.md) still uses Station | Qualify the necessary public direct Document lifecycle with M7 before adding durable Board consumers; component availability alone is insufficient |
+
+`workbench_file` currently contains connection settings, not saved workbook
+contents. Both the manual connection setup and the absence of durable workbook
+data need work, with independent delivery gates.
+
+### Proposed local connection and authority model
+
+1. The local supervisor selects the existing managed `local` account and its
+   current role, database, catalog and branch. It supplies a typed bootstrap to
+   Board after the account binding is available. SQL uses peer authentication
+   on the private Unix socket; catalog reads use the corresponding public native
+   data binding. No root/installer key or arbitrary account search is involved.
+2. Catalog and SQL use one logical data authority. Their transports can remain
+   separate internally. The existing operational principal remains restricted
+   to its inspection contract. Board neither borrows a native command sequence
+   from another process nor implements an independent credential registry.
+3. The managed local account can have broader rights than the Workbook read
+   adapter exposes. SQL still passes through typed read-only admission. Writes
+   to Board-owned Documents use explicit application operations and the current
+   data account; they do not grant generic DDL/DML to the Workbook endpoint.
+4. Local deployment deliberately shares that account's authorized data with
+   viewers admitted to Board. A browser is not authenticated as an individual
+   OS user: peer authentication identifies the Board process. Document owners
+   and preferences are scoped to the data account/deployment until a separately
+   qualified viewer identity exists. Preserve Host/Origin and private exposure
+   checks. Remote deployment authority remains explicit.
+5. Current grants remain authoritative for every read and save. Starting Board
+   must not add SELECT grants to every Table or restore revoked credentials,
+   roles or resource access. Newly created Tables become visible according to
+   the existing account policy, without a Board grant-reconciliation loop.
+
+Keep a minimal bootstrap boundary for locating/authenticating to Transit and
+configuring the listener. Existing installation identity, secret references and
+generated child-launch inputs remain owned by the server. They must contain no
+workbook content, authoritative preference state or duplicate profile database.
+Board cannot discover the database holding its configuration without this
+initial endpoint/identity. Derive the local connection; use a conventional
+catalog namespace to discover application data after connecting.
+
+Define a typed local/explicit/disabled data-access selection in the existing
+server settings owner, defaulting to local when the managed local SQL service
+is enabled. Freeze its exact spelling in L0. Explicit selection names a stored
+profile; standalone Board receives a minimal connection to the Transit instance
+holding those profiles. Disabling local SQL does not silently re-enable it or
+select a stronger account. Missing/disabled, starting, denied and unavailable
+remain distinct states. An unready data connection must leave Operations usable.
+
+### Transit-owned application data
+
+Use a conventional Board namespace, proposed `_board`, in the selected catalog.
+Names locate declared objects; stable object and Document identities bind all
+subsequent work. Validate application ownership and schema before adopting any
+existing name. A collision or incompatible definition is an observable failure.
+
+| Declared data | Identity and content | Publication and access |
+| --- | --- | --- |
+| `workbooks` DOCUMENT collection | One logical Document per workbook; stable cell IDs, ordered cells, SQL/narrative text, title and logical connection selection | Explicit create/save/rename/delete through public Document operations; accepted revision and current owner policy govern disclosure |
+| `preferences` DOCUMENT collection | One Document per data account and preference scope; layout/theme and last selected workbook identity | Bounded updates through the same caller; no per-browser identity inferred from a shared account |
+| `connections` DOCUMENT collection | Explicit profile identity/revision, endpoint and scope descriptors, account selection and credential references | Profile management requires its own current authorization; reading a profile never grants data access or permission to use a referenced secret |
+
+The derived local connection requires no stored connection profile. Resolution
+of an explicit profile rechecks deployment eligibility and credential use before
+opening a transport. Ordinary workbook writers cannot turn a profile edit into
+an arbitrary outbound request or a stronger service identity. Do not persist
+secret bytes, SQL session handles or live reader cursors in these Documents.
+
+Use Document's paged logical directory for listing workbooks and bounded reads
+within a workbook. Do not require a separately authoritative Table index or an
+atomic cross-resource transaction merely to save one Document. Any later search
+index is derived, independently attributed and rebuildable.
+
+Declare these resources through the owning public catalog/application lifecycle.
+The supervisor performs one recoverable installation operation, recording its
+original identities and receipts through existing lifecycle owners. A restart
+resumes that operation or observes its accepted result. Missing or dropped data
+after completed installation must not be recreated automatically. Headless
+operation and temporarily disabling Board preserve application data. Default
+history remains unlimited; deletion, retention and physical reclamation remain
+separate public operations. Basic catalog/SQL access does not depend on these
+resources being installed or writable.
+
+### Save, concurrency and result semantics
+
+Define an application workbook schema and typed create/list/read/save/delete
+operations before browser integration. Put the reusable schema and operation
+composition in a real shared Zig library, proposed `transit-workbench`, with
+its own manifest, direct dependencies and non-browser checks. It uses public
+catalog/Document/SQL clients and owns application validation only. Storage,
+authorization, mutation acceptance and recovery stay with those existing owners.
+Generate browser declarations and runtime validators from shared public types.
+Extend the owning [Document contract](../../contracts/DOCUMENT_V1.md),
+[SQL session/result contracts](../../contracts/SQL_SESSION_V1.md) and
+[installation contract](../../contracts/APPLICATION_INSTALLATION_V1.md) only where
+their public semantics change. Keep the workbook's application schema outside
+kernel types; reuse [SQL result evidence](../../contracts/SQL_RESULTS_V1.md).
+
+The initial persistence profile saves drafts explicitly. A new workbook starts
+unsaved; Save publishes a revision, Open reads an accepted revision, and editing
+marks the local draft dirty. Run remains an explicit finite SQL action and can
+operate on an unsaved draft. Saving, reopening, changing preferences or resolving
+a connection never runs SQL or repeats a previous statement.
+
+Select Document's `versioned` profile with an expected base revision for the
+first saved-workbook implementation. A conflicting save preserves both the
+accepted revision and the unsaved draft and requires explicit resolution. No
+last-writer-wins overwrite or automatic collaborative merge is proposed. Require
+this conditional-update behavior in the shared Document owner; a browser-side
+revision check cannot establish it. Later collaborative text can consume the
+qualified causal profile without duplicating merge semantics in Board. Its
+immutable profile needs a separate declaration or an explicit supported migration;
+existing versioned Documents cannot be silently retagged.
+
+Each save binds a stable workbook ID, application schema definition, expected
+revision, client operation token and canonical change bytes. Admission retains
+the candidate and original operation durably before acknowledging acceptance.
+Repeated identical tokens recover that operation; changed bytes conflict. After
+a lost response, observe/retry the original save. After browser or Board loss,
+an authorized bounded lookup by workbook/account must discover accepted pending
+work and its original receipt. Add any missing lookup/recovery operation to the
+shared Document/client owner before promising this behavior. Unsent browser edits
+remain unsaved; no local-file or browser-storage recovery database is introduced.
+Expose dirty, saving, accepted/pending, saved, conflicted, denied and unknown
+outcomes distinctly; only an observed committed revision establishes Saved.
+
+The first saved schema contains drafts and presentation preferences. Live rows,
+interactive cursors and current execution handles remain transient. Durable
+execution/result attachments require M28's public reference, disclosure and
+retention lifecycle. A saved draft alone cannot preserve an interactive result,
+pin its source or establish a common snapshot across cells. Reopening a workbook
+shows its saved content without silently recomputing missing results.
+
+Freeze numeric limits in L0 against the shared owners. Proposed starting budgets
+are 64 KiB per Document read page, 256 KiB per save request and four active cell
+editors, while preserving the existing 60,000-byte SQL input bound. These are
+request/display budgets, not a total workbook or workbook-count limit. Page
+inactive cells and large text, and refuse over-budget mutations before acceptance.
+Keep the existing four SQL readers, 100-row windows and 2-MiB result-window value
+budget. Meter aggregate data/control concurrency and reuse scratch at page/batch
+boundaries; durable history and listing cardinality must not scale resident memory.
+
+### Owner prerequisites and implementation sequence
+
+Automatic local access can ship before Document persistence. Durable drafts need
+[M7's public lifecycle](07-document-storage-and-station-decoupling.md#remaining-work-packages-and-gates),
+conditional versioned updates of maps/ordered cells/text, bounded directory and
+value reads, and original-operation recovery through the
+[shared client owner](09-client-foundation-and-language-apis.md). They do not require SQL
+`CREATE DOCUMENT`/`INSERT` syntax or all of M7's analytical/transaction features.
+Use typed callers until SQL operations are actually executable. Coordinate the
+public Document transition with M7's current-v1 consumer cutover; do not expose
+a second selectable engine or add Board access directly to `DocumentPartition`.
+
+| Step | Reviewable change and owners | Dependency and exit gate |
+| --- | --- | --- |
+| **L0 — Contract and removal inventory** | Define local data bootstrap, application schemas, save/lookup/concurrency semantics, profile authority and budgets with `transit-protocol`, `transit-data-client`, SQL client and application lifecycle owners. Inventory `workbench_file`, inline `workbench`, settings schemas, launchers, tests and public docs | Non-browser fixtures define allowed/refused behavior, compatibility and exact recovery before adapters. The plan's proposed names are resolved here |
+| **L1 — Automatic local catalog and SQL** | Extend `apps/transit-cli/server/Board.zig`, `Sql.zig`, `SqlEnrollment.zig`, `Config.zig` and `SettingsSchema.zig`; compose the existing callers in `apps/transit-board/Workbench.zig` and `main.zig`. Use lifecycle events to update data readiness, with no periodic configuration-file scanner | L0. A fresh default local installation opens Catalog, previews a Table and executes an explicit read without a workbench file, external SQL listener or manual grants. Current denial remains denial; explicitly disabled SQL remains disabled |
+| **L2 — Public Document prerequisite** | Coordinate M7 C0–C4's evaluator/storage/catalog/node/client work for the selected profile, including expected-revision updates, bounded logical-document listing and accepted-operation discovery. Keep all changes in their public owners | L0 and M7's coordinated public cutover gates. A non-browser caller creates, edits, lists, reopens and recovers Documents on real disk with long text, concurrent writes, process loss and revocation. No claim of completion from storage unit tests alone |
+| **L3 — Workbench data installation and caller** | Add the shared application schema/caller, conventional declarations and recoverable install wiring. Implement public Document composition for workbooks/preferences/profiles and generated Board API bindings; remove file-based profile authority in the coordinated cutover | L2. A non-browser caller saves and reopens the same workbook after replacement; name collisions, changed definitions, denied saves and lost replies preserve original identities. A saved connection cannot escalate authority |
+| **L4 — Save/Open and preferences in Board** | Extend `data-workbench.tsx`, `routes/workbook.tsx`, existing statement/observation owners and typed browser clients. Add bounded workbook navigation, save status, conflict handling and preference updates | L3. Real browser reload/service restart preserves accepted drafts; two-tab conflicts are visible; saving/reopening performs no SQL. Operations and local data reads remain independent of workbook-write availability |
+| **L5 — Installed cutover and qualification** | Migrate embedded/standalone/Compose/reference configuration consumers, generated schemas, fixtures, examples and public documentation. Measure resource bounds and run the affected clean lanes at one committed revision | L1–L4 and the matrix below. No supported runtime reads legacy workbench files; incompatible histories reject without reset. Publish executed evidence, limitations and public semantics |
+
+L1 is the first implementation PR after L0 review. L2 belongs to the shared
+Document work and may already be advancing independently; recheck its exact
+merged capabilities before implementation. L3/L4 must wait for its qualified
+public operations. No file-backed, localStorage or private storage fallback is
+an interim persistence deliverable.
+
+Basic saved drafts are a narrower application-data feature than
+[M28's published resources and investigations](28-published-resources-and-investigations.md).
+Full retained result attachments, sharing to a different
+audience, consistent investigation bases and governed publication retain the
+existing M28/M27/M29 gates. Saving local drafts does not complete those milestones
+or M30. Cross-user login, automatic SQL execution, arbitrary administrative SQL
+and broad new collaboration UI are outside L0–L5.
+
+### Compatibility and removal
+
+The final profile removes `board.workbench_file` and standalone inline
+`workbench` as configuration authorities, including their parser paths, generated
+setting descriptions and setup-only fixtures. Deployments select the derived
+local profile or an explicit Transit-stored profile through the minimal bootstrap.
+Preserve independent feature states and restricted remote scopes in replacement
+tests. Do not remove operational recovery journals or unrelated configuration
+files under the label of workbench cleanup.
+
+Apply the [current-v1 cutover policy](../handbook/reference/versioning.md): replace
+the shared definition for incompatible bootstrap, persisted application or wire
+changes; regenerate schemas, signing fixtures and affected bindings together.
+Never default a missing persisted definition to the current one. Runtime support
+does not include an old-file decoder, silent import or parallel legacy profile.
+
+Existing installations require a specific compatibility inventory before rollout.
+Old connection files contain settings, not workbook data. Operators must recreate
+explicit profiles using the new public operations while retaining secret
+references privately. Resolve pending work with its matching build; incompatible
+history remains untouched. An offline converter, if required to preserve an
+existing installation, needs a separate reviewed contract and proof. Rebuilding
+the executable or restarting alone is not an upgrade procedure. No implementation
+step may delete or reset the user's existing `.transit` installation.
+
+### Acceptance matrix and verification
+
+All cases below are planned checks. Each gate needs its actual caller path and
+attributed results; a skipped browser, missing prerequisite or incomplete fault
+schedule is not a pass.
+
+| Case | Required observation |
+| --- | --- |
+| Fresh default local server | No Board-specific data configuration; Catalog and explicit Workbook reads work through the managed local scope; PG/MySQL/HTTP listeners can remain disabled |
+| Disabled/unready/denied data | Operations remains available; each feature explains the actual state. No stronger-account fallback, repeated disabled requests or automatic grant repair |
+| Native and data identity separation | Operational inspector retains exactly its existing rights. Data reads use the intended local account; SQL writes/commands are refused by the shared read gate even when that account can write |
+| First install interrupted | Failure before/after declaration acceptance and before Board launch resumes the original installation/Document operation; no duplicate collections or adoption of unrelated names |
+| Saved drafts after replacement | Create/save through a public non-browser caller, then inspect in Board; save in Board, restart and read through the same public caller. IDs, text, order and revisions agree |
+| Concurrency and uncertainty | Two tabs save against one base; one conflict remains explicit. Lose an accepted save reply, kill Board, then discover and settle the same operation; no duplicate revision or overwritten draft |
+| Independent failures | SQL reads work while workbook writes are denied; saved drafts can be read while SQL is unavailable; a failed profile or preference read cannot trigger SQL |
+| Revocation and profile changes | Revoke before save admission, after acceptance, after read buffering and before terminal disclosure. Saved profile edits cannot activate stronger authority; an active query retains its original account/source/definition |
+| Retention and removal | Close/reopen/disable/headless operation preserves Documents; DROP/delete is not undone by startup; missing history is visible. Saving a result reference cannot retain data or bypass current source rights |
+| Large retained state | Many workbooks/revisions and large multi-page text keep page/cache and active-editor residency bounded; quota refusal has no accepted prefix; four-reader/result-window bounds still hold |
+| No hidden execution or local persistence | Save/Open/rename/preferences issue only their typed application operations. No SQL resubmission, filesystem workbench state, localStorage/IndexedDB authority, credentials in responses or payloads in telemetry |
+| Cutover | Matching current definitions work across installed consumers; missing/foreign definitions and old configuration reject before effects. Existing data and uncertain operations are preserved |
+
+Use the owning Document/client component and real-disk fault checks first.
+Extend the existing installed fixtures
+[`board_workbench.py`](../../tests/interfaces/installation/board_workbench.py),
+[`board_profiles.py`](../../tests/interfaces/installation/board_profiles.py) and
+[`server_board_package.py`](../../tests/interfaces/installation/server_board_package.py),
+plus the real browser workbench/profile suites. Preserve their independent
+catalog/SQL denial and Host/Origin coverage with the new profile mechanism.
+
+For Board implementation, use the existing tasks in
+[`tasks/transit-board.just`](../../tasks/transit-board.just):
+`just transit-board::install`, `just transit-board::check`,
+`just transit-board::workbench-test`, `just transit-board::workbench-browser`
+and `just transit-board::test` as affected. Add persistence/fault coverage to
+the owning tasks; do not invent commands that merely report success. Select the
+affected `just ci clean --lane NAME` lanes from the repository's actual lane
+inventory once the implementation/removal map is frozen. Run against committed
+HEAD and report component, installed, browser and resource evidence separately.
+
+Update the public [Board guide](../handbook/guides/inspect-board.md),
+[workbench guide](../../apps/transit-board/docs/workbench.md),
+[Board API](../handbook/reference/board-api.md),
+[local server guide](../../apps/transit-cli/docs/server.md), configuration/example
+owners, and the Document/application references as behavior lands. Record
+executed evidence in qualification history. This plan-only change requires the
+repository documentation link/fence and whitespace checks; it does not run or
+claim the implementation acceptance matrix.
 
 ## Starting point and scope
 
@@ -446,7 +724,8 @@ The local inspection profile remains usable while later owners develop:
 
 | Later Board delivery | Required service evidence before implementation |
 | --- | --- |
-| Durable workbook save/share/resume | M28 public identity, revisions, concurrent editing, disclosure and retained investigation/result lifetimes, exercised by a non-browser caller across replacement and revocation |
+| Basic saved workbook drafts, proposed in the [local persistence plan](#local-connections-and-document-persistence-plan--2026-11-02) | M7 public Document lifecycle, conditional revisions, bounded reads and exact recovery, plus the shared application schema/caller; qualify without a browser before Save/Open integration |
+| Retained/shared workbook results and investigations | M28 public identity, revisions, concurrent editing, disclosure and retained investigation/result lifetimes, exercised by a non-browser caller across replacement and revocation |
 | Transaction presentation | Existing M4/M5/M9 statement/session owners and a separately authorized Board profile for provisional results, commit/rollback and original uncertain-operation settlement; read-only inspection/Workbook admission remains enforced |
 | Branch comparison and Changes | M20 exact comparison bases and conflicts, M27 current policy and M29 candidate-bound review/conditional publication, including moved targets and lost replies |
 | Richer workload inspection | M11/M13/M17/M18 and distributed owners supply the particular index, measured resource, spatial/layout or recovery projections; synthetic studies supply no metrics or access |
