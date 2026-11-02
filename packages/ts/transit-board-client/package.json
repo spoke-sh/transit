@@ -3,9 +3,20 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "exports": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./deployment": "./src/deployment.ts",
+    "./storage": "./src/storage.ts",
+    "./inspection": "./src/inspection.ts",
+    "./catalog": "./src/catalog.ts",
+    "./evidence": "./src/evidence.ts",
+    "./relational": "./src/relational.ts",
+    "./query": "./src/query.ts",
+    "./request": "./src/request.ts"
+  },
   "dependencies": {
     "@transit/query-client": "workspace:*",
+    "@transit/reactive-client": "workspace:*",
     "ajv": "8.20.0"
   }
 }

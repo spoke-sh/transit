@@ -1,23 +1,10 @@
 import { scheduleRequest } from "@transit/reactive-client/request-scheduling";
-import { ownedDiagnostic } from "./diagnostics";
-import type { Diagnostic, Request, Response } from "./types";
+import type { Request, Response } from "./types";
 import { Request as validRequest } from "./validators.js";
 import { boundedQueryJson } from "./logical";
 import { validateUnifiedQuery } from "./values";
-export class QueryError extends Error {
-  readonly diagnostic: Diagnostic | undefined;
-  readonly diagnosticInvalid: boolean;
-  constructor(
-    readonly status: number,
-    readonly code: string,
-    detail?: unknown,
-  ) {
-    super(code);
-    const owned = ownedDiagnostic(detail);
-    this.diagnostic = owned.diagnostic;
-    this.diagnosticInvalid = owned.invalid;
-  }
-}
+import { QueryError } from "./error";
+export { QueryError } from "./error";
 export type Transport = (request: Request, signal?: AbortSignal) => Promise<Response>;
 /** One same-origin private host. A native prepared token is frozen on uncertainty;
  * retry only pre-dispatch throttling or classified read/preparation failures. */

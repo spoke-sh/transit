@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vite-plus/test";
-import { readInterface } from "./client";
+import { readInterface } from "./interface";
 
 afterEach(() => vi.unstubAllGlobals());
 

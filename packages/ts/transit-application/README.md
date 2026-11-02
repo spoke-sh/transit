@@ -23,3 +23,8 @@ without replacing that primary error. Both operator requests and interface
 acquisitions use this boundary. Diagnostic actions describe recovery; the client
 does not dispatch them automatically, and failed submissions retain the exact
 pending signature in `OperatorSession`.
+
+Browser consumers can load `/interface` acquisition and `/definition` presentation
+independently of the `/client` operator adapter. `/error` provides their shared
+transport error identity. These package subpaths preserve the root API and its
+runtime validation; loading a shell does not load the optional operator editor.

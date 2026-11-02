@@ -9,6 +9,7 @@ export * from "./capture";
 export * from "./profile";
 export * from "./assistance";
 export * from "./diagnostics";
-export { StatementReader, describeReads, validateReadResponse, readDefinition } from "./read";
+export { StatementReader, describeReads, validateReadResponse } from "./read";
 export { boundedQueryJson } from "./logical";
 export type { ResultView, ReadDescription, ReadTransport } from "./read";
+export { readDefinition } from "./read-types";

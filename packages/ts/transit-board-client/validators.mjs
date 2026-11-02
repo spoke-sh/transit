@@ -18,36 +18,63 @@ ajv.addSchema(shareValidatorSchemas(ajv, { root: schemas }).root);
 const names = Object.keys(schemas.$defs).filter((name) => !name.startsWith("SqlRead"));
 const catalog = ["CatalogRequest", "CatalogResponse"];
 const relational = ["RelationalRequest", "RelationalResponse"];
-const outputs = [];
-for (const [file, selected] of [
-  ["validators", names.filter((name) => !relational.includes(name) && !catalog.includes(name))],
+const groups = [
+  ["host-validators", ["Deployment", "Capabilities", "Error"]],
+  ["inspection-validators", ["Response", "StateResponse"]],
+  ["storage-validators", ["StorageResponse"]],
+  [
+    "evidence-validators",
+    [
+      "AtlasResponse",
+      "ParticipationResponse",
+      "RecordsResponse",
+      "HttpResponse",
+      "GrpcResponse",
+      "DocumentResponse",
+    ],
+  ],
+  ["query-validators", ["UnifiedQueryRequest", "UnifiedQueryResponse"]],
   ["relational-validators", relational],
   ["catalog-validators", catalog],
-]) {
+];
+if (
+  names.length !== groups.flatMap(([, selected]) => selected).length ||
+  names.some((name) => groups.filter(([, selected]) => selected.includes(name)).length !== 1)
+)
+  throw new Error("Every Board contract must belong to exactly one validator group");
+const outputs = [];
+for (const [file, selected] of groups) {
   const generated = standalone(
     ajv,
     Object.fromEntries(selected.map((name) => [name, `${schemas.$id}#/$defs/${name}`])),
   );
-  const reexports =
-    file === "validators"
-      ? '\nexport { RelationalRequest, RelationalResponse } from "./relational-validators.js";\nexport { CatalogRequest, CatalogResponse } from "./catalog-validators.js";\n'
-      : "";
   const text =
     '// Generated; no runtime code generation or eval.\nimport lengthModule from "ajv/dist/runtime/ucs2length.js";\nconst ucs2length = lengthModule.default ?? lengthModule;\n' +
     booleanValidatorSource(generated).replaceAll(
       'require("ajv/dist/runtime/ucs2length").default',
       "ucs2length",
-    ) +
-    reexports;
+    );
   const declarations =
-    (file === "validators" ? names : selected)
-      .map((name) => `export function ${name}(value: unknown): boolean;`)
-      .join("\n") + "\n";
+    selected.map((name) => `export function ${name}(value: unknown): boolean;`).join("\n") + "\n";
   outputs.push(
     [new URL(`./src/${file}.js`, import.meta.url), text],
     [new URL(`./src/${file}.d.ts`, import.meta.url), declarations],
   );
 }
+const exports =
+  groups
+    .map(([file, selected]) => `export { ${selected.join(", ")} } from "./${file}.js";`)
+    .join("\n") + "\n";
+outputs.push(
+  [
+    new URL("./src/validators.js", import.meta.url),
+    "// Generated; contract groups load with their consumers.\n" + exports,
+  ],
+  [
+    new URL("./src/validators.d.ts", import.meta.url),
+    names.map((name) => `export function ${name}(value: unknown): boolean;`).join("\n") + "\n",
+  ],
+);
 for (const [target, content] of outputs) {
   if (process.argv.includes("--check")) {
     if (readFileSync(target, "utf8") !== content)
