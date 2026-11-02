@@ -792,7 +792,7 @@ own baseline; #211's historical SQL target is not a blanket SDK speedup claim.
 
 #### SDK performance implementation sequence — 2026-11-01
 
-The [November 2 performance review plan](08-gateway-architecture-and-protocol-ingress.md#next-performance-implementation-after-milestones--2026-11-02)
+The [November 2 performance implementation plan](08-gateway-architecture-and-protocol-ingress.md#next-performance-implementation-after-milestones--2026-11-02)
 refreshes the implementation order at `095544060`, after the owned-result
 definition cutover and encoded-string/Document construction merges. Rebuild
 matching installed artifacts before new measurements. Its R1/C4a work preserves

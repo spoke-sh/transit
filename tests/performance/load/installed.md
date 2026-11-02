@@ -58,6 +58,8 @@ logical reservation charges (envelope plus the current 32 KiB metadata charge).
 These charges are cumulative observed reservations, not resident memory or
 physical storage occupancy. Lost replies can make publication returns lower than
 durable counts. Exact result/completion checks remain the success oracle.
+Counters accumulate work: retries can count rows, pages and stored bytes again,
+so these totals do not establish unique result cardinality.
 
 Heap allocation counts, live allocation bytes, peak workspace bytes, physical
 object/log writes and syncs, retained bytes, reclaimable debt and copy counts are
