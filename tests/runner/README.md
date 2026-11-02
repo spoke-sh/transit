@@ -272,6 +272,7 @@ A separate `test::release-board`
 job runs its Chromium scenarios against downloaded runtime artifacts on both
 Linux architectures. It checks paginated Catalog, exact previews, column
 profiles, explicit Workbook submission and original-result recovery without
-external assets. The fixture explicitly configures its own data connections;
-runtime startup does not grant the inspection identity data access. Private
+external assets. The fixture qualifies explicit independent profiles and the
+managed local data connection; the inspection identity retains read-only inspection
+authority without data access. Private
 failed installations remain local; only synthetic browser evidence is uploaded.
