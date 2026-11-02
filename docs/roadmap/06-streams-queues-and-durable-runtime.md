@@ -40,7 +40,15 @@ accepted roots, time checks, lease durations and resident quotas.
 M6 remains **In Progress**. The later
 [installed claim/ACK fixture closure](../history/qualification/query.md#installed-sql-queue-claim-and-ack-fixture-closure--2026-11-01)
 passes against frozen current-main binaries; common-revision qualification remains
-open. The selected large unordered Queue profile now
+open for the complete milestone. The subsequent
+[clean branch run](../history/qualification/query.md#m6-clean-sql-session-attempt--2026-11-01)
+passes the installed claim/ACK profile with runtime and fixtures both at
+`f590f1bd0`, retaining the original lease, wait and batch bounds. That source
+also passes the full selected core and SQL-interface lanes and the existing
+transaction-workspace model/replay gate; the
+[integration record](../history/qualification/storage.md#m6-recovery-integration-fixture-repairs--2026-11-01)
+preserves earlier failures, interrupted checks and the exact scope of each pass.
+The selected large unordered Queue profile now
 [passes its workload and cold-recovery gate](../history/qualification/performance.md#queue-profile-4-recovery-gate-closure--2026-11-01)
 with unchanged budgets; unfinished profiles do not supply complete baselines. Earlier installed passes retain
 their own source attribution. The remaining work includes executable SQL renewal

@@ -223,6 +223,64 @@ not installed qualification of the later cache change or a complete clean lane.
 Definition remains
 `afac2bd84560136ca90c0683afdffb8f71d5f96568b05dd3de773ce3c5339b2a`.
 
+## M6 clean SQL session attempt — 2026-11-01
+
+At clean `f590f1bd0`, `just ci clean --lane interfaces-sql` passes TLS,
+SQL-result allocation checks and the installed wire gateway task, then **fails**
+in `sql-sessions`. The real console reports `Completion unavailable; Tab retries`
+for `SET query.statement_t`, rather than inserting the expected setting name.
+The editor retains its one-second assistance budget; the fixture's ten-second
+display wait does not extend that request. Later lane tasks, including
+`sql-log-declarations`, do not execute in this attempt. The source checkout is
+`/var/tmp/transit-ci-dzf9snjn`, the installation and exact binaries remain at
+`/var/tmp/transit-direct-sql-wire-z0b8g7da`, and the transcript is
+`/var/tmp/transit-m6-clean-interfaces-sql.log` (SHA-256
+`d9dce399beb8a5fb653c9153f63253b4d17b6d01281e82c93b648fb202da3e70`).
+
+A diagnostic restart with the retained coordinator generation correctly refuses
+`StaleGatewayCoordinator`. A subsequent diagnostic copy uses the next generation
+and bypasses the disposed fixture fault proxy; startup records a new coordinator
+activation, with no SQL statement resubmission. Against the retained data,
+three settings assistance reads return the expected name in **573.599**, **592.831**
+and **589.022 ms**, and the real console completes it within the unchanged
+one-second budget. This is a narrower post-restart observation, not reproduction
+of the failed sequence or a passing lane. It does not identify the original
+unavailability's cause. The installation's `m6-settings-inspect-fenced.json` has
+SHA-256 `475ad7c8d48304216bc1fd36b6bb3efc6186d1269dbaf010a016125a6621d2c4`;
+the diagnostic transcript is `/var/tmp/transit-m6-settings-inspect-fenced.log`.
+
+A second full clean-lane invocation at the same `f590f1bd0` source passes
+`sql-sessions` in **1,046.41 s**, including the unchanged real-console completion
+assertion. There is no runtime, fixture, assistance-budget or display-wait change
+between these two lane attempts. The transcript is
+`/var/tmp/transit-m6-clean-interfaces-sql-2.log`. This is a fresh installation's
+passing session profile, not retroactive success for the retained failed attempt
+or an explanation of that attempt's unavailability.
+
+The same clean invocation also **passes `sql-log-declarations` in 303.71 s**
+with runtime and fixtures both at `f590f1bd0`. All four installed profiles
+(declarations, append/RETURNING, positional consumption and Queue claim/ACK)
+pass across native SQL, PostgreSQL, MySQL and the real console. The 65-row claim
+retains its one-second lease and original 32/32/1 result selection through append,
+expiry and replacement. Empty claims, current disclosure denial, binary receipts,
+ACK after ALTER, duplicate refusal and original ACK after DROP/replacement pass.
+This qualifies the current claim/ACK regression with the Queue cache changes;
+it does not settle the older `29fa45dcc` installation's original unknown attempt
+or qualify the unfinished SQL workload verbs and Station migration.
+
+The second invocation **completes the entire selected `interfaces-sql` lane**,
+**8/8 tasks**, at clean `f590f1bd0`, including the final transaction schedules.
+The owner report records `completed: true` and all task exit codes zero. Evidence
+is copied to `.cache/ci/clean/f590f1bd0b91-transit-ci-h71v4n0u/`:
+`interfaces-sql.meta.json` has SHA-256
+`a6a8972774259f9f020d2d85d5b4f0ac5203d244f87f51376950bcfcc0f970a1`,
+and `interfaces-sql.json` has SHA-256
+`7305c526bccc5a4aedb9958e122f09aec91cafcfa7bbf0c54b81a458f967a201`.
+Other functional checks overlap this run; the reported timings are not an
+isolated performance comparison. No console retry, budget change or relaxed
+assertion is introduced to obtain this pass. The earlier failed lane remains
+failed evidence, with its cause unresolved by this finite successful rerun.
+
 ## Installed SQL Queue claim deadline failure — 2026-11-01
 
 The `sessions-log` installed profile **failed** on clean source

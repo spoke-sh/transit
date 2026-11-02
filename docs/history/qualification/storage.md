@@ -418,6 +418,107 @@ The raw log `/var/tmp/transit-m6-schedule-membership-test1.log` has SHA-256
 This is component evidence. The [cold Queue baseline](performance.md) remains
 failed until a separately attributed installed run completes.
 
+## M6 recovery integration fixture repairs — 2026-11-01
+
+The first clean core attempt at `0b53d8b5e` stops in the diagnostic inventory:
+`QueueVisibilityCache.remove` adds one defensive `catch` which invalidates a
+fenced in-memory hint and leaves eligibility to durable lookup. Commit
+`ff004970c` regenerates the reviewed inventory; its mapping check adds no public
+cause or outcome. The retained attempt is `/var/tmp/transit-ci-1odsdw9p`, with
+transcript `/var/tmp/transit-m6-clean-core.log`.
+
+The next clean core attempt at `ff004970c` passes **63 fast checks**, **20 contract
+checks** and **1,959 of 1,960 executed native tests**, but the lane **fails**. The
+application signing fixture has stale command/read digests, causing its independent
+Python check and native signing test to fail. Separately, an inline `DirectRecord`
+test omits the current connection's required `audience` and `role` fields and does
+not compile. Both fixture defects are present in this branch's `origin/main`
+baseline. Passing siblings do not qualify the failed native aggregate or core lane.
+The retained checkout is `/var/tmp/transit-ci-c9td2gm5`; the transcript is
+`/var/tmp/transit-m6-clean-core-2.log`.
+
+Commit `f7e000ed4` supplies explicit synthetic audience and role values in that
+test. The standalone catalog selection (`guarded record policy`, `browser record
+storage`) passes **8/8** in ReleaseSafe. Commit `f590f1bd0` regenerates the signing
+vector from the existing independent Python generator for definition
+`afac2bd84560136ca90c0683afdffb8f71d5f96568b05dd3de773ce3c5339b2a`.
+Only the two 32-byte digests change; request scope, identities and payloads remain
+identical. The independent fixture check and **2/2** selected native application
+signing tests pass. These repairs change test data only, not runtime interpretation,
+permissions or the Queue implementation measured at `41b371ff6`.
+
+The third clean core attempt at `f590f1bd0` passes the repaired native aggregate
+and 14 complete lane tasks, including package builds and the Zig binding tests.
+It receives `SIGTERM` during the packaged runtime-boundary build; the origin of
+the signal is undetermined. The foreground command exits 143 and the owner report
+remains incomplete. This is **not a completed core lane**. Preserve its report at
+`/var/tmp/transit-ci-8_5t_hrv/src/.cache/ci/core.meta.json` and transcript
+`/var/tmp/transit-m6-clean-core-3.log`; a subsequent full clean invocation uses
+the same source and inventory in a dedicated process group.
+
+That fourth invocation **passes the complete selected core lane**, all **28/28
+tasks**, at clean `f590f1bd0`. It includes the repaired native aggregate, 45/45
+package builds, the public Zig SDK, packaged runtime/SQL gateway isolation,
+Station, storage, service, authorization, upgrade, caller, inspection and state
+checks. The owner report records `completed: true` and all task exit codes zero.
+Evidence is retained under
+`.cache/ci/clean/f590f1bd0b91-transit-ci-zlv4g2xf/`; `core.meta.json` has SHA-256
+`0593264a9f561dd7111604eefdef676cb84f21be993bfb2048f78bdb2544537a`,
+and `core.json` has SHA-256
+`05bc9a655e57a14e47e24920889492ae9bd7c9bd89715a47801799a09e7344d1`.
+The transcript is `/var/tmp/transit-m6-clean-core-4.log`. Other functional lanes
+overlap this run; their timings are not isolated performance measurements.
+This selected lane is not complete repository, provider or milestone qualification.
+
+Separately, `nix develop --option eval-cache false --command just
+test::transaction-workspace-model` passes at clean `f590f1bd0`: **304 distinct
+states** (1,084 generated), **eight negative controls** detected and replayed
+against Zig, and **12 concrete mixed Table/Stream schedules**. TLC is pinned to
+1.7.4. The owner evidence is
+`.cache/verification/transaction-workspace-model/20261101T203914-423491/evidence.json`,
+SHA-256 `27144cc4a11208cf25b24b4f85a09f40e341de456b3e449d503a054446c1cebc`;
+the transcript is `/var/tmp/transit-m6-transaction-workspace-model.log`.
+This restores the existing workspace regression gate with its already-integrated
+adapter. It does not establish exhaustive mixed Queue correspondence, liveness,
+physical-disk faults or a transactional Station runtime.
+
+The first clean `storage-query` attempt at `f590f1bd0` passes its first **12
+tasks**, including installed owner recovery and payload-service disclosure, then
+fails to compile `local_catalog_policy_test.zig`: the Stream settlement fixture
+still initializes the removed `offset.cursor` field. The current contract requires
+`offset.progress`; this fixture traverses the entire original read, so its issued
+complete cursor belongs in the canonical `exhausted` variant. This stale fixture
+also exists at the original main baseline. The failed lane's checkout and owner
+metadata remain at `/var/tmp/transit-ci-w49insf0`; its transcript is
+`/var/tmp/transit-m6-clean-storage-query.log`. Later lane tasks did not execute.
+Commit `1bf2ef7d2` supplies that exhausted progress proof in the fixture without
+changing runtime behavior, accepted identities, coverage or authorization checks.
+The standalone `just test::local-catalog` compiles that correction and advances
+through disk work, but is deliberately stopped to remove a duplicate workload
+while the full clean storage/query lane runs. Its transcript
+`/var/tmp/transit-m6-local-catalog-progress.log` is **incomplete**, not a test pass.
+
+The second clean storage/query attempt at `1bf2ef7d2` again passes the first 12
+tasks, then **fails** `local-catalog` after **19/20 tests** pass. The Queue
+fixture expects the direct `QueueLeaseFenced` error for an obsolete lease after
+renewal, while the current catalog adapter returns the contracted durable
+`closed` refusal. This assertion also predates this branch. The retained checkout
+is `/var/tmp/transit-ci-3g1fdmst`, and the transcript is
+`/var/tmp/transit-m6-clean-storage-query-2.log` (SHA-256
+`238a2efb5a5d7ba9a1c179e6f4b786c4108d2c2a6c52e9662b576e61bd2cc443`).
+Later tasks do not execute in this attempt. The corrected fixture verifies the
+closure's exact original request, `lease_fenced` reason and equality on original
+operation lookup; it preserves the original lease checks and subsequent corrected
+settlement under a separate identity.
+
+Commit `6ce4e3ec2` makes that fixture correction. The focused
+`zig build test-local-catalog -Doptimize=ReleaseSafe
+-Dlocal-catalog-filter="log privileges enforce separate native domains and current disclosure rights"`
+invocation passes, including Stream and Queue maintenance under native policy.
+Its transcript is `/var/tmp/transit-m6-local-queue-closure.log` (SHA-256
+`917bb09ccca7803e6fc7721db9d6df1831903f9015cab423909ca0493728f0f3`).
+This focused schedule does not qualify the previously failed complete lane.
+
 ## Verified Queue eligibility prefixes across transitions — 2026-11-01
 
 Commit `41b371ff6` carries a bounded eligibility prefix across deterministic
