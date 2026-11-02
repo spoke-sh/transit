@@ -29,3 +29,13 @@
 .retained-placement code {
   overflow-wrap: anywhere;
 }
+@media (max-width: 600px) {
+  .placement-destination button {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.25rem;
+  }
+  .placement-destination button > span:nth-child(2) {
+    transform: rotate(90deg);
+    justify-self: start;
+  }
+}

@@ -18,7 +18,7 @@ export default defineConfig({
           groups: [
             {
               name: "inspection",
-              test: /packages\/ts\/transit-board-client\/(?!src\/(relational|catalog)-validators\.js$)/,
+              test: /packages\/ts\/transit-board-client\/(?!src\/(relational|catalog)-validators\.js$)|apps\/transit-board-web\/src\/(quantities|maintenance-model|retained-model|storage-model)\.ts$/,
             },
             {
               name: "query",

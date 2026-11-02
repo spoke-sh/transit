@@ -75,6 +75,16 @@ test("Table storage links visual, grid and inspector without executing SQL", asy
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
     String(observed.limits.bytes),
   );
+  await page.evaluate(() => {
+    Object.defineProperty(navigator.clipboard, "writeText", {
+      value: () => Promise.reject(new Error("Clipboard disabled by test")),
+      configurable: true,
+    });
+  });
+  await limitRow.getByRole("button", { name: "Copy exact bytes" }).click();
+  await expect(limitRow.getByRole("status")).toHaveText(
+    "Copy unavailable. Select the exact value to copy.",
+  );
   const maintenance = page.getByRole("region", { name: "Maintenance", exact: true });
   await expect(maintenance.getByRole("table")).toContainText("Flush work bound");
   await expect(maintenance.getByRole("table")).toContainText(
