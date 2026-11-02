@@ -90,9 +90,12 @@ pub fn exercise(service: *Service, declaration: c.DirectLog.Definition, schema: 
     try t.expectEqualDeep(settlement.settle, renewed.settlement);
     settlement.settle.operation.operation = 504;
     settlement.settle.action = .ack;
-    try t.expectError(error.QueueLeaseFenced, c.DirectQueueClient.apply(&output, caller, .{ .mutate = .{ .work = settlement } }));
-    // A refused attempt may already reserve its identity. Corrected work gets
-    // a new identity; it never rewrites the original settlement intent.
+    const fenced = (try c.DirectQueueClient.apply(&output, caller, .{ .mutate = .{ .work = settlement } })).operation.?.closed;
+    try fenced.requireQueue(settlement);
+    try t.expectEqual(p.LogWorkload.Refusal.lease_fenced, fenced.reason.refused);
+    try t.expectEqualDeep(fenced, (try c.DirectQueueClient.apply(&output, caller, .{ .operation = settlement })).operation.?.closed);
+    // The durable refusal closes this exact request. Corrected work gets a
+    // new identity; it never rewrites the original settlement intent.
     settlement.settle.operation.operation = 505;
     settlement.settle.lease.expires_ms = 305;
     endpoint.lose = true;
