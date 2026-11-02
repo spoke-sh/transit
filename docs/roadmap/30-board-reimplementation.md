@@ -908,7 +908,7 @@ services. R2 delivery does not complete M30.
 
 ### R3 — Explain completed and pending computation
 
-**Review status: Proposed — awaiting implementation-plan review.** Source basis:
+**Review status: Approved for implementation.** Source basis:
 `origin/main` at `5f23092f258b774e545351d83cf76765a0af4451`, the merge of
 [PR #338](https://github.com/spoke-sh/transit/pull/338). This plan is based on a
 source audit, not a new runtime qualification. It selects R3 as the next feature

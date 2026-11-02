@@ -547,6 +547,17 @@ source and output definitions, schema commitment, source position, row count,
 common cut, immutable manifest reference and verified committed decision. A missing
 revision fails instead of starting work or substituting the current output.
 
+Both SHOW forms use the public managed-inspection read owner. A separately
+provisioned reader can inspect another principal's computation with database
+connect, schema usage, control KV inspect/read and source/output SELECT grants.
+The original publisher remains attribution; no execution, write or administrative
+grant is needed. `transit_query_direct.ManagedInspection.apply` exposes the same
+metadata with lossless decimal quantities for human interfaces. Name lookup may
+be fenced to an exact computation definition; same-name replacement does not
+silently rebind a selected revision. Active control, pending work and the last
+completed result remain separate facts. Absence of pending work does not prove
+that the output reflects current source data.
+
 The shared Zig `ManagedRevision` reader also streams that revision's retained
 rows with caller-owned output buffers and bounded reusable scratch. Its default
 consumption limits are 10,000 rows and 16 MiB of encoded manifest/page bytes.
