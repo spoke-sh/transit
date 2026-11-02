@@ -18,6 +18,17 @@ SQL batches, typed parameters and revoked buffered/empty terminals. A saved
 read and token must retain their original cut after a later append and service
 replacement. GROUP and WAIT remain explicit SQL refusals in this profile.
 
+[Queue claims and settlements](claims.py) use the same installed task. The
+65-row claim keeps its original payloads and receipts after expiry/replacement.
+ACK and NACK run through native SQL, PostgreSQL, MySQL and the real console.
+NACK checks a typed absolute visibility request, a delayed FIFO head blocking
+its own key while another key progresses, stale-lease refusal, current rights,
+compatible ALTER and original token recovery after DROP and service replacement.
+Changing the saved visibility parameter under its token must conflict. Neither
+settlement closes the original claim's payload-read dependency. These SQL checks
+reuse native scheduling; they do not qualify renewal, predicate acquisition,
+automatic DLQ faults or the transactional Station runtime.
+
 The [session contract](../../../contracts/SQL_SESSION_V1.md) defines supported
 operations; [contribution instructions](AGENTS.md) describe their test boundary.
 

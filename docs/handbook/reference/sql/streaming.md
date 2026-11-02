@@ -93,7 +93,7 @@ history. Deployment memory and storage quotas still apply.
 
 ALTER cannot change schema, partitioning, routing keys, ordering, compaction
 keys or timestamp identity. `IF EXISTS`, `IF NOT EXISTS` and schema evolution
-are outside this SQL profile. Group consumption, waits, `COMMIT OFFSET`,
+are outside this SQL profile. Group consumption, waits, `COMMIT OFFSET` and
 `EXTEND LEASE` still require typed native callers. The admitted
 partition-routed CLAIM and receipt-bound ACK/NACK profiles are described below.
 
