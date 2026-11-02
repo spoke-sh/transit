@@ -422,7 +422,10 @@ reserve only the active predicate width; mixed FSST predicates decode a value
 once if any atom requires decoding. Selected projection remains a separate read.
 The [component owner](../../packages/zig/transit-fuze/README.md) and
 [query internals](../handbook/internals/query-engine.md#logical-types-and-physical-codecs-and-collation-semantics) describe
-the current behavior and budgets.
+the current behavior and budgets. The
+[qualification record](../history/qualification/query.md#shared-encoded-predicate-traversal--2026-11-01)
+separates executed correspondence, allocation and signed-reader checks from
+performance and lifecycle claims.
 
 This is a transient execution change: it adds no stored format, saved-plan
 semantics, SQL syntax or index authority. The current-v1 definition does not

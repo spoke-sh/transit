@@ -5473,3 +5473,49 @@ invalidation and separate source/compute/output budgets. This change removes one
 compute payload copy; it does not change stored formats, export Arrow buffers or
 establish a whole-query latency improvement. The earlier clean core lane and
 ingestion matrix remain in progress at their recorded revisions.
+
+## Shared encoded predicate traversal — 2026-11-01
+
+The codec and retained-reader changes in `76a595517` and `0feeb69e3` group
+nonconstant predicate atoms by physical column while preserving their logical
+instruction positions. The [component guide](../../../packages/zig/transit-fuze/README.md)
+owns API, allocation and lifetime details; the
+[query-engine account](../../handbook/internals/query-engine.md#logical-types-and-physical-codecs-and-collation-semantics)
+explains the execution boundary. Stored pages, saved plans and the shared
+current-v1 definition are unchanged.
+
+The independent Python/Zig string oracle passes **610 cases / 16,810 rows**
+across all five admitted collations. Each case now checks six comparisons in one
+physical traversal as well as scalar Batch outcomes and lossless projection;
+physical-value, streamed-string and materialized-string counts equal the
+single-predicate traversal. The clean-checkout run retains its corpus, output
+and provenance under `string-execution/runs/latest-e8dbb5rd` in the verification
+artifacts. These are work counts, not measured latency or throughput gains.
+
+Reader regressions check two page reads for interleaved nonconstant atoms over
+two columns, exact page bytes, no page read for a constant atom, original
+row/instruction failure selection and decisions surviving overwritten source
+bytes. Exhaustive allocation-failure injection covers shared outcome ownership.
+The dictionary test fits two atoms over 32 KiB of text into **512 bytes** of
+scratch, rejecting a maximum-width cache design; warm codec tests retain zero
+backing-allocator attempts after warmup. Malformed FSST suffixes and invalid
+UTF-8 still reject after a comparison could already decide its result.
+
+`just test::table-filtering` passes the reader, storage and catalog checks plus
+the signed disk-backed `projection` service scenario. Its direct and prepared
+queries interleave two ASCII_CI string comparisons with another column over
+segment/WAL rows. The scenario verifies exact retained results, original
+ordinals, LIMIT, empty aggregates, released pins and post-compute/terminal
+revocation. This local owner proof does not establish an installed performance
+baseline or whole-query zero allocation. Projection still reads separately,
+and dictionary outcome scratch grows with the number of active atoms under the
+existing decoded-memory refusal bound. M14's index lifecycle and other open
+execution work remain outside this increment.
+
+The first fast check stopped on diagnostic inventory drift: the new codec
+helper/error references plus catalog, Board and relational changes already in
+`db0bb4a8f`. After reviewing and regenerating the source inventory, all **64**
+fast checks pass. The diagnostic semantic mappings remain unchanged; the
+compiler-inferred boundary proof passes **16 error sets**, **9 unknown-cause
+projections** and its mutation controls. Documentation links, formatting,
+strict types, all 10 site tests and the production documentation build pass.

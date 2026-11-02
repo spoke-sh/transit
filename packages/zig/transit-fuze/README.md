@@ -214,6 +214,14 @@ scratch/output allocations. The complete encoded page is validated before
 success, including nonmatching values. Comparisons use the column's declared
 logical type and binary, ASCII case-insensitive or CP037 collation.
 
+For `k` active atoms and `n` rows, retained predicate outcomes use `k * n`
+bytes. Dictionary evaluation additionally caches `k * d` bytes for `d` physical
+entries while filling those outcomes. Both allocations count against the
+reader's shared decoded-memory budget. Sharing traversal can therefore need more
+simultaneous dictionary scratch than evaluating atoms separately; exceeding the
+budget still refuses the read. These bounds exclude the independently bounded
+encoded page and the reader's other retained state.
+
 `TableProjection` derives a canonical input-column set from a finite Table plan,
 including predicate inputs and all primary-key columns. Its projected schema
 preserves stable column descriptors; its private plan remaps positions without
