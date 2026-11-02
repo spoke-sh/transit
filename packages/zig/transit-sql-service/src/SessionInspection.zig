@@ -127,7 +127,7 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
                 break :blk value;
             } else null;
             try parser.finish();
-            const response = try host.table.call(.{ .managed_inspection = .{ .namespace = host.namespace, .name = try .init(name.slice()), .expected = null, .revision = revision } });
+            const response = host.table.call(.{ .managed_inspection = .{ .namespace = host.namespace, .name = try .init(name.slice()), .expected = null, .revision = revision } }) catch |err| return if (err == error.NotFound) (if (revision != null) error.DataflowRevisionNotFound else error.CatalogNameNotFound) else err;
             defer response.deinit();
             const inspected = response.value.result.managed_inspection;
             var declared = inspected.declaration;
