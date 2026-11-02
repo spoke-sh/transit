@@ -34,8 +34,8 @@ for (const directory of ["transit-client", "transit-station-sdk"]) {
     [
       "validators.d.ts",
       header +
-        'import type { ValidateFunction } from "ajv";\n' +
-        names.map((name) => `export const ${name}: ValidateFunction;`).join("\n") +
+        'import type { Validator } from "./validation.js";\n' +
+        names.map((name) => `export const ${name}: Validator;`).join("\n") +
         "\n",
     ],
   ]) {
