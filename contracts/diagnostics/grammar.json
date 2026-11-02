@@ -8632,6 +8632,17 @@
         "code": "sql.invalid_log_settlement_operand",
         "category": "binding"
       }
+    },
+    {
+      "id": "nack-visible-literal",
+      "sql": "NACK ON QUEUE jobs RECEIPT $1 WITH (visible_at = TIMESTAMP '1970-01-01T00:00:01Z')",
+      "profile": "log_settlement",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
     }
   ]
 }
