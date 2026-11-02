@@ -13192,6 +13192,13 @@
           "actions": [
             "inspect_status"
           ]
+        },
+        "InvalidHistoricalCursor": {
+          "code": "inspection.invalid_cursor",
+          "category": "binding",
+          "actions": [
+            "refresh"
+          ]
         }
       }
     },
