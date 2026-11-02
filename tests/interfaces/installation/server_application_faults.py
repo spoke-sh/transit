@@ -48,14 +48,24 @@ def native(key, realm, principal, value, sequence=None):
 
 def post(port, path, value, expected=200, headers=None, retry_unavailable=False):
     deadline = time.monotonic() + 15
+    query = value.get('query') if isinstance(value, dict) else None
+    kind = query.get('kind') if isinstance(query, dict) else None
+    observation = path == '/v1/query' and isinstance(kind, dict) and len(kind) == 1 and next(iter(kind)) in ('identity', 'authorization')
+    refusals = 0
     while True:
         result = exchange(port, path, value, headers)
         retryable = result in ((503, b'{"err":"AuthorityUnavailable"}'), (503, b'{"err":"HttpCapacity"}'))
+        # Capacity can follow acceptance on mutation routes. Extend this retry
+        # only to native identity/authorization observations, never mutations.
+        retryable = retryable or (observation and result == (503, b'{"err":"ControlCapacity"}'))
         if not retry_unavailable or not retryable or time.monotonic() >= deadline:
             break
         # Opt in only for pure reads or a caller-retained identical native
         # request whose exact replay is part of the proof. Never rebuild an ID.
+        refusals += 1
         time.sleep(.05)
+    if refusals:
+        print(json.dumps(dict(profile='native_http_retry', route=path, refusals=refusals)), file=sys.stderr, flush=True)
     status, data = result
     assert status == expected, (status, data)
     return json.loads(data)

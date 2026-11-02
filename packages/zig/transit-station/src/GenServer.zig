@@ -219,6 +219,20 @@ pub fn dispatchPending(self: *GenServer) !Poll {
     return .progress;
 }
 
+/// A host may renew an open only after the authority definitively rejects it
+/// and its proposed read window has elapsed. Clock passage alone never settles
+/// an uncertain command. This preserves the durable input, reobserves current
+/// metadata/sequence on preparation, and cannot discard a pending turn commit.
+pub fn retryExpiredOpen(self: *GenServer, failure: anyerror, now_ms: u64) bool {
+    if (failure != error.Rejected or self.session.client.last_rejection != .DeadlineExpired or self.pending_kind != .open) return false;
+    const pending = self.pending orelse return false;
+    if (pending.signed.request.command != .open_view or pending.signed.request.command.open_view.deadline_ms > now_ms) return false;
+    self.pending = null;
+    self.resource = null;
+    self.opening_read = null;
+    return true;
+}
+
 /// Discard only unsent private work. An unresolved signed mutation can
 /// never be abandoned through this API, including control operations.
 pub fn discard(self: *GenServer) !void {
@@ -351,4 +365,34 @@ fn readBlocks(context: *anyopaque, selector: p.Growth.BlockRead.Query, body: *p.
         return (try self.session.client.query(.{ .realm = self.session.realm, .principal = self.session.principal, .kind = .{ .block_entries = selector } }, self.session.key)).body.block_entries;
     }
     return self.session.readBlocks(selector, body);
+}
+
+test "expired open renewal needs a definitive rejection and preserves the durable input" {
+    const t = std.testing;
+    var wire = client.Client.init(t.allocator, t.io, "http://127.0.0.1:1");
+    defer wire.deinit();
+    var server = try GenServer.init(.{ .client = &wire, .realm = 1, .principal = 2, .pid = 3, .generation = 4, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(8)) }, "state");
+    const delivery: Session.Delivery = .{ .realm = 1, .principal = 2, .pid = 3, .generation = 4, .sequence = 5, .revision = 6, .input = .{ .position = 7, .ordinal = 1, .value = .{}, .origin = .{ .external = .{ .principal = 0, .policy_revision = 0 } } }, .permit = null, .needs_permit = false };
+    const resource: Resource = .{ .id = 8, .writer = 3, .owner = null, .revision = 9, .deadline_ms = null };
+    const original = try server.session.prepareView(delivery, resource, 100);
+    server.delivery = delivery;
+    server.resource = resource;
+    server.pending = original;
+    server.pending_kind = .open;
+    wire.last_rejection = .DeadlineExpired;
+    // Passage of local time cannot resolve a lost reply. A fresh proposed
+    // deadline also cannot erase a rejection of another lifetime/authority gate.
+    try t.expect(!server.retryExpiredOpen(error.AuthorityTimeout, 200));
+    try t.expect(!server.retryExpiredOpen(error.Rejected, 99));
+    wire.last_rejection = .StaleGeneration;
+    try t.expect(!server.retryExpiredOpen(error.Rejected, 200));
+    try t.expectEqualDeep(original, server.pending.?);
+    wire.last_rejection = .DeadlineExpired;
+    server.pending_kind = .commit;
+    try t.expect(!server.retryExpiredOpen(error.Rejected, 200));
+    server.pending_kind = .open;
+    try t.expect(server.retryExpiredOpen(error.Rejected, 200));
+    try t.expect(server.pending == null and server.resource == null);
+    try t.expectEqualDeep(delivery, server.delivery.?);
+    try t.expect(!server.retryExpiredOpen(error.Rejected, 200));
 }

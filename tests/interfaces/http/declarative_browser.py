@@ -310,7 +310,9 @@ class Fixture:
 
     def root_query(self, kind):
         key = ExistingKey(self.root, self.root / '.transit/root.seed')
-        return post(self.ports['node'], '/v1/query', native(key, self.connection['scope']['realm'], 0, kind))
+        # Continue observing the original policy change through transient
+        # admission refusals; never begin another change to replace it.
+        return post(self.ports['node'], '/v1/query', native(key, self.connection['scope']['realm'], 0, kind), retry_unavailable=True)
 
     def root_command(self, command):
         sequence = self.root_query(dict(identity={}))['principal_sequence'] + 1

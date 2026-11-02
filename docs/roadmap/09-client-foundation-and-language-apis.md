@@ -793,9 +793,11 @@ own baseline; #211's historical SQL target is not a blanket SDK speedup claim.
 #### SDK performance implementation sequence — 2026-11-01
 
 **Status: In Progress within P0/P8.** Coordinate with the
-[M8 current-main delivery plan](08-gateway-architecture-and-protocol-ingress.md#current-main-performance-implementation--2026-11-01),
-integrated on `242499474`. Source-attributed measurements and clean conformance
-checks have distinct scope; neither completes the broader SDK performance gate.
+[M8 post-merge review plan](08-gateway-architecture-and-protocol-ingress.md#post-merge-performance-delivery-plan--2026-11-01)
+at merged source `86df3afb5`. Its F0/R1/V2/C4/Q8 packets define baseline,
+reliability, build-time validators, shared-client optimization and final budgets.
+Source-attributed measurements and clean conformance checks have distinct scope;
+neither completes the broader SDK performance gate.
 Start measurement on current installed APIs while P2–P6 continue; the following
 work neither requires the new data ABI first nor marks those packages complete.
 
@@ -811,15 +813,20 @@ and long UTF-8 values. All 224 operations pass in the isolated profile. The
 default-maintenance campaign stops at an uncertain Python snapshot release;
 complete integrated default-profile qualification remains open.
 
-Station now eagerly compiles one shared validator collection per module graph.
-Three alternating installed-package pairs (15 fresh processes per arm) measure
-Node import median 6.398 → 2.807 seconds, with 16.5% lower peak RSS. This is a
-2.28× cold module-import observation, not a whole-SDK or steady-state budget
-claim. Remaining compilation is a candidate for build-time generation after
-preserving validator behavior and diagnostics. Allocation/copy attribution,
-broader values/languages, future context/SQL adapters and numeric regression
-budgets remain open; import savings must still be distinguished from native
-startup and the first verified service result.
+The earlier shared eager validator collection reduced cold module import by
+2.28× at its recorded source. The subsequent
+[validator/recovery packet](../history/qualification/performance.md#sdk-validator-initialization-and-captured-read-recovery--2026-11-02)
+generates standalone functions during packaging, retaining validation and complete
+Ajv diagnostics. Three alternating installed-package pairs with 50 fresh processes
+per arm measure 2.884 → 0.313 seconds for imports, with 64.57% lower peak RSS.
+A separate 50-per-arm comparison measures cold process launch through verified
+metadata at 2.932 → 0.397 seconds. It includes native client open; each sample
+subsequently closes and joins those clients. Larger archives are the measured
+tradeoff. These are import/first-metadata results, not full-query or all-language
+performance qualification. The original Python pin was inspected and released;
+the cause of its earlier release failure and current exact-acquisition conflicts
+remain open. Allocation/copy attribution, broader values/languages, future
+context/SQL adapters and numeric operation regression budgets remain open.
 
 The application journey is to open an installed client, inspect a declared Table,
 write/read typed values, consume a complete bounded result and close or recover

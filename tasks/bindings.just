@@ -34,10 +34,12 @@ release-zig archive runtime:
 generate:
     just contract::client-generate contract::station-generate
     python3 -B bindings/generate.py --write
+    vp exec node bindings/node_validators.mjs
 
 check:
     just contract::client-check contract::station-check
     python3 -B bindings/generate.py
+    vp exec node bindings/node_validators.mjs --check
 
 # Qualify native and port ownership, codecs and durable capture.
 native:
@@ -89,12 +91,16 @@ query-failures *args:
 
 # Validate the current Node adapters and their asynchronous port transport.
 node-check:
+    vp exec node bindings/node_validators.mjs --check
+    vp exec node --test bindings/node_validators.test.mjs
     cd sdks/ts/transit-client && vp check
     vp exec --filter @transit/client node --test src/errors.test.ts src/port.test.ts
     # Station imports the package's emitted declarations and runtime exports.
     vp exec --filter @transit/client tsc
+    cp sdks/ts/transit-client/src/validators.{js,d.ts} sdks/ts/transit-client/dist/
     cd sdks/ts/transit-station-sdk && vp check
     vp exec --filter @transit/station tsc --noEmit
+    vp exec --filter @transit/station node --disallow-code-generation-from-strings --input-type=module -e 'await import("./src/index.ts")'
     vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts src/catalog.test.ts src/unified.test.ts src/relational.test.ts src/table.test.ts
 
 # Build version-matched Python wheels, including separate native dependencies.
@@ -144,10 +150,12 @@ node-sdk-test: node-build
     set -euo pipefail
     native_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize Debug)
     authority_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare authority --optimize ReleaseSafe)
+    vp exec node --test bindings/node_validators.test.mjs
     (cd sdks/ts/transit-client && vp check)
     vp exec --filter @transit/client tsc --noEmit
     (cd sdks/ts/transit-station-sdk && vp check)
     vp exec --filter @transit/station tsc --noEmit
+    vp exec --filter @transit/station node --disallow-code-generation-from-strings --input-type=module -e 'await import("./src/index.ts")'
     vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts src/catalog.test.ts src/unified.test.ts src/relational.test.ts src/table.test.ts
     (cd examples/station-sdk/typescript && vp check)
     vp exec --filter @transit/sdk-examples tsc --noEmit

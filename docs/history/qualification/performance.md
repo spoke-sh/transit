@@ -9,6 +9,292 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## SDK validator initialization and captured-read recovery — 2026-11-02
+
+This packet starts the approved [post-merge delivery plan](../../roadmap/08-gateway-architecture-and-protocol-ingress.md#post-merge-performance-delivery-plan--2026-11-01).
+The import comparison freezes the runtime/compiler control at `6e61f637e`
+(main `86df3afb5` plus the plan) and candidate at `4789964e6`. Both use
+shared definition `afac2bd84560136ca90c0683afdffb8f71d5f96568b05dd3de773ce3c5339b2a`
+and identical native client artifacts. Neither later recovery changes nor Board
+PR #326 are part of this import comparison. Later clean qualification is recorded
+separately below.
+
+Node builds now generate standalone validators from the canonical schemas with
+the pinned Ajv compiler/options. Runtime validation, complete Ajv diagnostics and
+public value decoding remain enabled; imports do not compile schemas. The
+checked-in generated digest and declaration check binds the ignored JavaScript
+build output. Differential checks compare 3,008 valid/malformed cases against
+the former runtime compiler, including nested values and full-width integers.
+
+### Installed import result
+
+AB/BA/AB pairs use 17/17/16 fresh processes per arm: all 100 imports complete.
+The installer, driver/program and native archives match. Every process imports
+both real installed packages outside the checkout. OS pages remain warm;
+package installation, client open and network/service work are excluded.
+Owned builds and physical checks are stopped during timing. Other jobs on this
+48-logical-CPU shared host are uncontrolled; these observations are not a tail SLO.
+
+| Metric | Runtime compiler (n=50) | Standalone functions (n=50) |
+| --- | ---: | ---: |
+| Module import median | 2,884.30 ms | 313.10 ms |
+| Launch through verified import median | 2,964.50 ms | 360.15 ms |
+| Import process CPU median | 3,920.85 ms | 339.10 ms |
+| Process peak RSS median | 344.33 MiB | 121.99 MiB |
+
+This is **9.21× faster import**, **11.56× less import CPU** and **64.57% lower
+peak RSS**. The predeclared exploratory median limits (500 ms import and
+343 MiB peak RSS) pass. They are not a whole-SDK/service or zero-allocation claim.
+Combined public SDK archives grow from 467,009 to 1,737,209 compressed bytes;
+unpacked payload grows from 7,657,735 to 22,889,429 bytes. Native archives are
+unchanged. Packaging durations are retained but were not paired timing experiments.
+
+### Cold open through verified metadata
+
+A second AB/BA/AB campaign uses the same package archives, 17/17/16 fresh
+processes per arm and one fixed headless native-local service with automatic
+maintenance. All 100 processes open both native clients, verify the declared
+Table's 70 rows and two columns through public metadata, then close and join.
+A deliberately wrong 71-row oracle fails, as required. The identical extended
+driver/program is committed at `0fc13c175` and copied onto the control checkout;
+the retained control patch changes only those measurement files. Service binaries
+are frozen at `7759e6f9f`, before Board PR #326, with exact hashes in
+`first-result-service.json`.
+
+| Metric | Runtime compiler (n=50) | Standalone functions (n=50) |
+| --- | ---: | ---: |
+| Launch through verified first metadata median | 2,931.69 ms | 396.81 ms |
+| Native client open median | 27.69 ms | 35.38 ms |
+| Joined close median | 83.78 ms | 36.19 ms |
+| Entire client lifecycle median | 3,016.46 ms | 435.56 ms |
+
+The first verified metadata result is **7.39× faster**, meeting the predeclared
+no-regression gate. This verifies that import savings survive opening clients
+and making a service call. It does not qualify SELECT consumption, snapshot
+cleanup, service startup or a combined all-language SDK campaign. Metadata-profile
+import CPU is explicitly unavailable; native hosts are separate processes.
+
+### Current default profiles and retained failures
+
+The current-definition default-maintenance console baseline passes all 47
+statements and process cleanup. Warm SELECT median is 36.8 ms (n=6), INSERT
+590.5 ms, UPDATE 861.5 ms, DELETE 805.0 ms and SELECT after DELETE 740.2 ms
+(n=5 each); one first SELECT takes 2.606 s. This does not explain or close the
+older `Canceled (HY000)` failure. These sparse unpaired samples do not qualify
+the durable-write or startup targets.
+
+The all-language SDK baseline fails in Zig's first full-result acquisition,
+before Python or Node runs. Its saved pending owner is 1000021; the last saved
+snapshot belongs to 1000020. The original fixture
+`/var/tmp/transit-server-proof-sfy8r0gr` was backed up and reopened with its exact
+matching frozen binaries/definition. Public status for owner 1000021 shows no
+snapshot and partition 3 at next LSN 37, beyond the proposed 36. That original
+exact acquisition was not accepted and cannot match the advanced frontier; there
+is no pin to release. Saved pending/snapshot files remain unchanged.
+
+New consumer diagnostics inspect only the original pin owner after acquire or
+release failure and preserve its status privately. Separate default-maintenance
+fixtures exercise all four consumers (70 rows, one warmup plus three measured
+iterations per case):
+
+| Consumer | Completed operations | Outcome |
+| --- | ---: | --- |
+| Node | 9 | Empty-read acquisition conflict; original owner has no snapshot, partition frontier 10 → 11 |
+| Python synchronous | 39 | Full-text acquisition conflict; no snapshot, frontier 39 → 40 |
+| Python asynchronous | 56 | All cases and joined cleanup pass |
+| Zig | 39 | Full-text acquisition conflict; no snapshot, frontier 40 → 41 |
+
+The failed fixtures and original identities remain retained. These are separate
+diagnostics, not a passing combined campaign or accepted speed comparison.
+Frontier movement establishes an exact-cut conflict, not its causal attribution
+to a particular maintenance operation. A shared current-read lifecycle must
+establish the original outcome before any new acquisition; silently substituting
+a later cut inside an exact acquire would change the contract.
+
+The older Python release fixture `/var/tmp/transit-server-proof-fc6c8_0s` was
+backed up and reopened with its original `a7d659b85` binaries, installed SDK and
+`7c81d0916913d774febe2bec8f739f95a194f3ca88056c9f1214c0f77f22fa89` definition.
+Status proves owner 2000023 still retains its original pin at partition 3 next
+LSN 69, with `released=false`. One explicit release of that original handle
+succeeds; subsequent status reports the same handle with `released=true`.
+Saved identity files are unchanged and all restarted processes join. This settles
+and cleans up the original pin; the initial release failure's cause remains open
+and its failed measurement remains failed. Older acquisition fixture
+`/var/tmp/transit-server-proof-v4g4vupo` was not requalified by these inspections.
+
+The console/default SDK baseline runtime was built from unchanged runtime
+sources at `6e61f637e` with an explicitly recorded dirty marker from concurrent
+SDK/test edits. It is not a clean-source runtime qualification. Later SDK
+diagnostics use the frozen `7759e6f9f` candidate binaries. These source scopes
+must not be combined into an integrated current-main performance score.
+
+### Recovery qualification
+
+A captured read can retain an unaccepted `open_view` proposal after its read
+window expires. The authority definitively rejects it with `DeadlineExpired`;
+the former QueryHost exits with `Rejected`, leaving the accepted SQL operation
+ready but unfinished. The host now renews only an explicitly rejected expired
+open, preserving its durable input and reobserving current sequence, resource
+revision and authorization. Lost replies retain the original signed command;
+pending commits and other refusals are not discarded. Native duplicate receipt
+lookup precedes deadline validation, so an already accepted open retains its
+original receipt rather than being classified by the new deadline branch.
+
+The committed SQL-session fault driver at `aa9d78d2e` holds only a previously
+unforwarded proposal past its real 30-second read window. It verifies exact bytes
+for uncertain retries, then forwards it and requires the actual authority's
+422 `DeadlineExpired` response. Renewal must preserve the input, resource,
+revision and sequence while advancing only the proposed deadline. Existing
+five-second transport and 270-second statement completion budgets remain intact.
+
+- **Old-host negative control:** exits 1 as expected. The proxy records 52 exact
+  attempts, one explicit deadline refusal and no successful renewed open. The
+  original captured operation 56 remains ready/unblocked when its existing
+  completion budget expires. The failed installation is retained.
+- **Fixed-host control:** exits 0. The proxy records 65 exact attempts, one
+  explicit refusal and a successful renewal. Original operation 55 completes;
+  all 41 independent UTF-8 values verify across 32- and 9-row batches, followed
+  by the remaining selected captured-recovery schedule and joined cleanup.
+- Station owner unit tests pass for uncertain transport, future deadlines,
+  stale generations, pending commits and preservation of the durable input.
+
+The initial private orchestration postprocessor returned failure because it also
+required a rate-limited application log message. The dedicated proxy counter
+records only an actual authority deadline refusal and proves the negative control
+independently of that lossy log. `recovery-analysis.json` records this correction;
+the original process exit codes, output and raw record are unchanged.
+
+### Original captured work and clean qualification
+
+The earlier failed SQL installation `/var/tmp/transit-direct-sql-wire-fw0zomw9`
+was backed up before starting only its original frozen node. Every retained
+binary hash matches its failure manifest at `a7d659b85`, with definition
+`7c81d0916913d774febe2bec8f739f95a194f3ca88056c9f1214c0f77f22fa89`.
+The original gateway's public `control status 63` reports captured work 63 still
+`ready`, with summary `none`. No SQL or worker activation is replayed, original
+configuration files remain unchanged and the inspection node is joined.
+`original-captured-inspection.json` and `original-captured-status.json` retain
+the exact command and observation. This reports the original pending outcome;
+a new fixture does not settle that older accepted work.
+
+At committed SQL qualification source `528302f9a`, the complete clean SQL lane passes
+all eight tasks. Its session schedule verifies 41/12/41 exact KV/Document/Table
+values. The expired Table open records 58 exact attempts, one authoritative
+deadline refusal and complete results for the same operation across 32- and
+9-row batches. That fresh installation's operation 63 is distinct from the
+older retained failure whose local numeric ID is also 63.
+
+Earlier clean failures remain recorded:
+
+- The initial fast check at `8fa284fed` stops on diagnostic inventory drift from
+  integrated Board observation changes and the new recovery branch. After review,
+  `4dd9375e1` refreshes the canonical inventory without changing a protocol
+  definition or error mapping. `/var/tmp/transit-ci-u6fmmb9i` is retained.
+- The SQL lane at `4dd9375e1` passes TLS, allocations, gateway, sessions, integrity
+  and history, then exposes a Queue fixture error. A second ACK under a new SQL
+  token is correctly rejected as `lease_fenced`, but the helper asserts success
+  before returning that expected refusal. Commit `7a5dc15c1` lets this one call
+  select its expected terminal outcome; other callers keep their success
+  assertions and wait budgets. The failed fixture
+  `/var/tmp/transit-direct-sql-wire-4m9vduin` is retained.
+- The full `7a5dc15c1` SQL rerun again passes those six tasks and the fenced-ACK
+  assertion, then stops at MySQL ACK's no-row assertion. Pinned Connector/Python
+  9.4.0 retains a prepared cursor's prior column description after an OK packet.
+  A local diagnostic reproduces `rowcount=0, with_rows=true`; an unused cursor
+  gives `rowcount=0, with_rows=false` for the same response. Commit `528302f9a`
+  separates CLAIM and ACK cursors while preserving both ACK assertions. The
+  failed checkout `/var/tmp/transit-ci-0rvpsf1x` and fixture
+  `/var/tmp/transit-direct-sql-wire-omma5lxy` are retained. Transactions were
+  unreached in both failed lanes.
+
+Neither fixture correction changes Queue execution, lease duration, returned
+counts or retry semantics. A focused physical `sessions-log` run at driver
+`528302f9a` passes against the exact frozen `7a5dc15c1` binaries: native,
+PostgreSQL, MySQL and console CLAIM/ACK checks, original receipts after ALTER,
+DROP and replacement, MySQL zero affected rows/no row result, and joined cleanup.
+`mysql-ack-physical.json` records the executable hashes;
+`mysql-prepared-cursor-diagnostic.log` records the connector diagnostic.
+
+A separate clean clone at `4dd9375e1` installs only root and client compiler
+dependencies. Validator generation/check passes without Station dependencies or
+tracked drift. The SDK report validator accepts the complete Python async
+campaign and rejects all three failed campaigns. These checks do not turn the
+failed default-maintenance measurements into accepted scores.
+
+The installation/UI lane at `528302f9a` passes its first 16 tasks, then the
+declarative-browser fixture stops on `503 ControlCapacity` while observing an
+already accepted native authorization change. Original change 86, begin sequence
+74 and later advance sequences 75/76 remain in the retained installation
+`/var/tmp/transit-browser-p3l3gge8`; its terminal status was not observed. The
+failed clean checkout `/var/tmp/transit-ci-za8iwj84` and frozen executables remain
+available. This refusal is not a rejection of the accepted policy change.
+
+Commit `2fcede086` opts those observations into the existing bounded retry helper
+and admits `ControlCapacity` retries only for native identity/authorization
+queries. It retains the same signed query and original change, reports refusal
+counts, and leaves mutation retries, runtime capacity and the existing 15-second
+retry budget unchanged. Synthetic helper controls cover successful read retries
+and refusals to retry commands, Table actions, snapshot closure, malformed input,
+opted-out reads and unknown mutation outcomes. These helper controls are not
+runtime durability evidence; the physical and clean results are recorded separately.
+
+The focused browser schedule passes at driver `2fcede086` against frozen
+`528302f9a` executables, including watch revocation, 81 durable identities,
+restriction/expiry, authorization after buffering, multi-page ownership,
+source-definition replacement, origin/proxy checks and the documented example.
+`browser-capacity-physical.json` binds those binaries and the separately retained
+original policy identity; `read-capacity-controls.json` records the helper controls.
+
+| Committed source | Clean selection | Executed result | Evidence directory under `.cache/ci/clean/` |
+| --- | --- | --- | --- |
+| `2fcede086` | `fast` | 64 checks pass | `2fcede086b0b-transit-ci-06m44rsm` |
+| `4dd9375e1` | `contracts` | 20 checks pass | `4dd9375e1231-transit-ci-n7qe67t7` |
+| `4dd9375e1` | `sdks-scripting` | 3 tasks pass | `4dd9375e1231-transit-ci-pik0o9v3` |
+| `528302f9a` | `interfaces-sql` | 8 tasks pass | `528302f9a435-transit-ci-7q79ne9b` |
+| `2fcede086` | `installation-ui` | 17 tasks pass | `2fcede086b0b-transit-ci-asg4jsdl` |
+
+Each row is verified against the clean runner's original completion metadata:
+preparation succeeds, the source is clean, and every expected check/task completes
+with exit zero. Runtime, SDK and contract changes are unchanged after
+`4dd9375e1`; later commits repair the SQL/browser fixtures and clarify timing
+wording. SQL qualification at `528302f9a` includes both ACK fixture corrections;
+fast and installation/UI qualification at `2fcede086` includes the final browser
+observation fix. Final documentation changes do not relabel these executed sources.
+
+These are selected local checks, not full hosted CI, release or cross-platform
+qualification. The repository selector requests all 13 lanes for this shared
+change; unexecuted lanes remain the integration/release gate. Component controls,
+physical schedules and these clean lanes do not turn failed performance campaigns
+into accepted scores.
+
+### Evidence and remaining gates
+
+Raw invocations, manifests, package/driver/binary identities, samples and
+predeclared policies are retained under `.cache/performance/recovery-validators/`;
+failed installations remain at the private paths recorded above. `summary.json`,
+`first-result-summary.json`, `recovery-checks.json`, `recovery-analysis.json`,
+`original-inspection.json`, `original-release-settlement.json`,
+`original-captured-inspection.json` and `sdk-diagnostic-invocations.json`
+attribute the separate experiments. The validator differential corpus passes all
+3,008 cases; the Node SDK test task also imports source modules with string code
+generation disabled.
+
+`clean-checks-initial.json`, `clean-checks.json`, `clean-final-checks.json`,
+`clean-qualified-checks.json` and `clean-complete-checks.json` retain all clean
+attempts, including failures and unreached tasks. `verified-clean-index.json`
+indexes the passing original runner metadata and its hashes; it is a derived
+index, not a replacement proof record. The MySQL/browser physical controls and
+read-capacity helper controls retain their separate manifests and logs. Main
+`db0bb4a8f` is included in these clean qualification sources; the earlier timing
+experiments retain their explicitly frozen builds.
+
+R1a and V2 have implemented controls and measured evidence. R1b's original release
+outcome is settled but its failure cause is not; exact snapshot acquisition and
+R1c's earlier console cancellation remain reliability obligations. Managed
+batching, shared SQL/SDK settlement, deadline scheduling, history-bearing startup
+and new workload measurements remain the subsequent M3/C4/D5/S6/E7 packets.
+Issue #211 and the 10–100× program remain open.
+
 ## Integrated performance measurement packet — 2026-11-01
 
 This packet implements the [current-main performance plan](../../roadmap/08-gateway-architecture-and-protocol-ingress.md#current-main-performance-implementation--2026-11-01).

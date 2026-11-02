@@ -117,6 +117,14 @@ the authority proxy. INSERT settlement must still observe the original
 identity, terminal outcome and exact counts; typed reads and restart/token retry retain
 that same row and operation. This tests uncertain-owner reply recovery without changing physical sync semantics.
 
+Captured Table recovery after gateway replacement also holds a worker's original
+view-open request past its proposed read deadline. All uncertain attempts must
+remain byte-identical. A renewed window is permitted only after the real
+authority explicitly rejects the expired open, with the same input, resource,
+revision and unconsumed principal sequence. The recovered SQL operation keeps
+its original identity and must return the original expected rows. This fault
+uses the normal worker deadline and does not extend the completion budget.
+
 `history.py` drives selected historical catalogs through native SQL, PostgreSQL
 and MySQL, including rename/name reuse, prepared execution, current revocation,
 gateway replacement and explicit release. `just test::sql-history` owns this

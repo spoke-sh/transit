@@ -139,7 +139,7 @@ class Client:
             assert time.monotonic() < deadline, 'concurrent read capacity did not recover'
             time.sleep(.02)
 
-    def terminal(self, operation):
+    def terminal(self, operation, *, outcomes=('applied', 'unchanged')):
         deadline = time.monotonic() + (270 if operation['identity']['kind'] == 'captured' else 90)
         while operation['phase'] != 'terminal':
             assert not operation['blocked'] and time.monotonic() < deadline, operation
@@ -149,7 +149,7 @@ class Client:
             observed = self.call(dict(status=dict(operation=operation['identity'])), unavailable=True)
             if observed is not None:
                 operation = observed['operation']
-        assert operation['outcome'] in ('applied', 'unchanged'), operation
+        assert operation['outcome'] in outcomes, operation
         return operation
 
     def close(self):
@@ -399,11 +399,20 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
     assert prior['identity'] in [entry['identity'] for entry in inventory['entries']]
     restored.close()
     for name, count, token, identity in captured:
+        if faults is not None and name == 'table':
+            faults.expire_view_principal = json.loads((root/'session-table-requester.json').read_text())['principal']
         select_source(name)
         selected = Client(root, port).open(name)
         original = selected.execute('SELECT value FROM items', token, captured=True)['operation']
         assert original['identity'] == identity
         selected.terminal(original)
+        if faults is not None and name == 'table':
+            assert faults.expired_view_attempts >= 2 and faults.expired_view_refusals >= 1
+            assert faults.reopened_view is not None
+            print(json.dumps(dict(profile='native_sql_expired_view_open_recovery',
+                                  exact_attempts=faults.expired_view_attempts,
+                                  deadline_refusals=faults.expired_view_refusals,
+                                  original_operation=identity)), flush=True)
         if faults is not None and name == 'kv':
             configured = next(source for source in json.loads((root / 'sql-gateway.json').read_text())['accounts'][0]['sources'] if source['name'] == name)
             result_fault = faults.failures
@@ -423,6 +432,12 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
             result = selected.call(dict(fetch=dict(cursor=result['cursor'], batch=result['batch']+1)))['batch']
             batches.append(dict(selected.sample, rows=len(result['rows'])))
         assert len(rows) == count
+        padding = 64 if name == 'document' else 128
+        expected = []
+        for index in range(count):
+            value = f"東京🙂/{'x'*padding}/{index:02}".encode()
+            expected.append([(b'\x03' + len(value).to_bytes(4, 'little') + value).hex()])
+        assert sorted(rows) == sorted(expected), 'Recovered result changed original source values'
         print(json.dumps(dict(profile='native_sql_retained_batches', source=name, rows=count,
                               batches=batches, logical_cell_bytes=sum(len(cell)//2 for row in rows for cell in row),
                               limits='Retained result after SQL service restart. Every returned batch is retried for exact equality; retry latency/bytes are excluded here. HTTP body bytes include schema and source basis. This does not measure ledger/storage bytes or isolate concurrent recovery.')), flush=True)

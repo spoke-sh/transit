@@ -1,8 +1,6 @@
-import { Ajv, type AnySchema } from "ajv";
-import schemas from "./schemas.json" with { type: "json" };
+import { Diagnostic as validateDiagnostic } from "./validators.js";
 import type { Diagnostic } from "./wire.ts";
 export type { Diagnostic } from "./wire.ts";
-const validateDiagnostic = new Ajv({ strict: true }).compile(schemas.Diagnostic as AnySchema);
 
 /** Native categories; optional caller detail is excluded from the error message. */
 export class TransitError extends Error {

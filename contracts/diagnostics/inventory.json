@@ -36021,6 +36021,7 @@
         "NoPendingOperation": 1,
         "NoPreparedTurn": 2,
         "PendingOperation": 2,
+        "Rejected": 1,
         "RequiredStateAssociation": 1,
         "StateViewBudgetExceeded": 1,
         "UninitializedBehavior": 1,
@@ -36077,7 +36078,7 @@
         "setReadResources()": "<inferred>",
         "step()": "<inferred>"
       },
-      "open_error_set_uses": 14,
+      "open_error_set_uses": 15,
       "propagation": {
         "try": 39,
         "catch": 11

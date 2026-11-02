@@ -347,6 +347,12 @@ execution, the full fault/growth matrix and T5/T8 correspondence remain open.
 The [qualification record](../history/qualification/query.md#retained-managed-table-revisions--2026-11-01)
 records executed checks and their source-specific limits.
 
+The [post-merge performance review plan](08-gateway-architecture-and-protocol-ingress.md#post-merge-performance-delivery-plan--2026-11-01)
+coordinates M3's proposed bounded page/statement batching and E7's retained-revision
+measurements. Both preserve this contract's common decision and current read
+checks; incompatible page/work changes require a current-v1 cutover. They do not
+complete R1b collection or introduce incremental execution.
+
 ### Source assessment at the plan baseline
 
 | Boundary | Present at the plan baseline | Work identified by the plan |

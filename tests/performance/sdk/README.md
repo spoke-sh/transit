@@ -34,8 +34,11 @@ and build metadata must match `--native-prefix`; the report records that build's
 revision, dirty state and source hash separately from the driver checkout.
 Comparison refuses missing native source provenance.
 When reusing Node packages from another checkout of the same source, first run
+`vp exec node bindings/node_validators.mjs --check`, then
 `vp exec --filter @transit/client tsc` and
-`vp exec --filter @transit/station tsc` in the driver checkout. The shared installer
+`vp exec --filter @transit/station tsc` in the driver checkout. Copy each package's
+`src/validators.js` and `src/validators.d.ts` into its `dist/` directory, as the
+Node package builder does. The shared installer
 compares the packaged Catalog/Query code and contract with these compiled outputs
 before installing the isolated consumer.
 
@@ -97,6 +100,14 @@ can fail with a frontier conflict; the driver retains that attempt and original
 identity, and does not silently choose a new snapshot or resample it. Passing
 the isolated profile does not qualify concurrent maintenance behavior.
 
+After acquisition or release failure, consumers make one read-only status
+request for the original pin owner and retain `snapshot-failure.json` privately.
+Stderr reports only the failing phase, public error classification and bounded
+retained/released/retired flags. Status failure does not replace the original
+failure; successful status does not turn a failed measurement into a pass. Saved
+acquisition and snapshot files remain unchanged, including when they refer to
+different owners because a new acquisition failed before saving its snapshot.
+
 No numeric SDK regression budget is active yet. Qualify at least three
 alternating matched pairs with at least 50 steady samples per arm and case
 before freezing budgets. Repeat cold starts independently and retain every
@@ -123,3 +134,22 @@ the actual sample counts. Build each arm's packages and compiled SDK outputs in
 its own source checkout: the installer validates the tarball against those
 outputs. Missing packages, failed imports or incomplete experiments do not pass.
 This diagnostic has no frozen numerical regression budget.
+
+For a separate first-service-result profile, add
+`--first-metadata /private/client.json --table sdk_items --expected-rows 70 --expected-columns 2`.
+Use the same client configuration shape as the installed SDK workload and an
+existing matching service. Each fresh Node process opens the installed Catalog
+and Query clients, verifies the Table's row/column counts through the public
+metadata operation, then closes and joins its native hosts. No query or snapshot
+is opened. Record service/native binary identities with the experiment and keep
+the service, fixture, maintenance and caches fixed across alternating arms.
+The driver records the private configuration's digest, never its contents.
+
+`first_result_ns` covers process launch through the first independently verified
+metadata result. `import_ns` and `open_ns` come from the existing installed
+consumer; `close_ns` covers joined cleanup. `launch_ns` covers the whole sample,
+including metadata, observation and close. Peak RSS is the Node process high-water
+mark after metadata, excluding native hosts; import CPU is unavailable in this
+profile. Missing values, failed cleanup and incomplete campaigns still fail.
+These observations qualify cold SDK initialization through metadata, not server
+startup, SELECT consumption, snapshot settlement or the full SDK workload.

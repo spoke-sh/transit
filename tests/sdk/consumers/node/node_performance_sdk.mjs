@@ -26,6 +26,22 @@ async function persist(name, data) {
 }
 const opening = process.hrtime.bigint();
 const client = await m.Client.open(configuration, credential, connection);
+async function snapshotFailure(owner, operation) {
+  // Inspect the original owner only; this never retries acquisition or release.
+  try {
+    const status = await client.snapshotStatus(owner);
+    await persist('snapshot-failure.json', JSON.stringify({
+      owner: JSON.parse(owner.save()),
+      current_position: { partition: status.currentPosition.partition.toString(), next_lsn: status.currentPosition.nextLsn.toString() },
+      snapshot: status.snapshot ? JSON.parse(status.snapshot.save()) : null,
+      released: status.released, retired: status.retired,
+    }));
+    console.error(JSON.stringify({ phase: 'snapshot_failure', operation,
+      retained: status.snapshot !== undefined, released: status.released, retired: status.retired }));
+  } catch (error) {
+    console.error(JSON.stringify({ phase: 'snapshot_status_failed', error_type: error.constructor.name }));
+  }
+}
 let query;
 try {
   query = await r.Client.open(configuration, credential, [connection], {
@@ -55,7 +71,9 @@ try {
         const current = await client.lookup(request.name);
         const acquisition = client.prepareSnapshot(current, BigInt(request.id));
         await persist('pending.json', acquisition.save());
-        const snapshot = await client.acquireSnapshot(acquisition);
+        let snapshot;
+        try { snapshot = await client.acquireSnapshot(acquisition); }
+        catch (error) { await snapshotFailure(acquisition.owner, 'acquire'); throw error; }
         await persist('snapshot.json', snapshot.save());
         let opened;
         try {
@@ -92,7 +110,10 @@ try {
           Object.assign(result, { rows, digest: digest.digest('hex'), complete, first_row_ns: first });
         } finally {
           try { if (opened) await query.closeQuery(opened.reference); }
-          finally { await client.releaseSnapshot(snapshot); }
+          finally {
+            try { await client.releaseSnapshot(snapshot); }
+            catch (error) { await snapshotFailure(acquisition.owner, 'release'); throw error; }
+          }
         }
         break;
       }

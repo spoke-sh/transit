@@ -66,3 +66,10 @@ unsafe protocol integers and malformed data even from untyped JavaScript.
 application API. M9's generic Station adapter remains under `@transit/station`.
 The qualified packaging target is Linux x86_64 and ARM64 with the pinned Nix linkage;
 registry publication and portable platform builds remain outside this slice.
+
+Node package builds compile the canonical schemas into standalone validators
+with pinned Ajv options. Importing loads these functions without compiling schemas
+or starting a native host. Runtime boundary validation and complete Ajv errors
+remain enabled. `just bindings::generate` updates validator digests and declarations;
+`just bindings::node-check` regenerates the build output, checks drift and compares
+acceptance and diagnostics with the schema compiler.
