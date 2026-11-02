@@ -519,6 +519,37 @@ Its transcript is `/var/tmp/transit-m6-local-queue-closure.log` (SHA-256
 `917bb09ccca7803e6fc7721db9d6df1831903f9015cab423909ca0493728f0f3`).
 This focused schedule does not qualify the previously failed complete lane.
 
+## M6 clean storage/query continuation — 2026-11-02
+
+The third clean storage/query invocation, at `6ce4e3ec2`, passes its first **13
+tasks**, including the complete `local-catalog` task in **4,075.24 s**. The latter
+now reaches the Queue maintenance, retention and wait/revocation schedules after
+the repaired refusal assertion. It preserves the native Stream settlement proof,
+original Queue outcomes, retained reads and current disclosure checks. This
+closes both native fixture regressions from the preceding attempts.
+
+The lane then **fails** `direct-table-service` in **381.62 s**. Provisioning,
+writes, request/response pressure, reserved recovery, history, SQL pins and
+original Table read/receipt recovery pass before the lifecycle fixture expects
+`constraint` for a populated codec change and receives `rewrite_required`.
+The [current ALTER contract](../../handbook/reference/sql/alter-table.md) refuses
+populated codec and collation rewrites before attempting row conversion. The
+fixture's older expectation, and its later assumption that a populated collation
+change succeeds synchronously, are also present in the branch's main baseline.
+
+The failed installation remains at `/var/tmp/transit-table-tables-_73d4c_j` and
+the clean checkout at `/var/tmp/transit-ci-01zlpq57`. Owner metadata records
+`completed: false`, 14 attempted tasks and 19 unexecuted tasks; the lane is not a
+pass. The transcript `/var/tmp/transit-m6-clean-storage-query-3.log` has SHA-256
+`132d4a83148890fd335753a57fd33d33fce1a3ef9bd6a71dd522ab818eb1a3fd`.
+
+Commit `57e936404` creates the synthetic Table with its intended nonbinary
+collation, then checks exact `rewrite_required` refusals for both populated codec
+and collation edits. Both original refusal bindings remain in the restart
+fixture; definition/data-frontier checks and retained original row values remain
+required. The change does not implement a rewrite runtime or reinterpret the
+failed installation's accepted operations.
+
 ## Verified Queue eligibility prefixes across transitions — 2026-11-01
 
 Commit `41b371ff6` carries a bounded eligibility prefix across deterministic
