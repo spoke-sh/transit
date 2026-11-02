@@ -113,13 +113,16 @@ using them. Its primary-key footer is a sorted resident directory, not a paged
 B-tree. The host must verify object identity/range integrity, retain the source
 and check current authorization; the reader supplies none of those authorities.
 
-Encoded predicates use `PhysicalCodecs.evaluateColumnPage`, also used by the
-Table reader. Dictionary execution validates and evaluates each physical entry
-once, then reads cached outcomes by code; collation-equivalent spellings may have
-distinct codes. FSST equality, ordering and prefix predicates stream symbol bytes
+Encoded predicates use `PhysicalCodecs.evaluateColumnPredicates`, also used by the
+Table reader to evaluate all atoms for a column in one traversal. Dictionary
+execution validates each physical entry once, saves each atom's outcome without
+retaining decoded text, then reads cached outcomes by code;
+collation-equivalent spellings may have distinct codes. FSST equality,
+ordering and prefix predicates share one traversal of symbol bytes
 under binary/ASCII case-folding order without allocating decoded strings. They
 still validate every token, decoded length and UTF-8 scalar after a decision is
-known. CP037 and complex patterns use the bounded shared decoder. Selected
+known. If any atom needs bounded decoding, including EBCDIC collations and complex
+patterns, each value is decoded once for all atoms. Selected
 projection uses that same decoder and preserves raw bytes and conflict details;
 unselected corrupt values or details cannot be hidden by filtering. Per-page
 counters distinguish streamed and materialized FSST predicate values. No new
@@ -200,9 +203,11 @@ text, binary and JSON bytes borrow immutable input, recursive arrays belong to
 the supplied arena, and `Values.cloneValidated` produces a detached owned cell.
 
 `PhysicalCodecs.evaluateColumnPage` evaluates one `ColumnPredicate` over physical
-values, runs or dictionary codes. Its output owns one byte per row, preserving
-true, false, unknown, type error and conflict separately. RLE runs and dictionary
-entries evaluate once. Binary/ASCII symbol-table comparisons stream validated
+values, runs or dictionary codes. `evaluateColumnPredicates` accepts 1–64 atoms
+and returns one owned predicate-major allocation with one byte per row per atom,
+preserving true, false, unknown, type error and conflict separately. Its
+`predicate(index)` slices borrow that allocation. RLE runs and dictionary
+entries visit all atoms together. Binary/ASCII symbol-table comparisons stream validated
 bytes; other symbol-table predicates and EBCDIC strings use bounded transient
 decoding. The caller keeps the typed literal alive during evaluation and owns
 scratch/output allocations. The complete encoded page is validated before
@@ -268,8 +273,12 @@ instructions across the declared columns. It evaluates all atoms, then uses the
 shared Boolean machine to preserve eager row/instruction failure order.
 Conservative zone-map truth sets retain unknown values under NOT/AND/OR; any
 possible eager error prevents pruning. Each atom's outcome vector shares the
-decoded budget, and only one encoded page is live. Repeated atoms can read the
-same column again. `Program.fromLogical` and `Program.fromPlan` retain atom and instruction order while
+decoded budget, and only one encoded page is live. Nonconstant atoms sharing a
+column use one range read, integrity check and physical traversal per group.
+Their independent outcomes retain the original instruction positions, including
+interleaved atoms from other columns. Constant `all` atoms need no page read.
+Selected projection still reads its pages separately after filtering.
+`Program.fromLogical` and `Program.fromPlan` retain atom and instruction order while
 borrowing literals into caller-supplied instruction storage. The host binds its
 exact Table interpretation; this conversion creates no saved plan or new wire
 identity. Plain decoded `Program.truth` and encoded evaluation use the same

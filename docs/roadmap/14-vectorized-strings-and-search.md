@@ -269,7 +269,7 @@ Milestone 14 or qualify the later search components.
 | R0 | Corrected X004/X005/X007 stage claims; real compiler rejection controls; independent Python-to-Zig string execution with retained corpus/output/provenance | Ranking/fusion correspondence and end-to-end benchmark qualification accompany their production integration |
 | R1 | External SIMD reads bounded by slice length, including exact allocations and protected-page tails; existing SQL/LogDdl maps retained | Constant IN/NOT IN binding follows M12 expression admission; schema/page directories need bound-owner reuse and measured benefit |
 | R2 | Lossless 16-byte Batch string lanes, cached long-string prefixes, aligned arrays, owned/borrowed lifetimes, five-state sidecars and sealed allocation tests across 300 resets | Compact retained relational keys, partitions/spill and M13 page-lease integration remain separate operator work |
-| R3 | Production FSST streaming comparisons/prefixes, shared full validation and late projection; dictionary outcome caching without the prototype's 1,024-entry ceiling or rejection of equivalent spellings | Reuse encoded pages across atoms, additional pattern kernels and format-level packed directories need their own qualification |
+| R3 | Production FSST streaming comparisons/prefixes, shared full validation and late projection; dictionary outcome caching without the prototype's 1,024-entry ceiling or rejection of equivalent spellings; the follow-up below shares each column traversal across atoms | Literal preparation, additional pattern kernels and format-level packed directories need their own qualification |
 
 The old separate compressed-string evaluator and normalized-key materializer
 are removed. Production reads use `evaluateColumnPage` and
@@ -411,9 +411,30 @@ ordinary string-query improvements through R3 without waiting for search DDL or
 ANN. R8 accompanies each exposed slice; it is not a final adapter rewrite.
 R0–R3 are partially delivered, not restart instructions. R4–R9 remain open.
 
+### Encoded predicate reuse increment — 2026-11-01
+
+The first implementation follow-up addresses the production traversal portion of
+R3 and extends R0's independent oracle. `TSegReader` groups nonconstant atoms by
+column, reads and validates each predicate page once per group, and retains
+independent outcomes at their original instruction positions. `PhysicalCodecs`
+visits each dictionary entry or FSST value once for all atoms. Dictionary caches
+reserve only the active predicate width; mixed FSST predicates decode a value
+once if any atom requires decoding. Selected projection remains a separate read.
+The [component owner](../../packages/zig/transit-fuze/README.md) and
+[query internals](../handbook/internals/query-engine.md#logical-types-and-physical-codecs-and-collation-semantics) describe
+the current behavior and budgets.
+
+This is a transient execution change: it adds no stored format, saved-plan
+semantics, SQL syntax or index authority. The current-v1 definition does not
+change. Literal preparation, incoming-selection fusion, additional patterns,
+schema/page directory experiments and the installed performance baseline remain
+open; this increment does not complete R0, R3 or Milestone 14. The rest of the
+review sequence below retains its original capability gates.
+
 ### Next review units
 
-These are proposed implementation changes, not new completion claims. Each unit
+Except for the delivered traversal increment above, these are proposed changes,
+not new completion claims. Each unit
 includes its public owner updates, positive/negative capability cases and the
 owning tests. Keep the existing R labels so earlier evidence remains attributable.
 
@@ -449,8 +470,9 @@ owning tests. Keep the existing R labels so earlier evidence remains attributabl
    collisions and collation-equivalence differential tests plus bounded backing
    reservations. Broader ORDER BY syntax or join forms remain M12 work.
 4. **R3: reuse one validated page and literal preparation across predicates.**
-   Change `TSegReader`/`PhysicalCodecs` ownership so atoms share charged page
-   validation and dictionary outcomes without suppressing eager failures.
+   The first increment shares `TSegReader`/`PhysicalCodecs` page validation and
+   dictionary traversal without suppressing eager failures. Extend this to
+   plan-owned literal preparation and shared filter/projection ownership.
    Carry incoming selections into decoding; stream only proved FSST patterns
    and use bounded decoding for the others. Benchmark once-per-owner schema
    directories and page directories before adopting them. Keep optional packed
