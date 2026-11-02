@@ -1,4 +1,4 @@
-"""Compare the pure Zig parsers with Python JSON and Expat, including raw spans."""
+"""Compare pure parsing/construction with Python JSON and Expat, including spans."""
 import hashlib
 import json
 from pathlib import Path
@@ -30,8 +30,8 @@ def invoke(binary, family, source, chunk):
     return lines[-1], events
 
 
-def serialize(binary, source, chunk):
-    result = subprocess.run([binary, "json-write", str(chunk), source.hex()],
+def serialize(binary, source, chunk, family="json"):
+    result = subprocess.run([binary, f"{family}-write", str(chunk), source.hex()],
                             capture_output=True, text=True, timeout=10)
     assert result.returncode == 0, (source, result.stderr)
     lines = result.stdout.splitlines()
@@ -176,6 +176,18 @@ def main():
                 canonical = encoded
             assert encoded == canonical, (source, chunk)
             constructed += 1
+    xml_constructed = 0
+    for source in xml_sources:
+        expected = xml_events(source)
+        canonical = None
+        for chunk in (1, 3, 17, 8192):
+            encoded = serialize(binary, source, chunk, "xml")
+            assert encoded is not None
+            assert xml_events(encoded) == expected, (source, encoded, expected, xml_events(encoded))
+            if canonical is None:
+                canonical = encoded
+            assert encoded == canonical, (source, chunk)
+            xml_constructed += 1
     # These are invalid in the standards, not merely outside the qualified subset.
     negatives = {
         "json": [b"[1,]", b"01", b"true false", b'"\\x"', b'"\xc0\x80"', b"1.", b"{"],
@@ -192,8 +204,7 @@ def main():
                 status, _ = invoke(binary, family, source, chunk)
                 assert status.startswith("error\t"), (family, source, status)
                 schedules += 1
-                if family == "json":
-                    assert serialize(binary, source, chunk) is None, source
+                assert serialize(binary, source, chunk, family) is None, source
     # Mutate a deterministic subset; oracle-invalid bytes must never complete.
     # Valid mutations are covered by the value/order corpus above, avoiding a
     # false full-XML claim for namespace/non-ASCII-name mutations.
@@ -213,10 +224,11 @@ def main():
                 for chunk in (1, 8192):
                     status, _ = invoke(binary, family, source, chunk)
                     assert status.startswith("error\t"), (family, source, status)
+                    assert serialize(binary, source, chunk, family) is None, source
                     schedules += 1
                 invalid_mutations += 1
     assert invalid_mutations >= 300, invalid_mutations
-    print(f"Document construction: {constructed} independent JSON round trips and byte commitments passed")
+    print(f"Document construction: {constructed} JSON and {xml_constructed} XML independent round trips and byte commitments passed")
     print(f"Document profiles: {schedules} independent JSON/Expat chunk schedules, values, order, provenance and malformed-frame refusals passed")
 
 

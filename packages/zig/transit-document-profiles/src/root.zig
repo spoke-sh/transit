@@ -3,6 +3,7 @@
 pub const Container = @import("Container.zig");
 pub const Profile = @import("Profile.zig");
 pub const Reader = @import("Reader.zig");
+pub const XmlWriter = @import("XmlWriter.zig");
 pub const Xml = @import("Xml.zig");
 pub const JsonWriter = @import("JsonWriter.zig");
 pub const Json = @import("Json.zig");
@@ -14,4 +15,5 @@ test {
     _ = @import("json_test.zig");
     _ = @import("json_writer_test.zig");
     _ = @import("xml_test.zig");
+    _ = @import("xml_writer_test.zig");
 }

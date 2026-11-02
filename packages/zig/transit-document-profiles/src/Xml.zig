@@ -346,20 +346,14 @@ fn readAttribute(raw: []const u8, index: *usize) !Attribute {
     return .{ .start = start, .name_end = name_end, .value_start = value_start, .value_end = value_end, .end = index.* };
 }
 
-fn nameStart(c: u8) bool {
-    return std.ascii.isAlphabetic(c) or c == '_';
-}
-fn nameContinue(c: u8) bool {
-    return nameStart(c) or std.ascii.isDigit(c) or c == '.' or c == '-';
-}
+const nameStart = @import("XmlLexical.zig").nameStart;
+const nameContinue = @import("XmlLexical.zig").nameContinue;
+const xmlChar = @import("XmlLexical.zig").xmlChar;
 fn space(c: u8) bool {
     return c == ' ' or c == '\t' or c == '\r' or c == '\n';
 }
 fn skipSpace(raw: []const u8, index: *usize) void {
     while (index.* < raw.len and space(raw[index.*])) index.* += 1;
-}
-fn xmlChar(c: u21) bool {
-    return c == 9 or c == 10 or c == 13 or (c >= 0x20 and c <= 0xd7ff) or (c >= 0xe000 and c <= 0xfffd) or (c >= 0x10000 and c <= 0x10ffff);
 }
 
 fn entity(raw: []const u8) !u21 {
