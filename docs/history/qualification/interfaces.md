@@ -16,9 +16,10 @@ result/control identities while each view reacts to configuration, visibility,
 refusal and replacement. This implements R1 of the approved
 [M30 sequence](../../roadmap/30-board-reimplementation.md#next-implementation-sequence-after-pr-326--2026-11-01).
 The broad integration source is committed `8b91285ac`, including `origin/main` at
-`095544060`. Final runtime source `967bf3a79` additionally classifies a changed
-shared result identity as incompatible, stopping automatic retries, and formats
-the formal Nix environment. Current semantics belong in the
+`095544060`. Final runtime/test source `a72de1a76` additionally stops automatic
+retries after a changed shared result identity, preserves binding objects for a
+revalidated interface generation, formats the formal Nix environment and handles
+typed control-capacity refusals in the installed read fixture. Current semantics belong in the
 [workbench guide](../../../apps/transit-board/docs/workbench.md#operations-and-observation-states),
 [owner inventory](../../../apps/transit-board-web/README.md) and
 [observation account](../../handbook/internals/service-interfaces.md#board-observation-state).
@@ -50,7 +51,7 @@ files, 67 query-client tests, 13 application-client tests and seven diagnostic
 tests. All 64 fast checks also pass after formatting the formal Nix environment;
 that later whitespace change does not change its inputs or behavior.
 
-At final `967bf3a79`, a fresh isolated checkout at
+At `967bf3a79`, a fresh isolated checkout at
 `/var/tmp/transit-r1-final-rto_czv9/src` passes formatting, lint, strict TypeScript,
 all 124 Board tests and the complete Board model/replay with all six negative
 controls. The extra test uses the actual shared reader to refuse a changed result
@@ -59,6 +60,15 @@ The focused run's source/tool/command records are in that checkout's ignored
 `.cache/r1-focused/`; model hashes and outputs are in `.cache/verification/board-model/`.
 This focused evidence does not retroactively attribute the earlier full lanes to
 the later source.
+
+The same isolated checkout advances to clean `a72de1a76` for the final component
+and installed checks. Formatting, lint, strict TypeScript and all 124 Board tests
+pass again. Eight inspection-retry controls pass, including same-read recovery
+from `HttpCapacity` and `ControlCapacity`, immediate failure for SQL submissions
+or other refusals, and the unchanged ten-second deadline. The published-interface
+browser/API schedule passes at this final source: SQL/Form/Canvas editing, frozen
+signed publication, lost replies, disk/worker replacement and current read denial.
+Its command/source records are retained in `.cache/r1-installed-final/`.
 
 The clean `installation-ui` lane at `8b91285ac` passes its first seven tasks:
 Board checks, handbook checks/build, Node bindings, observability, server logging,
@@ -97,9 +107,31 @@ preparation. An earlier `c19a4e04b` installation lane was interrupted after four
 passing tasks to include the stale-evidence correction and newer main; that
 incomplete run is not qualification of the final source.
 
+The continued browser lane at `8b91285ac` passes its first seven tasks: inspection
+and relational recovery, query recovery, HTTP and gRPC capture, reactive transport,
+finite Live views and Live lifecycle. Its final workbench task passes the first
+three real connection profiles, then stops on a typed native `ControlCapacity`
+refusal from the fourth profile's first storage GET. The separate installed run
+at `967bf3a79` observes the same failure. Both failed private installations are
+retained at `/var/tmp/transit-server-proof-0aqpw_4c` and
+`/var/tmp/transit-server-proof-vnfq6arr`, respectively. The fixture previously
+retried only `HttpCapacity` on this pure read; `a72de1a76` also handles the recorded
+control-capacity cause within the same deadline. It does not retry a SQL Run or
+infer success from an unavailable response. These failed full-lane attempts remain
+failed; focused final workbench evidence is separate.
+
 The prior post-TLS-replacement SQL failure remains a separate investigation.
 A focused `test::server-sql` run on the merged baseline `1a8b48799` passes, including
-that assertion, but does not establish the cause of the earlier failures.
+that assertion, but does not establish the cause of the earlier failures. A new
+focused run from the retained clean `8b91285ac` checkout reproduces the failure
+at the final reader count after explicit certificate/CA replacement. Enrollment,
+both TLS protocols, retained data, credential rotation, persistent revocation
+and original-operation recovery with listeners disabled pass first. The final
+response is again `Request failed; inspect admitted work before retrying SQL`,
+with no recorded `sql.request.failed` cause. This separate run does not complete
+the stopped installation lane. Its automatic record is in that checkout's
+`.cache/r1-sql/`, and its private installation is retained at
+`/var/tmp/transit-server-proof-m515y4yb`.
 No timeout or recovery assertion was weakened. R4's latency percentiles, retained
 heap/multiple-tab measurements and manual screen-reader review have not run.
 Local TCP forwarding does not qualify SSH encryption or arbitrary remote-network
