@@ -58,7 +58,8 @@ class Board(Applications):
                 capacity = (failure.get('err') == 'Unavailable'
                     and diagnostic.get('cause') == 'AuthorityUnavailable'
                     and any(fact and fact['field'] == 'native_cause'
-                        and fact['value'] == {'text': 'HttpCapacity'} for fact in diagnostic.get('facts', [])))
+                        and fact['value'] in ({'text': 'HttpCapacity'}, {'text': 'ControlCapacity'})
+                        for fact in diagnostic.get('facts', [])))
             if (status == 429 and expected != 429) or (status == 409 and expected == 200) or capacity:
                 assert time.monotonic() < deadline, (status, data)
                 time.sleep(.15)
