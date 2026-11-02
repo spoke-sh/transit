@@ -464,7 +464,7 @@ remain required; this delivery does not complete M30.
 
 **Review status:** The sequence was approved; R1 merged in
 [PR #332](https://github.com/spoke-sh/transit/pull/332). The expanded R2 plan below
-is **In review**. **Original source basis:** `origin/main` at `db0bb4a8f`, the
+is **Approved; implementation under qualification**. **Original source basis:** `origin/main` at `db0bb4a8f`, the
 merge of [PR #326](https://github.com/spoke-sh/transit/pull/326). R2 records its
 newer source separately. This sequence scopes separate implementation PRs; R5
 retains its service prerequisites. Executed evidence is attributed separately
@@ -599,7 +599,7 @@ source-attributed limits. R1 does not depend on adding new storage/computation U
 
 ### R2 — Explain retained storage placement and maintenance
 
-**Implementation plan — 2026-11-02. Status: In review.** Source basis:
+**Implementation plan — 2026-11-02. Status: Approved; implementation under qualification.** Source basis:
 `origin/main` at `ffbf2e9b1`, including Board R1 in PR #332 and the subsequent
 Stream/Queue integration in PR #333. Planning starts in a separate worktree on
 `docs/m30-storage-inspection-plan`. This section specifies the next implementation
