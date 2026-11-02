@@ -1325,6 +1325,7 @@
       "errors": {
         "AccessDenied": 1,
         "BoardUnavailable": 2,
+        "GatewayIdentityConflict": 1,
         "InvalidBoardResponse": 1,
         "UnsafeBoardPrincipal": 2
       },
@@ -1334,20 +1335,24 @@
         "Probe.run()": "anyerror",
         "check()": "<inferred>",
         "configuration()": "<inferred>",
+        "localConnection()": "<inferred>",
         "ready()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 12,
+        "try": 16,
         "catch": 1
       },
       "imports": [
         "Files.zig",
         "Installation.zig",
         "Provider.zig",
+        "Sql.zig",
+        "SqlEnrollment.zig",
         "std",
         "transit_http_server",
-        "transit_query"
+        "transit_query",
+        "transit_sql_client"
       ]
     },
     "apps/transit-cli/server/Config.zig": {
@@ -1715,12 +1720,13 @@
         "ready()": "<inferred>",
         "run()": "<inferred>",
         "start()": "<inferred>",
+        "startBoard()": "<inferred>",
         "supervise()": "<inferred>",
         "worker()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 92,
+        "try": 94,
         "catch": 10
       },
       "imports": [
