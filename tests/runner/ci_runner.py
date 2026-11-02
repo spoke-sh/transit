@@ -217,20 +217,21 @@ def main():
     # Renaming a lane must not omit its frontend preparation or the separately
     # invoked browser continuation from hosted qualification.
     assert next(step["if"] for step in steps if step.get("name") == "Install locked Board frontend dependencies") == (
-        "inputs.lane == 'installation-ui' || inputs.lane == 'launchers' || inputs.lane == 'browser'")
+        "inputs.lane == 'formal' || inputs.lane == 'installation-ui' || inputs.lane == 'launchers' || inputs.lane == 'browser'")
     for name in ("Install browser and host dependencies",):
         assert next(step["if"] for step in steps if step.get("name") == name) == "inputs.lane == 'browser'"
     assert select([], "push")["lanes"]["browser"] == LANES["browser"]
     assert not select([], "push")["additional_lanes"]
     for row in workers:
         assert row["shell"] == SUITE["environments"][row["lane"]]["shell"]
-    assert profile(SUITE, "formal") == {"shell": "ci-formal", "prepare": []}
+    assert profile(SUITE, "formal") == {"shell": "ci-formal", "prepare": [["just", "transit-board::install"]]}
     assert LANES["formal"] == ["test::sql-rewrites", "test::model-delivery", "test::queue-lease-transaction-model",
                                "test::wal-model", "test::resident-owner-cache-model", "test::transaction-decision-model",
                                "test::storage-lifecycle-model", "test::transaction-workspace-model", "test::model",
                                "test::console-model", "test::statement-result-model", "test::table-transaction-model",
-                               "test::write-lifecycle-model", "test::object-publication-model"]
+                               "test::write-lifecycle-model", "test::object-publication-model", "test::board-model"]
     assert ".cache/verification/write-lifecycle-model/" in artifacts["with"]["path"].splitlines()
+    assert ".cache/verification/board-model/" in artifacts["with"]["path"].splitlines()
     assert ".cache/verification/wal-model/" in artifacts["with"]["path"].splitlines()
     assert ".cache/verification/object-publication-model/" in artifacts["with"]["path"].splitlines()
     assert ".cache/verification/transaction-decision-model/" in artifacts["with"]["path"].splitlines()
@@ -401,7 +402,7 @@ def main():
     assert select(["tests/verification/models/WriteLifecycle.tla"])["lanes"] == {"formal": ["test::write-lifecycle-model"]}
     assert select(["tests/verification/models/StatementResult.tla"])["lanes"] == {"formal": ["test::statement-result-model"]}
     assert select(["contracts/sql/FuzeCell.lean"])["lanes"] == {"formal": ["test::sql-rewrites"]}
-    assert select(["tests/verification/models/tlc_support.py"])["lanes"] == {"formal": ["test::queue-lease-transaction-model", "test::resident-owner-cache-model", "test::transaction-decision-model", "test::storage-lifecycle-model", "test::transaction-workspace-model", "test::console-model", "test::statement-result-model", "test::table-transaction-model", "test::write-lifecycle-model", "test::object-publication-model"]}
+    assert select(["tests/verification/models/tlc_support.py"])["lanes"] == {"formal": ["test::queue-lease-transaction-model", "test::resident-owner-cache-model", "test::transaction-decision-model", "test::storage-lifecycle-model", "test::transaction-workspace-model", "test::console-model", "test::statement-result-model", "test::table-transaction-model", "test::write-lifecycle-model", "test::object-publication-model", "test::board-model"]}
     assert select(["sdks/go/client/types.go"])["lanes"] == {"sdks-systems": ["bindings::go-sdk-test"]}
     for event in ("push", "merge_group", "workflow_dispatch", "unknown"):
         assert select(["README.md"], event)["full"]

@@ -125,7 +125,7 @@ jobs:
         if: inputs.lane != 'formal'
         run: nix develop .#${{ inputs.shell }} --command just ci::dependencies
       - name: Install locked Board frontend dependencies
-        if: inputs.lane == 'installation-ui' || inputs.lane == 'launchers' || inputs.lane == 'browser'
+        if: inputs.lane == 'formal' || inputs.lane == 'installation-ui' || inputs.lane == 'launchers' || inputs.lane == 'browser'
         run: nix develop .#${{ inputs.shell }} --command just transit-board::install
       - name: Install locked Node binding dependencies
         if: inputs.cache == 'bindings'
@@ -207,6 +207,7 @@ jobs:
             .cache/verification/storage-lifecycle-model/
             .cache/verification/resident-owner-cache-model/
             .cache/verification/queue-lease-transaction-model/
+            .cache/verification/board-model/
             .cache/verification/console-model/
             .cache/verification/statement-result-model/
             .cache/verification/mutations/*.json

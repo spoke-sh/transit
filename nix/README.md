@@ -406,9 +406,10 @@ sequentially in the pinned bindings shell; `just check all` uses the ordinary
 developer tools. [The task inventory](../tests/runner/suite.json) owns the
 exact checks in each lane.
 
-The formal lane uses `nix develop .#ci-formal`, with only the pinned Zig, Python,
-TLC, Lean, Git and task runner. It installs no frontend dependencies and does not
-wait for SDK tests. It obtains its Nix tools from the pinned upstream substitutes
+The formal lane uses `nix develop .#ci-formal`, with the pinned Zig, Python,
+TLC, Lean, Git, Vite+, Node and task runner. It installs locked frontend
+dependencies for the Board TypeScript correspondence check and does not wait for
+SDK tests. It obtains its Nix tools from the pinned upstream substitutes
 and restores only the Zig dependency cache. It neither stores another Nix archive
 nor removes the hosted image's unrelated SDK installations. Its 15-minute job limit includes cold preparation and concrete
 Zig replay; unchanged task-local limits still apply. `just ci clean --lane formal`
