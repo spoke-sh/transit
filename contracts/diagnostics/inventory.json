@@ -3159,6 +3159,7 @@
         "InvalidExchangeCoverage": 1,
         "InvalidExchangeFailure": 1,
         "InvalidGrpcCapture": 1,
+        "InvalidHistoricalCursor": 1,
         "InvalidHttpCapture": 1,
         "InvalidObservation": 1,
         "InvalidQueryOrdinal": 1,
