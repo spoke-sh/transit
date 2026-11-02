@@ -12,6 +12,8 @@ import { useScope } from "./state";
 import { ReadStatus } from "./read-status";
 import type { ReadFailure } from "./observation";
 
+import { RetainedPlacement } from "./retained-placement";
+
 const catalog = new DataCatalog();
 function useMetadata<T>(key: string, read: (signal: AbortSignal) => Promise<T>) {
   const scope = useScope().scope;
@@ -328,36 +330,12 @@ function HistoricalObject({ selector, object }: { selector: string; object: stri
                   )}
                 </pre>
               </details>
-              {coverage.definitions && (
-                <>
-                  <p>
-                    Physical schema {coverage.definitions.schema_revision} ·{" "}
-                    {coverage.definitions.rows} rows
-                  </p>
-                  <ul>
-                    {coverage.definitions.columns.map((column) => (
-                      <li key={column.column}>
-                        Column {column.column}:{" "}
-                        {"physical" in column.source
-                          ? `physical column ${column.source.physical}`
-                          : `ADD-time ${column.source.initial.state}, definition ${column.source.initial.definition.revision}`}
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-              {coverage.locations.map((location) => (
-                <p
-                  key={`${location.identity.origin}:${location.identity.operation}:${location.identity.ordinal}`}
-                >
-                  Row {location.identity.origin}:{location.identity.operation}:
-                  {location.identity.ordinal}
-                  {" · "}
-                  {"segment" in location.location
-                    ? `Segment ${location.location.segment.id}, row ${location.location.segment.row}, digest ${location.location.segment.content.sha256}`
-                    : `WAL LSN ${location.location.wal.lsn}, offset ${location.location.wal.offset}`}
-                </p>
-              ))}
+              <RetainedPlacement
+                key={JSON.stringify([selector, object, kind, after])}
+                source={source}
+                coverage={coverage}
+                kind={kind}
+              />
               <p>
                 {coverage.next
                   ? "Partial directory coverage. More pages remain."
