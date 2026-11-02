@@ -9,6 +9,963 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## M6 progress integration — 2026-11-01
+
+Production code, contracts and generated consumers at
+`923c0dfdc0e1160c49ca46884d35f4760aeed6c1` integrate the M6 feature branch with
+`origin/main` at `f4abc3b18d9a621eb9fcb2f2c10ee72a48aa2ae1`.
+The combined definition is
+`22ddc953c1268d7f6a785c40860c62c727050223f8916e052f626b434974cb10`.
+Managed computations and database workloads retain distinct SQL operation tags;
+logical Document and compact-string changes from main remain present. Schemas,
+ABI/binding resources, signing fixtures, independent binary fixtures and browser
+resources were regenerated from the combined owners. All 160 package versions
+and dependency pins agree.
+
+The first conflict resolution omitted ten managed-computation grammar cases.
+`afd4b772c06b93e9ebea4170df0a2416c9507453` restores those unchanged from main
+before the grammar checks below. Compared with the production source above, this
+changes only that corpus and roadmap prose. A documentation-only line-wrap change
+was also present during later checks; its exact patch is retained with the local
+manifest. These checks are not a clean installed-runtime qualification.
+
+| Executed scope | Result |
+| --- | --- |
+| Native protocol, ReleaseSafe | 120/120 tests |
+| SQL results / protocol / database / service / client, ReleaseSafe | 26/26, 28/28, 14/14, 12/12, 25/25 tests |
+| PostgreSQL / MySQL adapters, ReleaseSafe | 22/22, 20/20 tests |
+| Selected Fuze workload/compact-string tests and pinned Arrow compute tests, ReleaseSafe | 48/48 plus 93/93 tests |
+| Selected Catalog workload tests, ReleaseSafe | 8/8 tests |
+| Selected Queue candidate, partition and log-transaction tests, ReleaseSafe | 43/43 tests |
+| Compiled generated contracts | 15/15 build steps |
+| Gateway and CLI ReleaseSafe executable build | 13/13 build steps |
+| Independent workload preparation oracles | 28 append, 24 consume, 21 claim, 11 settlement cases |
+| Diagnostic grammar | 591 compiler cases; 872 rule/alternative/boundary obligations |
+| Public SQL grammar | 148 documentation examples, 174 SELECT AST comparisons, 51 extensions; zero ANTLR diagnostics |
+| Board and browser clients | Contract drift, lint, strict types and four unit suites (7, 65, 12 and 108 tests) passed |
+| Fast repository checks | 61/61; 10,507 local links across 722 files |
+
+Package checks use `zig build test -Doptimize=ReleaseSafe --summary all -j2`.
+Fuze filters are `log `, `workload`, `compact` and `string vector`; Catalog filters
+are `workload`, `log prepared` and `lease receipt`; storage filters are
+`candidate objects`, `queue candidate persistence`, `queue partition` and
+`log transaction`. The latter includes Queue transaction evaluation and decision
+recovery, not just the lowercase Queue test names. Other commands are
+`zig build check-contracts -j2 --summary all`,
+`just test::table-dml-sql test::diagnostic-grammar test::sql-grammar`,
+`just transit-board::check` and `just check fast`, within the pinned Nix shell.
+The runtime build uses `zig build transit-sql-gateway transit
+-Doptimize=ReleaseSafe --summary all -j2` at the restored-corpus source with the
+same documentation-only delta; it compiles actual executable entry points.
+It does not run an installed service profile.
+
+The storage checks exercise the bounded reachable-candidate traversal, original
+claim reads after ACK, earlier roots after disk replacement, long collated FIFO
+key child directories, frozen timer-merge roots, lost replies and refusal of
+missing accepted pages. The optimization skips superseded private index/bitmap
+derivations; it does not delete accepted objects, change root formats, extend
+leases, weaken time checks or raise resident quotas. This is recovery and staging
+coverage, not a measured installed claim latency result.
+
+Logs and the command/exit/time manifest are retained privately under
+`/home/alex/workspace/spoke-sh/transit-m6-completion/.cache/qualification/`.
+`integrated-artifacts.json` records each log hash and source attribution; its
+SHA-256 is `fd9296e3ea6dcf41f37b85ae85e61f20c33589c5ac87f883a2ed0d8e68a29968`. Selected raw log hashes:
+
+| Log | SHA-256 |
+| --- | --- |
+| `integrated-queue-candidates1.log` | `b65700b91893d65db16490a717a176902d56fb350240e86a950e71e0c62433cb` |
+| `integrated-grammar1.log` | `e589252a545c6496de29c0c418ecbc3dd5842ee0288643524d214d3c554bff5e` |
+| `integrated-board-check1.log` | `3f35cd5960475cea1f43db9b6a5767e1b5bd4b3d7e904ef5bbbb950fdc078e36` |
+| `integrated-runtime-build1.log` | `9ec13646c0be46909741b6eed39ccbe44408b3d404301dfc0ef338ba9167dc9f` |
+| `integrated-fast1.log` | `e526ffcf1e52a23b9dac4d61ba6fcd32c16bbbc3632163034a03e08c67623737` |
+
+The earlier installed claim deadline failure below remains unresolved evidence
+for its own source. Its saved operation was not resubmitted with a fresh identity.
+No installed claim/receipt/ACK, complete Stream/Queue performance profile,
+transactional Station runtime or Table performance gate is newly qualified by
+these checks. M6 remains in progress.
+
+## Installed SQL Queue claim deadline failure — 2026-11-01
+
+The `sessions-log` installed profile **failed** on clean source
+`29fa45dcc6c0fa25cb5c8d684b70392848dea169`, with definition
+`aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7`.
+The original 65-row, one-second CLAIM remained ready without a terminal outcome
+for the unchanged 90-second client wait. Its account operation is 299. Nine
+native Queue attempts returned `ClockUnavailable`, each taking approximately
+7.6–14.3 seconds. A failed observation establishes neither acceptance nor
+rejection. The original SQL and token were saved before dispatch; no fresh
+identity was submitted to replace them.
+
+The failed installation remains private at
+`/var/tmp/transit-direct-sql-wire-ac4wnap1`. Its node has SHA-256
+`042f6f89350e89f860a786ac4aac11bc43abb4a08df13c9012247c247c160ced`;
+the SQL gateway has
+`1041fc506064a48e508b1f6dfcb0da97752dcac32a74f50ab78bbc31280b7614`.
+The complete seven-binary manifest, driver output, original request and node/
+gateway logs are copied under the restored worktree's ignored
+`.cache/qualification/claim-clock-failure-20261101/`. Driver-output SHA-256 is
+`8d392ac562c99def2676b3df21e1589d7e2ebad5a2a6107537a6a8e193259d80`;
+the manifest is
+`e5317c1c9ac225ebc76356214f523219d04ab2677a3c4d10668a50f55ca55de4`;
+the node log is
+`a918df27f625669d095922fa905779e58a9935e7b20ef5996288b830f340802e`.
+This failure does not qualify original claim result recovery or the later
+`f6b5c8…` receipt/ACK cutover.
+
+The preceding installed build initially failed because the configuration probe
+did not link its OpenSSL hashing dependency. Commit
+`3324deed2ed609328a9def92e5d415916ed8b809` adds the same explicit crypto linkage
+as the other installed CLI/probe artifacts. Its repeated build passed all 22
+steps before this failed run. A concurrent workspace cleanup subsequently
+removed the `/var/tmp` source worktrees and most earlier raw logs; committed
+source survived in Git. Work resumed at
+`/home/alex/workspace/spoke-sh/transit-m6-completion` on the original feature
+branch. Removed logs are unavailable for fresh inspection; historical records
+retain their original source attribution and do not become new qualifications.
+
+## SQL Queue receipts and ACK — 2026-11-01
+
+`9bb06504a6c67b38d6e98e2b5ccd9429f179a725` exposes binary `_receipt_handle`
+from the original claim and admits `ACK ON QUEUE ... RECEIPT` through the shared
+workload token, native settlement and original-outcome paths. The prepared helper
+source was committed as `0a385d600853fd2eff73e6983a14b077d76186ca`; its production
+and test trees match the main commit (only earlier qualification prose differs).
+The [SQL reference](../../../docs/handbook/reference/sql/streaming.md#acknowledge-queue-work)
+and [Queue contract](../../../contracts/QUEUE_V1.md) own current semantics.
+
+The current-v1 cutover is
+`f6b5c8f378a74fe653cc9d6f3e472229289cc299a62f856551962bd76e321880`, SHA-256 of
+`transit.v1.queue-sql-receipts.2026-11-01`. It replaces the frozen projection
+vocabulary and saved control-source validation together. Appends, consumption
+and acquisition retain exact interpretation checks. Settlement/read-closure
+intents may pair an older exact receipt with later preparation metadata for the
+same stable object; current native authority, compatibility and lease/time checks
+remain separate. Same-revision digest mismatch, future revision, foreign object,
+wrong claimant, malformed receipt and missing/foreign definition refuse.
+
+Prepared-source component checks exercise binary output ownership after projector
+buffer reuse, value-owned receipt binding, old-lease/current-metadata WLI restore,
+negative source substitutions, allocation failure, typed parameters and exact
+frozen operation identity. The pure extension compiler checks positive duration
+arithmetic against the recorded expiry, including overflow. Extension execution
+remains disabled until it can return a usable updated receipt through the shared
+result lifecycle. No NACK SQL, payload selector, WAIT or mixed SQL is enabled here.
+
+| Check | Result | Log SHA-256 |
+| --- | --- | --- |
+| Fuze (`fuze3`) | 28 focused tests; compute dependency cached | `9fbdca3288c12fdc973211c7d56e5d58c752a350ea805f80df6ab58ecdb70648` |
+| Catalog (`catalog3`) | 7 tests including allocation-failure schedules | `93cb9ae07b89551496b5825222218c5309f1870445c4541facacc43f9ea5a6cc` |
+| SQL (`sql1`) | 13 tests | `17afe71653617da945e00455047f9467cdd8c7ab2e853a3bed1be458b1aa2589` |
+| SQL service (`service2`) | 11 tests including receipt error mapping | `0ad32d2873ca9e7f52c4fdc902d557fa1a1d1318959d564f47f078983fab665a` |
+| PostgreSQL (`postgres1`) | 17 tests | `34932527e0be2e2906b058ce46c98bea772f6a9102b963fd0e7aa6442eb042bd` |
+| Protocol (`protocol1`) | 113 tests | `29008ef848f1d142a5615bbab45cade74883d0f04241a964e69aadfec602c914` |
+| Reflected contracts (`contracts1`) | 15/15 build steps; schema/signing/ABI drift checks passed | `925daed517f5ebf23b244b1f6b3bd7ba130d726a36a95b2a88bebfb9ea0a68d2` |
+| Diagnostic grammar (`grammar2`) | 581 cases; 853 obligations | `eabbf4c9cfa8793dc600654ce1489b47f9c7eb36aa538c281840d4204864af52` |
+| Fast checks (`fast3`) | 61 checks; 159 package pins aligned | `d88d426a18347beba3a0b9f652c94cc9eba655dec9ac2e4f017a97f336a30bd4` |
+| Reference/docs (`fast2`) | 139 SQL examples; 10288 links / 719 files | `5bc6d3268ef4f8911c6ba6a183752707183b0c172665019816136b145e47cfcc` |
+
+Package checks used `zig build test -Doptimize=ReleaseSafe --summary all` in
+the owning package inside the pinned `nix develop` shell. Fuze filters were
+`log settlement SQL`, `workload projections` and `log claim SQL`; Catalog filters
+were `log settlement Catalog` and `log claim Catalog`. Root checks used
+`zig build check-contracts -j2 --summary all`, `just check fast`,
+`just test::table-dml-sql`, `just test::diagnostic-grammar`,
+`just test::sql-grammar` and `python3 -B tests/runner/docs.py`.
+
+Logs use `/var/tmp/transit-m6-queue-receipts-<name>.log`. The first grammar run
+passed the independent DML (44), append (28), consume (24), claim (21) and new
+settlement (11) corpora, then failed because one reviewed native-grammar case used
+MySQL's `?` placeholder. It was corrected to `$1`; the compiler's separate MySQL
+parameter test remains. The first fast run failed the semantic-mapping manifest;
+three explicit mappings and executable owner coverage were added. These failures
+remain in `grammar1` and `fast1`, respectively. Prototype Fuze/Catalog builds
+also failed on a shadowed local name before any tests; the corrected builds pass.
+
+`grammar1`: `1a354da7f817b27de7f6d10ed2cbb434e6b65a5fd0d4730a9a493cd6248299b4`; `fast1`: `9956711ca9ed93d0e6802e5fddbcefd1756773f7089e69cc490bba6e24b6fa25`.
+Cutover generation: `767e332627f342a8408413e42776e34347e294467aa15f70dc753be4793cc333`; extra independent fixtures: `74bd106301e39d91849f350c80f4ced72327fedf6b1c7527a3b55a7975a5cfcd`.
+
+The installed receipt/ACK profile is registered in the existing `sessions-log`
+schedule but has **not run** for this definition. It includes native, PostgreSQL,
+MySQL and console receipts/ACK, original payload delivery after ACK, fresh ACK
+after compatible ALTER, duplicate-ACK rejection, current status revocation, and
+original ACK recovery after DROP and gateway replacement. Those are planned
+checks here, not passing evidence. Earlier installed claims/consumption at
+`aefd3830…` do not qualify this replacement. Native-node replacement, lost ACK
+reply, expiry races, resource saturation and the common M6 revision remain open.
+
+## Fenced Queue lease descriptor codec — 2026-11-01
+
+`ec68e4da5d477d3bed8d191459cbdd4b31338541` adds `QueueLeaseHandle`, the allocation-free
+168-byte `QLH1` encoding of an exact native lease. It requires the explicit current
+definition, exact length and native lease validation. It establishes neither an
+accepted claim nor current authority or liveness. SQL projection and settlement
+remain unimplemented. See the [format contract](../../../contracts/QUEUE_V1.md#opaque-lease-descriptor-codec).
+
+The isolated helper `d1875c2fe0f01d72d40c77dd17dda3e95f7649c0` passed all
+**113/113 protocol tests in ReleaseSafe**, including independent fixed byte
+positions, every truncated length, trailing bytes, foreign definition, invalid
+epoch/domain, full-width unsigned fields and preserved expiry/fencing checks.
+Its protocol package tree `bd98d2a3fc4325ad195f4e7174dd5c2176808b7f` is identical to the main implementation's
+package tree. `just contract::generate` passed and left all generated declarations
+unchanged: the new helper changes no existing wire/ABI or stored native request.
+The current definition remains `aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7`.
+
+| Check | Result | Log SHA-256 |
+| --- | --- | --- |
+| Protocol (`protocol1`) | 113/113 | `09b366342f47a93a58841f80afbd0b27232e752098030f8b8ce81321fb97ffb7` |
+| Contract generation (`contract1`) | Passed; no generated drift | `4641dc2c0ffd53d35bcffec99c18e6642e10f786b4162a839657950f0bbd48c4` |
+| Combined branch fast checks (`main-fast1`) | 61 passed; 159 package pins aligned | `f7dd32ab3a0bea9bc6df92867880250d96bbce91b383d60a35087a803b0e0b86` |
+| Helper documentation (`docs1`) | 10103 links / 710 files | `67003f6848a3231731b1f85b573dcc195ca15ba6705b830b54a51e1baafb6723` |
+
+Logs use `/var/tmp/transit-m6-queue-handles-<name>.log`. This qualifies the
+codec and its shape/fence checks, not installed handle delivery or settlement.
+
+### Integration with origin main
+
+The feature branch was rebased onto `1b047eb62bfba71b7431bb7db8b4aa1c962c628c`.
+All 103 existing commits were retained. Range comparison identifies only two
+manual resolutions: preserving both SDK and M6 performance task registrations,
+and preserving both sets of qualification history. No runtime source conflict
+required a manual resolution. The rebased source `d96ebb452648e7db77959d842c08e715c66a6c9a`
+passed 61 fast checks and 10284 documentation links across 719 files before the
+codec addition. Installed claim qualification is building from that frozen source.
+Earlier installed evidence retains its original attribution; this rebase does not
+establish a new common-revision runtime, performance or whole-M6 pass.
+
+- Range comparison SHA-256: `ab2972851d19fd609f91975c3f7a62c75afe980372b9889564fe29e5ebf80871`.
+- Rebased fast log SHA-256: `558e37a80a1926239204d89762882cb5553bdd92161c08f51c1a3dae12fe0707`.
+- Rebased documentation log SHA-256: `4ca7a5ca2a5cf4f484b9fbeefbe380594746ead3fdd00e4f4826b1132d42da84`.
+
+## Partition-routed SQL Queue claims — 2026-11-01
+
+`00244c553bbbdedf7d7e85dcd3f9260275b7d801` (clean qualification helper
+`56b36f95fee321325f7b2b5cda3b0ecc25324d17`) binds SQL CLAIM to the existing
+workload token and original-result runtime. A one-partition Queue permits no
+selector; multiple partitions require one exact `_partition` equality. Catalog
+freezes the checked acquisition maximum, duration and complete projection before
+admission. It discharges that exact routing into the native target and stores no
+result predicate or output limit. Native FIFO, capacity, time and authorization
+remain authoritative. The current wire definition is unchanged. See the
+[public profile](../../handbook/reference/sql/streaming.md#acquire-queue-work).
+
+These are **component and compiler checks only**. The installed claim fixture
+has been added but has not run on this source. This record does not qualify native
+selection predicates, waits, receipt handles, SQL settlement, performance or M6
+completion. Those gates remain open.
+
+| Check | Executed result | Log SHA-256 |
+| --- | --- | --- |
+| Catalog claim binding, ReleaseSafe (`catalog2`) | 6/6 tests | `f891f4e513eb628e02afbd859090005f070e6c41b98c8730b0fe4157e8b743bf` |
+| SQL runtime, ReleaseSafe (`sql1`) | 13/13 tests | `2b6bfa62ce0a3da382740f6806ba8ded77d6857655557aba59b3b652e5c3647b` |
+| SQL service, ReleaseSafe (`service2`) | 11/11 tests | `6bccb51fb462fb5764012f6dda9d75c6cad47cd752f157de0d8b989d4cf458dc` |
+| Dedicated diagnostic routing, ReleaseSafe (`diagnostic1`) | 23/23; dependency checks reused their passing cache | `f1dca6696689ca65be4b9fb3b501213f0f01afcc29c076ac896bb327daab12ab` |
+| Diagnostic grammar (`grammar2`) | 571 cases / 839 parser obligations | `632ebc314b694d7aeecf1c3c39aedaa97f99d5c64d198bc708473db32ce4e6ac` |
+| General grammar and public examples (`reference1`) | 174 SELECT comparisons / 32 exclusions / 42 extensions; 33 relational comparisons / 22 exclusions; 138 examples | `b2721b05d5e6f0564d8d39bfb265f900da9ea7d4444f364b0e93e26b984f81ef` |
+| Repository fast checks (`fast1`) | 60 passed | `75b1734b9a8e66bc9ef80819764784f9294d6864b0bf21f130583130d01be8c0` |
+| Documentation links (`docs2`) | 10100 links / 710 files | `82bd6f27961a134bb6ee6912caadadc400c996f7180662541207eb2efb547f1b` |
+
+The package commands used `zig build test -Doptimize=ReleaseSafe --summary all`,
+with Catalog filter `log claim Catalog` and Fuze filter `consumption diagnostics`.
+Catalog tests include ordinary ownership and resize-disabled allocation-failure
+enumeration, persisted intent restoration, complete original projection, declared
+budget/default resolution and refusals before admission. The SQL/service checks
+exercise their existing runtime and disclosure contracts; they do not themselves
+establish an installed Queue acquisition.
+
+`just test::table-dml-sql` passed 44 Table, 28 append, 24 consume and 20 claim
+independent cases in `grammar1`. The following diagnostic grammar task failed
+because the newly admitted session alternative lacked an explicit root-level
+case. Adding that case preserves all earlier cases; `grammar2` passes the full
+571-case inventory. No predicate or admission check was weakened.
+
+Logs use `/var/tmp/transit-m6-claim-activation-<name>.log`. The first inventory
+command used the wrong path and the first documentation command named a missing
+recipe; neither executed a check. Corrected commands were
+`python3 -B tests/runner/launch.py tests/interfaces/cli/diagnostic_inventory.py --record`
+and `python3 -B tests/runner/docs.py`. Their failures remain distinct from passes:
+
+- `grammar1`: missing session grammar alternative; SHA-256 `c5e2bbf0a79c7f349575a829050060a7fe90bb8d8d7576c08851a52ccc5ba498`.
+- `inventory1`: wrong path; no checks executed; SHA-256 `579cfcb6f17e10827f13c93e556b0b4ff1a29c40e85f4ecb073d83c94327cd3c`.
+- `docs1`: missing recipe; no checks executed; SHA-256 `660711afd1d6e5364ef8782ef6d39843516925322850161b1af14c566fb045fe`.
+
+## Queue acquisition preparation — 2026-11-01
+
+`0816018a75b9737e689271585bb426bd0cc608bb` adds pure `LogClaimSql.Prepared`
+and shares text operands and row layout through `LogReadSql`. A bound claim
+owns its projection and acquisition predicate, positive optional claim maximum,
+lease duration and optional wait. LIMIT is removed from the logical output
+limit. Lease epoch and attempt can be projected but cannot select work before
+acquisition. Lease milliseconds retain the native unsigned 64-bit range; waits
+retain their separate unsigned 32-bit range. See the [compiler contract](../../../contracts/sql/README.md).
+
+This is **preparation evidence only**. No SQL claim was admitted, no Queue lease
+was acquired, and no receipt-handle or settlement adapter was qualified. Native
+selection before leasing, FIFO behavior under predicates, original selection
+recovery and installed callers remain required.
+
+| Check | Executed result | Log SHA-256 |
+| --- | --- | --- |
+| Focused consumption/claim compiler tests, ReleaseSafe (`fuze3`) | 28/28; 93 dependency tests reused their passing cache | `940ca1d48c3742870b15ed819a6fd160ce27bf1f8c4f4bce1d29498ef63be9e5` |
+| Independent DML and diagnostic grammar (`grammar2`) | 44 Table, 28 append, 24 consume and 20 claim cases; 570 diagnostic cases / 837 grammar obligations | `f5a0d97791131141fd98181770974bc453c751138ea54a96f08c0a5dd0f6c7e3` |
+| General grammar and public examples (`reference1`) | 174 PostgreSQL SELECT comparisons / 32 exclusions / 42 extensions; 33 relational comparisons / 22 exclusions; 137 examples | `da0b6a4da545d42475037cbffb81fe0a32e06920e8add421c2370f1eaa7a9e97` |
+| Repository fast checks (`fast3`) | 60 passed | `a7125f2e1c61f81bede31065376a2e49ebe1780845983bd2bcb51add356f1722` |
+| Reviewed diagnostic mappings including both new owners (`mappings1`) | Declared boundaries passed; SQL compilation has 166 codes and 223 owner/error pairs | `133f169101910a5db95a1533467c417909350228df0c2703b45ebe58bbe49c2a` |
+
+Logs use `/var/tmp/transit-m6-claim-preparation-<name>.log`. The focused command
+was `zig build test -Doptimize=ReleaseSafe --summary all` with filters
+`log consume SQL` and `log claim SQL`. The registered
+`just test::table-dml-sql test::diagnostic-grammar`, `just test::sql-grammar`,
+`just check::fast` and standalone `diagnostic_mappings.py` supplied the other
+checks. No wire definition or native claim format changed.
+
+The first allocation-failure enumeration reported `NondeterministicMemoryUsage`
+after the ordinary allocator path succeeded. The final test retains that normal
+path and separately disables in-place arena resize while enumerating allocation
+failures. The first corpus run incorrectly expected resolved column names in
+the raw alias array and string tags for void union fields; its corrected oracle
+uses explicit aliases and the existing tagged-field representation. It retains
+independent predicate, projection, maximum and lease expectations. The first two
+fast runs failed on inventory drift and the new diagnostic mappings respectively;
+the mappings now explicitly include `LogClaimSql` and `LogReadSql`.
+
+| Earlier failure | Log SHA-256 |
+| --- | --- |
+| `fuze1`: 120/121 tests; nondeterministic allocation-failure enumeration | `34179f395eee32b2d7ebe106ffaf87c02b6d002e68e2af0032fe5e96d1695539` |
+| `fuze-direct1`: direct test run identified that harness failure | `9525e2cba27f00e2a1c3f3d0d6be0fdcdbcf74c6aa2b8d9c1311df70da7aedf3` |
+| `grammar1`: independent oracle representation mismatch | `2e7b00de1b72aae76af736b2a8afc50527a6fc5a7dbc45d6e4156d47411410e6` |
+| `fast1`: inventory drift | `04bfb497d27b748644b66cde4fa20eb7aeecf5781949692846e36dc146c0c2ea` |
+| `fast2`: unregistered semantic mappings | `18868d8f6c4baeceb792636197d162edf7303e627e5a8cdb8f2a4ad689aabe3d` |
+
+## Positional SQL consumption admission — 2026-11-01
+
+`a5965727d36833e88898eeabbc7342b5e0b9b3f3` (isolated helper
+`aaa7fb6804da4cc3444b94fe115e64038651b236`) admits positional CONSUME through
+the existing workload runtime. Preparation describes a typed row schema;
+acceptance freezes one native read, predicate and nullable LIMIT. Native SQL
+requires a caller token, while wire execution admits one identity and opens its
+original result. The current definition remains
+`aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7`.
+See the [public consumption profile](../../handbook/reference/sql/streaming.md#consume-a-finite-stream-cut).
+
+The checks below establish component, compiler and documentation behavior.
+They do not qualify installed consumption, named groups, WAIT, SQL offset
+settlement, performance or whole-M6 completion. The new installed fixture's
+source alone is not execution evidence.
+
+| Check | Result | Log SHA-256 |
+| --- | --- | --- |
+| Shared SQL runtime, ReleaseSafe (`sql1`) | 13/13 tests | `266422f20cfb0ef28c450205d7668ed9864ff71f90f0420ff2b63b500753bf51` |
+| Shared SQL service, ReleaseSafe (`service1`) | 11/11 tests | `3333beb04dd3d22f8b0645c28b4cb929be5587682772ac1508d8de0697acf895` |
+| Dedicated consumption diagnostic and dependency checks, ReleaseSafe (`diagnostic1`) | 116/116 tests | `b9de6f24f64fd8a9c08328368a1ece01bb2d505d45801772e5f8b82a4b630b6d` |
+| Independent compiler and diagnostic grammar (`grammar2`) | 44 Table, 28 append, 24 consume cases; 548 diagnostic cases / 824 grammar obligations | `f901791289a39278a73ef5b6a5fdd1b94f62b9795b84729ceb32250d5563bf81` |
+| General grammar and public examples (`reference1`) | 174 PostgreSQL SELECT comparisons, 32 exclusions, 42 extensions; 33 relational comparisons / 22 exclusions; 137 examples | `da0b6a4da545d42475037cbffb81fe0a32e06920e8add421c2370f1eaa7a9e97` |
+| Repository fast checks (`fast1`) | 60 passed | `2f947260f807f00b2f456fe6eb0adf0801a34d5e11f3732038fe17c6d3f45f6d` |
+
+Logs use `/var/tmp/transit-m6-consume-activation-<name>.log`. Package commands
+used `zig build test -Doptimize=ReleaseSafe --summary all`; Fuze selected
+`consumption diagnostics` and includes 93 dependency checks. Repeating that
+focused command on the final clean helper source reused its passing cache
+(`diagnostic2`, SHA-256
+`2fdbcdd2c7f735afcf6452ae0475b0acdb36426a7f3a5cd01c0debe595b46a97`).
+The registered `just test::table-dml-sql test::diagnostic-grammar` tasks run the
+DML compiler in ReleaseSafe and the diagnostic consumer in its default mode.
+`just test::sql-grammar` and `just check::fast` own the remaining checks.
+An earlier combined build named a nonexistent `test-diagnostic-grammar` target;
+it executed no checks and failed (`grammar1`, SHA-256
+`c01ab9f1e20c361a7c570e121c209a227125d23742339370582e80652f0f1c92`).
+
+### Installed positional consumption
+
+The installed `sessions-log` profile passes using clean runtime binaries from
+`b23bdbd25853f2517695bc8f418a471b18fccd4b` and the corrected independent driver
+`5c0922652968f44c221b572294eed6bdcbd0ca91`. The wrapper checks that their only
+source difference is `tests/interfaces/sql_sessions/consumes.py`, that the worktree
+is clean throughout the run, and that all seven binary hashes match the recorded
+clean build. This is explicit binary/driver attribution, not a claim that the
+console was rebuilt at the driver's revision. The definition is unchanged.
+
+The registered fixture passes native SQL, PostgreSQL prepared execution, MySQL
+prepared execution and the real console. It checks 65 rows in 32/32/1 batches;
+a three-row filtered result with native coverage `[2,8)` inside the original
+`[2,65)` cut; filtered-empty exhaustion; LIMIT 0; exhaustion below LIMIT; an
+empty tail; exact partition routing; typed parameters; and current authorization
+for buffered, partial-limit and empty terminal results. It saves the original
+SQL/token before dispatch, appends another row, replaces the SQL gateway, then
+checks status, same-token submission and result reopening against the unchanged
+original cut. A changed statement cannot reuse the token. Declaration and append
+regressions also pass in this run.
+
+The final runtime build used
+`zig build test-sql-wire-build -Doptimize=ReleaseSafe --summary all -j2` in the
+SQL-wire development shell: **22/22 steps passed**. The installed command invoked
+`tests/interfaces/sql_wire/gateway.py` with the seven recorded binaries and
+`sessions-log`. Runtime/service replacement is exercised; this profile does not
+kill the native node, drop a consumption reply, qualify provider replacement,
+named groups, WAIT, SQL offset settlement or performance. No deadlines or budgets
+were raised. Later branch work still requires its own combined-source checks.
+
+| Binary | Bytes | SHA-256 |
+| --- | --- | --- |
+| `transit-node` | 108343112 | `c9fb48322076851cf1f746e24643f449827371814409751ab2b0cfd99fc7fd24` |
+| `transit-sql-catalog-proof` | 29885792 | `4a81e3b0b073c4ec3a6dcffe157631f4463d5eb774b66b2f3caa81939977053a` |
+| `transit-sql-gateway-proof` | 50326064 | `28f3412df8faab7c3c9990e633e94ec4af6d63c4f92891a40ed8a98a867da124` |
+| `transit-query-host` | 35453560 | `5a95d4be899d64b1197899be9728ecb472220f8562f67f0ac3c2a125be88f09e` |
+| `transit-sql-gateway` | 46518544 | `4d33147a6aa86c1e4a5fa53d00f9718e113d83afae9e63d533a27a3977fc217e` |
+| `transit-configuration-probe` | 28566496 | `774833c5603cfcec5e8b678dc5bbf059c440c3515978d8114aafe018f9826ffc` |
+| `transit` | 131892176 | `5af5e27c762c0853e7de31adf44a91a5d4983ac7b83c8515c2b28fbd734585f6` |
+
+| Run | Result | Log SHA-256 |
+| --- | --- | --- |
+| `build2` | 22/22, clean `15f1ef4db` | `f54930622381ec2b134f1737eb8b977399f8fcf1c47b0005e696ce3ebcf822c1` |
+| `build3` | 22/22, clean runtime source above | `d617b1f443c7e11f2bd77b09bac108778d77bb8e884bc75ab000227bda542b57` |
+| `installed1` | FAILED: operation envelope incorrectly expected nullable counts | `4d754b2942da6349831ba7dc5188252c8974c12a7bd78aac0803c87c35b15f39` |
+| `installed2` | FAILED: fixture addressed workload outside the observation data basis | `a973939e6e7f77a4d7c4df936f6bb1bfebdcb9b8c7d2f3e9b8d72abcb791b886` |
+| `installed3` | PASS: declarations, appends and positional consumption | `8291b3ccb91e168e05afd23e70a4843755827ecf24be6442d3a997c3702aff32` |
+
+The first two installed failures were independent fixture-shape mistakes, not
+passed runs. Session operation envelopes use zero placeholders where shared
+completion counts are inapplicable; workload observation lives under `data`.
+The corrected assertions retain the original semantic requirements. Their
+installations remain private at `/var/tmp/transit-direct-sql-wire-0tqestip` and
+`/var/tmp/transit-direct-sql-wire-bm38yts7`; no uncertain write was submitted as
+fresh work. The successful installation was removed by the harness only after
+all assertions and cleanup completed.
+
+## Bounded consumption results and authenticated intervals — 2026-11-01
+
+The local implementation committed as `02acf0253867858ff460c8259a6569d5f60d9a80` replaces the current v1
+definition with `aefd38306510fc11ebfd3d6adb7c0850ba79ba12ccd4d145250a3e54b0ccdcc7`
+(`transit.v1.bounded-stream-progress.2026-11-01`). Native offset requests,
+stored outcomes and transaction actions carry either an exhausted cursor or two
+authenticated boundaries from the same retained Stream read. Independently signed
+Python fixtures exercise both boundaries. A completed interval does not relabel
+the original read as exhausted. See the [Stream contract](../../../contracts/STREAM_V1.md#finite-read-coverage).
+
+Disk-backed storage checks execute prefix and suffix settlement, a lost append
+reply followed by owner/WAL/object-store reopen, original receipt recovery,
+forged MACs and row counts, checkpoint conflicts, generation fencing, read
+release and revocation. Timestamp-filtered sealed reads settle an interval with
+zero returned rows and subsequent intervals with exact count differences.
+Catalog checks retain an interval proof through lost transaction admission,
+prepare and authority-key rotation; original-result checks exercise saved
+interval handoff and reject a response larger than a lowered page budget.
+
+SQL result reading now lowers each native page budget to the remaining frozen
+logical limit. Checks cover LIMIT 0, a partial filtered prefix, exhaustion before
+the limit, repeated completion, original-position retry, owned buffered cells
+and current disclosure checks. The shared codecs preserve a partial native
+cursor when the logical result reaches its explicit limit; missing or unsatisfied
+limits cannot establish completion. Append and Queue claim projections still
+refuse output limits. See the [result contract](../../../contracts/SQL_RESULTS_V1.md#original-workload-evidence).
+
+All Zig checks below used ReleaseSafe in the isolated implementation worktree.
+These are component and disk-owner results, **not an installed SQL CONSUME,
+provider-replacement, performance or whole-M6 qualification**. SQL consumption
+admission, named group binding, waits and SQL offset settlement remain open.
+The initial component run did not include an installed fault profile. Subsequent
+installed results on this definition are recorded below.
+
+| Check | Result | Log SHA-256 |
+| --- | --- | --- |
+| Storage: Stream reads, interval settlement and transaction actions (`storage1`) | 39/39 | `57ceb12fb25fba59a106b04697ba3ff9a372edcb6aac1c745113f13af969de67` |
+| Native protocol and neutral fixtures (`protocol2`) | 112/112 | `b3e51f84fea6b26d7d90ea80866ee7836e3daf8138066339dc4b825b6f618c52` |
+| Catalog original results and transactional interval settlement (`catalog3`) | 6/6 | `4a071053d0babaec19fcb0424ba4cb7b233d587919348704014fc701000021d7` |
+| SQL runtime, bounded reader and recovery (`sql1`) | 13/13 | `fbc916d19ce098d2ab9d0b9af088877beafc852ae5110313508d07405f8c8a35` |
+| SQL framing, including independent partial and zero-limit frames (`sql-protocol3`) | 25/25 | `7e28b220af4d6721d9d14c5d27b4b310dc7d7c282be5aa8db873bef014bbe6e0` |
+| Shared result semantics (`results1`) | 26/26 | `42ff1c25cca785440b6463601e2502e8be4ca8db51821c45b869e03ee6eb439f` |
+| Shared SQL client (`sql-client1`) | 25/25 | `67dab27625ddf385b0aece41b04bcaabe0b73874d0bd68cc688179b6a3e567fe` |
+| Fuze workload projection selection and dependency tests (`fuze1`) | 116/116 | `d7e7833e1f79b00abc01925098d3423faaabe137f2905d531ebc24624c7b2d73` |
+| Local Stream control reserve and revocation (`backend1`) | 2/2 | `5880450c5bb77e27367f62ec1b5c2d89c18378f243283ae0863edeaa56d40bd6` |
+| Repository fast checks (`fast2`) | 60 passed | `7d5836ff600dbe633557d8dc21ba737b3a8ca3da0170609cea2665ee5377be84` |
+| Documentation links (`docs1`) | 10085 links / 710 files | `258f159d53af8c010aff699250705f457efd7fdea7ed66c348e3b1b5e64c0a19` |
+
+Logs use `/var/tmp/transit-m6-stream-progress-<name>.log`. Package commands were
+`zig build test -Doptimize=ReleaseSafe --summary all`; storage selected
+`stream ` and `log transaction actions`, Catalog selected `workload result` and
+`transaction log statements retain exact offset`, Fuze selected
+`workload projections`, and the local backend selected `direct Stream settlement`.
+The Fuze total includes 93 dependency tests. The remaining rows used their full
+owning package test target, `just check::fast`, and `python3 -B tests/runner/docs.py`.
+
+Contract, ABI, browser, signing and neutral fixture regeneration completed,
+including the remaining Table/codec/relational fixtures and diagnostic inventory.
+Version verification reports 158 aligned packages/pins. The initial generation
+attempts failed compilation on shadowed identifiers; the final generator run
+succeeded. An independent frame check then found an observation field-order
+mismatch in the Python fixture generator, after an earlier test-loop compilation
+failure. Correcting that generator produced the passing 25-test frame run above.
+The runtime fingerprint check was preserved. An initial fast-check invocation
+named a nonexistent recipe and ran no checks; the correct task subsequently
+passed all 60. These earlier failures remain failures:
+
+| Preparation log | Outcome | SHA-256 |
+| --- | --- | --- |
+| `cutover1` | Failed: shadowed progress identifiers | `7cfabf8bc3ddc1c7ca433b67ce8e4977a41fc32a908e69db135b434249407a04` |
+| `cutover2` | Failed: shadowed page row budget | `f43c5d677f569171c4e599a8d01948fb0f47ddf567519a613ab0cc5418dc52d0` |
+| `cutover3` | Regeneration passed | `658554bab56821545ca73e1fda733aa015a18949d9166f5e8b396150e6a974b1` |
+| `extra-fixtures1` | Remaining fixture generation passed | `1df3838fd4ecc44f9f774d8fccee5bea788ca49fcea1c06dc19488117ab4a40f` |
+| `sql-protocol1` | Failed compilation: inline-loop control flow | `a322053342a21912d986a9f1e30263e12a12bbe4cc5684db6295054051805d0c` |
+| `sql-protocol2` | Failed: 24/25 tests; independent observation fingerprint differed | `4883c6b5dd1c65faee100a3de22527feb251933252daa8f54825959daf0ff7c5` |
+| `sql-fixtures2` | Corrected SQL fixtures regenerated | `2b28b1d1e8b555d44700aeabc435f67bc2665072b179188c553f13324e99bdfa` |
+| `fast1` | Not executed: nonexistent recipe | `471e061e3d622eee604515633b2e4eb16df1f5cb9eda540bf64a54864d8ad76d` |
+
+### Installed original results and partial settlement
+
+Three ReleaseSafe installed profiles subsequently passed with the same current
+definition and pinned toolchain (`flake.lock` SHA-256
+`865faed173c5a710f77c231ce13c427bfe9eeaf3900e7edc7fa7e9d6233b1264`).
+Each source was clean. No other agent-owned heavy build overlapped its running
+fault schedule. These profiles qualify their recorded operations; they do not
+establish SQL CONSUME text admission or latency budgets.
+
+| Installed profile / clean source | Executed result | Log SHA-256 |
+| --- | --- | --- |
+| `test-sql-gateway`, `02acf0253867858ff460c8259a6569d5f60d9a80` | 9/9 steps; 1,425 requests; five saved workloads, 116 rows in eight batches, original identities and five revoked terminal disclosures; two workload process deaths and two committed-reply timeout replacements | `39127b4e805c9dccea1cce407d6d2afbc48c82866229ab358abe6ebf2bcb6229` |
+| `test-direct-table-service -- workload-result`, `33fbfb96462ac99dbb0b1f7ea4a1c5dffe61a8fc` | 8/8 steps; 595 requests; lost claim/open/page replies, 257 replay records per partition, SIGKILL/restarts, saved positions, original payloads, finite reads, expired claim evidence and complete empty results | `afbf62841fa10919c84d11d3c16d604d0870fe1209d69014225c2ed7aa9f93bb` |
+| `test-direct-table-service -- mixed-transaction`, `a7b432a13d5d37675d97728818f72c16324889aa` | 8/8 steps; 86 requests; two lost replies and SIGKILL/restarts; one common decision publishes Table/KV changes, Queue ACK/enqueue, Stream append and settlement of the first of two input rows; the remaining input is readable at the original cut | `984e90d2b29d373681868da3a3b0f3bc8c437f31bf9831320958c86db019b63b` |
+
+Commands used `nix develop --option eval-cache false -c zig build <target>
+-Doptimize=ReleaseSafe --summary all`, followed by the listed profile argument
+where present. Logs are `/var/tmp/transit-m6-stream-progress-installed1.log`,
+`native-installed2.log` and `mixed-installed1.log` under the same prefix.
+The SQL profile observed zero settled-idle upstream requests and zero Station
+sends/turns. Its consumption results originate from the native workload API;
+they do not prove SQL logical LIMIT admission. The native original-result
+profile has no group settlement. The mixed profile supplies the installed
+authenticated-interval proof, including the retained unread suffix, without
+changing its lease, timeout or operation identities.
+
+All three runs used `transit-node` SHA-256
+`1419e8da2e524e126f9e708efb1801bfe73a28a88a15b60d61072f2dd7b41ee5`.
+The SQL gateway proof hash was
+`2489159adc67a45f77d01f6b39ad11e7ccb3a4c691558e752627d7ea871445dc`;
+the native original-result and mixed proof hashes were respectively
+`7345209381b992f052165f6c76a7e7b4a48db7c8096dff1b18a935e7e3c31246`
+and `8b3bbc080bda302242d1a5f115dcf94ddb8cf6693379d66bb102b5212bcbc7fd`.
+
+The first native installed build on `02acf0253` failed before executing the
+profile: a test caller incorrectly put the page row budget in its saved
+delivery descriptor. `33fbfb964` removes that field while retaining it on page
+requests. The failed build remains failed (5/8 steps), with log
+`/var/tmp/transit-m6-stream-progress-native-installed1.log`, SHA-256
+`ae59671ef27f8c3d9bec7dd8dc15945171af3e41aa3f3321562b94672322dbb5`.
+
+### Positional Catalog preparation
+
+`b3300394e73bb864c8f8e69b43caf7fc70c5a830` adds pure positional consumption
+binding. Five focused Catalog tests pass, including allocation failures,
+owned bound values, Boolean routing, preserved predicates and explicit refusal
+of unsupported group/wait or ambiguous partition bindings. Fast checks pass
+60/60. This is preparation evidence, not SQL activation or an installed profile.
+Logs `/var/tmp/transit-m6-consume-binding-catalog1.log` and `fast1.log` under
+the same prefix have SHA-256
+`9dfdc679b03bb23d329379ab294124e4e147a6ab204207a1ad21a95e1acf3af2`
+and `891986041d20bc1045633916633ccda861c8d9f06bdd9c2371f4e40aaaa915e4`.
+
+## Typed consumption preparation — 2026-11-01
+
+The local source committed as `9c48a5726698bcf5920a8db7cf3d23799407e6f7`
+(helper `1aa3eb0ae7e8e70eb885bedcddc341de1bf367e2`) adds pure
+`LogConsumeSql.Prepared` and shared row-header/schema-layout helpers. Focused
+ReleaseSafe checks pass **76/76 tests**, including existing logical/append
+coverage, allocation failures, template-independent bound ownership, collation,
+parameter conflicts/gaps, NULL metadata, duration bounds and original compiler
+diagnostics. A star projection excludes metadata used only by a predicate.
+
+The registered DML compiler driver passes its **44** existing Table cases,
+**28** append cases and **24** new consumption cases. The consumption oracle
+uses independently specified layouts, aliases, limits and predicate outcomes
+over five rows, including case-insensitive text and NULL. Diagnostic grammar
+passes **547 compiler cases / 822 coverage obligations**. Ordinary grammar
+passes 174 PostgreSQL SELECT comparisons, 32 exclusions, 42 extensions and
+136 documentation examples, plus 33 relational comparisons and 22 exclusions.
+Fast checks pass **60/60**. The current native definition is unchanged.
+
+The first focused compile failed in a new test that omitted the required
+predicate-failure output pointer; the test and independent driver now supply it.
+The first corpus run found that COUNT in a consumption row header produced an
+imprecise syntax diagnostic. The dedicated header now explicitly refuses
+aggregates. A subsequent diagnostic run found that generic SELECT failure
+routing replaced a consumption compiler cause with `unsupported_statement`.
+The new dedicated diagnostic projection preserves the actual cause, location,
+binding facts and `not_submitted` outcome without reparsing through SELECT.
+
+| Local log | SHA-256 |
+| --- | --- |
+| `/var/tmp/transit-m6-consume-compiler1.log` (test compile failure) | `15e40d823ba9446b4b911ce5dc8fe3340dfe25cf460171dfaa6177c4d3f2d6a6` |
+| `/var/tmp/transit-m6-consume-compiler3.log` | `64a4d1f8db09f1942abf8a558aeacdad849036a36387d9164967b4c1b72ca689` |
+| `/var/tmp/transit-m6-consume-corpus1.log` (aggregate diagnostic failure) | `089eeec464cc95582e219d6bdeba7fa28600593969faab596658f5126f7cd735` |
+| `/var/tmp/transit-m6-consume-corpus2.log` | `59d6fc532a20fc2b215a140c32aa0f58df68f2a086aaa0175cc9b04f3ea57c35` |
+| `/var/tmp/transit-m6-consume-diagnostics2.log` (cause-routing failure) | `c957f1d41d6bda9a0807fa1b10ffe24879cd40291245b7799c592925c23006c9` |
+| `/var/tmp/transit-m6-consume-diagnostics3.log` | `921c66f68f6284e16cb320e7741df54586c5e84a00fe84cf33f1ebefdb0805d0` |
+| `/var/tmp/transit-m6-consume-fast2.log` | `2d9f6414bb81656705d905452e9e3ae8dc7b31a93a72c80ff2f43c5cbc693911` |
+| `/var/tmp/transit-m6-consume-grammar1.log` | `5638c9822605e52b1181144e61d6769972c9a7c346294a4581d02cbb17ccd39f` |
+
+The [compiler contract](../../../contracts/sql/README.md) separates preparation
+from native execution. No SQL service admits CONSUME in this revision. Group
+names remain unresolved and waits unexecuted; the plan's LIMIT does not prove
+offset coverage. Source capture, current authority, group assignment, bounded
+execution and authenticated settlement remain separate implementation gates.
+
+## SQL append admission and original-result delivery — 2026-11-01
+
+The installed `sessions-log` profile passes on clean source
+`a72ecf3107b75bf22020c6454185068eecaa2866`, with current definition
+`3a818ee5cac61823913574006e198d1c2216ca1040c6b00ce7eeda45ff951d76`.
+The matching ReleaseSafe build passes **22/22 steps**. Source cleanliness and
+HEAD are checked before and after the installed run; binary hashes are recorded
+before launch. This is functional evidence, not a performance qualification.
+
+Native SQL, PostgreSQL, MySQL and the real installed console admit dedicated
+single-partition PRODUCE/ENQUEUE. Independent values and offsets cover defaults,
+typed parameters, explicit manual routing and declared row-budget refusal. A
+65-row original result crosses **32/32/1** batches, repeats byte-identically and
+reopens with the same operation, observation and values after gateway replacement.
+Revoking the Catalog role denies already-buffered disclosure and invalidates
+that cursor. Subsequent Stream and Queue offsets prove that result delivery and
+recovery did not append again. The existing declaration profile also passes:
+CREATE/ALTER/RENAME/DROP, original-token recovery, 40-column metadata, 35-name
+listing, empty listings and current disclosure checks across the four interfaces.
+
+Two earlier installed attempts remain failures. Clean
+`92b21115a8ee5845d8bfec442d70be4990a416f0` passed declarations but refused the
+first valid manual append with `ClientTokenBudget`: admission reserved the fixed
+Table amount instead of the complete frozen workload body plus token overhead.
+`f4f79c9ec` fixes that accounting without increasing per-intent or account quotas.
+That particular refusal occurs in local binding validation before dispatch; it
+does not establish a general rule that a missing operation means non-acceptance.
+Its private installation remains at `/var/tmp/transit-direct-sql-wire-zrxu09d2`.
+
+Clean `a909e40ffc05df4477a3bfc804a365f812cedc0c` then passed native append,
+restart and revocation checks but failed a PostgreSQL test expectation:
+libpq does not extract an affected-row count from Transit's custom `PRODUCE n`
+tag. The corrected test asserts `PRODUCE 1` and psycopg `rowcount == -1` for
+the non-returning command, following the public wire profile. Its accepted work
+and original saved identities remain in the private installation
+`/var/tmp/transit-direct-sql-wire-hm18vhsx`; they were not resubmitted. The final
+passing run uses a fresh isolated installation and unchanged runtime deadlines.
+
+Focused checks on the local implementation committed as `92b21115a` passed
+**13/13** database-runtime, **11/11** SQL-service and **24/24** wire-host tests.
+They include original operation/result ownership and notification-before-wait
+handling. Fast checks passed **60/60**; ordinary grammar passed 174 PostgreSQL
+SELECT comparisons, 32 exclusions, 42 extensions and 136 documentation examples.
+The later shared logical-syntax adoption in `a909e40ff` passed **68/68** focused
+logical tests, including allocation failures and failed-adoption ownership.
+Diagnostic coverage initially failed on the newly admitted append statement
+alternative; its added cases pass **520 compiler cases / 783 obligations**.
+The budget fix also changed one inventory count; recording that count restored
+the fast check to **60/60**. These corrections do not erase the failed checks.
+
+| Installed binary | SHA-256 |
+| --- | --- |
+| `transit-node` | `919932d089b8081797c46a6a2cbadec61a75d5918890dff38d76bc10fb70cfd0` |
+| `transit-sql-catalog-proof` | `46a2d0a28f5f25b46ca66165e89480df1412066383dbf288a99564ee82d86d59` |
+| `transit-sql-gateway-proof` | `09a39b3c3ba7a6adedc991fa4732bc16eff01630b5b8b64cb62da4572197e7d8` |
+| `transit-query-host` | `03e0659751e6c8961ead90587ca8162c70cd8f9bc55089dbd20f0d612a7e288a` |
+| `transit-sql-gateway` | `d15ad2933ad70f25ced7d3db86c0aeab65d215cf79e920e0351613a88c27cdbd` |
+| `transit-configuration-probe` | `3b01490216535d6397e3b2e367fb12bf48423fb4a2dc0fd03cb5196fa12c40f4` |
+| `transit` | `96c9d6ff4dfc660751f632904fb2aba787f0ff297d0a96a4ba2f52aaed054b9b` |
+
+| Local log | SHA-256 |
+| --- | --- |
+| `/var/tmp/transit-m6-log-append-installed1.log` (budget failure) | `8badd2e3bd8cc6f7b8d84d0c23eb0dd0dc20cd9c85ce6c47c5056cd16ef7d863` |
+| `/var/tmp/transit-m6-log-append-installed2.log` (client-count expectation failure) | `0df4e0b0c49cecb8165a509d5e6665653c8a0640262667dd872f8e8df08c6efa` |
+| `/var/tmp/transit-m6-log-append-clean-build3.log` | `f029b04f7aa7e20e0898e233bbc8dab52921d4dd48b9c17d5c07f69e2874e5cb` |
+| `/var/tmp/transit-m6-log-append-installed3.log` | `206cc6f977610336075f58bbff6ab0db53dc4691253026375dd14ae14b40d36c` |
+| `/var/tmp/transit-m6-log-append-runtime2.log` | `b9be740a154f05ab40eb8d6ed4a3b452f154a5f959524da335b26e57ba1ad5cb` |
+| `/var/tmp/transit-m6-log-append-service1.log` | `bd3ec51ae05ef7bc49aa851d107f7714ef0310078f44b1667c917aab55d8d5fd` |
+| `/var/tmp/transit-m6-log-append-wire-host2.log` | `5a3985df97146b5514d39d0dbbc0579691426fa08da586b23ed7bbd3e72073d5` |
+| `/var/tmp/transit-m6-logical-adopt1.log` | `d1fbc73fb24767b7d4ebe65f973c1dd6b7125209ce745a4b7b3e6645e216d7c2` |
+| `/var/tmp/transit-m6-logical-adopt-diagnostics1.log` (coverage failure) | `ab414ecbed955715ec528cd1fb40b131566aa9440e16405031c401b5397863b5` |
+| `/var/tmp/transit-m6-logical-adopt-diagnostics2.log` | `978cd689afec7be52a7040eeecdc720b92a7a40d17fadd110f8463ae4025c901` |
+| `/var/tmp/transit-m6-log-append-reservation-inventory1.log` (inventory failure) | `ad4d1a93ff676f2371d38a39a12235e967b58e46deadd1463e43189555203e5c` |
+| `/var/tmp/transit-m6-log-append-coverage-fast1.log` | `6500685dd02cd5f97d1fb42397ed81479e18419e4e9a2665e78347498b39ba20` |
+
+These results qualify the [documented append profile](../../handbook/reference/sql/streaming.md#append-events-and-work).
+They do not qualify SQL consumption/settlement, mixed interactive transactions,
+the Station replacement or the full milestone performance and recovery gates.
+
+## Catalog binding of append preparation — 2026-11-01
+
+The local source committed as `ad94de933f17793454119ee821fe9932663d1c9e`
+adds `DirectLogPreparedAppend` without activating SQL admission. Its focused
+ReleaseSafe Catalog run passes **6/6 tests**. The body restores after preparation
+and parameter storage are destroyed; exact producer identity, native row identity,
+Queue visibility, RETURNING and original intent reference survive. Independent
+SHA-256 expectations qualify ASCII_CI routing. Changed targets, missing/invalid
+manual partitions, explicit key mismatches, cross-partition batches and declared
+row/byte exhaustion refuse before staging.
+
+The first ReleaseSafe allocation sweep failed with
+`NondeterministicMemoryUsage`; ordinary binding passed. A diagnostic run identified
+the sweep failure, and Debug passed 6/6. The final sweep follows the existing
+Catalog test convention of disabling allocator resize/remap during enumeration,
+so every growth allocation is faulted deterministically; a separate ordinary run
+retains normal allocation behavior. No production allocation failure was ignored.
+Fast checks pass **60/60**, and documentation checks pass 10,078 links.
+
+| Local log | SHA-256 |
+| --- | --- |
+| `/var/tmp/transit-m6-log-append-catalog2.log` (failed allocation sweep) | `705f9752174ac709b8e330f546e54417ae1df9f810c082276b4dde5b70fc2288` |
+| `/var/tmp/transit-m6-log-append-catalog4.log` (Debug) | `bda0b9f408cf700015e2af00f41aa5b7698fe6d0a33c48f662c1b74742d0662b` |
+| `/var/tmp/transit-m6-log-append-catalog6.log` (final ReleaseSafe) | `f4ca52cf018d30f14a03c6d90df142163b5d6609e78117c04eeb0fa470bcea61` |
+| `/var/tmp/transit-m6-log-append-catalog-fast1.log` | `d8c9a254794466ba243e5907f68fbe8e2db876ef5d4999076130d53f3a32764d` |
+
+Current authorization at native admission and installed SQL/transport execution
+remain separate gates; this pure binding result does not establish them.
+
+## Dedicated append compiler preparation — 2026-11-01
+
+The local source committed as `b08ef96d9c85f1097755a98764627d048b10bc59`
+(helper commit `8fa3a9e31`) adds standalone `LogAppendSql` preparation. The
+native definition remains
+`3a818ee5cac61823913574006e198d1c2216ca1040c6b00ce7eeda45ff951d76`.
+This is compiler evidence, with no SQL admission or installed execution claim.
+
+The registered Table DML profile passes its existing 44 cases and **28** new
+independent append cases comparing the dedicated ANTLR tree, canonical typed
+row bytes, metadata, projections and refusals. The first run failed because
+the proof executable serialized a byte-slice of projection indices as a JSON
+string; the corrected fixture exports numeric indices. Production bytes matched.
+Focused Fuze checks pass **24/24**, including allocation failures, independent
+ownership, typed parameters, source-binding refusals and projection restoration.
+The SQL code-registry check passes **23/23**; both runs have an additional cached
+compute target.
+
+Diagnostic grammar passes **518** cases and **782** coverage obligations.
+The ordinary grammar passes 174 PostgreSQL SELECT comparisons, 32 exclusions,
+42 extensions and 132 documentation examples, plus its separate relational
+checks. Fast checks pass **60/60** after adding the new reviewed diagnostic
+mappings; the earlier missing-mapping run remains a failure. Documentation
+checks pass 10,078 local links across 710 files.
+
+| Local log | SHA-256 |
+| --- | --- |
+| `/var/tmp/transit-m6-log-append-corpus1.log` (failed fixture) | `0f3f2b00cbff28b7fc358a51f6381a1c0a46b2b63ec6935d127bb4c96fe41387` |
+| `/var/tmp/transit-m6-log-append-corpus2.log` | `428d09347215f332b62ec63217e51123572c00702fcdc9ad2579f9d9eb3dd474` |
+| `/var/tmp/transit-m6-log-append-sql3.log` | `4a1a5198d600d97a5c3059f505e5a401788641309954e9f8040772602e6623c0` |
+| `/var/tmp/transit-m6-log-append-codes1.log` | `7fce4fa13451ee9fe33dd5e3be58555c7712acaed49c13c80289de9b8b728c53` |
+| `/var/tmp/transit-m6-log-append-diagnostics2.log` | `b2088e894e612e301e3c506e5d9e29135eac4cddf45cfffced6bf505576d8679` |
+| `/var/tmp/transit-m6-log-append-grammar1.log` | `6c9977c365d3458fc44e4305b398b9b01bf2e0a2e4c12bf4d1b1a69d5bd9cb61` |
+| `/var/tmp/transit-m6-log-append-fast2.log` | `1bbd36e1545488744a155dcbc4098323b90baa35b32086826f199efed5df3453` |
+
+## SQL original workload operation and result recovery — 2026-11-01
+
+### Installed original-result recovery
+
+The registered `test-sql-gateway` profile passes on clean source
+`c06e6954427b0c4af8d8ebbc3d9fce33c990f355` with definition
+`3a818ee5cac61823913574006e198d1c2216ca1040c6b00ce7eeda45ff951d76`.
+The ReleaseSafe build and installed execution pass **9/9 steps**. The run makes
+1,410 direct requests and completes in 28.646 seconds; this is a functional
+recovery result, not a latency qualification.
+
+Five saved workload tokens cover a 75-row append, a filtered finite consume,
+an empty claim accepted before enqueue, a three-row enqueue and its original
+claim. Database recovery settles the pending native work after node replacement.
+SQL returns **116 rows across eight batches**: the consume returns 35 projected
+rows while retaining authenticated coverage of all 75 source rows. A second
+node replacement preserves the exact selections, frozen projection identities
+and saved bindings. Repeated batches are byte-identical; disabling the login
+credential refuses retained terminal disclosure for all five results. The empty
+claim remains empty after later enqueue. No refetch dispatches a fresh claim.
+This SQL profile does not assert that leases have expired before refetch; the
+separate native original-result profile owns that executed boundary.
+
+The existing Table lost-admission, lost-commit, coordinator-fencing, framing,
+capacity-retry and cleanup checks also pass. The report records two original
+commit-reply crashes and two additional workload node deaths. SQL issues zero
+Station sends or turns, and the settled runtime makes zero idle upstream requests.
+The report now retains source and binary identities after successful installation
+cleanup.
+
+Two earlier attempts remain failures. The first fixture reused token 91 from
+its lost-admission scenario: one workload binding was accepted before the next
+conflicted. Commit `c5927232f` separates the fixture token namespace. The private
+installation `/var/tmp/transit-sql-database-40vyw48c` and its original bindings
+remain preserved. The second attempt recovered all native workloads but failed
+while reading the consume. Inspection of that same original operation in
+`/var/tmp/transit-sql-database-4nutj67f` identifies
+`InvalidStreamReadBudget`: SQL requested 65,536 scanned rows against the native
+owner's default 4,096. Commit `9c0aa5e6a` uses the shared native reader default;
+no owner limit, deadline or lease was increased. The passing run includes this
+correction. Neither failed run is counted as passed evidence.
+
+Commit `c5cf25469` separately normalizes invalid frozen projection data to an
+invalid-request refusal while preserving allocation failure and source conflicts.
+Its focused Catalog check passes **4/4** including malformed/truncated plans,
+foreign definitions, duplicate fields, unknown columns and allocation failure.
+SQL owner tests pass **12/12** after the scan-budget correction. The shared
+VALUES preparation in `c06e69544` passes **25/25** focused Fuze tests, including
+allocation-failure and ownership checks; an additional compute target is cached.
+Its first attempt failed allocation-count determinism after schema cloning moved;
+restoring the existing allocation order passed without weakening the test.
+Fast checks pass **60/60**, and documentation checks pass 10,074 local links.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Installed node | `49950faf3b95fc4478c49a488ac4fea9e8fd3b65be851f14722e2cf6be4cdce4` |
+| Installed Catalog proof | `fa004fa32113d2914a051f8a6eb9eab5525813f0d6e1547ccf5ee5946d8c4578` |
+| Installed gateway proof | `4dc40f95328bf800c4f611e568433daef701435317400823e4313b8b390bcd7a` |
+| `/var/tmp/transit-m6-workload-installed3.log` | `c6b75c272c3ab6b1a5185a770db5b1868eab8f6362a94c01a922be50ff82d065` |
+| `/var/tmp/transit-m6-workload-installed2.log` (failed) | `7190b5eb720870cfd2d0da245f2d781fe7ec527fe2700e31843a9ad12bbc74a6` |
+| `/var/tmp/transit-m6-workload-original-diagnostic3.log` | `1b5c9d7bcd04e5237430d9dc98cdb4ebb85dc1be61d5d6241504adf67bc83f92` |
+| `/var/tmp/transit-m6-workload-projection-refusal1.log` | `eaca3e5fb2ccb48ae15a0bfdcae032095437694e6e848e3b574d643d382a9186` |
+| `/var/tmp/transit-m6-workload-values2.log` | `91dff5b3c737f7cf1672351e451161ff109f388a23c0980645314ccf407a6820` |
+| `/var/tmp/transit-m6-workload-scan-budget1.log` | `36010f879fa4dccfbcf8e379960b882f71f7cb1ff9575df5fb3bd48d28035ea8` |
+| `/var/tmp/transit-m6-workload-gateway-fast3.log` | `f115f2c86723e9afebacfd5ba1fcc79736f6d09711f918f5de0eb993dca2f3c6` |
+
+Workload SQL admission, mixed SQL transactions, the Station replacement,
+provider/resource schedules and performance gates remain outside this result.
+
+### Component preparation
+
+Commit `41efda5332f64592aa0160ce169bde7b3c315cc1` connects existing native workload tokens to
+SQL operation inspection, database recovery and retained result opening. Its
+current-v1 definition is
+`3a818ee5cac61823913574006e198d1c2216ca1040c6b00ce7eeda45ff951d76`.
+The [result contract](../../../contracts/SQL_RESULTS_V1.md#original-workload-evidence)
+and [session contract](../../../contracts/SQL_SESSION_V1.md) own its exact scope.
+Workload SQL text admission remains unimplemented at this revision.
+
+ReleaseSafe package tests pass **12/12** in `transit-sql`, **26/26** in
+`transit-sql-results`, **25/25** in `transit-sql-protocol` and **25/25** in
+`transit-sql-client`. The native client test uses an emulated signed peer for
+pending/applied/cancelled status and frozen projected reads. Independent SQL
+frames check exact original selection, missing receipt evidence and refused
+command conversion for row results. Settlement checks reject altered lease
+epochs, ACK/extension confusion, offset authentication and group generation.
+
+The client HTTP test submits once, loses the execute response, observes the same
+token and opens the original empty claim result. It also replaces an expired
+session before opening, refuses a foreign intent and preserves terminal evidence
+when a later disclosure check is denied. Closing sends only cursor cleanup.
+These are emulated-peer checks, not native disk or installed recovery evidence.
+
+The full `zig build transit-sql-gateway -Doptimize=ReleaseSafe --summary all`
+build passes **6/6 steps**. Its first attempt exposed the PostgreSQL completion
+encoder's exhaustive switch; workload kinds now explicitly refuse in that wire
+profile until admission is implemented. An initial result-test compilation used
+`content` instead of the Stream handle's `source` field; the corrected test passes.
+Contract checks pass **19/19**, fast checks **60/60**, and documentation checks
+10,072 links across 710 files. Generators and binding resources use the same
+current definition; 158 package versions and dependency pins remain aligned.
+
+| Raw log | SHA-256 |
+| --- | --- |
+| `/var/tmp/transit-m6-workload-operation-owner2.log` | `36010f879fa4dccfbcf8e379960b882f71f7cb1ff9575df5fb3bd48d28035ea8` |
+| `/var/tmp/transit-m6-workload-operation-results3.log` | `bf341e51c3b40fc2d26a075913d581656da49a9ce5fdf220d25ade3c33121006` |
+| `/var/tmp/transit-m6-workload-operation-protocol2.log` | `a648183c7a5aec05b3e6eb5e1706d706b92d80278223cca008742ebf18ebb1e3` |
+| `/var/tmp/transit-m6-workload-operation-client3.log` | `5995aea0a13d25475ae61c34138e8ce4f796bf66b4e1e869dc2db76fee8f49e4` |
+| `/var/tmp/transit-m6-workload-operation-gateway2.log` | `dbdd98259b3f5af6201bb9942a1a5cc3842935692f428c4f4af8fee0e6284c01` |
+| `/var/tmp/transit-m6-workload-operation-contracts1.log` | `07b775f52f1da87af9e385c35d9b9f325e47c586328fb604af5f9cd6613a2daf` |
+| `/var/tmp/transit-m6-workload-operation-fast1.log` | `83c5cf94f7471f941afc9a94eec20e2d87986b89aae56d9120556aa0cc3ff850` |
+
+Checks ran against the candidate content committed above. They do not constitute
+the committed-source installed recovery, provider, resource or performance gates.
+Those remain required before milestone completion.
+
+## Frozen workload row evaluation and reader — 2026-11-01
+
+Commit `3f12140d9` adds Fuze's fixed-array row projector and the SQL package's
+[original workload reader](../../../packages/zig/transit-sql/README.md).
+ReleaseSafe package tests pass **12/12** for SQL. The focused Fuze command
+`zig build test -Dtest-filter='workload projection' -Doptimize=ReleaseSafe
+--summary all` executes **23/23** passing tests; another test target is cached.
+Fast checks pass **60/60** and documentation checks pass 10,071 local links.
+
+The SQL test uses a signed native client and an emulated typed local peer. Three
+original Stream rows produce two collated projection rows while terminal native
+coverage remains three. It loses a page response, retries the unchanged position,
+checks copied text after scratch reuse, denies terminal disclosure, and verifies
+that closing sends no settlement. An initial run failed `InvalidStreamResponse`:
+the emulated page omitted the native row header from its encoded-byte count.
+Correcting that fixture preserved the production validator and passed the rerun.
+
+Raw log `/var/tmp/transit-m6-workload-reader2.log` has SHA-256
+`0b7987bda33f6bf31836c91da76e5c05a7366929d62a86b11c1cfbd68e7b0c47`.
+
+Raw log `/var/tmp/transit-m6-workload-projector1.log` has SHA-256
+`afb438243f74dc781a9dbe5b76fe7c8afdf5b8e25b5a599e96a9319c01103f14`.
+
+Raw log `/var/tmp/transit-m6-workload-reader-fast1.log` has SHA-256
+`a8fe0feb7984f7d1a9cd7aef9735dc2e3ac8932145fa3152f51b273ac4890ee8`.
+
+This is component evidence, not installed authority, disk recovery or latency
+qualification. Session result opening and workload SQL remain unconnected at
+this revision.
+
+## Original workload completion evidence in SQL result codecs — 2026-11-01
+
+Commit `f2b13f29bdfc9391f9c4913b2b4b7d8572197713` moves native selection/position
+shapes into the public protocol and adds workload observation and terminal
+coverage to the shared SQL result model. Its coordinated current-v1 definition is
+`fb7be6fc9ea2df52b2d8ae5773c57a668e1cbb904d4f7b346dd0d3379c466a98`.
+The [result contract](../../../contracts/SQL_RESULTS_V1.md#original-workload-evidence)
+and [session framing](../../../contracts/SQL_SESSION_V1.md#logical-results-and-fetch-acknowledgement)
+own current semantics. Terminal workload metadata is bounded to 16 KiB and remains
+separate from output row count and initial observation metadata.
+
+ReleaseSafe `zig build test --summary all` passes **25/25** in `transit-sql-results`,
+**25/25** in `transit-sql-protocol` and **24/24** in `transit-sql-client`.
+Independent Python frames cover append, filtered Stream consumption and original
+Queue claims with full-width identities. Zig decodes and re-encodes the same
+bytes. Missing coverage, foreign saved bodies, invalid counts and partial
+positions reject; the model checks failed validation leaves progress unchanged.
+Empty claims, early closure, retained completion with undisplayed rows and
+unsolicited workload evidence on ordinary results are also checked.
+
+The catalog's selected workload-result/token disk and signature tests pass
+**7/7** after the shared-type move. The SQL service's `zig build check` passes
+**5/5 compilation steps**; its tests were not executed by that command. Root
+contract checks pass **19/19**, fast checks **60/60**, and documentation checks
+10,069 links across 710 files. Initial fixture generation failed because Python
+`deepcopy` preserved a shared intent object between observation and completion,
+so the foreign-body mutation changed both. Separating those fixture objects
+restored the intended negative control before all reported checks passed.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `/var/tmp/transit-m6-sql-workload-evidence-results2.log` | `81efc62618c1ae097533aefb67a4ce62c9af4c1d1f4ca7a3742aa3224bcd2a05` |
+| `/var/tmp/transit-m6-sql-workload-evidence-protocol1.log` | `33b63f4b788f7a8fc6a8e74afff112ca46afa4f1fd12cddfe0b10f7f3f2eb375` |
+| `/var/tmp/transit-m6-sql-workload-evidence-client1.log` | `da79f29879f9e17858701a01e8ce24ad93f71fb84864cecdf5f41e309bfdb166` |
+| `/var/tmp/transit-m6-sql-workload-evidence-catalog1.log` | `3f0de794d08ab37e2a6fa14a9d831ad6535188f02d97d02e64fff835f12168f0` |
+| `/var/tmp/transit-m6-sql-workload-evidence-service1.log` | `f2cde85b020be5960a2d8e00c6688dac3ea9c4464b072c1f479cf4895db56057` |
+| `/var/tmp/transit-m6-sql-workload-evidence-contracts1.log` | `07b775f52f1da87af9e385c35d9b9f325e47c586328fb604af5f9cd6613a2daf` |
+| `/var/tmp/transit-m6-sql-workload-evidence-fast1.log` | `6213b2796b5cb1d3109222cb6ee92aacc836154d15a733077fd1bdc81158fdf7` |
+
+This qualifies shared model/codec carriage and the existing catalog regression
+schedule. It does not qualify SQL service workload admission, original-result
+opening or projection execution, installed consumers, provider recovery or any
+performance budget. Those service paths are not enabled by these types alone.
+
+## Original workload projection preparation — 2026-11-01
+
+Commit `cc70915c7309f0176f310cd83bef0f31c594762d` adds Fuze's pure
+`WorkloadProjection` compiler and restorer. The caller supplies verified frozen
+metadata. Stable column IDs, selected system fields, the exact schema and original
+native binding determine its source basis; the existing FQP1 codec retains the
+projection, aliases, predicate and collation vector without saved SQL text.
+
+In the pinned shell, `zig build test -Dtest-filter='workload projection'
+-Doptimize=ReleaseSafe --summary all` from `packages/zig/transit-fuze` passes
+**116/116 selected and transitive tests**, and root `just check fast` passes
+**60/60**. The added schedule destroys the compiled plan before restoring it,
+overwrites the encoded input after restoration, and verifies retained aliases,
+literals, types and collations. Changed native operation, ordered layout or
+collation rejects. Projection limits, aggregation and post-acquisition claim
+filtering are refused; a claim projection cannot hide an acquired lease row.
+
+Raw logs are `/var/tmp/transit-m6-workload-projection-fuze1.log`
+(SHA-256 `a2ec5f30c19498c114e3ce75bc13c5f53f3c04f6366078057a8623266270f7f3`)
+and `/var/tmp/transit-m6-workload-projection-fast1.log`
+(`5f9e3465e1309e8166babb155d4bfabd8f5c676bf9ef80d3fa49ee627695b44b`).
+This is preparation-only evidence. The module is not yet wired into persisted
+workload intents, SQL admission or result recovery, and enables no workload SQL.
+
 ## Managed finite Table lifecycle — 2026-11-01
 
 The selected installed slice declares one ordinary Table input and an existing,

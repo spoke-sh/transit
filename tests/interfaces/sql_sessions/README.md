@@ -5,7 +5,18 @@ RENAME, DROP, named metadata and paged listings through native, PostgreSQL and M
 sessions, plus a real console declaration script. It checks original-token recovery after service replacement, a 40-row
 schema and 35-name listing across two result batches, filtered empty listings,
 repeated batches, exact-definition invalidation and permission revocation after
-metadata buffering.
+metadata buffering. The same driver admits PRODUCE/ENQUEUE through all four
+interfaces, checks typed parameters/defaults and independent row/offset values,
+reopens a 65-row original result after gateway replacement, repeats all three
+batches, and verifies revoked disclosure. A subsequent append proves that
+result delivery and recovery did not append again.
+
+The same installed task runs [positional consumption](consumes.py) through all
+four interfaces. It verifies filtered progress versus returned rows, LIMIT 0,
+partial-limit completion and exhaustion below the limit, 65 rows across three
+SQL batches, typed parameters and revoked buffered/empty terminals. A saved
+read and token must retain their original cut after a later append and service
+replacement. GROUP and WAIT remain explicit SQL refusals in this profile.
 
 The [session contract](../../../contracts/SQL_SESSION_V1.md) defines supported
 operations; [contribution instructions](AGENTS.md) describe their test boundary.
@@ -18,6 +29,7 @@ operations; [contribution instructions](AGENTS.md) describe their test boundary.
 | Disconnects, replacement and cancellation | [faults.py](faults.py), [boundaries.py](boundaries.py) |
 | Node and Table storage observations, wire consumers and buffered revocation | [storage.py](storage.py), executed by [native.py](native.py) before captured-query workloads |
 | Table transactions, original decisions and checkpoint/outbox histories | [transactions.py](transactions.py), via `just test::sql-transactions` |
+| CHECK enforcement, staged FK dependencies, deferred validation and original DDL recovery | [integrity.py](integrity.py), via `just test::sql-integrity` |
 | Console peer and measurements | [editor_peer.py](editor_peer.py), [measurements.py](measurements.py) |
 | Shared client allocation bounds over Unix, HTTP and TLS | [allocations.py](allocations.py), [client probe](../sql/sql_result_allocations.zig) |
 
@@ -92,6 +104,10 @@ padding and exact logical cells. Its hex cell observations are internal test
 values; it rejects JSON result payloads. The generated fixture is decoded by the
 Zig owner as well as the independent peer. Mutation controls check that damaged
 framing and commitments fail instead of establishing completion.
+Independent workload frames cover append rows, filtered Stream output with larger
+native coverage, and original Queue claims. Both peers reject missing coverage,
+foreign saved bodies and invalid counts; Zig also rejects partial positions.
+These codec checks do not establish installed workload SQL execution.
 `measurements.py` owns the native portion of the seeded console comparison in the
 [performance runner](../../performance/console/console_latency.py). Executed results
 and limitations remain in qualification history.
@@ -100,3 +116,9 @@ The native session schedule also loses one successful `commit_saved` reply at
 the authority proxy. INSERT settlement must still observe the original
 identity, terminal outcome and exact counts; typed reads and restart/token retry retain
 that same row and operation. This tests uncertain-owner reply recovery without changing physical sync semantics.
+
+`history.py` drives selected historical catalogs through native SQL, PostgreSQL
+and MySQL, including rename/name reuse, prepared execution, current revocation,
+gateway replacement and explicit release. `just test::sql-history` owns this
+installed check. Retention uses the public direct historical operations; its
+selector bytes and expected rows are independently specified in the driver.

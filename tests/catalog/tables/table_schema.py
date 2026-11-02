@@ -13,8 +13,8 @@ from pathlib import Path
 import struct
 
 FIXTURE = ROOT / 'packages/zig/transit-fuze/src/fixtures/table-schema.json'
-DEFINITION = b'transit.table.schema.v1.2026-10-23'
-TYPES = b'transit.fuze.types.v1.2026-09-30'
+DEFINITION = b'transit.table.schema.v1.2026-11-01.spatial-reference'
+TYPES = b'transit.fuze.types.v1.2026-11-01.companions'
 ROWS = b'transit.table.row.v1.2026-10-05'
 
 
@@ -56,20 +56,20 @@ def fixtures():
     for _, label, tag, nullable, _ in columns:
         query_type += bytes([len(label)]) + label.encode() + bytes([nullable]) + tag
     query_schema = hashlib.sha256(query_type).digest()
-    query_definition = hashlib.sha256(b'transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names:nullable-parameters:collations').digest()
+    query_definition = hashlib.sha256(b'transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names:nullable-parameters:collations:scalar-programs:decimal-sum.2026-11-01').digest()
     query_prefix = b'\0\2\1\0'
     query_limit = b'\1' + struct.pack('<Q', 3)
     literal = b'\3' + struct.pack('<i', 12)
     program = b'\3\3\0\2\0\0' + struct.pack('<H', len(literal)) + literal + b'\0\1\1\1\3'
     query_bytes = (b'FQP1' + query_definition + b'\7' * 32 + query_schema + query_prefix +
-                   b'\6chosen\0' + query_limit + program + bytes(len(columns)))
+                   b'\6chosen\0' + query_limit + program + bytes(len(columns)) + b'\0')
     literal_envelope = b'FVL1' + struct.pack('<H', len(int32)) + int32 + b'\0' + literal
     identity_program = (b'\3\3\0\2\0\0' + struct.pack('<H', len(literal_envelope)) +
                         literal_envelope + b'\0\1\1\1\3')
     query_identity = (b'transit.fuze.file-plan.v1\0' + b'\7' * 32 + query_schema + query_prefix +
-                      query_limit + identity_program + b'output_names\0\1\6chosen\0' + b'collations\0' + bytes(len(columns)))
+                      query_limit + identity_program + b'output_names\0\1\6chosen\0' + b'collations\0' + bytes(len(columns)) + b'\0')
     query_progress = (b'FQS1' + b'\7' * 32 + hashlib.sha256(query_identity).digest() +
-                      struct.pack('<QQQQQQBqB', 1, 2, 1, 0, 1, 1, 0, 0, 1))
+                      struct.pack('<QQQQQQB', 1, 2, 1, 0, 1, 1, 0) + bytes(16) + b'\1')
 
     def assignment(column, kind, value=None):
         result = dict(column=column, kind=kind)
@@ -135,15 +135,37 @@ def fixtures():
              default={'value': {'atom': {'boolean': True}}}, max_characters=None),
         dict(id='40', name='amount', type={'decimal': {'precision': 18, 'scale': 2}}, nullable=True,
              default=None, max_characters=None),
-    ], primary_key=['11'])
+    ], primary_key=['11'], integrity=dict(next_id=1, checks=[], foreign_keys=[]))
     for column in neutral['columns']:
-        column.update(encoding='plain', collation='none')
+        column.update(encoding='plain', collation='none',
+                      semantics=dict(rounding=None, metric=None, timezone=None, spatial=None))
     physical = copy.deepcopy(neutral)
     for column, encoding, collation in zip(physical['columns'],
             ('bitpacked', 'ebcdic', 'rle', 'comp_3'), ('none', 'ebcdic_cp037', 'none', 'none')):
         column.update(encoding=encoding, collation=collation)
     physical_bytes = encoded + b'FTP1' + bytes((1, 0, 9, 3, 2, 0, 6, 0))
-    return dict(physical_schema_json=json.dumps(physical, separators=(',', ':')),
+    constrained = copy.deepcopy(neutral)
+    constrained['integrity'] = dict(next_id=8, checks=[dict(id=7, name='positive_id',
+        atoms=[dict(compare_literal=dict(column='11', op='gte', literal=dict(value=dict(atom=dict(signed='0')))))],
+        validated=False)], foreign_keys=[])
+    zero = b'FVL1' + struct.pack('<H', len(int32)) + int32 + b'\0\3' + struct.pack('<i', 0)
+    integrity_bytes = (encoded + b'FTI1' + struct.pack('<IBIB', 8, 1, 7, 11) +
+                       b'positive_id' + b'\0\1\1' + struct.pack('<QB', 11, 3) +
+                       struct.pack('<I', len(zero)) + zero + b'\0')
+    foreign = copy.deepcopy(neutral)
+    target = dict(realm='1', resource='3', catalog='1', branch='1', object='9', revision='7', digest='4a' * 32)
+    foreign['integrity'] = dict(next_id=9, checks=[], foreign_keys=[dict(id=8, name='parent_id',
+        local_columns=['11'], target_object='9', target_revision='3', target_definition=target,
+        target_columns=['21'], on_delete='restrict', on_update='no_action', enforcement='staged_awaiting_index')])
+    foreign_bytes = (encoded + b'FTI1' + struct.pack('<IBBIB', 9, 0, 1, 8, 9) + b'parent_id' +
+        struct.pack('<QQ', 9, 3) + struct.pack('<QQQQQQ', 1, 3, 1, 1, 9, 7) + bytes.fromhex('4a' * 32) +
+        bytes([1, 2, 1, 1]) + struct.pack('<QQ', 11, 21))
+    return dict(foreign_schema_json=json.dumps(foreign, separators=(',', ':')),
+                foreign_schema_hex=foreign_bytes.hex(), foreign_fingerprint=hashlib.sha256(foreign_bytes).hexdigest(),
+                integrity_schema_json=json.dumps(constrained, separators=(',', ':')),
+                integrity_schema_hex=integrity_bytes.hex(),
+                integrity_fingerprint=hashlib.sha256(integrity_bytes).hexdigest(),
+                physical_schema_json=json.dumps(physical, separators=(',', ':')),
                 physical_schema_hex=physical_bytes.hex(), physical_fingerprint=hashlib.sha256(physical_bytes).hexdigest(),
                 definition=DEFINITION.decode(), oracle='Python values/Unicode scalar length/struct',
                 schema_hex=encoded.hex(), schema_json=json.dumps(neutral, separators=(',', ':')), fingerprint=hashlib.sha256(encoded).hexdigest(), cases=cases,
@@ -171,7 +193,9 @@ def main():
         neutral = json.loads(result['schema_json'])
         validator.validate(neutral)
         validator.validate(json.loads(result['physical_schema_json']))
-        for key in ('encoding', 'collation'):
+        validator.validate(json.loads(result['integrity_schema_json']))
+        validator.validate(json.loads(result['foreign_schema_json']))
+        for key in ('encoding', 'collation', 'semantics'):
             changed = copy.deepcopy(neutral)
             del changed['columns'][0][key]
             assert list(validator.iter_errors(changed)), key
@@ -183,7 +207,10 @@ def main():
         for key in neutral:
             changed = dict(neutral)
             del changed[key]
-            assert list(validator.iter_errors(changed)), key
+            if key == 'integrity':
+                validator.validate(changed)
+            else:
+                assert list(validator.iter_errors(changed)), key
     print(f'Table schema: independent bytes and {len(result["cases"])} row cases checked')
 
 

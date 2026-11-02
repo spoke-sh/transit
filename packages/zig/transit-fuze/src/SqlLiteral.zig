@@ -75,6 +75,27 @@ fn bindInner(self: Self, allocator: std.mem.Allocator, expected: t.Type, failure
         else => {},
     }
     switch (expected) {
+        .range => |subtype| {
+            if (self.value != .string) return error.InvalidSqlSyntax;
+            return .{ .value = .{ .range = try @import("CompanionLiteral.zig").range(subtype.*, self.value.string) } };
+        },
+        .multirange => |subtype| {
+            if (self.value != .string) return error.InvalidSqlSyntax;
+            // Each run has one closing delimiter. Bound retained allocation by
+            // the input's actual runs, independently of total SQL text bytes.
+            var count: usize = 0;
+            for (self.value.string) |byte| if (byte == ')' or byte == ']') {
+                count += 1;
+            };
+            if (count > (t.Limits{}).children) return error.ValueBudgetExceeded;
+            const runs = try allocator.alloc(t.Ranges.Value, count);
+            return .{ .value = .{ .multirange = try @import("CompanionLiteral.zig").multirange(subtype.*, self.value.string, runs) } };
+        },
+        .vector => |shape| {
+            if (self.value != .string) return error.InvalidSqlSyntax;
+            const bytes = try allocator.alignedAlloc(u8, .fromByteUnits(t.Vectors.alignment), try shape.byteLen());
+            return .{ .value = .{ .vector = try @import("CompanionLiteral.zig").vector(shape, self.value.string, bytes) } };
+        },
         .structure, .list, .array => {
             const input = switch (expected) {
                 .structure => if (self.value == .structure) self.value.structure else return error.InvalidSqlSyntax,

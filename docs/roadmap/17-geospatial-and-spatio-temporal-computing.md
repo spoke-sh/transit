@@ -110,7 +110,7 @@ semantic descriptors and physical encodings separately:
 | `.float_zfp` field/grid encoding | Qualify a Zig block transform and progressive bitplane representation under distinct `LOSSLESS`, `FIXED_RATE(bits)` and `LOSSY_ABS_TOL(eps)` contracts. Define 4^d block packing, traversal, exception handling and error propagation. Conservative min/max and derivative summaries need proofs for each reconstruction level; exact integrals require separately retained exact information or a proved conservative transform. | S2/S8 encoding and S11 independent reconstruction/error oracles. Fixed rate alone promises no pointwise error bound; a truncated prefix is not exact completion. |
 | `RASTER2D` / `GRID3D` | Define dimensions, bands, nodata/validity, affine pixel-to-CRS or patient-frame mapping, axis order, units and resampling (`NEAREST`, `BILINEAR`, `MIN`, `MAX`). `.raster_morton` supplies bounded overview tiles and sound min/max/integral summaries; `.float_zfp` is an independent numeric codec choice. Include EO/DEM/pathology imagery and RAS/LPS medical frames. | S0/S2 typed admission; S3/S8 `ST_Value`, `ST_Band`, `ST_Clip`, `ST_Slope`, `ST_Hillshade`, map/volume algebra and terrain raycast. Test invalid transforms, nodata boundaries, rotated grids and error-qualified overviews. |
 | `SPARSE_MATRIX` / `.sparse_bcsr` | Bind shape, element type, row/column identities and duplicate/zero semantics. Implement paged block-compressed row/column data with Roaring nonzero indexes and bounded sparse reductions. Spatial interpretation requires an explicit axis/frame binding; sparse storage alone supplies none. | S0/S2/S8 values and codec; S3 finite reductions, coordinated with M18. Compare dense and independent sparse oracles, including empty rows, duplicate coordinates and huge logical shapes. |
-| EDA/VLSI `.layout_manhattan` | Specialize scene/topology storage for exact integer grids, layer identities, axis-aligned/45-degree boundaries, D4 transforms and repeated arrays `(nx, ny, dx, dy)`. Track changed instances and dependent spatial tiles for DRC width/spacing/enclosure and M18 graph-based LVS. | S0 grid/layer semantics; S6/S8 compressed instances; S10 delta maintenance. Compare finite recomputation after shared-cell edits; large fanout and global connectivity changes must be charged, not hidden behind an O(changed tiles) claim. |
+| EDA/VLSI `.layout_manhattan` | Specialize scene/topology storage for exact integer grids, layer identities, axis-aligned/45-degree boundaries, D4 transforms and repeated arrays `(nx, ny, dx, dy)`. Track changed instances and dependent spatial tiles for DRC width/spacing/enclosure, M18 graph-based LVS and [M42](42-hardware-design-rtl-and-eda-verification.md) end-to-end RTL-to-GDSII verification. | S0 grid/layer semantics; S6/S8 compressed instances; S10 delta maintenance. Compare finite recomputation after shared-cell edits; large fanout and global connectivity changes must be charged, not hidden behind an O(changed tiles) claim. |
 | Structural biology and spatial omics | Preserve explicit Ångström/micrometer frames and declared precision for atomic/transcript point clouds, typed attributes and segmentation boundaries. Qualify SASA/Connolly-volume oracles, sphere-union coverings and transcript-in-cell joins; connect expression matrices by declared row identities. | S0 interpretation; S7/S8 sphere/cloud representations; S3/S10 finite/incremental spatial joins. Exact and approximate surface/volume results carry separate error contracts. |
 
 Shared-face cancellation gives a linear net-flux sum only for consistent oriented
@@ -693,9 +693,14 @@ but does not satisfy that successful-execution gate.
 - [M30 Board](30-board-reimplementation.md) renders maps, progressive mesh/scene/
   point-cloud views, cross-sections, trajectories and conflict overlays through
   public results. No raw segment access or separate map permission authority.
-- [M41 standards](41-sql-grammar-and-dialect-ergonomics.md) audits the complete
+- [M41 Datalog](41-deductive-rules-datalog-and-equivalence-graphs.md) and
+  [M42 hardware/EDA verification](42-hardware-design-rtl-and-eda-verification.md)
+  compose `.layout_manhattan`, `.topo_arc` and `COCHAIN_FIELD` thermal/IR-drop
+  fields with stratified Datalog reachability, Union-Find net connectivity,
+  incremental `DRC`/`LVS` and RTL-to-silicon tape-out provenance.
+- [M43 standards](43-sql-grammar-and-dialect-ergonomics.md) audits the complete
   selected spatial grammar and dialect coverage. M17 still owns correct checked
   grammar and explicit unsupported forms as each implementation lands.
-- [M42 qualification](42-qualification-and-benchmarks.md) combines spatial evidence
+- [M44 qualification](44-qualification-and-benchmarks.md) combines spatial evidence
   with the broader workload matrix; local M17 correctness, recovery and resource
   gates cannot be postponed to that milestone.

@@ -11,6 +11,9 @@ importers:
       '@types/node':
         specifier: 24.0.0
         version: 24.0.0
+      acorn:
+        specifier: 8.18.0
+        version: 8.18.0
       vite-plus:
         specifier: 0.3.3
         version: 0.3.3(@types/node@24.0.0)(jiti@2.7.0)(terser@5.51.2)(typescript@7.0.2)

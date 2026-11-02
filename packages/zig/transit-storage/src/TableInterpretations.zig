@@ -9,6 +9,47 @@ const Store = @import("TreeStore.zig");
 const pages = Store.pages;
 const stored_bytes = 121;
 
+/// An accepted active definition, independent of physical row generations.
+/// Origins freeze the exact ADD-time defaults at this definition. The owning
+/// Table log publishes this entry and its declaration atomically.
+pub const Accepted = struct {
+    declaration: Declaration.Stored,
+    next_lsn: u64,
+    origins: ?pages.Reference,
+    const encoded_bytes = stored_bytes + 8 + 1 + 64;
+
+    pub fn encode(self: Accepted) !pages.Value {
+        if (self.next_lsn == 0) return error.InvalidTableInterpretation;
+        const stored = try ThisFile.encode(self.declaration);
+        var bytes: [encoded_bytes]u8 = @splat(0);
+        @memcpy(bytes[0..stored_bytes], stored.data[0..stored_bytes]);
+        std.mem.writeInt(u64, bytes[stored_bytes..][0..8], self.next_lsn, .little);
+        bytes[stored_bytes + 8] = @intFromBool(self.origins != null);
+        if (self.origins) |origins| {
+            bytes[stored_bytes + 9 ..][0..32].* = origins.digest;
+            bytes[stored_bytes + 41 ..][0..32].* = origins.location;
+        }
+        return pages.Value.init(&bytes);
+    }
+
+    pub fn decode(value: pages.Value) !Accepted {
+        if (value.len != encoded_bytes or value.data[stored_bytes + 8] > 1) return error.InvalidTableInterpretation;
+        const result: Accepted = .{
+            .declaration = try ThisFile.decode(try pages.Value.init(value.data[0..stored_bytes])),
+            .next_lsn = std.mem.readInt(u64, value.data[stored_bytes..][0..8], .little),
+            .origins = if (value.data[stored_bytes + 8] == 1) .{ .digest = value.data[stored_bytes + 9 ..][0..32].*, .location = value.data[stored_bytes + 41 ..][0..32].* } else null,
+        };
+        if (!std.meta.eql(value, try result.encode())) return error.InvalidTableInterpretation;
+        return result;
+    }
+};
+
+/// One bounded ordered-tree lookup; never follows declaration ancestry.
+pub fn accepted(store: *Store, root: ?pages.Reference, revision: u64) !?Accepted {
+    const tree: pages.Tree(Store) = .{ .store = store };
+    return try Accepted.decode(try tree.get(root, try key(revision)) orelse return null);
+}
+
 pub fn key(id: u64) !pages.Key {
     if (id == 0) return error.InvalidTableInterpretation;
     var bytes: [8]u8 = undefined;
@@ -93,4 +134,28 @@ pub fn adjust(store: *Store, root: ?pages.Reference, revision: u64, delta: i64, 
     const rows = if (delta > 0) try std.math.add(u64, count, @intCast(delta)) else std.math.sub(u64, count, @abs(delta)) catch return error.InvalidTableInterpretation;
     if (rows == 0) return tree.remove(root, try key(revision));
     return try tree.put(root, try key(revision), try (Physical{ .declaration = if (old) |value| value.declaration else current, .rows = rows }).encode());
+}
+
+test "accepted Table interpretation matches independent wide-identity bytes and rejects noncanonical entries" {
+    const t = std.testing;
+    const fixture = try std.json.parseFromSlice(struct { value: Accepted, hex: []const u8 }, t.allocator, @embedFile("fixtures/accepted-interpretation-v1.json"), .{});
+    defer fixture.deinit();
+    var bytes: [194]u8 = undefined;
+    _ = try std.fmt.hexToBytes(&bytes, fixture.value.hex);
+    const value = try pages.Value.init(&bytes);
+    try t.expectEqualDeep(fixture.value.value, try Accepted.decode(value));
+    try t.expectEqualDeep(value, try fixture.value.value.encode());
+    try t.expect(fixture.value.value.declaration.interpretation.revision > (1 << 53));
+    var invalid = value;
+    invalid.data[129] = 0; // Absent origins require canonical zero padding.
+    try t.expectError(error.InvalidTableInterpretation, Accepted.decode(invalid));
+    invalid = value;
+    @memset(invalid.data[121..129], 0); // A staged definition has no acceptance.
+    try t.expectError(error.InvalidTableInterpretation, Accepted.decode(invalid));
+    invalid = value;
+    invalid.data[120] = 1; // Retired definitions cannot be active targets.
+    try t.expectError(error.InvalidTableInterpretation, Accepted.decode(invalid));
+    invalid = value;
+    invalid.len -= 1;
+    try t.expectError(error.InvalidTableInterpretation, Accepted.decode(invalid));
 }

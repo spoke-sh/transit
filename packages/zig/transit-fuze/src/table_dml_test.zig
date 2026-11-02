@@ -105,7 +105,10 @@ fn allocationCase(allocator: std.mem.Allocator) !void {
     _ = try inserted.plan.fingerprint(allocator);
 }
 test "DML compiler frees cloned schemas and literal arenas at every allocation failure" {
-    try e.checkAllAllocationFailures(e.allocator, allocationCase, .{});
+    // Arena remapping depends on backing-page placement. Make growth allocate
+    // so every injected failure has the same index on every run.
+    var no_resize = e.FailingAllocator.init(e.allocator, .{ .resize_fail_index = 0 });
+    try e.checkAllAllocationFailures(no_resize.allocator(), allocationCase, .{});
 }
 
 test "DML binding attributes names qualifiers values and repeated assignments to their source" {

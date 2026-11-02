@@ -23,16 +23,16 @@ public final class Catalog {
     static String hex(Bytes value) { return HexFormat.of().formatHex(value.copy()); }
     static long u32(long value) { if (value < 1 || value > 0xffffffffL) throw new IllegalArgumentException("Expected positive uint32"); return value; }
     public enum Encoding { PLAIN, BITPACKED, RLE, DICTIONARY, FSST, COMP, COMP_3, ZONED, IBM_HFP, EBCDIC }
-    public enum Collation { NONE, UTF8_BINARY, ASCII_CI, EBCDIC_CP037, ICU_ROOT }
+    public enum Collation { NONE, UTF8_BINARY, ASCII_CI, EBCDIC_CP037, ICU_ROOT, EBCDIC_037_PAD, EBCDIC_1047_NOPAD }
     public enum Kind { CREATE, ALTER, RENAME, DROP, INSERT, UPDATE, DELETE }
     public enum Ingestion { POINT, BULK }
     public enum Dialect { TRANSIT, MYSQL }
     public enum WorkKind { TABLE, NAME_ASSERTION }
     public enum ObservationKind { DDL, ROWS, NAME_ASSERTION }
-    public enum OperationState { NOT_OBSERVED, ADMITTED, REJECTED, CANCELLED, COMMITTED, UNCHANGED }
+    public enum OperationState { NOT_OBSERVED, ADMITTED, REJECTED, CANCELLED, COMMITTED, UNCHANGED, FINALIZING }
     public enum Phase { ADMITTED, READY, SETTLED, REJECTED, CANCELLED }
     public enum Reason { NONE, NAME_CONFLICT, OBJECT_CONFLICT, STALE_DEFINITION, STALE_DATA, DEPENDENCY, CONSTRAINT,
-        DEFINITION_CHANGED, DATA_CHANGED, DUPLICATE_KEY, MISSING_ROW, INVALID_ROWS, WORK_LIMIT, CONDITION_CHANGED }
+        DEFINITION_CHANGED, DATA_CHANGED, DUPLICATE_KEY, MISSING_ROW, INVALID_ROWS, WORK_LIMIT, CONDITION_CHANGED, REWRITE_REQUIRED, CHECK_VIOLATION }
     public enum EvolutionWork { METADATA, VALIDATE_ROWS, REWRITE_ROWS }
     public record Scope(ResourceRef resource, BigInteger catalog) {
         public Scope { Objects.requireNonNull(resource); positive(catalog); }
@@ -84,7 +84,7 @@ public final class Catalog {
         JsonObject wire() { JsonObject out = columnWire(name, type, nullable, defaultValue, maxCharacters, encoding, collation); out.addProperty("id", id.toString()); return out; }
     }
     static JsonObject columnWire(String name, Logical.Descriptor type, boolean nullable, Optional<Logical.Cell> defaultValue, Optional<Long> maxCharacters, Encoding encoding, Collation collation) {
-        return obj("name", name, "type", Logical.typeWire(type), "nullable", nullable, "default", defaultValue.map(Logical::cellWire).orElse(null), "max_characters", maxCharacters.orElse(null), "encoding", Logical.tag(encoding), "collation", Logical.tag(collation));
+        return obj("name", name, "type", Logical.typeWire(type), "nullable", nullable, "default", defaultValue.map(Logical::cellWire).orElse(null), "max_characters", maxCharacters.orElse(null), "encoding", Logical.tag(encoding), "collation", Logical.tag(collation), "semantics", obj("rounding", null, "metric", null, "timezone", null, "spatial", null));
     }
     public record Schema(BigInteger object, BigInteger revision, BigInteger nextColumn, List<Column> columns, List<BigInteger> primaryKey) {
         public Schema {
@@ -95,7 +95,8 @@ public final class Catalog {
         JsonObject wire() {
             WireBudget budget = new WireBudget(2 * 1024 * 1024);
             JsonArray cols = new JsonArray(), keys = new JsonArray(); columns.forEach(c -> cols.add(budget.take(c.wire()))); primaryKey.forEach(k -> keys.add(k.toString()));
-            JsonObject result = obj("definition", DEFINITION, "object", object.toString(), "revision", revision.toString(), "next_column", nextColumn.toString(), "columns", cols, "primary_key", keys);
+            JsonObject result = obj("definition", DEFINITION, "object", object.toString(), "revision", revision.toString(), "next_column", nextColumn.toString(), "columns", cols, "primary_key", keys,
+                "integrity", obj("next_id", 1, "checks", new JsonArray(), "foreign_keys", new JsonArray()));
             text(result.toString(), 2 * 1024 * 1024); return result;
         }
     }
@@ -166,7 +167,7 @@ public final class Catalog {
     }
     public record SetPhysical(BigInteger column, Encoding encoding, Collation collation) implements Change {
         public SetPhysical { positive(column); Objects.requireNonNull(encoding); Objects.requireNonNull(collation); }
-        public JsonObject wire() { return obj("physical", obj("column", column.toString(), "encoding", Logical.tag(encoding), "collation", Logical.tag(collation))); }
+        public JsonObject wire() { return obj("physical", obj("column", column.toString(), "encoding", Logical.tag(encoding), "collation", Logical.tag(collation), "semantics", null)); }
     }
     public sealed interface Operation permits Create, Alter, Rename, Drop, Mutate { Kind kind(); BigInteger object(); JsonObject wire(); }
     public record Create(Schema schema, boolean ifNotExists) implements Operation {

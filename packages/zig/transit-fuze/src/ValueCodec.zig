@@ -105,7 +105,21 @@ fn writeValue(value: v.Value, expected: types.Type, writer: *std.Io.Writer) anye
             try writeCell(tagged.value.*, expected.tagged_union[tagged.index].type, writer);
         },
         .json => |bytes| try writeBytes(bytes, writer),
+        .range => |range| try writeRange(range, expected.range.*, writer),
+        .multirange => |ranges| {
+            try writer.writeInt(u32, @intCast(ranges.len), .little);
+            for (ranges) |range| try writeRange(range, expected.multirange.*, writer);
+        },
+        .vector => |bytes| try writer.writeAll(bytes),
     }
+}
+fn writeRange(range: types.Ranges.Value, subtype: types.Type, writer: *std.Io.Writer) !void {
+    const flags: u8 = @intFromBool(range.is_empty) |
+        (if (range.lower) |bound| @as(u8, 2) | (if (bound.inclusive) @as(u8, 8) else 0) else 0) |
+        (if (range.upper) |bound| @as(u8, 4) | (if (bound.inclusive) @as(u8, 16) else 0) else 0);
+    try writer.writeByte(flags);
+    if (range.lower) |bound| try writeAtom(bound.value, subtype, writer);
+    if (range.upper) |bound| try writeAtom(bound.value, subtype, writer);
 }
 fn writeBytes(bytes: []const u8, writer: *std.Io.Writer) !void {
     try writer.writeInt(u32, @intCast(bytes.len), .little);
@@ -262,7 +276,34 @@ fn readValue(reader: *Reader, expected: types.Type, depth: usize) anyerror!v.Val
             break :blk .{ .tagged_union = .{ .index = index, .value = cell } };
         },
         .json => .{ .json = try reader.data() },
+        .range => |subtype| .{ .range = try readRange(reader, subtype.*) },
+        .multirange => |subtype| blk: {
+            const count = try reader.readCount();
+            const ranges = try reader.allocator.alloc(types.Ranges.Value, count);
+            for (ranges) |*range| {
+                try reader.child(depth + 1);
+                range.* = try readRange(reader, subtype.*);
+            }
+            break :blk .{ .multirange = ranges };
+        },
+        .vector => |vector| blk: {
+            const size = try vector.byteLen();
+            if (size > (types.Limits{}).value_bytes -| reader.bytes) return error.ValueBudgetExceeded;
+            reader.bytes += size;
+            // Wire offsets need not be aligned. Even a borrowing decode owns
+            // this slab so all execution values satisfy the shared alignment.
+            break :blk .{ .vector = try types.Vectors.cloneInto(reader.allocator, vector, try reader.reader.take(size)) };
+        },
         else => .{ .atom = try readAtom(reader, expected) },
+    };
+}
+fn readRange(reader: *Reader, subtype: types.Type) !types.Ranges.Value {
+    const flags = try reader.reader.takeByte();
+    if (flags > 31 or (flags & 1 != 0 and flags != 1) or (flags & 8 != 0 and flags & 2 == 0) or (flags & 16 != 0 and flags & 4 == 0)) return error.InvalidValueEncoding;
+    return .{
+        .is_empty = flags & 1 != 0,
+        .lower = if (flags & 2 != 0) .{ .value = try readAtom(reader, subtype), .inclusive = flags & 8 != 0 } else null,
+        .upper = if (flags & 4 != 0) .{ .value = try readAtom(reader, subtype), .inclusive = flags & 16 != 0 } else null,
     };
 }
 fn readAtom(reader: *Reader, expected: types.Type) !sem.Atom {

@@ -223,8 +223,8 @@ evidence; the negative result is not successful completion or physical cleanup.
 `GQS1` segment manifests are 55 bytes: result and ordinal (u64 each), bytes
 (u16), rows (u8), SHA-256 (32 bytes). The chain starts with 32 zero bytes. Each
 seal hashes `transit.station.query.segments.v1` followed by a zero byte, the
-prior chain and the exact encoded manifest. `GQT1` staging records are 187 bytes: four-byte magic,
-126-byte `FQS1` candidate progress, 55-byte `GQS1` candidate manifest, and u16
+prior chain and the exact encoded manifest. `GQT1` staging records are 195 bytes: four-byte magic,
+134-byte `FQS1` candidate progress, 55-byte `GQS1` candidate manifest, and u16
 written bytes. Fragment values hold at most 221 raw bytes. Three fragment writes
 plus one stage write fit the four-mutation budget; a seal writes manifest,
 progress, job and stage tombstone atomically. The tombstone closes transient

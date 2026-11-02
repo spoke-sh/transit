@@ -140,7 +140,7 @@ test "A1 & P3 compressed-domain .dictionary and .fsst string predicates and late
     };
 
     for ([_]TableSchema.Encoding{ .dictionary, .fsst }) |encoding| {
-        for ([_]TableSchema.Collation{ .utf8_binary, .ascii_ci }) |collation| {
+        for ([_]TableSchema.Collation{ .utf8_binary, .ascii_ci, .ebcdic_037_pad, .ebcdic_1047_nopad }) |collation| {
             const col: TableSchema.Column = .{
                 .id = 1,
                 .name = "uri",
@@ -157,17 +157,17 @@ test "A1 & P3 compressed-domain .dictionary and .fsst string predicates and late
             defer workspace.deinit();
             for (0..2) |pass| {
                 for (predicates) |pred| {
-                    _ = workspace.reset(.retain_capacity);
+                    try std.testing.expect(workspace.reset(.retain_capacity));
                     const a = workspace.allocator();
                     const result = try PhysicalCodecs.evaluateColumnPage(a, a, col, page, pred);
                     for (raw_values, result.outcomes) |cell, actual| try std.testing.expectEqual(try pred.evaluate(col, cell), actual);
                     if (encoding == .dictionary) try std.testing.expectEqual(@as(usize, 5), result.evaluated_values);
-                    if (encoding == .fsst and (pred == .compare or pred == .starts_with)) {
+                    if (encoding == .fsst and (collation == .utf8_binary or collation == .ascii_ci) and (pred == .compare or pred == .starts_with)) {
                         try std.testing.expectEqual(@as(usize, 5), result.streamed_strings);
                         try std.testing.expectEqual(@as(usize, 0), result.materialized_strings);
                     }
                 }
-                _ = workspace.reset(.retain_capacity);
+                try std.testing.expect(workspace.reset(.retain_capacity));
                 const a = workspace.allocator();
                 const selected = [_]u32{ 1, 2, 4, 6 };
                 const materialized = try PhysicalCodecs.decodeColumnPageSelected(a, a, col, page, &selected);
@@ -176,7 +176,55 @@ test "A1 & P3 compressed-domain .dictionary and .fsst string predicates and late
                 try std.testing.expect(materialized.cells[1] == .null);
                 try std.testing.expect(materialized.cells[2] == .type_error);
                 try std.testing.expectEqualStrings(raw_values[6].value.atom.bytes, materialized.cells[3].value.atom.bytes);
-                if (pass == 0) probe.begin(true) else try probe.verify();
+                if (pass == 0) {
+                    // Consolidation is part of warming the reusable arena.
+                    // Wider logical cells can require more than one backing
+                    // block on the initial materialization.
+                    try std.testing.expect(workspace.reset(.retain_capacity));
+                    probe.begin(true);
+                } else try probe.verify();
+            }
+        }
+    }
+}
+
+test "compressed collation predicates retain every byte-distinct equivalent dictionary code" {
+    const t = std.testing;
+    var workspace = std.heap.ArenaAllocator.init(t.allocator);
+    defer workspace.deinit();
+    const cells = [_]Values.Cell{
+        .{ .value = .{ .atom = .{ .bytes = "A" } } },
+        .{ .value = .{ .atom = .{ .bytes = "A " } } },
+        .{ .value = .{ .atom = .{ .bytes = "a" } } },
+        .{ .value = .{ .atom = .{ .bytes = "B" } } },
+        .null,
+    };
+    for ([_]TableSchema.Encoding{ .dictionary, .fsst }) |encoding| {
+        for ([_]struct { collation: TableSchema.Collation, mask: u8 }{
+            .{ .collation = .utf8_binary, .mask = 0b00001 },
+            .{ .collation = .ascii_ci, .mask = 0b00101 },
+            .{ .collation = .ebcdic_cp037, .mask = 0b00001 },
+            .{ .collation = .ebcdic_037_pad, .mask = 0b00011 },
+            .{ .collation = .ebcdic_1047_nopad, .mask = 0b00001 },
+        }) |case| {
+            const column: TableSchema.Column = .{ .id = 1, .name = "code", .type = .utf8, .encoding = encoding, .collation = case.collation };
+            var buffer: [8192]u8 = undefined;
+            const page = try PhysicalCodecs.encodeColumnPage(t.allocator, column, &cells, &buffer);
+            for ([_]ColumnPredicate.Predicate{
+                .{ .compare = .{ .op = .eq, .value = .{ .bytes = "A" } } },
+                .{ .compare = .{ .op = .ne, .value = .{ .bytes = "A" } } },
+                .{ .in_set = &.{"A"} },
+            }) |predicate| {
+                _ = workspace.reset(.retain_capacity);
+                const a = workspace.allocator();
+                const result = try PhysicalCodecs.evaluateColumnPage(a, a, column, page, predicate);
+                const outcomes = result.outcomes;
+                for (outcomes[0..4], 0..) |actual, i| {
+                    const equal = case.mask & (@as(u8, 1) << @intCast(i)) != 0;
+                    const yes = if (predicate == .compare and predicate.compare.op == .ne) !equal else equal;
+                    try t.expectEqual(if (yes) ColumnPredicate.Outcome.yes else .no, actual);
+                }
+                try t.expect(outcomes[4] != .yes);
             }
         }
     }

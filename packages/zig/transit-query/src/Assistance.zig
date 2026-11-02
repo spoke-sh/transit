@@ -199,13 +199,13 @@ fn completeStatement(allocator: std.mem.Allocator, name: []const u8, schema: q.f
     if (hints.name_role != .source) if (target) |actual| if (!std.mem.eql(u8, actual, name)) return builder.unsupported(range);
     if (hints.qualifier) |actual| if (!std.mem.eql(u8, actual.slice(), qualifier)) return builder.unsupported(range);
     const has_sum = for (schema.structure) |column| {
-        if (column.type == .int64) break true;
+        if ((column.type == .int64 or column.type == .decimal)) break true;
     } else false;
     if (hints.name_role) |role| switch (role) {
         .source => try builder.add(name, .source, "Authorized source"),
         .column => {
             for (schema.structure) |column| {
-                if (hints.sum_only and column.type != .int64) continue;
+                if (hints.sum_only and (column.type != .int64 and column.type != .decimal)) continue;
                 try builder.add(column.name, .column, @tagName(column.type));
             }
             if (hints.qualifier == null and (!hints.sum_only or has_sum)) try builder.add(qualifier, .source, "Column qualifier");

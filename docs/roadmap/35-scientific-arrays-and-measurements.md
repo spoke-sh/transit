@@ -6,7 +6,7 @@ Let applications declare measured and simulated datasets with named dimensions,
 units, calibration and numerical fidelity, then inspect exactly which inputs and
 interpretations produced a result. Qualify earth observation, climate and
 scientific data cubes as the first application profile. The shared contracts also
-serve audio, imaging, biology, video, robotics and numerical experiments.
+serve audio, imaging, biology, video, robotics, [EDA/hardware waveforms and continuum thermal/IR-drop fields](42-hardware-design-rtl-and-eda-verification.md) and numerical experiments.
 
 This is planned work. Existing array descriptors, spatial grids, codecs and
 captured computations do not establish this lifecycle or executable syntax.

@@ -105,6 +105,8 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just test::authorization`, `just test::authorization-cli` | Exercise native policy staging/recovery and shared caller/ABI/host administration against disk-backed authority |
 | `just test::table-build-memory` | Verify candidate allocation ceilings, admitted work-limit outcomes and parent-allocation failure distinctions |
 | `just test::storage-benchmark --output PATH` | Paired native/Table disk startup, recovery and read measurements with independent values, warm/cold input pages and raw samples |
+| `just test::log-runtime-baseline --output PATH` | Signed Stream/Queue calls, client allocation counts and independent retained readback after node restart; [profiles and limits](../tests/performance/storage/log_runtime.md) |
+| `just test::station-turn-baseline --output PATH` | Real GenServer handler state/output commits, allocation counts and independent state/outbox readback; [workload and limits](../tests/performance/load/station_turn.md) |
 | `just test::storage-ingest-benchmark --output PATH` | Matched Table WAL/bulk ingestion and native turn preparation/commit with independent fresh-process readback and raw samples |
 | `just test::storage-growth --output PATH` | Increasing Table/native data with 16 KiB values, a hard process address-space limit and cold fresh-process value verification |
 | `just test::table-checkpoints` | Verify published restart baselines, bounded replay, logical history floors, compact original evidence and interrupted publication |

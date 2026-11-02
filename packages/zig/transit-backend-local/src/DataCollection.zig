@@ -122,9 +122,9 @@ pub fn Collector(comptime Graph: type) type {
             try self.save(.{ .definition = core.protocol.Growth.current_definition, .phase = .mark, .cut = cut, .grace_until_ms = grace, .cuts = try Cuts.init(cut), .inventory_end = inventory.tail, .source_activity = activity });
         }
 
-        fn mark(self: *Self, allocator: std.mem.Allocator, state: *State, data: *DataStore, index: *storage.TreeStore) !void {
+        fn mark(self: *Self, allocator: std.mem.Allocator, state: *State, data: *DataStore, index: *storage.TreeStore, page_batch: *storage.TreeStore.Batch) !void {
             var workspace: Marks.Workspace(Graph.Work) = .{ .state = &state.work, .index = index };
-            try index.begin(8 * 1024 * 1024);
+            try index.beginBatch(8 * 1024 * 1024, page_batch);
             defer index.end();
             if (state.active) |*work| {
                 if (try Graph.step(allocator, index, data.log(), work, &workspace)) state.active = null;
@@ -143,6 +143,9 @@ pub fn Collector(comptime Graph: type) type {
                     try workspace.enqueue(try Graph.fromFrame(allocator, batch.frames[0]));
                 },
             }
+            // The checkpoint may expose these private roots only after every
+            // immutable page is durable. Failure discards the proposed State.
+            try index.flush();
         }
 
         fn sweep(self: *Self, state: *State, index: *storage.TreeStore) !void {
@@ -238,16 +241,23 @@ pub fn Collector(comptime Graph: type) type {
             defer index.deinit();
             switch (state.phase) {
                 .complete => return !try self.trim(),
-                .mark => for (0..4) |_| {
-                    self.mark(memory.allocator(), &state, &data, &index) catch |err| {
-                        if (err == error.OutOfMemory and memory.exhausted) return error.StorageMaintenanceBudget;
-                        if (err != error.WalHistoryTrimmed) return err;
-                        state.phase = .complete;
-                        state.aborted = true;
-                        state.active = null;
-                        state.work = .{};
+                .mark => {
+                    const batch = memory.allocator().create(storage.TreeStore.Batch) catch |err| {
+                        if (memory.exhausted) return error.StorageMaintenanceBudget;
+                        return err;
                     };
-                    if (state.phase != .mark) break;
+                    defer memory.allocator().destroy(batch);
+                    for (0..4) |_| {
+                        self.mark(memory.allocator(), &state, &data, &index, batch) catch |err| {
+                            if (err == error.OutOfMemory and memory.exhausted) return error.StorageMaintenanceBudget;
+                            if (err != error.WalHistoryTrimmed) return err;
+                            state.phase = .complete;
+                            state.aborted = true;
+                            state.active = null;
+                            state.work = .{};
+                        };
+                        if (state.phase != .mark) break;
+                    }
                 },
                 .wait => {
                     if (now.lower() <= state.grace_until_ms) return false;

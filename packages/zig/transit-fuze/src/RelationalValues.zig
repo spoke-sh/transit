@@ -214,7 +214,7 @@ const Comparing = struct {
 
 test "relational text comparison and streaming hash share declared collation identity" {
     const t = std.testing;
-    const variants = [_]table.Collation{ .utf8_binary, .ascii_ci, .ebcdic_cp037 };
+    const variants = [_]table.Collation{ .utf8_binary, .ascii_ci, .ebcdic_cp037, .ebcdic_037_pad, .ebcdic_1047_nopad };
     const values = [_]Value{ null, .{ .text = "" }, .{ .text = "A" }, .{ .text = "a" }, .{ .text = "a " }, .{ .text = "0" }, .{ .text = "\x00" }, .{ .text = "é" } };
     for (variants) |variant| {
         const column: table.Column = .{ .id = 1, .name = "k", .type = .utf8, .nullable = true, .collation = variant };
@@ -226,8 +226,9 @@ test "relational text comparison and streaming hash share declared collation ide
             try hashInto(&b, right, column);
             try t.expectEqual(a.finalResult(), b.finalResult());
         };
-        try t.expectEqual(if (variant == .ascii_ci) std.math.Order.eq else if (variant == .ebcdic_cp037) std.math.Order.gt else std.math.Order.lt, try order(.{ .text = "A" }, .{ .text = "a" }, column));
-        try t.expectEqual(std.math.Order.lt, try order(.{ .text = "a" }, .{ .text = "a " }, column));
+        const ebcdic = variant == .ebcdic_cp037 or variant == .ebcdic_037_pad or variant == .ebcdic_1047_nopad;
+        try t.expectEqual(if (variant == .ascii_ci) std.math.Order.eq else if (ebcdic) std.math.Order.gt else std.math.Order.lt, try order(.{ .text = "A" }, .{ .text = "a" }, column));
+        try t.expectEqual(if (variant == .ebcdic_037_pad) std.math.Order.eq else std.math.Order.lt, try order(.{ .text = "a" }, .{ .text = "a " }, column));
     }
     // The complete canonical key exceeds the index-key materialization bound.
     const large = try t.allocator.alloc(u8, 32 * 1024);

@@ -29,13 +29,14 @@ pub const Mutation = struct {
     predicate: ?[]const Instruction,
 };
 pub const Change = union(enum) {
-    add: struct { name: []const u8, type: f.Types.Type, nullable: bool, default: ?Cell, max_characters: ?u32, encoding: s.Encoding, collation: s.Collation },
+    add: struct { name: []const u8, type: f.Types.Type, nullable: bool, default: ?Cell, max_characters: ?u32, encoding: s.Encoding, collation: s.Collation, semantics: s.Semantics.Neutral },
     drop: []const u8,
     rename: struct { column: []const u8, name: []const u8 },
     default: struct { column: []const u8, value: ?Cell },
     nullable: struct { column: []const u8, value: bool },
     type: struct { column: []const u8, type: f.Types.Type, max_characters: ?u32 },
-    physical: struct { column: []const u8, encoding: s.Encoding, collation: s.Collation },
+    physical: struct { column: []const u8, encoding: s.Encoding, collation: s.Collation, semantics: ?s.Semantics.Neutral },
+    integrity: f.TableSchemaJson.Schema,
 };
 /// Converted payloads are a lower bound on the final canonical intent size.
 /// Charge each cell immediately, before converting the next one. At most one
@@ -122,7 +123,7 @@ pub fn plan(arena: *std.heap.ArenaAllocator, schema: s.Schema, name: []const u8,
 pub fn change(arena: *std.heap.ArenaAllocator, schema: s.Schema, value: Change) !f.TableEvolution.Change {
     const allocator = arena.allocator();
     const result: f.TableEvolution.Change = switch (value) {
-        .add => |add| .{ .add = .{ .name = add.name, .type = add.type, .nullable = add.nullable, .default = if (add.default) |cell| try f.LogicalJson.fromForeign(allocator, cell, .{ .name = add.name, .type = add.type, .nullable = add.nullable }) else null, .max_characters = add.max_characters, .encoding = add.encoding, .collation = add.collation } },
+        .add => |add| .{ .add = .{ .name = add.name, .type = add.type, .nullable = add.nullable, .default = if (add.default) |cell| try f.LogicalJson.fromForeign(allocator, cell, .{ .name = add.name, .type = add.type, .nullable = add.nullable }) else null, .max_characters = add.max_characters, .encoding = add.encoding, .collation = add.collation, .semantics = try s.Semantics.native(add.semantics, allocator) } },
         .drop => |id| .{ .drop = try v.unsigned(id) },
         .rename => |rename| .{ .rename = .{ .column = try v.unsigned(rename.column), .name = rename.name } },
         .default => |default| blk: {
@@ -132,7 +133,8 @@ pub fn change(arena: *std.heap.ArenaAllocator, schema: s.Schema, value: Change) 
         },
         .nullable => |nullable| .{ .nullable = .{ .column = try v.unsigned(nullable.column), .value = nullable.value } },
         .type => |typed| .{ .type = .{ .column = try v.unsigned(typed.column), .type = typed.type, .max_characters = typed.max_characters } },
-        .physical => |physical| .{ .physical = .{ .column = try v.unsigned(physical.column), .encoding = physical.encoding, .collation = physical.collation } },
+        .physical => |physical| .{ .physical = .{ .column = try v.unsigned(physical.column), .encoding = physical.encoding, .collation = physical.collation, .semantics = if (physical.semantics) |rules| try s.Semantics.native(rules, allocator) else null } },
+        .integrity => |value_| .{ .integrity = try f.TableSchemaJson.native(arena, value_) },
     };
     var columns: [s.max_columns]s.Column = undefined;
     _ = try f.TableEvolution.apply(schema, result, &columns);

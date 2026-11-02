@@ -14,6 +14,10 @@ An age policy requires trusted UTC within the deployment's configured clock
 uncertainty bound. Append records a conservative upper timestamp; expiry needs
 a later lower bound proving the declared age has elapsed. Missing or regressing
 time refuses fresh timed work while original receipts remain inspectable.
+The local node uses `genesis.max_clock_error_ms` as a fixed envelope around
+trusted UTC for both bounds. A larger allowance makes timed visibility and
+expiry more conservative. The kernel-reported error must remain within it;
+changes to that reported error do not reset or relax accepted time floors.
 
 Preview writes nothing. Admission freezes the original request and reserves its
 name and partition identities. Bounded execution registers the permission object
@@ -42,11 +46,55 @@ Historical Queue dependency edges remain retained pending the Queue closure owne
 Lookup and listing recheck current metadata rights. Each bounded listing page
 has its own catalog observation position; it is not an atomic data snapshot.
 Payload operations use the separate typed calls below. SQL supports
-[declaration and named inspection](sql/streaming.md#stream-and-queue-declarations);
-workload verbs and Station composition remain unavailable. The existing mailbox delivery
+[declarations, inspection, appends and positional consumption](sql/streaming.md#operations-and-sql-coverage).
+Other workload verbs and transactional Station composition remain unavailable. The existing mailbox delivery
 profile below remains separate.
 See the [caller package](../../../packages/zig/transit-data-client/README.md) and
 [exact lifecycle contract](../../../contracts/DIRECT_TABLE_V1.md#stream-and-queue-lifecycle).
+
+Database callers can also save complete workload intents with
+`DirectWorkloadIntent` and bind them through `DirectClientToken`. The saved body
+includes the exact definition/schema, native request and payload, within a 4 MiB
+canonical JSON bound including encoding overhead. Token acceptance reserves the
+original operation identity and retains the body; it does not execute it.
+Recovery loads the accepted reference and calls the same native operation owner.
+Pending bookkeeping can settle only after that owner returns a matching success
+or durable closure. Missing receipts, bounded recovery and a cancellation request
+remain distinct from completion. Current operation rights are required for token
+lookup and settlement as well as execution. SQL workload syntax and result
+reopening are not enabled by this typed caller support.
+
+The signed `workload_result` action can reopen original append/enqueue rows,
+finite consumes and claims from a saved workload reference. It returns the
+original receipt and source schema, then reads bounded pages using explicit
+delivery positions. Refetching retains the same selection and does not renew
+leases or repeat work. Current operation and READ rights are checked for each
+disclosure. Closing local delivery buffers does not release a shared durable
+read dependency or settle work; native read release is explicit. Grouped
+consumption can prepare a saved authenticated offset handoff for either the
+exhausted read or an interval between two issued cursors from that same read.
+Both interval boundaries are authenticated; the larger read can remain partial. See the [delivery contract](../../../contracts/DIRECT_TABLE_V1.md#original-workload-result-delivery)
+for budgets, empty results and unavailable retained history. SQL supports
+[append and positional consumption](sql/streaming.md#consume-a-finite-stream-cut);
+group consumption, waits, NACK and renewal retain their native interfaces.
+SQL ACK binds an original binary claim receipt through the shared native
+settlement owner.
+
+## Cancelling original workload operations
+
+Native Stream and Queue `cancel` requests use the exact saved mutation and its
+original identity. If it already committed, Transit returns its original success
+receipt. Otherwise Transit durably closes that identity and returns `closed`.
+Later mutation, wait and lookup calls return the same closure. Cancellation never
+undoes an accepted append, changes a consumer offset, releases a result or ACKs
+or renews a claim. Current rights still apply.
+
+Known producer fencing/receipt expiry and Queue lease fencing/expiry also return
+a durable `closed` refusal when its record commits. Other errors, absent receipts
+and lost replies remain unresolved; recover the original operation. Stopping a
+local wait is separate from requesting durable cancellation. These are native
+caller operations. SQL workload recovery uses these same original outcomes;
+the [SQL profile](sql/streaming.md#operations-and-sql-coverage) defines admitted verbs.
 
 ## Queue payloads and leased work
 
@@ -62,7 +110,7 @@ for eligible work. The service rechecks FIFO order, leases, trusted visibility
 time and current rights after a notification or delayed-item deadline. A timeout
 reports an observed cut without accepting an empty claim. An already accepted
 claim still returns its original selection, including an empty one. Save the
-underlying claim before dispatch: cancellation or a lost response cannot prove
+underlying claim before dispatch: stopping a local wait or a lost response cannot prove
 it was unaccepted. Waits have separate bounded admission and do not hold data
 locks while parked.
 
@@ -117,7 +165,17 @@ the destination append share one decision. The transfer preserves the original
 logical row and visibility time, checks current rights on both Queues, and leaves
 the source nonterminal if the destination cannot accept it. Exhausted items expose
 their recorded destination and `blocked_after_ms`; later source policy changes
-cannot redirect them. Automatic scheduling of these transfers remains unfinished.
+cannot redirect them. The internal catalog composition owner can retain one
+protected transaction for an exhausted item, recover its original statement and
+decision, and preserve its source binding after either commit or abort. It uses
+the standard transaction workspace and decision log. The local node's optional
+[`table.queue_transfers`](../../../apps/transit-node/docs/growing.md) identity
+enables automatic discovery and recovery alongside native maintenance. It needs
+separate current database grants. Destination keys use canonical declared
+routing; unkeyed transfers use source ordinal modulo destination partition count.
+Changing the worker or its account never reissues an already bound source.
+The public wire surface supports original transaction inspection; protected
+transfer mutations remain with the internal composition owner.
 
 Typed transaction selection can retain Stream/Queue partition cuts as read
 dependencies alongside Table/KV state. Serializable completion checks those
@@ -168,7 +226,7 @@ roll back acceptance.
 
 Consumer groups have explicit assignment generations and committed next
 offsets. Group reads require current acquire rights; committing an offset is a
-separate settle operation using authenticated complete coverage and the expected
+separate settle operation using authenticated complete interval coverage and the expected
 checkpoint. Reading or closing a client never advances a group. A stale
 generation or checkpoint conflicts. Retained reads and original operations
 remain subject to current rights after ALTER or DROP.

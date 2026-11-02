@@ -8,6 +8,83 @@ fn allocation(epoch: u64, key: []const u8) !Allocations.Allocation {
     return .init(epoch, key, .{ .size = 7, .sha256 = @splat(37) });
 }
 
+test "allocation journal cancellation waits for bounded durable publication without poisoning its owner" {
+    const Gate = struct {
+        var real: *const std.Io.VTable = undefined;
+        var armed: std.atomic.Value(bool) = .init(false);
+        var entered: std.Io.Event = .unset;
+        var hold: std.Io.Event = .unset;
+        var protected: bool = false;
+        fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
+            if (armed.swap(false, .acq_rel)) {
+                // Let the real cancel request reach this deterministic gate,
+                // then restore the caller's protection before the actual sync.
+                const previous = real.swapCancelProtection(context, .unblocked);
+                protected = previous == .blocked;
+                entered.set(t.io);
+                hold.wait(t.io) catch |err| {
+                    if (err != error.Canceled) return err;
+                    real.recancel(context);
+                };
+                _ = real.swapCancelProtection(context, previous);
+            }
+            return real.fileSync(context, file);
+        }
+    };
+    Gate.real = t.io.vtable;
+    var vtable = t.io.vtable.*;
+    vtable.fileSync = Gate.sync;
+    var io = t.io;
+    io.vtable = &vtable;
+    inline for (.{ Allocations, @import("NativeAllocations.zig") }) |Queue| {
+        const Attempt = struct {
+            fn run(queue: *Queue, values: []const Queue.Allocation, batch: bool) !void {
+                if (batch) try queue.recordBatchTracked(values, false) else _ = try queue.recordTracked(values[0], false);
+            }
+        };
+        for ([_]bool{ false, true }) |batch| {
+            var tmp = t.tmpDir(.{});
+            defer tmp.cleanup();
+            const native = Queue != Allocations;
+            try tmp.dir.createDirPath(t.io, if (native) "native-allocations" else "data-allocations");
+            const values: [3]Queue.Allocation = if (native) .{
+                .{ .epoch = 1, .kind = .page, .address = @splat(1), .meta = .{ .size = 7, .sha256 = @splat(37) } },
+                .{ .epoch = 1, .kind = .page, .address = @splat(2), .meta = .{ .size = 7, .sha256 = @splat(37) } },
+                .{ .epoch = 1, .kind = .page, .address = @splat(3), .meta = .{ .size = 7, .sha256 = @splat(37) } },
+            } else .{ try allocation(1, "data-maintenance/one"), try allocation(1, "data-maintenance/two"), try allocation(1, "data-maintenance/three") };
+            const count: u64 = if (batch) 2 else 1;
+            {
+                var queue = try Queue.open(t.allocator, io, tmp.dir);
+                defer queue.deinit();
+                // Initialize the log before arming its next append's sync.
+                try t.expect(try queue.record(values[0]));
+                Gate.entered = .unset;
+                Gate.hold = .unset;
+                Gate.protected = false;
+                Gate.armed.store(true, .release);
+                var attempt = try t.io.concurrent(Attempt.run, .{ &queue, values[1..], batch });
+                defer attempt.cancel(t.io) catch {};
+                try @import("native_test.zig").waitFor(&Gate.entered);
+                try t.expectError(error.Canceled, attempt.cancel(t.io));
+                try t.expect(Gate.protected);
+                try t.expect(!queue.queue.requiresRecovery());
+                try t.expectEqualDeep(Queue.QueueHead{ .tail = 1 + count, .cursor = 0, .source_activity = 1 }, try queue.current());
+                for (values[1 .. 1 + count], 1..) |item, position|
+                    try t.expectEqualDeep(item, (try queue.at(position)).item.?);
+                // No storage-owner replacement is needed to finish the same
+                // immutable allocation after cancellation of its marker work.
+                try Attempt.run(&queue, values[1..], batch);
+                try t.expect(!queue.queue.requiresRecovery());
+            }
+            var reopened = try Queue.open(t.allocator, t.io, tmp.dir);
+            defer reopened.deinit();
+            try t.expectEqualDeep(Queue.QueueHead{ .tail = 1 + 2 * count, .cursor = 0, .source_activity = 1 }, try reopened.current());
+            for (values[1 .. 1 + count]) |item|
+                try t.expectEqualDeep(item, (try if (native) reopened.read(item.name()) else reopened.latest(item.name())).?);
+        }
+    }
+}
+
 test "allocation source activity survives carry, maintenance allocations, trim and reopen" {
     inline for (.{ Allocations, @import("NativeAllocations.zig") }) |Queue| {
         var tmp = t.tmpDir(.{});

@@ -29,6 +29,7 @@ pub const Definition = struct {
         if (self.object.branch != 1 or self.revision == 0 or self.schema.object != self.object.object or self.properties.len > max_properties_bytes) return error.InvalidLogDeclaration;
         // Log offsets supply identity. A declared relational uniqueness key
         // would silently impose a different append contract.
+        if (!self.schema.integrity.empty()) return error.UnsupportedTableConstraint;
         if (self.schema.primary_key.len != 0) return error.UnsupportedLogPrimaryKey;
         if (self.configuration.partitioning.key_column) |column| try self.requireKey(column);
         switch (self.configuration.policy) {

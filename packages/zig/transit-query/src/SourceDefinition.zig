@@ -87,6 +87,9 @@ pub fn schema(self: Self, output: *[max_columns]t.Field) !t.Type {
     try result.validate(.{});
     return result;
 }
+pub fn semantics(self: Self) []const q.fuze.ColumnSemantics {
+    return if (self.source == .table) self.source.table.semantics else &.{};
+}
 pub fn collations(self: Self) q.fuze.QueryCollations {
     return if (self.source == .table) self.source.table.collations else .{};
 }

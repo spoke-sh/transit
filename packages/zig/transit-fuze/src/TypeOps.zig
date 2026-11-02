@@ -59,6 +59,7 @@ fn equalCell(descriptor: t.Type, left: v.Cell, right: v.Cell) anyerror!bool {
         .missing, .null => true,
         .value => |value| switch (value) {
             .atom => |atom| if (descriptor == .interval) std.meta.eql(atom.interval, right.value.atom.interval) else try v.atomOrder(atom, right.value.atom, descriptor) == .eq,
+            .range, .multirange, .vector => try ordered(descriptor, value, right.value) == .eq,
             .structure => |cells| blk: {
                 for (cells, right.value.structure, descriptor.structure) |a, b, field| if (!try equalCell(field.type, a, b)) break :blk false;
                 break :blk true;
@@ -86,6 +87,16 @@ fn equalCell(descriptor: t.Type, left: v.Cell, right: v.Cell) anyerror!bool {
 fn ordered(descriptor: t.Type, left: v.Value, right: v.Value) anyerror!std.math.Order {
     return switch (left) {
         .atom => |atom| v.atomOrder(atom, right.atom, descriptor),
+        .range => |range| t.Ranges.order(descriptor.range.*, range, right.range),
+        .multirange => |ranges| blk: {
+            const count = @min(ranges.len, right.multirange.len);
+            for (ranges[0..count], right.multirange[0..count]) |a, b| {
+                const comparison = try t.Ranges.order(descriptor.multirange.*, a, b);
+                if (comparison != .eq) break :blk comparison;
+            }
+            break :blk std.math.order(ranges.len, right.multirange.len);
+        },
+        .vector => |bytes| t.Vectors.order(descriptor.vector, bytes, right.vector),
         .structure => |cells| blk: {
             for (cells, right.structure, descriptor.structure) |a, b, field| {
                 const comparison = try ordered(field.type, a.value, b.value);
@@ -115,7 +126,7 @@ pub fn hash(field: t.Field, cell: v.Cell) ![32]u8 {
     hasher.update("transit.fuze.structural-hash.v1\x00");
     hasher.update(&try field.type.fingerprint());
     hasher.update(&.{ @intFromBool(field.nullable), @intFromBool(field.optional) });
-    hashCell(&hasher, cell);
+    hashCell(&hasher, field.type, cell);
     return hasher.finalResult();
 }
 fn number(hasher: *Hash, value: anytype) void {
@@ -146,25 +157,46 @@ fn hashAtom(hasher: *Hash, atom: t.Semantics.Atom) void {
         .uuid => |value| hasher.update(&value),
     }
 }
-fn hashCell(hasher: *Hash, cell: v.Cell) void {
+fn hashRange(hasher: *Hash, range: t.Ranges.Value) void {
+    hasher.update(&.{@intFromBool(range.is_empty)});
+    for ([_]?t.Ranges.Bound{ range.lower, range.upper }) |bound| {
+        hasher.update(&.{@intFromBool(bound != null)});
+        if (bound) |value| {
+            hasher.update(&.{@intFromBool(value.inclusive)});
+            hashAtom(hasher, value.value);
+        }
+    }
+}
+fn hashCell(hasher: *Hash, descriptor: t.Type, cell: v.Cell) void {
     hasher.update(&.{@backingInt(std.meta.activeTag(cell))});
     switch (cell) {
         .value => |value| switch (value) {
             .atom => |atom| hashAtom(hasher, atom),
-            .structure, .list, .array => |cells| {
+            .range => |range| hashRange(hasher, range),
+            .multirange => |ranges| {
+                number(hasher, @as(u64, @intCast(ranges.len)));
+                for (ranges) |range| hashRange(hasher, range);
+            },
+            .vector => |bytes| t.Vectors.hashValidated(hasher, descriptor.vector, bytes),
+            .structure => |cells| {
                 number(hasher, @as(u64, @intCast(cells.len)));
-                for (cells) |child| hashCell(hasher, child);
+                for (cells, descriptor.structure) |child, field| hashCell(hasher, field.type, child);
+            },
+            .list, .array => |cells| {
+                number(hasher, @as(u64, @intCast(cells.len)));
+                const child_type = if (descriptor == .list) descriptor.list.type else descriptor.array.element.type;
+                for (cells) |child| hashCell(hasher, child_type.*, child);
             },
             .map => |entries| {
                 number(hasher, @as(u64, @intCast(entries.len)));
                 for (entries) |entry| {
                     hashAtom(hasher, entry.key);
-                    hashCell(hasher, entry.value);
+                    hashCell(hasher, descriptor.map.value.type.*, entry.value);
                 }
             },
             .tagged_union => |tagged| {
                 hasher.update(&.{tagged.index});
-                hashCell(hasher, tagged.value.*);
+                hashCell(hasher, descriptor.tagged_union[tagged.index].type, tagged.value.*);
             },
             .json => unreachable,
         },

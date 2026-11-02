@@ -39,6 +39,23 @@ revision. The shared result model reports provisional counts and actual decision
 See [Table transactions](../../../docs/handbook/reference/sql/transactions.md) for
 scope, session loss, conflicts and resource limits.
 
+Original Stream/Queue workload tokens share database operation inspection and
+recovery. A `workload` operation reports original native receipt/closure evidence
+and distinguishes a command from retained rows. `result` opens its frozen Fuze
+projection through `WorkloadRead`, preserving original selection and complete
+native coverage separately from filtered output count. Batch copies own their
+cells; repeated and terminal disclosure rechecks current authority even after
+the iterator is closed. Opening/closing a result never claims again, renews a
+lease or settles consumer progress. Dedicated `PRODUCE INTO` and `ENQUEUE INTO`
+prepare through the shared Catalog adapter, freeze one partition's intent and
+return a command or original RETURNING rows. Wire adapters wait for the original
+outcome using progress notifications; result delivery never submits another
+append. Positional `CONSUME` shares admission and original-result recovery;
+its finite cut, predicate and optional LIMIT are frozen independently of output
+batches. Its descriptor requires mutation admission because accepting a read
+retains native history. Group consumption, WAIT, claim/settlement SQL and
+attached-transaction workloads remain outside this execution profile.
+
 `ConfigurationOperations` records the original reload identity and expected
 configuration generation in Catalog before dispatch. `CapturedOperations` stages
 a complete compiled bundle and publishes each complete signed Query request
@@ -78,3 +95,13 @@ counts are the recovery oracle; a helper's nonzero exit alone is not evidence
 that a commit reply was lost. Failed private installations are retained for
 original-outcome investigation. This process-death schedule does not establish
 host power-loss durability.
+
+The same suite stages five frozen workload tokens, kills the node before SQL
+recovery, and checks append/consume/claim results through session batches. It
+restarts again and compares original observations. The independent row oracle
+covers an empty claim before enqueue, filtered Stream output versus native
+coverage, batching across smaller native pages, exact repeats and revoked
+terminal disclosure. This exercises native tokens. `just test::sql-log-declarations`
+separately admits append and positional consumption SQL through native, console,
+PostgreSQL and MySQL consumers and verifies original results after gateway
+replacement, typed parameters, logical limits and revoked batches.

@@ -15,15 +15,16 @@ pub const Request = union(enum) {
     observe: q.Partition,
     mutate: struct { work: Mutation.Request, payload: ?w.Binary },
     operation: Mutation.Request,
+    cancel: Mutation.Request,
     page: struct { cursor: read.Cursor, limits: Queue.ClaimReadLimits },
     wait: struct { claim: q.Claim, milliseconds: u32 },
 
     pub fn mutation(self: Request) bool {
-        return self == .mutate or self == .wait;
+        return self == .mutate or self == .wait or self == .cancel;
     }
     pub fn control(self: Request) bool {
         return switch (self) {
-            .operation => true,
+            .operation, .cancel => true,
             .mutate => |value| value.work.control(),
             else => false,
         };
@@ -32,7 +33,7 @@ pub const Request = union(enum) {
         return switch (self) {
             .observe => |value| value,
             .mutate => |value| value.work.target(),
-            .operation => |value| value.target(),
+            .operation, .cancel => |value| value.target(),
             .page => |value| value.cursor.receipt.claim.target,
             .wait => |value| value.claim.target,
         };
@@ -40,7 +41,7 @@ pub const Request = union(enum) {
     pub fn access(self: Request) c.LogAuthority.Access {
         return switch (self) {
             .mutate => |value| value.work.access(),
-            .operation => |value| value.access(),
+            .operation, .cancel => |value| value.access(),
             .observe => .inspect,
             .page, .wait => .acquire,
         };
@@ -48,7 +49,7 @@ pub const Request = union(enum) {
     pub fn identity(self: Request) ?d.Operation {
         return switch (self) {
             .mutate => |value| value.work.identity(),
-            .operation => |value| value.identity(),
+            .operation, .cancel => |value| value.identity(),
             .page => |value| value.cursor.receipt.claim.operation,
             .wait => |value| value.claim.operation,
             .observe => null,
@@ -66,7 +67,7 @@ pub const Request = union(enum) {
                 try value.work.validate();
                 if ((value.work == .enqueue) != (value.payload != null)) return error.InvalidQueuePayload;
             },
-            .operation => |value| try value.validate(),
+            .operation, .cancel => |value| try value.validate(),
             .page => |value| {
                 try value.cursor.validate();
                 if (value.limits.rows == 0 or value.limits.rows > s.QueueSelection.max_rows or value.limits.encoded_bytes == 0 or value.limits.encoded_bytes > 4 * 1024 * 1024) return error.InvalidQueueReadBudget;
@@ -79,7 +80,7 @@ pub const Request = union(enum) {
         }
     }
 };
-pub const Receipt = union(enum) { enqueue: q.AppendReceipt, claim: q.ClaimReceipt, settle: q.SettlementReceipt, release: read.ReleaseReceipt };
+pub const Receipt = union(enum) { enqueue: q.AppendReceipt, claim: q.ClaimReceipt, settle: q.SettlementReceipt, release: read.ReleaseReceipt, closed: p.LogWorkload.Closure };
 pub const Row = struct {
     lease: read.LeaseObservation,
     operation: d.Operation,
@@ -130,10 +131,24 @@ fn originalReceipt(work: Mutation.Request, record: s.LogEvidence.Record) !Receip
         .claim => |value| .{ .claim = value.receipt },
         .settlement => |value| .{ .settle = value.receipt },
         .queue_release => |value| .{ .release = value },
+        .closed => |value| .{ .closed = value },
         else => return error.LogOperationConflict,
     };
     try c.DirectQueueResponse.requireReceipt(work, result);
     return result;
+}
+
+fn mutate(owner: *Queue, declared: s.LogDeclaration.Stored, request: Mutation.Request, payload: []const u8, environment: Environment, guard: s.PublicationGuard, nonempty: bool) !Receipt {
+    _ = environment;
+    return switch (request) {
+        .enqueue => |work| .{ .enqueue = try owner.enqueue(declared, work, payload, guard) },
+        .claim => |work| .{ .claim = if (nonempty)
+            owner.claimNonempty(declared, work, guard) catch |err| return if (err == error.QueueNotEligible) error.QueueTimeUnavailable else err
+        else
+            try owner.claim(declared, work, guard) },
+        .settle => |work| .{ .settle = try owner.settle(declared, work, guard) },
+        .release => |work| .{ .release = try owner.releaseClaimRead(declared, work, guard) },
+    };
 }
 
 /// Output owns all returned bytes; scratch and the clock capability are scoped
@@ -144,7 +159,7 @@ pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.
     const current = try catalog.logAuthorization(scratch, .queue, request.target(), request.access(), policy);
     const binding: ?Mutation.Binding = switch (request) {
         .mutate => |value| try value.work.binding(scratch),
-        .operation => |value| try value.binding(scratch),
+        .operation, .cancel => |value| try value.binding(scratch),
         .wait => |value| try (Mutation.Request{ .claim = value.claim }).binding(scratch),
         else => null,
     };
@@ -194,6 +209,11 @@ pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.
     }
     const result: Result = switch (selected) {
         .wait => unreachable,
+        .cancel => |value| blk: {
+            try authorize(current.guard);
+            try c.OperationBinding.claimQueue(scratch, catalog.store.objects, binding.?);
+            break :blk .{ .operation = try originalReceipt(value, try owner.cancel(current.definition.stored, value, current.guard)) };
+        },
         .observe => .{ .cut = try owner.observe(current.definition.stored, current.guard) },
         .operation => |value| .{ .operation = if (try owner.operation(value.identity(), current.guard)) |record| try originalReceipt(value, record) else null },
         .page => |value| blk: {
@@ -224,14 +244,12 @@ pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.
             try authorize(current.guard);
             const objects = if (value.work.control()) catalog.store.objects else catalog.data_objects;
             try c.OperationBinding.claimQueue(scratch, objects, binding.?);
-            const accepted: Receipt = switch (value.work) {
-                .enqueue => |work| .{ .enqueue = try owner.enqueue(current.definition.stored, work, payload, current.guard) },
-                .claim => |work| .{ .claim = if (request == .wait)
-                    owner.claimNonempty(current.definition.stored, work, current.guard) catch |err| return if (err == error.QueueNotEligible) error.QueueTimeUnavailable else err
-                else
-                    try owner.claim(current.definition.stored, work, current.guard) },
-                .settle => |work| .{ .settle = try owner.settle(current.definition.stored, work, current.guard) },
-                .release => |work| .{ .release = try owner.releaseClaimRead(current.definition.stored, work, current.guard) },
+            const accepted = mutate(owner, current.definition.stored, value.work, payload, environment, current.guard, request == .wait) catch |err| failure: {
+                // The mutation owner already checks original success. Only its
+                // closed/conflicting path needs another receipt lookup.
+                if (err == error.LogOperationConflict) if (try owner.operation(value.work.identity(), current.guard)) |record|
+                    break :failure try originalReceipt(value.work, record);
+                break :failure try originalReceipt(value.work, try owner.refuse(current.definition.stored, value.work, err, current.guard));
             };
             break :blk .{ .operation = accepted };
         },

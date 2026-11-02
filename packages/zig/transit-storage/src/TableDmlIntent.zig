@@ -115,6 +115,7 @@ fn encodeWithSchema(allocator: std.mem.Allocator, schema: f.TableSchema.Schema, 
     }
     for (request.changes) |change| switch (change) {
         .put => |value| {
+            try schema.validateWrite(value.row.cells);
             try writer.writeByte(1);
             try writer.writeByte(@backingInt(value.expect));
             const length_at = header_bytes + writer.end;
@@ -124,6 +125,7 @@ fn encodeWithSchema(allocator: std.mem.Allocator, schema: f.TableSchema.Schema, 
             std.mem.writeInt(u32, bytes[length_at..][0..4], @intCast(row.len), .little);
         },
         .replace => |value| {
+            try schema.validateWrite(value.row.cells);
             if (value.key.len == 0 or value.key.len > f.Collation.max_sort_key_bytes) return error.InvalidTableKey;
             try writer.writeByte(3);
             try writer.writeInt(u32, @intCast(value.key.len), .little);
@@ -213,8 +215,9 @@ pub fn load(allocator: std.mem.Allocator, objects: Objects.ObjectStore, content:
             const expected = std.enums.fromInt(Changes.Expect, try reader.takeByte()) orelse return error.InvalidTableMutationIntent;
             const length = try reader.takeInt(u32, .little);
             decoded[count] = try f.TableRow.decode(alloc, declaration.schema.schema, try reader.take(length));
-            change.* = .{ .put = .{ .row = decoded[count].row(), .expect = expected } };
             count += 1;
+            try declaration.schema.schema.validateWrite(decoded[count - 1].row().cells);
+            change.* = .{ .put = .{ .row = decoded[count - 1].row(), .expect = expected } };
         },
         2 => {
             const length = try reader.takeInt(u32, .little);
@@ -227,8 +230,9 @@ pub fn load(allocator: std.mem.Allocator, objects: Objects.ObjectStore, content:
             const old_key = try reader.take(key_length);
             const row_length = try reader.takeInt(u32, .little);
             decoded[count] = try f.TableRow.decode(alloc, declaration.schema.schema, try reader.take(row_length));
-            change.* = .{ .replace = .{ .key = old_key, .row = decoded[count].row() } };
             count += 1;
+            try declaration.schema.schema.validateWrite(decoded[count - 1].row().cells);
+            change.* = .{ .replace = .{ .key = old_key, .row = decoded[count - 1].row() } };
         },
         else => return error.InvalidTableMutationIntent,
     };

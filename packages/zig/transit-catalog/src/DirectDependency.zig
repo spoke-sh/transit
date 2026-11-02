@@ -9,7 +9,7 @@ const d = p.DataLifecycle;
 const pages = c.storage.TreeStore.pages;
 
 pub const Dependent = struct {
-    kind: enum(u8) { kv = 1, document = 2, captured = 3, maintained = 4, stream = 5, queue = 6, managed = 7 },
+    kind: enum(u8) { kv = 1, document = 2, captured = 3, maintained = 4, stream = 5, queue = 6, table = 7, view = 8, property_graph = 9, foreign = 10, managed = 11 },
     interpretation: d.Definition,
 
     pub fn validate(self: Dependent) !void {
@@ -25,24 +25,31 @@ pub const Edge = struct {
     /// KVAuthority privileges; Document SELECT maps to native INSPECT/READ. This never
     /// grants access; execution checks current policy independently.
     privileges: u64,
+    foreign_key: ?struct { constraint: u32, column: u64 } = null,
 
     pub fn validate(self: Edge) !void {
         try self.source.validate();
+        if (self.foreign_key) |fk| if (self.dependent.kind != .table or fk.constraint == 0 or fk.column == 0) return error.InvalidCatalogDependency;
+        if (self.dependent.kind == .table and self.foreign_key == null) return error.InvalidCatalogDependency;
         try self.dependent.validate();
         if (self.source.object.branch != 1 or
             self.source.object.scope.realm != self.dependent.interpretation.object.scope.realm or
-            self.privileges == 0 or self.privileges & ~c.LogAuthority.all_privileges != 0)
+            (self.privileges == 0 and self.foreign_key == null) or self.privileges & ~c.LogAuthority.all_privileges != 0)
             return error.InvalidCatalogDependency;
     }
 
     pub fn digest(self: Edge) ![32]u8 {
         try self.validate();
-        var bytes: [169]u8 = undefined;
+        var bytes: [181]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&bytes);
         try writeDefinition(&writer, self.source);
         try writer.writeByte(@backingInt(self.dependent.kind));
         try writeDefinition(&writer, self.dependent.interpretation);
         try writer.writeInt(u64, self.privileges, .big);
+        if (self.foreign_key) |fk| {
+            try writer.writeInt(u32, fk.constraint, .big);
+            try writer.writeInt(u64, fk.column, .big);
+        }
         var hash = std.crypto.hash.sha2.Sha256.init(.{});
         hash.update("transit.catalog.dependency.v1\x00");
         hash.update(writer.buffered());
@@ -50,10 +57,15 @@ pub const Edge = struct {
     }
 
     pub fn forwardKey(self: Edge) !pages.Key {
-        var bytes: [40]u8 = undefined;
+        var bytes: [49]u8 = undefined;
         std.mem.writeInt(u64, bytes[0..8], self.source.object.object, .big);
-        bytes[8..40].* = try self.digest();
-        return pages.Key.init(&bytes);
+        bytes[8] = @intFromBool(self.foreign_key != null);
+        const offset: usize = if (self.foreign_key) |fk| blk: {
+            std.mem.writeInt(u64, bytes[9..17], fk.column, .big);
+            break :blk 17;
+        } else 9;
+        bytes[offset..][0..32].* = try self.digest();
+        return pages.Key.init(bytes[0 .. offset + 32]);
     }
 
     pub fn reverseKey(self: Edge) !pages.Key {
@@ -138,7 +150,28 @@ pub const Observation = union(enum) { not_observed, outcome: Outcome };
 pub const State = struct { edge: Edge, position: d.Position, present: bool };
 
 pub const Selection = union(enum) { dependents: d.Object, dependencies: d.Object };
-pub const Cursor = struct { selection: Selection, authority: Authority, position: d.Position, after: [32]u8 };
+pub const Cursor = struct {
+    selection: Selection,
+    authority: Authority,
+    position: d.Position,
+    after: pages.Key,
+    pub fn validate(self: Cursor) !void {
+        try self.position.validate();
+        self.after.validate() catch return error.InvalidCatalogCursor;
+        if (self.position.next_lsn == 0) return error.InvalidCatalogCursor;
+        switch (self.selection) {
+            .dependencies => |object| {
+                const prefix = try dependentKey(object);
+                if (self.after.len != 64 or !std.mem.startsWith(u8, self.after.slice(), &prefix)) return error.InvalidCatalogCursor;
+            },
+            .dependents => |object| {
+                try object.validate();
+                if ((self.after.len != 41 and self.after.len != 49) or std.mem.readInt(u64, self.after.data[0..8], .big) != object.object or self.after.data[8] != @intFromBool(self.after.len == 49)) return error.InvalidCatalogCursor;
+                if (self.after.len == 49 and std.mem.readInt(u64, self.after.data[9..17], .big) == 0) return error.InvalidCatalogCursor;
+            },
+        }
+    }
+};
 // Four distinct source schemas/objects plus the database and dependent authority
 // fit the native guard's 16 requirements. Graph inspection uses metadata rights;
 // data access is checked separately during registration and execution.
@@ -163,7 +196,7 @@ test "direct dependency keys match independent full-width big-endian fixtures" {
     const digest = try edge.digest();
     try t.expectEqualSlices(u8, try std.fmt.hexToBytes(&expected, "8d932f49874790531cfa8a4de80e87cf9a6e6ec3b5ddc3468fe3578f1f4fdec9"), &digest);
     const forward = try edge.forwardKey();
-    try t.expectEqualSlices(u8, try std.fmt.hexToBytes(&expected, "fffffffffffffffe8d932f49874790531cfa8a4de80e87cf9a6e6ec3b5ddc3468fe3578f1f4fdec9"), forward.slice());
+    try t.expectEqualSlices(u8, try std.fmt.hexToBytes(&expected, "fffffffffffffffe008d932f49874790531cfa8a4de80e87cf9a6e6ec3b5ddc3468fe3578f1f4fdec9"), forward.slice());
     const reverse = try edge.reverseKey();
     try t.expectEqualSlices(u8, try std.fmt.hexToBytes(&expected, "9c758b9a8f7db68b40ee5494890400e7076c0be2bbf8cacbbfeecb87b229ef138d932f49874790531cfa8a4de80e87cf9a6e6ec3b5ddc3468fe3578f1f4fdec9"), reverse.slice());
     var changed = edge;

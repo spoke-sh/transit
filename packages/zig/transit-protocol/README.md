@@ -62,6 +62,23 @@ selection from observed Queue state and lease liveness. Its shared clock bounds,
 state and blocked-reason types also serve the storage owner. These descriptors
 are read attribution, not consumption proofs, grants or present settlement
 authority.
+`QueueLeaseHandle` provides an allocation-free, fixed-size opaque encoding of an
+exact lease. It checks the explicit current definition before decoding; it grants
+no authority and cannot establish acceptance or freshness. The
+[Queue contract](../../../contracts/QUEUE_V1.md#opaque-lease-descriptor-codec)
+defines its layout. SQL handle projection and settlement are not yet enabled.
+
+[`LogWorkload`](src/LogWorkload.zig) supplies canonical Stream/Queue mutation
+requests, binding shapes and operation-kind tags. It computes the complete
+request commitment, including payload identity and authenticated read coverage,
+without importing the catalog. Operation access categories do not evaluate or
+grant rights; current native policy remains the authorization owner. Binding
+validation and equality establish neither acceptance nor a terminal outcome.
+Catalog exports use these same neutral types and canonical commitments.
+`Closure` binds partition-owned cancellation or a qualified terminal refusal to
+that original request and its recorded WAL position. Shape validation grants no
+rights and does not authenticate storage publication; callers resolve the original
+operation through its authorized owner.
 
 [`DocumentDeclaration`](src/DocumentDeclaration.zig),
 [`DocumentOperation`](src/DocumentOperation.zig) and

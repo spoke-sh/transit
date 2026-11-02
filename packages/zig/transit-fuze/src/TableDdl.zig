@@ -6,13 +6,22 @@ const Parser = @import("SqlTyped.zig");
 const s = @import("TableSchema.zig");
 const evolution = @import("TableEvolution.zig");
 const Reference = @import("SqlReference.zig");
+const Check = @import("SqlCheck.zig");
+pub const ForeignKey = @import("SqlForeignKey.zig");
+const Constraints = @import("TableConstraints.zig");
 pub const Create = struct {
     name: []const u8,
     if_not_exists: bool,
     columns: []const s.Column,
     primary_key: []const s.ColumnId,
+    integrity: Constraints.Integrity = .{},
+    foreign_keys: []const ForeignKey.Syntax = &.{},
     pub fn bind(self: Create, object: u64) !s.Schema {
-        const schema: s.Schema = .{ .object = object, .revision = 1, .next_column = self.columns.len + 1, .columns = self.columns, .primary_key = self.primary_key };
+        if (self.foreign_keys.len != 0) return error.ForeignKeyResolutionRequired;
+        return self.bindShape(object);
+    }
+    fn bindShape(self: Create, object: u64) !s.Schema {
+        const schema: s.Schema = .{ .object = object, .revision = 1, .next_column = self.columns.len + 1, .columns = self.columns, .primary_key = self.primary_key, .integrity = self.integrity };
         try schema.validate();
         return schema;
     }
@@ -63,19 +72,22 @@ pub fn compile(allocator: std.mem.Allocator, text: []const u8, basis: ?s.Schema,
     return compileWithEditor(allocator, text, basis, location, null);
 }
 pub fn compileWithEditor(allocator: std.mem.Allocator, text: []const u8, basis: ?s.Schema, location: ?*sql.Location, editor: ?*Parser.Editor) !Owned {
-    return compileContext(allocator, text, basis, location, editor, .transit);
+    return compileContext(allocator, text, basis, location, editor, .transit, null);
 }
 pub fn compileDialect(allocator: std.mem.Allocator, text: []const u8, basis: ?s.Schema, location: ?*sql.Location, dialect: sql.Dialect) !Owned {
-    return compileContext(allocator, text, basis, location, null, dialect);
+    return compileContext(allocator, text, basis, location, null, dialect, null);
 }
-fn compileContext(allocator: std.mem.Allocator, text: []const u8, basis: ?s.Schema, location: ?*sql.Location, editor: ?*Parser.Editor, dialect: sql.Dialect) !Owned {
+pub fn compileWithForeignKeys(allocator: std.mem.Allocator, text: []const u8, basis: ?s.Schema, location: ?*sql.Location, dialect: sql.Dialect, resolver: ForeignKey.Resolver) !Owned {
+    return compileContext(allocator, text, basis, location, null, dialect, resolver);
+}
+fn compileContext(allocator: std.mem.Allocator, text: []const u8, basis: ?s.Schema, location: ?*sql.Location, editor: ?*Parser.Editor, dialect: sql.Dialect, resolver: ?ForeignKey.Resolver) !Owned {
     var arena: std.heap.ArenaAllocator = .init(allocator);
     errdefer arena.deinit();
     var parser = try Parser.initDialect(arena.allocator(), text, location, false, dialect);
     parser.editor = editor;
     const input = try syntax(&parser, basis);
     try parser.finish();
-    const statement = try input.bind(arena.allocator(), basis, location);
+    const statement = try input.bindWithForeignKeys(arena.allocator(), basis, location, resolver);
     return .{ .arena = arena, .statement = statement };
 }
 const ParsedColumn = struct { value: s.Column, primary: bool, explicit_nullable: bool };
@@ -103,8 +115,35 @@ fn column(parser: *Parser, id: s.ColumnId) !ParsedColumn {
         } else if (try parser.takeWord("COLLATE")) {
             if (seen_collation) return error.DuplicateColumnConstraint;
             seen_collation = true;
-            value.collation = if (try parser.takeWord("UTF8_BINARY")) .utf8_binary else if (try parser.takeWord("ASCII_CI")) .ascii_ci else if (try parser.takeWord("EBCDIC_CP037")) .ebcdic_cp037 else return error.UnsupportedColumnCollation;
+            if (parser.token.tag == .eof) if (parser.editor) |editor| {
+                inline for (.{ "UTF8_BINARY", "ASCII_CI", "EBCDIC_CP037", "EBCDIC_037_PAD", "EBCDIC_1047_NOPAD" }) |name_| editor.word(name_);
+            };
+            if (parser.token.tag != .word) return error.UnsupportedColumnCollation;
+            value.collation = switch (@import("PerfectHash.zig").DdlOptionMap.get(parser.token.text) orelse return error.UnsupportedColumnCollation) {
+                .collation_utf8_binary => .utf8_binary,
+                .collation_ascii_ci => .ascii_ci,
+                .collation_ebcdic_cp037 => .ebcdic_cp037,
+                .collation_ebcdic_037_pad => .ebcdic_037_pad,
+                .collation_ebcdic_1047_nopad => .ebcdic_1047_nopad,
+                else => return error.UnsupportedColumnCollation,
+            };
+            parser.annotate(.keyword);
+            try parser.advance();
             try value.validateEncodingAndCollation();
+        } else if (try parser.takeWord("ROUNDING")) {
+            if (value.semantics.rounding != null) return error.DuplicateColumnConstraint;
+            value.semantics.rounding = try semanticEnum(@import("DecimalArithmetic.zig").RoundingMode, parser);
+        } else if (try parser.takeWord("METRIC")) {
+            if (value.semantics.metric != null) return error.DuplicateColumnConstraint;
+            value.semantics.metric = try semanticEnum(@import("VectorMetric.zig").Metric, parser);
+        } else if (try parser.takeWord("TIMEZONE")) {
+            if (value.semantics.timezone != null) return error.DuplicateColumnConstraint;
+            const zone = try semanticBytes(parser, .utf8);
+            try parser.requireWord("TZDB");
+            const version = try semanticBytes(parser, .utf8);
+            try parser.requireWord("TZIF");
+            const bytes = try semanticBytes(parser, .binary);
+            value.semantics.timezone = try @import("PinnedTimezone.zig").Descriptor.init(version, zone, bytes);
         } else if (unsupportedConstraint(parser.*)) {
             return error.UnsupportedTableConstraint;
         } else break;
@@ -115,6 +154,27 @@ fn column(parser: *Parser, id: s.ColumnId) !ParsedColumn {
         value.nullable = false;
     }
     return .{ .value = value, .primary = primary, .explicit_nullable = explicit_nullable };
+}
+fn semanticBytes(parser: *Parser, expected: @import("Types.zig").Type) ![]const u8 {
+    const cell = try parser.value(expected);
+    if (cell != .value or cell.value != .atom or cell.value.atom != .bytes) return error.InvalidColumnSemantics;
+    return cell.value.atom.bytes;
+}
+fn semanticEnum(comptime E: type, parser: *Parser) !E {
+    const entries = comptime blk: {
+        const fields = @typeInfo(E).@"enum";
+        var pairs: [fields.field_names.len]struct { []const u8, E } = undefined;
+        for (fields.field_names, fields.field_values, &pairs) |name, value, *pair| pair.* = .{ name, @fromBackingInt(@intCast(value)) };
+        break :blk pairs;
+    };
+    const names = std.StaticStringMap(E).initComptime(entries);
+    var spelling: [32]u8 = undefined;
+    if (parser.token.tag != .word or parser.token.text.len > spelling.len) return error.InvalidColumnSemantics;
+    for (parser.token.text, spelling[0..parser.token.text.len]) |byte, *out| out.* = std.ascii.toLower(byte);
+    const result = names.get(spelling[0..parser.token.text.len]) orelse return error.InvalidColumnSemantics;
+    parser.annotate(.keyword);
+    try parser.advance();
+    return result;
 }
 fn unsupportedConstraint(parser: Parser) bool {
     inline for (.{ "UNIQUE", "CHECK", "REFERENCES", "FOREIGN", "CONSTRAINT", "GENERATED", "IDENTITY", "AUTO_INCREMENT" }) |word| if (parser.token.tag == .word and std.ascii.eqlIgnoreCase(parser.token.text, word)) return true;
@@ -138,9 +198,15 @@ pub fn columnDefinitions(parser: *Parser, name: []const u8, if_not_exists: bool)
     var explicit_null: [s.max_columns]bool = @splat(false);
     var keys: std.ArrayList(s.ColumnId) = .empty;
     var key_names: std.ArrayList(Reference) = .empty;
+    var checks: std.ArrayList(Check.Syntax) = .empty;
+    var foreign_keys: std.ArrayList(ForeignKey.Syntax) = .empty;
     var primary = false;
     while (true) {
-        if (try parser.takeWord("PRIMARY")) {
+        if (parser.word("CONSTRAINT") or parser.word("CHECK") or parser.word("FOREIGN")) {
+            if (checks.items.len + foreign_keys.items.len == Constraints.max_constraints_per_table) return error.InvalidConstraintCount;
+            const constraint_name = if (try parser.takeWord("CONSTRAINT")) try parser.named(.proposed) else try std.fmt.allocPrint(parser.allocator, "constraint_{d}", .{checks.items.len + foreign_keys.items.len + 1});
+            if (parser.word("CHECK")) try checks.append(parser.allocator, try Check.parse(parser, constraint_name)) else if (parser.word("FOREIGN")) try foreign_keys.append(parser.allocator, try ForeignKey.parse(parser, constraint_name)) else return error.UnsupportedTableConstraint;
+        } else if (try parser.takeWord("PRIMARY")) {
             if (primary) return error.MultiplePrimaryKeys;
             primary = true;
             try parser.requireWord("KEY");
@@ -174,10 +240,16 @@ pub fn columnDefinitions(parser: *Parser, name: []const u8, if_not_exists: bool)
         for (keys.items) |id| if (id == columns.items[i].id) return error.DuplicatePrimaryKeyColumn;
         try keys.append(parser.allocator, columns.items[i].id);
     }
-    const result: Create = .{ .name = name, .if_not_exists = if_not_exists, .columns = try columns.toOwnedSlice(parser.allocator), .primary_key = try keys.toOwnedSlice(parser.allocator) };
+    var result: Create = .{ .name = name, .if_not_exists = if_not_exists, .columns = try columns.toOwnedSlice(parser.allocator), .primary_key = try keys.toOwnedSlice(parser.allocator), .foreign_keys = try foreign_keys.toOwnedSlice(parser.allocator) };
     // Validate all pure shape/default/constraint rules before the catalog assigns
     // a real object identity. The provisional identity is never returned/stored.
-    _ = try result.bind(1);
+    const basis = try result.bindShape(1);
+    if (checks.items.len != 0) {
+        const bound = try parser.allocator.alloc(Constraints.CheckConstraint, checks.items.len);
+        for (bound, checks.items, 1..) |*output, input, id| output.* = try input.bind(parser.allocator, basis, name, @intCast(id), parser.location);
+        result.integrity = .{ .next_id = @intCast(bound.len + 1), .checks = bound };
+        _ = try result.bindShape(1);
+    }
     return result;
 }
 pub const Syntax = union(enum) {
@@ -185,9 +257,26 @@ pub const Syntax = union(enum) {
     alter: AlterSyntax,
     drop: struct { name: []const u8, if_exists: bool },
     pub fn bind(self: Syntax, allocator: std.mem.Allocator, basis: ?s.Schema, location: ?*sql.Location) !Statement {
+        return self.bindWithForeignKeys(allocator, basis, location, null);
+    }
+    pub fn bindWithForeignKeys(self: Syntax, allocator: std.mem.Allocator, basis: ?s.Schema, location: ?*sql.Location, resolver: ?ForeignKey.Resolver) !Statement {
         return switch (self) {
-            .create => |value| .{ .create = value },
-            .alter => |value| .{ .alter = try value.bind(allocator, basis orelse return error.TableSchemaRequired, location) },
+            .create => |input| blk: {
+                var value = input;
+                if (value.foreign_keys.len != 0) {
+                    const schema = try value.bindShape(1);
+                    const bound = try allocator.alloc(Constraints.ForeignKeyConstraint, value.foreign_keys.len);
+                    for (bound, value.foreign_keys) |*out, foreign| {
+                        out.* = try foreign.bind(allocator, schema, value.name, value.integrity.next_id, location, resolver);
+                        value.integrity.next_id = try std.math.add(u32, value.integrity.next_id, 1);
+                    }
+                    value.integrity.foreign_keys = bound;
+                    value.foreign_keys = &.{};
+                }
+                _ = try value.bind(1);
+                break :blk .{ .create = value };
+            },
+            .alter => |value| .{ .alter = try value.bind(allocator, basis orelse return error.TableSchemaRequired, location, resolver) },
             .drop => |value| blk: {
                 if (basis == null and !value.if_exists) return error.TableNotFound;
                 break :blk .{ .drop = .{ .name = value.name, .if_exists = value.if_exists, .object = if (basis) |schema| schema.object else null, .schema = if (basis) |schema| try schema.fingerprint() else null } };
@@ -206,8 +295,12 @@ const AlterSyntax = struct {
         default: ?Parser.Literal,
         nullable: bool,
         type: @import("SqlTypes.zig").Resolved,
+        add_check: Check.Syntax,
+        add_foreign: ForeignKey.Syntax,
+        drop_constraint: []const u8,
+        validate_constraint: []const u8,
     },
-    fn bind(self: AlterSyntax, allocator: std.mem.Allocator, basis: s.Schema, location: ?*sql.Location) !Alter {
+    fn bind(self: AlterSyntax, allocator: std.mem.Allocator, basis: s.Schema, location: ?*sql.Location, resolver: ?ForeignKey.Resolver) !Alter {
         try basis.validate();
         const index: ?usize = if (self.column) |column_| try column_.resolve(self.name, basis.columns, location) else null;
         const id: s.ColumnId = if (index) |i| basis.columns[i].id else 0;
@@ -218,6 +311,59 @@ const AlterSyntax = struct {
             .drop => .{ .columns = .{ .drop = id } },
             .nullable => |value| .{ .columns = .{ .nullable = .{ .column = id, .value = value } } },
             .type => |value| .{ .columns = .{ .type = .{ .column = id, .type = value.type, .max_characters = value.max_characters } } },
+            .add_check, .add_foreign, .drop_constraint, .validate_constraint => blk: {
+                // Own the complete successor; the source schema may be released
+                // immediately after compilation or saved-intent preparation.
+                const copied = try basis.clone(allocator);
+                var integrity = copied.schema.integrity;
+                switch (self.action) {
+                    .add_foreign => |value| {
+                        if (integrity.checks.len + integrity.foreign_keys.len == Constraints.max_constraints_per_table) return error.InvalidConstraintCount;
+                        const keys = try allocator.alloc(Constraints.ForeignKeyConstraint, integrity.foreign_keys.len + 1);
+                        @memcpy(keys[0..integrity.foreign_keys.len], integrity.foreign_keys);
+                        keys[integrity.foreign_keys.len] = try value.bind(allocator, copied.schema, self.name, integrity.next_id, location, resolver);
+                        integrity.next_id = try std.math.add(u32, integrity.next_id, 1);
+                        integrity.foreign_keys = keys;
+                    },
+                    .add_check => |value| {
+                        if (integrity.checks.len + integrity.foreign_keys.len == Constraints.max_constraints_per_table) return error.InvalidConstraintCount;
+                        const checks = try allocator.alloc(Constraints.CheckConstraint, integrity.checks.len + 1);
+                        @memcpy(checks[0..integrity.checks.len], integrity.checks);
+                        checks[integrity.checks.len] = try value.bind(allocator, copied.schema, self.name, integrity.next_id, location);
+                        integrity.next_id = try std.math.add(u32, integrity.next_id, 1);
+                        integrity.checks = checks;
+                    },
+                    .drop_constraint, .validate_constraint => |name, tag| {
+                        var found = false;
+                        var checks: std.ArrayList(Constraints.CheckConstraint) = .empty;
+                        for (integrity.checks) |check| {
+                            var next = check;
+                            if (std.mem.eql(u8, check.name, name)) {
+                                found = true;
+                                if (tag == .drop_constraint) continue;
+                                next.validated = true;
+                            }
+                            try checks.append(allocator, next);
+                        }
+                        var foreign_keys: std.ArrayList(Constraints.ForeignKeyConstraint) = .empty;
+                        for (integrity.foreign_keys) |fk| {
+                            if (std.mem.eql(u8, fk.name, name)) {
+                                if (tag == .validate_constraint) return error.ForeignKeyIndexEnforcementUnavailable;
+                                found = true;
+                                continue;
+                            }
+                            try foreign_keys.append(allocator, fk);
+                        }
+                        if (!found) return error.UnknownTableConstraint;
+                        integrity.checks = try checks.toOwnedSlice(allocator);
+                        integrity.foreign_keys = try foreign_keys.toOwnedSlice(allocator);
+                    },
+                    else => unreachable,
+                }
+                var replacement = copied.schema;
+                replacement.integrity = integrity;
+                break :blk .{ .columns = .{ .integrity = replacement } };
+            },
             .default => |value| blk: {
                 var failure: ?Parser.Literal.Span = null;
                 const cell = if (value) |literal| literal.bind(allocator, basis.columns[index.?].type, &failure) catch |err| {
@@ -251,16 +397,31 @@ fn alter(parser: *Parser, hints: ?s.Schema) !AlterSyntax {
         try parser.requireWord("TO");
         break :blk .{ .rename = try parser.named(.proposed) };
     } else if (try parser.takeWord("ADD")) blk: {
+        if (parser.word("CONSTRAINT") or parser.word("CHECK") or parser.word("FOREIGN")) {
+            const constraint_name = if (try parser.takeWord("CONSTRAINT")) try parser.named(.proposed) else try std.fmt.allocPrint(parser.allocator, "check_{d}", .{if (hints) |basis| basis.integrity.next_id else 1});
+            if (parser.word("FOREIGN")) break :blk .{ .add_foreign = try ForeignKey.parse(parser, constraint_name) };
+            if (!parser.word("CHECK")) return error.UnsupportedTableConstraint;
+            break :blk .{ .add_check = try Check.parse(parser, constraint_name) };
+        }
         _ = try parser.takeWord("COLUMN");
         const added = try column(parser, 1);
         if (added.primary) return error.UnsupportedTableConstraint;
-        break :blk .{ .add = .{ .name = added.value.name, .type = added.value.type, .nullable = added.value.nullable, .default = added.value.default, .max_characters = added.value.max_characters, .encoding = added.value.encoding, .collation = added.value.collation } };
+        break :blk .{ .add = .{ .name = added.value.name, .type = added.value.type, .nullable = added.value.nullable, .default = added.value.default, .max_characters = added.value.max_characters, .encoding = added.value.encoding, .collation = added.value.collation, .semantics = added.value.semantics } };
     } else if (try parser.takeWord("DROP")) blk: {
+        if (try parser.takeWord("CONSTRAINT")) {
+            const name = try parser.named(.column);
+            if (try parser.takeWord("CASCADE")) return error.UnsupportedCascade;
+            _ = try parser.takeWord("RESTRICT");
+            break :blk .{ .drop_constraint = name };
+        }
         _ = try parser.takeWord("COLUMN");
         result.column = try Reference.unqualified(parser, .column);
         if (try parser.takeWord("CASCADE")) return error.UnsupportedCascade;
         _ = try parser.takeWord("RESTRICT");
         break :blk .drop;
+    } else if (try parser.takeWord("VALIDATE")) blk: {
+        try parser.requireWord("CONSTRAINT");
+        break :blk .{ .validate_constraint = try parser.named(.column) };
     } else if (try parser.takeWord("ALTER")) blk: {
         _ = try parser.takeWord("COLUMN");
         result.column = try Reference.unqualified(parser, .column);

@@ -172,7 +172,7 @@ pub fn recordBatchTrackedWithExisting(self: *Self, allocations: []const Allocati
         next_head.source_activity = activity;
     }
     errdefer self.head = null;
-    _ = try self.queue.appendFrames(0, head.tail, 1, 1, .manifest_checkpoint, payloads[0..active_count]);
+    try @import("AllocationJournal.zig").append(queue_record_bytes, self.io, &self.queue, head.tail, payloads[0..active_count]);
     self.head = next_head;
     var staged: [Objects.max_put_batch]std.Io.File.Atomic = undefined;
     var staged_count: usize = 0;
@@ -211,7 +211,7 @@ fn encodeQueueRecord(entry: QueueRecord) ![queue_record_bytes]u8 {
 fn append(self: *Self, entry: QueueRecord) !void {
     const bytes = try encodeQueueRecord(entry);
     errdefer self.head = null;
-    _ = try self.queue.log().append(0, entry.position, 1, 1, .manifest_checkpoint, &bytes);
+    try @import("AllocationJournal.zig").append(queue_record_bytes, self.io, &self.queue, entry.position, &.{&bytes});
     self.head = .{ .tail = entry.position + 1, .cursor = entry.cursor, .source_activity = entry.source_activity };
 }
 pub fn at(self: *Self, position: u64) !QueueRecord {

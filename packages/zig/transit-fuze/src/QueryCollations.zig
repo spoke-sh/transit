@@ -31,7 +31,7 @@ pub fn validate(self: Self, schema: t.Type) !void {
 pub fn validateCells(self: Self, cells: []const t.Values.Cell) !void {
     if (cells.len > s.max_columns) return error.InvalidRowWidth;
     for (cells, self.columns[0..cells.len]) |cell, collation| {
-        if (collation == .ebcdic_cp037 and cell == .value) try c.validateBytes(cell.value.atom.bytes, collation);
+        if (collation != .none and cell == .value) try c.validateBytes(cell.value.atom.bytes, collation);
     }
 }
 pub fn write(self: Self, schema: t.Type, writer: *std.Io.Writer) !void {

@@ -21,6 +21,8 @@ class Faults:
         self.fail_once = False
         self.fail_snapshot_once = False
         self.before_pin_once = None
+        self.lose_copy_reply_once = False
+        self.copy_reply_losses = 0
         self.lose_pin_conflict_once = False
         self.record_pins = False
         self.explain_actions = None
@@ -56,7 +58,32 @@ class Faults:
                         # hide a release-after-pin or eager scan.
                         for name in table:
                             owner.explain_actions[name] = owner.explain_actions.get(name, 0) + 1
-                        explain_failure = any(name not in ('lookup', 'check', 'check_set', 'client_progress') for name in table)
+                        explain_failure = any(name not in ('lookup', 'check', 'check_set', 'client_progress', 'historical_catalog', 'schema_projection', 'descriptor') for name in table)
+                        if 'historical_catalog' in table:
+                            historical = table['historical_catalog']
+                            for name in historical:
+                                key = 'historical_catalog.' + name
+                                owner.explain_actions[key] = owner.explain_actions.get(key, 0) + 1
+                            explain_failure |= any(name not in ('lookup', 'source', 'namespace', 'list') for name in historical)
+                            explain_failure |= historical.get('source', {}).get('rows', False)
+                        if 'descriptor' in table:
+                            definition = table['descriptor']
+                            for name in definition:
+                                key = 'descriptor.' + name
+                                owner.explain_actions[key] = owner.explain_actions.get(key, 0) + 1
+                            explain_failure |= any(name not in ('lookup', 'inspect', 'authorize', 'historical', 'historical_list', 'list') for name in definition)
+                            explain_failure |= any(value.get('rows', False) for value in definition.values() if isinstance(value, dict))
+                        if 'schema_projection' in table:
+                            projection = table['schema_projection']
+                            for name in projection:
+                                key = 'schema_projection.' + name
+                                owner.explain_actions[key] = owner.explain_actions.get(key, 0) + 1
+                            explain_failure |= set(projection) != {'prepare'}
+                        if 'client_progress' in table:
+                            explain_failure |= set(table['client_progress']) != {'inspect'}
+                        for check in table.get('check_set', []):
+                            if 'historical' in check:
+                                explain_failure |= check['historical'].get('rows', False)
 
                     if 'pin' in table:
                         before_pin, owner.before_pin_once = owner.before_pin_once, None
@@ -126,6 +153,10 @@ class Faults:
                     lose_pin = owner.lose_pin_conflict_once and 'pin' in table and status == 200
                     if lose_pin:
                         owner.lose_pin_conflict_once = False
+                    lose_copy = owner.lose_copy_reply_once and 'pin' in table and status == 200 and (request.get('delegation') or {}).get('binding', {}).get('copied_from') is not None
+                    if lose_copy:
+                        owner.lose_copy_reply_once = False
+                        owner.copy_reply_losses += 1
                     lose_commit = owner.fail_commit_once and 'commit_saved' in table and status == 200
                     if lose_commit:
                         owner.fail_commit_once = False
@@ -137,7 +168,7 @@ class Faults:
                             owner.fail_transaction_once = False
                             owner.transaction_reply_losses += 1
                             lose_transaction = True
-                if lose_commit or lose_transaction:
+                if lose_commit or lose_transaction or lose_copy:
                     status, body = 503, b'{"err":"HttpCapacity"}'
                     content_type = 'application/json'
                 if lose_pin:

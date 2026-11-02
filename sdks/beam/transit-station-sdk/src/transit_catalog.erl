@@ -16,7 +16,7 @@
     {drop,pos_integer()} | {rename,pos_integer(),binary()} | {default,pos_integer(),undefined | transit_logical:cell()} |
     {physical,pos_integer(),encoding(),collation()} | {nullable,pos_integer(),boolean()} | {type,pos_integer(),transit_logical:descriptor(),undefined | pos_integer()}.
 -type encoding() :: plain | bitpacked | rle | dictionary | fsst | comp | comp_3 | zoned | ibm_hfp | ebcdic.
--type collation() :: none | utf8_binary | ascii_ci | ebcdic_cp037 | icu_root.
+-type collation() :: none | utf8_binary | ascii_ci | ebcdic_cp037 | icu_root | ebcdic_037_pad | ebcdic_1047_nopad.
 -type predicate() :: all | negate | conjunction | disjunction |
     {state,pos_integer(),missing | null | type_error | value | conflict} |
     {compare,pos_integer(),eq | ne | lt | le | gt | ge,transit_logical:atom_value()}.

@@ -23,6 +23,10 @@ pub const ClaimReadLimits = Owner.ClaimReadLimits;
 pub const ClaimReadRow = Owner.ClaimReadRow;
 pub const ClaimReadPage = Owner.ClaimReadPage;
 pub const ClaimReadiness = Owner.ClaimReadiness;
+pub const DeadLetterCandidate = Owner.DeadLetterCandidate;
+pub const DeadLetterCursor = Owner.DeadLetterCursor;
+pub const DeadLetterPage = Owner.DeadLetterPage;
+pub const DeadLetterWork = Owner.DeadLetterWork;
 
 owner: Owner,
 
@@ -44,6 +48,16 @@ pub fn recoveryState(self: *Self) !RecoveryState {
 }
 pub fn observe(self: *Self, declared: Declaration.Stored, guard: Guard) !p.StreamQueue.Cut {
     return self.owner.observe(declared, guard);
+}
+
+pub fn deadLetterNext(self: *Self, declared: Declaration.Stored, after: ?DeadLetterCursor, maximum: u16, guard: Guard) !DeadLetterPage {
+    return self.owner.deadLetterNext(declared, after, maximum, guard);
+}
+pub fn deadLetterWork(self: *Self, declared: Declaration.Stored, candidate: DeadLetterCandidate, source_operation: p.DataLifecycle.Operation, destination: p.StreamQueue.Partition, destination_operation: p.DataLifecycle.Operation, buffer: []u8, guard: Guard) !DeadLetterWork {
+    return self.owner.deadLetterWork(declared, candidate, source_operation, destination, destination_operation, buffer, guard);
+}
+pub fn deadLetterRoutedWork(self: *Self, declared: Declaration.Stored, candidate: DeadLetterCandidate, source_operation: p.DataLifecycle.Operation, destination_operation: p.DataLifecycle.Operation, buffer: []u8, guard: Guard) !DeadLetterWork {
+    return self.owner.deadLetterRoutedWork(declared, candidate, source_operation, destination_operation, buffer, guard);
 }
 pub fn transactionPinState(self: *Self, owner: p.DataLifecycle.Operation, guard: Guard) !@import("LogTransaction.zig").PinState {
     return self.owner.transactionPinState(owner, guard);
@@ -77,6 +91,12 @@ pub fn enqueue(self: *Self, declared: Declaration.Stored, request: p.StreamQueue
 }
 pub fn operation(self: *Self, identity: p.DataLifecycle.Operation, guard: Guard) !?@import("LogEvidence.zig").Record {
     return self.owner.operation(identity, guard);
+}
+pub fn cancel(self: *Self, declared: Declaration.Stored, request: p.LogWorkload.QueueRequest, guard: Guard) !@import("LogEvidence.zig").Record {
+    return self.owner.cancel(declared, request, guard);
+}
+pub fn refuse(self: *Self, declared: Declaration.Stored, request: p.LogWorkload.QueueRequest, cause: anyerror, guard: Guard) !@import("LogEvidence.zig").Record {
+    return self.owner.refuse(declared, request, cause, guard);
 }
 pub fn claim(self: *Self, declared: Declaration.Stored, request: p.StreamQueue.Claim, guard: Guard) !p.StreamQueue.ClaimReceipt {
     return self.owner.claim(declared, request, guard);

@@ -137,5 +137,9 @@ wire = plan._wire(); wire['projection'][0] = 1
 assert plan._wire()['projection'] == [3, 0, 2] and plan._wire()['limit'] == str(maximum)
 assert len(QueryPlan(q.Plan(tuple(range(128))))._wire()['projection']) == 128
 rejects(lambda: QueryPlan(q.Plan((128,))))
+assert QueryPlan(q.Plan((128,), scalar_program=b'\x01\x01\x7f'))._wire()['projection'] == [128]
+rejects(lambda: QueryPlan(q.Plan((129,), scalar_program=b'\x01\x01\x7f')))
+for invalid_program in (b'', b'\x21'):
+    rejects(lambda: QueryPlan(q.Plan((0,), scalar_program=invalid_program)))
 rejects(lambda: QueryPlan(q.Plan((0,), aggregate='invented')))
 print(f'Handler Table intents, scoped rows, query plans and {checks} adversarial rejections passed')

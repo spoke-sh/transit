@@ -48,6 +48,15 @@ not attach it. `execute` submits once. Its uncertainty result
 retains the original account, instance, admission token and known operation; a
 missing observation never authorizes resubmission.
 
+Workload operations carry typed command/row dispatch and original native
+evidence. Once settlement identifies retained rows, `Executor` opens that exact
+operation and checks the returned intent and selection before exposing a result.
+Before any rows are delivered, an expired session can be replaced for this
+opening under current credentials and the same instance/account. Subsequent
+fetches retain one cursor and never splice a new result into a delivered prefix.
+Closing the reader sends only transient cursor cleanup. The service's workload
+SQL admission remains unimplemented; these paths consume existing native tokens.
+
 ### Persisting an original attempt
 
 `Executor.Options.before_submit` supplies a synchronous `persist(context,

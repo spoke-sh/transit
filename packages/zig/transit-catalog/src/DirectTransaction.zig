@@ -11,17 +11,30 @@ pub const Acquired = struct {
     definition: p.Growth.Definition,
     cut: p.Transaction.Cut,
     coordination: u64,
+    /// Exact Table names, namespaces and definitions observed under the same
+    /// publication fence as this cut. Other participant kinds remain in cut.
+    catalog: ?c.DirectHistoryDirectory.Reference,
 
     pub const format: u32 = 0x54584331;
     pub const max_bytes = 16 * 1024;
 
+    pub fn commonCut(self: Acquired) p.DataLifecycle.CommonCut {
+        return .{ .transaction = self.cut.begin.identity.begin, .acquired = self.cut.acquired, .sources = self.cut.sources.content, .source_count = self.cut.sources.count };
+    }
+
     pub fn validate(self: Acquired, receipt: c.DirectClientToken.Receipt) !void {
+        if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
         try receipt.validate();
         try self.cut.validate();
         if (receipt.binding.intent != .transaction or
             receipt.coordination != self.coordination or self.cut.acquired.partition != receipt.position.partition or
             self.cut.acquired.next_lsn <= receipt.position.next_lsn) return error.InvalidTransactionCut;
         try receipt.binding.intent.transaction.begin.requireSame(self.cut.begin);
+        if (self.catalog) |catalog| {
+            var name: [96]u8 = undefined;
+            _ = try c.DirectHistoryDirectory.objectKey(catalog.content, &name);
+            if (catalog.count == 0 or catalog.count > self.cut.sources.count) return error.InvalidTransactionCut;
+        }
     }
 
     pub fn stage(self: Acquired, objects: c.storage.TransitObjectStore.ObjectStore, receipt: c.DirectClientToken.Receipt) !c.DirectRecord.Reference {
@@ -63,13 +76,22 @@ pub const Reference = struct {
     connection: c.DirectTableProtocol.Connection,
     namespace: u64,
     begin: p.Transaction.Begin,
+    /// Mandatory on saved work. Protected purposes use the same transaction
+    /// decision and workspace; generic callers cannot choose or replace them.
+    purpose: union(enum) { interactive, queue_transfer: c.DirectRecord.Reference },
 
     pub fn validate(self: Reference) !void {
         try self.connection.validate();
         try c.Model.nativeId(self.namespace);
         try self.begin.validate();
+        if (self.purpose == .queue_transfer) {
+            const plan = self.purpose.queue_transfer;
+            try plan.validate();
+            if (plan.format != c.DirectQueueTransferPlan.format or plan.content.bytes > c.DirectQueueTransferPlan.max_bytes or
+                !std.meta.eql(plan.scope.connection, self.connection)) return error.InvalidTransactionTransfer;
+        }
         if (!std.meta.eql(self.connection.scope, self.begin.identity.begin.scope) or
-            self.connection.principal != self.begin.identity.begin.principal)
+            self.connection.principal != self.begin.identity.begin.principal or self.connection.branch != self.begin.identity.branch)
             return error.TransactionIdentityConflict;
     }
 

@@ -78,7 +78,7 @@ pub fn require(host: *g.Session, prepared: *const g.Session.Prepared) !void {
     if (host.transaction.failed) return error.SqlTransactionFailed;
     switch (prepared.*) {
         .native => |statement| if (statement.plan != .select and statement.plan != .relational and statement.plan != .dml) return error.UnsupportedTransactionStatement,
-        .source, .captured, .managed => return error.UnsupportedTransactionStatement,
+        .source, .captured, .workload, .managed => return error.UnsupportedTransactionStatement,
         .settings => |settings| if (settings.plan.statement == .reload or settings.plan.statement == .set or settings.plan.statement == .reset) return error.UnsupportedTransactionStatement,
         .probe => |probe| if (probe.kind == .set) return error.UnsupportedTransactionStatement,
         .inspection => {},
@@ -101,6 +101,7 @@ pub fn request(host: *g.Session, prepared: *const g.Session.Prepared, values: []
 /// Apply a verified result only on explicit execution/recovery in this session.
 /// Status inspection alone never attaches a transaction to another connection.
 pub fn adopt(host: *g.Session, operation: g.session_protocol.Operation) !void {
+    if (operation.identity.kind != .transaction) return;
     if (operation.phase != .terminal) return;
     const completion = try operation.completion();
     const attribution = completion.transaction orelse return;

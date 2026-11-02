@@ -99,7 +99,7 @@ test "direct native contracts retain the maximum checkpoint key and require the 
     progress.rows = 8;
     const checkpoint: r.Checkpoint = .{ .cut = basis.cut, .progress = progress, .bytes = 8192, .chain = @splat(42), .cursor = .{ .ordinal = 1, .after = try q.protocol.Value.init(&@as([q.protocol.Growth.key_bytes]u8, @splat(255))) } };
     const bytes = try checkpoint.encode();
-    try e.expectEqual(@as(u16, 222), bytes.len);
+    try e.expectEqual(@as(u16, 230), bytes.len);
     const decoded = try r.Checkpoint.decode(bytes);
     try e.expectEqualDeep(checkpoint, decoded);
     _ = try decoded.bound(bundle);

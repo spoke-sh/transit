@@ -15,12 +15,12 @@ import struct
 import uuid
 
 FIXTURE = ROOT / 'packages/zig/transit-fuze/src/fixtures/types.json'
-DEFINITION = b'transit.fuze.types.v1.2026-09-30'
+DEFINITION = b'transit.fuze.types.v1.2026-11-01.companions'
 TAGS = dict(zip(('int64 uint64 float64 boolean utf8 binary int8 int16 int32 int128 '
                  'uint8 uint16 uint32 uint128 float32 decimal date time timestamp '
-                 'interval uuid structure list array map tagged_union json').split(), range(1, 28)))
+                 'interval uuid structure list array map tagged_union json range multirange vector').split(), range(1, 31)))
 
-KINDS = dict(TAGS, unknown=0, null_value=28, text=29, character=30)
+KINDS = dict(TAGS, unknown=0, null_value=31, text=32, character=33)
 
 
 def descriptor(kind, params=b''):

@@ -7,7 +7,7 @@
       "additionalProperties": false,
       "properties": {
         "definition": {
-          "const": "transit.fuze.types.v1.2026-09-30"
+          "const": "transit.fuze.types.v1.2026-11-01.companions"
         },
         "type": {
           "$ref": "#/$defs/T2"
@@ -347,6 +347,42 @@
               "$ref": "#/$defs/T3"
             }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "range"
+          ],
+          "properties": {
+            "range": {
+              "$ref": "#/$defs/T11"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "multirange"
+          ],
+          "properties": {
+            "multirange": {
+              "$ref": "#/$defs/T11"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "vector"
+          ],
+          "properties": {
+            "vector": {
+              "$ref": "#/$defs/T15"
+            }
+          }
         }
       ]
     },
@@ -467,6 +503,32 @@
       "required": [
         "key",
         "value"
+      ]
+    },
+    "T15": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dimensions": {
+          "$ref": "#/$defs/T13"
+        },
+        "element": {
+          "$ref": "#/$defs/T16"
+        }
+      },
+      "required": [
+        "dimensions",
+        "element"
+      ]
+    },
+    "T16": {
+      "type": "string",
+      "enum": [
+        "float32",
+        "float16",
+        "bfloat16",
+        "int8",
+        "binary"
       ]
     }
   }

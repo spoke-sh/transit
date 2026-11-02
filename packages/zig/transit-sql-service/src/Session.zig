@@ -54,11 +54,12 @@ pub const Prepared = union(enum) {
     source: g.SourceSession.Prepared,
     captured: g.CapturedOperations.Prepared,
     managed: g.ManagedOperations.Prepared,
+    workload: g.database.WorkloadRead.Prepared,
     pub fn parameters(self: *const Prepared) []const f.Types.Type {
         return switch (self.*) {
             .native => |*value| value.parameters(),
             .source => |*value| value.template.parameterTypes(),
-            .probe, .settings, .inspection, .captured, .transaction, .managed => &.{},
+            .probe, .settings, .inspection, .captured, .workload, .transaction, .managed => &.{},
         };
     }
     pub fn fields(self: *const Prepared) []const f.Types.Field {
@@ -66,6 +67,7 @@ pub const Prepared = union(enum) {
             .native => |*value| value.fields(),
             .source => |*value| value.output.type.structure,
             .captured => |*value| value.output.type.structure,
+            .workload => |*value| value.output.type.structure,
             .transaction, .managed => &.{},
             .probe => |value| value.fields(),
             .inspection => |value| value.output,
@@ -77,7 +79,7 @@ pub const Prepared = union(enum) {
             .transaction, .managed => true,
             .native => |*value| value.kind() != .select,
             .probe => |value| value.kind == .set,
-            .inspection, .source, .captured => false,
+            .inspection, .source, .captured, .workload => false,
             .settings => |value| value.plan.statement == .set or value.plan.statement == .reset,
         };
     }
@@ -88,6 +90,19 @@ pub const Prepared = union(enum) {
     }
     pub fn empty(self: *const Prepared) bool {
         return self.* == .probe and self.probe.kind == .empty;
+    }
+    pub fn rowCommand(self: *const Prepared) !g.results.Command {
+        return switch (self.*) {
+            .native => |value| switch (value.kind()) {
+                .produce => .produce,
+                .enqueue => .enqueue,
+                .consume => .consume,
+                .claim => .claim,
+                else => .select,
+            },
+            .workload => |value| g.database.WorkloadOperations.command(value.intent.parsed.value.work),
+            else => .select,
+        };
     }
 };
 
@@ -103,8 +118,9 @@ test "read-only admission excludes row-returning configuration effects" {
 }
 pub const Read = struct {
     host: *Self,
-    value: union(enum) { single: g.direct.DirectTableQuery, relational: *g.direct.DirectRelationalQuery, probe: g.Probe, settings: Settings.Read, inspection: Inspection.Read, source: g.SourceSession.Read, captured: g.CapturedOperations.Read },
+    value: union(enum) { single: g.direct.DirectTableQuery, relational: *g.direct.DirectRelationalQuery, probe: g.Probe, settings: Settings.Read, inspection: Inspection.Read, source: g.SourceSession.Read, captured: g.CapturedOperations.Read, workload: g.database.WorkloadRead.Read },
     prepared: *Prepared,
+    owns_prepared: bool = false,
     builder: g.results.BatchBuilder,
     input: g.ReadBatch = .{},
     input_index: usize = 0,
@@ -126,7 +142,8 @@ pub const Read = struct {
                 const scan = &query.execution.scan;
                 const source = scan.reader.basis;
                 if (source.workspace) |view| break :blk try self.transactionBasis(allocator, &.{view});
-                break :blk .{ .table = .{ .object = source.snapshot.object, .interpretation = source.interpretation.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .pin = source.snapshot.handle.content, .commitment = try scan.fingerprint(), .schema = try scan.reader.schema.schema.fingerprint() } };
+                if (source.catalog) |snapshot| break :blk .{ .historical = .{ .snapshot = snapshot, .sources = try allocator.dupe(@FieldType(g.results.Observation.Data, "table"), &.{.{ .object = source.snapshot.object, .interpretation = source.interpretation.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .pin = source.snapshot.handle.content, .commitment = try scan.fingerprint(), .schema = source.interpretation.schema_fingerprint, .projection = projectionObservation(source.interpretation, source.projection), .view = scan.view }}) } };
+                break :blk .{ .table = .{ .object = source.snapshot.object, .interpretation = source.interpretation.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .pin = source.snapshot.handle.content, .commitment = try scan.fingerprint(), .schema = source.interpretation.schema_fingerprint, .projection = projectionObservation(source.interpretation, source.projection), .view = scan.view } };
             },
             .relational => |query| blk: {
                 if (self.transaction != null) {
@@ -135,12 +152,32 @@ pub const Read = struct {
                     for (query.tables.scans[0..count], views[0..count]) |scan, *view| view.* = scan.?.reader.basis.workspace orelse return error.InvalidTransactionObservation;
                     break :blk try self.transactionBasis(allocator, views[0..count]);
                 }
+                if (query.tables.scans[0].?.reader.basis.catalog) |snapshot| {
+                    const sources = try allocator.alloc(@FieldType(g.results.Observation.Data, "table"), query.tables.declarations.len);
+                    for (query.tables.scans[0..sources.len], sources) |slot, *out| {
+                        const scan = slot.?;
+                        const source = scan.reader.basis;
+                        if (!std.meta.eql(source.catalog, snapshot)) return error.InvalidHistoricalObservation;
+                        out.* = .{ .object = source.snapshot.object, .interpretation = source.interpretation.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .pin = source.snapshot.handle.content, .commitment = try scan.fingerprint(), .schema = source.interpretation.schema_fingerprint, .projection = projectionObservation(source.interpretation, source.projection) };
+                    }
+                    break :blk .{ .historical = .{ .snapshot = snapshot, .sources = sources } };
+                }
                 break :blk .{ .independent_table_snapshots = try allocator.dupe(f.Relational.Cut, query.execution.bound.cuts) };
             },
-            .source => |source| sourceBasis(source.query.basis),
-            .captured => |captured| if (captured.basis) |value| sourceBasis(value) else null,
+            .source => |source| if (source.query.bundle.source.source == .table and source.query.bundle.source.source.table.historical != null)
+                try historicalBasis(allocator, source.query.bundle.source.source.table.historical.?.snapshot, source.query.table.?, source.query.basis, source.query.bundle.source.source.table.projection)
+            else
+                sourceBasis(source.query.basis),
+            .captured => |captured| if (captured.basis) |value| (if (captured.prepared.bundle.source.source == .table and captured.prepared.bundle.source.source.table.historical != null)
+                try historicalBasis(allocator, captured.prepared.bundle.source.source.table.historical.?.snapshot, (captured.table_basis orelse return error.MissingResultObservation).retained, value, captured.prepared.bundle.source.source.table.projection)
+            else
+                sourceBasis(value)) else null,
+            .workload => |*value| .{ .workload = try value.observation() },
             else => null,
         };
+    }
+    fn historicalBasis(allocator: std.mem.Allocator, snapshot: p.DataLifecycle.Snapshot, source: c.DirectTableReader.Basis, basis: q.Basis, projection: ?c.DirectSchemaProjection.Accepted) !g.results.Observation.Data {
+        return .{ .historical = .{ .snapshot = snapshot, .sources = try allocator.dupe(g.results.Observation.Table, &.{.{ .object = source.snapshot.object, .interpretation = source.interpretation.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .pin = source.snapshot.handle.content, .commitment = try basis.fingerprint(), .schema = source.interpretation.schema_fingerprint, .projection = projectionObservation(source.interpretation, projection) }}) } };
     }
     fn transactionBasis(self: *Read, allocator: std.mem.Allocator, views: []const p.Transaction.ReadView) !g.results.Observation.Data {
         const first = views[0];
@@ -156,14 +193,33 @@ pub const Read = struct {
             .inspection => |inspection| {
                 const prepared = inspection.prepared;
                 metadata.kind = prepared.kind;
+                metadata.historical = prepared.historical_list;
+                metadata.namespace = prepared.historical_namespace orelse self.host.namespace;
                 metadata.consistency = if (prepared.storage or prepared.node_storage) .independent_observations else .exact_definitions;
-                if (prepared.metadata) |binding| metadata.definitions = try allocator.dupe(p.DataLifecycle.Definition, &.{binding.interpretation.interpretation});
+                if (prepared.metadata) |binding| {
+                    metadata.definitions = try allocator.dupe(p.DataLifecycle.Definition, &.{binding.interpretation.interpretation});
+                    metadata.historical = binding.catalog;
+                    if (projectionObservation(binding.interpretation, prepared.projection)) |projection| metadata.projections = try allocator.dupe(g.results.Observation.Projection, &.{projection});
+                }
                 if (prepared.log_metadata) |binding| metadata.definitions = try allocator.dupe(p.DataLifecycle.Definition, &.{binding.definition.stored.declaration.interpretation});
                 if (prepared.statement) |statement| {
-                    if (statement.plan == .select) metadata.definitions = try allocator.dupe(p.DataLifecycle.Definition, &.{statement.plan.select.binding.interpretation.interpretation}) else if (statement.plan == .relational) {
-                        const definitions = try allocator.alloc(p.DataLifecycle.Definition, statement.plan.relational.bindings.len);
-                        for (statement.plan.relational.bindings, definitions) |binding, *definition| definition.* = binding.interpretation.interpretation;
+                    if (statement.plan == .select) {
+                        metadata.definitions = if (statement.plan.select.binding.view) |view| try allocator.dupe(p.DataLifecycle.Definition, &.{ statement.plan.select.binding.interpretation.interpretation, view }) else try allocator.dupe(p.DataLifecycle.Definition, &.{statement.plan.select.binding.interpretation.interpretation});
+                        metadata.historical = statement.plan.select.binding.catalog;
+                        if (projectionObservation(statement.plan.select.binding.interpretation, statement.plan.select.projection)) |projection| metadata.projections = try allocator.dupe(g.results.Observation.Projection, &.{projection});
+                    } else if (statement.plan == .relational) {
+                        metadata.historical = statement.plan.relational.catalog;
+                        const bindings = statement.plan.relational.bindings[0..statement.plan.relational.plan.sources.len];
+                        const definitions = try allocator.alloc(p.DataLifecycle.Definition, bindings.len);
+                        for (bindings, definitions) |binding, *definition| definition.* = binding.interpretation.interpretation;
                         metadata.definitions = definitions;
+                        var projections: [f.Relational.max_sources]g.results.Observation.Projection = undefined;
+                        var count: usize = 0;
+                        for (bindings, statement.plan.relational.projections[0..bindings.len]) |binding, target| if (projectionObservation(binding.interpretation, target)) |projection| {
+                            projections[count] = projection;
+                            count += 1;
+                        };
+                        metadata.projections = try allocator.dupe(g.results.Observation.Projection, projections[0..count]);
                     }
                 }
                 if (prepared.managed) |declared| {
@@ -192,6 +248,10 @@ pub const Read = struct {
         }
         return .{ .metadata = metadata };
     }
+    fn projectionObservation(source: c.storage.TableDeclaration.Stored, target: ?c.DirectSchemaProjection.Accepted) ?g.results.Observation.Projection {
+        const accepted = target orelse return null;
+        return .{ .source = source.interpretation, .target = accepted.declaration.interpretation, .declaration = accepted.declaration.content, .schema = accepted.declaration.schema_fingerprint, .accepted_lsn = accepted.next_lsn, .policy = .stable_columns_add_origins };
+    }
     fn sourceBasis(value: q.Basis) g.results.Observation.Data {
         return .{ .source = .{ .kind = value.cut.kind, .resource = value.cut.resource, .position = switch (value.cut.position) {
             .native_revision => |revision| .{ .native_revision = revision },
@@ -205,13 +265,20 @@ pub const Read = struct {
         }
         try self.disclosure.validate(self.host, self.prepared);
     }
+    pub fn completion(self: *Read, rows: u64) !g.results.Completion {
+        return if (self.value == .workload) self.value.workload.completion(rows) else .{ .rows = rows };
+    }
     /// A parked wire continuation cannot reuse an earlier admission/disclosure
     /// observation. The retained data cut and buffered cells remain unchanged.
     pub fn resumeWire(self: *Read) void {
         self.validated_open = false;
         self.validated_disclosure = false;
     }
-    pub fn nextBatch(self: *Read, maximum: u8) !g.ReadBatch {
+    pub fn nextBatch(self: *Read, requested: u8) !g.ReadBatch {
+        // A historical catalog page has distinct protected objects. Keep their
+        // union within one native disclosure guard, including namespace rights.
+        // This bounds a physical batch, never the complete catalog result.
+        const maximum = if (self.value == .inspection and self.value.inspection.prepared.historical_list != null) @min(requested, 8) else requested;
         self.validated_disclosure = false;
         try self.host.deadline.check(self.host.io);
         if (self.validated_open) {
@@ -221,6 +288,7 @@ pub const Read = struct {
         }
         try self.builder.reset(maximum, g.results.BatchBuilder.max_bytes);
         self.disclosure = .{ .transaction = self.transaction, .transaction_context = self.transaction_context };
+        if (self.value == .workload) self.disclosure.workload = self.value.workload.reference;
         var complete = false;
         while (self.builder.len < maximum) {
             if (self.input_index == self.input.len) {
@@ -240,6 +308,7 @@ pub const Read = struct {
             }
             if (!try self.builder.append(self.prepared.fields(), self.input.rows[self.input_index].?)) break;
             if (self.value == .settings) try self.disclosure.append(self.value.settings.subject);
+            if (self.value == .inspection) try self.disclosure.append(self.value.inspection.subject);
             self.input_index += 1;
         }
         complete = complete or (self.started and self.input.complete and self.input_index == self.input.len);
@@ -277,6 +346,7 @@ pub const Read = struct {
         }
         const cells: ?[]const f.Types.Values.Cell = switch (self.value) {
             .single, .source, .captured => unreachable,
+            .workload => |*value| try value.pull(self.host.deadline),
             .relational => |query| blk: {
                 self.output = try query.next() orelse break :blk null;
                 break :blk self.output.?.cells[0..self.output.?.len];
@@ -293,8 +363,9 @@ pub const Read = struct {
         result.rows[0] = cells;
         result.len = @intFromBool(cells != null);
         result.complete = cells == null or switch (self.value) {
-            .inspection => |inspection| inspection.index == inspection.prepared.count(),
+            .inspection => |inspection| inspection.complete(),
             .probe => true,
+            .workload => |*value| try value.complete(),
             else => false,
         };
         return result;
@@ -541,6 +612,7 @@ pub fn destroy(self: *Self, prepared: *Prepared) void {
     if (prepared.* == .native) prepared.native.deinit();
     if (prepared.* == .source) prepared.source.deinit();
     if (prepared.* == .captured) prepared.captured.deinit();
+    if (prepared.* == .workload) prepared.workload.deinit();
     if (prepared.* == .settings) prepared.settings.deinit();
     if (prepared.* == .inspection) prepared.inspection.deinit();
     self.allocator.destroy(prepared);
@@ -567,6 +639,10 @@ pub fn validate(self: *Self, prepared: *Prepared) !void {
         .source => |*statement| try self.fresh(g.SourceSession.validate, .{ self.source orelse return error.UnknownSqlSource, statement }),
         .managed => |*managed| try g.ManagedOperations.validate(self, managed),
         .captured => |*captured| try g.CapturedOperations.validateResult(self, captured),
+        .workload => |*value| {
+            if (value.reference.namespace != self.namespace or self.source != null) return error.CatalogIdentityConflict;
+            _ = try value.open(self.table);
+        },
         .inspection => |*inspection| try self.fresh(Inspection.validate, .{ inspection, self }),
         .settings => |*settings| try self.freshOn(.settings, Settings.authorize, .{ self, &settings.plan }),
         .probe, .transaction => {}, // current() already validates the login and database.
@@ -580,7 +656,7 @@ pub fn bind(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.At
             var bound = try self.source.?.bind(statement, values);
             bound.deinit();
         },
-        .probe, .settings, .inspection, .captured, .transaction, .managed => if (values.len != 0) return error.WireParameterCountMismatch,
+        .probe, .settings, .inspection, .captured, .workload, .transaction, .managed => if (values.len != 0) return error.WireParameterCountMismatch,
     }
 }
 pub fn openRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !*Read {
@@ -588,7 +664,45 @@ pub fn openRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Value
     // attempt enters cleanup. ReadCache can retry preparation only after proving
     // the original pin is absent and its exact frontier can no longer be acquired;
     // an accepted/uncertain pin or opened iterator never switches its cut.
+    if (prepared.* == .native and prepared.native.isWorkload()) return self.openWorkloadResult(prepared, values);
     return self.acquireRead(prepared, values);
+}
+
+fn requireWorkloadOutcome(result: g.session_protocol.Operation) !void {
+    if (result.phase != .terminal) return error.MissingGatewayTerminal;
+    switch (result.outcome orelse return error.MissingGatewayTerminal) {
+        .applied, .unchanged => {},
+        .rejected => return error.SqlWorkloadRejected,
+        .cancelled => return error.SqlWorkloadCancelled,
+        else => return error.InvalidSqlOperationReference,
+    }
+}
+fn executeWorkload(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !g.session_protocol.Operation {
+    try g.SessionTransaction.require(self, prepared);
+    const is_fresh = self.fresh_prepared == prepared;
+    if (is_fresh) self.fresh_prepared = null else try self.validate(prepared);
+    const result = try self.runtime.executeWorkloadPrepared(self.allocator, &self.observer, &self.table, &prepared.native, values, self.deadline, &self.operation, is_fresh, true);
+    try requireWorkloadOutcome(result);
+    try self.current();
+    return result;
+}
+fn openWorkloadResult(self: *Self, statement: *Prepared, values: []const ?f.Types.Values.Atom) !*Read {
+    if (statement.fields().len == 0) return error.ExpectedGatewayRead;
+    const result = try self.executeWorkload(statement, values);
+    if (result.result_kind != .rows or result.identity.kind != .workload) return error.InvalidSqlOperationReference;
+    var source = try self.observer.source();
+    const state = try source.operation(result.identity.id);
+    if (state.receipt.binding.intent != .workload) return error.InvalidSqlOperationReference;
+    const reference = state.receipt.binding.intent.workload;
+    if (reference.namespace != self.namespace or !std.meta.eql(reference.connection, self.table.connection)) return error.CatalogIdentityConflict;
+    const prepared = try self.allocator.create(Prepared);
+    errdefer self.allocator.destroy(prepared);
+    prepared.* = .{ .workload = try g.database.WorkloadRead.Prepared.init(self.table, reference) };
+    errdefer prepared.workload.deinit();
+    if (!std.mem.eql(u8, &try prepared.workload.output.type.fingerprint(), &try statement.native.output.?.type.fingerprint())) return error.WorkloadResultConflict;
+    const read = try self.acquireRead(prepared, &.{});
+    read.owns_prepared = true;
+    return read;
 }
 
 fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !*Read {
@@ -607,6 +721,7 @@ fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values
     switch (prepared.*) {
         .transaction, .managed => return error.ExpectedGatewayRead,
         .captured => |*captured| read.value = .{ .captured = try g.CapturedOperations.Read.init(self, captured) },
+        .workload => |*value| read.value = .{ .workload = try g.database.WorkloadRead.Read.init(value, self.table) },
         .source => |*statement| read.value = .{ .source = try g.SourceSession.Read.init(self.source.?, statement, values) },
         .inspection => |*inspection| read.value = .{ .inspection = .{ .host = self, .prepared = inspection } },
         .settings => |*settings| read.value = .{ .settings = try Settings.Read.init(self, settings) },
@@ -617,6 +732,14 @@ fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values
             var snapshots: [f.Relational.max_sources]c.DirectTableProtocol.Snapshot = undefined;
             for (0..count) |i| {
                 const binding = if (statement.plan == .relational) statement.plan.relational.bindings[i] else statement.plan.select.binding;
+                if (binding.catalog) |snapshot| {
+                    const response = try c.DirectHistory.call(self.table, .{ .source = .{ .snapshot = snapshot, .object = binding.interpretation.interpretation.object.object, .rows = true } });
+                    defer response.deinit();
+                    const selected = response.value.result.historical_catalog.source;
+                    if (!std.meta.eql(selected.binding.declaration, binding.interpretation)) return error.HistoricalIdentityConflict;
+                    snapshots[i] = selected.table().snapshot;
+                    continue;
+                }
                 if (self.table.transaction != null) {
                     const response = try self.table.call(.{ .lookup = .{ .namespace = binding.namespace, .name = binding.name.slice() } });
                     defer response.deinit();
@@ -668,10 +791,12 @@ pub fn closeRead(self: *Self, read: *Read) void {
         },
         .source => |*source| source.deinit(),
         .captured => |*captured| captured.deinit(),
+        .workload => |*value| value.deinit(),
         .probe, .inspection => {},
         .settings => |*settings| settings.deinit(),
     }
     self.releasePins(read);
+    if (read.owns_prepared) self.destroy(read.prepared);
     self.allocator.destroy(read);
 }
 fn releasePins(self: *Self, read: *Read) void {
@@ -690,6 +815,10 @@ fn releasePins(self: *Self, read: *Read) void {
     };
 }
 pub fn write(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !g.results.CommandCompletion {
+    if (prepared.* == .native and prepared.native.isWorkload()) {
+        if (prepared.fields().len != 0) return error.SqlRowsRequired;
+        return (try self.executeWorkload(prepared, values)).completion();
+    }
     const is_fresh = self.fresh_prepared == prepared;
     if (is_fresh) {
         self.fresh_prepared = null;
@@ -726,7 +855,7 @@ pub fn validateWireCompletion(self: *Self, prepared: *Prepared, completion: g.re
         if (!std.mem.eql(u8, &operation.account, &self.runtime.execution.configuration.account)) return error.InvalidWireCompletion;
         const observed = try self.fresh(g.DatabaseRuntime.status, .{ self.runtime, self.allocator, &self.observer, &self.table, self.namespace, operation.id });
         const verified = try observed.completion();
-        if (verified.kind != completion.kind or verified.outcome != completion.outcome or !std.meta.eql(verified.counts, completion.counts) or !std.meta.eql(verified.operation, completion.operation)) return error.InvalidWireCompletion;
+        if (verified.kind != completion.kind or verified.outcome != completion.outcome or !std.meta.eql(verified.counts, completion.counts) or !std.meta.eql(verified.operation, completion.operation) or !std.meta.eql(verified.workload, completion.workload)) return error.InvalidWireCompletion;
     } else switch (prepared.*) {
         .settings => |*settings| try self.freshOn(.settings, Settings.authorize, .{ self, &settings.plan }),
         .probe => {},
@@ -755,7 +884,20 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
         error.ConfigurationSnapshotChanged => .{ "40001".*, "Configuration changed; discard partial results and repeat the read" },
         error.WireParameterCountMismatch, error.WireParameterTypeMismatch, error.InvalidWireValue => .{ "22023".*, "Parameter type or value rejected" },
         error.NullNotAllowed => .{ "23502".*, "Required value is NULL" },
-        error.WireValueOutOfRange => .{ "22003".*, "Value is out of range" },
+        error.CheckConstraintViolation => .{ "23514".*, "A CHECK constraint rejected the proposed row" },
+        error.IncompatibleSchemaProjection => .{ "0A000".*, "The selected definitions require an unsupported schema conversion" },
+        error.InvalidSchemaProjection => .{ "22023".*, "Schema projection evidence does not match the original source and target" },
+        error.InvalidHistoricalSelector => .{ "22023".*, "Expected an exact published historical snapshot selector" },
+        error.HistoricalObjectNotSelected => .{ "42P01".*, "Object is absent from the selected historical catalog" },
+        error.HistoricalSnapshotReleased => .{ "55000".*, "The selected historical snapshot has been explicitly released" },
+        error.UnsupportedHistoricalTransaction, error.UnsupportedHistoricalKind, error.HistoricalReadOnly => .{ "0A000".*, "This statement cannot execute against a historical catalog" },
+        error.WireValueOutOfRange, error.DecimalOverflow, error.InexactDecimalRounding => .{ "22003".*, "Value exceeds the declared numeric precision or exact rounding rule" },
+        error.DivisionByZero => .{ "22012".*, "Decimal divisor is zero" },
+        error.TimestampOverflow => .{ "22008".*, "Timestamp is out of range" },
+        error.NonexistentLocalTime, error.AmbiguousLocalTime => .{ "22007".*, "Local time requires an explicit gap or fold resolution" },
+        error.InvalidTimeBucket, error.ZeroMagnitudeCosineVector, error.InvalidColumnSemantics, error.MissingColumnSemantics => .{ "22023".*, "Scalar operation requires valid declared semantics and operands" },
+        error.ScalarProgramBudget => .{ "54000".*, "Scalar expression exceeds its instruction budget" },
+        error.TimezoneCoverageUnavailable, error.UnsupportedScalarFunction => .{ "0A000".*, "Scalar operation is outside the declared execution coverage" },
         error.CatalogIdentityConflict, error.CatalogDefinitionChanged, error.TableDefinitionChanged => .{ "55000".*, "Prepared source changed; prepare again" },
         error.GatewayOwnerUnavailable, error.StaleGatewayCoordinator => .{ "55000".*, "Gateway owner is not ready; inspect admitted writes before retrying SQL" },
         error.SqlReadLeaseCapacity, error.GatewayRecordTooLarge, error.TooManyWireStatements, error.TooManyWirePortals, error.OutOfMemory, error.ResultMemoryBudgetExceeded, error.ResultRowTooLarge, error.SqlBatchTooLarge, error.InvalidResultBudget => .{ "54000".*, "Session capacity exceeded" },
@@ -779,6 +921,7 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
                 .duplicate_key => .{ "23505".*, "Primary key already exists in the transaction workspace" },
                 .missing_row => .{ "02000".*, "Required row is absent from the transaction workspace" },
                 .invalid_rows => .{ "23000".*, "Row constraints rejected the transaction statement" },
+                .check_violation => .{ "23514".*, "A CHECK constraint rejected the transaction statement" },
                 .work_limit => .{ "54000".*, "Transaction statement work budget exceeded" },
                 .data_changed, .definition_changed => .{ "40001".*, "Transaction source changed" },
             };
@@ -806,6 +949,7 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
                     4 => .{ "02000".*, "Required row no longer exists" },
                     5 => .{ "23000".*, "Row constraints rejected the mutation" },
                     6 => .{ "54000".*, "Statement work budget exceeded" },
+                    7 => .{ "23514".*, "A CHECK constraint rejected the mutation" },
                     else => .{ "23000".*, "Table mutation rejected; inspect its recorded outcome" },
                 },
                 .ddl => switch (terminal.reason) {
@@ -813,16 +957,28 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
                     2, 3, 4 => .{ "40001".*, "Table identity, definition or data changed" },
                     5 => .{ "2BP01".*, "A registered dependency blocks the change" },
                     6 => .{ "23000".*, "Schema constraints rejected the change" },
+                    7 => .{ "0A000".*, "Populated Table change requires an online phased rewrite" },
+                    8 => .{ "54000".*, "Schema validation work budget exceeded" },
                     else => .{ "55000".*, "Table declaration rejected" },
                 },
             };
         },
         error.GatewayMutationCancelled => .{ "57014".*, "Table operation cancelled" },
+        error.SqlWorkloadRejected => .{ "55000".*, "Original Stream or Queue operation was refused; inspect its recorded outcome" },
+        error.SqlWorkloadCancelled => .{ "57014".*, "Original Stream or Queue operation was cancelled" },
         error.UnsupportedGatewayStatement, error.UnsupportedExecutionCycle, error.UnsupportedWireType => .{ "0A000".*, "Operation is outside the selected SQL profile" },
         error.InvalidSqlSyntax, error.ExpectedIdentifier, error.UnexpectedToken => .{ "42601".*, "SQL syntax rejected" },
         error.TableNotFound => .{ "42P01".*, "Table does not exist" },
         error.CatalogNameNotFound => .{ "42P01".*, "Catalog object does not exist" },
         error.CatalogKindMismatch => .{ "42809".*, "Catalog object has a different data kind" },
+        error.CrossPartitionLogAppend => .{ "0A000".*, "This append spans partitions and requires transaction composition" },
+        error.QueueClaimLimitExceeded => .{ "54000".*, "Claim exceeds the declared Queue budget" },
+        error.IncompatibleDefinition => .{ "0A000".*, "Retained descriptor belongs to another Transit definition" },
+        error.InvalidQueueLeaseHandle, error.InvalidLogSettlementOperand => .{ "22023".*, "Queue lease receipt rejected" },
+        error.InvalidQueueLeaseDuration => .{ "22023".*, "Lease duration exceeds the declared Queue policy" },
+        error.LogAppendLimitExceeded => .{ "54000".*, "Append exceeds the declared Stream or Queue budget" },
+        error.LogPartitionRequired, error.LogPartitionKeyMismatch, error.InvalidLogAppendOperand, error.NullWorkloadParameter, error.InvalidLogVisibilityTime, error.InvalidLogProducer => .{ "22023".*, "Invalid Stream or Queue append routing or metadata operand" },
+        error.UnsupportedLogAppendOption => .{ "0A000".*, "Append option is outside this Stream or Queue profile" },
         error.UnsupportedLogOption, error.UnsupportedLogPrimaryKey, error.UnsupportedLogRepartition, error.UnsupportedLogKeyChange, error.UnsupportedLogTimestampChange => .{ "0A000".*, "Stream or Queue declaration option is unsupported" },
         error.InvalidLogOption, error.DuplicateLogOption, error.InvalidLogPartitioning, error.InvalidLogRetention, error.InvalidLogLimits, error.InvalidLogKeyColumn, error.InvalidStreamPolicy, error.InvalidStreamTimestampColumn, error.InvalidQueuePolicy, error.InvalidQueuePartitionKey, error.InvalidQueueBackoff, error.InvalidQueueDestination => .{ "22023".*, "Invalid Stream or Queue declaration policy or budget" },
         error.SqlTokenConflict => .{ "22023".*, "Client token already identifies different work" },
@@ -846,7 +1002,23 @@ test "capacity diagnostics retain operation uncertainty and do not override deni
     try std.testing.expect(std.mem.indexOf(u8, capacity.detail.?, "17") != null);
     try std.testing.expectEqualStrings("42501", &host.diagnostic(error.AccessDenied).state);
     try std.testing.expectEqualStrings("23502", &host.diagnostic(error.NullNotAllowed).state);
+    try std.testing.expectEqualStrings("22003", &host.diagnostic(error.DecimalOverflow).state);
+    try std.testing.expectEqualStrings("22003", &host.diagnostic(error.InexactDecimalRounding).state);
+    try std.testing.expectEqualStrings("22012", &host.diagnostic(error.DivisionByZero).state);
+    try std.testing.expectEqualStrings("22008", &host.diagnostic(error.TimestampOverflow).state);
+    try std.testing.expectEqualStrings("22007", &host.diagnostic(error.AmbiguousLocalTime).state);
+    try std.testing.expectEqualStrings("22007", &host.diagnostic(error.NonexistentLocalTime).state);
+    try std.testing.expectEqualStrings("22023", &host.diagnostic(error.ZeroMagnitudeCosineVector).state);
+    try std.testing.expectEqualStrings("54000", &host.diagnostic(error.ScalarProgramBudget).state);
+    try std.testing.expectEqualStrings("0A000", &host.diagnostic(error.TimezoneCoverageUnavailable).state);
+    try std.testing.expectEqualStrings("22023", &host.diagnostic(error.InvalidHistoricalSelector).state);
+    try std.testing.expectEqualStrings("42P01", &host.diagnostic(error.HistoricalObjectNotSelected).state);
+    try std.testing.expectEqualStrings("55000", &host.diagnostic(error.HistoricalSnapshotReleased).state);
+    try std.testing.expectEqualStrings("0A000", &host.diagnostic(error.UnsupportedHistoricalTransaction).state);
     try std.testing.expectEqualStrings("54000", &host.diagnostic(error.CellTooLarge).state);
+    try std.testing.expectEqualStrings("22023", &host.diagnostic(error.InvalidQueueLeaseHandle).state);
+    try std.testing.expectEqualStrings("22023", &host.diagnostic(error.InvalidLogSettlementOperand).state);
+    try std.testing.expectEqualStrings("0A000", &host.diagnostic(error.IncompatibleDefinition).state);
     try std.testing.expectEqualStrings("55000", &host.diagnostic(error.GatewayOwnerUnavailable).state);
     const changed = host.diagnostic(error.TableDefinitionChanged);
     try std.testing.expectEqualStrings("55000", &changed.state);

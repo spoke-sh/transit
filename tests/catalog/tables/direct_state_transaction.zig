@@ -72,8 +72,9 @@ fn prepareInputs(init: std.process.Init, client: c.DirectTableClient, output: *s
     const stream = try createLog(init, client, output, role, .stream);
     const queue = try createLog(init, client, output, role, .queue);
     var buffer: [8192]u8 = undefined;
-    const stream_bytes = try appendPayload(stream, operation(client, 642005), .stream, &buffer);
-    _ = try Stream.apply(output, client, .{ .mutate = .{ .work = .{ .append = .{ .target = stream, .operation = operation(client, 642005), .kind = .stream, .producer = null, .rows = 1, .payload = c.storage.LogBatch.content(stream_bytes) } }, .payload = stream_bytes } });
+    const input_cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 42 } } }};
+    const stream_bytes = try c.storage.LogBatch.encode(logSchema(stream.interpretation.object.object), operation(client, 642005), .stream, &.{ .{ .cells = &input_cells }, .{ .cells = &input_cells } }, &buffer);
+    _ = try Stream.apply(output, client, .{ .mutate = .{ .work = .{ .append = .{ .target = stream, .operation = operation(client, 642005), .kind = .stream, .producer = null, .rows = 2, .payload = c.storage.LogBatch.content(stream_bytes) } }, .payload = stream_bytes } });
     const queue_bytes = try appendPayload(queue, operation(client, 642006), .queue, &buffer);
     _ = try Queue.apply(output, client, .{ .mutate = .{ .work = .{ .enqueue = .{ .target = queue, .operation = operation(client, 642006), .kind = .queue, .producer = null, .rows = 1, .payload = c.storage.LogBatch.content(queue_bytes) } }, .payload = queue_bytes } });
     const group: p.StreamQueue.Group = .{ .id = 7, .generation = 1, .principal = client.connection.principal };
@@ -82,11 +83,14 @@ fn prepareInputs(init: std.process.Init, client: c.DirectTableClient, output: *s
     const consumed = (try Stream.apply(output, client, .{ .mutate = .{ .work = .{ .consume = .{ .target = stream, .operation = operation(client, 642008), .group = group, .from = 0, .until = null, .timestamp = null } } } })).operation.?.consume;
     const cursor = (try Stream.apply(output, client, .{ .cursor = .{ .target = stream, .read = consumed.handle() } })).cursor;
     const page = (try Stream.apply(output, client, .{ .page = .{ .cursor = cursor, .limits = .{ .rows = 1, .encoded_bytes = 8192, .scanned_rows = 1 } } })).page;
-    try t.expect(page.cursor.coverage.complete);
+    try t.expect(!page.cursor.coverage.complete);
+    try t.expectEqual(@as(u64, 2), page.cursor.coverage.until);
+    const progress = try p.StreamRead.Progress.between(cursor, page.cursor);
+    try t.expect(progress == .interval);
     const claim = (try Queue.apply(output, client, .{ .mutate = .{ .work = .{ .claim = .{ .target = queue, .operation = operation(client, 642009), .maximum = 1, .lease_ms = 300000 } } } })).operation.?.claim;
     const claimed = (try Queue.apply(output, client, .{ .page = .{ .cursor = .{ .receipt = claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } })).page;
     try t.expectEqual(@as(usize, 1), claimed.rows.len);
-    return .{ .stream = stream, .queue = queue, .claim = claim, .offset = .{ .stream_offset = .{ .commit = .{ .operation = operation(client, 642013), .group = group, .coverage = page.cursor.coverage, .expected_next = 0, .next = 1 }, .cursor = page.cursor } }, .ack = .{ .queue_ack = .{ .operation = operation(client, 642014), .lease = claimed.rows[0].lease.original, .action = .ack } } };
+    return .{ .stream = stream, .queue = queue, .claim = claim, .offset = .{ .stream_offset = .{ .commit = .{ .operation = operation(client, 642013), .group = group, .coverage = try progress.coverage(), .expected_next = 0, .next = 1 }, .progress = progress } }, .ack = .{ .queue_ack = .{ .operation = operation(client, 642014), .lease = claimed.rows[0].lease.original, .action = .ack } } };
 }
 fn privateLogs(client: c.DirectTableClient, output: *std.heap.ArenaAllocator, key: c.DirectClientToken.Key, input: LogInput) !Logs {
     const tx: Tx = .{ .catalog = client };
@@ -108,7 +112,7 @@ fn privateLogs(client: c.DirectTableClient, output: *std.heap.ArenaAllocator, ke
 }
 fn visibleLogs(client: c.DirectTableClient, output: *std.heap.ArenaAllocator, logs: Logs, committed: bool) !void {
     const count: u64 = if (committed) 2 else 1;
-    try t.expectEqual(count, (try Stream.apply(output, client, .{ .observe = logs.stream })).cut.next);
+    try t.expectEqual(count + 1, (try Stream.apply(output, client, .{ .observe = logs.stream })).cut.next);
     try t.expectEqual(count, (try Queue.apply(output, client, .{ .observe = logs.queue })).cut.next);
     try t.expectEqual(@as(u64, @intFromBool(committed)), (try Stream.apply(output, client, .{ .group = .{ .target = logs.stream, .id = 7 } })).group.?.next);
     const claimed = (try Queue.apply(output, client, .{ .page = .{ .cursor = .{ .receipt = logs.claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } })).page;
@@ -116,8 +120,8 @@ fn visibleLogs(client: c.DirectTableClient, output: *std.heap.ArenaAllocator, lo
     const appended = (try Stream.apply(output, client, .{ .operation = .{ .append = logs.statements[2].work.append } })).operation;
     try t.expectEqual(committed, appended != null);
     if (appended) |receipt| {
-        try t.expectEqual(@as(u64, 1), receipt.append.first);
-        try t.expectEqual(@as(u64, 2), receipt.append.next);
+        try t.expectEqual(@as(u64, 2), receipt.append.first);
+        try t.expectEqual(@as(u64, 3), receipt.append.next);
     }
     const acked = (try Queue.apply(output, client, .{ .operation = .{ .settle = logs.statements[1].work.queue_ack } })).operation;
     try t.expectEqual(committed, acked != null);
@@ -129,12 +133,22 @@ fn visibleLogs(client: c.DirectTableClient, output: *std.heap.ArenaAllocator, lo
         try t.expectEqual(@as(u64, 2), receipt.enqueue.next);
     }
     if (committed) {
-        const consumed = (try Stream.apply(output, client, .{ .mutate = .{ .work = .{ .consume = .{ .target = logs.stream, .operation = operation(client, 642017), .group = null, .from = 1, .until = 2, .timestamp = null } } } })).operation.?.consume;
+        // Settlement advances only the first input interval. The original read
+        // still exposes its remaining input after replacement and excludes this
+        // transaction's later append, whose offset is checked separately.
+        const progress = logs.statements[0].work.stream_offset.progress;
+        try t.expect(progress == .interval);
+        const remainder = (try Stream.apply(output, client, .{ .page = .{ .cursor = progress.end(), .limits = .{ .rows = 1, .encoded_bytes = 8192, .scanned_rows = 1 } } })).page;
+        try t.expect(remainder.cursor.coverage.complete);
+        try t.expectEqual(@as(u64, 2), remainder.cursor.coverage.until);
+        try t.expectEqual(@as(usize, 1), remainder.rows.len);
+        try t.expectEqual(@as(u64, 1), remainder.rows[0].offset);
+        const consumed = (try Stream.apply(output, client, .{ .mutate = .{ .work = .{ .consume = .{ .target = logs.stream, .operation = operation(client, 642017), .group = null, .from = 2, .until = 3, .timestamp = null } } } })).operation.?.consume;
         const cursor = (try Stream.apply(output, client, .{ .cursor = .{ .target = logs.stream, .read = consumed.handle() } })).cursor;
         const page = (try Stream.apply(output, client, .{ .page = .{ .cursor = cursor, .limits = .{ .rows = 1, .encoded_bytes = 8192, .scanned_rows = 1 } } })).page;
         try t.expect(page.cursor.coverage.complete);
         try t.expectEqual(@as(usize, 1), page.rows.len);
-        try t.expectEqual(@as(u64, 1), page.rows[0].offset);
+        try t.expectEqual(@as(u64, 2), page.rows[0].offset);
         try t.expectEqual(@as(i64, 42), page.rows[0].value.cells[0].value.atom.signed);
         const next_claim = (try Queue.apply(output, client, .{ .mutate = .{ .work = .{ .claim = .{ .target = logs.queue, .operation = operation(client, 642018), .maximum = 1, .lease_ms = 300000 } } } })).operation.?.claim;
         const next_page = (try Queue.apply(output, client, .{ .page = .{ .cursor = .{ .receipt = next_claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } })).page;

@@ -1,6 +1,7 @@
 """Installed declaration SQL, exact metadata and original token recovery."""
 import json
 import os
+import struct
 import subprocess
 from interfaces.sql_sessions.native import Client
 from interfaces.sql_sessions.storage import text, unsigned
@@ -182,3 +183,129 @@ def run(root, port, postgres, mysql_options, restart, authorize, console):
                           original_token_after_replacement=True, metadata_batches=[32, 8],
                           listing_batches=[32, 3], empty_listing=True,
                           current_disclosure_authorization=True, passed=True)), flush=True)
+    appends(root, port, postgres, mysql_options, restart, authorize, console, config, consumer, home)
+    from interfaces.sql_sessions import consumes
+    consumes.run(root, port, postgres, mysql_options, restart, authorize, console, config, consumer, home)
+    from interfaces.sql_sessions import claims
+    claims.run(root, port, postgres, mysql_options, restart, authorize, console, config, consumer, home)
+
+
+def appends(root, port, postgres, mysql_options, restart, authorize, console, config, consumer, home):
+    """Admission and original result delivery use independent row/offset oracles."""
+    from query.logical.fuze_types import descriptor
+    import psycopg
+    import mysql.connector
+
+    client = Client(root, port).open()
+
+    def command(sql):
+        result = client.terminal(client.execute(sql, list(os.urandom(16)))['operation'])
+        assert result['result_kind'] == 'command', result
+        return result
+
+    command('CREATE STREAM append_events (value BIGINT NOT NULL, label TEXT DEFAULT \'default\') WITH (read_rows=16)')
+    command('CREATE QUEUE append_work (value BIGINT NOT NULL) WITH (append_rows=1)')
+    command('CREATE STREAM append_manual (value BIGINT) PARTITIONS 2')
+    refused = client.call(
+        dict(execute=dict(sql='PRODUCE INTO append_manual VALUES (1)', token=list(os.urandom(16)))), error='LogPartitionRequired')['err']
+    assert refused['sqlstate'] == list(b'22023'), refused
+    budget = client.call(dict(execute=dict(sql='ENQUEUE INTO append_work VALUES (1), (2)', token=list(os.urandom(16)))), error='LogAppendLimitExceeded')['err']
+    assert budget['sqlstate'] == list(b'54000'), budget
+    # No accepted append precedes offset zero. A preparation or routing refusal
+    # cannot silently append a prefix or move a partition's event offset.
+    operation = command('PRODUCE INTO append_manual VALUES (1) PARTITION 1')
+    assert operation['command'] == 'produce' and operation['matched'] == operation['changed'] == 1
+
+    sql = 'PRODUCE INTO append_events (value) VALUES ' + ','.join(f'({i})' for i in range(65)) + ' RETURNING value, label, _partition, _offset'
+    original = dict(definition=client.definition, sql=sql, token=list(os.urandom(16)))
+    saved = root / 'sql-append-original.json'
+    saved.write_text(json.dumps(original))
+    operation = client.terminal(client.execute(sql, original['token'])['operation'])
+    assert operation['command'] == 'produce' and operation['result_kind'] == 'rows'
+    assert operation['matched'] == operation['changed'] == 65
+    original['identity'] = operation['identity']
+    saved.write_text(json.dumps(original))
+    original_bytes = saved.read_bytes()
+
+    def rows(owner, identity):
+        batch = owner.call(dict(result=identity))['batch']
+        observation, values, sizes = batch['observation'], [], []
+        while True:
+            assert owner.call(dict(fetch=dict(cursor=batch['cursor'], batch=batch['batch'])))['batch'] == batch
+            values.extend(batch['rows'])
+            sizes.append(len(batch['rows']))
+            if batch['complete']:
+                assert batch['completion']['rows'] == len(values)
+                break
+            batch = owner.call(dict(fetch=dict(cursor=batch['cursor'], batch=batch['batch'] + 1)))['batch']
+        owner.call(dict(close_result=batch['cursor']))
+        return values, sizes, observation
+
+    values, sizes, observation = rows(client, original['identity'])
+    assert sizes == [32, 32, 1], sizes
+    assert [(unsigned(row[0]), text(row[1]), unsigned(row[2]), unsigned(row[3])) for row in values] == [(i, 'default', 0, i) for i in range(65)]
+    client.close()
+    restart()
+    client = Client(root, port).open()
+    assert saved.read_bytes() == original_bytes and original['definition'] == client.definition
+    recovered = client.terminal(client.call(dict(status=dict(operation=original['identity'])))['operation'])
+    assert recovered == operation, (recovered, operation)
+    assert rows(client, original['identity']) == (values, sizes, observation)
+
+    queue_sql = 'ENQUEUE INTO append_work VALUES ($1) RETURNING value, _offset'
+    prepared = client.call(dict(prepare=dict(sql=queue_sql)))['described']
+    kind = descriptor('int64')
+    assert prepared['parameters'] == [kind.hex()]
+    parameter = (b'FVL1' + struct.pack('<H', len(kind)) + kind + b'\x01\x03' + struct.pack('<q', 17)).hex()
+    client.call(dict(execute=dict(statement=prepared['statement'], parameters=[parameter], token=list(os.urandom(16)))), error='SqlTokenRequiresText')
+    queued = client.terminal(client.execute(queue_sql, list(os.urandom(16)), parameters=[parameter])['operation'])
+    assert queued['command'] == 'enqueue' and queued['changed'] == 1
+    queued_rows, queued_sizes, _ = rows(client, queued['identity'])
+    assert queued_sizes == [1] and [list(map(unsigned, row)) for row in queued_rows] == [[17, 0]]
+    client.call(dict(release=prepared['statement']))
+    buffered = client.call(dict(result=original['identity']))['batch']
+    authorize(False)
+    try:
+        client.call(dict(fetch=dict(cursor=buffered['cursor'], batch=0)), error='AccessDenied')
+    finally:
+        authorize(True)
+    client.call(dict(fetch=dict(cursor=buffered['cursor'], batch=0)), error='SqlResultIncomplete')
+    client.close()
+
+    with psycopg.connect(**postgres) as wire:
+        with wire.cursor() as cursor:
+            cursor.execute('PRODUCE INTO append_events (value) VALUES (%s) RETURNING value, label, _offset', (65,), prepare=True)
+            assert cursor.fetchall() == [(65, 'default', 65)]
+            assert cursor.statusmessage == 'PRODUCE 1'
+            cursor.execute('PRODUCE INTO append_events (value) VALUES (%s)', (66,), prepare=True)
+            # libpq derives affected-row counts only for its recognized command
+            # tags. The custom tag retains the authoritative native count.
+            assert cursor.statusmessage == 'PRODUCE 1', cursor.statusmessage
+            assert cursor.rowcount == -1, cursor.rowcount
+    with mysql.connector.connect(**mysql_options) as wire:
+        with wire.cursor(prepared=True) as cursor:
+            cursor.execute('ENQUEUE INTO append_work VALUES (%s) RETURNING value, _offset', (18,))
+            assert cursor.fetchall() == [(18, 1)]
+            cursor.execute('ENQUEUE INTO append_work VALUES (%s)', (19,))
+            assert cursor.rowcount == 1
+        with wire.cursor() as cursor:
+            cursor.execute('ENQUEUE INTO append_work VALUES (20) RETURNING value, _offset')
+            assert cursor.fetchall() == [(20, 3)]
+    script = consumer / 'appends.sql'
+    script.write_text('PRODUCE INTO append_events (value) VALUES (67) RETURNING value, _offset;\nENQUEUE INTO append_work VALUES (21) RETURNING value, _offset;\n')
+    rendered = subprocess.run([console, 'console', '--config', str(config), '--no-rc', '-f', str(script)],
+                              cwd=consumer, env={'PATH': '/unavailable', 'HOME': str(home), 'LANG': 'C'},
+                              capture_output=True, text=True, timeout=180)
+    assert rendered.returncode == 0, (rendered.stdout, rendered.stderr)
+    assert rendered.stdout.count('"complete_coverage":true') == 2, rendered.stdout
+    client = Client(root, port).open()
+    # Subsequent offsets independently rule out hidden re-appends while opening,
+    # fetching, closing and recovering the prior original results.
+    next_stream = client.terminal(client.execute('PRODUCE INTO append_events (value) VALUES (68) RETURNING _offset', list(os.urandom(16)))['operation'])
+    next_queue = client.terminal(client.execute('ENQUEUE INTO append_work VALUES (22) RETURNING _offset', list(os.urandom(16)))['operation'])
+    assert unsigned(rows(client, next_stream['identity'])[0][0][0]) == 68
+    assert unsigned(rows(client, next_queue['identity'])[0][0][0]) == 5
+    client.close()
+    print(json.dumps(dict(profile='sql_log_appends', native=True, postgres=True, mysql=True, console=True,
+                          original_result_after_replacement=True, result_batches=sizes, typed_parameters=True,
+                          current_disclosure_authorization=True, no_repeat_append=True, passed=True)), flush=True)

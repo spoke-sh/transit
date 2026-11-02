@@ -157,6 +157,7 @@ export type Predicate =
   | PredicateAtom
   | { readonly kind: "program"; readonly instructions: readonly PredicateInstruction[] };
 export interface Plan {
+  readonly scalarProgram?: Uint8Array;
   readonly projection: readonly number[];
   readonly outputNames?: readonly (string | null)[];
   readonly predicate?: Predicate;
@@ -270,6 +271,7 @@ function sourceWire(source: Source): WireSource {
               })),
             }),
             collations: schemaWire(source.schema).columns.map((column) => column.collation),
+            semantics: schemaWire(source.schema).columns.map((column) => column.semantics),
           },
         },
       };
@@ -356,9 +358,17 @@ export function planWire(plan: Plan): WireBundle["plan"] {
     (!Array.isArray(plan.outputNames) || plan.outputNames.length !== plan.projection.length)
   )
     throw new TypeError("Output names must match the projection width");
+  const scalarProgram =
+    plan.scalarProgram === undefined ? new Uint8Array([0]) : owned(plan.scalarProgram, 8448);
+  const scalarCount = scalarProgram[0];
+  if (scalarCount === undefined || scalarCount > 32)
+    throw new TypeError("Expected a bounded scalar program");
+  // Native validation binds the complete program to its exact source schema.
+  // Only declared instructions can extend the 128 input slots.
   return {
     version: 1,
-    projection: plan.projection.map((v) => integer(v, "column", 0, 127)),
+    projection: plan.projection.map((v) => integer(v, "column", 0, 127 + scalarCount)),
+    scalar_program: Buffer.from(scalarProgram).toString("hex"),
     output_names:
       plan.outputNames === undefined
         ? null
@@ -939,7 +949,8 @@ export class Client {
       !("table" in expected) ||
       JSON.stringify(encodeType(decodeType(expected.table.row_type))) !==
         JSON.stringify(encodeType(decodeType(direct.row_type))) ||
-      JSON.stringify(expected.table.collations) !== JSON.stringify(direct.collations)
+      JSON.stringify(expected.table.collations) !== JSON.stringify(direct.collations) ||
+      JSON.stringify(expected.table.semantics) !== JSON.stringify(direct.semantics)
     )
       throw new IncompatibleNative("Inconsistent direct Table row type or collations");
     return new TableDefinition(

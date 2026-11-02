@@ -381,7 +381,7 @@ pub fn validateChangeAgainstMultiModel(
         .drop => |col_id| col_id,
         .type => |edit| edit.column,
         .physical => |edit| edit.column,
-        .add, .rename, .default, .nullable => null,
+        .add, .rename, .default, .nullable, .integrity => null,
     };
     if (affected_column) |col_id| {
         for (views) |vw| {

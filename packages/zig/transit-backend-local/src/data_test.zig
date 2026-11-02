@@ -404,7 +404,7 @@ test "direct Stream settlement release and recovery preserve control reserve und
     try t.expectError(error.StorageQuota, stream.append(initialized.declared, refused, refused_payload, authority.guard()));
     try t.expectEqualDeep(before, stream.root);
     const commit: p.StreamQueue.OffsetCommit = .{ .operation = .{ .scope = scope, .principal = 1, .operation = 5 }, .group = assignment.group, .coverage = read.cursor.coverage, .expected_next = 0, .next = 1 };
-    const progress = try stream.commitOffset(initialized.declared, commit, read.cursor, signing, authority.guard());
+    const progress = try stream.commitOffset(initialized.declared, commit, .{ .exhausted = read.cursor }, signing, authority.guard());
     try t.expectError(error.StorageQuota, stream.append(initialized.declared, refused, refused_payload, authority.guard()));
     owner.limits = .{};
     _ = try submit(&engine, .{ .grant_resource = .{ .resource = setup.resource, .subject = 1, .permissions = 0 } });

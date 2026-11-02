@@ -95,7 +95,7 @@ executables may remain supported deployment entry points over the same modules;
 the default local profile must no longer need them beside `transit`. Application
 workers and external connectors remain separately installed applications.
 Release signing, platform expansion and distribution channels remain in
-[milestone 43](43-releases.md).
+[milestone 45](45-releases.md).
 
 **D3 — Limit lazy evolution to edits with a proved projection.** Include
 non-key column rename, nullable/constant-default ADD COLUMN and supported

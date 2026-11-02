@@ -260,7 +260,7 @@ pub const Builder = struct {
 fn typeForTag(tag: types.Tag) types.Type {
     return switch (tag) {
         .decimal => .{ .decimal = .{ .precision = 38, .scale = 0 } },
-        .structure, .list, .array, .map, .tagged_union, .timestamp => .json,
+        .structure, .list, .array, .map, .tagged_union, .timestamp, .range, .multirange, .vector => .json,
         inline else => |kind| @unionInit(types.Type, @tagName(kind), {}),
     };
 }

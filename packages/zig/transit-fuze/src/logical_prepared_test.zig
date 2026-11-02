@@ -62,6 +62,52 @@ test "logical templates and independent bindings own text schema and exact value
     try owned(e.allocator);
     try e.checkAllAllocationFailures(e.allocator, owned, .{});
 }
+
+fn adopted(allocator: std.mem.Allocator) !void {
+    var arena: std.heap.ArenaAllocator = .init(allocator);
+    defer arena.deinit();
+    var input = "SELECT name FROM people WHERE value > $2".*;
+    var parser = try f.SqlTyped.initTemplate(arena.allocator(), try arena.allocator().dupe(u8, &input), null);
+    const syntax = try f.TableSelect.syntax(&parser, schema);
+    try parser.finish();
+    var template = try Prepared.adoptSyntax(allocator, &arena, syntax, "people", schema, basis, &.{.{ .site = .{ .index = 1, .offset = 99 }, .type = .uint64 }}, null);
+    var live = true;
+    defer if (live) template.deinit();
+    @memset(&input, 0);
+    try e.expectEqual(@as(usize, 0), arena.queryCapacity());
+    // Reusing the caller's reset arena cannot invalidate the adopted syntax.
+    @memset(try arena.allocator().alloc(u8, 1024), 0);
+    try e.expectEqualSlices(t.Type, &.{ .uint64, .int64 }, template.parameterTypes());
+    var bound = try template.bind(allocator, "people", schema, basis, &.{ .{ .unsigned = 4 }, .{ .signed = 17 } }, null);
+    defer bound.deinit();
+    template.deinit();
+    live = false;
+    try e.expectEqual(@as(u8, 1), bound.plan.projection[0]);
+    try e.expectEqual(@as(i128, 17), bound.plan.predicate.compare.value.signed);
+    try e.expectEqualStrings("name", bound.plan.schema.structure[1].name);
+}
+test "logical adopted syntax owns predicate and metadata parameters through allocation failure" {
+    try adopted(e.allocator);
+    try e.checkAllAllocationFailures(e.allocator, adopted, .{});
+}
+test "logical adopted metadata shares type and gap checks without consuming failed syntax" {
+    var arena: std.heap.ArenaAllocator = .init(e.allocator);
+    defer arena.deinit();
+    var parser = try f.SqlTyped.initTemplate(arena.allocator(), try arena.allocator().dupe(u8, "SELECT value FROM people WHERE value = $1"), null);
+    const syntax = try f.TableSelect.syntax(&parser, schema);
+    try parser.finish();
+    var detail: f.Sql.Binding = .{};
+    try e.expectError(error.ParameterTypeConflict, Prepared.adoptSyntax(e.allocator, &arena, syntax, "people", schema, basis, &.{.{ .site = .{ .index = 1, .offset = 99 }, .type = .uint64 }}, &detail));
+    try e.expectEqual(@as(u32, 1), detail.parameter.?);
+    try e.expectEqualStrings("int64", detail.expected.?);
+    try e.expectEqualStrings("uint64", detail.actual.?);
+    try e.expectEqual(@as(?usize, 99), detail.parameter_sites[1]);
+    try e.expectError(error.ParameterGap, Prepared.adoptSyntax(e.allocator, &arena, syntax, "people", schema, basis, &.{.{ .site = .{ .index = 3, .offset = 99 }, .type = .uint64 }}, &detail));
+    try e.expectEqual(@as(u32, 2), detail.missing_parameter.?);
+    var valid = try Prepared.adoptSyntax(e.allocator, &arena, syntax, "people", schema, basis, &.{.{ .site = .{ .index = 1, .offset = 99 }, .type = .int64 }}, null);
+    defer valid.deinit();
+    try e.expectEqual(@as(usize, 1), valid.parameterTypes().len);
+}
 test "logical template bindings match independent canonical plan bytes" {
     const Fixture = struct { schema_hex: []const u8, select_hex: []const u8, select_fingerprint: []const u8 };
     const fixture = try std.json.parseFromSlice(Fixture, e.allocator, @embedFile("fixtures/table-schema.json"), .{ .ignore_unknown_fields = true });

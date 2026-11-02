@@ -56,6 +56,6 @@ if __name__ == '__main__':
     for language in sys.argv[1:]:
         with tempfile.TemporaryDirectory(prefix=f'transit-logical-{language}-', dir='/var/tmp') as directory:
             consumer = install(Path(directory), language)
-            try: assert check(consumer, capabilities=False) == 111
+            try: assert check(consumer, capabilities=False) == 236
             finally: consumer.close()
-        print(f'Installed {language}: 111 logical fixtures, public owned values, exact codecs, hashes, casts, Arrow and released inputs passed.')
+        print(f'Installed {language}: 236 logical fixtures, public owned values, exact codecs, hashes, casts, Arrow and released inputs passed.')

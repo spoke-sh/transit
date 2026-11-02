@@ -495,6 +495,26 @@
           "anchor": "async def cancellation():"
         },
         {
+          "task": "bindings::catalog-python",
+          "source": "tests/sdk/consumers/python/python_catalog_values.py",
+          "anchor": "async def history_cancellation():"
+        },
+        {
+          "task": "bindings::catalog-python",
+          "source": "tests/sdk/direct_sdk_catalog.py",
+          "anchor": "assert (target / mode / 'history-control.json').read_bytes() == historical_control"
+        },
+        {
+          "task": "bindings::catalog-node",
+          "source": "tests/sdk/direct_sdk_catalog.py",
+          "anchor": "assert (target / mode / 'history-control.json').read_bytes() == historical_control"
+        },
+        {
+          "task": "bindings::catalog-node",
+          "source": "sdks/ts/transit-station-sdk/src/catalog.test.ts",
+          "anchor": "history uncertainty preserves acquisition, selected step and exact release command"
+        },
+        {
           "task": "bindings::catalog-node",
           "source": "sdks/ts/transit-station-sdk/src/catalog.test.ts",
           "anchor": "a mismatched successful mutation remains uncertain with the original reference"

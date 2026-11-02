@@ -19,6 +19,9 @@ pub const Owned = struct {
     retention: Retention,
     root: r.Root,
     schema: f.TableSchema.Owned,
+    /// Exact original handle for an independently owned copy. Attribution does
+    /// not keep the original owner's lease alive or authorize future reads.
+    copied_from: ?Handle = null,
     /// Present only on a validated in-process private workspace reader. It is
     /// never encoded in a public pin object or restored from one.
     transaction: ?p.Transaction.ReadView = null,
@@ -33,7 +36,7 @@ pub const Owned = struct {
         self.* = undefined;
     }
 };
-const Metadata = struct { owner: d.Operation, retention: Retention, root: r.Root };
+const Metadata = struct { owner: d.Operation, retention: Retention, root: r.Root, copied_from: ?Handle };
 
 pub fn key(content: d.Content, buffer: *[96]u8) ![]const u8 {
     try content.validate();
@@ -41,14 +44,21 @@ pub fn key(content: d.Content, buffer: *[96]u8) ![]const u8 {
 }
 
 pub fn stage(allocator: std.mem.Allocator, objects: Objects.ObjectStore, owner: d.Operation, retention: Retention, root: r.Root, schema: f.TableSchema.Schema) !Handle {
-    return stageWith(allocator, objects, null, owner, retention, root, schema);
+    return stageWith(allocator, objects, null, owner, retention, root, schema, null);
 }
 
 pub fn stageInTree(allocator: std.mem.Allocator, tree: *@import("TreeStore.zig"), owner: d.Operation, retention: Retention, root: r.Root, schema: f.TableSchema.Schema) !Handle {
-    return stageWith(allocator, tree.store, tree, owner, retention, root, schema);
+    return stageWith(allocator, tree.store, tree, owner, retention, root, schema, null);
 }
 
-fn stageWith(allocator: std.mem.Allocator, objects: Objects.ObjectStore, tree: ?*@import("TreeStore.zig"), owner: d.Operation, retention: Retention, root: r.Root, schema: f.TableSchema.Schema) !Handle {
+pub fn stageCopyInTree(allocator: std.mem.Allocator, tree: *@import("TreeStore.zig"), owner: d.Operation, source: Handle, root: r.Root, schema: f.TableSchema.Schema) !Handle {
+    try source.owner.validate();
+    try source.content.validate();
+    if (!std.meta.eql(source.owner.scope, owner.scope) or std.meta.eql(source.owner, owner)) return error.InvalidTableBasis;
+    return stageWith(allocator, tree.store, tree, owner, .snapshot, root, schema, source);
+}
+
+fn stageWith(allocator: std.mem.Allocator, objects: Objects.ObjectStore, tree: ?*@import("TreeStore.zig"), owner: d.Operation, retention: Retention, root: r.Root, schema: f.TableSchema.Schema, copied_from: ?Handle) !Handle {
     try owner.validate();
     try root.validate();
     if (!std.meta.eql(owner.scope, root.interpretation.object.scope) or !std.mem.eql(u8, &try schema.fingerprint(), &root.schema_fingerprint)) return error.InvalidTableBasis;
@@ -63,7 +73,7 @@ fn stageWith(allocator: std.mem.Allocator, objects: Objects.ObjectStore, tree: ?
     basis.operations = null;
     basis.pending = null;
     var writer: std.Io.Writer = .fixed(bytes[header_bytes..][0..r.max_metadata_bytes]);
-    try std.json.Stringify.value(Metadata{ .owner = owner, .retention = retention, .root = basis }, .{}, &writer);
+    try std.json.Stringify.value(Metadata{ .owner = owner, .retention = retention, .root = basis, .copied_from = copied_from }, .{}, &writer);
     const metadata = writer.buffered();
     const encoded_schema = try schema.encode(bytes[header_bytes + metadata.len ..]);
     bytes[0..8].* = "TPINOBJ1".*;
@@ -102,13 +112,18 @@ pub fn load(allocator: std.mem.Allocator, objects: Objects.ObjectStore, handle: 
     defer parsed.deinit();
     try parsed.value.root.validate();
     if (!std.meta.eql(parsed.value.owner, handle.owner) or !std.meta.eql(parsed.value.owner.scope, parsed.value.root.interpretation.object.scope)) return error.InvalidTableSnapshot;
+    if (parsed.value.copied_from) |source| {
+        try source.owner.validate();
+        try source.content.validate();
+        if (parsed.value.retention != .snapshot or !std.meta.eql(source.owner.scope, handle.owner.scope) or std.meta.eql(source.owner, handle.owner)) return error.InvalidTableSnapshot;
+    }
     var schema = try f.TableSchema.decode(allocator, bytes[header_bytes + metadata_length ..]);
     errdefer schema.deinit();
     if (schema.schema.object != parsed.value.root.interpretation.object.object or
         !std.mem.eql(u8, &try schema.schema.fingerprint(), &parsed.value.root.schema_fingerprint)) return error.InvalidTableSnapshot;
     var declaration = try Declaration.load(allocator, objects, parsed.value.root.declared());
     defer declaration.deinit();
-    return .{ .owner = handle.owner, .retention = parsed.value.retention, .root = parsed.value.root, .schema = schema };
+    return .{ .owner = handle.owner, .retention = parsed.value.retention, .root = parsed.value.root, .schema = schema, .copied_from = parsed.value.copied_from };
 }
 
 pub const Pin = struct {

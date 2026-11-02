@@ -1,6 +1,7 @@
 """Independent runtime oracle for lossless string Batch and encoded Table pages.
 
-Python byte ordering/case folding and its CP037 codec supply expectations.
+Python byte ordering/case folding, its CP037 codec and explicit CP1047
+punctuation weights supply expectations. No Transit comparator is imported.
 This executes a build-owned Zig binary; the static fixture checker is separate.
 """
 import json
@@ -12,8 +13,13 @@ from runner.paths import ROOT
 
 
 def key(value, collation):
+    if collation == "ebcdic_037_pad":
+        return value.rstrip(" ").encode("cp037")
     if collation == "ebcdic_cp037":
         return value.encode("cp037")
+    if collation == "ebcdic_1047_nopad":
+        weights = {"^": 0x5f, "¬": 0xb0, "[": 0xad, "Ý": 0xba, "¨": 0xbb, "]": 0xbd}
+        return bytes(weights[c] if c in weights else c.encode("cp037")[0] for c in value)
     encoded = value.encode("utf-8")
     return encoded.lower() if collation == "ascii_ci" else encoded
 
@@ -21,14 +27,14 @@ def key(value, collation):
 def cases():
     rng = random.Random(14)
     values = ["", "\x00", "A", "a", "A ", "a\x00", "éÖa", "ABCDEFGHIJKL",
-              "ABCDEFGHIJKLM", "same-prefix-aa", "same-prefix-ab", "MiXeD  "]
+              "ABCDEFGHIJKLM", "same-prefix-aa", "same-prefix-ab", "MiXeD  ", "^", "¬", "[", "Ý", "¨", "]"]
     values += ["".join(rng.choice("aAzZ09 éÖ\x00") for _ in range(n))
                for n in (4, 11, 12, 13, 31, 64)]
     result = []
-    for collation in ("utf8_binary", "ascii_ci", "ebcdic_cp037"):
+    for collation in ("utf8_binary", "ascii_ci", "ebcdic_cp037", "ebcdic_037_pad", "ebcdic_1047_nopad"):
         for encoding in ("dictionary", "fsst"):
             for op in ("eq", "ne", "lt", "le", "gt", "ge"):
-                for literal in ("", "a", "A ", "ABCDEFGHIJKL", "same-prefix-ab", "éÖa"):
+                for literal in ("", "a", "A ", "ABCDEFGHIJKL", "same-prefix-ab", "éÖa", "^", "¬", "[", "]"):
                     rows = [dict(state="value", value=value) for value in values]
                     rows += [dict(state=state) for state in ("null", "missing", "type_error", "conflict")]
                     result.append(dict(id=len(result), collation=collation, encoding=encoding,
@@ -47,7 +53,13 @@ def expected(case):
             outcomes.append("unknown" if state in ("null", "missing") else state)
             continue
         source = key(row["value"], case["collation"])
-        order = (source > target) - (source < target)
+        left, right = source, target
+        if case["collation"] == "ebcdic_037_pad":
+            # PAD SPACE extends the shorter operand before ordering. Merely
+            # stripping trailing spaces is insufficient for weights below SPACE.
+            width = max(len(left), len(right))
+            left, right = left.ljust(width, b'\x40'), right.ljust(width, b'\x40')
+        order = (left > right) - (left < right)
         selected = dict(eq=order == 0, ne=order != 0, lt=order < 0, le=order <= 0,
                         gt=order > 0, ge=order >= 0)[case["op"]]
         outcomes.append("yes" if selected else "no")
@@ -80,7 +92,7 @@ def main():
             assert result["raw"] == raw, (case["id"], "lossy projection")
             selected = [row["value"] for row, outcome in zip(case["rows"], wanted, strict=True) if outcome == "yes"]
             assert result["selected"] == selected, (case["id"], "late projection")
-            if case["encoding"] == "fsst" and case["collation"] != "ebcdic_cp037":
+            if case["encoding"] == "fsst" and case["collation"] in ("utf8_binary", "ascii_ci"):
                 assert result["streamed"] == sum(row["state"] == "value" for row in case["rows"])
                 assert result["materialized"] == 0
         record["completed"] = True

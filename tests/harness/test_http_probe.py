@@ -10,7 +10,8 @@ from harness.http_probe import Probe, table_operation
 class Reuse(unittest.TestCase):
     def test_database_runtime_actions_have_bounded_labels(self):
         for tag, kind in (('client_token', 'bind'), ('client_progress', 'inspect'),
-                          ('client_progress', 'update'), ('record', 'read')):
+                          ('client_progress', 'update'), ('record', 'read'),
+                          ('workload_result', 'open'), ('workload_result', 'page')):
             self.assertEqual(table_operation(json.dumps({'action': {tag: {kind: 'PRIVATE'}}})),
                              f'table:{tag}:{kind}')
             self.assertEqual(table_operation(json.dumps({'action': {tag: {'PRIVATE': 'PRIVATE'}}})),

@@ -12,7 +12,8 @@ interfaces; local type support does not widen every source or transport.
 
 Fuze's Zig `Types` API supplies bounded descriptors for signed/unsigned integers
 through 128 bits, finite float32/64, decimal128, boolean, UTF-8/binary, date, time,
-civil/UTC timestamp, interval, UUID and recursive struct/list/array/map/union/JSON.
+civil/UTC timestamp, interval, UUID, range/multirange, dense vector and recursive
+struct/list/array/map/union/JSON.
 It supplies descriptor fingerprints, checked scalar literal binding, selected
 explicit numeric casts, lossless domain promotion and an owned neutral value
 codec. JSON parsing preserves numeric lexemes and rejects duplicate decoded keys.
@@ -118,6 +119,23 @@ transports retain separate admission limits. Parameters, traits and exact encodi
 | Struct, list, fixed array | Recursive five-state cells; validated structural equality/hash and partial lexicographic order | Corresponding JSON shapes; CSV unsupported |
 | Map, tagged union | Sorted unique typed map keys; map equality/hash; explicitly tagged union values | Declared JSON object/tag shapes; CSV unsupported |
 | JSON | Validated raw JSON with exact numeric lexemes and duplicate-key rejection; no equality/hash/order trait | Whole-record JSONL raw mode or heterogeneous inferred fields; CSV unsupported |
+| Range / multirange | Int64, decimal, date and timestamp bounds; discrete bounds normalize to `[lower, upper)`, multiranges coalesce sorted runs | Explicit schema-bound SQL string literals; no inferred file type |
+| Dense vector | Fixed dimension, finite float32/float16/bfloat16, int8 or packed binary; aligned owned slabs, exact bits | Explicit schema-bound SQL numeric-list or binary-hex string literals; no inferred file type |
+
+Table column semantics bind decimal rounding, vector metrics and pinned timezone
+artifacts separately from logical types and physical codecs. For example,
+`amount DECIMAL(8,2) ROUNDING HALF_EVEN` and
+`embedding VECTOR(3,FLOAT32) METRIC COSINE` preserve their interpretation in
+retained schemas. A timestamp declaration can carry the actual TZif artifact
+and version label; no lookup of the host timezone database is implicit. Changing
+these semantics requires a physical rewrite. See the
+[schema contract](../../../../contracts/TABLE_SCHEMA_V1.md).
+
+Range/vector values support owned binary/JSON codecs, stored Table rows and
+logical Arrow interchange. TypeScript and Python expose typed values. Other
+language profiles explicitly refuse unsupported rich types or nonempty semantic
+descriptors; they never silently discard them. SQL interval predicates, vector
+distance and timezone/decimal expressions require their own operator admission.
 
 Enum, domain, opaque extension, spatial, arbitrary precision numeric and named
 IANA timezone types are unsupported. Float-to-integer, binary-float/decimal and

@@ -11,12 +11,19 @@ connection: c.DirectTableProtocol.Connection,
 namespace: u64,
 dialect: f.Sql.Dialect,
 inspection: bool = false,
-plan: union(enum) { select: g.direct.DirectTablePrepared, dml: c.DirectTablePreparedDml, ddl: c.DirectTablePreparedDdl, log_ddl: c.DirectLogPreparedDdl, relational: *g.direct.DirectRelationalCompilation, namespace_change: c.DirectAuthorizationSql.NamespacePlan },
+plan: union(enum) { select: g.direct.DirectTablePrepared, dml: c.DirectTablePreparedDml, ddl: c.DirectTablePreparedDdl, log_ddl: c.DirectLogPreparedDdl, log_append: c.DirectLogPreparedAppend, log_consume: c.DirectLogPreparedConsume, log_claim: c.DirectLogPreparedClaim, log_settlement: c.DirectLogPreparedSettlement, relational: *g.direct.DirectRelationalCompilation, namespace_change: c.DirectAuthorizationSql.NamespacePlan },
 output: ?f.Types.Decoded,
-pub const Kind = enum { select, insert, update, delete, create, alter, drop };
+pub const Kind = enum { select, insert, update, delete, create, alter, drop, produce, enqueue, consume, claim, ack };
+pub fn isWorkload(self: *const Self) bool {
+    return self.plan == .log_append or self.plan == .log_consume or self.plan == .log_claim or self.plan == .log_settlement;
+}
 pub fn kind(self: *const Self) Kind {
     return switch (self.plan) {
         .select, .relational => .select,
+        .log_append => |value| if (value.definition.kind() == .stream) .produce else .enqueue,
+        .log_consume => .consume,
+        .log_claim => .claim,
+        .log_settlement => .ack,
         .log_ddl => |value| switch (value.compiled.statement.action) {
             .create => .create,
             .alter, .rename => .alter,
@@ -52,6 +59,10 @@ pub fn parameters(self: *const Self) []const f.Types.Type {
     return switch (self.plan) {
         .select => |*value| value.parameterTypes(),
         .dml => |*value| value.parameterTypes(),
+        .log_append => |*value| value.compiled.parameterTypes(),
+        .log_consume => |*value| value.compiled.parameterTypes(),
+        .log_claim => |*value| value.compiled.parameterTypes(),
+        .log_settlement => |*value| value.compiled.parameterTypes(),
         else => &.{},
     };
 }
@@ -63,6 +74,19 @@ pub fn fields(self: *const Self) []const f.Types.Field {
 pub fn checkValues(self: *const Self, allocator: std.mem.Allocator, values: []const ?f.Types.Values.Atom) !void {
     if (values.len != self.parameters().len) return error.WireParameterCountMismatch;
     switch (self.plan) {
+        .log_append => |*value| {
+            var bound = try value.compiled.bind(allocator, values, null);
+            defer bound.deinit();
+        },
+        .log_settlement => |*value| {
+            _ = try value.checkValues(values, null);
+        },
+        inline .log_consume, .log_claim => |*value| {
+            // Validate routing and the complete body before execution creates
+            // an identity. This pure witness is never staged or admitted.
+            var bound = try value.freeze(allocator, 1, values, null);
+            defer bound.deinit();
+        },
         .select => |*value| {
             const template = &value.template;
             var bound = try template.bind(allocator, template.name, template.descriptor.type, template.basis, values, null);
@@ -92,13 +116,17 @@ pub fn prepareDiagnostic(allocator: std.mem.Allocator, client: *c.DirectTableCli
         return err;
     };
 }
-fn prepareInner(allocator: std.mem.Allocator, client: *c.DirectTableClient, namespace: u64, text: []const u8, dialect: f.Sql.Dialect, profile: Profile, options: g.direct.DirectRelationalQuery.Options, detail: ?*f.Sql.Binding, location: *f.Sql.Location) !Self {
-    try f.Sql.validateText(text);
+fn prepareInner(allocator: std.mem.Allocator, client: *c.DirectTableClient, namespace: u64, original_text: []const u8, dialect: f.Sql.Dialect, profile: Profile, options: g.direct.DirectRelationalQuery.Options, detail: ?*f.Sql.Binding, location: *f.Sql.Location) !Self {
+    const selected_catalog = try g.HistoricalSql.select(original_text, dialect);
+    const text = selected_catalog.statement;
+    if (selected_catalog.snapshot != null and client.transaction != null) return error.UnsupportedHistoricalTransaction;
     var lexer: f.Sql.Lexer = .{ .text = text, .dialect = dialect, .parameters_enabled = true };
     const first = try lexer.next();
     if (profile == .inspection and !tokenIs(first, "SELECT")) return error.UnsupportedGatewayStatement;
     if (first.tag != .word) return error.UnsupportedGatewayStatement;
-    const owned = try allocator.dupe(u8, text);
+    if (selected_catalog.snapshot != null and !tokenIs(first, "SELECT")) return error.HistoricalReadOnly;
+    const selected_namespace = try selected_catalog.resolveNamespace(client.*, namespace);
+    const owned = try allocator.dupe(u8, original_text);
     errdefer allocator.free(owned);
     var plan: @FieldType(Self, "plan") = undefined;
     var declaration = lexer;
@@ -110,6 +138,14 @@ fn prepareInner(allocator: std.mem.Allocator, client: *c.DirectTableClient, name
         plan = .{ .namespace_change = try c.DirectAuthorizationSql.prepareNamespace(client.*, namespace, text, .{}, location) };
     } else if (declaring and (tokenIs(subject, "STREAM") or tokenIs(subject, "QUEUE"))) {
         plan = .{ .log_ddl = try c.DirectLogPreparedDdl.prepare(allocator, client.*, namespace, text, dialect, location) };
+    } else if (tokenIs(first, "PRODUCE") or tokenIs(first, "ENQUEUE")) {
+        plan = .{ .log_append = try c.DirectLogPreparedAppend.prepare(allocator, client.*, namespace, text, dialect, location) };
+    } else if (tokenIs(first, "CONSUME")) {
+        plan = .{ .log_consume = try c.DirectLogPreparedConsume.prepare(allocator, client.*, namespace, text, dialect, location) };
+    } else if (tokenIs(first, "CLAIM")) {
+        plan = .{ .log_claim = try c.DirectLogPreparedClaim.prepare(allocator, client.*, namespace, text, dialect, location) };
+    } else if (tokenIs(first, "ACK")) {
+        plan = .{ .log_settlement = try c.DirectLogPreparedSettlement.prepare(allocator, client.*, namespace, text, dialect, location) };
     } else if (std.ascii.eqlIgnoreCase(first.text, "SELECT")) {
         // Parameterized relational syntax is outside this profile. Parameter
         // tokens belong to the shared single-Table compiler; strings/comments
@@ -126,8 +162,8 @@ fn prepareInner(allocator: std.mem.Allocator, client: *c.DirectTableClient, name
             const clients: [f.Relational.max_sources]c.DirectTableClient = @splat(client.*);
             var selected = options;
             selected.dialect = dialect;
-            plan = .{ .relational = try g.direct.DirectRelationalCompilation.prepareAccess(allocator, clients[0..syntax.targets.len], namespace, text, .interactive, selected, location, if (profile == .inspection) .inspect else .read) };
-        } else plan = .{ .select = try g.direct.DirectTablePrepared.prepareAccess(allocator, client.*, namespace, text, dialect, detail, if (profile == .inspection) .inspect else .read) };
+            plan = .{ .relational = try g.direct.DirectRelationalCompilation.prepareProjectedAt(allocator, clients[0..syntax.targets.len], selected_namespace, text, .interactive, selected, location, if (profile == .inspection) .inspect else .read, selected_catalog.snapshot, selected_catalog.projection) };
+        } else plan = .{ .select = try g.direct.DirectTablePrepared.prepareProjectedAt(allocator, client.*, selected_namespace, text, dialect, detail, if (profile == .inspection) .inspect else .read, selected_catalog.snapshot, selected_catalog.projection) };
     } else if (std.ascii.eqlIgnoreCase(first.text, "INSERT") or std.ascii.eqlIgnoreCase(first.text, "UPDATE") or std.ascii.eqlIgnoreCase(first.text, "DELETE")) {
         plan = .{ .dml = try c.DirectTablePreparedDml.prepare(allocator, client.*, namespace, text, dialect, location) };
     } else if (std.ascii.eqlIgnoreCase(first.text, "CREATE") or (profile == .native and (std.ascii.eqlIgnoreCase(first.text, "ALTER") or std.ascii.eqlIgnoreCase(first.text, "DROP")))) {
@@ -138,8 +174,15 @@ fn prepareInner(allocator: std.mem.Allocator, client: *c.DirectTableClient, name
         inline else => |*value| value.deinit(),
     };
     var output_fields: [g.Limits.max_parameters]f.Types.Field = undefined;
+    var workload_output: ?f.Types.Decoded = switch (plan) {
+        inline .log_consume, .log_claim => |*value| try value.compiled.template.outputSchema(allocator),
+        else => null,
+    };
+    defer if (workload_output) |*schema| schema.deinit();
     const output: ?f.Types.Type = switch (plan) {
         .select => |value| value.output.type,
+        .log_append => |value| if (value.compiled.output) |output| output.type else null,
+        .log_consume, .log_claim => workload_output.?.type,
         .relational => |value| try value.plan.outputSchema(&output_fields),
         else => null,
     };
@@ -162,6 +205,10 @@ fn tokenIs(token: f.Sql.Token, word: []const u8) bool {
 /// a replacement object, schema, name or connection cannot inherit this handle.
 pub fn validate(self: *const Self, client: *c.DirectTableClient) !void {
     if (!std.meta.eql(self.connection, client.connection)) return error.CatalogIdentityConflict;
+    if (self.plan == .log_append) return self.plan.log_append.validate(client.*);
+    if (self.plan == .log_consume) return self.plan.log_consume.validate(client.*);
+    if (self.plan == .log_claim) return self.plan.log_claim.validate(client.*);
+    if (self.plan == .log_settlement) return self.plan.log_settlement.validate(client.*);
     const right: c.TableAuthority.Access = switch (self.kind()) {
         .select => if (self.inspection) .inspect else .read,
         .insert => .insert,
@@ -170,6 +217,7 @@ pub fn validate(self: *const Self, client: *c.DirectTableClient) !void {
         .create => .create_table,
         .alter => .alter,
         .drop => .drop,
+        .produce, .enqueue, .consume, .claim, .ack => unreachable,
     };
     switch (self.plan) {
         .select => |value| _ = try value.binding.require(client.*, right),
@@ -178,22 +226,26 @@ pub fn validate(self: *const Self, client: *c.DirectTableClient) !void {
         .namespace_change => |value| try value.validate(client.*, self.namespace, .{}),
         .ddl => |*value| try value.validate(client.*),
         .log_ddl => |*value| try value.validate(client.*),
+        .log_append, .log_consume, .log_claim, .log_settlement => unreachable,
     }
 }
 pub const Write = union(enum) {
     table: c.DirectTableIntent,
     log: c.DirectLogIntent,
+    workload: c.DirectWorkloadIntent,
     name_assertion: c.NameAssertion.Binding,
     namespace_change: g.IntentReference.NamespaceChange,
     pub fn deinit(self: *Write) void {
         if (self.* == .table) self.table.deinit();
         if (self.* == .log) self.log.deinit();
+        if (self.* == .workload) self.workload.deinit();
         self.* = undefined;
     }
     pub fn workBytes(self: *const Write) !u64 {
         return switch (self.*) {
             .table => |value| value.bytes.len,
             .log => |value| value.bytes.len,
+            .workload => |value| value.bytes.len,
             .name_assertion => |value| (g.IntentReference.Reference{ .name_assertion = value }).workBytes(),
             .namespace_change => |value| (g.IntentReference.Reference{ .namespace_change = value }).workBytes(),
         };
@@ -206,6 +258,10 @@ pub const Write = union(enum) {
             .log => |*value| blk: {
                 if (value.parsed.value.work.namespace != namespace) return error.CatalogIdentityConflict;
                 break :blk .{ .log = try value.stage(client, account) };
+            },
+            .workload => |*value| blk: {
+                if (value.parsed.value.source.declaration.properties.namespace != namespace) return error.CatalogIdentityConflict;
+                break :blk .{ .workload = try value.stage(client, account) };
             },
             .name_assertion => |value| blk: {
                 try value.validate();
@@ -228,6 +284,10 @@ pub fn bindWritePrepared(self: *const Self, allocator: std.mem.Allocator, client
     const fresh = fresh_prepared.*;
     fresh_prepared.* = false;
     if (operation == 0 or operation > c.protocol.max_counter) return error.InvalidCatalogIdentity;
+    if (self.plan == .log_append) return .{ .workload = try self.plan.log_append.bindPrepared(allocator, client.*, operation, values, null, fresh) };
+    if (self.plan == .log_consume) return .{ .workload = try self.plan.log_consume.bindPrepared(allocator, client.*, operation, values, null, fresh) };
+    if (self.plan == .log_claim) return .{ .workload = try self.plan.log_claim.bindPrepared(allocator, client.*, operation, values, null, fresh) };
+    if (self.plan == .log_settlement) return .{ .workload = try self.plan.log_settlement.bindPrepared(allocator, client.*, operation, values, null, fresh) };
     if (self.plan == .log_ddl) {
         if (values.len != 0) return error.WireParameterCountMismatch;
         return .{ .log = try self.plan.log_ddl.bindPrepared(allocator, client.*, operation, fresh) };

@@ -26,7 +26,9 @@ variable loop consumes an explicit work budget. The contract describes the
 strict simple-polygon profile and the distinction between exact predicates and
 exact constructions.
 
-These are local library APIs. Spatial Table types, SQL, Arrow values, persistent
+Table column semantics can retain the exact `Reference` as metadata on opaque
+BINARY columns. This does not interpret the payload or enable a spatial operator.
+The computation APIs remain local library calls. Spatial Table types, SQL, Arrow values, persistent
 spatial indexes and maintained spatial queries are unavailable.
 
 Inside `nix develop`, run `zig build test` here for executable checks or

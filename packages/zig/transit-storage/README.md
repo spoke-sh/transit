@@ -7,6 +7,25 @@ indexes. Separate components include the content-verified
 `NvmeCache`, immutable `TableManifest` (`"TMAN"` v1) artifacts and optimistic
 manifest rebasing (`PartitionLease.OccCoordinator`).
 
+`TableInterpretations.Accepted` records each active definition's declaration,
+acceptance frontier and ADD-time column origins in a paged directory published
+with CREATE/ALTER/RENAME. This metadata remains available after later default
+changes, column removal and physical normalization. DROP preserves it but is
+not an active target. Collection walks the directory and its origin references
+without a resident list of all revisions.
+
+`TablePartition.inspectDefinition` verifies an exact accepted declaration.
+`scanSnapshotProjected` maps an existing source pin forward to that definition,
+using stable column IDs and frozen ADD values. It never acquires a target data
+pin or converts physical types/collations. Returned pages retain the original
+source evidence and report the target separately. Continuations bind both;
+rows own their values independently of metadata scratch and subsequent pages.
+One call reads at most eight source rows within 16 MiB, with a separate caller
+output byte budget. Backward mapping, staged targets, insufficient budgets and
+current authorization failures refuse. `prepareProjection` validates a target
+without reading rows or retaining data. The catalog composes these operations
+through `DirectSchemaProjection` and the shared retained reader.
+
 Immutable object batches sync independent files with at most eight concurrent
 tasks through `SyncBatch`. Every task joins on failure as well as success.
 Content files and names become durable before descriptor publication; the final
@@ -70,6 +89,24 @@ not publish that destination or make the source terminal. A paired transaction
 archives the source and advances its FIFO head only with the destination append.
 Old roots remain independently readable.
 
+`QueuePartition.deadLetterNext` reads at most the requested bounded number of
+item metadata entries and returns at most one blocked DLQ candidate. Its cursor
+fixes a finite upper offset; later appends cannot prolong the sweep. Each page
+observes current state and rechecks the supplied guard before disclosure. A
+changed definition rejects the old cursor. This is not an atomic snapshot: an
+earlier offset that becomes blocked during a sweep belongs to the next sweep.
+The candidate preserves the accepted destination, epoch, attempt and exhaustion
+time across later policy edits and reopen. Discovery neither writes nor checks
+the current clock, acquires a lease or dispatches a transfer. Automatic scheduling
+still needs a durable original attempt and the paired transaction owner.
+
+`deadLetterWork` rechecks that candidate and encodes its verified source row
+under the recorded destination schema into a caller-owned buffer. It preserves
+the original values and visibility from hot or sealed payload storage, survives
+owner scratch resets, and rechecks authorization before returning. It accepts
+no work and publishes neither an append nor a settlement. The transaction still
+checks current destination authority and trusted exhaustion time at its decision.
+
 `QueueAffinity` accelerates FIFO head lookup using the exact immutable key root
 and full canonical key. The Queue owner preallocates 64 hash buckets by default
 (`Options.queue_affinity_rows`, 1–4,096) and twice as many replacement slots.
@@ -86,6 +123,15 @@ examines at most the bounded slot population. Contention returns a miss without
 waiting, allocating or changing accepted work. Initialization and destruction
 require quiescence. This cache does not make the surrounding serialized Queue
 owner concurrent, and a hit provides no lease, retention pin or current-grant authority.
+
+Stream and Queue operation closure uses the same paged receipt directory and
+partition WAL. `cancel` preserves existing acceptance or records the canonical
+request binding under control capacity. `refuse` accepts only the explicitly
+qualified producer/lease owner errors; it cannot convert storage uncertainty or
+missing time into a terminal result. Neither closure changes data, offsets,
+leases or delivery pins. The catalog adapter reserves the global identity and
+serializes both operations with native mutation. Recovery validates the complete
+closure and successor root; private transaction work cannot publish closure.
 
 `QueuePartition.enqueue` binds initial scheduling state, payloads and original
 producer receipts to one fenced WAL record. Claims publish acquired state,
@@ -116,10 +162,24 @@ not expire the Queue's current payloads.
 containers in bounded, reusable memory. It enforces separate byte, object-count
 and total resident budgets for that operation. Reads fall through to the existing
 provider; private puts reach the provider only through explicit `persist`.
+Persistence groups at most eight selected objects through the immutable batch
+API, verifies each returned size and digest, and retains the exact private bytes
+after partial failure. All groups must finish before the enclosing owner can
+publish its root. This uses bounded borrowed views into the existing candidate
+buffer and adds no per-object allocation.
 Replay can reconstruct and compare roots without writing or requiring old
 intermediate staging objects. Persistence alone publishes no root and supplies no
 WAL acceptance. The enclosing owner must clear derived page caches when abandoning
 or resetting a candidate and must preserve original identity after uncertainty.
+
+Queue publication follows the proposed root's private index dependencies before
+staging. It includes `.tack` bitmap containers, full-key child directories and
+timer merges' frozen source and output roots. The traversal reuses the candidate
+entry allocation and stops at existing immutable provider objects. Superseded
+private index pages, containers and delta buffers are omitted; earlier accepted
+objects are never deleted. This changes staging work without changing accepted
+root bytes, lease checks or deterministic replay. The storage retention graph
+still owns physical collection.
 
 `LogTail` reserves aligned payload slabs and borrow handles under an explicit
 resident byte budget. It verifies content once on admission, returns pinned
@@ -181,6 +241,14 @@ definition and its declaration dependencies. Resolution verifies immutable bytes
 against the complete object/revision/digest identity, independently of current
 names. Missing, incompatible or invalid destinations stop the mark pass; they
 cannot establish permission to reclaim the source or transfer its payload.
+
+During replay, the bounded index cache distinguishes provider-verified pages
+from newly staged pages, unflushed batches and reads served by the private
+derivation overlay. Each transition discards derived cache entries while keeping
+verified immutable provider pages within the configured page count. Recreating
+an accepted page from WAL does not prove that page is present in storage; missing
+accepted pages still refuse recovery. Cache hits grant no publication or read
+authority, and current guards remain checked at the same recovery boundaries.
 
 `QueuePartition.claim` freezes a bounded original selection from eligible FIFO
 heads, capped by declared and deployment limits and remaining active-lease
@@ -284,10 +352,13 @@ both inputs and every partial output through the storage graph.
 
 `QueueSchedule` composes those artifacts in private scheduling roots. Full deltas
 seal into paged pending chunks; size-tiered runs merge through resumable frozen
-inputs, and a finite stale-entry sweep stops when its basis is unchanged. Reads
-check all possibly earlier sources under an explicit work budget, including
-both inputs of an unfinished merge. Budget exhaustion refuses instead of
-reporting an empty schedule. Pending cardinality remains on disk; a fixed fan-in
+inputs, and a finite stale-entry sweep stops when its basis is unchanged. Earliest
+event selection checks all possibly earlier sources under an explicit work budget,
+including both inputs of an unfinished merge. Exact membership checks stop after
+reading and verifying that event and its current eligibility. A missing or stale
+occurrence does not prove membership, and an incomplete search cannot prove
+absence. Budget exhaustion refuses instead of reporting an empty schedule.
+Pending cardinality remains on disk; a fixed fan-in
 array cannot limit accepted settlement. The accepted Queue root contains separate
 visibility and lease schedules plus the next maintenance kind. Reads use
 `Options.queue_timer_read_work` (default 4,096; 1–65,536) to bound source discovery,
@@ -579,6 +650,13 @@ and the catalog's retained dependency graph.
   maintenance while preserving original no-op receipts and a fixed upper cut.
   See [Table partition ownership](docs/table-partitions.md) for caller obligations,
   budgets and the current integration boundary.
+- `TableSnapshot.zig`: Exact retained Table roots and independently owned copies.
+  A copy preserves the original schema, row/deletion directories, WAL cut and
+  transaction decisions, recording its source handle as attribution. Its own pin
+  retains the data after the source owner releases. The required `copied_from`
+  metadata field is null for ordinary pins. `pin_copy` replay authenticates both
+  manifests and their original live-pin transition; attribution alone grants no
+  retention or access.
 - `TableEvidence.zig`: Bounded immutable outcome and operation metadata,
   published through the Table's paged indexes. Original receipt and pending-work
   recovery do not read the accepting row payload or retain its old row roots.
@@ -611,6 +689,15 @@ owner uses that projection. `scanSnapshotFiltered` also supplies bounded encoded
 predicate decisions over live identities, with explicit skipped-row coverage
 and deferred failures. Signed filtered reads bind those decisions to the retained
 source and plan; finite SQL preserves coverage, LIMIT and original error positions.
+
+`inspectProjection` reports one retained physical definition and its stable
+column mappings per call. Frozen ADD-time definitions supply absent columns;
+later insertion defaults cannot reinterpret old data. `inspectProjectionLocations`
+reports at most eight row-identity locators with exact WAL/segment references.
+Both use a caller-owned scratch arena and return owned bounded evidence, without
+loading row payloads, acquiring pins or modifying the Table. Directory coverage
+does not imply payload verification or completed query execution. The catalog
+adapts these operations to separate metadata and SELECT permissions.
 
 Opening a disk WAL validates every retained partition before returning, even
 when segment names span multiple directory pages. Nested recovery scans use an
@@ -650,6 +737,14 @@ One disk `LocalSegmentStore` also permits concurrent operations: per-key locks
 protect publication and a separate short mutex protects completed-attempt
 counters. Read counters only after joining callers, and join all operations
 before closing the store. The memory fixture remains caller-serialized.
+Bounded whole-object reads copy into caller-owned output and return the observed
+descriptor. The local provider reads that descriptor once, then verifies the
+selected content's size and chunk checksums; other providers compose their
+existing metadata and range operations and check the resulting digest.
+Index-page and bitmap readers still verify their expected content commitment,
+definition and decoded structure. The private candidate adapter preserves this
+path without treating derived objects as durable. No cache, deadline or resident
+buffer budget is increased, and a short output buffer refuses before copying.
 The root unit task also launches three races of twelve independent processes and
 checks their results against a Python oracle. Descriptor deletion unpublishes the
 key; physical content collection still requires retained-reader/pin ownership.

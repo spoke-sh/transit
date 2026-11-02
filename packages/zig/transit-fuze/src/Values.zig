@@ -27,6 +27,38 @@ pub const Value = union(enum) {
     map: []const Entry,
     tagged_union: Tagged,
     json: []const u8,
+    range: types.Ranges.Value,
+    multirange: []const types.Ranges.Value,
+    vector: types.Vectors.Bytes,
+
+    /// Internal catalog intents also persist native values as JSON. The
+    /// generic JSON parser cannot allocate an over-aligned byte slice. Keep
+    /// its tagged-union representation, copying vector bytes into an owned
+    /// aligned slab before the request can be validated or recovered.
+    pub fn jsonParse(allocator: std.mem.Allocator, source: anytype, options: std.json.ParseOptions) std.json.ParseError(@TypeOf(source.*))!Value {
+        if (try source.next() != .object_begin) return error.UnexpectedToken;
+        const token = try source.nextAllocMax(allocator, .alloc_if_needed, options.max_value_len.?);
+        defer if (token == .allocated_string) allocator.free(token.allocated_string);
+        const name = switch (token) {
+            .string, .allocated_string => |bytes| bytes,
+            else => return error.UnexpectedToken,
+        };
+        const info = @typeInfo(Value).@"union";
+        inline for (info.field_names, info.field_types) |field, T| {
+            if (std.mem.eql(u8, name, field)) {
+                const result: Value = if (comptime std.mem.eql(u8, field, "vector")) blk: {
+                    const bytes = try std.json.innerParse([]const u8, allocator, source, options);
+                    if (bytes.len > (types.Limits{}).value_bytes) return error.ValueTooLong;
+                    const owned = try allocator.alignedAlloc(u8, .fromByteUnits(types.Vectors.alignment), bytes.len);
+                    @memcpy(owned, bytes);
+                    break :blk .{ .vector = owned };
+                } else @unionInit(Value, field, try std.json.innerParse(T, allocator, source, options));
+                if (try source.next() != .object_end) return error.UnexpectedToken;
+                return result;
+            }
+        }
+        return error.UnknownField;
+    }
 };
 
 /// Deep-copy an already validated cell into an enclosing owned arena. The
@@ -49,6 +81,13 @@ fn cloneValue(a: std.mem.Allocator, value: Value) anyerror!Value {
     return switch (value) {
         .atom => |atom| .{ .atom = try cloneAtom(a, atom) },
         .json => |bytes| .{ .json = try a.dupe(u8, bytes) },
+        .range => value,
+        .multirange => |ranges| .{ .multirange = try a.dupe(types.Ranges.Value, ranges) },
+        .vector => |bytes| blk: {
+            const owned = try a.alignedAlloc(u8, .fromByteUnits(types.Vectors.alignment), bytes.len);
+            @memcpy(owned, bytes);
+            break :blk .{ .vector = owned };
+        },
         .structure, .list, .array => |cells, tag| blk: {
             const owned = try a.alloc(Cell, cells.len);
             for (owned, cells) |*out, in| out.* = try cloneValidated(a, in);
@@ -148,6 +187,20 @@ fn checkValue(value: Value, expected: types.Type, depth: usize, budget: *Budget)
             if (expected != .json) return error.TypeMismatch;
             try budget.data(bytes.len);
             try @import("BoundedJson.zig").validate(bytes);
+        },
+        .range => |range| {
+            if (expected != .range) return error.TypeMismatch;
+            try types.Ranges.validate(expected.range.*, range);
+        },
+        .multirange => |ranges| {
+            if (expected != .multirange) return error.TypeMismatch;
+            for (ranges) |_| try budget.child(depth + 1);
+            try types.Ranges.validateMulti(expected.multirange.*, ranges);
+        },
+        .vector => |bytes| {
+            if (expected != .vector) return error.TypeMismatch;
+            try budget.data(bytes.len);
+            try types.Vectors.validate(expected.vector, bytes);
         },
     }
 }

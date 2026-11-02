@@ -1,16 +1,18 @@
-# 41. SQL grammar, standards comparison and dialect ergonomics
+# 43. SQL grammar, standards comparison and dialect ergonomics
 
 [Roadmap](README.md) · [Standards & Multi-Model #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** Planned
 
 Audit and harmonize Transit's complete declarative SQL grammar against formal ISO
 standards (**SQL:2023** `Foundation`, `SQL/JSON`, `SQL/PGQ`, `SQL/MED` and
-**GQL**) and industry-standard analytical, transactional and streaming dialects
+**GQL**), deductive rule languages (**Datalog** / `Soufflé` / `egglog`) and
+industry-standard analytical, transactional and streaming dialects
 (**PostgreSQL**, **DuckDB**, **Snowflake**, **ClickHouse**, **GoogleSQL** and
 **Materialize / RisingWave / Flink SQL**) before the
-[1.0 qualification scorecard](42-qualification-and-benchmarks.md) and
-[release distribution](43-releases.md). Adopt high-leverage ergonomic syntax—such
+[1.0 qualification scorecard](44-qualification-and-benchmarks.md) and
+[release distribution](45-releases.md). Adopt high-leverage ergonomic syntax—such
 as DuckDB's `FROM`-first query composition (`FROM people SELECT id, name;`),
-`GROUP BY ALL`, `ORDER BY ALL`, `SELECT * EXCLUDE (...) REPLACE (...)`, trailing
+`GROUP BY ALL`, `ORDER BY ALL`, `SELECT * EXCLUDE (...) REPLACE (...)`, multi-head
+deductive / Datalog rule blocks, trailing
 commas and readable numeric literals—as deterministic compile-time desugarings to
 canonical `Fuze` plan bytes (`FQP1`, `FDM1`, `FTS1`), standardize declarative
 dataflow lifecycle DDL (`ACTIVATE`, `SUSPEND`, `RESUME`, `REFRESH`, `RETIRE`),
@@ -35,16 +37,18 @@ Build on the delivered and planned foundations across
 [multi-model and foreign relations](18-multi-model-and-foreign-relations.md),
 [branches and merges](20-branches-merges-and-restore.md),
 [enterprise control and policy](27-control-and-policy-plane.md),
-[Board workbench](30-board-reimplementation.md) and
-[language-native application composition](34-programming-model.md). Start from
+[Board workbench](30-board-reimplementation.md),
+[language-native application composition](34-programming-model.md),
+[deductive rules, Datalog fixpoints and equivalence graphs](41-deductive-rules-datalog-and-equivalence-graphs.md)
+and [hardware design, RTL/netlist verification and EDA evidence](42-hardware-design-rtl-and-eda-verification.md). Start from
 the [SQL statement reference](../handbook/reference/sql.md),
 [grammar surface inventory](../handbook/reference/sql/grammar-surface.md),
 [checked grammar and rewrite proofs](../../contracts/sql/README.md) and
 [query engine architecture](../handbook/internals/query-engine.md).
 
 Placing this milestone after the scientific, media and evidence workloads
-([M35](35-scientific-arrays-and-measurements.md)–[M40](40-constrained-planning-and-optimization.md))
-and before [Milestone 42](42-qualification-and-benchmarks.md) resolves three
+([M35](35-scientific-arrays-and-measurements.md)–[M42](42-hardware-design-rtl-and-eda-verification.md))
+and before [Milestone 44](44-qualification-and-benchmarks.md) resolves three
 pre-release requirements once every data, stream, queue, document, branch and
 computation primitive is defined:
 
@@ -57,7 +61,8 @@ audit checks composition without making unqualified parsers executable.
    Earlier milestones introduce syntax for Tables, KV, Documents, Streams
    (`PRODUCE INTO`, `CONSUME ... FROM`, `STREAM_SLICE`), Queues (`ENQUEUE INTO`,
    `CLAIM ... FROM`, `ACK`, `NACK`), bitemporal queries (`FOR SYSTEM_TIME AS OF`,
-   `PERIOD FOR`, `AS OF JOIN`), managed dataflows, property graphs (`SQL/PGQ`),
+   `PERIOD FOR`, `AS OF JOIN`), managed dataflows, deductive fixpoints and
+   equivalence classes, property graphs (`SQL/PGQ`),
    foreign tables (`SQL/MED`) and branches (`CREATE BRANCH`, `MERGE`). Before
    freezing the 1.0 contract definition, the complete grammar
    ([`TransitExtensions.g4`](../../contracts/sql/TransitExtensions.g4) and the
@@ -96,6 +101,7 @@ audit checks composition without making unqualified parsers executable.
 | **Dolt ("Git for Data") & Relational Diff Prior Art** | `DOLT_DIFF`, `DOLT_DIFF_SUMMARY`, `DOLT_SCHEMA_DIFF`, `DOLT_MERGE` and ISO SQL `EXCEPT [ALL]` / `FOR SYSTEM_TIME FROM a TO b` | Provide first-class key-aligned 2-way and 3-way `DIFF(...)` and `DIFF_SCHEMA(...)` table-valued functions plus declarative `REMOTE` / `FETCH` / `MIRROR` / `PROPOSE` syntax over `.tseg` segment skipping, `ColumnId` lineage and 5-state `IS CONFLICT` cells without doubling column count into `from_*`/`to_*` |
 | **ClickHouse** | Vectorized string/search functions, `LIMIT n BY ...`, codec/compression clauses, parameterized views and array/tuple higher-order idioms | Compare physical codec (`ENCODING`) and search/BM25 query ergonomics; keep logical types ($\tau$), collations ($\kappa$) and physical codecs ($\epsilon$) strictly orthogonal |
 | **Materialize / RisingWave / Flink SQL** | `CREATE SOURCE`, `CREATE SINK`, `CREATE MATERIALIZED VIEW`, `SUBSCRIBE`, watermark/lateness declarations and savepoint/checkpoint job controls | Compare streaming DDL and watermark/retraction contracts against Transit's `STREAM`, `QUEUE` and WAL-activated dataflows ([Milestone 6](06-streams-queues-and-durable-runtime.md), [Milestone 12](12-sql-and-dataflows.md)) |
+| **Deductive Datalog & Equivalence Graphs** (`Soufflé`, `Logica`, `egglog`) | Stratified Horn clauses, mutually recursive multi-head `WITH RECURSIVE` blocks, monotonic lattice aggregations, Union-Find equivalence rules and derivation witness requests | Audit concise deductive rule syntax and multi-table recursive CTE ergonomics ([Milestone 41](41-deductive-rules-datalog-and-equivalence-graphs.md), [Milestone 42](42-hardware-design-rtl-and-eda-verification.md)) that desugar deterministically to canonical stratified `FQP1` fixpoint plans |
 
 ## Delivery sequence
 

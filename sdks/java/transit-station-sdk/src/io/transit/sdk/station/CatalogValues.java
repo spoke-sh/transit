@@ -38,12 +38,17 @@ final class CatalogValues {
             number(v.get("credential_epoch"), 1), number(v.get("audience"), 1), NativeValues.digest(v.get("context")));
     }
     static Schema schema(JsonElement value) {
-        JsonObject v = fields(value, "definition", "object", "revision", "next_column", "columns", "primary_key"); Catalog.definition(string(v.get("definition")));
+        JsonObject source = object(value).deepCopy();
+        JsonObject integrity = fields(source.remove("integrity"), "next_id", "checks", "foreign_keys");
+        if (number(integrity.get("next_id"), 1) != 1 || !integrity.getAsJsonArray("checks").isEmpty() || !integrity.getAsJsonArray("foreign_keys").isEmpty()) throw incompatible("catalog-constraint-schema-unsupported");
+        JsonObject v = fields(source, "definition", "object", "revision", "next_column", "columns", "primary_key"); Catalog.definition(string(v.get("definition")));
         JsonArray cols = v.getAsJsonArray("columns"), keys = v.getAsJsonArray("primary_key");
         if (cols.isEmpty() || cols.size() > 128 || keys.size() > cols.size()) throw incompatible("catalog-schema-bound");
         List<Column> columns = new ArrayList<>();
         for (JsonElement col : cols) {
-            JsonObject c = fields(col, "id", "name", "type", "nullable", "default", "max_characters", "encoding", "collation");
+            JsonObject c = fields(col, "id", "name", "type", "nullable", "default", "max_characters", "encoding", "collation", "semantics");
+            JsonObject semantics = fields(c.get("semantics"), "rounding", "metric", "timezone", "spatial");
+            for (String key : List.of("rounding", "metric", "timezone", "spatial")) if (!semantics.get(key).isJsonNull()) throw incompatible("catalog-column-semantics-unsupported");
             columns.add(new Column(wide(c.get("id")), string(c.get("name")), Logical.typeFromWire(c.get("type")), bool(c.get("nullable")), optional(c.get("default"), Logical::cellFromWire), optional(c.get("max_characters"), n -> number(n, 1)), variant(Encoding.class, c.get("encoding")), variant(Collation.class, c.get("collation"))));
         }
         Schema result = new Schema(wide(v.get("object")), wide(v.get("revision")), wide(v.get("next_column")), columns, keys.asList().stream().map(CatalogValues::wide).toList());
@@ -206,6 +211,13 @@ final class CatalogValues {
         ObservationKind observedKind = variant(ObservationKind.class, new JsonPrimitive(kind));
         if (observedKind != expectedKind(original.kind(), original.binding())) throw incompatible("catalog-observation-kind");
         if (tag.equals("not_observed")) return new Observation(observedKind, OperationState.NOT_OBSERVED, original, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
+        if (tag.equals("finalizing")) {
+            JsonObject progress = object(raw.get("operation"));
+            if (!bool(progress.get("requires_settlement")) || !List.of("admitted", "ready").contains(string(progress.get("phase")))) throw incompatible("catalog-finalizing-phase");
+            if (observedKind != ObservationKind.DDL || !raw.getAsJsonObject("operation").get("binding").equals(original.binding())) throw incompatible("catalog-finalizing-binding");
+            Observation accepted = observation(obj("ddl", obj("committed", raw.get("evidence").deepCopy())), original);
+            return new Observation(observedKind, OperationState.FINALIZING, original, accepted.commit(), Optional.empty(), Optional.empty(), Optional.empty());
+        }
         if (!raw.get("binding").equals(original.binding())) throw incompatible("catalog-original-binding");
         if (observedKind == ObservationKind.NAME_ASSERTION) return new Observation(observedKind, variant(OperationState.class, raw.get("state")), original, Optional.empty(), Optional.empty(), Optional.of(variant(Reason.class, raw.get("reason"))), Optional.of(position(raw.get("position"))));
         if (tag.equals("committed")) {

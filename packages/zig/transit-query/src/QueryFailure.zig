@@ -78,6 +78,20 @@ pub const Code = enum(u16) {
     catalog_scope_changed = 70,
     adapter_memory_budget = 71,
     arrow_workspace_budget = 72,
+    missing_column_semantics = 73,
+    scalar_program_budget = 74,
+    invalid_scalar_reference = 75,
+    invalid_scalar_encoding = 76,
+    decimal_overflow = 77,
+    division_by_zero = 78,
+    inexact_decimal_rounding = 79,
+    timestamp_overflow = 80,
+    zero_magnitude_cosine_vector = 81,
+    invalid_time_bucket = 82,
+    nonexistent_local_time = 83,
+    ambiguous_local_time = 84,
+    timezone_coverage_unavailable = 85,
+    invalid_column_semantics = 86,
 };
 code: Code,
 stage: Stage,
@@ -94,6 +108,20 @@ pub fn category(self: Self) p.Diagnostic.Category {
         else => {},
     };
     return switch (self.code) {
+        .invalid_column_semantics, .missing_column_semantics => .binding,
+        .scalar_program_budget => .limit,
+        .invalid_scalar_reference => .binding,
+        .invalid_scalar_encoding => .integrity,
+        .decimal_overflow => .limit,
+        .division_by_zero => .constraint,
+        .inexact_decimal_rounding => .constraint,
+        .timestamp_overflow => .limit,
+        .zero_magnitude_cosine_vector => .constraint,
+        .invalid_time_bucket => .binding,
+        .nonexistent_local_time => .constraint,
+        .ambiguous_local_time => .constraint,
+        .timezone_coverage_unavailable => .unsupported,
+
         .catalog_read_denied => .access,
         .catalog_owner_changed => .conflict,
         .catalog_configuration_changed => .conflict,
@@ -152,6 +180,21 @@ pub fn diagnostic(self: Self, namespace: u64, phase: q.UnifiedRequest.Phase) !p.
 }
 pub fn fromError(cause: anyerror, stage: Stage) ?Self {
     return .{ .stage = stage, .code = switch (cause) {
+        error.InvalidColumnSemantics => .invalid_column_semantics,
+        error.MissingColumnSemantics => .missing_column_semantics,
+        error.ScalarProgramBudget => .scalar_program_budget,
+        error.InvalidScalarReference => .invalid_scalar_reference,
+        error.InvalidScalarEncoding => .invalid_scalar_encoding,
+        error.DecimalOverflow => .decimal_overflow,
+        error.DivisionByZero => .division_by_zero,
+        error.InexactDecimalRounding => .inexact_decimal_rounding,
+        error.TimestampOverflow => .timestamp_overflow,
+        error.ZeroMagnitudeCosineVector => .zero_magnitude_cosine_vector,
+        error.InvalidTimeBucket => .invalid_time_bucket,
+        error.NonexistentLocalTime => .nonexistent_local_time,
+        error.AmbiguousLocalTime => .ambiguous_local_time,
+        error.TimezoneCoverageUnavailable => .timezone_coverage_unavailable,
+
         error.QueryDenied => .policy_denied,
         error.CatalogDenied => .catalog_read_denied,
         error.CatalogOwnerChanged => .catalog_owner_changed,
@@ -253,6 +296,21 @@ pub fn denied(self: Self) bool {
 pub fn message(self: Self) []const u8 {
     if (self.source) |witness| return witness.message();
     return switch (self.code) {
+        .invalid_column_semantics => "Column interpretation does not match its declared type or schema width.",
+        .missing_column_semantics => "Expression requires a declared interpretation. Bind exact column metric or timezone metadata before compiling this expression.",
+        .scalar_program_budget => "Scalar program exceeds its instruction budget. Use at most 32 scalar instructions including input references.",
+        .invalid_scalar_reference => "Scalar instruction reference is invalid. Input references must name declared columns and computed references must point backward.",
+        .invalid_scalar_encoding => "Saved scalar instruction encoding is invalid. Use the canonical program emitted by this build.",
+        .decimal_overflow => "Decimal arithmetic exceeds its declared precision. Use a wider result precision or reduce the operand magnitude.",
+        .division_by_zero => "Decimal divisor is zero. Supply a nonzero divisor.",
+        .inexact_decimal_rounding => "Decimal result requires rounding. Choose an explicit rounding rule or a result scale that preserves the value.",
+        .timestamp_overflow => "Timezone arithmetic exceeds the timestamp domain. Use timestamps and bucket widths within the signed microsecond domain.",
+        .zero_magnitude_cosine_vector => "Cosine distance is undefined for a zero vector. Supply nonzero vector magnitudes or choose an appropriate explicit metric.",
+        .invalid_time_bucket => "Time bucket width is invalid. Supply a positive integer width in microseconds.",
+        .nonexistent_local_time => "Local time falls in a timezone gap. Supply a civil timestamp represented by the pinned timezone rules.",
+        .ambiguous_local_time => "Local time falls in a timezone fold. Choose EARLIER or LATER explicitly, or retain REJECT.",
+        .timezone_coverage_unavailable => "Pinned timezone rules do not cover this timestamp. Use a timestamp within the supported explicit transition coverage.",
+
         .catalog_read_denied => "Current catalog policy does not permit Table schema inspection or row reads.",
         .catalog_owner_changed => "The catalog owner no longer matches this query source.",
         .catalog_configuration_changed => "The catalog configuration no longer matches this query source.",
@@ -343,6 +401,7 @@ pub fn validate(self: Self) !void {
     if (self.runtime) |witness| {
         if (self.stage != .execution or self.dimension != .none) return error.InvalidQueryFailure;
         switch (self.code) {
+            .missing_column_semantics, .scalar_program_budget, .invalid_scalar_reference, .invalid_scalar_encoding, .decimal_overflow, .division_by_zero, .inexact_decimal_rounding, .timestamp_overflow, .zero_magnitude_cosine_vector, .invalid_time_bucket, .nonexistent_local_time, .ambiguous_local_time, .timezone_coverage_unavailable => {},
             .cell_type_error, .cell_conflict, .arithmetic_overflow, .type_mismatch, .unknown_column, .nonfinite_value, .invalid_utf8, .cell_too_large => {},
             else => return error.InvalidQueryFailure,
         }

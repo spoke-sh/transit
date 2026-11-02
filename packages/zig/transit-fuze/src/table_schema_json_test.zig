@@ -63,6 +63,22 @@ test "neutral physical schemas match independent bytes and preserve commitments"
     try e.expectError(error.UnsupportedColumnCollation, j.decode(e.allocator, invalid));
 }
 
+test "neutral integrity matches independent CHECK bytes and commitments" {
+    const Fixture = struct { integrity_schema_hex: []const u8, integrity_schema_json: []const u8, integrity_fingerprint: []const u8 };
+    const fixture = try std.json.parseFromSlice(Fixture, e.allocator, @embedFile("fixtures/table-schema.json"), .{ .ignore_unknown_fields = true });
+    defer fixture.deinit();
+    var decoded = try j.decode(e.allocator, fixture.value.integrity_schema_json);
+    defer decoded.deinit();
+    var buffer: [s.max_bytes]u8 = undefined;
+    var expected: [s.max_bytes]u8 = undefined;
+    try e.expectEqualSlices(u8, try std.fmt.hexToBytes(&expected, fixture.value.integrity_schema_hex), try decoded.schema.encode(&buffer));
+    const encoded = try j.encode(e.allocator, decoded.schema);
+    defer e.allocator.free(encoded);
+    try e.expectEqualStrings(fixture.value.integrity_schema_json, encoded);
+    const digest = std.fmt.bytesToHex(try decoded.schema.fingerprint(), .lower);
+    try e.expectEqualStrings(fixture.value.integrity_fingerprint, &digest);
+}
+
 test "neutral Table schema owns full-width identities recursive descriptors and exact defaults" {
     var source = try ddl.compile(e.allocator, "CREATE TABLE people (id UINT128 PRIMARY KEY DEFAULT 340282366920938463463374607431768211455, amount DECIMAL(38,2) DEFAULT -123.45, payload STRUCT(name TEXT, data BINARY, tags LIST(TEXT), choice UNION(left INT8,right UTF8)) DEFAULT STRUCT('Ada',X'00ff',LIST('one',NULL),UNION(right,'chosen')), signed FLOAT64 DEFAULT -0.0)", null, null);
     var schema = try source.statement.create.bind(std.math.maxInt(u64));
@@ -130,7 +146,7 @@ test "neutral schema conversion rejects large shared defaults before whole schem
     for (&columns, 0..) |*column, i| {
         const name = try std.fmt.allocPrint(inputs.allocator(), "column_{d}", .{i});
         const id = try std.fmt.allocPrint(inputs.allocator(), "{d}", .{i + 1});
-        column.* = .{ .id = id, .name = name, .type = .binary, .nullable = true, .default = .{ .value = .{ .atom = .{ .binary = hex } } }, .max_characters = null, .encoding = .plain, .collation = .none };
+        column.* = .{ .id = id, .name = name, .type = .binary, .nullable = true, .default = .{ .value = .{ .atom = .{ .binary = hex } } }, .max_characters = null, .encoding = .plain, .collation = .none, .semantics = .{ .rounding = null, .metric = null, .timezone = null, .spatial = null } };
     }
     const source: j.Schema = .{ .definition = p.Growth.current_definition, .object = "1", .revision = "1", .next_column = "129", .columns = &columns, .primary_key = &.{} };
     var tracker: e.FailingAllocator = .init(e.allocator, .{ .resize_fail_index = 0 });
@@ -174,4 +190,20 @@ fn ownership(allocator: std.mem.Allocator, schema: s.Schema) !void {
     var decoded = try j.decode(allocator, encoded);
     defer decoded.deinit();
     try e.expectEqualDeep(try schema.fingerprint(), try decoded.schema.fingerprint());
+}
+
+test "neutral integrity matches independent foreign-key bytes and exact definitions" {
+    const Fixture = struct { foreign_schema_hex: []const u8, foreign_schema_json: []const u8, foreign_fingerprint: []const u8 };
+    const fixture = try std.json.parseFromSlice(Fixture, e.allocator, @embedFile("fixtures/table-schema.json"), .{ .ignore_unknown_fields = true });
+    defer fixture.deinit();
+    var decoded = try j.decode(e.allocator, fixture.value.foreign_schema_json);
+    defer decoded.deinit();
+    var buffer: [s.max_bytes]u8 = undefined;
+    var expected: [s.max_bytes]u8 = undefined;
+    try e.expectEqualSlices(u8, try std.fmt.hexToBytes(&expected, fixture.value.foreign_schema_hex), try decoded.schema.encode(&buffer));
+    const encoded = try j.encode(e.allocator, decoded.schema);
+    defer e.allocator.free(encoded);
+    try e.expectEqualStrings(fixture.value.foreign_schema_json, encoded);
+    const digest = std.fmt.bytesToHex(try decoded.schema.fingerprint(), .lower);
+    try e.expectEqualStrings(fixture.value.foreign_fingerprint, &digest);
 }

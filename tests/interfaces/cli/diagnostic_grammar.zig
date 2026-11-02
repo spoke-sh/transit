@@ -7,7 +7,7 @@ const f = q.fuze;
 const Case = struct {
     id: []const u8,
     sql: []const u8,
-    profile: enum { query, template, declaration, table_ddl, log_ddl, log_inspection, mutation, application, relational, authorization, settings, transaction, managed } = .query,
+    profile: enum { query, table_query, historical_selector, template, declaration, table_ddl, log_ddl, log_inspection, log_append, log_consume, log_claim, log_settlement, mutation, application, relational, authorization, settings, transaction, managed } = .query,
     value_type: f.Unified.Type = .int64,
     source: []const u8 = "items",
     basis: []const u8 = "CREATE TABLE items (id INT64 PRIMARY KEY, value INT64)",
@@ -19,6 +19,35 @@ fn compile(allocator: std.mem.Allocator, case: Case, binding: *f.Sql.Binding, lo
     };
     const source: f.Unified.Sql.Source = .{ .name = try f.Unified.Name.init(case.source), .schema = .{ .columns = &columns } };
     switch (case.profile) {
+        .log_settlement => {
+            var value = try f.LogSettlementSql.Prepared.init(allocator, case.sql, .transit, binding);
+            defer value.deinit();
+            if (value.parameterTypes().len == 0) _ = try value.bind(&.{}, binding);
+        },
+        .log_claim => {
+            var basis = try f.TableDdl.compile(allocator, case.basis, null, null);
+            defer basis.deinit();
+            var value = try f.LogClaimSql.Prepared.init(allocator, case.sql, try basis.statement.create.bind(7), .transit, location);
+            defer value.deinit();
+            if (value.parameterTypes().len == 0) {
+                var bound = try value.bind(allocator, &.{}, binding);
+                defer bound.deinit();
+            }
+        },
+        .log_consume => {
+            var basis = try f.TableDdl.compile(allocator, case.basis, null, null);
+            defer basis.deinit();
+            var value = try f.LogConsumeSql.Prepared.init(allocator, case.sql, try basis.statement.create.bind(7), .transit, location);
+            defer value.deinit();
+            if (value.parameterTypes().len == 0) {
+                var bound = try value.bind(allocator, &.{}, binding);
+                defer bound.deinit();
+            }
+        },
+        .historical_selector => {
+            const selected = try @import("transit_sql_service").database.HistoricalSql.select(case.sql, .transit);
+            if (selected.snapshot == null) return error.UnsupportedStatement;
+        },
         .managed => {
             var parser = try f.SqlTyped.init(allocator, case.sql, location);
             const explain = try parser.takeWord("EXPLAIN");
@@ -27,6 +56,17 @@ fn compile(allocator: std.mem.Allocator, case: Case, binding: *f.Sql.Binding, lo
             if (value.statement == .create) {
                 var query = try f.RelationalSql.parse(allocator, value.statement.create.sql, location);
                 defer query.deinit();
+            }
+        },
+        .log_append => {
+            var basis = try f.TableDdl.compile(allocator, case.basis, null, null);
+            defer basis.deinit();
+            var value = try f.LogAppendSql.Prepared.init(allocator, case.sql, try basis.statement.create.bind(7), .transit, location);
+            defer value.deinit();
+            // Literal-only cases also exercise metadata binding refusals.
+            if (value.parameterTypes().len == 0) {
+                var bound = try value.bind(allocator, &.{}, location);
+                defer bound.deinit();
             }
         },
         .log_ddl => {
@@ -49,6 +89,16 @@ fn compile(allocator: std.mem.Allocator, case: Case, binding: *f.Sql.Binding, lo
             defer value.deinit();
         },
         .query => _ = try f.Unified.Sql.planDiagnostic(allocator, case.sql, source, binding),
+        .table_query => {
+            var basis = try f.TableDdl.compile(allocator, case.basis, null, null);
+            defer basis.deinit();
+            const schema = try basis.statement.create.bind(7);
+            var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
+            var semantics: [f.TableSchema.max_columns]f.ColumnSemantics = undefined;
+            for (schema.columns, 0..) |column, i| semantics[i] = column.semantics;
+            var value = try f.TableSelect.compileSemantics(allocator, case.sql, case.source, try schema.rowType(&fields), @splat(7), location, null, semantics[0..schema.columns.len]);
+            defer value.deinit();
+        },
         .template => {
             var value = try f.Prepared.initDiagnostic(allocator, case.sql, source, binding);
             defer value.deinit();
@@ -119,8 +169,17 @@ pub fn main(init: std.process.Init) !void {
                 const detail = (switch (case.profile) {
                     .authorization => f.SqlDiagnostic.authorization(case.sql, err, location),
                     .mutation => f.SqlDiagnostic.tableDml(case.sql, err, location),
+                    .log_append => f.SqlDiagnostic.logAppend(case.sql, err, location),
+                    .log_consume => blk: {
+                        if (binding.location == null) binding.location = location;
+                        break :blk f.SqlDiagnostic.logConsume(case.sql, err, binding);
+                    },
+                    .log_claim => blk: {
+                        if (binding.location == null) binding.location = location;
+                        break :blk f.SqlDiagnostic.logClaim(case.sql, err, binding);
+                    },
                     .table_ddl => f.SqlDiagnostic.tableDdl(case.sql, err, location),
-                    .relational => f.SqlDiagnostic.tableSelect(case.sql, err, location),
+                    .relational, .table_query => f.SqlDiagnostic.tableSelect(case.sql, err, location),
                     .declaration => f.SqlDiagnostic.writeCompiler(case.sql, err, .declaration, binding),
                     else => f.SqlDiagnostic.bound(case.sql, err, false, binding),
                 }) orelse {

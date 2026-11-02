@@ -66,7 +66,10 @@
       "test::direct-state-transaction",
       "test::direct-mixed-transaction",
       "test::direct-queue-transfer",
+      "test::direct-automatic-queue-transfer",
       "test::direct-log-token",
+      "test::direct-workload-token",
+      "test::direct-workload-result",
       "test::direct-table-maintenance",
       "test::direct-catalog-abi",
       "test::node-concurrency",
@@ -141,6 +144,8 @@
       "test::sql-result-allocations",
       "test::sql-wire-gateway",
       "test::sql-sessions",
+      "test::sql-integrity",
+      "test::sql-history",
       "test::sql-log-declarations",
       "test::sql-transactions"
     ],
@@ -341,7 +346,9 @@
       "bindings::feedback",
       "test::sdk-performance",
       "test::installed-performance",
-      "test::sdk-import-cost"
+      "test::sdk-import-cost",
+      "test::log-runtime-baseline",
+      "test::station-turn-baseline"
     ]
   },
   "nested_tasks": {

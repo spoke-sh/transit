@@ -7,6 +7,224 @@ Current semantics belong to the [transaction reference](../../handbook/reference
 [direct Table contract](../../../contracts/DIRECT_TABLE_V1.md). This record keeps
 finite models, component recovery and installed histories separate.
 
+## Installed automatic DLQ recovery — 2026-11-01
+
+Clean committed source `e58935ced5321d84bbface428fda206cdb2d4eb9`, definition
+`2e2c775950d2d0cfa6d6ea66e078fcdfa8381c16e522c5ac7d91fb243714c7f3`, passes:
+
+```sh
+nix develop --option eval-cache false -c \
+  zig build test-direct-table-service -Doptimize=ReleaseSafe -- automatic-queue-transfer
+```
+
+The installed HTTP caller declares two Queues, enqueues one row, claims it and
+exhausts its first attempt with NACK. It saves each original Queue request before
+dispatch. Only then does the fixture activate the node's explicitly configured
+database signer and automatic transfer worker. The native checkpoint signer is
+separate. The transaction uses 16 MiB resident and 1 MiB workspace budgets, two
+participants and one statement; the existing native maintenance interval and
+operation deadline remain 50 ms and two seconds.
+
+Read-only account/transaction observation sees one protected pending transfer.
+The fixture kills the node at that observed pending, undecided state, restarts,
+and waits for that same receipt to reach committed cleanup. Independent readback
+finds the source archived and exactly one destination row with value 42. Another
+SIGKILL/restart recovers the unchanged transfer receipt and original destination
+claim, without another claim, renewal or settlement. The 165 observations record
+discovery through cleanup, with no replacement identity. This schedule proves process
+replacement at the observed phase; the component fault matrix below separately
+covers specific append boundaries. It is not power-loss, saturation or a full
+clean-clone CI-lane qualification.
+
+The raw log `/var/tmp/transit-m6-dlq-installed2.log` has SHA-256
+`b1b72acbe3f4dde852f7b5f0c5d7904e2fef1263859990a18ee680ab4408ea8b`.
+Node and caller binary hashes are respectively
+`339491b46677005dbad1fdf0c93e569d2ea4a0f78ea81079c97b9d3feffcdf04`
+and `a4eb929dc273bb3279bece516c56200577eb14b67101a4097ec7a943e7559c12`.
+The original transfer receipt hash is
+`4839774fd0b0ae8a3a00ed669f2122b2a2dc37b3512fae147b50b7488d8a1264`;
+the destination claim receipt hash is
+`566d943f608fc83093d1863e8f7540e24d2b833b8a32b9806e93f665c0ef8da3`.
+Successful private installation files were cleaned by the registered driver.
+
+The preceding installed build failed compiling a four-kind maintenance rotation
+whose modulo operand overflowed `u2`. Commit `4b3a5935f` replaces it with an
+explicit exhaustive rotation. The failed log
+`/var/tmp/transit-m6-dlq-installed1.log` remains a failure, SHA-256
+`e75c28559d6701d7e367261db708da06aefef4c415f7d23ba97859392fd26165`.
+All 60 fast checks also pass on the installed-test source; their log
+`/var/tmp/transit-m6-dlq-installed-fast.log` has SHA-256
+`a9e613961755d20ef1984055ad46fbb14eca023ad79fd0b9fc7c3bfc5572da41`.
+Larger-population/resource schedules and common-revision lanes remain open.
+
+### Installed database regressions at the protected-transfer definition
+
+The same clean `e58935ced` source, definition and node/caller hashes pass five
+additional profiles. Each invocation runs inside the pinned Nix shell from a
+separate clean checkout, with the explicitly retained immutable executables:
+
+```sh
+python3 -B tests/runner/launch.py tests/storage/tables/direct_table_service.py \
+  NODE CALLER PROFILE
+```
+
+| Profile | Signed requests | Lost original replies | Raw log SHA-256 |
+| --- | --- | --- | --- |
+| `kv` | 41 | Mutation `641001`, pin `641002` | `88092e30195a0a892a48b278b533575c690844e57970155cce009ccbcd7fc120` |
+| `state-transaction` | 33 | Private statement `642012`, decision `642101` | `11b0019f1f216940b41cd59155cf8dd0e058d0b38dfd7c594766b684f65e5866` |
+| `mixed-transaction` | 85 | Private log statement `642016`, decision `642101` | `b9fa14143dc6b515721068f808b6846d550b31b40598698df37a25e37182ca0f` |
+| `queue-transfer` | 30 | Paired transfer `643006`, decision `643101` | `0f9ff1e79c97e1f2b0ed58e488ffcf9e70749206403338c80bde57ff3da031c5` |
+| `log-token` | 31 | Token binding and declaration admission | `4b8892fb6957f6a2587bd620045854d1d53654b6b6e3048da74e86c23073ef1c` |
+
+Logs are `/var/tmp/transit-m6-e589-PROFILE.log`, with the exact profile names
+above. `/var/tmp/transit-m6-e589-installed-matrix.json` retains all five zero exit
+codes and executable paths/hashes. Each fixture also performs node SIGKILL and
+disk restart. KV additionally kills the caller before an accepted reply and
+recovers solely from its saved request store. Transaction schedules retain exact
+statement and settlement identities; a later abort cannot replace the recovered
+commit. Independent reads verify the resulting state, log payloads and input
+settlement. The log-token schedule preserves the originally bound declaration
+through both reply losses. These passes qualify those installed profiles at
+this definition, not later replay optimizations, SQL workload verbs, the Station
+replacement or the full storage CI lane.
+
+## Protected automatic DLQ transaction owner — 2026-11-01
+
+The implementation committed as `5c8671e71141911a95d09fc5fd957ae35eae4ca9`
+uses one protected standard transaction, permanent source binding and paged
+pending index. Its current-v1 definition is
+`2e2c775950d2d0cfa6d6ea66e078fcdfa8381c16e522c5ac7d91fb243714c7f3`.
+The following pinned-shell ReleaseSafe checks ran on that implementation before
+commit; their working bases precede the commit and are not clean-lane evidence.
+
+| Invocation | Result |
+| --- | --- |
+| In `packages/zig/transit-catalog`: `zig build test -Dtest-filter='automatic Queue transfer' -Dtest-filter='Queue transfer plan' -Doptimize=ReleaseSafe --summary all` | 10/10 tests; 40 injected append failures across four durable logs |
+| At repository root: `zig build test-local-catalog -Dlocal-catalog-filter='automatic Queue maintenance' -Doptimize=ReleaseSafe --summary all` | 2/2 tests, including the native database-policy/worker composition |
+| In `packages/zig/transit-storage`: `zig build test -Dtest-filter='queue partition dead letter discovery' -Doptimize=ReleaseSafe --summary all` | 4/4 tests, including canonical destination-key routing |
+
+The catalog schedule alternates refusal before append and reply loss after
+durable append, reopens all owners, and verifies one original source binding,
+decision and cleanup. Tests also cover forged payloads, separate read/append
+denials, generic transaction/control bypass refusal, unrelated catalog
+publication after a failed initial acceptance, abort before/after private
+evaluation, quota refusal, unchanged recorded destination after policy edits,
+and graph reachability before acquisition. Cleanup after a recorded decision
+does not need a current clock. An aborted transfer retains its permanent source
+binding and publishes neither source archival nor a destination row.
+
+The native schedule uses a 32 MiB worker allocation budget and a 16 MiB
+transaction budget, separate from provider/native caches and process RSS. It
+checks that the checkpoint signer alone supplies no database authority, reclaims
+two unreferenced allocations in 314 real collection steps before acquisition,
+revokes/restores destination ownership, refuses adoption by another account,
+and alternates two worker instances through one original decision. Independent
+readback verifies the archived source and exactly one destination row with its
+original value. This is in-process native/disk composition, not an installed
+HTTP, process-kill, power-loss or saturation proof.
+
+The failed development runs remain local evidence: the initial admission
+allocated a maximum-sized payload buffer and exceeded its unchanged 16 MiB
+budget; exact payload allocation resolves it. Reservation recovery initially
+failed replay validation after unrelated publication. The native fixture first
+restored a clock older than collection's new floor, then exposed discovery
+encountering a prepared transaction. The fixture now advances its clock to that
+floor; discovery skips prepared participants while original transaction recovery
+continues. Neither budgets nor deadlines were raised to pass these checks.
+
+Raw successful logs and SHA-256 values are:
+
+- `/var/tmp/transit-m6-protected-dlq6.log`: `4c1c9fbb41917405b84a2b0dfbc3ad647a72e9b8a12e3db626812d9b0ec6cbda`.
+- `/var/tmp/transit-m6-dlq-native3.log`: `65c6fd2d77dbbbac4055eba9d492a6593a9744138ad5f077a3873848f1079d2c`.
+- `/var/tmp/transit-m6-dlq-routing1.log`: `65ea0e8413cc2bddf7705694948b7c677dbef9303080f907420c45d3c65e4b6d`.
+
+Regeneration passes all 19 contract checks; 60 fast checks pass during the
+change. The owning [direct contract](../../../contracts/DIRECT_TABLE_V1.md)
+and [node configuration](../../../apps/transit-node/docs/growing.md) describe
+the optional worker and exact authority/retention boundaries. The later installed
+schedule above covers worker process replacement; larger-population/resource
+schedules and common-revision lanes remain open. This evidence does not complete M6.
+
+## Mixed disk decisions and frozen DLQ plans — 2026-11-01
+
+Committed source `f3c6f162b0b02b10b418989891b545276c66d574`, definition
+`8e441078693f1373d69323bfeadd5cfe8c7024ec2015819bacfb2b04eaea3865`, passes
+all **13 tests** in this local catalog-package invocation:
+
+```sh
+cd packages/zig/transit-catalog
+zig build test \
+  -Dtest-filter='mixed transaction reopens' \
+  -Dtest-filter='Queue transfer plan' \
+  -Dtest-filter='transaction log source cuts' \
+  -Dtest-filter='transaction log statements' \
+  -Dtest-filter='transaction log terminal transfers' \
+  -Doptimize=ReleaseSafe --summary all
+```
+
+The new mixed schedule combines a 512-byte KV value, a Table row, Stream append
+and authenticated offset settlement, and Queue enqueue and ACK. It also retains
+one read-only Stream partition in the common cut. The commit path encounters
+**38 injected failures**, alternating refusal before the next WAL append and
+reply loss after its durable acceptance; abort after a prepared prefix encounters
+**22**. Each path reopens disk owners at every failure and reaches all seven
+logs: Catalog, decision and five participants. The test checks the changed WAL
+tail independently, retains the original transaction/statement identities, and
+verifies values, offsets, lease state and original receipts after cleanup.
+Decision recovery has no clock or old cursor-signing authority. A later abort
+cannot replace the committed decision, and cleanup releases the account's
+transaction reservation. These are injected append failures with orderly owner
+reopen, not process-kill or power-loss schedules.
+
+The separate `DirectQueueTransferPlan` checks preserve a global exhausted-source
+key across caller/account and policy changes while committing the complete
+original plan to a different digest. They exercise sorted two-Queue selection,
+identity conflicts, immutable disk reopen, scope substitution, noncanonical
+bytes and missing/foreign definitions. This descriptor supplies neither the
+automatic scheduler nor its required catalog admission and source binding.
+
+The raw log `/var/tmp/transit-m6-mixed-and-plan6.log` has SHA-256
+`f55cd4532c2df5ab2744d9d2b21b9620f1189cb4ac4a3b5ec14be0659cf8d1a1`.
+Execution took three minutes with 38 MB reported peak RSS; compilation took one
+minute with 2 GB reported peak RSS. The same committed source also passes all
+60 fast checks and 19 contract checks. This local invocation is not a clean-clone
+CI lane or installed-caller qualification. Earlier runs exposed two test issues:
+an injector left armed during the independent readback, and a foreign-definition
+negative expecting the inner enum error instead of the shared JSON refusal.
+Those failed runs remain failures; the command above is the completed rerun.
+
+## Mixed workspace replay after PR #303 — 2026-11-01
+
+Committed source `8f1c2afb781cb309325e85b8b1dd43ac50b6d76d` passes
+`nix develop --command just ci::clean --lane formal`: all **14 required tasks**
+complete in a clean clone, with **209.460 seconds** of recorded check time.
+The PR #303 accessor compilation defect was already repaired on main by
+`d61165ef7`; this change extends the replay adapter beyond that correction.
+
+The state-only workspace model still exhausts **304 states** and detects and
+replays all **eight negative controls**. Twelve separately specified concrete
+Table/Stream schedules exercise both statement variants, the shared pending
+slot and sequence, cross-kind operation reservations, revocation and savepoint
+rollback across owner replacement. Execution reconstructs the pending request
+from accepted progress; a volatile request is no longer carried through reopen.
+Independent projections distinguish private Table rows and log actions from
+public data. The existing state-only profile retains its 128-KiB workspace
+quota; the three-participant concrete profile uses 1 MiB. Both keep the 16-MiB
+resident bound.
+
+Ignored automatic evidence is under
+`.cache/ci/clean/8f1c2afb781c-transit-ci-icoou499/`. The workspace model's
+`verification/transaction-workspace-model/20261101T003046-3136618/evidence.json`
+has SHA-256 `6b02d3f2972c182fa883f1dc667513859934ff15cd29ff97c0ece382a9ebcc2a`;
+its replay binary has SHA-256
+`2180a5384049b529bc62a0950d95c71c2d5e85fbf162619e3dd1f3d2a31fbc43`.
+These are local evidence references, not portable downloads.
+
+This is finite formal exploration plus selected concrete replay over reopened
+memory-backed owners. It establishes neither exhaustive mixed correspondence
+nor disk/process failure, installed caller, automatic DLQ, Station runtime or
+full CI qualification. Those gates retain their separate owners and evidence.
+
 ## Paired Queue terminal transfers — 2026-10-31
 
 Implementation `b27aac9289dffd7804739b14e7ea6057ab824ba2` supports explicit

@@ -9,6 +9,541 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Frozen workload projection bodies — 2026-11-01
+
+Commit `b5fcc0c003053c33cd51f341fea46531fe75f49e` includes the ordered projection
+layout and encoded Fuze plan in the canonical workload body. Its coordinated
+current-v1 definition is
+`c666eb3e7d02691aaaa255879a3fb28b8d3691c6f56b2aa82c44d884aae554ca`.
+The [saved-work contract](../../../contracts/DIRECT_TABLE_V1.md) requires an
+explicit projection or `null`; no earlier missing field acquires a default.
+
+ReleaseSafe catalog checks selected by `-Dtest-filter='workload result'` and
+`-Dtest-filter='workload token'` pass **7/7**. The existing physical-disk replacement
+schedule now freezes projections for Stream append/consume and Queue enqueue/claim,
+destroys compiler buffers, and reloads the saved aliases and ordered layout after
+replacement. Changing the native operation fails the projection binding check;
+missing projection fields reject. Original raw page ownership, expired leases,
+post-buffer revocation, allocation failures and authenticated offset handoff remain
+in the same executed schedule. The first run overlapped fixture regeneration and
+failed two old signature-vector checks; the run after regeneration passes all
+seven. That initial run is not a passing qualification.
+
+Contract checks pass **19/19** and fast checks **60/60**. The root
+`direct-table-proof test-local-catalog -Dlocal-catalog-filter='shared refusals'`
+ReleaseSafe build passes **9/9 steps and 2/2 selected host tests**. Documentation
+checks pass 10,068 local links across 710 files. These are candidate owner, caller
+compilation and contract checks; no installed result profile or performance
+measurement was rerun under this definition.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `/var/tmp/transit-m6-workload-projection-owner2.log` | `ac3344287624b2fe78eb4d1f589f87a01f9ced5eb2c6ae181e521f9bf7d27943` |
+| `/var/tmp/transit-m6-workload-projection-contracts1.log` | `07b775f52f1da87af9e385c35d9b9f325e47c586328fb604af5f9cd6613a2daf` |
+| `/var/tmp/transit-m6-workload-projection-fast2.log` | `5805a4e23bad621c6327036ae0ea39fe2603d761ebecd852e596b84aa60b0042` |
+| `/var/tmp/transit-m6-workload-projection-callers1.log` | `9cea6006308c90b876bbff14f774c3846257d1ed97588b91b253af063c4e0064` |
+
+This qualifies frozen projection ownership and rejection through the catalog's
+disk replacement test. It does not enable workload SQL or qualify SQL result
+reopening, projection execution, provider recovery or the full M6 gate.
+
+## Original workload result delivery over the signed service — 2026-11-01
+
+Commit `41e517fa2dd60b993fab0f7f5517496f18c80aaa` exposes the existing original-result
+owner through signed `workload_result.open` and `workload_result.page` actions.
+The coordinated current-v1 definition is
+`fddf3f8395a3626c57f1c0626de4d6bb37c783d861b00befe41d5132475957c3`.
+The [delivery contract](../../../contracts/DIRECT_TABLE_V1.md#original-workload-result-delivery)
+owns current semantics and limits. Independent Python/OpenSSL vectors cover open
+and saved-position requests for both native selection kinds; Zig verifies their
+signatures and rejects changed connections, limits, positions and account scopes.
+
+Candidate catalog checks, selected by `-Dtest-filter='workload result'` and
+`-Dtest-filter='workload token settlement'`, pass **6/6** in ReleaseSafe. They
+include the prior disk, allocation-failure and post-buffer revocation schedules
+plus signed request and result validation. Contract checks pass **19/19** and fast
+checks **60/60**. The HTTP probe's four controls also pass after adding bounded
+result-action labels. Two initial caller builds failed on the append-kind enum
+conversion and decoded-row accessor; both were corrected before the complete
+runtime build passed. These failed builds are not runtime proof.
+
+A clean detached checkout at `/var/tmp/transit-m6-workload-results` runs:
+
+```sh
+nix develop --option eval-cache false -c zig build transit-node direct-table-proof \
+  test-local-catalog -Dlocal-catalog-filter='shared refusals' \
+  -Doptimize=ReleaseSafe --summary all
+nix develop --option eval-cache false -c python3 -B tests/runner/launch.py \
+  tests/storage/tables/direct_table_service.py zig-out/bin/transit-node \
+  zig-out/bin/transit-direct-table-proof workload-result
+```
+
+The build passes **13/13 steps and 2/2 selected host tests**. The installed
+physical-disk profile passes **595 requests**, with three withheld responses
+(original claim, result open and result page) and two SIGKILL/restart boundaries.
+Each partition has a 257-frame prefix, exceeding one native recovery step.
+Pending result probes retain verified replay progress and reach the original
+receipt on a subsequent bounded request.
+
+Six token-bound saved workloads cover Stream append/consume, Queue enqueue/claim
+and empty Stream/Queue selections accepted before the later payloads. The caller
+checks independent values 10/20/30 across two-row pages, saves the second-page
+positions, and resumes those exact positions after replacement. Original empty
+selections remain empty; final empty pages retain complete coverage. The original
+one-second Queue leases are reported expired after the configured ten-second
+clock uncertainty has elapsed. Refetch does not renew or repeat the claim.
+Token settlement then verifies the same native outcomes. The saved bindings and
+positions remain byte-identical across phases; normal driver cleanup removes the
+successful private installation. Failed installations would be retained.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Clean `transit-node` | `1bd56c984974ce063769001fdd20a7fde693cc3459135bbe47e1799af03c9446` |
+| Clean `transit-direct-table-proof` | `13f405b969643980c48bfb59ad99602a0f60523aa2448e2adcc74701630ca841` |
+| Original saved bindings | `ff0410979be01965afd117e540197eb2e89fe4398f2e47a2b00daa791fda9283` |
+| Saved delivery positions | `bd45871ee73b65ac2c9234817ada8dcbbd60670b937684d3a2c14002b9cde5e5` |
+| `/var/tmp/transit-m6-workload-result-wire-owner1.log` | `d5ac3ed5f2ecbeb1e2575779a2ce9a290d725d8b4300f83c4f2b60cffd3b5c6c` |
+| `/var/tmp/transit-m6-workload-result-wire-contracts1.log` | `07b775f52f1da87af9e385c35d9b9f325e47c586328fb604af5f9cd6613a2daf` |
+| `/var/tmp/transit-m6-workload-result-wire-fast1.log` | `c2ad91a656aece86b1c280ed7844fa3ba4e45fb1c3cc42cf131061ee18cbdb2b` |
+| `/var/tmp/transit-m6-workload-result-clean-build1.log` | `6358c80fb83d1eeb0eb06b60fc7a07e44cd44c0069d03d37b287389b72f40c44` |
+| `/var/tmp/transit-m6-workload-result-installed1.log` | `dec43309cfaffa8a985449b35d68db25e58969451aae7c1f4dea19b4d404402a` |
+
+This qualifies native result delivery and replacement recovery on local disk.
+It does not qualify SQL projection freezing, SQL result recovery, workload SQL,
+provider recovery, performance budgets or the complete common-revision M6 gate.
+
+## Original workload result owner and consumption handoff — 2026-11-01
+
+`5f939724449af97f2d21e76724233f79c9bf6e1e` adds the in-process
+`DirectWorkloadResult` owner; `1fdf4c76e` adds authenticated offset-work preparation.
+These compose existing native operations without adding a wire action, persisted
+record format or SQL result variant. The current definition remains
+`befd3999375f040599091d9e91793e16b274e32388cf8dc47d74813a2a706ddd`.
+The [catalog package guide](../../../packages/zig/transit-catalog/README.md)
+describes the implemented boundary and its unexposed service wiring.
+
+The ReleaseSafe catalog selection `zig build test -Dtest-filter='workload results'
+-Dtest-filter='workload token settlement' -Doptimize=ReleaseSafe --summary all`
+passes **5/5** after each change. The final disk schedule verifies append/enqueue
+payloads and original consume/claim selections across replacement. It closes
+incomplete local deliveries, reopens from the beginning, reads multiple batches,
+and verifies that a previous page survives another fetch and scratch reset.
+Expired claim leases remain expired; reading never renews or repeats the claim.
+Revocation after buffering withholds rows and terminal metadata without advancing
+the cursor. A too-small byte budget refuses its row without advancement. All read
+paths leave the accepted WAL frontier unchanged.
+
+Original empty consume/claim selections remain empty after later appends and
+replacement. A completed grouped consume prepares the exact original generation
+and authenticated cursor into a saved workload body; after another replacement,
+the native owner commits that handoff and recovers its original receipt. A forged
+authentication value fails without advancing the WAL. An incomplete consume or
+a completed positional consume cannot fabricate grouped settlement work.
+
+The result-owner commit also passes **19/19 contract checks** and **60/60 fast
+checks**. The handoff follow-up passes **60/60 fast checks**. Early compile runs
+rejected shadowed fixture names and an incorrectly mutable payload slice; these
+were corrected before executed tests passed. No installed SQL result recovery,
+projection freezing or protocol-adapter completion is claimed by this component
+evidence, and it does not close the common-revision milestone gate.
+
+Follow-up `c1685ec75` adds owned-page cleanup and saved delivery positions for
+service composition, still without a new wire action. The same **5/5** catalog
+selection and **60/60** fast checks pass. Each row kind resumes its original
+second-page position after a fresh open. Injected failure at each of the first
+three output allocations leaks no page storage and leaves its cursor unchanged;
+post-buffer revocation and terminal output also use the leak-checking allocator.
+Append positions seek within the bounded frozen payload, while Stream page
+validation remains with its authenticated native owner. An initial formatter
+rejected the reserved Zig word `resume`; the method is named `seek`.
+
+| Raw local log | SHA-256 |
+| --- | --- |
+| `/var/tmp/transit-m6-workload-result4.log` | `8947300753ab3817f06b63ab6be55aa121ec06975ec940bbd765177f919a9814` |
+| `/var/tmp/transit-m6-workload-result-contracts1.log` | `07b775f52f1da87af9e385c35d9b9f325e47c586328fb604af5f9cd6613a2daf` |
+| `/var/tmp/transit-m6-workload-result-fast1.log` | `08f61b2ff5991f24aa332730f02e9f7d27c3b13579bdb9ed57c1dc5c2d4f647b` |
+| `/var/tmp/transit-m6-workload-handoff2.log` | `82d637ee4539c0ac87704393c6d024b5411c89e868466aa04311ba1b9e2cf090` |
+| `/var/tmp/transit-m6-workload-handoff-fast1.log` | `1ea4abc6eed537041106985ee004ca98eddf1231eb4240477e77bc47c96cfcc0` |
+| `/var/tmp/transit-m6-workload-position1.log` | `b8e94c425035fcff18d1345e671e0db39281cb7460b61eee94c8765ef5fc3c3b` |
+| `/var/tmp/transit-m6-workload-position-fast1.log` | `d7d31295cb6c1c30b14fbc3c03b355d3d1be167b94692c4b294687da7844b9f5` |
+
+## Frozen workload tokens and native terminal settlement — 2026-11-01
+
+Implementation `30643158f` adds complete Stream/Queue workload references to the
+existing Catalog client-token owner. Installed caller registration follows in
+`b54da41b036fccecf4a998c2878f389957f527fb`. The branch was rebased onto
+`f49a3da6502ac8d3e12347a3812d6d81404d8d47` before this batch; earlier records retain
+their original source attribution. The shared current-v1 definition is
+`befd3999375f040599091d9e91793e16b274e32388cf8dc47d74813a2a706ddd`.
+
+The [direct contract](../../../contracts/DIRECT_TABLE_V1.md#durable-client-token-bindings)
+and [Streams reference](../../handbook/reference/streams.md) describe the delivered
+semantics. Token acceptance verifies the entire immutable body, current rights,
+account scope and retained-byte reservation before reserving the original native
+identity. Settlement reads the existing bounded partition owner and requires a
+matching success or durable closure. Neither absence, incomplete recovery nor a
+sticky cancellation flag supplies completion. The host preserves verified replay
+progress across a pending terminal probe. SQL recovery excludes these typed
+workload tokens until its workload result consumer is implemented.
+
+Candidate component checks for this batch passed in the pinned shell:
+
+| Owner | Command/selection | Result |
+| --- | --- | --- |
+| `transit-catalog` | `zig build test -Dtest-filter=workload -Dtest-filter='direct client log token' -Doptimize=ReleaseSafe --summary all` | **7/7** |
+| `transit-sql` | `zig build test -Doptimize=ReleaseSafe --summary all` | **11/11** |
+| Root | `just check contracts` | **19/19** |
+| Root | `just check fast` | **60/60**, including 10,059 local documentation links |
+
+The catalog disk schedule covers Stream and Queue success/cancellation over four
+openings. It loses token acceptance, native data/control append and final
+bookkeeping replies independently. It checks unchanged bindings, conflicting
+native reuse, insufficient reservation, unavailable readers, absent receipts,
+incomplete replay, revocation after buffering, sticky cancellation, exact settled
+retries and accepted body/source reachability. Independent Python vectors verify
+signed references and their commitments; those envelope fixtures do not claim
+that their synthetic content descriptors exist in storage.
+
+Earlier local runs exposed two fixture mistakes. The one-frame recovery control
+initially completed because open had already read initialization; adding another
+independent accepted frame makes that control genuinely incomplete. The lost-reply
+injector initially covered data I/O only; cancellation uses reserved control I/O,
+so the corrected fixture intercepts both capabilities. Production recovery steps,
+deadlines and durability remain unchanged. An initial compile rejected two
+shadowed identifiers, and the first fast run rejected formatting of the new
+hexadecimal enum tag. All these runs are retained; none is counted as passed.
+
+Raw local component logs and SHA-256:
+
+- `/var/tmp/transit-m6-workload-token5.log`:
+  `da82464f2a0ff66a701f6084e5d2d777bf5960ceaa202c8c336441d2e43f13a7`
+- `/var/tmp/transit-m6-workload-token-sql1.log`:
+  `746cf669ebbfeef20cd1fd97ab3277c62ef207a36958ff4e9212fc61142428f5`
+- `/var/tmp/transit-m6-workload-token-contracts1.log`:
+  `07b775f52f1da87af9e385c35d9b9f325e47c586328fb604af5f9cd6613a2daf`
+- `/var/tmp/transit-m6-workload-token-fast2.log`:
+  `d2526d2e49dd3c28413767133502a7531bda7e74385d3f08828ba47cc46a8621`
+
+On clean `b54da41b0`, the installed `test::direct-workload-token` scenario
+**passed** with 559 signed requests. It retains exact saved bindings, injects
+lost token-binding, native-execution and terminal-bookkeeping replies, and
+performs three SIGKILL/restarts over a 257-frame prefix per partition. The cold
+terminal probe advances bounded recovery through a conflict response before
+settlement; neither an absent receipt nor that response settles the token.
+Late cancellation returns the original successful empty consume/claim. This is
+process-replacement evidence, not a power-loss or performance qualification.
+
+The clean build command was `zig build transit-node direct-table-proof
+test-local-catalog -Dlocal-catalog-filter='shared refusals'
+-Doptimize=ReleaseSafe --summary all`: **13/13 build steps and 2/2 tests** passed.
+The installed command was `python3 -B tests/runner/launch.py
+tests/storage/tables/direct_table_service.py zig-out/bin/transit-node
+zig-out/bin/transit-direct-table-proof workload-token`, in the pinned shell.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Node | `5bbd2f51bb7502eeab7151b08ed0f3e160c03698f7966adb26ff0a7b77e5f38e` |
+| Proof caller | `31acee2b3ebe4c77a0a9ffc3c783a4f312f6512e8eff9ad66711a8d8a26c05cd` |
+| Original saved bindings | `fc1a1fabf55cb54b6059f66a637240ba25d406eaf95b14057c86550429f9b72e` |
+| `/var/tmp/transit-m6-workload-token-runtime1.log` | `ce2508ca1fa1dea6ede78a532dd5656fb353ab9b2ad732f0c5d7434236a6811e` |
+| `/var/tmp/transit-m6-workload-token-installed1.log` | `5d4248c7119839f775cde3439dd6eb282bce1c3e42ccae78b7a04d38bc5bcd79` |
+
+The private installation `/var/tmp/transit-table-workload-token-exeh4026`
+retains the signed attempts and original binding file. SQL result reopening,
+workload grammar, replacement Station services, performance and common milestone
+qualification remain separate open gates.
+
+## Workload terminal closures and installed Queue regression — 2026-11-01
+
+Implementation `3549e606e` (identical change committed as
+`97b573e69a4eb5e3a67d4f88a1d72d45fb23635d` in the qualification checkout)
+adds native Stream/Queue cancellation and narrowly qualified producer/lease
+refusals in the partition's existing receipt directory. The current-v1 cutover is
+`54060530ffe325fd2288d8ede718720381390c5fafb60ea617eea37e1110dfad`.
+Schemas, bindings, independent signing fixtures and public owners move together.
+No SQL workload intent, result-reopen or Station replacement gate is closed here.
+
+The following ReleaseSafe checks pass inside the pinned shell:
+
+| Owner | Selection | Result |
+| --- | --- | --- |
+| `transit-protocol` | `zig build test` | **111/111** |
+| `transit-storage` | partition cancellation; log transaction Queue/queue/terminal | **8/8** |
+| `transit-catalog` | direct Stream/Queue cancellation, composition, waits and signed fixtures | **11/11** |
+| Root | `just check contracts` | **19/19** |
+| Root | `just check fast` | **60/60**, including 10,041 documentation links |
+| Root | `zig build transit-node direct-table-proof -Doptimize=ReleaseSafe --summary all` | **10/10 build steps** |
+
+The component selections use repeated `-Dtest-filter` arguments for the names
+shown, plus `-Doptimize=ReleaseSafe --summary all`. The protocol package does not
+support `test-filter`; its complete suite ran. A separate direct-contract rerun
+also checks mandatory closure fields and foreign definitions against independent
+fixtures. The reflector shares one closure definition across both response unions.
+
+Disk tests lose the cancellation append reply, reopen, recover the same closure,
+and reject late mutation or changed-content reuse. Existing acceptance wins
+cancellation. Closure preserves offsets, logical change position, clock and
+Queue state. Catalog tests preserve the global operation reservation across
+partition/kind conflicts, current rights, waits, mutation and replacement.
+An unavailable clock leaves settlement unresolved; confirmed lease expiry records
+a refusal, does not ACK, and remains observable without a live clock. Ordinary
+successful mutations retain their existing receipt lookup count. The initial
+retirement fixture incorrectly reused a definition revision and was corrected to
+stage a real successor before the passing run; its failed log remains retained.
+
+On clean `97b573e69`, the actual node and signed caller pass the installed
+`queues` profile with **976 requests**, four lost replies (`633001`, `633002`,
+`633004`, `633008`) and 78 expiry probes. It exercises FIFO heads, wait timeout
+and acceptance, original empty claims, ACK, retired-lease expiry, retained
+payloads through tiering, explicit result release and terminal retention through
+SIGKILL/restart. This existing profile is a cutover regression, not an installed
+cancellation race proof or a large cold-recovery performance measurement.
+
+```sh
+python3 -B tests/runner/launch.py tests/storage/tables/direct_table_service.py \
+  zig-out/bin/transit-node zig-out/bin/transit-direct-table-proof queues
+```
+
+The matching node/caller SHA-256 values are
+`9a1d27f070f62eadeb7df75d9c4c393383a2f633f7da967e56fd330976375651`
+and `88fc6e5a4c293fbb04f24caab9ae22c2289707bd360b5a1fcabdbf95c4931875`.
+Raw logs under `/var/tmp/` have these hashes:
+
+| Log | SHA-256 |
+| --- | --- |
+| `transit-m6-closure-catalog5.log` | `b5e1c2f4ab3e688aee0a965f902f4a5ce1bd30fe2aa5511280855de383401097` |
+| `transit-m6-closure-storage4.log` | `97820e8732953657ada8ff57602491816afc404282a5ffbbb5f1d9eed60e51d8` |
+| `transit-m6-closure-protocol2.log` | `7ae0c976fb8e6c6b272f0244da2f798345fff03117eaf0c36c1bc99d59f7c963` |
+| `transit-m6-closure-contracts1.log` | `38c89b1c5af4901c53fbd095590a44fd12cf3179214105e0db633f822cef7033` |
+| `transit-m6-closure-fast1.log` | `4617c6294c1a76249b449124121729ecad87c5ea4a1042fbb5b6a1f4322275af` |
+| `transit-m6-closure-fixture-shapes2.log` | `05d6554837fd716bc8cea4a73dde7f1b14febfa7a4fbb77d193676683d7a2d7b` |
+| `transit-m6-closure-runtime2.log` | `2db87328e6011d07f00bb00647dce059fefd51f0fe20a2ca061a4d40499ca6ae` |
+| `transit-m6-closure-installed-queues1.log` | `dd4ab8b5af9d59b28dc19fe021a1f79d6c4cd35b14c0a2c86ae71c3b568f627c` |
+
+## Combined bounded reads and Queue scheduling — 2026-11-01
+
+On clean source `ed290f0ab`, the whole-object, bounded-range, private-candidate,
+paged-bitmap, derived-page, Queue schedule/partition and log transaction
+selections pass **44/44** in ReleaseSafe. This combines the read-path changes,
+exact membership lookup and shared canonical request types. Execution reports
+44 seconds and 31 MB peak RSS; compilation reports one minute and 1 GB.
+The command is the whole-object selection below with
+`-Dtest-filter='queue schedule'` added. The raw log
+`/var/tmp/transit-m6-combined-storage-test.log` has SHA-256
+`35a70724072499287926862cc0f91010b0e61ef2f01b0cbc97db348f54838b53`.
+This pass does not close the separately recorded installed cold recovery failure.
+
+## Bounded whole-object reads — 2026-11-01
+
+Implementation `25710d9be` combines descriptor and payload retrieval for bounded
+index-page and bitmap reads. The local provider opens one descriptor per read;
+the composed provider path detects a conditional publication between metadata
+and payload retrieval. Both return caller-owned bytes within the existing
+output bound. Expected content, definition, page/container and disk chunk checks
+remain in place. No resident cache, timeout, stored format or definition changes.
+
+In a separate checkout on `1932cea7f`, the implementation later committed as
+`5bd0c237c` passes **39/39 storage tests** and **6/6 native backend tests**. Inside
+the pinned shell, the ReleaseSafe selections are:
+
+```sh
+cd packages/zig/transit-storage
+zig build test \
+  -Dtest-filter='whole-object' -Dtest-filter='bounded range reads' \
+  -Dtest-filter='candidate objects' -Dtest-filter='paged bitmap' \
+  -Dtest-filter='derived page eviction' -Dtest-filter='queue partition' \
+  -Dtest-filter='log transaction Queue' -Dtest-filter='log transaction queue' \
+  -Dtest-filter='log transaction terminal' -Doptimize=ReleaseSafe --summary all
+```
+
+```sh
+cd packages/zig/transit-backend-local
+zig build test \
+  -Dtest-filter='direct data acceptance' -Dtest-filter='direct data candidates' \
+  -Dtest-filter='direct Stream settlement' \
+  -Dtest-filter='native policy revocation after Table' \
+  -Dtest-filter='native storage fence after Table' \
+  -Doptimize=ReleaseSafe --summary all
+```
+
+Storage execution reports 37 seconds and 30 MB peak RSS; backend execution
+reports two seconds and 16 MB. An instrumented real-disk check counts two file
+opens for a small object through the combined path and three through the composed
+metadata/range path. A failing owner allocator permits no new allocations during
+these reads. Empty/missing objects, short buffers, caller lifetimes, multi-chunk
+content/checksum corruption, private derivation, missing accepted index pages,
+quota reserves and current native policy/storage fences are exercised.
+
+The first fast check refuses the changed diagnostic source inventory. After
+reviewing the explicit bounds/corruption mappings and unchanged canonical binding
+types, the inventory is regenerated and all **60 fast checks pass**. This remains
+component evidence, not an installed cold-recovery or whole-milestone result.
+Raw logs under `/var/tmp/` have these SHA-256 hashes:
+
+| Log | SHA-256 |
+| --- | --- |
+| `transit-m6-object-reads-test2.log` | `3b43badc6b6813af16b494a728d6a9f90d1def757165a2b278a45caf57bb89b3` |
+| `transit-m6-object-reads-backend1.log` | `6dfa57eaa4a48f49b0eeba251c9d0fd796478a802ea9d002884d52f13353ab76` |
+| `transit-m6-object-reads-fast2.log` | `7b8465af36d122296ca5dad1f8d08c7de5bd37411ea2e54bdb59c98e1264e36d` |
+
+## Exact Queue timer membership — 2026-11-01
+
+Implementation `b56101dac` separates exact membership completion from earliest
+event selection. Membership stops only after reading and validating an exact
+currently eligible occurrence. Earliest selection still checks every possibly
+earlier source; incomplete or stale observations cannot establish absence or
+membership. It changes no format, cache, deadline or work-budget setting.
+
+On base `1932cea7f` with the identical implementation patch, the pinned-shell
+ReleaseSafe storage selection passes **30/30 tests** in two minutes with 31 MB
+peak test RSS:
+
+```sh
+cd packages/zig/transit-storage
+zig build test \
+  -Dtest-filter='queue schedule' \
+  -Dtest-filter='queue partition' \
+  -Dtest-filter='log transaction Queue' \
+  -Dtest-filter='log transaction queue' \
+  -Dtest-filter='log transaction terminal' \
+  -Doptimize=ReleaseSafe --summary all
+```
+
+The disk case establishes exact active-buffer membership with one provider read,
+while earliest-event selection under the same small work budget still refuses.
+Stale and different later events cannot match; a missing source still refuses.
+Existing disk reopen, frozen merge-input, lease and transaction cases also pass.
+The raw log `/var/tmp/transit-m6-schedule-membership-test1.log` has SHA-256
+`3bff51849ea3103c37c5b4b47db63160b2f1e2ad66d8095b00ff32ad311c245d`.
+This is component evidence. The [cold Queue baseline](performance.md) remains
+failed until a separately attributed installed run completes.
+
+## Queue replay cache provenance — 2026-11-01
+
+Implementation `16484c8136d5f804fd7f5e303a7999b14c7817e0` retains only
+provider-verified immutable index pages between Queue replay transitions. Newly
+staged pages, unflushed batch reads and reads served by the private derivation
+overlay are discarded at that boundary. It changes no stored format, definition,
+page-count budget, recovery-step limit, authorization boundary or deadline.
+The [storage owner](../../../packages/zig/transit-storage/README.md) describes
+the cache's limited evidence.
+
+The following pinned-shell ReleaseSafe selection passes **27/27 tests**, with
+one minute reported execution and 29 MB peak test RSS:
+
+```sh
+cd packages/zig/transit-storage
+zig build test \
+  -Dtest-filter='derived page eviction' \
+  -Dtest-filter='queue partition' \
+  -Dtest-filter='log transaction Queue' \
+  -Dtest-filter='log transaction queue' \
+  -Dtest-filter='log transaction terminal' \
+  -Doptimize=ReleaseSafe --summary all
+```
+
+The changes were tested in a separate checkout based on `e58935ced`, immediately
+before committing the identical patch as `d0eb64bbd6e3939fa9355f320565e0ee1b7f845d`
+and applying it as the implementation commit above. Definition remains
+`2e2c775950d2d0cfa6d6ea66e078fcdfa8381c16e522c5ac7d91fb243714c7f3`.
+This is focused component evidence, not a clean-source lane or performance run.
+
+The new disk case removes an accepted item-index page, reconstructs the same
+candidate bytes from WAL, and requires recovery to refuse the missing provider
+page with both one and 16 resident cache pages. Restoring the original bytes
+makes the unchanged WAL recover successfully. Separate cases prove that a
+private overlay read and an unflushed batch cannot survive as verified cache
+entries. Verified provider pages remain cache hits across derivation without
+additional provider reads or backing allocations. Existing Queue scheduling,
+original-receipt, lease, retention and transaction replay cases also pass.
+
+The raw log `/var/tmp/transit-m6-replay-cache-test1.log` has SHA-256
+`a41469d277370bc43b0fe49abc42ca7871d6c53391adaa94286f85df317c353d`.
+The original cold-baseline timeout remains recorded in
+[performance evidence](performance.md); these checks alone establish no latency
+improvement or successful recovery of that installation.
+
+## Allocation-journal cancellation and installed browser gate — 2026-11-01
+
+The allocation-journal change committed as
+`1c4106d5470cc028fe6e9c444d1be94f7f5e0573` protects one bounded append group
+through sync, then restores cancellation before object/marker publication. It
+changes no timeout, lease, storage format or contract definition. The focused
+checks ran on that implementation before its commit, on base
+`41c66c2838298344773afe413e2f10a49dc22f24`; the installed check below built
+clean committed `1c4106d54`. All use definition
+`8e441078693f1373d69323bfeadd5cfe8c7024ec2015819bacfb2b04eaea3865`.
+
+Inside the pinned Nix shell, in `packages/zig/transit-backend-local`, these
+ReleaseSafe selections pass:
+
+| Command selection for `zig build test … -Doptimize=ReleaseSafe --summary all` | Result |
+| --- | --- |
+| `-Dtest-filter='allocation journal cancellation' -Dtest-filter='direct data creation sync failures' -Dtest-filter='batched native and direct publications'` | 4/4 tests, 25 seconds execution |
+| `-Dtest-filter='allocation' -Dtest-filter='direct collection' -Dtest-filter='batched native and direct publications' -Dtest-filter='direct data creation sync failures'` | 23/23 tests, two minutes execution; eight deletion-sync and 29 marking-sync fault schedules recover |
+
+The cancellation case delivers real cancellation during sync for native/direct
+inventories and single/batched writes. Each preserves an accepted journal tail,
+reports cancellation at the next cancellable boundary, retries on the same
+healthy owner and reopens correctly. Genuine write/sync faults keep their
+existing recovery-required behavior. Raw local logs are
+`/var/tmp/transit-m6-allocation-cancel1.log` (SHA-256
+`60813df3364c253c7edc5268865d0ee7ad1c823bdbbaee5081e8701813aa006f`)
+and `/var/tmp/transit-m6-allocation-cancel2.log` (SHA-256
+`b0959149a694dba0dc20b8eef71bcb3695a23e706b5168211a8786e439964708`).
+The same implementation passes 60 fast checks, the handbook build and 10,028
+documentation links across 710 files.
+
+The clean-source `zig build test-declarative-browser -Doptimize=ReleaseSafe
+--summary all` run is **an aggregate failure**, with 10/12 build steps complete.
+Its main installed browser scenario passes original-claim reply loss, callback
+concurrency/restart, key rotation, process death, revocation, active watches,
+81 durable identities, bounded pagination, buffered policy changes and production
+origin checks. The separate documented-example fixture then runs `migrate plan`
+after core readiness but before the local SQL rendezvous exists. Its retained
+server log records core ready at 10:55:31.446 and SQL accepting at 10:55:31.640.
+Core readiness does not promise SQL readiness under the CLI contract. This
+failure is distinct from the earlier allocation-recovery failure during identity
+population; neither earlier failure is erased by this partial pass.
+
+The installed run uses CLI SHA-256
+`5375fa9e87f7f46a3c1605280652522461d93f0d7d37e2fd6db4ff81025942e1`,
+admin `4be92c5cf7bb7c3419a8eeb17944cc030d9d5250b44cff90eb314fc0297018b3`
+and fault-node `df494dfc49af5bb29766bc64c990fc11fde4ba90327beea4eb2cef92b26e8b08`.
+The raw log `/var/tmp/transit-m6-browser-allocation-fix1.log` has SHA-256
+`b2766bc4c6578c8bb07526db383910527f3cd112877addac2d32a625bdb1b11b`;
+private example state remains at `/var/tmp/transit-browser-nfvwecjd` with those
+attributions. This is focused component and partial installed evidence, not a
+completed browser lane, later-definition qualification or whole M6 pass.
+
+### Browser readiness and original native receipt follow-up
+
+The corrected browser driver waits for both core readiness and the initialized,
+bound local SQL account before invoking migration. It removes only the disposable
+SQL status observation before starting a new process, so an old accepting status
+cannot satisfy that check. A native administrative request is retained before
+dispatch; a disconnected response triggers read-only receipt lookup for that exact
+request, never submission with a fresh sequence. No runtime deadline changes.
+
+A readiness-only rerun failed on a disconnected native authorization response.
+The private node log at `/var/tmp/transit-browser-yvluwibt/node.stderr` records
+sequence 66 accepted at position 78 with `response_written=false` and `WriteFailed`.
+The driver trace is `/var/tmp/transit-m6-browser-readiness1.log`. That failure
+remains separate from the earlier startup race and allocation-journal failure.
+
+The subsequent complete driver invocation passes both the main browser scenario
+and documented migration/configure example, including its embedded production
+HTTP/WebSocket listener. It uses the same three `1c4106d54` ReleaseSafe binaries
+and definition listed above, with the modified driver (SHA-256
+`d4c81920160b0f1f197c135ee0b4ee6cc50bf024e7ce2a968e2ef90d6b02432b`).
+The pinned-shell command is `python3 -B tests/runner/launch.py
+tests/interfaces/http/declarative_browser.py CLI ADMIN FAULT_NODE`, with those
+matching executable paths supplied explicitly. Raw output is
+`/var/tmp/transit-m6-browser-recovery2.log`, SHA-256
+`cece8da0e98061ea3c3acd11e71f16bab3f77e1538e6ac31b001307e714b3229`.
+This qualifies that driver against the recorded runtime; it is not evidence for
+the later protected-transfer definition or the entire browser lane.
+
 ## Integrated causal Document map trees — 2026-11-01
 
 The first integrated storage slice connects canonical causal map changes to

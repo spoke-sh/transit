@@ -33,7 +33,7 @@ pub fn fromSqlDiagnostic(allocator: std.mem.Allocator, source: q.SourceDefinitio
 fn fromSqlInner(allocator: std.mem.Allocator, source: q.SourceDefinition, name: []const u8, text: []const u8, limits: Limits, diagnostic: ?*q.fuze.Sql.Binding) !Self {
     var fields: [q.SourceDefinition.max_columns]t.Field = undefined;
     const schema = try (try source.schema(&fields)).cloneInto(allocator);
-    var plan = try f.TableSelect.planDiagnostic(allocator, text, name, schema, try source.fingerprint(), diagnostic);
+    var plan = try f.TableSelect.planSemantics(allocator, text, name, schema, try source.fingerprint(), diagnostic, source.semantics());
     plan.collations = source.collations();
     const result: Self = .{ .source = source, .plan = plan, .limits = limits };
     try result.validate();
@@ -169,6 +169,8 @@ pub fn authorizeCapture(self: Self, client: q.wire.AuthorizationClient, tables: 
         .owner = .{ .scope = tables.connection.scope, .principal = tables.connection.principal, .operation = capture.operation },
         .retention = .snapshot,
         .purpose = try self.retentionPurpose(worker, resource, requester, requests),
+        .copied_from = if (self.source.source.table.historical) |history| history.handle() else null,
+        .projection = if (self.source.source.table.projection) |target| target.declaration.interpretation else null,
     });
     return result.authorize(client, worker, requester, requests);
 }

@@ -115,24 +115,31 @@ uint32_t expected_kind(uint32_t work, const Json &binding) {
     if (work == TRANSIT_CATALOG_NAME_ASSERTION) return TRANSIT_CATALOG_NAME_OBSERVATION;
     const auto &kind = binding.at("action").string(); return kind == "insert" || kind == "update" || kind == "delete" ? TRANSIT_CATALOG_ROWS : TRANSIT_CATALOG_DDL;
 }
-uint32_t reason(const Json &v) { return choice(v, {"none", "name_conflict", "object_conflict", "stale_definition", "stale_data", "dependency", "constraint", "definition_changed", "data_changed", "duplicate_key", "missing_row", "invalid_rows", "work_limit", "condition_changed"}); }
+uint32_t reason(const Json &v) { return choice(v, {"none", "name_conflict", "object_conflict", "stale_definition", "stale_data", "dependency", "constraint", "definition_changed", "data_changed", "duplicate_key", "missing_row", "invalid_rows", "work_limit", "condition_changed", "rewrite_required", "check_violation"}); }
 transit_station_catalog_read_authority read_authority(const Json &v) {
     transit_station_catalog_read_authority out{counter_value(v.at("database")), counter_value(v.at("schema")), counter_value(v.at("table"))};
     require(out.database != out.schema && out.database != out.table && out.schema != out.table, "catalog-read-authority"); return out;
 }
-Schema decode_schema(const Json &v, Arena &a) {
+Schema decode_schema(const Json &input, Arena &a) {
+    Json v = input;
+    const auto &integrity = v.at("integrity");
+    integrity.fields({"next_id", "checks", "foreign_keys"});
+    require(counter_value(integrity.at("next_id")) == 1 && integrity.at("checks").array(64).empty() && integrity.at("foreign_keys").array(64).empty(), "catalog-constraint-schema-unsupported");
+    for (auto it = v.members.begin(); it != v.members.end(); ++it) if (it->first == "integrity") { v.members.erase(it); break; }
     v.fields({"definition", "object", "revision", "next_column", "columns", "primary_key"}); current(v.at("definition"));
     // Bound the entire schema independently of each descriptor/default.
     (void)logical_detail::encode(v, 2 * 1024 * 1024);
     Schema out{}; out.object = full(v.at("object")); out.revision = full(v.at("revision")); out.next_column = full(v.at("next_column"));
     const auto &columns = v.at("columns").array(128); require(!columns.empty(), "catalog-response-columns"); auto *values = a.array<Column>(columns.size()); out.columns = values; out.column_count = columns.size();
     for (size_t i = 0; i < columns.size(); ++i) {
-        const auto &c = columns[i]; c.fields({"id", "name", "type", "nullable", "default", "max_characters", "encoding", "collation"}); char name[256]{}; string(c.at("name"), name);
+        const auto &c = columns[i]; c.fields({"id", "name", "type", "nullable", "default", "max_characters", "encoding", "collation", "semantics"}); char name[256]{}; string(c.at("name"), name);
+        const auto &semantics = c.at("semantics"); semantics.fields({"rounding", "metric", "timezone", "spatial"});
+        for (const char *key : {"rounding", "metric", "timezone", "spatial"}) require(semantics.at(key).is_null(), "catalog-column-semantics-unsupported");
         auto *owned_name = a.array<char>(std::strlen(name) + 1); std::copy_n(name, std::strlen(name) + 1, owned_name);
         auto *type = a.array<transit_logical_type_view>(1); *type = logical_detail::type_from(c.at("type"), a);
         transit_logical_cell_view *cell = nullptr;
         if (!c.at("default").is_null()) { cell = a.array<transit_logical_cell_view>(1); *cell = logical_detail::cell_from(c.at("default"), a); }
-        values[i] = {full(c.at("id")), owned_name, type, c.at("nullable").boolean(), cell, c.at("max_characters").is_null() ? 0 : static_cast<uint32_t>(c.at("max_characters").number(UINT32_MAX, false)), choice(c.at("encoding"), {"plain", "bitpacked", "rle", "dictionary", "fsst", "comp", "comp_3", "zoned", "ibm_hfp", "ebcdic"}), choice(c.at("collation"), {"none", "utf8_binary", "ascii_ci", "ebcdic_cp037", "icu_root"})};
+        values[i] = {full(c.at("id")), owned_name, type, c.at("nullable").boolean(), cell, c.at("max_characters").is_null() ? 0 : static_cast<uint32_t>(c.at("max_characters").number(UINT32_MAX, false)), choice(c.at("encoding"), {"plain", "bitpacked", "rle", "dictionary", "fsst", "comp", "comp_3", "zoned", "ibm_hfp", "ebcdic"}), choice(c.at("collation"), {"none", "utf8_binary", "ascii_ci", "ebcdic_cp037", "icu_root", "ebcdic_037_pad", "ebcdic_1047_nopad"})};
     }
     const auto &keys = v.at("primary_key").array(out.column_count); auto *owned_keys = a.array<uint64_t>(keys.size()); out.primary_key = owned_keys; out.primary_key_count = keys.size();
     for (size_t i = 0; i < keys.size(); ++i) owned_keys[i] = full(keys[i]); return out;
@@ -144,8 +151,10 @@ bool equal(const Json &a, const Json &b) {
     return true;
 }
 void validate(const char *key, const Json &v) {
-    static const Json action = logical_detail::JsonParser(generated::CatalogAction).parse();
-    static const Json result = logical_detail::JsonParser(generated::CatalogResult).parse();
+    // The generated definition directory grows with the closed contract. Its
+    // own derived bound does not enlarge the 256-field caller/reply parser.
+    static const Json action = logical_detail::JsonParser(generated::CatalogAction, logical_detail::json_bytes, 96, generated::CatalogActionFields).parse();
+    static const Json result = logical_detail::JsonParser(generated::CatalogResult, logical_detail::json_bytes, 96, generated::CatalogResultFields).parse();
     require(std::string_view(key) == "CatalogAction" || std::string_view(key) == "CatalogResult", "catalog-schema-name");
     const auto &root = std::string_view(key) == "CatalogAction" ? action : result;
     check_schema(root, v, root, 0);
@@ -290,6 +299,14 @@ std::unique_ptr<Observation> observation(const Json &v, const Reference &r) {
     const auto &binding = reference_binding(r); const auto &outer = v.variant(); view.kind = choice(Json::string(outer.first), {"ddl", "rows", "name_assertion"});
     require(view.kind == expected_kind(r.value.kind, binding), "catalog-observation-kind"); const auto &variant = outer.second.variant(); const auto &raw = variant.second;
     if (variant.first == "not_observed") { raw.fields({}); view.state = TRANSIT_CATALOG_NOT_OBSERVED; return out; }
+    if (variant.first == "finalizing") {
+        const auto &progress = raw.at("operation");
+        require(progress.at("requires_settlement").boolean() && (progress.at("phase").string() == "admitted" || progress.at("phase").string() == "ready"), "catalog-finalizing-phase");
+        require(view.kind == TRANSIT_CATALOG_DDL && equal(raw.at("operation").at("binding"), binding), "catalog-finalizing-binding");
+        auto accepted = observation(Json::object({{"ddl", Json::object({{"committed", raw.at("evidence")}})}}), r);
+        accepted->value.state = TRANSIT_CATALOG_FINALIZING;
+        return accepted;
+    }
     require(equal(raw.at("binding"), binding), "catalog-observation-binding");
     if (view.kind == TRANSIT_CATALOG_NAME_OBSERVATION) {
         require(variant.first == "outcome", "catalog-name-outcome"); const auto s = choice(raw.at("state"), {"unchanged", "rejected"});

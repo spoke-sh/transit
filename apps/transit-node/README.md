@@ -197,6 +197,20 @@ merge inputs and progress survive restart, while current item/bitmap state
 continues to govern claims. Scheduling cleanup needs no clock, also after DROP;
 it neither expires payloads nor settles leases.
 
+Automatic dead-letter transfer is separately enabled by `table.queue_transfers`.
+Its database signer needs current source ownership/read and destination
+read/append rights, as well as CONNECT and schema USAGE. Native maintenance and
+registrar credentials supply none of these rights. Recovery of paged pending
+attempts alternates with finite source discovery under the same maintenance
+memory and deadline budgets. One retained scan workspace replays at most 16
+records and examines at most 256 item records, further bounded by `timer_steps`.
+Accepted work advances one common transaction unit per recovery visit; cold
+transaction opens may replay longer retained histories within the deadline.
+All publication uses the exclusive catalog gate, including against collection.
+The permanent source binding survives worker replacement, changed accounts and
+either terminal decision. See the [configuration guide](docs/growing.md) for
+the explicit identity and quotas.
+
 Command signatures do not encrypt traffic or authenticate response transport.
 Use an authenticated TLS boundary outside a trusted private network, and keep
 raw storage/provider APIs inaccessible to workloads. [Security](../../docs/handbook/reference/security.md)

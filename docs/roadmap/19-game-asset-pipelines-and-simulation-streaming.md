@@ -281,7 +281,10 @@ non-finite handling and dropout interpretation belong to the declared profile.
 units, clocks, calibration, error bounds and operator dependency extents across
 these waveform/simulation profiles. [Video](36-video-and-multimodal-timelines.md)
 owns synchronized encoded-media tracks and decode dependencies;
-[Robotics](38-robotics-and-sensor-replay.md) owns calibrated episode replay.
+[Robotics](38-robotics-and-sensor-replay.md) owns calibrated episode replay; and
+[hardware design and EDA verification](42-hardware-design-rtl-and-eda-verification.md)
+reuses `WAVEFORM` and `COCHAIN_FIELD` thermal/IR-drop representations alongside
+digital/mixed-signal simulation traces (`VCD`/`FST`/`SPICE`).
 Those extensions reuse this milestone's independently qualified assets and DSP;
 they do not replace its original delivery requirements.
 

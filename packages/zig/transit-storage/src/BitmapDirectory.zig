@@ -91,10 +91,12 @@ pub fn read(self: *Self, prefix: u64, ref: Reference) !b.View {
     self.cached = null;
     var name: [96]u8 = undefined;
     const object_key = try objectKey(ref, &name);
-    const metadata = try self.objects.head(object_key) orelse return error.MissingBitmapContainer;
+    const metadata = (self.objects.getObject(object_key, &self.bytes) catch |err| switch (err) {
+        error.BufferTooSmall, error.ObjectTooLarge, error.ObjectSizeMismatch => return error.InvalidBitmapContainer,
+        else => return err,
+    }) orelse return error.MissingBitmapContainer;
     if (metadata.size != ref.bytes or !std.mem.eql(u8, &metadata.sha256, &ref.digest)) return error.InvalidBitmapContainer;
-    const bytes = try self.objects.getRange(object_key, 0, ref.bytes, &self.bytes);
-    if (bytes.len != ref.bytes) return error.InvalidBitmapContainer;
+    const bytes = self.bytes[0..ref.bytes];
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
     if (!std.mem.eql(u8, &digest, &ref.digest) or

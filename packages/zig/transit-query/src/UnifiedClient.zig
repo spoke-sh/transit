@@ -68,7 +68,8 @@ pub fn authorizeCapture(self: *Self, bundle: q.Bundle, capture: q.Bundle.Capture
 }
 /// Explicit authorization of a new finite Table read. The current observation
 /// supplies only a minimum frontier; the first acquisition selects and retains
-/// one cut. Save the returned bundle before uploading any part of it.
+/// one cut. A historical descriptor instead copies its original exact pin under
+/// the new operation. Save the returned bundle before uploading any part of it.
 pub fn authorizeCurrent(self: *Self, bundle: q.Bundle, executor: u64, operation: u64) !q.Bundle {
     try bundle.validate();
     if (bundle.authorization != null or bundle.retention != null) return error.QueryAlreadyAuthorized;
@@ -76,6 +77,10 @@ pub fn authorizeCurrent(self: *Self, bundle: q.Bundle, executor: u64, operation:
     const table = bundle.source.source.table;
     const direct = self.tables orelse return error.QuerySourceUnavailable;
     try table.requireConnection(direct);
+    if (table.historical) |history| {
+        try table.checkDefinition(direct);
+        return self.authorizeCapture(bundle, .{ .executor = executor, .operation = operation, .expected = history.accepted });
+    }
     const current = try direct.call(.{ .observe = .{ .namespace = table.namespace, .interpretation = table.interpretation.interpretation, .rows = null } });
     defer current.deinit();
     return self.authorizeCapture(bundle, .{ .executor = executor, .operation = operation, .expected = current.value.result.observation.definition.position, .selection = .current });

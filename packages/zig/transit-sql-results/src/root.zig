@@ -11,9 +11,56 @@ pub const Window = @import("Window.zig");
 pub const Progress = @import("Progress.zig");
 pub const Transaction = @import("Transaction.zig");
 pub const Observation = @import("Observation.zig");
-pub const Command = enum { empty, select, insert, update, delete, create_table, alter_table, drop_table, create_schema, alter_schema, drop_schema, create_stream, alter_stream, drop_stream, create_queue, alter_queue, drop_queue, set, show, discard_all, reset, reload, capture, begin, commit, rollback, savepoint, release_savepoint, rollback_to_savepoint, create_dataflow, control_dataflow };
+pub const Workload = @import("Workload.zig");
+pub const Command = enum {
+    empty,
+    select,
+    insert,
+    update,
+    delete,
+    create_table,
+    alter_table,
+    drop_table,
+    create_schema,
+    alter_schema,
+    drop_schema,
+    create_stream,
+    alter_stream,
+    drop_stream,
+    create_queue,
+    alter_queue,
+    drop_queue,
+    set,
+    show,
+    discard_all,
+    reset,
+    reload,
+    capture,
+    begin,
+    commit,
+    rollback,
+    savepoint,
+    release_savepoint,
+    rollback_to_savepoint,
+    create_dataflow,
+    control_dataflow,
+    produce,
+    consume,
+    commit_offset,
+    enqueue,
+    claim,
+    ack,
+    nack,
+    extend_lease,
+    pub fn workload(self: Command) bool {
+        return switch (self) {
+            .produce, .consume, .commit_offset, .enqueue, .claim, .ack, .nack, .extend_lease => true,
+            else => false,
+        };
+    }
+};
 pub const Outcome = enum { provisional, applied, unchanged, rejected, cancelled, partial };
-pub const Operation = struct { account: [32]u8, id: u64, kind: enum { table, configuration, captured, transaction, dataflow } = .table };
+pub const Operation = struct { account: [32]u8, id: u64, kind: enum { table, configuration, captured, transaction, dataflow, workload } = .table };
 pub const Counts = struct {
     matched: u64,
     changed: u64,
@@ -30,6 +77,7 @@ pub const CommandCompletion = struct {
     pending_restart: bool,
     diagnostic: ?protocol.Diagnostic,
     transaction: ?Transaction = null,
+    workload: ?Workload.Evidence = null,
     pub fn validate(self: CommandCompletion) !void {
         if (self.counts) |counts| try counts.validate();
         if (self.transaction) |transaction| try transaction.validate(self.kind, self.outcome) else {
@@ -40,7 +88,7 @@ pub const CommandCompletion = struct {
             }
         }
         const counted = switch (self.kind) {
-            .insert, .update, .delete, .create_table, .alter_table, .drop_table, .create_schema, .alter_schema, .drop_schema, .create_stream, .alter_stream, .drop_stream, .create_queue, .alter_queue, .drop_queue => true,
+            .insert, .update, .delete, .produce, .enqueue, .create_table, .alter_table, .drop_table, .create_schema, .alter_schema, .drop_schema, .create_stream, .alter_stream, .drop_stream, .create_queue, .alter_queue, .drop_queue => true,
             .select, .show => return error.InvalidCommandCompletion,
             else => false,
         };
@@ -49,18 +97,37 @@ pub const CommandCompletion = struct {
         if (self.pending_restart and self.outcome != .applied) return error.InvalidCommandCompletion;
         if (self.outcome == .partial and self.kind != .reload) return error.InvalidCommandCompletion;
         if (self.counts) |counts| switch (self.kind) {
-            .insert, .update, .delete => {},
+            .insert, .update, .delete, .produce, .enqueue => {},
             else => if (counts.matched != 0 or counts.changed != 0) return error.InvalidCommandCounts,
         };
         if (self.operation) |operation| {
             if (operation.id == 0) return error.InvalidCommandCompletion;
-            const expected: @FieldType(Operation, "kind") = if (self.transaction != null) .transaction else if (counted) .table else if (self.kind == .reload) .configuration else if (self.kind == .capture) .captured else if (self.kind == .create_dataflow or self.kind == .control_dataflow) .dataflow else return error.InvalidCommandCompletion;
+            const expected: @FieldType(Operation, "kind") = if (self.transaction != null) .transaction else if (self.kind.workload()) .workload else if (counted) .table else if (self.kind == .reload) .configuration else if (self.kind == .capture) .captured else if (self.kind == .create_dataflow or self.kind == .control_dataflow) .dataflow else return error.InvalidCommandCompletion;
             if (operation.kind != expected) return error.InvalidCommandCompletion;
-        } else if (self.transaction != null or counted or self.kind == .reload or self.kind == .capture or self.kind == .create_dataflow or self.kind == .control_dataflow) return error.InvalidCommandCompletion;
+        } else if (self.transaction != null or counted or self.kind.workload() or self.kind == .reload or self.kind == .capture or self.kind == .create_dataflow or self.kind == .control_dataflow) return error.InvalidCommandCompletion;
+        if (self.kind.workload()) {
+            if (self.transaction != null) return error.InvalidCommandCompletion;
+            const evidence = self.workload orelse return error.MissingWorkloadEvidence;
+            try evidence.validate(self.kind);
+            if (self.outcome != evidence.outcome() or !std.meta.eql(self.counts, evidence.counts(self.kind))) return error.InvalidCommandCompletion;
+        } else if (self.workload != null) return error.UnexpectedWorkloadEvidence;
     }
 };
 /// Only a verified terminal outcome supplies this count. It is not a scan count.
-pub const Completion = struct { rows: u64 };
+pub const Completion = struct {
+    rows: u64,
+    workload: ?Workload.Completion = null,
+    pub fn validateShape(self: Completion) !void {
+        if (self.workload) |value| try value.validateShape();
+    }
+    pub fn validate(self: Completion, observation: Observation.Value) !void {
+        try self.validateShape();
+        if (observation == .data and observation.data == .workload) {
+            const value = self.workload orelse return error.MissingWorkloadCoverage;
+            try value.validate(observation.data.workload, self.rows);
+        } else if (self.workload != null) return error.UnexpectedWorkloadCoverage;
+    }
+};
 /// Immutable attribution checked by the deterministic progress owner. Hashes
 /// identify content; they do not grant authorization or retain a source pin.
 pub const Identity = struct { result: [32]u8, schema: [32]u8, observation: [32]u8 };

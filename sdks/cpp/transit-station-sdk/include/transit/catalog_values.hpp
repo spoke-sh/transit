@@ -7,7 +7,7 @@
 
 namespace transit::sdk::station::catalog {
 enum class Encoding : uint32_t { Plain, Bitpacked, Rle, Dictionary, Fsst, Comp, Comp3, Zoned, IbmHfp, Ebcdic };
-enum class Collation : uint32_t { None, Utf8Binary, AsciiCi, EbcdicCp037, IcuRoot };
+enum class Collation : uint32_t { None, Utf8Binary, AsciiCi, EbcdicCp037, IcuRoot, Ebcdic037Pad, Ebcdic1047Nopad };
 enum class Kind : uint32_t { Create, Alter, Rename, Drop, Insert, Update, Delete };
 enum class CompareOp : uint32_t { Eq, Ne, Lt, Le, Gt, Ge };
 enum class Ingestion : uint32_t { Point, Bulk };

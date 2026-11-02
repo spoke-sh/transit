@@ -5,8 +5,10 @@ const c = @import("root.zig");
 const queue = c.DirectQueue;
 
 pub fn requireReceipt(work: c.DirectQueueMutation.Request, result: queue.Receipt) !void {
+    if (result == .closed) return result.closed.requireQueue(work);
     if (!std.mem.eql(u8, @tagName(work), @tagName(result))) return error.InvalidQueueResponse;
     switch (result) {
+        .closed => unreachable,
         .enqueue => |value| try value.requireAppend(work.enqueue),
         .claim => |value| try value.requireClaim(work.claim),
         .settle => |value| try value.requireSettlement(work.settle),
@@ -29,7 +31,7 @@ pub fn validate(allocator: std.mem.Allocator, connection: c.DirectTableProtocol.
         return;
     }
     const expected: std.meta.Tag(queue.Result) = switch (request) {
-        .mutate, .operation, .wait => .operation,
+        .mutate, .operation, .wait, .cancel => .operation,
         .observe => .cut,
         .page => .page,
     };
@@ -38,7 +40,7 @@ pub fn validate(allocator: std.mem.Allocator, connection: c.DirectTableProtocol.
         .recovering, .timed_out => unreachable,
         .operation => |maybe| if (maybe) |value| {
             const work = switch (request) {
-                .operation => |work| work,
+                .operation, .cancel => |work| work,
                 .mutate => |work| work.work,
                 .wait => |work| c.DirectQueueMutation.Request{ .claim = work.claim },
                 else => unreachable,

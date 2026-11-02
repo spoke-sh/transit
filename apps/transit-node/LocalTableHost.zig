@@ -20,6 +20,8 @@ pub const Config = struct {
     client_token_quota: u64 = 1_000_000,
     transaction_limits: c.protocol.Transaction.Limits = c.DirectTransaction.default_limits,
     transaction_account_limits: c.DirectClientToken.TransactionReservations = .defaults,
+    /// Optional explicit database identity; the registrar grants no DLQ rights.
+    queue_transfers: ?@import("LocalQueueTransfers.zig").Config = null,
 };
 
 configuration: c.DirectCatalog.Configuration,
@@ -39,6 +41,7 @@ control_residents: [2]ResidentSlot = @splat(.{}),
 /// requests/responses. Data exhaustion cannot consume the control reserve.
 resident_memory: @import("DirectRequestMemory.zig") = .{},
 log_waits: ?*LogWaits = null,
+queue_transfers: ?@import("LocalQueueTransfers.zig").Identity = null,
 
 /// The embedding owner joins every request before closing retained workspaces.
 pub fn deinit(self: *Self) void {
@@ -53,6 +56,7 @@ pub fn deinit(self: *Self) void {
 pub fn init(allocator: std.mem.Allocator, io: std.Io, config: Config, engine: *backend.DataAuthority.Engine) !Self {
     try config.catalog.validate();
     try config.transaction_limits.validate();
+    if (config.queue_transfers) |transfers| try transfers.validate(config.transaction_limits);
     inline for (@typeInfo(c.DirectClientToken.TransactionReservations).@"struct".field_names) |name| {
         if (@field(config.transaction_account_limits, name) == 0) return error.InvalidTableConfiguration;
     }
@@ -70,7 +74,8 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, config: Config, engine: *b
     // does not initialize or execute an application's catalog declaration.
     try catalog.recover();
     const recovered = try catalog.recoveryState();
-    return .{ .configuration = config.catalog, .registrar = .{ .principal = config.registrar.principal, .key = key, .role = config.registrar.role }, .options = options, .recovery = recovered, .log_waits = try LogWaits.create(allocator, io) };
+    const transfers: ?@import("LocalQueueTransfers.zig").Identity = if (config.queue_transfers) |value| .{ .principal = value.principal, .key = try @import("transit_client").readKey(allocator, io, value.seed_file), .role = value.role, .account = value.account, .limits = value.limits, .budget = value.budget } else null;
+    return .{ .configuration = config.catalog, .registrar = .{ .principal = config.registrar.principal, .key = key, .role = config.registrar.role }, .options = options, .recovery = recovered, .log_waits = try LogWaits.create(allocator, io), .queue_transfers = transfers };
 }
 /// Publication, policy changes and maintenance only prompt current checks.
 pub fn notifyLogs(self: *Self) void {
@@ -87,7 +92,8 @@ pub fn warm(self: *Self, engine: *backend.DataAuthority.Engine) !void {
 }
 fn exclusive(action: w.Action) bool {
     return switch (action) {
-        .branch, .transaction => true,
+        .branch, .transaction, .descriptor => true,
+        .historical_catalog => |value| value.mutation(),
         .kv_declaration => |value| value.mutation(),
         .client_token => |value| value == .bind,
         .client_progress => |value| value == .update,
@@ -109,8 +115,14 @@ fn exclusive(action: w.Action) bool {
 }
 fn target(action: w.Action) ?u64 {
     return switch (action) {
+        .historical_catalog => |value| switch (value) {
+            .source => |input| input.object,
+            .scan => |input| input.object,
+            else => null,
+        },
         .stream => |value| value.target().interpretation.object.object,
         .queue => |value| value.target().interpretation.object.object,
+        .workload_result => |value| value.target().interpretation.object.object,
         .kv => |value| value.target().object,
         .kv_declaration => |value| value.declaration.binding.target.object,
         .check => |value| if (value.target) |expected| expected.object.object else null,
@@ -124,7 +136,7 @@ fn target(action: w.Action) ?u64 {
         .operation => |value| value.binding.target.object,
         inline .log_preview, .log_admit, .log_operation => |value| value.binding.target.object,
         inline .pin, .retain_history, .pin_status => |value| value.object.object,
-        inline .scan, .column_scan, .filter_scan, .read_key, .key_range, .history => |value| value.snapshot.object.object,
+        inline .scan, .column_scan, .filter_scan, .read_key, .key_range, .history, .projection_definitions, .projection_locations => |value| value.snapshot.object.object,
         inline .snapshot, .history_start, .history_source, .release => |value| value.object.object,
         .history_scan => |value| value.source.object.object,
         else => null,
@@ -253,6 +265,12 @@ fn executeSingle(self: *Self, comptime format: Service.Output, io: std.Io, engin
     var service: Service = .{ .engine = engine, .configuration = self.configuration, .registrar = self.registrar, .options = options, .recovery_state = &recovered, .resident = resident.value, .waiting = waiting };
     return service.executeResult(format, arena, output_allocator, request) catch |err| {
         if (err == error.StreamWaitPending or err == error.QueueWaitPending) discard_on_error = false;
+        // A terminal probe can advance a bounded native replay without reaching
+        // its receipt. No publication was attempted: retain that verified owner
+        // so the next probe continues instead of replaying the same prefix.
+        if (err == error.ClientOperationPending and (request.action == .workload_result or
+            (request.action == .client_progress and request.action.client_progress == .update and !request.action.client_progress.update.pending)))
+            discard_on_error = false;
         if (err == error.OutOfMemory and resident.value.?.memory.exhausted)
             return if (control) error.ControlCapacity else error.StorageQuota;
         return err;

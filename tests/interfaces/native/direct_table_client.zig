@@ -126,7 +126,7 @@ fn write(init: std.process.Init, client: c.DirectTableClient, profile: *Profile,
     try logWrite(init, client, profile, profile_path);
     // Server-owned cut records cannot be supplied through caller-owned record
     // staging. This is a request refusal, not transport/storage uncertainty.
-    for ([_]u32{ c.DirectTransaction.Acquired.format, c.DirectTransactionWorkspace.head_format, c.DirectTransactionWorkspace.table_format, c.DirectTransactionWorkspace.statement_format }) |format|
+    for ([_]u32{ c.DirectTransaction.Acquired.format, c.DirectTransactionWorkspace.head_format, c.DirectTransactionWorkspace.table_format, c.DirectTransactionWorkspace.statement_format, c.DirectQueueTransferPlan.format }) |format|
         try t.expectError(error.Rejected, c.DirectRecord.stage(client, @splat(91), format, "caller-supplied workspace"));
     // Capacity is refused before reading a staged selection. The nonexistent
     // selection below must not turn a quota refusal into a server error or admit
@@ -136,7 +136,7 @@ fn write(init: std.process.Init, client: c.DirectTableClient, profile: *Profile,
     const quota: c.DirectClientToken.Binding = .{
         .key = .{ .definition = g.current_definition, .connection = client.connection, .account = @splat(91), .token = @splat(71) },
         .fingerprint = @splat(72),
-        .intent = .{ .transaction = .{ .connection = client.connection, .namespace = 1, .begin = .{
+        .intent = .{ .transaction = .{ .connection = client.connection, .namespace = 1, .purpose = .interactive, .begin = .{
             .definition = g.current_definition,
             .identity = .{ .begin = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 900001 }, .branch = 1 },
             .mode = .serializable,
@@ -330,7 +330,7 @@ fn streamWrite(init: std.process.Init, caller: *data.Catalog, source: c.DirectLo
     const group_read = (try streamCall(caller, &output, .{ .mutate = .{ .work = .{ .consume = grouped } } })).operation.?.consume;
     const group_cursor = (try streamCall(caller, &output, .{ .cursor = .{ .target = target, .read = group_read.handle() } })).cursor;
     const consumed = (try streamCall(caller, &output, .{ .page = .{ .cursor = group_cursor, .limits = .{ .rows = 2, .encoded_bytes = 8192, .scanned_rows = 2 } } })).page;
-    const offset: c.DirectStreamMutation.Request = .{ .offset = .{ .commit = .{ .operation = .{ .scope = operation.scope, .principal = operation.principal, .operation = 621005 }, .group = group, .coverage = consumed.cursor.coverage, .expected_next = 0, .next = 2 }, .cursor = consumed.cursor } };
+    const offset: c.DirectStreamMutation.Request = .{ .offset = .{ .commit = .{ .operation = .{ .scope = operation.scope, .principal = operation.principal, .operation = 621005 }, .group = group, .coverage = consumed.cursor.coverage, .expected_next = 0, .next = 2 }, .progress = .{ .exhausted = consumed.cursor } } };
     const release: c.DirectStreamMutation.Request = .{ .release = .{ .operation = .{ .scope = operation.scope, .principal = operation.principal, .operation = 621006 }, .target = target, .read = group_read.handle() } };
     // Persist settlement and closure before entering their uncertain attempts.
     try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = try std.fmt.allocPrint(init.arena.allocator(), "{s}.stream-offset", .{profile_path}), .data = try c.DirectStreamClient.save(init.arena.allocator(), caller.connection, .{ .work = offset }) });
@@ -721,7 +721,14 @@ pub fn main(init: std.process.Init) !void {
         const client: c.DirectTableClient = .{ .allocator = init.gpa, .authority = &native, .service = &service, .connection = .{ .scope = profile.catalog.scope, .branch = 1, .audience = profile.catalog.audience, .principal = 101, .role = null }, .key = try key(29) };
         const directory = try std.Io.Dir.cwd().openDir(init.io, std.fs.path.dirname(args[3]) orelse ".", .{});
         defer directory.close(init.io);
-        if (std.mem.eql(u8, args[2], "callers")) {
+        if (std.mem.eql(u8, args[2], "log-baseline-measure") or std.mem.eql(u8, args[2], "log-baseline-recover")) {
+            try @import("fixture_log_runtime").execute(init, client, profile.role, args[3], std.mem.eql(u8, args[2], "log-baseline-recover"), &output.interface);
+            return output.interface.flush();
+        } else if (std.mem.startsWith(u8, args[2], "log-baseline-inspect-")) {
+            const operation_id = try std.fmt.parseInt(u64, args[2]["log-baseline-inspect-".len..], 10);
+            try @import("fixture_log_runtime").inspectOriginal(init, client, args[3], operation_id, &output.interface);
+            return output.interface.flush();
+        } else if (std.mem.eql(u8, args[2], "callers")) {
             (try client.call(.initialize)).deinit();
             try Conditions.callers(init.gpa, client);
         } else if (std.mem.eql(u8, args[2], "growth-write")) {
@@ -816,12 +823,35 @@ pub fn main(init: std.process.Init) !void {
             try @import("fixture_direct_state_transaction").recover(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.state-transaction", .{args[3]}));
         } else if (std.mem.eql(u8, args[2], "state-transaction-verify")) {
             try @import("fixture_direct_state_transaction").verify(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.state-transaction", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "workload-result-prepare")) {
+            try @import("fixture_direct_log_token").prepareResults(init, client, profile.role, try std.fmt.allocPrint(init.arena.allocator(), "{s}.workload-result", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "workload-result-open")) {
+            try @import("fixture_direct_log_token").openResults(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.workload-result", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "workload-result-verify")) {
+            try @import("fixture_direct_log_token").verifyResults(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.workload-result", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "workload-token-prepare")) {
+            try @import("fixture_direct_log_token").prepareWorkloads(init, client, profile.role, try std.fmt.allocPrint(init.arena.allocator(), "{s}.workload-token", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "workload-token-execute")) {
+            try @import("fixture_direct_log_token").executeWorkloads(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.workload-token", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "workload-token-settle")) {
+            try @import("fixture_direct_log_token").settleWorkloads(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.workload-token", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "workload-token-verify")) {
+            try @import("fixture_direct_log_token").verifyWorkloads(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.workload-token", .{args[3]}));
         } else if (std.mem.eql(u8, args[2], "log-token-prepare")) {
             try @import("fixture_direct_log_token").prepare(init, client, profile.role, try std.fmt.allocPrint(init.arena.allocator(), "{s}.log-token", .{args[3]}));
         } else if (std.mem.eql(u8, args[2], "log-token-recover")) {
             try @import("fixture_direct_log_token").recover(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.log-token", .{args[3]}));
         } else if (std.mem.eql(u8, args[2], "log-token-verify")) {
             try @import("fixture_direct_log_token").verify(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.log-token", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "automatic-queue-transfer-prepare")) {
+            try @import("fixture_direct_queue_transfer").automaticPrepare(init, client, profile.role, try std.fmt.allocPrint(init.arena.allocator(), "{s}.automatic-queue-transfer", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "automatic-queue-transfer-observe")) {
+            const observed = try @import("fixture_direct_queue_transfer").automaticObserve(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.automatic-queue-transfer", .{args[3]}));
+            var encoder: std.json.Stringify = .{ .writer = &output.interface };
+            try p.Json.write(observed, &encoder);
+            return output.interface.flush();
+        } else if (std.mem.eql(u8, args[2], "automatic-queue-transfer-verify") or std.mem.eql(u8, args[2], "automatic-queue-transfer-reopen")) {
+            try @import("fixture_direct_queue_transfer").automaticVerify(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.automatic-queue-transfer", .{args[3]}), std.mem.eql(u8, args[2], "automatic-queue-transfer-reopen"));
         } else if (std.mem.eql(u8, args[2], "queue-transfer-prepare")) {
             try @import("fixture_direct_queue_transfer").prepare(init, client, profile.role, try std.fmt.allocPrint(init.arena.allocator(), "{s}.queue-transfer", .{args[3]}));
         } else if (std.mem.eql(u8, args[2], "queue-transfer-recover")) {

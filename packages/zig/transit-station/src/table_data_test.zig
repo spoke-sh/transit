@@ -193,7 +193,10 @@ test "bounded Table pages retain order and release an incomplete prefix on read 
     defer store.deinit();
     var data: Data = .{ .schema = schema };
     for (0..11) |i| data = (try data.insert(e.allocator, &store, .{ .identity = identity(@intCast(i)), .cells = &.{ text("tenant"), integer(@intCast(i)), text("payload") } })).data;
-    try e.checkAllAllocationFailures(e.allocator, readPage, .{ data, &store });
+    // Force arena growth through allocation so each failure point is visited
+    // even when earlier sweeps leave differently sized free backing blocks.
+    var no_resize = e.FailingAllocator.init(e.allocator, .{ .resize_fail_index = 0 });
+    try e.checkAllAllocationFailures(no_resize.allocator(), readPage, .{ data, &store });
     var rows: [8]?Row.Owned = undefined;
     try e.expectEqual(@as(usize, 3), try data.page(e.allocator, &store, identity(7), &rows));
     for (&rows, 0..) |*slot, i| {

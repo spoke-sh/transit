@@ -204,7 +204,7 @@ fn physicalColumns(allocator: std.mem.Allocator, client: c.DirectTableClient, ro
     }
     const before = try lookup(client, "physical");
     defer before.deinit();
-    var invalid: w.Ddl = .{ .binding = binding(client, 7003, .alter, before.value.result.lookup.?), .namespace = 1, .name = "physical", .action = .{ .alter = .{ .physical = .{ .column = 3, .encoding = .ebcdic, .collation = .none } } } };
+    var invalid: w.Ddl = .{ .binding = binding(client, 7003, .alter, before.value.result.lookup.?), .namespace = 1, .name = "physical", .action = .{ .alter = .{ .physical = .{ .column = 3, .encoding = .ebcdic, .collation = .none, .semantics = null } } } };
     invalid.binding.intent = try invalid.digest(allocator);
     const admission = try client.call(.{ .admit_ddl = invalid });
     defer admission.deinit();
@@ -216,7 +216,7 @@ fn physicalColumns(allocator: std.mem.Allocator, client: c.DirectTableClient, ro
     defer after.deinit();
     try t.expectEqualDeep(before.value.result.lookup.?.interpretation, after.value.result.lookup.?.interpretation);
     try t.expectEqual(before.value.result.lookup.?.changed_lsn, after.value.result.lookup.?.changed_lsn);
-    _ = try ddl(allocator, client, .{ .binding = binding(client, 7004, .alter, after.value.result.lookup.?), .namespace = 1, .name = "physical", .action = .{ .alter = .{ .physical = .{ .column = 2, .encoding = .ebcdic, .collation = .ascii_ci } } } });
+    _ = try ddl(allocator, client, .{ .binding = binding(client, 7004, .alter, after.value.result.lookup.?), .namespace = 1, .name = "physical", .action = .{ .alter = .{ .physical = .{ .column = 2, .encoding = .ebcdic, .collation = .ascii_ci, .semantics = null } } } });
     const changed = try lookup(client, "physical");
     defer changed.deinit();
     const nonbinary = try pin(client, 7102, changed.value.result.lookup.?);
@@ -415,7 +415,7 @@ pub fn evolve(allocator: std.mem.Allocator, io: std.Io, directory: std.Io.Dir, c
     try t.expectEqual(@as(u64, 1), deleted.outcome.live_rows);
     const after_delete = try lookup(client, "events");
     defer after_delete.deinit();
-    const altered = try ddl(alloc, client, .{ .binding = binding(client, 6, .alter, after_delete.value.result.lookup.?), .namespace = 1, .name = "events", .action = .{ .alter = .{ .add = .{ .name = "extra", .type = .int64, .nullable = true, .default = null, .max_characters = null, .encoding = .plain, .collation = .none } } } });
+    const altered = try ddl(alloc, client, .{ .binding = binding(client, 6, .alter, after_delete.value.result.lookup.?), .namespace = 1, .name = "events", .action = .{ .alter = .{ .add = .{ .name = "extra", .type = .int64, .nullable = true, .default = null, .max_characters = null, .encoding = .plain, .collation = .none, .semantics = .{ .rounding = null, .metric = null, .timezone = null, .spatial = null } } } } });
     try @import("fixture_direct_table_delegation").afterAlter(client, delegation);
     const after_alter = try lookup(client, "events");
     defer after_alter.deinit();

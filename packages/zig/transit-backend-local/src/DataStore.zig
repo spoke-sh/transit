@@ -19,7 +19,7 @@ pub fn log(self: *Self) Log.Log {
     return .{ .context = self, .vtable = &.{ .append = append, .read = read, .tail = tail, .trim = trim, .fence = fence } };
 }
 pub fn objects(self: *Self) Objects.ObjectStore {
-    return .{ .context = self, .vtable = &.{ .putImmutable = put, .putImmutableBatch = putBatch, .putConditional = conditional, .getRange = range, .head = head, .delete = delete } };
+    return .{ .context = self, .vtable = &.{ .putImmutable = put, .putImmutableBatch = putBatch, .putConditional = conditional, .getRange = range, .getObject = getObject, .head = head, .delete = delete } };
 }
 fn putBatch(context: *anyopaque, batch: []const Objects.ImmutablePut, output: []Objects.ObjectMeta) !void {
     const self = erased(context);
@@ -146,6 +146,16 @@ fn rangeImpl(self: *Self, key: []const u8, offset: u64, length: u32, output: []u
 fn head(context: *anyopaque, key: []const u8) !?Objects.ObjectMeta {
     const self = erased(context);
     return self.observe.run(self.backend.io, "data.object_head", headImpl, .{ self, key });
+}
+fn getObject(context: *anyopaque, key: []const u8, output: []u8) !?Objects.ObjectMeta {
+    const self = erased(context);
+    return self.observe.run(self.backend.io, "data.object_read", getObjectImpl, .{ self, key, output });
+}
+fn getObjectImpl(self: *Self, key: []const u8, output: []u8) !?Objects.ObjectMeta {
+    try Backend.dataKey(key);
+    const metadata = (try self.backend.objects.objectStore().getObject(key, output)) orelse return null;
+    self.observe.metrics.response_bytes +|= metadata.size;
+    return metadata;
 }
 fn headImpl(self: *Self, key: []const u8) !?Objects.ObjectMeta {
     try Backend.dataKey(key);

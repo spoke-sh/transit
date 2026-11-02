@@ -15,12 +15,47 @@ fn makeDeclaration(allocator: std.mem.Allocator, object: u64) !Source.Owned {
     var ddl = try f.TableDdl.compile(allocator, "CREATE TABLE people (id INTEGER PRIMARY KEY, names LIST(UTF8))", null, null);
     defer ddl.deinit();
     const schema = try ddl.statement.create.bind(object);
+    return declarationFromSchema(allocator, schema);
+}
+fn declarationFromSchema(allocator: std.mem.Allocator, schema: f.TableSchema.Schema) !Source.Owned {
+    const object = schema.object;
     var prepared = try c.storage.TableDeclaration.prepare(allocator, .{ .object = .{ .scope = connection.scope, .branch = 1, .object = object }, .revision = 1, .schema = schema, .properties = "" });
     defer prepared.deinit();
     var buffer: [f.TableSchema.max_bytes]u8 = undefined;
     const encoded = try c.DirectTableProtocol.Binary.encode(allocator, try schema.encode(&buffer));
     defer allocator.free(encoded.base64);
     return Source.from(allocator, connection, .{ .interpretation = try prepared.stored(), .namespace = 1, .authorization = 23, .name = try .init("people"), .position = .{ .partition = 1, .next_lsn = 2 }, .changed_lsn = 2, .row_count = 0, .schema = encoded });
+}
+
+test "captured Table declarations own exact numeric and metric semantics across neutral and binary boundaries" {
+    const schema: f.TableSchema.Schema = .{ .object = 100, .revision = 1, .next_column = 4, .primary_key = &.{1}, .columns = &.{
+        .{ .id = 1, .name = "id", .type = .int64, .nullable = false },
+        .{ .id = 2, .name = "amount", .type = .{ .decimal = .{ .precision = 12, .scale = 4 } }, .semantics = .{ .rounding = .half_even } },
+        .{ .id = 3, .name = "embedding", .type = .{ .vector = .{ .dimensions = 2, .element = .float32 } }, .semantics = .{ .metric = .cosine } },
+    } };
+    var source = try declarationFromSchema(e.allocator, schema);
+    defer source.deinit();
+    var bytes: [Source.max_bytes]u8 = undefined;
+    var restored = try Source.decode(e.allocator, try source.source.encode(&bytes));
+    defer restored.deinit();
+    @memset(&bytes, 0);
+    try e.expectEqualDeep(source.source, restored.source);
+    try e.expectEqual(.half_even, restored.source.semantics[1].rounding.?);
+    try e.expectEqual(.cosine, restored.source.semantics[2].metric.?);
+    const fingerprint = try restored.source.fingerprint();
+    var short: [32]u8 = undefined;
+    try e.expectError(error.SourceDefinitionTooLarge, restored.source.encode(&short));
+    var changed = restored.source;
+    changed.semantics = &.{ .{}, .{ .rounding = .toward_zero }, .{ .metric = .cosine } };
+    try e.expect(!std.mem.eql(u8, &fingerprint, &try changed.fingerprint()));
+    changed.semantics = &.{};
+    try e.expect(!std.mem.eql(u8, &fingerprint, &try changed.fingerprint()));
+    var arena: std.heap.ArenaAllocator = .init(e.allocator);
+    defer arena.deinit();
+    const declaration: q.SourceDefinition = .{ .resource = connection.scope.resource, .source = .{ .table = restored.source } };
+    const foreign = try q.Values.Source.fromNative(arena.allocator(), declaration);
+    const native = try foreign.native(arena.allocator());
+    try e.expectEqual(try declaration.fingerprint(), try native.fingerprint());
 }
 fn ownDeclaration(allocator: std.mem.Allocator) !void {
     var owned = try makeDeclaration(allocator, 100);
@@ -51,7 +86,9 @@ test "general Table source bytes and fingerprint match an independent recursive 
 test "general Table declaration owns recursive schema and rejects foreign incomplete definitions" {
     var owned = try makeDeclaration(e.allocator, 100);
     defer owned.deinit();
-    try e.checkAllAllocationFailures(e.allocator, ownDeclaration, .{});
+    // Enumerate every arena growth allocation independently of backing-page placement.
+    var no_resize = e.FailingAllocator.init(e.allocator, .{ .resize_fail_index = 0 });
+    try e.checkAllAllocationFailures(no_resize.allocator(), ownDeclaration, .{});
     try e.expectEqualStrings("names", owned.source.row_type.structure[1].name);
     var buffer: [Source.max_bytes]u8 = undefined;
     const bytes = try owned.source.encode(&buffer);
@@ -182,4 +219,37 @@ test "general Table interactive metadata cannot authenticate a configured princi
     direct.role = 24;
     client.tables = .{ .allocator = e.allocator, .authority = undefined, .service = undefined, .key = undefined, .connection = direct };
     try e.expectError(error.QueryDenied, client.interactiveDescription(source, requests, result));
+}
+
+test "captured historical Table source freezes catalog pin projection and wide source positions" {
+    var owned = try makeDeclaration(e.allocator, 100);
+    defer owned.deinit();
+    const live = try owned.source.fingerprint();
+    const accepted: q.protocol.DataLifecycle.Position = .{ .partition = 9, .next_lsn = std.math.maxInt(u64) };
+    const snapshot: q.protocol.DataLifecycle.Snapshot = .{ .definition = q.protocol.Growth.current_definition, .owner = .{ .scope = connection.scope, .principal = 19, .operation = 18 }, .branch = 1, .catalog_root = .{ .bytes = 128, .sha256 = @splat(1) }, .sources_root = .{ .bytes = 129, .sha256 = @splat(2) }, .source_count = 1, .consistency = .{ .single_partition = accepted } };
+    owned.source.historical = .{ .snapshot = snapshot, .accepted = accepted, .pin = .{ .bytes = 130, .sha256 = @splat(3) } };
+    owned.source.projection = .{ .declaration = owned.source.interpretation, .next_lsn = 1, .origins = null };
+    const frozen = try owned.source.fingerprint();
+    try e.expect(!std.mem.eql(u8, &live, &frozen));
+    var bytes: [Source.max_bytes]u8 = undefined;
+    var restored = try Source.decode(e.allocator, try owned.source.encode(&bytes));
+    defer restored.deinit();
+    @memset(&bytes, 0);
+    try e.expectEqualDeep(owned.source, restored.source);
+    var arena: std.heap.ArenaAllocator = .init(e.allocator);
+    defer arena.deinit();
+    const source: q.SourceDefinition = .{ .resource = connection.scope.resource, .source = .{ .table = restored.source } };
+    const neutral = try q.Values.Source.fromNative(arena.allocator(), source);
+    try e.expectEqualStrings("18446744073709551615", neutral.source.table.historical.?.accepted.next_lsn);
+    const rebuilt = try neutral.native(arena.allocator());
+    try e.expectEqualDeep(try source.fingerprint(), try rebuilt.fingerprint());
+    var forged = restored.source;
+    forged.historical.?.accepted.next_lsn -= 1;
+    try e.expectError(error.InconsistentSnapshot, forged.validate());
+    forged = restored.source;
+    forged.historical.?.snapshot.owner.scope.catalog += 1;
+    try e.expectError(error.DataIdentityConflict, forged.validate());
+    forged = restored.source;
+    forged.projection.?.next_lsn += 1;
+    try e.expect(!std.mem.eql(u8, &frozen, &try forged.fingerprint()));
 }

@@ -29,6 +29,8 @@ pub const Options = struct {
     /// Durable token capacity, independent of the bounded resident page cache.
     /// Exhaustion refuses new bindings; it never forgets accepted identities.
     client_token_quota: u64 = 1_000_000,
+    /// Maximum sources in one newly admitted historical selection.
+    history_selection_limit: u64 = 1_000_000,
     transaction_limits: p.Transaction.Limits = c.DirectTransaction.default_limits,
     transaction_account_limits: c.DirectClientToken.TransactionReservations = .defaults,
     /// Same bounded log owner profiles used by the embedding data service.
@@ -124,6 +126,7 @@ pub const Observation = union(enum) {
     not_observed,
     admitted: r.Operation,
     committed: P.Evidence,
+    finalizing: struct { evidence: P.Evidence, operation: r.Operation },
     rejected: r.Operation,
     cancelled: r.Operation,
 };
@@ -160,6 +163,8 @@ options: Options,
 transaction_read: ?c.DirectTransactionRead.Context = null,
 /// Borrowed only during the enclosing trusted host dispatch.
 log_environment: ?*const c.DirectTransactionLog.Environment = null,
+/// Borrowed only during the protected owner call, never cached authority.
+queue_transfer_owner: ?struct { key: [32]u8, plan: c.DirectRecord.Reference } = null,
 /// Failure injection after the Table acceptance and before its caller reply.
 lose_table_reply: bool = false,
 /// Failure injection after the original coordination acceptance.
@@ -230,7 +235,7 @@ pub fn maintenanceNext(self: *Self, cursor: *MaintenanceCursor, guard_value: P.G
 
 fn validateEntry(self: *Self, value: r.Entry, key: pages.Key) !void {
     try value.validate(self.config());
-    if (!std.meta.eql(key, try r.idKey(value.object)) or value.partition >= self.store.root.next_partition or (value.resource orelse 0) >= self.store.root.next_lsn) return error.InvalidDirectCatalogEntry;
+    if (!std.meta.eql(key, try r.idKey(value.object)) or value.partition >= self.store.root.next_partition or (value.resource orelse 0) >= self.store.root.next_lsn or (value.descriptor orelse 0) >= self.store.root.next_lsn) return error.InvalidDirectCatalogEntry;
 }
 
 /// The caller takes the selected Table's lock after directory discovery and
@@ -470,7 +475,7 @@ fn recordLog(self: *Self, input: L.Operation, previous: ?L.Operation, current: P
     }
     const updates_object = if (operation.binding.action == .create) operation.phase == .admitted or previous != null else operation.phase == .complete;
     if (updates_object) {
-        const target: r.Entry = .{ .object = operation.binding.target.object, .partition = operation.first_partition, .seed = null, .resource = null, .log = self.store.root.next_lsn };
+        const target: r.Entry = .{ .object = operation.binding.target.object, .partition = operation.first_partition, .seed = null, .resource = null, .log = self.store.root.next_lsn, .descriptor = null };
         next.objects = try self.store.tree().put(next.objects, id, try r.pageValue(target));
     }
     if (operation.phase == .admitted and (operation.binding.action == .create or operation.binding.action == .rename)) {
@@ -817,7 +822,7 @@ fn recordResource(self: *Self, operation_input: Resource.Operation, previous: ?R
     const id = try r.idKey(binding.object.object);
     const updates_object = if (binding.action == .create) operation.phase == .admitted or previous != null else operation.phase == .complete;
     if (updates_object) {
-        const target: r.Entry = .{ .object = binding.object.object, .partition = 0, .seed = null, .resource = self.store.root.next_lsn, .log = null };
+        const target: r.Entry = .{ .object = binding.object.object, .partition = 0, .seed = null, .resource = self.store.root.next_lsn, .log = null, .descriptor = null };
         next.objects = try self.store.tree().put(next.objects, id, try r.pageValue(target));
     }
     if (operation.phase == .admitted and binding.action != .drop) {
@@ -1313,7 +1318,9 @@ pub fn directRecord(self: *Self, allocator: std.mem.Allocator, request: c.Direct
     };
     // The cut is server-owned evidence. Generic caller records only check
     // CONNECT and cannot bypass its complete current Table disclosure checks.
+    if (format == c.DirectHistory.format) return error.HistoricalOperationRequired;
     if (format == c.DirectBranch.format) return error.BranchOperationRequired;
+    if (format == c.DirectQueueTransferPlan.format) return error.TransactionOperationRequired;
     if (format == c.DirectTransaction.Acquired.format or c.DirectTransactionWorkspace.reserved(format)) return error.TransactionOperationRequired;
     const result: c.DirectRecord.Result = switch (request) {
         .stage => |value| blk: {
@@ -1335,6 +1342,7 @@ pub fn directRecord(self: *Self, allocator: std.mem.Allocator, request: c.Direct
 fn intentGuard(self: *Self, allocator: std.mem.Allocator, reference: c.DirectIntent.Reference, policy: Policy) !P.Guard {
     try reference.validate();
     return switch (reference) {
+        .history => self.guard(allocator, policy, null, null, .database),
         .branch => |value| self.branchGuard(allocator, value, policy, false),
         .transaction, .transaction_call => self.guard(allocator, policy, null, null, .database),
         .external => self.guard(allocator, policy, null, null, .database),
@@ -1344,6 +1352,13 @@ fn intentGuard(self: *Self, allocator: std.mem.Allocator, reference: c.DirectInt
             defer intent.deinit();
             const request = try intent.parsed.value.work.request(allocator);
             break :blk try self.logGuard(allocator, request, policy, true, true);
+        },
+        .workload => |value| blk: {
+            var intent = try c.DirectWorkloadIntent.load(allocator, self.data_objects, value);
+            defer intent.deinit();
+            const work = intent.parsed.value.work;
+            const authorized = try self.logAuthorization(allocator, if (work == .stream) .stream else .queue, work.target(), work.access(), policy);
+            break :blk authorized.guard;
         },
         .namespace_change => |value| self.namespaceGuard(allocator, value.binding, policy),
         .name_assertion => |value| policy.make_guard(policy.context, allocator, try self.assertionRequirements(allocator, value, policy), null),
@@ -1378,6 +1393,7 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
     const database = try self.guard(arena.allocator(), policy, null, null, .database);
     try check(database);
     if (try self.store.clientToken(key)) |receipt| {
+        if (request == .bind) try self.requireTransactionMutation(receipt);
         const reference = receipt.binding.intent;
         const current = try self.intentGuard(arena.allocator(), reference, policy);
         try check(current);
@@ -1391,6 +1407,10 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
     }
     const binding = request.bind;
     const reference = binding.intent;
+    if (reference == .transaction and reference.transaction.purpose == .queue_transfer) {
+        const owner_value = self.queue_transfer_owner orelse return error.TransactionOperationRequired;
+        if (!std.mem.eql(u8, &owner_value.key, &try key.digest()) or !std.meta.eql(owner_value.plan, reference.transaction.purpose.queue_transfer)) return error.TransactionOperationRequired;
+    }
     const current = if (reference == .branch) try self.branchGuard(arena.allocator(), reference.branch, policy, true) else try self.intentGuard(arena.allocator(), reference, policy);
     try check(current);
     if (self.store.root.client_token_count >= self.options.client_token_quota) return error.ClientTokenCapacity;
@@ -1406,18 +1426,29 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
     // A token claims the complete original identity before accepting its
     // reference; this is independent of data admission and execution.
     switch (reference) {
+        .history => |value| {
+            try self.prepareHistoryAdmission(value, policy);
+            try c.OperationBinding.claimHistoryInTree(self.allocator, &self.store.index, value, key);
+        },
         .branch => |value| {
             try self.prepareBranchAdmission(value, policy);
             try c.OperationBinding.claimBranchInTree(self.allocator, &self.store.index, value);
         },
         .transaction => |value| {
-            if (value.begin.catalog.partition != self.config().partition or value.begin.catalog.next_lsn != self.store.root.next_lsn)
-                return error.TransactionCatalogChanged;
+            if (value.begin.catalog.partition != self.config().partition or value.begin.catalog.next_lsn > self.store.root.next_lsn) return error.TransactionCatalogChanged;
+            if (value.begin.catalog.next_lsn != self.store.root.next_lsn) {
+                // Only the protected owner can finish its already persisted
+                // reservation. Ordinary callers still require the current cut.
+                if (value.purpose != .queue_transfer or self.queue_transfer_owner == null) return error.TransactionCatalogChanged;
+                const saved = try c.OperationBinding.lookupTransaction(self.allocator, self.store.objects, value.identity()) orelse return error.TransactionCatalogChanged;
+                if (!std.meta.eql(saved.reference, value) or !std.mem.eql(u8, &saved.token, &try key.digest())) return error.TransactionIdentityConflict;
+            }
             try c.DirectTransaction.inspectSelection(self.allocator, self.data_objects, value, self.options, server_selection);
             try check(current);
             try c.OperationBinding.claimTransactionInTree(self.allocator, &self.store.index, value, try key.digest());
         },
         .transaction_call => |value| {
+            if (try self.store.clientToken(value.key())) |transaction| try self.requireTransactionMutation(transaction);
             if (value.work == .statement) {
                 const request_value = value.work.statement.request;
                 var intent = try s.TableDmlIntent.load(self.allocator, self.data_objects, request_value.intent);
@@ -1451,6 +1482,15 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
             try check(current);
             try c.OperationBinding.claimInTree(self.allocator, &self.store.index, value.binding);
         },
+        .workload => |value| {
+            // The frozen body was verified by intentGuard. Native mutation and
+            // cancellation routes consult this same global identity owner.
+            try check(current);
+            switch (value.binding) {
+                .stream => |original_binding| try c.OperationBinding.claimStream(self.allocator, self.data_objects, original_binding),
+                .queue => |original_binding| try c.OperationBinding.claimQueue(self.allocator, self.data_objects, original_binding),
+            }
+        },
         .namespace_change => |value| try c.OperationBinding.claimNamespaceInTree(self.allocator, &self.store.index, value.binding),
     }
     var next = self.store.root;
@@ -1467,6 +1507,12 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
 /// Paged recovery metadata never substitutes for the operation owner's result.
 /// CAS updates and immutable payloads preserve exact retries across lost replies.
 pub fn clientProgress(self: *Self, request: c.DirectClientToken.ProgressRequest, policy: Policy) !c.DirectClientToken.ProgressResult {
+    return self.clientProgressWithWorkloads(request, policy, null);
+}
+/// Workload completion uses the host's normal partition owner and its bounded
+/// recovery gates. Caller records, pending flags and missing receipts cannot
+/// establish a terminal operation outcome.
+pub fn clientProgressWithWorkloads(self: *Self, request: c.DirectClientToken.ProgressRequest, policy: Policy, workloads: ?c.DirectWorkloadIntent.Reader) !c.DirectClientToken.ProgressResult {
     try self.requireInitialized();
     try request.validate();
     const scope = request.scope();
@@ -1497,13 +1543,14 @@ pub fn clientProgress(self: *Self, request: c.DirectClientToken.ProgressRequest,
     // Transaction workspace, cancellation and settlement belong to the
     // transaction owner. Generic client bookkeeping cannot replace that state
     // or manufacture a cancellation request while the original attempt lives.
+    if (state.receipt.binding.intent == .history) return error.HistoricalOperationRequired;
     if (state.receipt.binding.intent == .branch) return error.BranchOperationRequired;
     if (state.receipt.binding.intent == .transaction or state.receipt.binding.intent == .transaction_call) return error.TransactionOperationRequired;
     const value = request.update;
     if (state.pending == value.pending and state.cancel == value.cancel and std.meta.eql(state.record, value.record)) return .{ .state = state };
     if (!std.meta.eql(state.revision, value.expected)) return error.ClientOperationConflict;
     if ((!state.pending and value.pending) or (state.cancel and !value.cancel)) return error.ClientOperationConflict;
-    if (!value.pending) try self.requireClientTerminal(state.receipt.binding.intent, policy);
+    if (!value.pending) try self.requireClientTerminal(state.receipt.binding.intent, policy, workloads);
     if (value.record) |reference| {
         const bytes = try c.DirectRecord.load(self.allocator, self.data_objects, reference);
         defer self.allocator.free(bytes);
@@ -1523,8 +1570,9 @@ pub fn clientProgress(self: *Self, request: c.DirectClientToken.ProgressRequest,
     try check(current);
     return .{ .state = state };
 }
-fn requireClientTerminal(self: *Self, reference: c.DirectIntent.Reference, policy: Policy) anyerror!void {
+fn requireClientTerminal(self: *Self, reference: c.DirectIntent.Reference, policy: Policy, workloads: ?c.DirectWorkloadIntent.Reader) anyerror!void {
     switch (reference) {
+        .history => return error.HistoricalOperationRequired,
         .branch => return error.BranchOperationRequired,
         .transaction => return error.ClientOperationPending,
         .transaction_call => return error.TransactionOperationRequired,
@@ -1533,7 +1581,7 @@ fn requireClientTerminal(self: *Self, reference: c.DirectIntent.Reference, polic
         .external => {},
         .table => |value| switch (value.binding.action) {
             .create, .alter, .rename, .drop => switch (try self.status(value.binding, policy)) {
-                .not_observed, .admitted => return error.ClientOperationPending,
+                .not_observed, .admitted, .finalizing => return error.ClientOperationPending,
                 else => {},
             },
             .insert, .update, .delete => switch (try self.rowStatus(value.binding, policy)) {
@@ -1545,6 +1593,10 @@ fn requireClientTerminal(self: *Self, reference: c.DirectIntent.Reference, polic
         .log => |value| switch (try self.logOperation(value.binding, .inspect, policy)) {
             .not_observed => return error.ClientOperationPending,
             .operation => |operation| if (operation.pending()) return error.ClientOperationPending,
+        },
+        .workload => |value| {
+            const reader = workloads orelse return error.WorkloadServiceUnavailable;
+            try reader.requireTerminal(self.allocator, self, policy, value);
         },
         .namespace_change => |value| switch (try self.namespaceOperation(value.binding, .inspect, policy)) {
             .not_observed => return error.ClientOperationPending,
@@ -1623,6 +1675,7 @@ pub fn acquireTransaction(self: *Self, key: c.DirectClientToken.Key, policy: Pol
     if (!key.connection.matches(self.config()) or key.connection.principal != policy.subject.principal()) return error.CatalogDenied;
     const state = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
     if (state.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
+    try self.requireTransactionMutation(state.receipt);
     var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(state.receipt.binding.intent.transaction.begin.limits.resident_bytes) };
     const parent = self.allocator;
     const retained = self.options.table_owner;
@@ -1653,6 +1706,9 @@ fn acquireTransactionBounded(self: *Self, admitted: c.DirectClientToken.Progress
     defer sources.deinit();
     const previous = if (state.record != null) try c.DirectTransaction.Acquired.load(self.allocator, self.data_objects, state) else null;
     if (previous) |acquired| try sources.restore(acquired.cut.sources);
+    var catalog_basis = try c.DirectHistoryDirectory.init(self.allocator, self.data_objects, begin.identity.begin, self.config().branch, .retained, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
+    defer catalog_basis.deinit();
+    if (previous) |acquired| if (acquired.catalog) |catalog| try catalog_basis.restore(catalog);
     var count: u64 = 0;
     var after: ?s.TransactionDirectory.Cursor = null;
     while (true) {
@@ -1694,6 +1750,10 @@ fn acquireTransactionBounded(self: *Self, admitted: c.DirectClientToken.Progress
                 if (access.view.table.root.retired) return error.TransactionConflict;
                 try basis.requireUnchanged(transactionTableGuard(access.view.table.root));
                 try sources.put(.{ .source = .{ .guard = .{ .state = .{ .kind = participant.state.kind, .basis = basis } }, .pin = pin } });
+                if (frozen.root.kind == .table) {
+                    const namespace = try self.schema(access.view.properties.namespace);
+                    try catalog_basis.put(.{ .namespace = namespace, .properties = access.view.properties, .declaration = frozen.root.declared(), .source = .{ .interpretation = basis.source.interpretation, .manifest = null, .checkpoint_lsn = 0, .accepted = basis.source.accepted }, .catalog = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn }, .pin = pin });
+                }
             } else {
                 const source = (try sources.get(entry_value.target()) orelse return error.IncompleteTransactionCut).source;
                 if (!std.meta.eql((try source.guard.requirePagedState()), basis) or !std.meta.eql(source.pin, pin)) return error.InvalidTransactionCut;
@@ -1717,7 +1777,7 @@ fn acquireTransactionBounded(self: *Self, admitted: c.DirectClientToken.Progress
     var next = self.store.root;
     next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
     state.revision = .{ .partition = self.config().partition, .next_lsn = next.next_lsn };
-    const acquired: c.DirectTransaction.Acquired = .{ .definition = p.Growth.current_definition, .cut = .{ .begin = begin, .sources = try sources.seal(), .acquired = state.revision }, .coordination = state.receipt.coordination.? };
+    const acquired: c.DirectTransaction.Acquired = .{ .definition = p.Growth.current_definition, .cut = .{ .begin = begin, .sources = try sources.seal(), .acquired = state.revision }, .coordination = state.receipt.coordination.?, .catalog = if (catalog_basis.root.count == 0) null else try catalog_basis.seal() };
     state.record = try acquired.stage(self.data_objects, state.receipt);
     try state.validate();
     try self.store.clientIndices(&next, state);
@@ -1786,6 +1846,7 @@ const TransactionPolicy = struct {
 pub fn beginTransaction(self: *Self, request: c.DirectTransactionRequest.Begin, policy: Policy) !c.DirectClientToken.Receipt {
     try request.validate();
     if (try self.clientToken(.{ .lookup = request.key }, policy)) |receipt| {
+        try self.requireTransactionMutation(receipt);
         if (receipt.binding.intent != .transaction or !std.mem.eql(u8, &receipt.binding.fingerprint, &request.fingerprint)) return error.ClientTokenConflict;
         return receipt;
     }
@@ -1851,7 +1912,7 @@ fn beginTransactionBounded(self: *Self, request: c.DirectTransactionRequest.Begi
         },
     }
     const begin: p.Transaction.Begin = .{ .definition = p.Growth.current_definition, .identity = identity, .mode = request.mode, .selection = if (request.selection == .explicit_objects) .explicit_objects else .authorized_catalog_tables, .objects = try selected.seal(), .catalog = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn }, .limits = request.limits };
-    const binding: c.DirectClientToken.Binding = .{ .key = request.key, .fingerprint = request.fingerprint, .budget = request.budget, .intent = .{ .transaction = .{ .connection = request.key.connection, .namespace = request.namespace, .begin = begin } } };
+    const binding: c.DirectClientToken.Binding = .{ .key = request.key, .fingerprint = request.fingerprint, .budget = request.budget, .intent = .{ .transaction = .{ .connection = request.key.connection, .namespace = request.namespace, .begin = begin, .purpose = if (self.queue_transfer_owner) |value| .{ .queue_transfer = value.plan } else .interactive } } };
     return (try self.clientTokenSelected(.{ .bind = binding }, policy, true)).?;
 }
 
@@ -1871,6 +1932,144 @@ fn selectTransactionTable(self: *Self, selected: *s.TransactionDirectory, target
     return true;
 }
 
+fn requireTransactionMutation(self: *Self, receipt: c.DirectClientToken.Receipt) !void {
+    if (receipt.binding.intent != .transaction or receipt.binding.intent.transaction.purpose == .interactive) return;
+    const owner_value = self.queue_transfer_owner orelse return error.TransactionOperationRequired;
+    if (!std.mem.eql(u8, &owner_value.key, &try receipt.binding.key.digest()) or
+        !std.meta.eql(owner_value.plan, receipt.binding.intent.transaction.purpose.queue_transfer)) return error.TransactionOperationRequired;
+}
+
+/// Admit one original exhausted-item transfer as a protected standard
+/// transaction. The host holds exclusive database publication access, including
+/// physical collection, throughout payload staging and catalog acceptance.
+pub fn admitQueueTransfer(self: *Self, plan: c.DirectQueueTransferPlan, original_policy: Policy) !c.DirectClientToken.Receipt {
+    try plan.validate();
+    try c.DirectTransaction.requireLimits(plan.limits, self.options.transaction_limits);
+    var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(plan.limits.resident_bytes) };
+    const parent = self.allocator;
+    self.allocator = memory.allocator();
+    defer {
+        self.allocator = parent;
+        std.debug.assert(memory.used == 0);
+    }
+    return self.admitQueueTransferBounded(plan, original_policy) catch |err| return if (err == error.OutOfMemory and memory.exhausted) error.TransactionMemoryLimit else err;
+}
+
+fn admitQueueTransferBounded(self: *Self, plan: c.DirectQueueTransferPlan, original_policy: Policy) !c.DirectClientToken.Receipt {
+    try self.requireInitialized();
+    if (self.queue_transfer_owner != null) return error.TransactionOperationRequired;
+    if (!plan.key.connection.matches(self.config()) or plan.key.connection.principal != original_policy.subject.principal()) return error.CatalogDenied;
+    var checked: TransactionPolicy = .{ .original = original_policy };
+    const policy = checked.policy();
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    try check(try self.guard(scratch.allocator(), policy, null, null, .database));
+    if (try self.store.queueTransferSource(try plan.sourceKey())) |bound| {
+        const accepted = try c.DirectQueueTransferPlan.fromReceipt(self.allocator, self.data_objects, bound.receipt);
+        try plan.key.requireSame(accepted.key);
+        if (!std.meta.eql(plan, accepted)) return error.ClientTokenConflict;
+        return (try self.clientToken(.{ .lookup = plan.key }, policy)).?;
+    }
+    if (try self.store.clientToken(plan.key) != null) return error.ClientTokenConflict;
+    const reserved = try c.OperationBinding.lookupTransaction(self.allocator, self.store.objects, plan.operation);
+    if (reserved) |saved| {
+        if (saved.reference.purpose != .queue_transfer or !std.mem.eql(u8, &saved.token, &try plan.key.digest())) return error.TransactionIdentityConflict;
+        const frozen = try c.DirectQueueTransferPlan.load(self.allocator, self.data_objects, saved.reference.purpose.queue_transfer);
+        if (!std.meta.eql(frozen, plan)) return error.ClientTokenConflict;
+    }
+    const source = try self.logAuthorization(scratch.allocator(), .queue, plan.transfer.target(), .administer, policy);
+    const source_read = try self.logAuthorization(scratch.allocator(), .queue, plan.transfer.target(), .read, policy);
+    const destination = try self.logAuthorization(scratch.allocator(), .queue, plan.transfer.destination.target, .append, policy);
+    const destination_read = try self.logAuthorization(scratch.allocator(), .queue, plan.transfer.destination.target, .read, policy);
+    try check(source.guard);
+    try check(source_read.guard);
+    try check(destination.guard);
+    try check(destination_read.guard);
+    const work: TransactionLogWork.Work = .{ .queue_transfer = plan.transfer };
+    // Exact source reconstruction proves the blocked tuple, recorded destination
+    // and payload. A client-provided hash cannot reserve an unverified source.
+    const bytes = try self.allocator.alloc(u8, @intCast(plan.transfer.destination.payload.bytes));
+    defer self.allocator.free(bytes);
+    const payload_length = materialize: {
+        var view = try self.transactionLogView(source.definition, plan.transfer.target().partition, source_read.guard);
+        defer view.deinit();
+        const materialized = try view.owner.queue.deadLetterWork(source.definition.stored, .{
+            .source = plan.transfer.source.exhausted,
+            .destination = plan.transfer.destination.target.interpretation,
+        }, plan.transfer.operation, plan.transfer.destination.target, plan.transfer.destination.operation, bytes, source_read.guard);
+        if (!std.meta.eql(materialized.request, plan.transfer)) return error.InvalidTransactionTransfer;
+        break :materialize materialized.payload.len;
+    };
+    {
+        var target = try self.transactionLogView(destination.definition, plan.transfer.destination.target.partition, destination_read.guard);
+        defer target.deinit();
+        try target.validatePayload(work, bytes[0..payload_length]);
+    }
+    try TransactionLogWork.stagePayload(self.data_objects, work, bytes[0..payload_length]);
+    const reference = try plan.store(self.data_objects);
+    self.queue_transfer_owner = .{ .key = try plan.key.digest(), .plan = reference };
+    defer self.queue_transfer_owner = null;
+    var targets: [2]p.Transaction.Target = undefined;
+    const receipt = if (reserved) |saved|
+        (try self.clientTokenSelected(.{ .bind = .{ .key = plan.key, .fingerprint = try plan.digest(), .budget = plan.budget, .intent = .{ .transaction = saved.reference } } }, policy, true)).?
+    else
+        try self.beginTransaction(try plan.begin(&targets), policy);
+    try plan.requireReceipt(receipt);
+    return receipt;
+}
+
+/// Recover the original statement and settlement in finite transaction units.
+/// No fresh operation, destination, lease, handler or decision is selected here.
+pub fn advanceQueueTransfer(self: *Self, key: c.DirectClientToken.Key, steps: u16, policy: Policy) !TransactionControl.Status {
+    if (steps == 0 or steps > 256 or self.queue_transfer_owner != null) return error.InvalidTransactionWork;
+    const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
+    const plan = try c.DirectQueueTransferPlan.fromReceipt(self.allocator, self.data_objects, progress.receipt);
+    self.queue_transfer_owner = .{ .key = try key.digest(), .plan = progress.receipt.binding.intent.transaction.purpose.queue_transfer };
+    defer self.queue_transfer_owner = null;
+    const observed = try self.inspectTransaction(key, policy);
+    if (observed.attempt) |attempt| {
+        if (!std.meta.eql(attempt.operation, plan.settlement)) return error.TransactionIdentityConflict;
+        return self.settleTransaction(key, plan.settlement, .commit, steps, policy);
+    }
+    if (progress.record == null) {
+        _ = try self.acquireTransaction(key, policy);
+        return self.inspectTransaction(key, policy);
+    }
+    const head = try TransactionWorkspace.recover(self.allocator, self.data_objects, progress);
+    try plan.requireWorkspace(head);
+    const work: TransactionLogWork.Work = .{ .queue_transfer = plan.transfer };
+    if (head.pending) |saved| {
+        if (saved != .log or !std.meta.eql(saved.log.work, work) or saved.log.statement.sequence != 1) return error.InvalidTransactionWorkspace;
+        _ = try self.executeTransactionLog(key, saved.log, policy);
+        return self.inspectTransaction(key, policy);
+    }
+    if (head.last_statement == 0) {
+        const payload = (try TransactionLogWork.loadPayload(self.allocator, self.data_objects, work)).?;
+        defer self.allocator.free(payload);
+        const request = try self.stageTransactionLog(key, head.revision, 1, work, payload, policy);
+        // The shared workspace publishes this exact request before evaluation.
+        _ = try self.admitTransactionLog(key, request, policy);
+        return self.inspectTransaction(key, policy);
+    }
+    var index = try s.TreeStore.init(self.allocator, self.data_objects, self.options.resident_pages);
+    defer index.deinit();
+    const completed = try TransactionWorkspace.get(TransactionWorkspace.StatementCompletion, self.allocator, &index, head.statements, 1, key.scope(), TransactionWorkspace.statement_format) orelse return error.InvalidTransactionWorkspace;
+    try completed.validate();
+    if (completed != .log or !std.meta.eql(completed.log.request.work, work)) return error.InvalidTransactionWorkspace;
+    return self.settleTransaction(key, plan.settlement, if (completed.log.outcome == .provisional) .commit else .abort, steps, policy);
+}
+
+/// An explicit abort uses the frozen settlement identity. If a common commit
+/// already won, this request can only finish that decision's cleanup.
+pub fn abortQueueTransfer(self: *Self, key: c.DirectClientToken.Key, steps: u16, policy: Policy) !TransactionControl.Status {
+    if (steps == 0 or steps > 256 or self.queue_transfer_owner != null) return error.InvalidTransactionWork;
+    const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
+    const plan = try c.DirectQueueTransferPlan.fromReceipt(self.allocator, self.data_objects, progress.receipt);
+    self.queue_transfer_owner = .{ .key = try key.digest(), .plan = progress.receipt.binding.intent.transaction.purpose.queue_transfer };
+    defer self.queue_transfer_owner = null;
+    return self.settleTransaction(key, plan.settlement, .abort, steps, policy);
+}
+
 const TransactionWorkspace = c.DirectTransactionWorkspace;
 const TransactionStateWork = union(enum) { table: c.DirectTableIntent.Work, kv: c.DirectKV.Mutation };
 
@@ -1887,6 +2086,7 @@ pub fn stageTransactionKV(self: *Self, key: c.DirectClientToken.Key, basis: d.Po
 fn stageTransactionStateWork(self: *Self, key: c.DirectClientToken.Key, basis: d.Position, sequence: u64, work: TransactionStateWork, policy: Policy) !TransactionWorkspace.Request {
     const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
     if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
+    try self.requireTransactionMutation(progress.receipt);
     const head = try TransactionWorkspace.recover(self.allocator, self.data_objects, progress);
     if (head.acquired.cut.begin.mode == .read_only) return error.ReadOnlyTransaction;
     if ((work == .table and work.table == .ddl) or sequence == 0 or sequence > head.acquired.cut.begin.limits.statements) return error.InvalidTransactionWork;
@@ -1962,6 +2162,7 @@ pub fn executeTransactionStatement(self: *Self, key: c.DirectClientToken.Key, re
 fn transactionStatementWork(self: *Self, key: c.DirectClientToken.Key, request: TransactionWorkspace.Request, policy: Policy, evaluate: bool) !?s.TableWorkspace.Outcome {
     const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
     if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
+    try self.requireTransactionMutation(progress.receipt);
     var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(progress.receipt.binding.intent.transaction.begin.limits.resident_bytes) };
     const parent = self.allocator;
     const retained = self.options.table_owner;
@@ -2115,7 +2316,7 @@ fn authenticateTransactionLog(self: *Self, work: TransactionLogWork.Work) !void 
     if (work == .stream_offset) {
         const environment = self.log_environment orelse return error.InvalidStreamReadAuthority;
         const authority = environment.authority orelse return error.InvalidStreamReadAuthority;
-        try authority.verify(work.stream_offset.cursor);
+        try authority.verifyProgress(work.stream_offset.progress);
     }
 }
 
@@ -2124,6 +2325,7 @@ fn authenticateTransactionLog(self: *Self, work: TransactionLogWork.Work) !void 
 pub fn stageTransactionLog(self: *Self, key: c.DirectClientToken.Key, basis: d.Position, sequence: u64, work: TransactionLogWork.Work, payload: ?[]const u8, policy: Policy) !TransactionLogWork.Request {
     const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
     if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
+    try self.requireTransactionMutation(progress.receipt);
     var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(progress.receipt.binding.intent.transaction.begin.limits.resident_bytes) };
     const parent = self.allocator;
     self.allocator = memory.allocator();
@@ -2189,6 +2391,7 @@ fn transactionLogStatement(self: *Self, key: c.DirectClientToken.Key, request: T
     try request.validate();
     const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
     if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
+    try self.requireTransactionMutation(progress.receipt);
     var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(progress.receipt.binding.intent.transaction.begin.limits.resident_bytes) };
     const parent = self.allocator;
     self.allocator = memory.allocator();
@@ -2285,7 +2488,7 @@ fn transactionLogStatementBounded(self: *Self, progress: c.DirectClientToken.Pro
         defer actions.deinit();
         if (previous) |value| try actions.restore(value);
         const action_entry = request.work.entry(request.statement);
-        if (action_entry.offset_cursor) |cursor| try actions.putOffset(action_entry.work, cursor) else try actions.put(action_entry.work, if (request.work == .queue_transfer) null else payload);
+        if (action_entry.offset_progress) |issued| try actions.putOffset(action_entry.work, issued) else try actions.put(action_entry.work, if (request.work == .queue_transfer) null else payload);
         break :sealed try actions.seal();
     };
     var destination: ?TransactionTransferAdvance = null;
@@ -2600,6 +2803,7 @@ pub fn transactionSavepoint(self: *Self, key: c.DirectClientToken.Key, request: 
     if (steps == 0 or steps > 256) return error.InvalidTransactionWork;
     const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
     if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
+    try self.requireTransactionMutation(progress.receipt);
     var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(progress.receipt.binding.intent.transaction.begin.limits.resident_bytes) };
     const parent = self.allocator;
     const retained = self.options.table_owner;
@@ -2799,6 +3003,7 @@ pub fn inspectTransaction(self: *Self, key: c.DirectClientToken.Key, policy: Pol
 pub fn settleTransaction(self: *Self, key: c.DirectClientToken.Key, operation: d.Operation, command: TransactionControl.Command, steps: u16, policy: Policy) !TransactionControl.Status {
     const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
     if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
+    try self.requireTransactionMutation(progress.receipt);
     if (steps == 0) return error.InvalidTransactionWork;
     var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(progress.receipt.binding.intent.transaction.begin.limits.resident_bytes) };
     const parent = self.allocator;
@@ -3004,6 +3209,7 @@ fn settleTransactionBounded(self: *Self, admitted: c.DirectClientToken.Progress,
         try self.publishTransactionControl(&progress, &control, guard_value);
     }
     while (!control.cleanup_complete and remaining != 0) {
+        if (try self.store.historyTransferPending(begin.identity.begin)) return;
         const page = try participants.page(control.cleanup_after);
         var complete = true;
         for (page.entries) |slot| if (slot) |entry_value| {
@@ -3534,6 +3740,12 @@ fn namespaceDependencies(self: *Self, namespace_id: u64, after: ?u64, current: P
         const target = try r.fromValue(r.Entry, self.allocator, item.value);
         try target.validate(self.config());
         if (!std.meta.eql(item.key, try r.idKey(target.object))) return error.InvalidDirectCatalogEntry;
+        if (target.descriptor) |at| {
+            const named = try self.store.descriptorRecord(at);
+            const stored = named.resulting orelse return error.InvalidCatalogDescriptor;
+            if (!stored.retired and stored.properties.namespace == namespace_id) return .{ .blocked = true, .after = null };
+            continue;
+        }
         if (target.log) |at| {
             const named = try self.store.logRecord(at);
             if (named.namespace == namespace_id and (named.pending() or (named.phase == .complete and !named.resulting.?.stored.retired))) return .{ .blocked = true, .after = null };
@@ -3672,6 +3884,7 @@ fn requestGuard(self: *Self, allocator: std.mem.Allocator, policy: Policy, reque
         try self.requirements(policy, namespace, target, access)
     else
         try self.kvRequirements(policy, namespace, target, if (request.intent.action == .create) .create else .administer);
+    if (acceptance) requested = try self.foreignRequirements(policy, request, view, requested);
     if (request.intent.action == .create) requested.selectable = request.intent.action.create.owner;
     return policy.make_guard(policy.context, allocator, requested, if (acceptance) request.binding.prerequisite else null);
 }
@@ -3691,6 +3904,7 @@ fn pending(self: *Self, object: u64, current: P.Guard) !bool {
     const binding = try c.OperationBinding.lookup(self.allocator, self.store.objects, operation) orelse return error.InvalidDirectCatalogOperation;
     const observed = try self.store.operation(binding) orelse return error.InvalidDirectCatalogOperation;
     if (!observed.pending()) return false;
+    if (observed.requires_settlement) return true;
     if (target.seed == null) return true;
     var view = try self.open(self.allocator, target, false);
     defer view.deinit();
@@ -3700,6 +3914,11 @@ fn pending(self: *Self, object: u64, current: P.Guard) !bool {
 fn available(self: *Self, namespace: u64, name: a.Name, object: u64, current: P.Guard) !bool {
     const proposed = try self.candidate(namespace, name) orelse return true;
     const target = try self.entry(proposed.object) orelse return error.InvalidDirectCatalogName;
+    if (target.descriptor) |at| {
+        const named = try self.store.descriptorRecord(at);
+        const stored = named.resulting orelse return error.InvalidCatalogDescriptor;
+        return stored.retired or stored.properties.namespace != namespace or !std.meta.eql(stored.properties.name, name) or proposed.object == object;
+    }
     if (target.log) |at| {
         const named = try self.store.logRecord(at);
         if (named.phase == .complete and !named.resulting.?.stored.retired) {
@@ -3750,7 +3969,7 @@ fn admissionReason(self: *Self, request: Request, known: bool, existing: ?*View,
             if (!expected.unchangedAt(.{ .partition = view.table.root.partition, .next_lsn = view.table.root.next_lsn }, view.table.root.changed_lsn)) return .stale_data;
         }
         if (view.table.root.pending != null or try self.pending(object, current)) return .object_conflict;
-        if (request.intent.action == .drop and try self.hasDependents(object)) return .dependency;
+        if ((request.intent.action == .drop and try self.hasDependents(object)) or try self.altersReferencedColumn(request)) return .dependency;
     } else return .object_conflict;
     const proposed_name = if (request.intent.action == .rename) request.intent.action.rename else request.intent.name;
     if ((request.intent.action == .create or request.intent.action == .rename) and !try self.available(request.intent.namespace, proposed_name, object, current)) return .name_conflict;
@@ -3829,14 +4048,15 @@ pub fn admit(self: *Self, request: Request, policy: Policy) !r.Operation {
     defer self.store.index.end();
     try c.OperationBinding.claimInTree(self.allocator, &self.store.index, request.binding);
     const content = try IntentStore.stageInTree(self.allocator, &self.store.index, self.config(), request);
-    var operation: r.Operation = .{ .binding = request.binding, .intent = content, .phase = .admitted, .reason = .none };
+    var operation: r.Operation = .{ .binding = request.binding, .intent = content, .phase = .admitted, .reason = .none, .requires_settlement = request.intent.action != .rename and
+        (proposedIntegrity(request, if (existing) |*value| value else null).foreign_keys.len != 0 or if (existing) |value| value.table.declaration.schema.schema.integrity.foreign_keys.len != 0 else false) };
     var next = self.store.root;
     if (reason != .none) {
         operation.phase = .rejected;
         operation.reason = reason;
     } else {
         if (request.intent.action == .create) {
-            const target: r.Entry = .{ .object = object, .partition = next.next_partition, .seed = null, .resource = null, .log = null };
+            const target: r.Entry = .{ .object = object, .partition = next.next_partition, .seed = null, .resource = null, .log = null, .descriptor = null };
             next.next_partition = try std.math.add(u64, next.next_partition, 1);
             next.objects = try self.store.tree().put(next.objects, try r.idKey(object), try r.pageValue(target));
         }
@@ -3881,7 +4101,10 @@ pub fn status(self: *Self, binding: d.Binding, policy: Policy) !Observation {
     };
     const current = try self.requestGuard(arena.allocator(), policy, request.value, if (view) |*value| value else null, false);
     try check(current);
-    if (view) |*value| if (try value.table.observeEvidence(binding, current)) |accepted| return .{ .committed = accepted };
+    if (view) |*value| if (try value.table.observeEvidence(binding, current)) |accepted| {
+        if (operation.requires_settlement and operation.phase != .settled) return .{ .finalizing = .{ .evidence = accepted, .operation = operation } };
+        return .{ .committed = accepted };
+    };
     return switch (operation.phase) {
         .admitted, .ready => .{ .admitted = operation },
         .rejected => .{ .rejected = operation },
@@ -3972,10 +4195,25 @@ pub fn perform(self: *Self, binding: d.Binding, policy: Policy) !Observation {
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
     const current = try self.requestGuard(arena.allocator(), policy, request.value, &view, true);
-    if (binding.action == .drop and try self.hasDependents(binding.target.object)) {
-        try self.terminal(observed.admitted, .rejected, .dependency, current);
+    const operation = (try self.store.operation(binding)).?;
+    if (operation.closing) |close| {
+        try self.terminal(operation, close.phase, close.reason, current);
         return self.status(binding, policy);
     }
+    if ((binding.action == .drop and try self.hasDependents(binding.target.object)) or try self.altersReferencedColumn(request.value)) {
+        try self.terminal(operation, .rejected, .dependency, current);
+        return self.status(binding, policy);
+    }
+    const advanced = self.protectForeignColumn(request.value, &view, policy, current) catch |err| {
+        switch (err) {
+            error.ForeignKeyTargetChanged, error.ForeignKeyTargetMismatch, error.ForeignKeyTargetNotUniqueKey, error.IncompatibleForeignKeyColumnType => {
+                try self.terminal(operation, .rejected, .dependency, current);
+                return self.status(binding, policy);
+            },
+            else => return err,
+        }
+    };
+    if (advanced) return self.status(binding, policy);
     var properties = view.properties;
     if (request.value.intent.action == .rename) properties.name = request.value.intent.action.rename;
     var bytes: [s.TableDeclaration.max_properties_bytes]u8 = undefined;
@@ -3992,15 +4230,179 @@ pub fn perform(self: *Self, binding: d.Binding, policy: Policy) !Observation {
             error.TableDefinitionChanged => .stale_definition,
             error.TableDataChanged => .stale_data,
             error.DuplicatePrimaryKey, error.MissingRequiredField, error.NullNotAllowed, error.Overflow, error.TableRetired => .constraint,
-            error.IbmHfpUnderflow, error.IbmHfpOverflow, error.UnrepresentableEbcdic037 => .constraint,
+            error.IbmHfpUnderflow, error.IbmHfpOverflow, error.UnrepresentableEbcdic037, error.UnrepresentableEbcdic1047 => .constraint,
+            error.CheckConstraintViolation, error.ColumnReferencedByCheckConstraint, error.ColumnReferencedByForeignKey, error.ForeignKeySetNullRequiresNullableColumn => .constraint,
+            error.OnlinePhasedRewriteRequired => .rewrite_required,
+            error.TableStatementScanLimit, error.TableBuildBudget => .work_limit,
             else => return err,
         };
-        try self.terminal(observed.admitted, .rejected, reason, current);
+        try self.terminal(operation, .rejected, reason, current);
         return self.status(binding, policy);
     };
     // No catalog publication is needed for visibility or the accepted result.
     // A later explicit settlement only removes the pending-work directory entry.
-    return .{ .committed = .{ .binding = binding, .resulting = view.table.root.declared(), .outcome = outcome, .transaction = null } };
+    const evidence: P.Evidence = .{ .binding = binding, .resulting = view.table.root.declared(), .outcome = outcome, .transaction = null };
+    if (operation.requires_settlement) return .{ .finalizing = .{ .evidence = evidence, .operation = operation } };
+    return .{ .committed = evidence };
+}
+
+// FK registrations belong to the original DDL operation, never to separately
+// allocated client tokens. A bounded step protects one referenced ColumnId.
+fn proposedIntegrity(request: Request, view: ?*View) c.fuze.TableConstraints.Integrity {
+    return switch (request.intent.action) {
+        .create => |value| value.schema.integrity,
+        .alter => |change| if (change == .integrity) change.integrity.integrity else view.?.table.declaration.schema.schema.integrity,
+        .rename => view.?.table.declaration.schema.schema.integrity,
+        .drop => .{},
+    };
+}
+fn newForeignKey(request: Request, view: ?*View, id: u32) bool {
+    if (request.intent.action == .create) return true;
+    for (view.?.table.declaration.schema.schema.integrity.foreign_keys) |fk| if (fk.id == id) return false;
+    return true;
+}
+fn hasColumnDependents(self: *Self, object: u64, column: u64) !bool {
+    var prefix: [17]u8 = undefined;
+    std.mem.writeInt(u64, prefix[0..8], object, .big);
+    prefix[8] = 1;
+    std.mem.writeInt(u64, prefix[9..17], column, .big);
+    const page = try self.store.tree().scan(self.store.root.dependents, try pages.Key.init(&prefix));
+    const first = page.entries[0] orelse return false;
+    if (!std.mem.startsWith(u8, first.key.slice(), &prefix)) return false;
+    const edge = try r.fromValue(Dependency.Edge, self.allocator, first.value);
+    try edge.validate();
+    if (!std.meta.eql(first.key, try edge.forwardKey()) or edge.foreign_key.?.column != column) return error.InvalidCatalogDependency;
+    return true;
+}
+fn altersReferencedColumn(self: *Self, request: Request) !bool {
+    if (request.intent.action != .alter) return false;
+    const column: u64 = switch (request.intent.action.alter) {
+        .drop => |id| id,
+        .type => |value| value.column,
+        .physical => |value| value.column,
+        else => return false,
+    };
+    return self.hasColumnDependents(request.binding.target.object, column);
+}
+fn foreignRequirements(self: *Self, policy: Policy, request: Request, view: ?*View, requested: p.Authorization.Guard) !p.Authorization.Guard {
+    var out = requested;
+    const integrity = proposedIntegrity(request, view);
+    for (integrity.foreign_keys, 0..) |fk, i| {
+        if (!newForeignKey(request, view, fk.id)) continue;
+        const parent = fk.target_definition orelse return error.ForeignKeyDefinitionRequired;
+        if (!std.meta.eql(parent.object.scope, self.config().scope) or parent.object.branch != self.config().branch or parent.object.object == request.binding.target.object) return error.ForeignKeyScopeUnsupported;
+        var seen = false;
+        for (integrity.foreign_keys[0..i]) |earlier| if (earlier.target_object == fk.target_object and newForeignKey(request, view, earlier.id)) {
+            seen = true;
+            break;
+        };
+        if (!seen) out = try out.merge((try self.dependencySource(parent.object, policy, 0)).requirements);
+    }
+    return out;
+}
+fn protectForeignColumn(self: *Self, request: Request, view: *View, policy: Policy, current: P.Guard) !bool {
+    const operation = (try self.store.operation(request.binding)).?;
+    const integrity = proposedIntegrity(request, view);
+    var index: usize = 0;
+    for (integrity.foreign_keys) |fk| {
+        if (!newForeignKey(request, view, fk.id)) continue;
+        for (fk.target_columns) |column| {
+            defer index += 1;
+            if (index < operation.protected_columns) continue;
+            if (index != operation.protected_columns) return error.InvalidDirectCatalogOperation;
+            const parent = fk.target_definition.?;
+            const source = try self.dependencySource(parent.object, policy, 0);
+            if (!source.live or !std.meta.eql(parent, source.interpretation) or try self.pending(fk.target_object, current)) return error.ForeignKeyTargetChanged;
+            const entry_value = try self.entry(fk.target_object) orelse return error.ForeignKeyTargetChanged;
+            var parent_view = try self.open(self.allocator, entry_value, false);
+            defer parent_view.deinit();
+            if (parent_view.table.root.kind != .table) return error.CatalogKindMismatch;
+            var columns: [c.fuze.TableSchema.max_columns]c.fuze.TableSchema.Column = undefined;
+            const after_schema = switch (request.intent.action) {
+                .create => |value| value.schema,
+                .alter => |change| (try c.fuze.TableEvolution.apply(view.table.declaration.schema.schema, change, &columns)).after,
+                else => return error.InvalidDirectCatalogOperation,
+            };
+            try fk.validateAgainstSchemas(after_schema, parent_view.table.declaration.schema.schema);
+            var declaration = try s.TableDeclaration.prepare(self.allocator, .{ .kind = .table, .object = request.binding.target, .revision = if (request.intent.action == .create) 1 else try std.math.add(u64, view.table.declaration.definition.revision, 1), .schema = after_schema, .properties = view.table.declaration.definition.properties });
+            defer declaration.deinit();
+            const edge: Dependency.Edge = .{ .source = parent, .dependent = .{ .kind = .table, .interpretation = (try declaration.stored()).interpretation }, .privileges = 0, .foreign_key = .{ .constraint = fk.id, .column = column } };
+            if (try self.dependencyEdge(edge) != null) return error.InvalidCatalogDependency;
+            var batch: s.TreeStore.Batch = .{};
+            try self.store.index.beginBatch(self.options.index_work_bytes, &batch);
+            defer self.store.index.end();
+            var next = self.store.root;
+            const encoded = try r.pageValue(edge);
+            next.dependents = try self.store.tree().put(next.dependents, try edge.forwardKey(), encoded);
+            next.dependencies = try self.store.tree().put(next.dependencies, try edge.reverseKey(), encoded);
+            var progress = operation;
+            progress.dependency_steps = try std.math.add(u32, progress.dependency_steps, 1);
+            progress.protected_columns += 1;
+            progress.dependency_change = .{ .edge = edge, .remove = false };
+            try self.record(next, progress, current);
+            return true;
+        }
+    }
+    if (index != operation.protected_columns) return error.InvalidDirectCatalogOperation;
+    return false;
+}
+
+// Closing is recorded before cleanup, and stops further Table publication.
+// One step examines one reverse edge. Obsolete edges are removed only after
+// the original Table outcome is known; a missing reply never releases them.
+fn closeDependencies(self: *Self, operation: r.Operation, phase: r.Phase, reason: r.Reason, current: P.Guard) !bool {
+    if (operation.closing == null) {
+        // No new registrations and no schema removal can need cleanup.
+        if (operation.protected_columns == 0 and (operation.binding.action == .create or operation.binding.action == .rename or phase != .settled)) return false;
+        const prefix = try Dependency.dependentKey(operation.binding.target);
+        const first = (try self.store.tree().scan(self.store.root.dependencies, try pages.Key.init(&prefix))).entries[0] orelse return false;
+        if (!std.mem.startsWith(u8, first.key.slice(), &prefix)) return false;
+        var progress = operation;
+        progress.closing = .{ .phase = phase, .reason = reason };
+        progress.dependency_change = null;
+        progress.dependency_steps = try std.math.add(u32, progress.dependency_steps, 1);
+        var batch: s.TreeStore.Batch = .{};
+        try self.store.index.beginBatch(self.options.index_work_bytes, &batch);
+        defer self.store.index.end();
+        try self.record(self.store.root, progress, current);
+        return true;
+    }
+    const prefix = try Dependency.dependentKey(operation.binding.target);
+    const page = try self.store.tree().scan(self.store.root.dependencies, operation.cleanup_after orelse try pages.Key.init(&prefix));
+    const item = page.entries[0] orelse return false;
+    if (!std.mem.startsWith(u8, item.key.slice(), &prefix)) return false;
+    const edge = try r.fromValue(Dependency.Edge, self.allocator, item.value);
+    try edge.validate();
+    if (!std.meta.eql(item.key, try edge.reverseKey())) return error.InvalidCatalogDependency;
+    var remove = false;
+    if (edge.foreign_key) |foreign| {
+        remove = true;
+        const target = try self.entry(operation.binding.target.object) orelse return error.InvalidDirectCatalogOperation;
+        if (target.seed != null) {
+            var view = try self.open(self.allocator, target, false);
+            defer view.deinit();
+            if (view.table.root.next_lsn != 0 and !view.table.root.retired) {
+                for (view.table.declaration.schema.schema.integrity.foreign_keys) |fk| if (fk.id == foreign.constraint) {
+                    remove = false;
+                    break;
+                };
+            }
+        }
+    }
+    var progress = operation;
+    progress.dependency_steps = try std.math.add(u32, progress.dependency_steps, 1);
+    progress.cleanup_after = item.key;
+    progress.dependency_change = if (remove) .{ .edge = edge, .remove = true } else null;
+    var batch: s.TreeStore.Batch = .{};
+    try self.store.index.beginBatch(self.options.index_work_bytes, &batch);
+    defer self.store.index.end();
+    var next = self.store.root;
+    if (remove) {
+        next.dependents = try self.store.tree().remove(next.dependents, try edge.forwardKey());
+        next.dependencies = try self.store.tree().remove(next.dependencies, try edge.reverseKey());
+    }
+    try self.record(next, progress, current);
+    return true;
 }
 
 fn hasDependents(self: *Self, object: u64) !bool {
@@ -4018,6 +4420,7 @@ fn dependentRequirements(self: *Self, policy: Policy, object: d.Object, write: b
     try object.validate();
     if (object.scope.realm != self.config().scope.realm or object.branch != 1) return error.CatalogDenied;
     if (std.meta.eql(object.scope, self.config().scope)) {
+        if (try self.descriptorCurrent(object.object)) |value| return self.requirements(policy, try self.authorizationSchema(value.properties.namespace), value.properties.target(object.object), if (write) .alter else .inspect);
         if (try self.logRecord(object.object)) |known| {
             const value = known.resulting orelse return error.CatalogDenied;
             const namespace = try self.authorizationSchema(value.properties.namespace);
@@ -4026,9 +4429,9 @@ fn dependentRequirements(self: *Self, policy: Policy, object: d.Object, write: b
             return c.LogAuthority.requirements(self.config().authority, policy.subject, namespace, value.properties.target(object.object), if (write) .administer else .inspect);
         }
         if (try self.entry(object.object)) |target| if (target.seed) |seed| {
-            if (seed.kind != .kv) return error.CatalogKindMismatch;
             var view = try self.open(self.allocator, target, false);
             defer view.deinit();
+            if (seed.kind == .table) return self.requirements(policy, try self.authorizationSchema(view.properties.namespace), view.properties.target(object.object), if (write) .alter else .inspect);
             return self.kvRequirements(policy, try self.authorizationSchema(view.properties.namespace), view.properties.target(object.object), if (write) .administer else .inspect);
         };
         const known = try self.namedRecord(object.object) orelse return error.CatalogDenied;
@@ -4048,6 +4451,10 @@ fn dependentDefinition(self: *Self, dependent: Dependency.Dependent) !bool {
     if (dependent.kind == .captured or dependent.kind == .maintained)
         return !std.meta.eql(object.scope, self.config().scope);
     if (!std.meta.eql(object.scope, self.config().scope)) return false;
+    if (dependent.kind == .view or dependent.kind == .property_graph or dependent.kind == .foreign) {
+        const value = try self.descriptorCurrent(object.object) orelse return false;
+        return !value.retired and Descriptor.dependentKind(value.kind) == dependent.kind and std.meta.eql(value.interpretation, dependent.interpretation);
+    }
     if (dependent.kind == .stream or dependent.kind == .queue) {
         const known = try self.logRecord(object.object) orelse return false;
         const value = known.resulting orelse return false;
@@ -4193,6 +4600,8 @@ pub fn dependencyOperation(self: *Self, binding: Dependency.Binding, command: De
     try binding.validate();
     // Queue declaration edges also retain historical routing. Removing one
     // requires the Queue's closure/retention proof, not generic graph editing.
+    if (binding.edge.foreign_key != null) return error.TableDependencyOwned;
+    if (binding.edge.dependent.kind == .view or binding.edge.dependent.kind == .property_graph or binding.edge.dependent.kind == .foreign) return error.CatalogDependencyOwned;
     if (binding.action == .remove and binding.edge.dependent.kind == .queue) return error.QueueDependencyRetained;
     if (!binding.connection.matches(self.config()) or binding.connection.principal != policy.subject.principal()) return error.CatalogDenied;
     var arena = std.heap.ArenaAllocator.init(self.allocator);
@@ -4286,10 +4695,11 @@ pub fn dependencyPage(self: *Self, selection: Dependency.Selection, cursor: ?Dep
     const position: d.Position = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn };
     var after_key = prefix;
     if (cursor) |after| {
+        try after.validate();
         if (!std.meta.eql(after.selection, selection) or after.authority != authority) return error.InvalidCatalogCursor;
         if (!std.meta.eql(after.position, position)) return error.CatalogObservationChanged;
-        @memcpy(after_key.data[after_key.len..][0..32], &after.after);
-        after_key.len += 32;
+        if (!std.mem.startsWith(u8, after.after.slice(), prefix.slice())) return error.InvalidCatalogCursor;
+        after_key = after.after;
     }
     const page = try self.store.tree().scan(if (selection == .dependents) self.store.root.dependents else self.store.root.dependencies, after_key);
     var result: Dependency.Page = .{ .position = position };
@@ -4328,7 +4738,7 @@ pub fn dependencyPage(self: *Self, selection: Dependency.Selection, cursor: ?Dep
         count += 1;
     }
     if (last) |after| if (page.entries[Dependency.page_entries] != null or page.next != null) {
-        result.next = .{ .selection = selection, .authority = authority, .position = position, .after = after.slice()[prefix.len..][0..32].* };
+        result.next = .{ .selection = selection, .authority = authority, .position = position, .after = after };
     };
     try check(disclosure);
     return result;
@@ -4585,6 +4995,29 @@ pub fn captureRowsDefined(self: *Self, interpretation: d.Definition, owner: d.Op
     return access.view.table.pin(owner, selected, access.current);
 }
 
+/// Copy one authorized retained cut into the query's independent operation.
+/// Validate an existing copy before consulting its source, which may now be
+/// released. No current schema/frontier can replace the accepted source.
+pub fn copyRowsDefined(self: *Self, interpretation: d.Definition, owner: d.Operation, expected: d.Position, source: P.SnapshotHandle, policy: Policy) !P.SnapshotHandle {
+    try interpretation.validate();
+    try expected.validate();
+    try self.requireUnreservedBranchPin(interpretation.object, owner);
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    var access = try self.snapshotAccess(scratch.allocator(), interpretation.object, owner, policy, false);
+    defer access.view.deinit();
+    if (access.view.table.workspace_read != null) return error.InvalidTransactionRead;
+    const state = try access.view.table.pinState(owner, access.current);
+    if (state.released) return error.TableSnapshotReleased;
+    var frozen = try access.view.table.inspectSnapshot(scratch.allocator(), state.handle orelse source, access.current);
+    defer frozen.deinit();
+    if (state.handle != null and !std.meta.eql(frozen.copied_from, source)) return error.DataIdentityConflict;
+    if (!std.meta.eql(frozen.root.interpretation, interpretation)) return error.TableDefinitionChanged;
+    if (frozen.root.partition != expected.partition or frozen.root.next_lsn != expected.next_lsn) return error.TableDataChanged;
+    access.view.table.lose_reply = self.lose_table_reply;
+    return access.view.table.copySnapshot(owner, source, access.current);
+}
+
 pub fn retainHistory(self: *Self, object: d.Object, owner: d.Operation, expected: d.Position, interpretation: ?d.Definition, policy: Policy) !P.SnapshotHandle {
     if (interpretation) |required| {
         try required.validate();
@@ -4677,6 +5110,43 @@ pub fn snapshotDefinition(self: *Self, allocator: std.mem.Allocator, object: d.O
     var access = try self.snapshotAccess(arena.allocator(), object, handle.owner, policy, false);
     defer access.view.deinit();
     return access.view.table.inspectSnapshot(allocator, handle, access.current);
+}
+
+/// Metadata-only coverage of an existing private pin. Current inspection
+/// rights suffice; this never creates a pin or reads the pinned row payloads.
+pub fn projectionDefinitions(self: *Self, object: d.Object, handle: P.SnapshotHandle, after: ?P.ProjectionEvidence.Cursor, policy: Policy) !P.ProjectionEvidence {
+    try handle.owner.validate();
+    if (!std.meta.eql(handle.owner.scope, object.scope) or handle.owner.principal != policy.subject.principal()) return error.CatalogDenied;
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    var access = try self.storageAccess(scratch.allocator(), object, policy, false);
+    defer access.view.deinit();
+    return access.view.table.inspectProjection(scratch.allocator(), handle, after, access.current);
+}
+
+/// Per-row placement discloses original row identities and requires SELECT.
+pub fn projectionLocations(self: *Self, object: d.Object, handle: P.SnapshotHandle, after: ?P.SnapshotCursor, policy: Policy) !P.ProjectionLocations {
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    var access = try self.snapshotAccess(scratch.allocator(), object, handle.owner, policy, false);
+    defer access.view.deinit();
+    return access.view.table.inspectProjectionLocations(scratch.allocator(), handle, after, access.current);
+}
+
+pub fn prepareSchemaProjection(self: *Self, allocator: std.mem.Allocator, source: c.storage.TableDeclaration.Stored, target: ?c.storage.TableDeclaration.Stored, policy: Policy) !P.AcceptedDefinition {
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    var access = try self.storageAccess(scratch.allocator(), source.interpretation.object, policy, false);
+    defer access.view.deinit();
+    return access.view.table.prepareProjection(allocator, source, target, access.current);
+}
+
+pub fn scanSchemaProjection(self: *Self, allocator: std.mem.Allocator, snapshot: c.DirectTableProtocol.Snapshot, target: c.storage.TableDeclaration.Stored, after: ?P.SnapshotCursor, limits: P.ReadLimits, policy: Policy) !P.ProjectedPage {
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    var access = try self.snapshotAccess(scratch.allocator(), snapshot.object, snapshot.handle.owner, policy, false);
+    defer access.view.deinit();
+    return access.view.table.scanSnapshotProjected(allocator, snapshot.handle, target, after, limits, access.current);
 }
 
 pub fn snapshotRead(self: *Self, allocator: std.mem.Allocator, object: d.Object, handle: P.SnapshotHandle, policy: Policy) !SnapshotRead {
@@ -4773,6 +5243,7 @@ pub fn rangeRows(self: *Self, allocator: std.mem.Allocator, object: d.Object, ha
 }
 
 fn terminal(self: *Self, previous: r.Operation, phase: r.Phase, reason: r.Reason, current: P.Guard) !void {
+    if (try self.closeDependencies(previous, phase, reason, current)) return;
     var index_batch: s.TreeStore.Batch = .{};
     try self.store.index.beginBatch(self.options.index_work_bytes, &index_batch);
     defer self.store.index.end();
@@ -4785,11 +5256,13 @@ fn terminal(self: *Self, previous: r.Operation, phase: r.Phase, reason: r.Reason
     var operation = previous;
     operation.phase = phase;
     operation.reason = reason;
+    operation.dependency_change = null;
     try self.record(next, operation, current);
 }
 
 pub fn cancel(self: *Self, binding: d.Binding, policy: Policy) !Observation {
     const observed = try self.status(binding, policy);
+    if (observed == .finalizing) return self.settle(binding, policy);
     if (observed != .admitted) return observed;
     var request = (try self.loadRequest(binding)).?;
     defer request.deinit();
@@ -4800,13 +5273,14 @@ pub fn cancel(self: *Self, binding: d.Binding, policy: Policy) !Observation {
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
     const current = try self.requestGuard(arena.allocator(), policy, request.value, if (view) |*value| value else null, false);
-    try self.terminal(observed.admitted, .cancelled, .none, current);
+    const close = observed.admitted.closing orelse r.Closure{ .phase = .cancelled, .reason = .none };
+    try self.terminal(observed.admitted, close.phase, close.reason, current);
     return self.status(binding, policy);
 }
 
 pub fn settle(self: *Self, binding: d.Binding, policy: Policy) !Observation {
     const observed = try self.status(binding, policy);
-    if (observed != .committed) return observed;
+    if (observed != .committed and observed != .finalizing) return observed;
     const operation = (try self.store.operation(binding)).?;
     if (operation.phase == .settled) return observed;
     var request = (try self.loadRequest(binding)).?;
@@ -4818,7 +5292,7 @@ pub fn settle(self: *Self, binding: d.Binding, policy: Policy) !Observation {
     defer arena.deinit();
     const current = try self.requestGuard(arena.allocator(), policy, request.value, &view, false);
     try self.terminal(operation, .settled, .none, current);
-    return observed;
+    return self.status(binding, policy);
 }
 
 fn branchGuard(self: *Self, allocator: std.mem.Allocator, intent: c.DirectBranch.Intent, policy: Policy, create: bool) !P.Guard {
@@ -4852,6 +5326,8 @@ fn requireUnreservedBranchPin(self: *Self, object: d.Object, owner: d.Operation)
     try self.requireInitialized();
     try owner.validate();
     if (!std.meta.eql(owner.scope, self.config().scope)) return error.DataIdentityConflict;
+    try self.store.requireNoHistoryTransfer(owner);
+    if (try c.OperationBinding.lookupHistory(self.allocator, self.store.objects, owner) != null) return error.HistoricalRetentionOwned;
     const value = try self.store.tree().get(self.store.root.branch_owners, try r.operationKey(owner)) orelse return;
     const progress = try self.store.branchByDigest(value);
     // Ordinary multi-source readers can use one owner on several Tables.
@@ -5005,4 +5481,838 @@ pub fn openBranch(self: *Self, scratch: std.mem.Allocator, head: p.Branch.Head, 
     var pinned = try access.view.table.inspectSnapshot(self.allocator, entry_value.pin, access.current);
     defer pinned.deinit();
     return .{ .access = access, .entry = entry_value, .mode = intent.mode };
+}
+fn historyDirectory(self: *Self, owner: d.Operation, kind: c.DirectHistoryDirectory.Kind, reference: ?c.DirectHistoryDirectory.Reference) !c.DirectHistoryDirectory {
+    var directory = try c.DirectHistoryDirectory.init(self.allocator, self.data_objects, owner, self.config().branch, kind, if (reference) |value| @max(try value.total(), 1) else self.options.history_selection_limit, self.options.resident_pages, self.options.index_work_bytes);
+    errdefer directory.deinit();
+    if (reference) |value| try directory.restore(value);
+    return directory;
+}
+
+pub fn selectHistory(self: *Self, request: @FieldType(c.DirectHistory.Request, "select"), policy: Policy) !c.DirectHistory.Selection {
+    try self.requireInitialized();
+    const selected = request.selection;
+    if (!std.meta.eql(selected.owner.scope, self.config().scope) or selected.owner.principal != policy.subject.principal() or selected.branch != self.config().branch or self.transaction_read != null) return error.CatalogDenied;
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    var directory = try self.historyDirectory(selected.owner, .selection, selected.directory);
+    defer directory.deinit();
+    directory.object_limit = self.options.history_selection_limit;
+    var required = try self.requirements(policy, try self.schema(request.namespace), null, .schema);
+    if (try self.resolve(scratch.allocator(), request.namespace, request.name, policy)) |found| {
+        var view = found;
+        defer view.deinit();
+        required = try required.merge(try self.selectHistoryTable(&directory, &view, null, policy));
+    } else {
+        var definition = try self.resolveDefinition(scratch.allocator(), request.namespace, request.name, policy) orelse return error.CatalogNameNotFound;
+        defer definition.deinit();
+        const value = definition.value;
+        const stored = try value.stored(scratch.allocator());
+        required = try required.merge(try self.requirements(policy, try self.schema(request.namespace), stored.properties.target(value.object.object), .read));
+        try check(try policy.make_guard(policy.context, scratch.allocator(), required, null));
+        try directory.putDescriptor(.{ .namespace = try self.schema(request.namespace), .declaration = stored, .catalog = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn } });
+        for (value.sources) |source| {
+            const target = try self.entry(source.declaration.interpretation.object.object) orelse return error.HistoricalSourceChanged;
+            if (target.seed == null) return error.HistoricalSourceChanged;
+            var view = try self.open(scratch.allocator(), target, false);
+            defer view.deinit();
+            if (!std.meta.eql(view.properties, source.properties)) return error.HistoricalSourceChanged;
+            required = try required.merge(try self.selectHistoryTable(&directory, &view, source.declaration, policy));
+        }
+    }
+    const current = try policy.make_guard(policy.context, scratch.allocator(), required, null);
+    try check(current);
+    const reference = try directory.seal();
+    try check(current);
+    return .{ .owner = selected.owner, .branch = selected.branch, .directory = reference };
+}
+fn selectHistoryTable(self: *Self, directory: *c.DirectHistoryDirectory, view: *View, expected: ?s.TableDeclaration.Stored, policy: Policy) !p.Authorization.Guard {
+    const namespace = try self.schema(view.properties.namespace);
+    const required = try self.requirements(policy, namespace, view.properties.target(view.table.root.interpretation.object.object), .read);
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    try check(try policy.make_guard(policy.context, scratch.allocator(), required, null));
+    if (view.table.root.kind != .table or view.table.root.retired or view.table.root.next_lsn == 0 or view.table.root.transaction != null) return error.HistoricalSourceChanged;
+    if (expected) |declaration| {
+        if (!std.meta.eql(view.table.root.declared(), declaration)) return error.HistoricalSourceChanged;
+        if (try directory.get(declaration.interpretation.object.object)) |known| {
+            if (!std.meta.eql(known.declaration, declaration)) return error.HistoricalSourceChanged;
+            return required; // An earlier explicit source cut remains frozen.
+        }
+    }
+    try directory.put(.{ .namespace = namespace, .properties = view.properties, .declaration = view.table.root.declared(), .source = .{ .interpretation = view.table.root.interpretation, .manifest = null, .checkpoint_lsn = 0, .accepted = .{ .partition = view.table.root.partition, .next_lsn = view.table.root.next_lsn } }, .catalog = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn }, .pin = null });
+    return required;
+}
+
+fn prepareHistoryAdmission(self: *Self, intent: c.DirectHistory.Intent, policy: Policy) !void {
+    if (!intent.connection.matches(self.config()) or intent.connection.principal != policy.subject.principal() or self.transaction_read != null) return error.CatalogDenied;
+    if (try intent.selection.total() > self.options.history_selection_limit) return error.HistoricalObjectLimit;
+    if (intent.common) |common| {
+        const progress = (try self.clientProgress(.{ .inspect = common.key }, policy)).state orelse return error.ClientOperationMissing;
+        if (!progress.pending or progress.cancel or progress.receipt.binding.intent != .transaction) return error.TransactionCutNotAcquired;
+        const acquired = try c.DirectTransaction.Acquired.load(self.allocator, self.data_objects, progress);
+        if (!std.meta.eql(acquired.commonCut(), common.cut) or !std.meta.eql(acquired.catalog, @as(?c.DirectHistoryDirectory.Reference, intent.selection))) return error.HistoricalIdentityConflict;
+        try self.store.requireNoHistoryTransfer(common.cut.transaction);
+    }
+    var directory = try self.historySelection(intent);
+    defer directory.deinit();
+}
+
+fn historySelection(self: *Self, intent: c.DirectHistory.Intent) !c.DirectHistoryDirectory {
+    return self.historyDirectory(intent.selectionOwner(), intent.selectionKind(), intent.selection);
+}
+
+/// A closing source transaction may already have published its decision while
+/// retaining prepared Table barriers. The transfer may apply only that recorded
+/// decision before copying its original pin; it cannot decide or resolve another
+/// transaction. Otherwise cleanup and transfer would wait on each other.
+fn historyAccess(self: *Self, allocator: std.mem.Allocator, intent: c.DirectHistory.Intent, object: d.Object, policy: Policy, control: bool) !SnapshotAccess {
+    const common = intent.common orelse return self.snapshotAccess(allocator, object, intent.identity(), policy, control);
+    try self.requireInitialized();
+    if (!std.meta.eql(object.scope, intent.connection.scope) or object.branch != intent.connection.branch or intent.connection.principal != policy.subject.principal()) return error.CatalogDenied;
+    const target = try self.entry(object.object) orelse return error.CatalogDenied;
+    var view = try self.openTransaction(allocator, target, control, true);
+    errdefer view.deinit();
+    if (view.table.root.kind != .table) return error.CatalogKindMismatch;
+    const current = try self.guard(allocator, policy, try self.authorizationSchema(view.properties.namespace), view.properties.target(object.object), .read);
+    try check(current);
+    if (view.table.root.transaction) |reference| {
+        const prepared = try s.TableTransaction.load(allocator, self.data_objects, reference);
+        if (!std.meta.eql(prepared.binding.begin.identity.begin, common.cut.transaction)) return error.TransactionPrepared;
+        view.table.lose_reply = self.lose_table_reply;
+        _ = try view.table.resolveTransaction(current) orelse return error.TransactionPrepared;
+    }
+    return .{ .view = view, .current = current };
+}
+
+fn historyProgress(self: *Self, key: c.DirectClientToken.Key, policy: Policy) !?c.DirectClientToken.Progress {
+    const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return null;
+    if (progress.receipt.binding.intent != .history) return error.HistoricalOperationRequired;
+    return progress;
+}
+fn historyStatus(self: *Self, progress: c.DirectClientToken.Progress) !c.DirectHistory.Status {
+    return .{ .receipt = progress.receipt, .revision = progress.revision, .state = try c.DirectHistory.State.load(self.allocator, self.store.objects, progress) };
+}
+pub fn inspectHistory(self: *Self, key: c.DirectClientToken.Key, policy: Policy) !?c.DirectHistory.Status {
+    return try self.historyStatus(try self.historyProgress(key, policy) orelse return null);
+}
+pub fn acquireHistory(self: *Self, request: @FieldType(c.DirectHistory.Request, "acquire"), policy: Policy) !c.DirectHistory.Status {
+    _ = try self.clientToken(.{ .bind = .{ .key = request.key, .fingerprint = try request.intent.digest(), .intent = .{ .history = request.intent }, .budget = request.budget } }, policy);
+    return self.advanceHistory(request.key, .advance, policy);
+}
+fn publishHistoryState(self: *Self, progress: *c.DirectClientToken.Progress, state: c.DirectHistory.State, current: P.Guard) !void {
+    var next = self.store.root;
+    next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
+    var updated = progress.*;
+    updated.revision = .{ .partition = self.config().partition, .next_lsn = next.next_lsn };
+    updated.pending = state.pending();
+    updated.cancel = state.cancelled();
+    updated.record = try state.stage(self.store.objects, updated);
+    var batch: s.TreeStore.Batch = .{};
+    try self.store.index.beginBatch(self.options.index_work_bytes, &batch);
+    defer self.store.index.end();
+    try self.store.clientIndices(&next, updated);
+    try self.store.publish(next, .{ .client_token = updated }, current);
+    progress.* = updated;
+}
+fn historyNext(directory: *c.DirectHistoryDirectory, after: ?u64) !?c.DirectHistoryDirectory.Entry {
+    const page = try directory.page(if (after) |id| .{ .directory = try directory.commitment(), .after = id } else null);
+    return page.entries[0];
+}
+fn historySourceUnchanged(self: *Self, view: *const View, value: c.DirectHistoryDirectory.Entry) !void {
+    if (view.table.root.transaction != null or !std.meta.eql(view.table.root.declared(), value.declaration) or !std.meta.eql(view.properties, value.properties) or !std.meta.eql(try self.schema(value.namespace.id), value.namespace)) return error.HistoricalSourceChanged;
+}
+const HistoryEpoch = struct {
+    underlying: P.Guard,
+    expected: u64,
+    fn guard(self: *HistoryEpoch) P.Guard {
+        return .{ .context = self, .acquire = acquire, .release = release };
+    }
+    fn acquire(context: *anyopaque) !P.Guard.Fence {
+        const self: *HistoryEpoch = @ptrCast(@alignCast(context));
+        const fence = try self.underlying.acquire(self.underlying.context);
+        errdefer self.underlying.release(self.underlying.context);
+        if (fence.policy_epoch != self.expected) return error.HistoricalAuthorityChanged;
+        return fence;
+    }
+    fn release(context: *anyopaque) void {
+        const self: *HistoryEpoch = @ptrCast(@alignCast(context));
+        self.underlying.release(self.underlying.context);
+    }
+};
+
+/// Exactly one control transition or one Table pin step. The host serializes
+/// acquisition with publication; no total-selection loop or current-cut retry.
+pub fn advanceHistory(self: *Self, key: c.DirectClientToken.Key, command: enum { advance, abandon, release }, policy: Policy) !c.DirectHistory.Status {
+    var progress = try self.historyProgress(key, policy) orelse return error.ClientOperationMissing;
+    var state = (try self.historyStatus(progress)).state;
+    if (self.transaction_read != null) return error.UnsupportedHistoricalTransaction;
+    if (state.phase == .cancelled or state.phase == .released or (state.phase == .published and command != .release)) return self.historyStatus(progress);
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    const current = try self.guard(scratch.allocator(), policy, null, null, .database);
+    try check(current);
+    const intent = progress.receipt.binding.intent.history;
+    if (command == .abandon and (state.phase == .acquiring or state.phase == .verifying)) {
+        state.phase = .abandoning;
+        try self.publishHistoryState(&progress, state, current);
+        return self.historyStatus(progress);
+    }
+    if (command == .release and state.phase == .published) {
+        state.phase = .releasing;
+        try self.publishHistoryState(&progress, state, current);
+        return self.historyStatus(progress);
+    }
+    if (command == .release and state.phase != .releasing) return error.HistoricalNotPublished;
+    var selection = try self.historySelection(intent);
+    defer selection.deinit();
+    if (state.phase == .abandoning or state.phase == .releasing) {
+        if (state.inflight) |object| {
+            const value = try selection.get(object) orelse return error.InvalidHistoricalState;
+            var access = try self.historyAccess(scratch.allocator(), intent, value.source.interpretation.object, policy, true);
+            defer access.view.deinit();
+            const pin = try access.view.table.pinState(intent.identity(), access.current);
+            access.view.table.lose_reply = self.lose_table_reply;
+            if (pin.handle) |handle| if (!pin.released) try access.view.table.releaseSnapshot(handle, access.current);
+            state.inflight = null;
+            try self.publishHistoryState(&progress, state, access.current);
+            return self.historyStatus(progress);
+        }
+        var retained = try self.historyDirectory(intent.identity(), .retained, state.retained);
+        defer retained.deinit();
+        if (try historyNext(&retained, state.released_after)) |value| {
+            var access = try self.historyAccess(scratch.allocator(), intent, value.source.interpretation.object, policy, true);
+            defer access.view.deinit();
+            const pin = try access.view.table.pinState(intent.identity(), access.current);
+            if (!std.meta.eql(pin.handle, value.pin)) return error.InvalidHistoricalState;
+            access.view.table.lose_reply = self.lose_table_reply;
+            if (!pin.released) try access.view.table.releaseSnapshot(value.pin.?, access.current);
+            state.released_after = value.source.interpretation.object.object;
+            try self.publishHistoryState(&progress, state, access.current);
+        } else {
+            if (state.released_after != state.after) return error.IncompleteHistoricalSelection;
+            state.phase = if (state.phase == .abandoning) .cancelled else .released;
+            try self.publishHistoryState(&progress, state, current);
+        }
+        return self.historyStatus(progress);
+    }
+    if (state.phase == .acquiring) {
+        var value = try historyNext(&selection, state.after) orelse {
+            if (state.retained == null and intent.selection.count == 0 and intent.selection.descriptors != 0) {
+                var empty = try self.historyDirectory(intent.identity(), .retained, null);
+                defer empty.deinit();
+                state.retained = try empty.seal();
+            }
+            if (state.inflight != null or state.retained == null or state.retained.?.count != intent.selection.count) return error.IncompleteHistoricalSelection;
+            state.phase = .verifying;
+            try self.publishHistoryState(&progress, state, current);
+            return self.historyStatus(progress);
+        };
+        const object = value.source.interpretation.object;
+        var access = try self.historyAccess(scratch.allocator(), intent, object, policy, false);
+        defer access.view.deinit();
+        const pin_state = try access.view.table.pinState(intent.identity(), access.current);
+        if (state.inflight == null) {
+            if (intent.common == null) try self.historySourceUnchanged(&access.view, value);
+            if (pin_state.handle != null) return error.DataIdentityConflict;
+            state.inflight = object.object;
+            try self.publishHistoryState(&progress, state, access.current);
+            return self.historyStatus(progress);
+        }
+        if (state.inflight.? != object.object) return error.InvalidHistoricalState;
+        access.view.table.lose_reply = self.lose_table_reply;
+        const original_pin = value.pin;
+        if (intent.common != null) {
+            value.pin = try access.view.table.copySnapshot(intent.identity(), original_pin.?, access.current);
+        } else if (pin_state.handle) |handle| {
+            if (pin_state.released) return error.TableSnapshotReleased;
+            value.pin = handle;
+        } else {
+            try self.historySourceUnchanged(&access.view, value);
+            value.pin = try access.view.table.pin(intent.identity(), value.source.accepted, access.current);
+        }
+        try value.verify(scratch.allocator(), self.data_objects);
+        var frozen = try access.view.table.inspectSnapshot(scratch.allocator(), value.pin.?, access.current);
+        defer frozen.deinit();
+        if (!std.meta.eql(frozen.copied_from, original_pin)) return error.InvalidHistoricalState;
+        var retained = try self.historyDirectory(intent.identity(), .retained, state.retained);
+        defer retained.deinit();
+        retained.object_limit = intent.selection.count;
+        try retained.put(value);
+        state.retained = try retained.seal();
+        state.after = object.object;
+        state.inflight = null;
+        try self.publishHistoryState(&progress, state, access.current);
+        return self.historyStatus(progress);
+    }
+    if (state.phase != .verifying or state.retained == null) return error.InvalidHistoricalState;
+    var retained = try self.historyDirectory(intent.identity(), .retained, state.retained);
+    defer retained.deinit();
+    if (try historyNext(&retained, state.verified_after)) |value| {
+        const selected_entry = try selection.get(value.source.interpretation.object.object) orelse return error.InvalidHistoricalState;
+        var without_pin = value;
+        without_pin.pin = selected_entry.pin;
+        if (!std.meta.eql(selected_entry, without_pin)) return error.InvalidHistoricalState;
+        var access = try self.historyAccess(scratch.allocator(), intent, value.source.interpretation.object, policy, false);
+        defer access.view.deinit();
+        var frozen = try access.view.table.inspectSnapshot(scratch.allocator(), value.pin.?, access.current);
+        defer frozen.deinit();
+        if (!std.meta.eql(frozen.copied_from, selected_entry.pin)) return error.InvalidHistoricalState;
+        try value.verify(scratch.allocator(), self.data_objects);
+        const epoch = try access.current.acquire(access.current.context);
+        access.current.release(access.current.context);
+        if (state.policy_epoch != null and state.policy_epoch.? != epoch.policy_epoch) {
+            state.verified_after = null;
+            state.descriptor_after = null;
+            state.descriptors_verified = 0;
+            state.policy_epoch = null;
+            try self.publishHistoryState(&progress, state, current);
+        } else {
+            state.policy_epoch = epoch.policy_epoch;
+            state.verified_after = value.source.interpretation.object.object;
+            var fenced: HistoryEpoch = .{ .underlying = access.current, .expected = epoch.policy_epoch };
+            try self.publishHistoryState(&progress, state, fenced.guard());
+        }
+    } else if (try historyNextDescriptor(&selection, state.descriptor_after)) |value| {
+        const access = try self.verifyHistoryDescriptor(scratch.allocator(), &selection, value, policy);
+        const epoch = try access.acquire(access.context);
+        access.release(access.context);
+        if (state.policy_epoch != null and state.policy_epoch.? != epoch.policy_epoch) {
+            state.verified_after = null;
+            state.descriptor_after = null;
+            state.descriptors_verified = 0;
+            state.policy_epoch = null;
+            try self.publishHistoryState(&progress, state, current);
+        } else {
+            state.policy_epoch = epoch.policy_epoch;
+            state.descriptor_after = value.declaration.interpretation.object.object;
+            state.descriptors_verified = try std.math.add(u64, state.descriptors_verified, 1);
+            var fenced: HistoryEpoch = .{ .underlying = access, .expected = epoch.policy_epoch };
+            try self.publishHistoryState(&progress, state, fenced.guard());
+        }
+    } else {
+        if (state.verified_after != state.after or state.policy_epoch == null or retained.root.count != intent.selection.count or state.descriptors_verified != intent.selection.descriptors) return error.IncompleteHistoricalSelection;
+        const epoch = try current.acquire(current.context);
+        current.release(current.context);
+        if (epoch.policy_epoch != state.policy_epoch.?) {
+            state.verified_after = null;
+            state.descriptor_after = null;
+            state.descriptors_verified = 0;
+            state.policy_epoch = null;
+            try self.publishHistoryState(&progress, state, current);
+        } else {
+            state.snapshot = .{ .definition = p.Growth.current_definition, .owner = intent.identity(), .branch = intent.connection.branch, .catalog_root = intent.selection.content, .sources_root = state.retained.?.content, .source_count = intent.selection.count, .consistency = if (intent.common) |common| .{ .common_transaction = common.cut } else if (intent.selection.count == 1) .{ .single_partition = (try historyNext(&retained, null)).?.source.accepted } else .independent };
+            state.phase = .published;
+            var fenced: HistoryEpoch = .{ .underlying = current, .expected = epoch.policy_epoch };
+            try self.publishHistoryState(&progress, state, fenced.guard());
+        }
+    }
+    return self.historyStatus(progress);
+}
+
+const HistoryPublication = struct {
+    intent: c.DirectHistory.Intent,
+    phase: c.DirectHistory.Phase,
+    fn requirePublished(self: HistoryPublication) !void {
+        if (self.phase == .releasing or self.phase == .released) return error.HistoricalSnapshotReleased;
+        if (self.phase != .published) return error.HistoricalNotPublished;
+    }
+};
+fn historyPublication(self: *Self, snapshot: d.Snapshot, policy: Policy) !HistoryPublication {
+    try self.requireInitialized();
+    try snapshot.validate();
+    if (snapshot.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
+    if (!std.meta.eql(snapshot.owner.scope, self.config().scope) or snapshot.branch != self.config().branch or self.transaction_read != null) return error.CatalogDenied;
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    const current = try self.guard(scratch.allocator(), policy, null, null, .database);
+    try check(current);
+    const reservation = try c.OperationBinding.lookupHistory(self.allocator, self.store.objects, snapshot.owner) orelse return error.HistoricalNotPublished;
+    const progress = try self.store.clientTokenState(reservation.key) orelse return error.HistoricalNotPublished;
+    if (progress.receipt.binding.intent != .history or !std.meta.eql(progress.receipt.binding.intent.history, reservation.intent)) return error.InvalidHistoricalState;
+    const state = (try self.historyStatus(progress)).state;
+    const recorded = state.snapshot orelse return error.HistoricalNotPublished;
+    if (!std.meta.eql(recorded, snapshot)) return error.HistoricalIdentityConflict;
+    try check(current);
+    return .{ .intent = reservation.intent, .phase = state.phase };
+}
+pub fn lookupHistory(self: *Self, snapshot: d.Snapshot, namespace_id: u64, name: a.Name, policy: Policy) !?u64 {
+    const publication = try self.historyPublication(snapshot, policy);
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    const namespace = try self.guard(scratch.allocator(), policy, try self.authorizationSchema(namespace_id), null, .schema);
+    try check(namespace);
+    // Accepted selection metadata survives release. Resolve it before reporting
+    // availability so a released selector never bypasses current object rights.
+    var directory = try self.historySelection(publication.intent);
+    defer directory.deinit();
+    const value = try directory.lookup(namespace_id, name) orelse {
+        try publication.requirePublished();
+        try check(namespace);
+        return null;
+    };
+    var access = try self.storageAccess(scratch.allocator(), value.source.interpretation.object, policy, false);
+    defer access.view.deinit();
+    try check(access.current);
+    try publication.requirePublished();
+    return value.source.interpretation.object.object;
+}
+pub const RetainedHistoryRead = struct {
+    access: SnapshotAccess,
+    authority: c.DirectReadAuthority,
+    binding: c.DirectHistoryDirectory.Entry,
+    pub fn deinit(self: *RetainedHistoryRead) void {
+        self.access.view.deinit();
+    }
+};
+pub fn openHistory(self: *Self, scratch: std.mem.Allocator, snapshot: d.Snapshot, object: u64, rows: bool, policy: Policy) !RetainedHistoryRead {
+    const publication = try self.historyPublication(snapshot, policy);
+    const target: d.Object = .{ .scope = snapshot.owner.scope, .branch = snapshot.branch, .object = object };
+    // Check current rights before exposing retention or directory membership.
+    var access = if (rows) try self.readAccess(scratch, target, policy, false) else try self.storageAccess(scratch, target, policy, false);
+    errdefer access.view.deinit();
+    try check(access.current);
+    try publication.requirePublished();
+    var directory = try self.historyDirectory(publication.intent.identity(), .retained, .{ .content = snapshot.sources_root, .count = snapshot.source_count, .descriptors = 0 });
+    defer directory.deinit();
+    const value = try directory.get(object) orelse return error.HistoricalObjectNotSelected;
+    try snapshot.requireSource(value.source);
+    // A published owner, not the requesting principal, owns the private pin.
+    // Current metadata/SELECT rights still come from the original Table object.
+    var frozen = try access.view.table.inspectSnapshot(scratch, value.pin.?, access.current);
+    defer frozen.deinit();
+    if (!std.meta.eql(frozen.root.declared(), value.declaration) or !std.meta.eql(frozen.position(), value.source.accepted)) return error.InvalidHistoricalBinding;
+    return .{ .access = access, .authority = try self.sourceAuthority(&access), .binding = value };
+}
+
+/// Namespace lookup uses the retained spelling and current namespace rights.
+pub fn namespaceHistory(self: *Self, snapshot: d.Snapshot, name: a.Name, policy: Policy) !?a.Schema {
+    const publication = try self.historyPublication(snapshot, policy);
+    var directory = try self.historySelection(publication.intent);
+    defer directory.deinit();
+    const value = try directory.namespaceByName(name) orelse {
+        try publication.requirePublished();
+        return null;
+    };
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    const current = try self.guard(scratch.allocator(), policy, try self.authorizationSchema(value.id), null, .schema);
+    try check(current);
+    try publication.requirePublished();
+    return value;
+}
+
+pub fn listHistory(self: *Self, output: std.mem.Allocator, input: @FieldType(c.DirectHistory.Request, "list"), policy: Policy) !c.DirectHistory.Listing {
+    const publication = try self.historyPublication(input.snapshot, policy);
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    const namespace = try self.authorizationSchema(input.namespace);
+    const current = try self.guard(scratch.allocator(), policy, namespace, null, .schema);
+    try check(current);
+    try publication.requirePublished();
+    var directory = try self.historyDirectory(publication.intent.identity(), .retained, .{ .content = input.snapshot.sources_root, .count = input.snapshot.source_count, .descriptors = 0 });
+    defer directory.deinit();
+    const page = try directory.page(input.after);
+    var selected: [8]c.DirectHistoryDirectory.Entry = undefined;
+    var count: usize = 0;
+    for (page.entries) |slot| {
+        const entry_value = slot orelse break;
+        if (entry_value.namespace.id != input.namespace) continue;
+        _ = scratch.reset(.retain_capacity);
+        var access = try self.storageAccess(scratch.allocator(), entry_value.source.interpretation.object, policy, false);
+        defer access.view.deinit();
+        try check(access.current);
+        selected[count] = entry_value;
+        count += 1;
+    }
+    // Authenticated dispatch accumulates the selected objects' requirements and
+    // fences their union after all output has been buffered.
+    return .{ .snapshot = input.snapshot, .namespace = input.namespace, .entries = try output.dupe(c.DirectHistoryDirectory.Entry, selected[0..count]), .next = page.next };
+}
+// Named interpretation metadata shares the catalog's identity/name directories,
+// native Table authority domain and one control-log acceptance boundary.
+const Descriptor = c.DirectDefinition;
+const Artifact = c.CatalogDefinition;
+
+fn descriptorRecord(self: *Self, object: u64) !?Descriptor.Operation {
+    const target = try self.entry(object) orelse return null;
+    const value = try self.store.descriptorRecord(target.descriptor orelse return null);
+    if (value.binding.target.object != object or value.phase != .applied) return error.InvalidCatalogDescriptor;
+    return value;
+}
+fn descriptorCurrent(self: *Self, object: u64) !?Artifact.Stored {
+    return if (try self.descriptorRecord(object)) |value| value.resulting else null;
+}
+fn descriptorGuard(self: *Self, allocator: std.mem.Allocator, request: Descriptor.Request, policy: Policy, write: bool, sources: bool) !P.Guard {
+    if (request.binding.identity.principal != policy.subject.principal()) return error.CatalogDenied;
+    const known = try self.descriptorCurrent(request.binding.target.object);
+    const namespace = try self.authorizationSchema(if (known) |value| value.properties.namespace else request.intent.namespace);
+    var target: ?a.Table = if (known) |value| value.properties.target(request.binding.target.object) else null;
+    if (target == null) if (try policy.registered(policy.context, .table, request.binding.target.object)) |native| {
+        try a.validateObject(self.config().authority, self.config().scope, .table, request.binding.target.object, a.reference(namespace.authorization), native);
+        target = .{ .id = request.binding.target.object, .schema = namespace.id, .authorization = native.reference.id };
+        if (request.intent.action == .create and native.owner != request.intent.action.create.owner) return error.CatalogIdentityConflict;
+    };
+    const access: a.Access = if (request.intent.action == .create and (write or target == null)) .create_table else if (write) .alter else .inspect;
+    var required = try self.requirements(policy, namespace, target, access);
+    if (request.intent.action == .create and write) required.selectable = request.intent.action.create.owner;
+    if (sources) if (request.intent.payload()) |payload| for (payload.sources) |source| {
+        const found = try self.dependencySource(source.declaration.interpretation.object, policy, a.select);
+        required = try required.merge(found.requirements);
+    };
+    return policy.make_guard(policy.context, allocator, required, if (write) request.binding.prerequisite else null);
+}
+fn descriptorReason(self: *Self, request: Descriptor.Request, current: P.Guard) !Descriptor.Reason {
+    const intent = request.intent;
+    const binding = request.binding;
+    if (try self.namespacePending(intent.namespace) != null) return .object_conflict;
+    _ = try self.schema(intent.namespace);
+    if (intent.action == .create) {
+        if (try self.entry(binding.target.object) != null) return .object_conflict;
+    } else {
+        const known = try self.descriptorCurrent(binding.target.object) orelse return .object_conflict;
+        if (known.kind != intent.kind or known.retired or try self.pending(binding.target.object, current)) return .object_conflict;
+        if (!std.meta.eql(known.interpretation, binding.expected_definition.?) or known.properties.namespace != intent.namespace or !std.meta.eql(known.properties.name, intent.name)) return .stale_definition;
+        if (intent.action == .drop and try self.hasDependents(binding.target.object)) return .dependency;
+    }
+    const name = if (intent.action == .rename) intent.action.rename else intent.name;
+    if ((intent.action == .create or intent.action == .rename) and !try self.available(intent.namespace, name, binding.target.object, current)) return .name_conflict;
+    if (intent.payload()) |payload| for (payload.sources) |source| {
+        const target = try self.entry(source.declaration.interpretation.object.object) orelse return .stale_definition;
+        if (target.seed == null or target.seed.?.kind != .table or try self.pending(target.object, current)) return .stale_definition;
+        var view = try self.open(self.allocator, target, false);
+        defer view.deinit();
+        if (view.table.root.next_lsn == 0 or view.table.root.retired or !std.meta.eql(view.properties, source.properties) or !std.meta.eql(view.table.root.declared(), source.declaration)) return .stale_definition;
+        const schema_bytes = try source.schema.decode(self.allocator, c.fuze.TableSchema.max_bytes);
+        defer self.allocator.free(schema_bytes);
+        var canonical: [c.fuze.TableSchema.max_bytes]u8 = undefined;
+        if (!std.mem.eql(u8, schema_bytes, try view.table.declaration.schema.schema.encode(&canonical))) return error.InvalidCatalogDescriptor;
+    };
+    return .none;
+}
+/// Preview has no registration or immutable staging side effect.
+pub fn previewDefinition(self: *Self, request: Descriptor.Request, policy: Policy) !Descriptor.Preview {
+    try self.requireInitialized();
+    try request.validate(self.allocator, self.config());
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    const current = try self.descriptorGuard(scratch.allocator(), request, policy, true, true);
+    try check(current);
+    if (try c.OperationBinding.lookup(self.allocator, self.store.objects, request.binding.identity)) |known| try known.requireSame(request.binding);
+    const result: Descriptor.Preview = .{ .binding = request.binding, .position = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn }, .current = try self.descriptorCurrent(request.binding.target.object), .reason = try self.descriptorReason(request, current) };
+    try check(current);
+    return result;
+}
+/// A native registration is preparation, not declaration acceptance. Only the
+/// original signed proposal may resume it. No data/source dependency is claimed
+/// until the atomic publication record is accepted; admission revalidates all.
+pub fn definitionRegistration(self: *Self, request: Descriptor.Request, policy: Policy) !?Registration {
+    const prepared_preview = try self.previewDefinition(request, policy);
+    if (request.intent.action != .create or prepared_preview.reason != .none) return null;
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    const current = try self.descriptorGuard(scratch.allocator(), request, policy, true, true);
+    const fence = try current.acquire(current.context);
+    defer current.release(current.context);
+    if (try policy.registered(policy.context, .table, request.binding.target.object) != null) return null;
+    try c.OperationBinding.claim(self.allocator, self.store.objects, request.binding);
+    const namespace = try self.schema(request.intent.namespace);
+    return .{ .action = .{ .domain = self.config().authority.table_domain, .owner = request.intent.action.create.owner, .schema = a.reference(namespace.authorization), .binding = try a.binding(self.config().scope, .table, request.binding.target.object) }, .authorization_revision = fence.policy_epoch - 1 };
+}
+fn prepareDescriptor(self: *Self, allocator: std.mem.Allocator, request: Descriptor.Request, policy: Policy) !Artifact.Definition {
+    const intent = request.intent;
+    if (intent.action == .create) {
+        const namespace = try self.schema(intent.namespace);
+        const native = try policy.registered(policy.context, .table, request.binding.target.object) orelse return error.CatalogRegistrationRequired;
+        try a.validateObject(self.config().authority, self.config().scope, .table, request.binding.target.object, a.reference(namespace.authorization), native);
+        if (native.owner != intent.action.create.owner) return error.CatalogIdentityConflict;
+        return intent.action.create.payload.definition(request.binding.target, 1, .{ .namespace = intent.namespace, .name = intent.name, .authorization = native.reference.id });
+    }
+    const previous = try self.descriptorCurrent(request.binding.target.object) orelse return error.InvalidCatalogDescriptor;
+    const owned = try Artifact.load(allocator, self.store.objects, previous);
+    // allocator is the request scratch arena; all returned slices stay alive.
+    const old = owned.value;
+    var next = old;
+    next.revision = try intent.revision(request.binding);
+    if (intent.action == .replace) {
+        next = intent.action.replace.definition(request.binding.target, next.revision, previous.properties);
+        var before = try Artifact.decodeSchema(allocator, old.schema);
+        defer before.deinit();
+        var after = try Artifact.decodeSchema(allocator, next.schema);
+        defer after.deinit();
+        if (after.schema.next_column < before.schema.next_column) return error.InvalidCatalogDescriptor;
+        for (after.schema.columns) |column| {
+            const retained = for (before.schema.columns) |prior| {
+                if (prior.id == column.id) break true;
+            } else false;
+            if (!retained and column.id < before.schema.next_column) return error.InvalidCatalogDescriptor;
+        }
+        if (next.body == .property_graph) {
+            const old_graph = old.body.property_graph;
+            const new_graph = next.body.property_graph;
+            if (new_graph.next_mapping < old_graph.next_mapping) return error.InvalidCatalogDescriptor;
+            inline for (.{ "vertices", "edges" }) |kind| for (@field(new_graph, kind)) |mapping| {
+                const retained = for (@field(old_graph, kind)) |prior| {
+                    if (mapping.id == prior.id) break true;
+                } else false;
+                if (!retained and mapping.id < old_graph.next_mapping) return error.InvalidCatalogDescriptor;
+            };
+        }
+    } else {
+        var row_schema = try Artifact.decodeSchema(allocator, old.schema);
+        defer row_schema.deinit();
+        row_schema.schema.revision = next.revision;
+        var bytes: [c.fuze.TableSchema.max_bytes]u8 = undefined;
+        next.schema = try c.DirectTableProtocol.Binary.encode(allocator, try row_schema.schema.encode(&bytes));
+        switch (intent.action) {
+            .rename => |name| next.properties.name = name,
+            .drop => next.retired = true,
+            else => unreachable,
+        }
+    }
+    try next.validate(allocator);
+    return next;
+}
+fn recordDescriptor(self: *Self, input: Descriptor.Operation, current: P.Guard) !Descriptor.Operation {
+    var batch: s.TreeStore.Batch = .{};
+    try self.store.index.beginBatch(self.options.index_work_bytes, &batch);
+    defer self.store.index.end();
+    var next = self.store.root;
+    var operation = input;
+    next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
+    operation.position = .{ .partition = self.config().partition, .next_lsn = next.next_lsn };
+    try operation.validate();
+    if (operation.phase == .applied) {
+        const stored = operation.resulting.?;
+        const target: r.Entry = .{ .object = stored.interpretation.object.object, .partition = 0, .seed = null, .resource = null, .log = null, .descriptor = self.store.root.next_lsn };
+        next.objects = try self.store.tree().put(next.objects, try r.idKey(target.object), try r.pageValue(target));
+        next.descriptor_definitions = try self.store.tree().put(next.descriptor_definitions, try Descriptor.definitionKey(stored.interpretation), try r.pageValue(stored));
+        if (operation.binding.action == .create or operation.binding.action == .rename) {
+            const name: r.Name = .{ .namespace = stored.properties.namespace, .name = stored.properties.name, .object = target.object, .reservation = operation.binding.identity };
+            next.names = try self.store.tree().put(next.names, try r.nameKey(name.namespace, name.name), try r.pageValue(name));
+        }
+        if (operation.binding.action == .create) {
+            var namespace = try self.schema(operation.namespace);
+            namespace.revision = try std.math.add(u64, namespace.revision, 1);
+            next.schemas = try self.store.tree().put(next.schemas, try r.idKey(namespace.id), try r.pageValue(namespace));
+        }
+        for (operation.removed) |maybe| if (maybe) |edge| {
+            next.dependents = try self.store.tree().remove(next.dependents, try edge.forwardKey());
+            next.dependencies = try self.store.tree().remove(next.dependencies, try edge.reverseKey());
+        };
+        for (operation.added) |maybe| if (maybe) |edge| {
+            const value = try r.pageValue(edge);
+            next.dependents = try self.store.tree().put(next.dependents, try edge.forwardKey(), value);
+            next.dependencies = try self.store.tree().put(next.dependencies, try edge.reverseKey(), value);
+        };
+    }
+    try self.store.receipt(&next, operation.binding);
+    try self.store.publish(next, .{ .descriptor = operation }, current);
+    return operation;
+}
+pub fn definitionOperation(self: *Self, request: Descriptor.Request, command: Descriptor.Command, policy: Policy) !Descriptor.Observation {
+    if (command == .preview) return error.InvalidCatalogDescriptor;
+    try self.requireInitialized();
+    try request.validate(self.allocator, self.config());
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    const previous = try self.store.descriptorOperation(request.binding);
+    const current = try self.descriptorGuard(scratch.allocator(), request, policy, command != .inspect and previous == null, command == .accept and previous == null);
+    try check(current);
+    if (try c.OperationBinding.lookup(self.allocator, self.store.objects, request.binding.identity)) |known| try known.requireSame(request.binding);
+    if (previous) |value| {
+        try check(current);
+        return .{ .operation = value };
+    }
+    if (command == .inspect) return .not_observed;
+    const reason = if (command == .cancel) Descriptor.Reason.none else try self.descriptorReason(request, current);
+    var operation: Descriptor.Operation = .{ .binding = request.binding, .intent = try Descriptor.IntentStore.stage(self.allocator, self.store.objects, self.config(), request), .kind = request.intent.kind, .namespace = request.intent.namespace, .name = if (request.intent.action == .rename) request.intent.action.rename else request.intent.name, .position = .{ .partition = self.config().partition, .next_lsn = 1 }, .phase = if (command == .cancel) .cancelled else if (reason != .none) .rejected else .applied, .reason = reason, .previous = null, .resulting = null };
+    if (operation.phase == .applied) {
+        operation.previous = try self.descriptorCurrent(request.binding.target.object);
+        const value = try self.prepareDescriptor(scratch.allocator(), request, policy);
+        if (!value.retired and value.body == .foreign and value.body.foreign.input.availability == .retained) {
+            const bytes = try Artifact.loadInput(self.allocator, self.store.objects, value.body.foreign.input);
+            self.allocator.free(bytes);
+        }
+        operation.resulting = try Artifact.stage(self.allocator, self.store.objects, value);
+        operation.added = try Descriptor.edges(value, operation.resulting.?);
+        if (operation.previous) |stored| {
+            var old = try Artifact.load(self.allocator, self.store.objects, stored);
+            defer old.deinit();
+            operation.removed = try Descriptor.edges(old.value, stored);
+        }
+    }
+    try c.OperationBinding.claim(self.allocator, self.store.objects, request.binding);
+    return .{ .operation = try self.recordDescriptor(operation, current) };
+}
+pub fn inspectDefinition(self: *Self, allocator: std.mem.Allocator, expected: d.Definition, policy: Policy) !Artifact.Owned {
+    try self.requireInitialized();
+    try expected.validate();
+    if (!std.meta.eql(expected.object.scope, self.config().scope) or expected.object.branch != self.config().branch) return error.CatalogDenied;
+    const latest = try self.descriptorCurrent(expected.object.object) orelse return error.CatalogDenied;
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    const current = try self.guard(scratch.allocator(), policy, try self.authorizationSchema(latest.properties.namespace), latest.properties.target(expected.object.object), .inspect);
+    try check(current);
+    const value = try self.store.tree().get(self.store.root.descriptor_definitions, try Descriptor.definitionKey(expected)) orelse return error.HistoricalArtifactUnavailable;
+    const stored = try r.fromValue(Artifact.Stored, self.allocator, value);
+    if (!std.meta.eql(stored.interpretation, expected) or stored.properties.namespace != latest.properties.namespace or stored.properties.authorization != latest.properties.authorization) return error.DataIdentityConflict;
+    var owned = try Artifact.load(allocator, self.store.objects, stored);
+    errdefer owned.deinit();
+    try check(current);
+    return owned;
+}
+pub fn resolveDefinition(self: *Self, allocator: std.mem.Allocator, namespace_id: u64, name: a.Name, policy: Policy) !?Artifact.Owned {
+    try self.requireInitialized();
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    const current = try self.guard(scratch.allocator(), policy, try self.schema(namespace_id), null, .schema);
+    try check(current);
+    const named = try self.candidate(namespace_id, name) orelse {
+        try check(current);
+        return null;
+    };
+    const stored = try self.descriptorCurrent(named.object) orelse {
+        try check(current);
+        return null;
+    };
+    if (stored.retired or stored.properties.namespace != namespace_id or !std.meta.eql(stored.properties.name, name)) {
+        try check(current);
+        return null;
+    }
+    return try self.inspectDefinition(allocator, stored.interpretation, policy);
+}
+pub fn listDefinitions(self: *Self, namespace_id: u64, after: ?u64, policy: Policy) !Descriptor.Page {
+    try self.requireInitialized();
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    const current = try self.guard(scratch.allocator(), policy, try self.schema(namespace_id), null, .schema);
+    try check(current);
+    const page = try self.store.tree().scan(self.store.root.objects, if (after) |id| try r.idKey(id) else null);
+    var result: Descriptor.Page = .{ .next = null, .position = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn } };
+    var count: usize = 0;
+    var disclosed = try self.requirements(policy, try self.schema(namespace_id), null, .schema);
+    for (page.entries) |maybe| if (maybe) |entry_value| {
+        const entry_value_decoded = try r.fromValue(r.Entry, self.allocator, entry_value.value);
+        try self.validateEntry(entry_value_decoded, entry_value.key);
+        result.next = entry_value_decoded.object;
+        if (entry_value_decoded.descriptor == null) continue;
+        const stored = (try self.descriptorCurrent(entry_value_decoded.object)).?;
+        if (stored.retired or stored.properties.namespace != namespace_id) continue;
+        const requirement = try self.requirements(policy, try self.authorizationSchema(namespace_id), stored.properties.target(stored.interpretation.object.object), .inspect);
+        const required = try policy.make_guard(policy.context, scratch.allocator(), requirement, null);
+        check(required) catch |err| {
+            if (err == error.CatalogDenied) continue;
+            return err;
+        };
+        disclosed = try disclosed.merge(requirement);
+        result.entries[count] = stored;
+        count += 1;
+        if (count == result.entries.len) break;
+    };
+    if (count < result.entries.len and page.next == null) result.next = null;
+    try check(try policy.make_guard(policy.context, scratch.allocator(), disclosed, null));
+    // The service rechecks its accumulated current requirements after copying
+    // the output, including entries accepted from a completely cached page.
+    return result;
+}
+pub fn stageDefinitionInput(self: *Self, namespace_id: u64, bytes: []const u8, policy: Policy) !d.Content {
+    try self.requireInitialized();
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    const current = try self.guard(scratch.allocator(), policy, try self.schema(namespace_id), null, .create_table);
+    try check(current);
+    const result = try Artifact.stageInput(self.store.objects, bytes);
+    try check(current);
+    return result;
+}
+
+fn historyNextDescriptor(directory: *c.DirectHistoryDirectory, after: ?u64) !?c.DirectHistoryDirectory.DescriptorEntry {
+    const page = try directory.descriptorPage(if (after) |id| .{ .directory = try directory.commitment(), .after = id } else null);
+    return page.entries[0];
+}
+fn verifyHistoryDescriptor(self: *Self, allocator: std.mem.Allocator, selection: *c.DirectHistoryDirectory, value: c.DirectHistoryDirectory.DescriptorEntry, policy: Policy) !P.Guard {
+    try value.validate(selection.root.owner, selection.root.branch);
+    const stored = value.declaration;
+    const current = try self.guard(allocator, policy, try self.authorizationSchema(stored.properties.namespace), stored.properties.target(stored.interpretation.object.object), .read);
+    try check(current);
+    var artifact = try self.inspectDefinition(allocator, stored.interpretation, policy);
+    defer artifact.deinit();
+    if (!std.meta.eql(try artifact.value.stored(allocator), stored)) return error.InvalidHistoricalBinding;
+    for (artifact.value.sources) |source| {
+        const retained = try selection.get(source.declaration.interpretation.object.object) orelse return error.IncompleteHistoricalSelection;
+        if (!std.meta.eql(retained.declaration, source.declaration) or !std.meta.eql(retained.properties, source.properties)) return error.InvalidHistoricalBinding;
+    }
+    if (artifact.value.body == .foreign and artifact.value.body.foreign.input.availability == .retained) {
+        const bytes = try Artifact.loadInput(allocator, self.store.objects, artifact.value.body.foreign.input);
+        allocator.free(bytes);
+    }
+    try check(current);
+    return current;
+}
+
+pub fn authorizeDefinition(self: *Self, expected: d.Definition, rows: bool, policy: Policy) !void {
+    try self.requireInitialized();
+    try expected.validate();
+    if (!std.meta.eql(expected.object.scope, self.config().scope) or expected.object.branch != self.config().branch) return error.CatalogDenied;
+    const latest = try self.descriptorCurrent(expected.object.object) orelse return error.CatalogDenied;
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    const current = try self.guard(scratch.allocator(), policy, try self.authorizationSchema(latest.properties.namespace), latest.properties.target(expected.object.object), if (rows) .read else .inspect);
+    try check(current);
+    const value = try self.store.tree().get(self.store.root.descriptor_definitions, try Descriptor.definitionKey(expected)) orelse return error.HistoricalArtifactUnavailable;
+    const stored = try r.fromValue(Artifact.Stored, self.allocator, value);
+    if (!std.meta.eql(stored.interpretation, expected) or stored.properties.authorization != latest.properties.authorization or stored.properties.namespace != latest.properties.namespace) return error.DataIdentityConflict;
+    try check(current);
+}
+pub fn historicalDefinition(self: *Self, allocator: std.mem.Allocator, snapshot: d.Snapshot, namespace_id: u64, name: a.Name, rows: bool, policy: Policy) !?Descriptor.Historical {
+    const publication = try self.historyPublication(snapshot, policy);
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    const current = try self.guard(scratch.allocator(), policy, try self.authorizationSchema(namespace_id), null, .schema);
+    try check(current);
+    var selection = try self.historySelection(publication.intent);
+    defer selection.deinit();
+    const entry_value = try selection.lookupDescriptor(namespace_id, name) orelse {
+        try publication.requirePublished();
+        try check(current);
+        return null;
+    };
+    try self.authorizeDefinition(entry_value.declaration.interpretation, rows, policy);
+    try publication.requirePublished();
+    var owned = try self.inspectDefinition(self.allocator, entry_value.declaration.interpretation, policy);
+    defer owned.deinit();
+    if (!std.meta.eql(try owned.value.stored(self.allocator), entry_value.declaration)) return error.InvalidHistoricalBinding;
+    const result: Descriptor.Historical = .{ .snapshot = snapshot, .binding = entry_value, .value = try Descriptor.clone(allocator, owned.value) };
+    try self.authorizeDefinition(entry_value.declaration.interpretation, rows, policy);
+    return result;
+}
+
+pub fn historicalDefinitions(self: *Self, snapshot: d.Snapshot, namespace_id: u64, after: ?u64, policy: Policy) !Descriptor.HistoricalPage {
+    const publication = try self.historyPublication(snapshot, policy);
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    const current = try self.guard(scratch.allocator(), policy, try self.authorizationSchema(namespace_id), null, .schema);
+    try check(current);
+    try publication.requirePublished();
+    var selection = try self.historySelection(publication.intent);
+    defer selection.deinit();
+    const page = try selection.descriptorPage(if (after) |id| .{ .directory = publication.intent.selection, .after = id } else null);
+    var result: Descriptor.HistoricalPage = .{ .snapshot = snapshot, .next = null };
+    var count: usize = 0;
+    for (page.entries) |maybe| if (maybe) |entry_value| {
+        result.next = entry_value.declaration.interpretation.object.object;
+        if (entry_value.namespace.id != namespace_id) continue;
+        self.authorizeDefinition(entry_value.declaration.interpretation, false, policy) catch |err| {
+            if (err == error.CatalogDenied) continue;
+            return err;
+        };
+        result.entries[count] = entry_value;
+        count += 1;
+        if (count == result.entries.len) break;
+    };
+    if (count < result.entries.len and page.next == null) result.next = null;
+    for (result.entries) |maybe| if (maybe) |entry_value| try self.authorizeDefinition(entry_value.declaration.interpretation, false, policy);
+    try check(current);
+    return result;
 }

@@ -27,7 +27,7 @@ candidate segment's identity before adding staged fragments.
 
 The plan uses canonical `FQP1` bytes and must fit two 256-byte values at start.
 Its source binding hashes the complete retained Table head and typed schema.
-The 126-byte `FQS1` progress uses the shared logical execution definition;
+The 134-byte `FQS1` progress uses the shared logical execution definition;
 the Table cursor is stored separately in the job. Each step uses a 4 MiB workspace
 and a 65535-byte logical Arrow segment buffer independently of total result size.
 At most three 221-byte fragments are staged in a turn. A separate seal verifies

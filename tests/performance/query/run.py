@@ -22,7 +22,7 @@ import time
 
 from runner.paths import ROOT
 DEFINITION = 'transit.fuze.benchmarks.v1'
-TYPES = 'transit.fuze.types.v1.2026-09-30'
+TYPES = 'transit.fuze.types.v1.2026-11-01.companions'
 SHAPES = ('narrow', 'wide', 'nested', 'sparse', 'decimal', 'identifiers', 'multifile', 'gzip', 'pipe')
 MODES = ('explicit', 'partial', 'sampled', 'full', 'raw')
 

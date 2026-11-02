@@ -22,7 +22,7 @@ export default defineConfig({
             },
             {
               name: "query",
-              test: /packages\/ts\/transit-(query-client|diagnostics)\/(?!src\/read-validators\.js$)|packages\/ts\/transit-board-client\/src\/relational-validators\.js$|packages\/ts\/transit-reactive-client\/src\/(caller-gate|error)\.ts$|ajv\/dist\/runtime\//,
+              test: /packages\/ts\/transit-(query-client|diagnostics)\/|packages\/ts\/transit-board-client\/src\/relational-validators\.js$|packages\/ts\/transit-reactive-client\/src\/(caller-gate|error)\.ts$|ajv\/dist\/runtime\//,
             },
             // Application and live-view contracts share a bounded asset group;
             // keep richer finite-query validators in their own chunk. The caller

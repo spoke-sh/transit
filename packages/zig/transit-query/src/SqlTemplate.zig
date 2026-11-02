@@ -27,7 +27,7 @@ pub fn initDiagnostic(allocator: std.mem.Allocator, definition: q.SourceDefiniti
     const fingerprint = try definition.fingerprint();
     var columns: [q.SourceDefinition.max_columns]t.Field = undefined;
     return .{
-        .template = try q.fuze.LogicalPrepared.init(allocator, text, name, try definition.schema(&columns), fingerprint, detail),
+        .template = try q.fuze.LogicalPrepared.initSemantics(allocator, text, name, try definition.schema(&columns), fingerprint, detail, .transit, definition.semantics()),
         .definition = fingerprint,
     };
 }

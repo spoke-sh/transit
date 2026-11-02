@@ -9,10 +9,22 @@ below is rendered from those exact bytes.
 
 `POST /api/v1/catalog` exposes read-only public catalog operations: description,
 bounded namespace/Table/resource discovery, an exact Table definition and
-registered dependency pages. `POST /api/v1/sql-read` adapts the shared SQL client's
+registered dependency pages. Its `history` action inspects a supplied retained
+catalog: namespace/name lookup, bounded Table listings, exact source schemas and
+physical-definition or row-placement coverage. Row placement requires SELECT;
+definition coverage requires metadata rights. It cannot acquire, release or
+advance retention. `POST /api/v1/sql-read` adapts the shared SQL client's
 generated `ReadWorkspace` contract: describe, run, observe, next-window and close.
 Both require same-origin JSON requests and explicit service-side configuration.
 The browser receives no SQL account secrets or native signing key.
+
+The catalog's `definitions` action reads accepted view, property-graph and
+foreign-layout interpretations through the same owner. It supports current and
+historical lookup, exact revision inspection, and pages of at most four definitions.
+The retained-definition inspector shows logical schemas, source identities and
+typed mappings or decoder layouts. Reading a definition neither executes its
+computation nor fetches a provenance URI. See the
+[interpretation contract](../../../contracts/CATALOG_DEFINITIONS_V1.md).
 
 Run uses typed prepared-statement admission and refuses mutations, commands and
 unbound parameters even if its configured account can write. Results preserve one

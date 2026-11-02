@@ -6,7 +6,7 @@ const x = r.protocol.Transaction;
 const d = r.protocol.DataLifecycle;
 const Self = @This();
 pub const SessionState = enum { idle, active, failed };
-pub const StatementRefusal = enum { definition_changed, data_changed, duplicate_key, missing_row, invalid_rows, work_limit };
+pub const StatementRefusal = enum { definition_changed, data_changed, duplicate_key, missing_row, invalid_rows, work_limit, check_violation };
 handle: x.Handle,
 evidence: union(enum) {
     refused: x.CallRefusal,

@@ -90,7 +90,11 @@ prerequisites and later phases remain outstanding.
    **directory-tagged relational hash joins** (with embedded 16-bit Bloom/tag
    signatures in the directory slot for a ~10-instruction probe filter),
    **Diamond-Hardened / Worst-Case Optimal Joins (WCOJ / FreeJoin)** for cyclic
-   and skewed multi-way queries, and streaming $O(N + M)$ bitemporal `AS OF JOIN`
+   and skewed multi-way queries (forming the cyclic join substrate for
+   [Milestone 18](18-multi-model-and-foreign-relations.md) property graphs,
+   [Milestone 41](41-deductive-rules-datalog-and-equivalence-graphs.md) Datalog
+   fixpoints and [Milestone 42](42-hardware-design-rtl-and-eda-verification.md)
+   reconvergent circuit netlist and `LVS` checks), and streaming $O(N + M)$ bitemporal `AS OF JOIN`
    merge plans—window frames, aggregation, ordering and external NVMe spill using
    selectivity, locality, projected columns, coverage and expected I/O. Qualify
    join ordering and skew handling against the **Join Order Benchmark (JOB)**.
@@ -237,10 +241,12 @@ scores.
 [foreign models](18-multi-model-and-foreign-relations.md),
 [branches](20-branches-merges-and-restore.md),
 [providers through clustered execution](23-storage-providers-and-concurrency.md),
-and [language composition](34-programming-model.md) extend this scorecard for their
+[language composition](34-programming-model.md),
+[deductive Datalog and equivalence graphs](41-deductive-rules-datalog-and-equivalence-graphs.md)
+and [hardware RTL/EDA verification](42-hardware-design-rtl-and-eda-verification.md) extend this scorecard for their
 new semantics and placements. Include index build/rebuild, historical-read and
 recovery interference rather than measuring only a steady-state hot lookup.
-The [combined qualification](42-qualification-and-benchmarks.md) owner repeats
+The [combined qualification](44-qualification-and-benchmarks.md) owner repeats
 database and runtime comparisons with the complete supported system and full
 benchmark drivers. It does not defer earlier measurement or regression gates.
 Publish supported limits and reproduced findings in the existing performance,
@@ -599,7 +605,7 @@ Block-Max WAND or any later positional/substring/structural index profile.
 Hybrid composition waits for the qualified ANN/index owner and one supported
 snapshot model, while speculative research into declarative sequence, context
 and synthesis primitives belongs to
-[milestone 44](44-declarative-language-context-and-synthesis.md). Every new
+[milestone 46](46-declarative-language-context-and-synthesis.md). Every new
 operator starts with allocation gates; future syntax and algorithms do not
 become current supported capabilities.
 

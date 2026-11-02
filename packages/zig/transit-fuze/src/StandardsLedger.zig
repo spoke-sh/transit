@@ -5,7 +5,7 @@ const std = @import("std");
 const Collation = @import("Collation.zig").Collation;
 const PhysicalCodecs = @import("PhysicalCodecs.zig");
 
-pub const definition = "transit.sql.standards-ledger.v1.2026-10-30";
+pub const definition = "transit.sql.standards-ledger.v1.2026-11-01";
 
 pub const StageState = enum(u8) {
     implemented = 1,
@@ -68,12 +68,25 @@ pub const FeatureDescriptor = struct {
     deviations: []const u8,
     corpus_sources: []const []const u8,
     states: LifecycleStates,
+    /// Standards clause references are provenance, not a conformance rating.
+    reference_verified: bool,
+    profile: []const u8,
+    evidence_sources: []const []const u8,
+};
+
+pub const CompilerCase = struct {
+    id: []const u8,
+    feature: []const u8,
+    entrypoint: enum { table_ddl, table_ddl_catalog, relational_sql, inspection },
+    sql: []const u8,
+    accept: bool,
 };
 
 // Generated from the single neutral ledger. See tests/query/logical/standards_ledger.py.
 pub const collations = @import("StandardsLedgerData.zig").collations;
 pub const physical_codecs = @import("StandardsLedgerData.zig").physical_codecs;
 pub const features = @import("StandardsLedgerData.zig").features;
+pub const compiler_cases = @import("StandardsLedgerData.zig").compiler_cases;
 
 pub fn findCollation(id_or_spelling: []const u8) ?CollationDescriptor {
     for (collations) |desc| {

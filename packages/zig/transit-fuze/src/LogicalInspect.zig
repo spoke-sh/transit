@@ -183,6 +183,26 @@ fn atom(expected: t.Type, data: *const a.ArrayData, index: usize, budget: *Budge
 fn value(expected: t.Type, data: *const a.ArrayData, index: usize, depth: usize, budget: *Budget) anyerror!v.Value {
     if (data.isNull(index)) return error.InvalidArrowResult;
     return switch (expected) {
+        .range => |subtype| .{ .range = try rangeValue(subtype.*, data, index, budget) },
+        .multirange => |subtype| blk: {
+            var items = try (a.ListArray{ .data = data }).value(index);
+            defer items.release();
+            const length = items.data().length;
+            try budget.count(length);
+            const ranges = try budget.allocator.alloc(t.Ranges.Value, length);
+            for (ranges, 0..) |*out, i| {
+                try budget.child(depth + 1);
+                out.* = try rangeValue(subtype.*, items.data(), i, budget);
+            }
+            try t.Ranges.validateMulti(subtype.*, ranges);
+            break :blk .{ .multirange = ranges };
+        },
+        .vector => |shape| blk: {
+            const bytes = try (a.FixedSizeBinaryArray{ .data = data }).value(index);
+            if (bytes.len > budget.limits.value_bytes - budget.bytes) return error.ValueBudgetExceeded;
+            budget.bytes += bytes.len;
+            break :blk .{ .vector = try t.Vectors.cloneInto(budget.allocator, shape, bytes) };
+        },
         .structure => |fields| blk: {
             try budget.count(fields.len);
             const cells = try budget.allocator.alloc(v.Cell, fields.len);
@@ -241,6 +261,30 @@ fn value(expected: t.Type, data: *const a.ArrayData, index: usize, depth: usize,
         .json => .{ .json = try budget.copy(try (a.StringArray{ .data = data }).value(index)) },
         else => .{ .atom = try atom(expected, data, index, budget) },
     };
+}
+fn rangeValue(subtype: t.Type, data: *const a.ArrayData, index: usize, budget: *Budget) !t.Ranges.Value {
+    if (data.isNull(index)) return error.InvalidArrowResult;
+    var empty = try field(data, 0);
+    defer empty.release();
+    var lower = try field(data, 1);
+    defer lower.release();
+    var upper = try field(data, 2);
+    defer upper.release();
+    var lower_inclusive = try field(data, 3);
+    defer lower_inclusive.release();
+    var upper_inclusive = try field(data, 4);
+    defer upper_inclusive.release();
+    for ([_]a.ArrayRef{ empty, lower_inclusive, upper_inclusive }) |flag| if (flag.data().isNull(index)) return error.InvalidArrowResult;
+    const lower_flag = try (a.BooleanArray{ .data = lower_inclusive.data() }).value(index);
+    const upper_flag = try (a.BooleanArray{ .data = upper_inclusive.data() }).value(index);
+    if ((lower.data().isNull(index) and lower_flag) or (upper.data().isNull(index) and upper_flag)) return error.InvalidArrowResult;
+    const result: t.Ranges.Value = .{
+        .is_empty = try (a.BooleanArray{ .data = empty.data() }).value(index),
+        .lower = if (lower.data().isNull(index)) null else .{ .value = try atom(subtype, lower.data(), index, budget), .inclusive = lower_flag },
+        .upper = if (upper.data().isNull(index)) null else .{ .value = try atom(subtype, upper.data(), index, budget), .inclusive = upper_flag },
+    };
+    try t.Ranges.validate(subtype, result);
+    return result;
 }
 fn ordinary(expected: t.Type, state: t.State, kind: u8, data: *const a.ArrayData, index: usize, depth: usize, budget: *Budget) !v.Cell {
     if (state != .value and !data.isNull(index)) return error.InvalidArrowResult;

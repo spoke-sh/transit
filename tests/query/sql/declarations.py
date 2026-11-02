@@ -75,6 +75,10 @@ def check(binary):
         cases.append(dict(sql=f"CREATE TABLE collated (k TEXT COLLATE {collation} PRIMARY KEY, label TEXT DEFAULT 'A' COLLATE {collation})"))
         cases.append(dict(sql=f'ALTER TABLE people ADD COLUMN label TEXT COLLATE {collation}', basis=BASIS))
     cases += [
+        dict(sql="CREATE TABLE companions (span RANGE<BIGINT>, runs MULTIRANGE<DECIMAL(5,2)>, embedding VECTOR(3,FLOAT32) METRIC COSINE, amount DECIMAL(8,2) ROUNDING HALF_EVEN)"),
+        dict(sql='CREATE TABLE bad (span RANGE<BOOLEAN>)', error='UnsupportedRangeSubtype'),
+        dict(sql='CREATE TABLE bad (embedding VECTOR(7,BINARY))', error='InvalidBinaryVectorDimensions'),
+        dict(sql='CREATE TABLE bad (embedding VECTOR(3,FLOAT32) METRIC HAMMING)', error='IncompatibleVectorMetric'),
         dict(sql='CREATE TABLE bad (n BIGINT COLLATE ASCII_CI)', error='IncompatibleColumnCollation'),
         dict(sql='CREATE TABLE bad (s TEXT COLLATE ASCII_CI COLLATE UTF8_BINARY)', error='DuplicateColumnConstraint'),
         dict(sql='CREATE TABLE bad (s TEXT COLLATE ICU_ROOT)', error='UnsupportedColumnCollation', reference_reject=True),

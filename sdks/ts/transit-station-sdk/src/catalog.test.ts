@@ -13,11 +13,18 @@ import {
   Identity,
   SavedIntent,
   Reference,
+  HistorySelection,
+  HistorySelectionStep,
+  HistoryAcquisition,
+  HistoryControl,
+  HistoricalSnapshot,
+  HistoryCursor,
+  HistoryCoverageCursor,
   SnapshotOwner,
   SnapshotAcquisition,
   Snapshot,
   Uncertain,
-} from "./catalog.ts";
+} from "./catalog-api.ts";
 import {
   encodeType,
   decodeType,
@@ -29,6 +36,80 @@ import {
 import type { Descriptor, Cell, Atom } from "./logical-values.ts";
 import contract from "./contract.json" with { type: "json" };
 const maximum = (1n << 64n) - 1n;
+test("column semantic metadata owns bytes and full-width spatial units", () => {
+  const digest = Uint8Array.from({ length: 32 }, (_, i) => i);
+  const tzif = new Uint8Array([84, 90, 105, 102, 0, 255]);
+  const frame = Uint8Array.from({ length: 16 }, (_, i) => i);
+  const schema = new Schema(
+    7n,
+    1n,
+    3n,
+    [
+      {
+        id: 1n,
+        name: "ts",
+        type: { kind: "timestamp", zone: "utc" },
+        semantics: { timezone: { version: "fixture", digest, zone: "Etc/UTC", tzif } },
+      },
+      {
+        id: 2n,
+        name: "opaque",
+        type: { kind: "binary" },
+        semantics: {
+          spatial: {
+            definition: contract.definition,
+            srid: 0,
+            localFrame: frame,
+            axes: "xy",
+            manifold: "planar",
+            linearUnitNm: maximum,
+            verticalDatum: "none",
+            precision: "exact",
+          },
+        },
+      },
+    ],
+    [],
+  );
+  digest.fill(0);
+  tzif.fill(0);
+  frame.fill(0);
+  const rules = schema.columns[0]!.semantics!.timezone!;
+  assert.deepEqual(
+    [...rules.digest],
+    Array.from({ length: 32 }, (_, i) => i),
+  );
+  assert.deepEqual([...rules.tzif], [84, 90, 105, 102, 0, 255]);
+  rules.tzif.fill(0);
+  assert.deepEqual([...schema.columns[0]!.semantics!.timezone!.tzif], [84, 90, 105, 102, 0, 255]);
+  assert.equal(schema.columns[1]!.semantics!.spatial!.linearUnitNm, maximum);
+  assert.deepEqual(
+    [...schema.columns[1]!.semantics!.spatial!.localFrame],
+    Array.from({ length: 16 }, (_, i) => i),
+  );
+});
+test("companion values preserve independent descriptors, exact bits and owned bytes", async () => {
+  const fixture = JSON.parse(
+    await readFile(
+      new URL(
+        "../../../../packages/zig/transit-fuze/src/fixtures/companion-values.json",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  );
+  for (const item of fixture.cases) {
+    if (item.error !== null) continue; // Semantic admission belongs to Zig.
+    assert.deepEqual(encodeType(decodeType(item.field.type)), item.field.type, item.name);
+    const native = decodeCell(item.cell);
+    assert.deepEqual(encodeCell(native), item.cell, item.name);
+    if (native.state === "value" && native.value.kind === "vector") {
+      const second = decodeCell(item.cell);
+      native.value.bytes.fill(0);
+      assert.deepEqual(encodeCell(second), item.cell, item.name);
+    }
+  }
+});
 test("logical cells preserve source-only mismatch kinds", () => {
   for (const actual of ["unknown", "null_value", "text", "character"] as const) {
     const cell: Cell = { state: "type_error", actual };
@@ -273,6 +354,7 @@ const metadata = {
     object: "7",
     revision: "2",
     next_column: "2",
+    integrity: { next_id: 1, checks: [], foreign_keys: [] },
     primary_key: [],
     columns: [
       {
@@ -284,6 +366,7 @@ const metadata = {
         max_characters: null,
         encoding: "ebcdic",
         collation: "ebcdic_cp037",
+        semantics: { rounding: null, metric: null, timezone: null, spatial: null },
       },
     ],
   },
@@ -338,11 +421,13 @@ test("lookup retains full schema descriptors and original connection", async () 
       assert.rejects(client.lookup("items"), IncompatibleNative),
     );
   }
-  const changed = structuredClone(metadata);
-  Reflect.deleteProperty(changed.schema.columns[0]!, "encoding");
-  await withHost({ metadata: changed }, (client) =>
-    assert.rejects(client.lookup("items"), ReadFailed),
-  );
+  for (const field of ["encoding", "semantics"]) {
+    const changed = structuredClone(metadata);
+    Reflect.deleteProperty(changed.schema.columns[0]!, field);
+    await withHost({ metadata: changed }, (client) =>
+      assert.rejects(client.lookup("items"), ReadFailed),
+    );
+  }
 });
 
 test("compile, load and typed bulk preparation perform only their requested actions", async () => {
@@ -617,3 +702,434 @@ for await (const line of createInterface({input:process.stdin})) {
     await rm(directory, { recursive: true, force: true });
   }
 }
+
+test("Table integrity preserves exact parent definitions and owned CHECK literals", () => {
+  const definition = {
+    object: { scope: new Scope(new ResourceRef(1, 2), 3n), branch: 1n, objectId: 90n },
+    revision: 8n,
+    digest: "ab".repeat(32),
+  };
+  const literal = new Uint8Array([1, 2, 3]);
+  const value = new Schema(
+    91n,
+    2n,
+    3n,
+    [
+      { id: 1n, name: "id", type: { kind: "int64" }, nullable: false },
+      { id: 2n, name: "payload", type: { kind: "binary" }, nullable: true },
+    ],
+    [1n],
+    {
+      nextId: 3,
+      checks: [
+        {
+          id: 1,
+          name: "payload_check",
+          atoms: [
+            {
+              kind: "compareLiteral",
+              column: 2n,
+              op: "eq",
+              literal: { kind: "binary", value: literal },
+            },
+          ],
+          validated: false,
+        },
+      ],
+      foreignKeys: [
+        {
+          id: 2,
+          name: "parent_id",
+          localColumns: [1n],
+          targetDefinition: definition,
+          targetSchemaRevision: 3n,
+          targetColumns: [7n],
+          onDelete: "restrict",
+          onUpdate: "no_action",
+          enforcement: "staged_awaiting_index",
+        },
+      ],
+    },
+  );
+  literal[0] = 99;
+  const checks = value.integrity.checks;
+  assert.equal(checks[0]!.validated, false);
+  const atom = checks[0]!.atoms[0]!;
+  assert.ok(atom.kind === "compareLiteral" && atom.literal.kind === "binary");
+  assert.deepEqual([...atom.literal.value], [1, 2, 3]);
+  atom.literal.value[0] = 7;
+  const fresh = value.integrity.checks[0]!.atoms[0]!;
+  assert.ok(fresh.kind === "compareLiteral" && fresh.literal.kind === "binary");
+  assert.deepEqual([...fresh.literal.value], [1, 2, 3]);
+  assert.equal(value.integrity.foreignKeys[0]!.targetDefinition.revision, 8n);
+  assert.equal(value.integrity.foreignKeys[0]!.targetSchemaRevision, 3n);
+});
+
+test("committed DDL retains pending dependency settlement and its original identity", async () => {
+  const wire = structuredClone(recovery);
+  wire.table.binding.action = "alter";
+  const original = Reference.restore(JSON.stringify(wire));
+  const resulting = structuredClone(stored);
+  resulting.interpretation.revision = (
+    BigInt(wire.table.binding.expected_definition.revision) + 1n
+  ).toString();
+  const evidence = {
+    binding: wire.table.binding,
+    resulting,
+    transaction: null,
+    outcome: {
+      position: { partition: "9", next_lsn: "10" },
+      matched: "0",
+      affected: "0",
+      live_rows: "0",
+    },
+  };
+  const operation = {
+    binding: wire.table.binding,
+    intent: wire.table.content,
+    phase: "admitted",
+    reason: "none",
+    dependency_steps: 1,
+    protected_columns: 1,
+    requires_settlement: true,
+    closing: null,
+  };
+  const value = { observation: { ddl: { finalizing: { evidence, operation } } } };
+  await withHost(value, async (client) => {
+    const result = await client.inspect(original);
+    assert.equal(result.state, "finalizing");
+    assert.equal(result.reference, original);
+    assert.ok("commit" in result);
+  });
+  operation.requires_settlement = false;
+  await withHost(value, (client) => assert.rejects(client.inspect(original), IncompatibleNative));
+});
+
+const historyFixture = JSON.parse(
+  await readFile(
+    new URL(
+      "../../../../packages/zig/transit-catalog/src/fixtures/direct-history-host-v1.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
+const historyAcquisition = HistoryAcquisition.restore(JSON.stringify(historyFixture.acquire));
+const historyKey = historyAcquisition.key;
+const historicalSnapshot = new HistoricalSnapshot(historyFixture.snapshot.selector);
+const historyStatus = {
+  key: historyFixture.acquire.key,
+  intent: historyFixture.acquire.intent,
+  admitted: { partition: "1", next_lsn: "20" },
+  revision: { partition: "1", next_lsn: "30" },
+  phase: "published",
+  retained: { content: historyFixture.snapshot.sources_root, count: "2", descriptors: "0" },
+  after: maximum.toString(),
+  inflight: null,
+  verified_after: maximum.toString(),
+  descriptor_after: null,
+  descriptors_verified: "0",
+  policy_epoch: maximum.toString(),
+  released_after: null,
+  snapshot: historyFixture.snapshot,
+};
+const historyNamespace = {
+  scope: fixture.host.connection.scope,
+  id: 1,
+  authorization: 10,
+  name: "original",
+  revision: maximum.toString(),
+};
+const historyEntry = {
+  namespace: historyNamespace,
+  name: "items",
+  declaration: stored,
+  accepted: metadata.position,
+  catalog: { partition: "1", next_lsn: "12" },
+};
+const historyPage = {
+  snapshot: historyFixture.snapshot,
+  namespace: 1,
+  entries: [historyEntry],
+  next: {
+    selector: historicalSnapshot.selector,
+    namespace: 1,
+    directory: { content: historyFixture.snapshot.sources_root, count: "2", descriptors: "0" },
+    after: "7",
+  },
+};
+
+test("history values own full-width original common acquisition and reject missing definitions", async () => {
+  assert.equal(historyAcquisition.operation, maximum);
+  assert.equal(historyAcquisition.common?.transaction.operation, maximum - 1n);
+  assert.deepEqual(JSON.parse(historyAcquisition.save()), historyFixture.acquire);
+  assert.equal(
+    HistoricalSnapshot.restore(historicalSnapshot.save()).selector,
+    historicalSnapshot.selector,
+  );
+  for (const field of ["definition", "common", "selection"]) {
+    const invalid = structuredClone(historyFixture.acquire);
+    delete invalid.intent[field];
+    assert.throws(() => HistoryAcquisition.restore(JSON.stringify(invalid)), IncompatibleNative);
+  }
+  const invalid = structuredClone(historyFixture.acquire);
+  invalid.intent.operation = Number(maximum);
+  assert.throws(() => HistoryAcquisition.restore(JSON.stringify(invalid)), IncompatibleNative);
+  assert.throws(() => new HistoricalSnapshot("00".repeat(193)));
+  await withHost({ history: { status: historyStatus } }, async (client, requests) => {
+    const common = historyAcquisition.common!;
+    const original = client.prepareCommonHistoryAcquisition(
+      historyKey,
+      maximum,
+      1,
+      historyAcquisition.selection,
+      historyAcquisition.commonKey!,
+      common,
+    );
+    assert.deepEqual(JSON.parse(original.save()), historyFixture.acquire);
+    const result = await client.acquireHistory(original);
+    assert.equal(result.phase, "published");
+    assert.equal(result.intent.operation, maximum);
+    assert.equal(result.policyEpoch, maximum);
+    assert.equal(result.basis?.consistency.kind, "common_transaction");
+    assert.equal(result.basis?.owner.scope.catalog, maximum);
+    assert.equal(result.basis?.snapshot.selector, historicalSnapshot.selector);
+    await client.close();
+    const sent = (await requests()).filter((item) => item.catalog?.history);
+    assert.equal(sent.length, 1); // Closing is not an explicit release.
+    assert.deepEqual(sent[0].catalog.history.acquire, historyFixture.acquire);
+  });
+});
+
+test("metadata-only history preserves descriptor progress without inventing a Table source", async () => {
+  const independent = JSON.parse(
+    await readFile(
+      new URL(
+        "../../../../packages/zig/transit-catalog/src/fixtures/direct-history-metadata-v1.json",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  );
+  const acquire = structuredClone(historyFixture.acquire);
+  acquire.intent.common = null;
+  acquire.intent.selection.count = "0";
+  acquire.intent.selection.descriptors = "1";
+  const original = HistoryAcquisition.restore(JSON.stringify(acquire));
+  const observed = {
+    ...historyStatus,
+    intent: acquire.intent,
+    retained: { ...historyStatus.retained, count: "0" },
+    after: null,
+    verified_after: null,
+    descriptor_after: maximum.toString(),
+    descriptors_verified: "1",
+    snapshot: {
+      ...historyFixture.snapshot,
+      selector: independent.selector,
+      source_count: "0",
+      consistency: { independent: {} },
+    },
+  };
+  await withHost({ history: { status: observed } }, async (client) => {
+    const result = await client.acquireHistory(original);
+    assert.equal(result.intent.selection.descriptors, 1n);
+    assert.equal(result.descriptorAfter, maximum);
+    assert.equal(result.descriptorsVerified, 1n);
+    assert.equal(result.basis?.sourceCount, 0n);
+    assert.equal(result.basis?.consistency.kind, "independent");
+  });
+  delete acquire.intent.selection.descriptors;
+  assert.throws(() => HistoryAcquisition.restore(JSON.stringify(acquire)), IncompatibleNative);
+});
+
+test("history uncertainty preserves acquisition, selected step and exact release command", async () => {
+  await withHost("loss", async (client) => {
+    await assert.rejects(
+      client.acquireHistory(historyAcquisition),
+      (error) => error instanceof Uncertain && error.recovery === historyAcquisition,
+    );
+  });
+  await withHost("loss", async (client) => {
+    const selection = client.prepareHistorySelection(maximum);
+    const step = client.prepareHistoryStep(selection, 1, "items");
+    assert.equal(HistorySelectionStep.restore(step.save()).selection.owner.operation, maximum);
+    await assert.rejects(
+      client.selectHistory(step),
+      (error) => error instanceof Uncertain && error.recovery === step,
+    );
+  });
+  await withHost("loss", async (client) => {
+    await assert.rejects(
+      client.releaseHistory(historyKey),
+      (error) =>
+        error instanceof Uncertain &&
+        error.recovery instanceof HistoryControl &&
+        error.recovery.command === "release" &&
+        error.recovery.key.save() === historyKey.save(),
+    );
+  });
+  for (const mutate of [
+    (value: typeof historyStatus) => {
+      value.intent.operation = "1";
+    },
+    (value: typeof historyStatus) => {
+      value.snapshot = { ...value.snapshot, owner: { ...value.snapshot.owner, operation: "1" } };
+    },
+    (value: typeof historyStatus) => {
+      value.key = { ...value.key, token: "00".repeat(16) };
+    },
+  ]) {
+    const changed = structuredClone(historyStatus);
+    mutate(changed);
+    await withHost({ history: { status: changed } }, (client) =>
+      assert.rejects(
+        client.acquireHistory(historyAcquisition),
+        (error) => error instanceof Uncertain && error.recovery === historyAcquisition,
+      ),
+    );
+  }
+});
+
+test("history selection is explicit and never reacquires moving names during acquisition", async () => {
+  const selected = {
+    definition: contract.definition,
+    owner: historyFixture.snapshot.owner,
+    branch: "1",
+    directory: { content: historyFixture.snapshot.catalog_root, count: "2", descriptors: "0" },
+  };
+  await withHost({ history: { selection: selected } }, async (client, requests) => {
+    const step = client.prepareHistoryStep(client.prepareHistorySelection(maximum), 1, "items");
+    const result = await client.selectHistory(step);
+    const acquisition = client.prepareHistoryAcquisition(result, historyKey);
+    assert.equal(result.directory?.count, 2n);
+    assert.equal(JSON.parse(acquisition.save()).intent.common, null);
+    assert.equal((await requests()).filter((item) => item.catalog?.history).length, 1);
+    assert.equal(HistorySelection.restore(result.save()).owner.operation, maximum);
+  });
+});
+
+test("historical metadata preserves immutable basis, wide revisions, bounded pages and cursor scope", async () => {
+  await withHost({ history: { listing: historyPage } }, async (client, requests) => {
+    const page = await client.historicalTables(historicalSnapshot, 1);
+    assert.equal(page.entries[0]?.namespace.revision, maximum);
+    assert.equal(page.basis.sourceCount, 2n);
+    assert.equal(page.basis.snapshot, historicalSnapshot);
+    const cursor = HistoryCursor.restore(page.next!.save());
+    await assert.rejects(client.historicalTables(historicalSnapshot, 2, cursor), TypeError);
+    await assert.rejects(
+      client.historicalTables(new HistoricalSnapshot("00".repeat(297)), 1, cursor),
+      TypeError,
+    );
+    assert.equal((await requests()).filter((item) => item.catalog?.history).length, 1);
+    await assert.rejects(
+      client.historicalTables(historicalSnapshot, 1, cursor),
+      IncompatibleNative,
+    ); // no progress
+  });
+  for (const changed of [
+    { ...historyPage, snapshot: { ...historyPage.snapshot, selector: "00".repeat(297) } },
+    { ...historyPage, namespace: 2 },
+    {
+      ...historyPage,
+      next: { ...historyPage.next, directory: { ...historyPage.next.directory, count: "3" } },
+    },
+    { ...historyPage, entries: Array(9).fill(historyEntry) },
+  ])
+    await withHost({ history: { listing: changed } }, (client) =>
+      assert.rejects(client.historicalTables(historicalSnapshot, 1)),
+    );
+  await withHost(
+    { history: { listing: { ...historyPage, entries: [], next: null } } },
+    async (client) => {
+      const page = await client.historicalTables(historicalSnapshot, 1);
+      assert.equal(page.entries.length, 0);
+      assert.equal(page.next, undefined);
+    },
+  );
+  await withHost({ history: { namespace: historyNamespace } }, async (client) => {
+    assert.equal(
+      (await client.historicalNamespace(historicalSnapshot, "original"))?.revision,
+      maximum,
+    );
+  });
+  await withHost(
+    {
+      history: {
+        source: {
+          snapshot: historyFixture.snapshot,
+          binding: historyEntry,
+          schema: metadata.schema,
+          rows: maximum.toString(),
+          changed_lsn: maximum.toString(),
+          authority: { database: 9, schema: 10, table: 11 },
+        },
+      },
+    },
+    async (client) => {
+      const source = await client.historicalSource(historicalSnapshot, 7n);
+      assert.equal(source.rowCount, maximum);
+      assert.equal(source.changedLsn, maximum);
+      assert.equal(source.schema.columns[0]?.collation, "ebcdic_cp037");
+    },
+  );
+});
+
+test("lost historical metadata replies remain read failures", async () => {
+  await withHost("loss", (client) =>
+    assert.rejects(
+      client.inspectHistory(historyKey),
+      (error) => error instanceof ReadFailed && !(error instanceof Uncertain),
+    ),
+  );
+  await withHost("loss", (client) =>
+    assert.rejects(
+      client.historicalSource(historicalSnapshot, 7n),
+      (error) => error instanceof ReadFailed && !(error instanceof Uncertain),
+    ),
+  );
+});
+
+test("historical coverage retains wide counts and scopes every continuation", async () => {
+  const coverage = {
+    snapshot: historyFixture.snapshot,
+    logical: historyEntry.declaration,
+    accepted: historyEntry.accepted,
+    total_rows: maximum.toString(),
+    definitions: {
+      physical: historyEntry.declaration,
+      schema_revision: maximum.toString(),
+      rows: maximum.toString(),
+      columns: [{ column: "1", source: { physical: "1" } }],
+    },
+    locations: [],
+    next: {
+      selector: historicalSnapshot.selector,
+      object: "7",
+      kind: "definitions",
+      source: historyFixture.snapshot.sources_root,
+      after: maximum.toString(),
+    },
+  };
+  await withHost({ history: { coverage } }, async (client, requests) => {
+    const result = await client.historicalCoverage(historicalSnapshot, 7n);
+    assert.equal(result.totalRows, maximum);
+    assert.equal(result.definition?.rows, maximum);
+    assert.deepEqual(result.definition?.columns[0]?.source, { physical: 1n });
+    const cursor = HistoryCoverageCursor.restore(result.next!.save());
+    assert.equal(cursor.save(), result.next!.save());
+    await assert.rejects(
+      client.historicalCoverage(historicalSnapshot, 8n, "definitions", cursor),
+      TypeError,
+    );
+    await assert.rejects(
+      client.historicalCoverage(historicalSnapshot, 7n, "locations", cursor),
+      TypeError,
+    );
+    assert.equal((await requests()).filter((item) => item.catalog?.history).length, 1);
+    await assert.rejects(
+      client.historicalCoverage(historicalSnapshot, 7n, "definitions", cursor),
+      IncompatibleNative,
+    );
+  });
+});

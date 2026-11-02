@@ -185,13 +185,19 @@ pub fn exerciseQueue(service: *Service, declaration: c.DirectLog.Definition, sch
         var buffer: [8192]u8 = undefined;
         const payload = try c.storage.LogBatch.encode(schema, operation, .queue, &.{.{ .cells = &cells, .visible_ms = 150 }}, &buffer);
         _ = try endpoint.queue(.{ .mutate = .{ .work = .{ .enqueue = .{ .target = target, .operation = operation, .kind = .queue, .producer = null, .rows = 1, .payload = c.storage.LogBatch.content(payload) } }, .payload = payload } });
+        // The configured five-millisecond envelope still spans visibility at
+        // UTC 154. A narrower kernel report cannot authorize an early claim.
+        clock.now.store(154, .release);
+        const uncertain = try endpoint.queue(.{ .wait = .{ .claim = claim, .milliseconds = 1 } });
+        try t.expectEqual(@as(u64, 2), uncertain.timed_out.next);
+        try t.expect((try endpoint.queue(.{ .operation = .{ .claim = claim } })).operation == null);
         var task = try t.io.concurrent(waitQueue, .{ &host, native, service.engine.genesis, service.engine.clock, claim });
         defer _ = task.cancel(t.io) catch undefined;
         try parked(host.log_waits.?);
-        clock.now.store(150, .release);
+        clock.now.store(155, .release); // Lower bound now reaches visible_at.
         const accepted = (try task.await(t.io)).operation.?.claim;
         try t.expectEqual(@as(u32, 1), accepted.rows);
-        try t.expectEqual(@as(u64, 150), accepted.observed_ms);
+        try t.expectEqual(@as(u64, 160), accepted.observed_ms);
     }
     claim.operation.operation = 654;
     {

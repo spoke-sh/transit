@@ -106,7 +106,7 @@ pub const Source = struct {
     source: union(enum) {
         kv: struct { prefix: []const u8, key: q.SourceDefinition.Decoder, value: q.SourceDefinition.Decoder },
         table: struct {
-            pub const json_schema_sequence_bounds = .{ .collations = q.SourceDefinition.max_columns };
+            pub const json_schema_sequence_bounds = .{ .collations = q.SourceDefinition.max_columns, .semantics = q.SourceDefinition.max_columns };
             scope: q.catalog.TableValues.Scope,
             owner: u64,
             branch: []const u8,
@@ -115,6 +115,9 @@ pub const Source = struct {
             interpretation: struct { revision: []const u8, digest: [32]u8, bytes: []const u8, schema: [32]u8 },
             row_type: types.Type,
             collations: []const f.TableSchema.Collation,
+            semantics: []const f.ColumnSemantics.Neutral = &.{},
+            historical: ?struct { selector: []const u8, accepted: q.catalog.DirectTableValues.Position, pin: q.catalog.DirectTableValues.Content } = null,
+            projection: ?struct { declaration: q.catalog.DirectTableValues.Stored, accepted_lsn: []const u8, origins: ?q.catalog.storage.TreeStore.pages.Reference } = null,
         },
         document: struct {
             pub const json_schema_sequence_bounds = .{ .expand = 8, .projections = m.max_columns };
@@ -131,7 +134,10 @@ pub const Source = struct {
                 const scope = try v.scope.native();
                 const branch = try unsigned(v.branch);
                 const object = try unsigned(v.object);
-                break :table .{ .table = .{ .scope = scope, .owner = v.owner, .branch = branch, .namespace = v.namespace, .object = object, .interpretation = .{ .kind = .table, .interpretation = .{ .object = .{ .scope = scope, .branch = branch, .object = object }, .revision = try unsigned(v.interpretation.revision), .digest = v.interpretation.digest }, .content = .{ .bytes = try unsigned(v.interpretation.bytes), .sha256 = v.interpretation.digest }, .schema_fingerprint = v.interpretation.schema, .retired = false }, .row_type = try v.row_type.cloneInto(alloc), .collations = try f.QueryCollations.fromSlice(v.row_type, v.collations) } };
+                if (v.semantics.len > q.SourceDefinition.max_columns) return error.InvalidColumnSemantics;
+                const semantics = try alloc.alloc(f.ColumnSemantics, v.semantics.len);
+                for (v.semantics, semantics) |in, *out| out.* = try f.ColumnSemantics.native(in, alloc);
+                break :table .{ .table = .{ .scope = scope, .owner = v.owner, .branch = branch, .namespace = v.namespace, .object = object, .interpretation = .{ .kind = .table, .interpretation = .{ .object = .{ .scope = scope, .branch = branch, .object = object }, .revision = try unsigned(v.interpretation.revision), .digest = v.interpretation.digest }, .content = .{ .bytes = try unsigned(v.interpretation.bytes), .sha256 = v.interpretation.digest }, .schema_fingerprint = v.interpretation.schema, .retired = false }, .semantics = semantics, .projection = if (v.projection) |target| .{ .declaration = try target.declaration.native(), .next_lsn = try unsigned(target.accepted_lsn), .origins = target.origins } else null, .historical = if (v.historical) |history| .{ .snapshot = try q.catalog.DirectHistory.Selector.decode(history.selector), .accepted = try history.accepted.native(), .pin = try history.pin.native() } else null, .row_type = try v.row_type.cloneInto(alloc), .collations = try f.QueryCollations.fromSlice(v.row_type, v.collations) } };
             },
             .document => |v| blk: {
                 if (v.projections.len == 0 or v.projections.len > m.max_columns) return error.InvalidProjection;
@@ -145,10 +151,20 @@ pub const Source = struct {
         _ = try result.schema(&storage);
         return result;
     }
+    fn semanticValues(alloc: Allocator, source: q.TableSource) ![]const f.ColumnSemantics.Neutral {
+        const result = try alloc.alloc(f.ColumnSemantics.Neutral, source.row_type.structure.len);
+        for (result, 0..) |*out, i| out.* = try (if (source.semantics.len == 0) f.ColumnSemantics{} else source.semantics[i]).foreign(alloc);
+        return result;
+    }
+    fn historicalValues(alloc: Allocator, value: ?q.TableSource.Historical) !@FieldType(@FieldType(@FieldType(Source, "source"), "table"), "historical") {
+        const history = value orelse return null;
+        var buffer: [q.catalog.DirectHistory.Selector.text_bytes]u8 = undefined;
+        return .{ .selector = try alloc.dupe(u8, try q.catalog.DirectHistory.Selector.encode(history.snapshot, &buffer)), .accepted = try q.catalog.DirectTableValues.Position.foreign(alloc, history.accepted), .pin = try q.catalog.DirectTableValues.Content.foreign(alloc, history.pin) };
+    }
     pub fn fromNative(alloc: Allocator, value: q.SourceDefinition) !Source {
         return .{ .version = value.version, .resource = value.resource, .source = switch (value.source) {
             .kv => |v| .{ .kv = .{ .prefix = try a.hex(alloc, v.prefix.slice()), .key = v.key, .value = v.value } },
-            .table => |v| .{ .table = .{ .scope = try q.catalog.TableValues.Scope.foreign(alloc, v.scope), .owner = v.owner, .branch = try a.decimal(alloc, v.branch), .namespace = v.namespace, .object = try a.decimal(alloc, v.object), .interpretation = .{ .revision = try a.decimal(alloc, v.interpretation.interpretation.revision), .digest = v.interpretation.interpretation.digest, .bytes = try a.decimal(alloc, v.interpretation.content.bytes), .schema = v.interpretation.schema_fingerprint }, .row_type = try v.row_type.cloneInto(alloc), .collations = try alloc.dupe(f.TableSchema.Collation, v.collations.columns[0..v.row_type.structure.len]) } },
+            .table => |v| .{ .table = .{ .scope = try q.catalog.TableValues.Scope.foreign(alloc, v.scope), .owner = v.owner, .branch = try a.decimal(alloc, v.branch), .namespace = v.namespace, .object = try a.decimal(alloc, v.object), .interpretation = .{ .revision = try a.decimal(alloc, v.interpretation.interpretation.revision), .digest = v.interpretation.interpretation.digest, .bytes = try a.decimal(alloc, v.interpretation.content.bytes), .schema = v.interpretation.schema_fingerprint }, .semantics = try semanticValues(alloc, v), .historical = try historicalValues(alloc, v.historical), .projection = if (v.projection) |target| .{ .declaration = try q.catalog.DirectTableValues.Stored.foreign(alloc, target.declaration), .accepted_lsn = try a.decimal(alloc, target.next_lsn), .origins = target.origins } else null, .row_type = try v.row_type.cloneInto(alloc), .collations = try alloc.dupe(f.TableSchema.Collation, v.collations.columns[0..v.row_type.structure.len]) } },
             .document => |v| blk: {
                 const projections = try alloc.alloc(Projection, v.projections.len);
                 for (projections, v.projections) |*out, in| out.* = .{ .column = try DecoderColumn.fromNative(alloc, in.column), .path = try foreignPath(alloc, in.path), .relative = in.relative, .mode = in.mode, .text_bytes = in.text_bytes, .text_steps = in.text_steps };

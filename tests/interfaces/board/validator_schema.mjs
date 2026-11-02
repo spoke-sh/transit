@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { test } from "node:test";
+import { runInThisContext } from "node:vm";
+import { booleanValidatorSource } from "../../../tasks/validator_source.mjs";
 import { shareValidatorSchemas } from "../../../tasks/validator_schema.mjs";
 
 const require = createRequire(
@@ -225,4 +227,80 @@ test("nested resource scopes remain unchanged", () => {
     ["root", "1", false],
   ]);
   assert.equal(shared, schemas);
+});
+
+test("boolean standalone validators preserve combinators and schema data", () => {
+  const constant = {
+    instancePath: "payload",
+    schemaPath: "literal",
+    keyword: "value",
+    params: { id: 1 },
+  };
+  const schema = {
+    $id: "https://example.test/boolean",
+    $defs: {
+      Count: { type: "integer", minimum: 1, maximum: 5 },
+      Value: { oneOf: [{ $ref: "#/$defs/Count" }, { const: constant }] },
+    },
+    type: "object",
+    additionalProperties: false,
+    required: ["values"],
+    properties: {
+      values: {
+        type: "array",
+        minItems: 1,
+        maxItems: 2,
+        items: { anyOf: [{ $ref: "#/$defs/Value" }, { type: "null" }] },
+      },
+    },
+  };
+  const ajv = new Ajv2020({
+    strict: true,
+    inlineRefs: false,
+    messages: false,
+    code: { source: true },
+  });
+  ajv.addSchema(schema);
+  const original = require("ajv/dist/standalone/index.js").default(ajv, { valid: schema.$id });
+  const compact = booleanValidatorSource(original);
+  assert.ok(compact.length < original.length);
+  const load = (code) => {
+    const exports = {};
+    runInThisContext(`(function(exports, require) { ${code} })`)(exports, require);
+    return exports.valid;
+  };
+  const before = load(original),
+    after = load(compact);
+  for (const [value, expected] of [
+    [{ values: [1, constant] }, true],
+    [{ values: [null] }, true],
+    [{ values: [0] }, false],
+    [{ values: [6] }, false],
+    [{ values: [1.5] }, false],
+    [{ values: ["1"] }, false],
+    [{ values: [] }, false],
+    [{ values: [1, 2, 3] }, false],
+    [{ values: [{ ...constant, params: { id: 2 } }] }, false],
+    [{ values: [1], extra: 1 }, false],
+    [{}, false],
+    [null, false],
+  ]) {
+    assert.equal(before(value), expected);
+    assert.equal(after(value), expected);
+  }
+  // Public payload constants use quoted keys. Their full data must survive.
+  assert.ok(compact.includes(JSON.stringify(constant)));
+});
+
+test("boolean generation only removes exact generated error objects", () => {
+  const source = `const schema = {"instancePath":"", "schemaPath":"", "keyword":"", "params":{}};
+    const other = {instancePath:"",schemaPath:"",keyword:"",params:{},extra:1};
+    const message = "instancePath: schemaPath: keyword: params:";
+    const instancePath = "/x";
+    const error = {instancePath,schemaPath:"#/x",keyword:"type",params:{type:"string"}};`;
+  const result = booleanValidatorSource(source);
+  assert.ok(result.includes("const error = {};"));
+  assert.ok(result.includes('"instancePath":""'));
+  assert.ok(result.includes("extra:1"));
+  assert.ok(result.includes('const message = "instancePath: schemaPath: keyword: params:"'));
 });

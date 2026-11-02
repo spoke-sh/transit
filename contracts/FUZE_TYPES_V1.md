@@ -31,6 +31,8 @@ invalid parameters, duplicate field names and trailing bytes reject.
 | Map | Entries in strictly increasing typed key order; non-null scalar keys |
 | Tagged union | Ordered named alternatives; one tag and one typed cell |
 | JSON | Valid UTF-8 JSON preserving numeric lexemes; duplicate object keys reject |
+| Range / multirange | Canonical intervals over int64, decimal, date or civil/UTC timestamp; multiranges contain sorted, disjoint, nonadjacent runs |
+| Dense vector | Fixed dimension 1–65536; float32, float16, bfloat16, int8 or packed binary; no per-element cell tags |
 
 Enum, domain, opaque extension, spatial, arbitrary precision numeric and named
 IANA timezone types are unsupported. UTC timestamps require no timezone database;
@@ -50,8 +52,8 @@ allocator storage. Releasing that owner invalidates borrowed children.
 
 Type-error evidence uses `Types.Kind`, separately from descriptor `Types.Tag`.
 Every logical kind retains its descriptor tag ID. Additional observed kinds are
-`unknown` (0), `null_value` (28), Document `text` (29) and Document `character`
-(30). An unknown decoder failure must not invent an actual scalar type. These
+`unknown` (0), `null_value` (31), Document `text` (32) and Document `character`
+(33). An unknown decoder failure must not invent an actual scalar type. These
 extra names cannot declare a column or payload type. Document `text` evidence is
 distinct from the SQL TEXT alias, which declares UTF-8. A type error remains a
 type error even when its observed kind is unknown or null.
@@ -128,7 +130,7 @@ JSON and duplicate decoded object keys. It accepts caller-owned allocation;
 `Json.validate` uses a bounded 1 MiB scratch buffer. Neither performs I/O.
 
 `FTY1` is magic, u8 definition-string length, UTF-8 definition, then one recursive
-descriptor. The current definition is `transit.fuze.types.v1.2026-09-30`. Tags
+descriptor. The current definition is `transit.fuze.types.v1.2026-11-01.companions`. Tags
 1–27 are int64, uint64, float64, boolean, UTF-8, binary, int8, int16, int32,
 int128, uint8, uint16, uint32, uint128, float32, decimal, date, time, timestamp,
 interval, UUID, struct, list, array, map, tagged union and JSON. Scalars have no
@@ -137,6 +139,36 @@ Struct/union is u8 field count followed by each u8-length UTF-8 name, flags
 (bit 0 nullable, bit 1 optional) and child descriptor. Lists encode a canonical
 boolean nullable byte then child type; arrays prepend u32 length. Maps encode
 key type then the value's nullable byte/type. Integers are little-endian.
+
+Tags 28 and 29 are range and multirange, followed by their recursive subtype.
+Tag 30 is vector, followed by u32 dimension and u8 element tag: float32 1,
+float16 2, bfloat16 3, int8 4, binary 5. Binary dimension counts bits and must be
+divisible by eight. The metric is a separate column semantic descriptor.
+
+A range payload starts with flags: bit 0 empty, bit 1 lower present, bit 2 upper
+present, bit 3 lower inclusive, bit 4 upper inclusive. Present bounds follow in
+lower/upper order as the subtype's exact scalar payload, without cell tags.
+Empty ranges have no bounds or inclusivity bits; absent bounds are unbounded.
+Discrete int64/date domains canonicalize to inclusive lower, exclusive upper;
+successor overflow rejects. Continuous decimal/timestamp domains retain their
+inclusivity. Decoders reject noncanonical payloads rather than repairing them.
+Multiranges encode a u32 run count followed by these range payloads. Empty,
+overlapping, adjacent or out-of-order runs reject; the empty multirange is valid.
+
+Vectors encode exactly the descriptor's little-endian element bytes, without a
+length prefix or element tags. Float elements must be finite. Encoding preserves
+signed zero; numeric equality and hashing treat the two zeros equally. Owned
+decoders allocate 64-byte-aligned slabs, including the borrowing-byte decoder
+when the supplied transport buffer cannot establish that lifetime/alignment.
+Dense bytes and multirange runs consume the existing value budgets. Neither
+family is admitted as a Table primary key or map key.
+
+SQL schema-bound string literals construct range (`'[1,3)'`), multirange
+(`'{[1,3),[5,9)}'`) and vector (`'[1.25,-2.5]'`) values. Binary vectors use hex
+inside the string. Constructors normalize discrete bounds and multirange runs;
+stored codecs require canonical input. Scalar interval predicates, vector
+distance, decimal expressions and timezone expressions have separate execution
+admission from these stored values.
 
 `FVL1` is magic, u16 `FTY1` length and bytes, root flags, then one typed cell.
 The component's `encodeBound`/`decodeBound` helpers use exactly that final cell

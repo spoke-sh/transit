@@ -6,6 +6,12 @@ pub fn typeName(out: *std.Io.Writer, value: t.Type) anyerror!void {
     switch (value) {
         .decimal => |d| try out.print("decimal({d},{d})", .{ d.precision, d.scale }),
         .timestamp => |zone| try out.print("timestamp({s})", .{@tagName(zone)}),
+        .range, .multirange => |subtype| {
+            try out.print("{s}<", .{@tagName(value)});
+            try typeName(out, subtype.*);
+            try out.writeByte('>');
+        },
+        .vector => |shape| try out.print("vector({d},{s})", .{ shape.dimensions, @tagName(shape.element) }),
         .list => |element| {
             try out.writeAll("list<");
             try typeName(out, element.type.*);
@@ -61,6 +67,28 @@ pub fn cell(out: *std.Io.Writer, value: t.Values.Cell, expected: t.Type) anyerro
         },
         .value => |v| switch (v) {
             .atom => |a| try atom(out, a, expected),
+            .range => |r| try range(out, r, expected.range.*),
+            .multirange => |ranges| {
+                try out.writeByte('{');
+                for (ranges, 0..) |r, i| {
+                    if (i != 0) try out.writeByte(',');
+                    try range(out, r, expected.multirange.*);
+                }
+                try out.writeByte('}');
+            },
+            .vector => |bytes| {
+                if (expected.vector.element == .binary) {
+                    try out.writeAll("0x");
+                    for (bytes) |byte| try out.print("{x:0>2}", .{byte});
+                } else {
+                    try out.writeByte('[');
+                    for (0..expected.vector.dimensions) |i| {
+                        if (i != 0) try out.writeByte(',');
+                        try out.print("{d}", .{t.Vectors.element(expected.vector.element, bytes, i)});
+                    }
+                    try out.writeByte(']');
+                }
+            },
             .json => |bytes| {
                 try out.writeAll("JSON ");
                 try std.json.Stringify.value(bytes, .{ .escape_unicode = true }, out);
@@ -103,6 +131,14 @@ pub fn cell(out: *std.Io.Writer, value: t.Values.Cell, expected: t.Type) anyerro
             },
         },
     }
+}
+fn range(out: *std.Io.Writer, value: t.Ranges.Value, subtype: t.Type) !void {
+    if (value.is_empty) return out.writeAll("empty");
+    try out.writeByte(if (value.lower != null and value.lower.?.inclusive) '[' else '(');
+    if (value.lower) |bound| try atom(out, bound.value, subtype);
+    try out.writeByte(',');
+    if (value.upper) |bound| try atom(out, bound.value, subtype);
+    try out.writeByte(if (value.upper != null and value.upper.?.inclusive) ']' else ')');
 }
 fn atom(out: *std.Io.Writer, value: t.Values.Atom, expected: t.Type) !void {
     switch (value) {

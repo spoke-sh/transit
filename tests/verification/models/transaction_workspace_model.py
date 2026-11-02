@@ -29,6 +29,60 @@ ACTIONS = {
     "InspectWorkspace", "TogglePolicy", "CrashRecover",
 }
 
+# Independent concrete schedules supplement, rather than expand the claimed
+# TLC exploration. Both statement families use one sequence and pending slot.
+MIXED_PREFIX = ["Init", "Begin1", "AcquireCut"]
+MIXED_CASES = {
+    "pending_log": (["AdmitLog1", "CrashRecover"], {
+        "last_seq": 1, "pending_seq": 1, "pending_kind": "log",
+        "private_rows": 0, "private_log_actions": 0, "public_rows": 0,
+        "public_log_rows": 0, "last_error": "none"}),
+    "recovered_log": (["AdmitLog1", "CrashRecover", "ExecuteStmt", "CrashRecover"], {
+        "last_seq": 1, "pending_seq": 0, "pending_kind": "none",
+        "private_rows": 0, "private_log_actions": 1, "public_rows": 0,
+        "public_log_rows": 0, "last_error": "none"}),
+    "log_then_state": (["AdmitLog1", "ExecuteStmt", "AdmitStmt2", "CrashRecover", "ExecuteStmt"], {
+        "last_seq": 2, "pending_seq": 0, "pending_kind": "none",
+        "private_rows": 1, "private_log_actions": 1, "public_rows": 0,
+        "public_log_rows": 0, "last_error": "none"}),
+    "state_then_log": (["AdmitStmt1", "ExecuteStmt", "AdmitLog2", "CrashRecover", "ExecuteStmt"], {
+        "last_seq": 2, "pending_seq": 0, "pending_kind": "none",
+        "private_rows": 1, "private_log_actions": 1, "public_rows": 0,
+        "public_log_rows": 0, "last_error": "none"}),
+    "log_waits_for_state": (["AdmitStmt1", "AdmitLog2"], {
+        "last_seq": 1, "pending_seq": 1, "pending_kind": "state",
+        "private_rows": 0, "private_log_actions": 0, "public_rows": 0,
+        "public_log_rows": 0, "last_error": "TransactionStatementPending"}),
+    "state_waits_for_log": (["AdmitLog1", "AdmitStmt2"], {
+        "last_seq": 1, "pending_seq": 1, "pending_kind": "log",
+        "private_rows": 0, "private_log_actions": 0, "public_rows": 0,
+        "public_log_rows": 0, "last_error": "TransactionStatementPending"}),
+    "log_cannot_skip_sequence": (["AdmitLog2"], {
+        "last_seq": 0, "pending_seq": 0, "pending_kind": "none",
+        "private_rows": 0, "private_log_actions": 0, "public_rows": 0,
+        "public_log_rows": 0, "last_error": "TransactionStatementConflict"}),
+    "log_reservation_blocks_table": (["AdmitLog1", "Autocommit1"], {
+        "last_seq": 1, "pending_seq": 1, "pending_kind": "log",
+        "private_rows": 0, "private_log_actions": 0, "public_rows": 0,
+        "public_log_rows": 0, "last_error": "DataIdentityConflict"}),
+    "table_reservation_blocks_log": (["Autocommit1", "AdmitLog1"], {
+        "last_seq": 0, "pending_seq": 0, "pending_kind": "none",
+        "private_rows": 0, "private_log_actions": 0, "public_rows": 1,
+        "public_log_rows": 0, "last_error": "DataIdentityConflict"}),
+    "revocation_blocks_execution": (["AdmitLog1", "TogglePolicy", "CrashRecover", "ExecuteStmt"], {
+        "last_seq": 1, "pending_seq": 1, "pending_kind": "log",
+        "private_rows": 0, "private_log_actions": 0, "public_rows": 0,
+        "public_log_rows": 0, "last_error": "CatalogDenied"}),
+    "rollback_keeps_log": (["AdmitLog1", "ExecuteStmt", "Savepoint", "AdmitStmt2", "ExecuteStmt", "CrashRecover", "RollbackSavepoint", "CrashRecover"], {
+        "last_seq": 2, "pending_seq": 0, "pending_kind": "none",
+        "private_rows": 0, "private_log_actions": 1, "public_rows": 0,
+        "public_log_rows": 0, "last_error": "none"}),
+    "rollback_keeps_state": (["AdmitStmt1", "ExecuteStmt", "Savepoint", "AdmitLog2", "ExecuteStmt", "CrashRecover", "RollbackSavepoint", "CrashRecover"], {
+        "last_seq": 2, "pending_seq": 0, "pending_kind": "none",
+        "private_rows": 1, "private_log_actions": 0, "public_rows": 0,
+        "public_log_rows": 0, "last_error": "none"}),
+}
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -50,6 +104,8 @@ def main():
         ROOT / "packages/zig/transit-catalog/src/DirectCatalog.zig",
         ROOT / "packages/zig/transit-catalog/src/DirectTransaction.zig",
         ROOT / "packages/zig/transit-catalog/src/DirectTransactionWorkspace.zig",
+        ROOT / "packages/zig/transit-catalog/src/DirectTransactionLogWork.zig",
+        ROOT / "packages/zig/transit-catalog/src/DirectTransactionLog.zig",
         ROOT / "packages/zig/transit-catalog/src/DirectClientToken.zig",
         ROOT / "packages/zig/transit-catalog/src/OperationBinding.zig",
     ]
@@ -116,10 +172,21 @@ def main():
                     raise AssertionError(f"{guard} replay {events}: {actual} != {expected[guard]}")
         (destination / "replay-results.json").write_text(json.dumps(replayed, indent=2) + "\n")
         evidence["implementation_replay"] = {"counterexamples": len(traces)}
+        mixed_destination = destination / "mixed-schedules"
+        mixed_destination.mkdir()
+        mixed = run_traces(args.binary, [MIXED_PREFIX + events for events, _ in MIXED_CASES.values()],
+                           mixed_destination, args.seconds)
+        (mixed_destination / "results.json").write_text(json.dumps(mixed, indent=2) + "\n")
+        for (name, (events, expected_state)), actual in zip(MIXED_CASES.items(), mixed, strict=True):
+            for field, value in expected_state.items():
+                if actual[field] != value:
+                    raise AssertionError(f"{name} concrete schedule {events}: {actual} != {expected_state}")
+        evidence["implementation_replay"]["concrete_mixed_schedules"] = len(MIXED_CASES)
         evidence["binary_sha256"] = hashlib.sha256(Path(args.binary).read_bytes()).hexdigest()
         evidence["status"] = "passed"
         print(f"Transaction workspace TLC: {evidence['distinct_states']} states exhausted; "
-              f"eight negative controls detected and replayed against Zig.")
+              f"eight negative controls detected and replayed against Zig; "
+              f"{len(MIXED_CASES)} concrete mixed schedules passed separately.")
         print(f"Evidence: {destination.relative_to(ROOT)}")
     finally:
         (destination / "evidence.json").write_text(json.dumps(evidence, indent=2) + "\n")

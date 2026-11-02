@@ -11,6 +11,7 @@ pub const Discovery = @import("Discovery.zig");
 pub const MigrationClient = @import("MigrationClient.zig");
 test {
     _ = @import("submission_test.zig");
+    _ = @import("workload_test.zig");
     _ = @import("NativeResult.zig");
     _ = MigrationClient;
     @import("std").testing.refAllDecls(@This());

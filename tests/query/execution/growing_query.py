@@ -154,9 +154,10 @@ def run(node, caller, *, finish_pages=64):
             assert len(expected_job) == 152 and bytes.fromhex(result['job_wire']) == expected_job
             counters = progress['counters']
             expected_progress = (b'FQS1' + bytes(progress['binding']) + bytes(progress['plan'])
-                + struct.pack('<QQQQQQBqB', progress['pages'], counters['scanned'], counters['selected'],
-                    counters['value_count'], progress['segments'], progress['rows'], 0, 0, 1))
-            assert counters['sum'] is None and len(expected_progress) == 126
+                + struct.pack('<QQQQQQB', progress['pages'], counters['scanned'], counters['selected'],
+                    counters['value_count'], progress['segments'], progress['rows'], 0)
+                + (0).to_bytes(16, 'little', signed=True) + bytes([1]))
+            assert counters['sum'] is None and len(expected_progress) == 134
             assert bytes.fromhex(result['progress_wire']) == expected_progress
             actual, chain, total = [], bytes(32), 0
             for ordinal, segment in enumerate(result["segments"]):
@@ -172,7 +173,7 @@ def run(node, caller, *, finish_pages=64):
                     assert reader.schema == pa.schema([field("id", pa.int64()), field("value", pa.string())])
                     from query.files.fuze_file_query import descriptor
                     assert reader.schema.metadata == {
-                        b'transit.definition': b'transit.fuze.logical-arrow.v1.2026-09-30',
+                        b'transit.definition': b'transit.fuze.logical-arrow.v1.2026-11-01.companions',
                         b'transit.logical_schema': descriptor({'structure': [
                             {'name': 'id', 'type': {'int64': {}}, 'nullable': False, 'optional': False},
                             {'name': 'value', 'type': {'utf8': {}}, 'nullable': True, 'optional': False},

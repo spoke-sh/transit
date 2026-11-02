@@ -333,7 +333,7 @@ impl Source {
                 );
                 json!({"table":{"scope":scope.wire(),"owner":audience,"branch":branch.to_string(),"namespace":namespace,"object":schema.object.to_string(),
                     "interpretation":interpretation.wire()?,"row_type":row_type.wire()?,
-                    "collations":schema.columns.iter().map(|c|c.collation.wire()).collect::<Vec<_>>()}})
+                    "collations":schema.columns.iter().map(|c|c.collation.wire()).collect::<Vec<_>>(),"semantics":schema.columns.iter().map(|_|json!({"rounding":null,"metric":null,"timezone":null,"spatial":null})).collect::<Vec<_>>()}})
             }
             Self::Document {
                 reference: r,
@@ -463,7 +463,7 @@ impl Plan {
             }
         };
         Ok(
-            json!({"version":1,"projection":self.projection,"output_names":self.output_names,"predicate":predicate,"limit":self.limit.map(|v|v.to_string()),"aggregate":match self.aggregate {Aggregate::Rows=>"rows",Aggregate::Count=>"count",Aggregate::Sum=>"sum",Aggregate::CountValues=>"count_values"}}),
+            json!({"version":1,"scalar_program":"00","projection":self.projection,"output_names":self.output_names,"predicate":predicate,"limit":self.limit.map(|v|v.to_string()),"aggregate":match self.aggregate {Aggregate::Rows=>"rows",Aggregate::Count=>"count",Aggregate::Sum=>"sum",Aggregate::CountValues=>"count_values"}}),
         )
     }
 }

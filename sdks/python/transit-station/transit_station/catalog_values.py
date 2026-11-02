@@ -4,8 +4,9 @@ from dataclasses import dataclass, field
 from enum import Enum
 import copy
 import json
+import math
 from pathlib import Path
-from typing import Any, Generic, Literal, TypeAlias, TypeVar
+from typing import Any, Generic, Literal, TypeAlias, TypeVar, cast
 from transit_client import ResourceRef
 from transit_client._native import encode
 from transit_client.types import integer, owned_bytes
@@ -165,6 +166,86 @@ class Collation(str, Enum):
     ASCII_CI = 'ascii_ci'
     EBCDIC_CP037 = 'ebcdic_cp037'
     ICU_ROOT = 'icu_root'
+    EBCDIC_037_PAD = 'ebcdic_037_pad'
+    EBCDIC_1047_NOPAD = 'ebcdic_1047_nopad'
+
+
+@dataclass(frozen=True, slots=True)
+class TimezoneRules:
+    version: str
+    digest: bytes
+    zone: str
+    tzif: bytes
+    def __post_init__(self) -> None:
+        object.__setattr__(self, 'digest', owned_bytes(self.digest, 32))
+        object.__setattr__(self, 'tzif', owned_bytes(self.tzif, 128 * 1024))
+        if len(self.digest) != 32: raise ValueError('Expected complete timezone digest')
+
+
+@dataclass(frozen=True, slots=True)
+class SpatialSemantics:
+    definition: str
+    srid: int
+    local_frame: bytes
+    axes: Literal['xy', 'xyz', 'longitude_latitude', 'longitude_latitude_height']
+    manifold: Literal['planar', 'wgs84_ellipsoid']
+    linear_unit_nm: int
+    vertical_datum: Literal['none', 'local', 'wgs84_ellipsoid']
+    binary_grid: int | None
+    def __post_init__(self) -> None:
+        _definition(self.definition)
+        integer(self.srid, 'SRID', minimum=0, maximum=0xffffffff)
+        object.__setattr__(self, 'local_frame', owned_bytes(self.local_frame, 16))
+        if len(self.local_frame) != 16: raise ValueError('Expected complete spatial frame identity')
+        _wide(self.linear_unit_nm, 'linear unit', minimum=0)
+        if self.axes not in ('xy', 'xyz', 'longitude_latitude', 'longitude_latitude_height'): raise ValueError('Unknown spatial axes')
+        if self.manifold not in ('planar', 'wgs84_ellipsoid'): raise ValueError('Unknown spatial manifold')
+        if self.vertical_datum not in ('none', 'local', 'wgs84_ellipsoid'): raise ValueError('Unknown spatial datum')
+        if self.binary_grid is not None: integer(self.binary_grid, 'binary grid', minimum=-100, maximum=100)
+        # CRS combinations and computation admission belong to the shared owner.
+
+
+@dataclass(frozen=True, slots=True)
+class ColumnSemantics:
+    rounding: Literal['reject', 'half_even', 'toward_zero'] | None = None
+    metric: Literal['l2_squared', 'cosine', 'dot_product', 'hamming'] | None = None
+    timezone: TimezoneRules | None = None
+    spatial: SpatialSemantics | None = None
+    def _wire(self) -> dict[str, Any]:
+        zone, spatial = self.timezone, self.spatial
+        if self.rounding not in (None, 'reject', 'half_even', 'toward_zero'): raise ValueError('Unknown numeric rounding')
+        if self.metric not in (None, 'l2_squared', 'cosine', 'dot_product', 'hamming'): raise ValueError('Unknown vector metric')
+        return dict(rounding=self.rounding, metric=self.metric,
+            timezone=None if zone is None else dict(version=dict(version_id=_text(zone.version, 64), digest=list(zone.digest)), zone=_name(zone.zone), tzif_hex=zone.tzif.hex()),
+            spatial=None if spatial is None else dict(definition=spatial.definition, srid=spatial.srid,
+                local_frame=list(spatial.local_frame), axes=spatial.axes, manifold=spatial.manifold,
+                linear_unit_nm=str(spatial.linear_unit_nm), vertical_datum=spatial.vertical_datum,
+                precision={'exact': {}} if spatial.binary_grid is None else {'binary_grid': spatial.binary_grid}))
+
+
+def _semantics(value: object) -> ColumnSemantics:
+    v = _object(value, 'rounding metric timezone spatial')
+    zone, spatial = None, None
+    if v['timezone'] is not None:
+        z = _object(v['timezone'], 'version zone tzif_hex')
+        version = _object(z['version'], 'version_id digest')
+        digest = version['digest']
+        if not isinstance(digest, list) or len(digest) != 32: raise ValueError('Invalid timezone digest')
+        zone = TimezoneRules(_text(version['version_id'], 64), bytes(integer(n, 'digest byte', minimum=0, maximum=255) for n in digest), _name(z['zone']), _hex(z['tzif_hex'], 128 * 1024))
+    if v['spatial'] is not None:
+        s = _object(v['spatial'], 'definition srid local_frame axes manifold linear_unit_nm vertical_datum precision')
+        frame = s['local_frame']
+        if not isinstance(frame, list) or len(frame) != 16: raise ValueError('Invalid spatial frame identity')
+        kind, precision = _variant(s['precision'])
+        if kind == 'exact':
+            _object(precision, '')
+            grid = None
+        elif kind == 'binary_grid': grid = integer(precision, 'binary grid', minimum=-100, maximum=100)
+        else: raise ValueError('Unknown spatial precision')
+        spatial = SpatialSemantics(_definition(s['definition']), s['srid'], bytes(integer(n, 'frame byte', minimum=0, maximum=255) for n in frame), s['axes'], s['manifold'], _decimal(s['linear_unit_nm'], minimum=0), s['vertical_datum'], grid)
+    result = ColumnSemantics(v['rounding'], v['metric'], zone, spatial)
+    result._wire()
+    return result
 
 
 @dataclass(frozen=True, slots=True)
@@ -177,13 +258,115 @@ class Column:
     max_characters: int | None = None
     encoding: Encoding = Encoding.PLAIN
     collation: Collation = Collation.NONE
+    semantics: ColumnSemantics = ColumnSemantics()
     def _wire(self) -> dict[str, Any]:
-        return dict(id=str(_wide(self.id)), **_column(self.name, self.type, self.nullable, self.default, self.max_characters, self.encoding, self.collation))
+        return dict(id=str(_wide(self.id)), **_column(self.name, self.type, self.nullable, self.default, self.max_characters, self.encoding, self.collation, self.semantics))
 
 
-def _column(name: str, datatype: logical.Descriptor, nullable: bool, default: logical.Cell | None, max_characters: int | None, encoding: Encoding, collation: Collation) -> dict[str, Any]:
+def _column(name: str, datatype: logical.Descriptor, nullable: bool, default: logical.Cell | None, max_characters: int | None, encoding: Encoding, collation: Collation, semantics: ColumnSemantics = ColumnSemantics()) -> dict[str, Any]:
     return dict(name=_name(name), type=logical.type_wire(datatype), nullable=_boolean(nullable), default=None if default is None else logical.cell_wire(default),
-                max_characters=None if max_characters is None else integer(max_characters, 'characters', maximum=0xffffffff), encoding=_enum(encoding, Encoding), collation=_enum(collation, Collation))
+                max_characters=None if max_characters is None else integer(max_characters, 'characters', maximum=0xffffffff), encoding=_enum(encoding, Encoding), collation=_enum(collation, Collation), semantics=semantics._wire())
+
+
+CheckComparison: TypeAlias = Literal['lt', 'lte', 'eq', 'gte', 'gt', 'neq']
+
+@dataclass(frozen=True, slots=True)
+class CheckLiteral:
+    column: int
+    op: CheckComparison
+    literal: logical.Atom
+
+@dataclass(frozen=True, slots=True)
+class CheckColumns:
+    left: int
+    op: CheckComparison
+    right: int
+
+@dataclass(frozen=True, slots=True)
+class CheckNull:
+    column: int
+    negate: bool = False
+
+CheckAtom: TypeAlias = CheckLiteral | CheckColumns | CheckNull
+
+@dataclass(frozen=True, slots=True)
+class CheckConstraint:
+    id: int
+    name: str
+    atoms: tuple[CheckAtom, ...]
+    validated: bool = True
+    def __post_init__(self) -> None: object.__setattr__(self, 'atoms', tuple(self.atoms))
+
+ReferentialAction: TypeAlias = Literal['restrict', 'no_action', 'cascade', 'set_null']
+
+@dataclass(frozen=True, slots=True)
+class ForeignKeyConstraint:
+    id: int
+    name: str
+    local_columns: tuple[int, ...]
+    target_definition: Interpretation
+    target_schema_revision: int
+    target_columns: tuple[int, ...]
+    on_delete: ReferentialAction = 'restrict'
+    on_update: ReferentialAction = 'restrict'
+    enforcement: Literal['staged_awaiting_index'] = 'staged_awaiting_index'
+    def __post_init__(self) -> None:
+        object.__setattr__(self, 'local_columns', tuple(self.local_columns))
+        object.__setattr__(self, 'target_columns', tuple(self.target_columns))
+
+@dataclass(frozen=True, slots=True)
+class TableIntegrity:
+    next_id: int = 1
+    checks: tuple[CheckConstraint, ...] = ()
+    foreign_keys: tuple[ForeignKeyConstraint, ...] = ()
+    def __post_init__(self) -> None:
+        object.__setattr__(self, 'checks', tuple(self.checks)); object.__setattr__(self, 'foreign_keys', tuple(self.foreign_keys))
+    def _wire(self) -> dict[str, Any]:
+        if len(self.checks) + len(self.foreign_keys) > 64: raise ValueError('Too many Table constraints')
+        checks, foreign_keys = [], []
+        for check in self.checks:
+            if not isinstance(check, CheckConstraint) or not 1 <= len(check.atoms) <= 32: raise ValueError('Invalid CHECK constraint')
+            atoms: list[dict[str, Any]] = []
+            for atom in check.atoms:
+                if isinstance(atom, CheckLiteral): atoms.append({'compare_literal': dict(column=str(_wide(atom.column)), op=_one_of(atom.op, ('lt', 'lte', 'eq', 'gte', 'gt', 'neq')), literal={'value': {'atom': logical.atom_wire(atom.literal)}})})
+                elif isinstance(atom, CheckColumns): atoms.append({'compare_columns': dict(left_column=str(_wide(atom.left)), op=_one_of(atom.op, ('lt', 'lte', 'eq', 'gte', 'gt', 'neq')), right_column=str(_wide(atom.right)))})
+                elif isinstance(atom, CheckNull): atoms.append({'is_not_null' if _boolean(atom.negate) else 'is_null': str(_wide(atom.column))})
+                else: raise ValueError('Invalid CHECK atom')
+            checks.append(dict(id=integer(check.id, 'constraint id', maximum=0xffffffff), name=_name(check.name), validated=_boolean(check.validated), atoms=atoms))
+        for fk in self.foreign_keys:
+            if not isinstance(fk, ForeignKeyConstraint) or not 1 <= len(fk.local_columns) <= 128 or len(fk.local_columns) != len(fk.target_columns): raise ValueError('Invalid foreign-key columns')
+            d = fk.target_definition; o = d.object; s = o.scope
+            definition = dict(realm=str(s.resource.realm), resource=str(s.resource.resource), catalog=str(_wide(s.catalog)), branch=str(_wide(o.branch)), object=str(_wide(o.object_id)), revision=str(_wide(d.revision)), digest=_digest(d.digest))
+            foreign_keys.append(dict(id=integer(fk.id, 'constraint id', maximum=0xffffffff), name=_name(fk.name), local_columns=[str(_wide(c)) for c in fk.local_columns], target_object=definition['object'], target_revision=str(_wide(fk.target_schema_revision)), target_definition=definition, target_columns=[str(_wide(c)) for c in fk.target_columns], on_delete=_one_of(fk.on_delete, ('restrict', 'no_action', 'cascade', 'set_null')), on_update=_one_of(fk.on_update, ('restrict', 'no_action', 'cascade', 'set_null')), enforcement=_one_of(fk.enforcement, ('staged_awaiting_index',))))
+        return dict(next_id=integer(self.next_id, 'constraint identity', maximum=0xffffffff), checks=checks, foreign_keys=foreign_keys)
+
+
+def _integrity(value: object) -> TableIntegrity:
+    if isinstance(value, dict): value = {'next_id': 1, 'checks': [], 'foreign_keys': [], **value}
+    v = _object(value, 'next_id checks foreign_keys'); checks, keys = [], []
+    if not isinstance(v['checks'], list) or not isinstance(v['foreign_keys'], list) or len(v['checks']) + len(v['foreign_keys']) > 64: raise ValueError('Invalid Table constraints')
+    for raw in v['checks']:
+        c = _object(raw, 'id name atoms validated')
+        atoms: list[CheckLiteral | CheckColumns | CheckNull] = []
+        if not isinstance(c['atoms'], list) or not 1 <= len(c['atoms']) <= 32: raise ValueError('Invalid CHECK atoms')
+        for raw_atom in c['atoms']:
+            tag, item = _variant(raw_atom)
+            if tag == 'compare_literal':
+                x = _object(item, 'column op literal'); cell = logical.cell_from_wire(x['literal'])
+                if not isinstance(cell, logical.Present) or not isinstance(cell.value, logical.Atom): raise ValueError('Invalid CHECK literal')
+                atoms.append(CheckLiteral(_decimal(x['column']), x['op'], cell.value))
+            elif tag == 'compare_columns':
+                x = _object(item, 'left_column op right_column'); atoms.append(CheckColumns(_decimal(x['left_column']), x['op'], _decimal(x['right_column'])))
+            elif tag in ('is_null', 'is_not_null'): atoms.append(CheckNull(_decimal(item), tag == 'is_not_null'))
+            else: raise ValueError('Invalid CHECK atom')
+        checks.append(CheckConstraint(c['id'], _name(c['name']), tuple(atoms), _boolean(c['validated'])))
+    for raw in v['foreign_keys']:
+        fk = _object(raw, 'id name local_columns target_object target_revision target_definition target_columns on_delete on_update enforcement')
+        d = _object(fk['target_definition'], 'realm resource catalog branch object revision digest')
+        if d['object'] != fk['target_object']: raise ValueError('Foreign-key identity mismatch')
+        definition = Interpretation(ObjectIdentity(Scope(ResourceRef(_decimal(d['realm']), _decimal(d['resource'])), _decimal(d['catalog'])), _decimal(d['branch']), _decimal(d['object'])), _decimal(d['revision']), _digest(d['digest']))
+        keys.append(ForeignKeyConstraint(fk['id'], _name(fk['name']), tuple(_decimal(c) for c in fk['local_columns']), definition, _decimal(fk['target_revision']), tuple(_decimal(c) for c in fk['target_columns']), fk['on_delete'], fk['on_update'], fk['enforcement']))
+    result = TableIntegrity(v['next_id'], tuple(checks), tuple(keys)); result._wire(); return result
 
 
 @dataclass(frozen=True, slots=True)
@@ -193,6 +376,7 @@ class Schema:
     next_column: int
     columns: tuple[Column, ...]
     primary_key: tuple[int, ...] = ()
+    integrity: TableIntegrity = field(default_factory=TableIntegrity)
     def __post_init__(self) -> None:
         _wide(self.object_id); _wide(self.revision); _wide(self.next_column)
         object.__setattr__(self, 'columns', tuple(self.columns)); object.__setattr__(self, 'primary_key', tuple(self.primary_key))
@@ -201,7 +385,7 @@ class Schema:
     def _wire(self) -> object:
         budget = _WireBudget(2 * 1024 * 1024)
         return dict(definition=DEFINITION, object=str(self.object_id), revision=str(self.revision), next_column=str(self.next_column),
-                    columns=[budget.take(item._wire()) for item in self.columns], primary_key=[str(_wide(item)) for item in self.primary_key])
+                    columns=[budget.take(item._wire()) for item in self.columns], primary_key=[str(_wide(item)) for item in self.primary_key], integrity=budget.take(self.integrity._wire()))
 
 
 
@@ -292,6 +476,7 @@ class AddColumn:
     max_characters: int | None = None
     encoding: Encoding = Encoding.PLAIN
     collation: Collation = Collation.NONE
+    semantics: ColumnSemantics = ColumnSemantics()
 
 
 @dataclass(frozen=True, slots=True)
@@ -329,9 +514,15 @@ class SetPhysical:
     column: int
     encoding: Encoding
     collation: Collation
+    semantics: ColumnSemantics | None = None
 
 
-Change: TypeAlias = AddColumn | DropColumn | RenameColumn | SetDefault | SetNullable | SetType | SetPhysical
+@dataclass(frozen=True, slots=True)
+class SetIntegrity:
+    schema: Schema
+
+
+Change: TypeAlias = AddColumn | DropColumn | RenameColumn | SetDefault | SetNullable | SetType | SetPhysical | SetIntegrity
 
 
 @dataclass(frozen=True, slots=True)
@@ -380,14 +571,14 @@ def _scope(value: object) -> Scope:
 
 
 def _schema(value: object) -> Schema:
-    v = _object(value, 'definition object revision next_column columns primary_key')
+    v = _object(value, 'definition object revision next_column columns primary_key integrity')
     _definition(v['definition'])
     if not isinstance(v['columns'], list) or not 1 <= len(v['columns']) <= 128 or not isinstance(v['primary_key'], list): raise ValueError('Invalid columns')
     columns = []
     for item in v['columns']:
-        c = _object(item, 'id name type nullable default max_characters encoding collation')
-        columns.append(Column(_decimal(c['id']), _name(c['name']), logical.type_from_wire(c['type']), _boolean(c['nullable']), None if c['default'] is None else logical.cell_from_wire(c['default']), c['max_characters'], Encoding(c['encoding']), Collation(c['collation'])))
-    return Schema(_decimal(v['object']), _decimal(v['revision']), _decimal(v['next_column']), tuple(columns), tuple(_decimal(k) for k in v['primary_key']))
+        c = _object(item, 'id name type nullable default max_characters encoding collation semantics')
+        columns.append(Column(_decimal(c['id']), _name(c['name']), logical.type_from_wire(c['type']), _boolean(c['nullable']), None if c['default'] is None else logical.cell_from_wire(c['default']), c['max_characters'], Encoding(c['encoding']), Collation(c['collation']), _semantics(c['semantics'])))
+    return Schema(_decimal(v['object']), _decimal(v['revision']), _decimal(v['next_column']), tuple(columns), tuple(_decimal(k) for k in v['primary_key']), _integrity(v['integrity']))
 
 
 def _assignments(values: tuple[Assignment, ...], budget: _WireBudget) -> object:
@@ -466,13 +657,14 @@ def _mutation_value(value: object) -> Mutation:
 
 
 def _change(value: Change) -> object:
-    if isinstance(value, AddColumn): return {'add': _column(value.name, value.type, value.nullable, value.default, value.max_characters, value.encoding, value.collation)}
+    if isinstance(value, SetIntegrity): return {'integrity': value.schema._wire()}
+    if isinstance(value, AddColumn): return {'add': _column(value.name, value.type, value.nullable, value.default, value.max_characters, value.encoding, value.collation, value.semantics)}
     column = str(_wide(value.column))
     if isinstance(value, DropColumn): return {'drop': column}
     if isinstance(value, RenameColumn): return {'rename': dict(column=column, name=_name(value.name))}
     if isinstance(value, SetDefault): return {'default': dict(column=column, value=None if value.value is None else logical.cell_wire(value.value))}
     if isinstance(value, SetNullable): return {'nullable': dict(column=column, value=_boolean(value.nullable))}
-    if isinstance(value, SetPhysical): return {'physical': dict(column=column, encoding=_enum(value.encoding, Encoding), collation=_enum(value.collation, Collation))}
+    if isinstance(value, SetPhysical): return {'physical': dict(column=column, encoding=_enum(value.encoding, Encoding), collation=_enum(value.collation, Collation), semantics=None if value.semantics is None else value.semantics._wire())}
     if isinstance(value, SetType): return {'type': dict(column=column, type=logical.type_wire(value.type), max_characters=None if value.max_characters is None else integer(value.max_characters, 'characters', maximum=0xffffffff))}
     raise TypeError('Expected typed schema change')
 
@@ -790,8 +982,8 @@ class Observation:
     position: Position | None = None
 
 
-_ddl_reasons = ('none', 'name_conflict', 'object_conflict', 'stale_definition', 'stale_data', 'dependency', 'constraint')
-_row_reasons = ('none', 'definition_changed', 'data_changed', 'duplicate_key', 'missing_row', 'invalid_rows', 'work_limit')
+_ddl_reasons = ('none', 'name_conflict', 'object_conflict', 'stale_definition', 'stale_data', 'dependency', 'constraint', 'rewrite_required', 'work_limit')
+_row_reasons = ('none', 'definition_changed', 'data_changed', 'duplicate_key', 'missing_row', 'invalid_rows', 'work_limit', 'check_violation')
 
 
 def _one_of(value: object, options: tuple[str, ...]) -> str:
@@ -805,6 +997,13 @@ def _observation(value: object, original: Reference) -> Observation:
     if kind != expected_kind: raise ValueError('Changed observation kind')
     if state == 'not_observed':
         _object(record, ''); return Observation(original.kind, state, original)
+    if state == 'finalizing':
+        if kind != 'ddl': raise ValueError('Invalid finalizing operation kind')
+        final = _object(record, 'evidence operation')
+        if not isinstance(final['operation'], dict) or final['operation'].get('binding') != expected: raise ValueError('Changed finalizing binding')
+        if final['operation'].get('requires_settlement') is not True or final['operation'].get('phase') not in ('admitted', 'ready'): raise ValueError('Invalid finalizing operation phase')
+        commit = _observation({'ddl': {'committed': final['evidence']}}, original).commit
+        return Observation(original.kind, 'finalizing', original, commit=commit)
     if not isinstance(record, dict) or record.get('binding') != expected: raise ValueError('Changed original operation binding')
     if kind == 'name_assertion':
         if state != 'outcome': raise ValueError('Invalid name assertion state')
@@ -822,7 +1021,7 @@ def _observation(value: object, original: Reference) -> Observation:
         if commit.affected > commit.matched or commit.definition.interpretation.object != _object_identity(expected['target']): raise ValueError('Changed commit evidence')
         return Observation(original.kind, state, original, commit=commit)
     _one_of(state, ('admitted', 'rejected', 'cancelled'))
-    record = _object(record, 'binding intent phase reason' + (' basis' if kind == 'rows' else '')); _content(record['intent'])
+    record = _object(record, 'binding intent phase reason' + (' basis' if kind == 'rows' else ' dependency_steps protected_columns requires_settlement closing')); _content(record['intent'])
     phase = _one_of(record['phase'], ('admitted', 'rejected', 'cancelled') if kind == 'rows' else ('admitted', 'ready', 'rejected', 'cancelled', 'settled'))
     reason = _one_of(record['reason'], _row_reasons if kind == 'rows' else _ddl_reasons)
     if (state == 'admitted' and phase not in ('admitted', 'ready', 'settled')) or (state != 'admitted' and state != phase): raise ValueError('Inconsistent operation phase')
@@ -1118,3 +1317,414 @@ def _snapshot_metadata(value: object, snapshot: Snapshot) -> SnapshotMetadata:
     if (value['snapshot'] != snapshot._wire() or stored.interpretation.object != snapshot.owner.object or
         schema.object_id != snapshot.owner.object.object_id): raise ValueError('Changed retained source')
     return SnapshotMetadata(snapshot, stored, _position(value['accepted']), _decimal(value['changed_lsn'], 0), _decimal(value['row_count'], 0), schema, _authority(value['authority']))
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryOperation:
+    scope: Scope
+    principal: int
+    operation: int
+    def _wire(self) -> dict[str, object]:
+        return dict(scope=self.scope._wire(), principal=integer(self.principal, 'principal', minimum=0), operation=str(_wide(self.operation)))
+
+
+def _history_operation(value: object) -> HistoryOperation:
+    value = _object(value, 'scope principal operation')
+    return HistoryOperation(_scope(value['scope']), integer(value['principal'], 'principal', minimum=0), _decimal(value['operation']))
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryDirectory:
+    content: Content
+    count: int
+    descriptors: int
+    def _wire(self) -> dict[str, object]:
+        return dict(content=dict(bytes=str(_wide(self.content.bytes)), sha256=_digest(self.content.sha256)), count=str(_wide(self.count, minimum=0)), descriptors=str(_wide(self.descriptors, minimum=0)))
+
+
+def _history_directory(value: object) -> HistoryDirectory:
+    value = _object(value, 'content count descriptors')
+    return HistoryDirectory(_content(value['content']), _decimal(value['count'], 0), _decimal(value['descriptors'], 0))
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryCommonCut:
+    transaction: HistoryOperation
+    acquired: Position
+    sources: Content
+    source_count: int
+    def _wire(self) -> dict[str, object]:
+        return dict(transaction=self.transaction._wire(), acquired=self.acquired._wire(),
+                    sources=dict(bytes=str(_wide(self.sources.bytes)), sha256=_digest(self.sources.sha256)), source_count=str(_wide(self.source_count)))
+
+
+def _history_cut(value: object) -> HistoryCommonCut:
+    value = _object(value, 'transaction acquired sources source_count')
+    return HistoryCommonCut(_history_operation(value['transaction']), _position(value['acquired']), _content(value['sources']), _decimal(value['source_count']))
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryBudget:
+    operations: int = 1_000_000
+    bytes: int = 4_294_967_296
+    pending: int = 1024
+    charge_bytes: int = 4608
+    def _wire(self) -> dict[str, str]:
+        return {key: str(_wide(getattr(self, key))) for key in ('operations', 'bytes', 'pending', 'charge_bytes')}
+
+
+@dataclass(frozen=True, slots=True)
+class HistorySelection(_Saved):
+    """Immutable selection directory; this does not retain its data."""
+    @classmethod
+    def restore(cls, saved: str) -> HistorySelection: return cls(saved)
+    def _validate(self, value: Any) -> None:
+        value = _object(value, 'definition owner branch directory'); _definition(value['definition'])
+        _history_operation(value['owner']); _decimal(value['branch'])
+        if value['directory'] is not None: _history_directory(value['directory'])
+    @property
+    def owner(self) -> HistoryOperation: return _history_operation(self._wire()['owner'])
+    @property
+    def branch(self) -> int: return _decimal(self._wire()['branch'])
+    @property
+    def directory(self) -> HistoryDirectory | None:
+        value = self._wire()['directory']
+        return None if value is None else _history_directory(value)
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryKey(_Saved):
+    @classmethod
+    def restore(cls, saved: str) -> HistoryKey: return cls(saved)
+    def _validate(self, value: Any) -> None:
+        value = _object(value, 'definition connection account token'); _definition(value['definition']); _connection(value['connection'])
+        _hex(value['account'], 32, True); _hex(value['token'], 16, True)
+    @property
+    def account(self) -> bytes: return _hex(self._wire()['account'], 32, True)
+    @property
+    def token(self) -> bytes: return _hex(self._wire()['token'], 16, True)
+    def _check(self, connection: Connection, principal: int) -> dict[str, Any]:
+        value = _object(self._wire(), 'definition connection account token')
+        if value['connection'] != connection._wire(principal): raise ValueError('Foreign history recovery connection')
+        return value
+
+
+@dataclass(frozen=True, slots=True)
+class HistorySelectionStep(_Saved):
+    """Save before dispatch; retrying selection is not retention acceptance."""
+    @classmethod
+    def restore(cls, saved: str) -> HistorySelectionStep: return cls(saved)
+    def _validate(self, value: Any) -> None:
+        value = _object(value, 'selection namespace name')
+        HistorySelection.restore(encode(value['selection']).decode()); integer(value['namespace'], 'namespace'); _name(value['name'])
+    @property
+    def selection(self) -> HistorySelection: return HistorySelection.restore(encode(self._wire()['selection']).decode())
+    @property
+    def namespace(self) -> int: return integer(self._wire()['namespace'], 'namespace')
+    @property
+    def name(self) -> str: return _name(self._wire()['name'])
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryIntent:
+    operation: int
+    namespace: int
+    selection: HistoryDirectory
+    common_key: HistoryKey | None
+    common_cut: HistoryCommonCut | None
+
+
+def _history_intent(value: object, key: HistoryKey) -> HistoryIntent:
+    value = _object(value, 'definition connection namespace operation selection common'); _definition(value['definition'])
+    if value['connection'] != key._wire()['connection']: raise ValueError('Changed history intent connection')
+    common_key, common_cut = None, None
+    if value['common'] is not None:
+        common = _object(value['common'], 'key cut')
+        common_key = HistoryKey.restore(encode(common['key']).decode()); common_cut = _history_cut(common['cut'])
+    return HistoryIntent(_decimal(value['operation']), integer(value['namespace'], 'namespace'), _history_directory(value['selection']), common_key, common_cut)
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryAcquisition(_Saved):
+    """Complete original request, including selected directory and common cut."""
+    @classmethod
+    def restore(cls, saved: str) -> HistoryAcquisition: return cls(saved)
+    def _validate(self, value: Any) -> None:
+        if not isinstance(value, dict) or set(value) not in ({'key', 'intent'}, {'key', 'intent', 'budget'}): raise ValueError('Unexpected history acquisition fields')
+        _history_intent(value['intent'], HistoryKey.restore(encode(value['key']).decode()))
+        if 'budget' in value:
+            budget = value['budget']
+            if not isinstance(budget, dict) or not set(budget) <= {'operations', 'bytes', 'pending', 'charge_bytes'}: raise ValueError('Unexpected history budget fields')
+            for limit in budget.values(): _decimal(limit)
+    @property
+    def key(self) -> HistoryKey: return HistoryKey.restore(encode(self._wire()['key']).decode())
+    @property
+    def intent(self) -> HistoryIntent: return _history_intent(self._wire()['intent'], self.key)
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryControl(_Saved):
+    @classmethod
+    def restore(cls, saved: str) -> HistoryControl: return cls(saved)
+    def _validate(self, value: Any) -> None:
+        command, key = _variant(value); _one_of(command, ('advance', 'abandon', 'release')); HistoryKey.restore(encode(key).decode())
+    @property
+    def command(self) -> str: return _variant(self._wire())[0]
+    @property
+    def key(self) -> HistoryKey: return HistoryKey.restore(encode(_variant(self._wire())[1]).decode())
+
+
+@dataclass(frozen=True, slots=True)
+class HistoricalSnapshot:
+    """Opaque selector, verified by the shared owner on every operation."""
+    selector: str
+    def __post_init__(self) -> None: _hex(self.selector, 297, True)
+    def save(self) -> str: return encode(dict(selector=self.selector)).decode()
+    @classmethod
+    def restore(cls, saved: str) -> HistoricalSnapshot:
+        return cls(_object(_saved(saved), 'selector')['selector'])
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryBasis:
+    definition: str
+    snapshot: HistoricalSnapshot
+    owner: HistoryOperation
+    branch: int
+    catalog_root: Content
+    sources_root: Content
+    source_count: int
+    consistency: Literal['single_partition', 'independent', 'common_transaction']
+    position: Position | None
+    common_cut: HistoryCommonCut | None
+
+
+def _history_basis(value: object, selected: HistoricalSnapshot | None = None) -> HistoryBasis:
+    value = _object(value, 'selector definition owner branch catalog_root sources_root source_count consistency'); _definition(value['definition'])
+    snapshot = HistoricalSnapshot(value['selector'])
+    if selected is not None and snapshot != selected: raise ValueError('Changed historical snapshot')
+    kind, payload = _variant(value['consistency'])
+    if kind not in ('single_partition', 'independent', 'common_transaction'): raise ValueError('Unknown history consistency')
+    position = _position(payload) if kind == 'single_partition' else None
+    common = _history_cut(payload) if kind == 'common_transaction' else None
+    if kind == 'independent': _object(payload, '')
+    return HistoryBasis(value['definition'], snapshot, _history_operation(value['owner']), _decimal(value['branch']), _content(value['catalog_root']),
+                        _content(value['sources_root']), _decimal(value['source_count'], 0), cast(Literal['single_partition', 'independent', 'common_transaction'], kind), position, common)
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryStatus:
+    key: HistoryKey
+    intent: HistoryIntent
+    admitted: Position
+    revision: Position
+    phase: Literal['acquiring', 'verifying', 'published', 'abandoning', 'cancelled', 'releasing', 'released']
+    retained: HistoryDirectory | None
+    after: int | None
+    inflight: int | None
+    verified_after: int | None
+    descriptor_after: int | None
+    descriptors_verified: int
+    policy_epoch: int | None
+    released_after: int | None
+    basis: HistoryBasis | None
+
+
+def _history_status(value: object, key: HistoryKey, original: HistoryAcquisition | None = None) -> HistoryStatus | None:
+    if value is None: return None
+    value = _object(value, 'key intent admitted revision phase retained after inflight verified_after descriptor_after descriptors_verified policy_epoch released_after snapshot')
+    if value['key'] != key._wire() or (original is not None and value['intent'] != original._wire()['intent']): raise ValueError('Changed original history acquisition')
+    intent = _history_intent(value['intent'], key)
+    phase = value['phase']
+    if phase not in ('acquiring', 'verifying', 'published', 'abandoning', 'cancelled', 'releasing', 'released'): raise ValueError('Unknown history phase')
+    published = phase in ('published', 'releasing', 'released')
+    if published != (value['snapshot'] is not None): raise ValueError('Missing or premature history publication')
+    if value['snapshot'] is not None:
+        snapshot = _object(value['snapshot'], 'selector definition owner branch catalog_root sources_root source_count consistency')
+        connection = value['key']['connection']; original_intent = value['intent']; common = original_intent['common']
+        consistency, evidence = _variant(snapshot['consistency'])
+        if (snapshot['owner'] != dict(scope=connection['scope'], principal=connection['principal'], operation=original_intent['operation']) or
+            snapshot['branch'] != connection['branch'] or snapshot['source_count'] != original_intent['selection']['count'] or snapshot['catalog_root'] != original_intent['selection']['content'] or
+            (common is not None and (consistency != 'common_transaction' or evidence != common['cut'])) or (common is None and consistency == 'common_transaction')):
+            raise ValueError('Changed published history basis')
+    def optional(name: str) -> int | None: return None if value[name] is None else _decimal(value[name], 0)
+    return HistoryStatus(key, intent, _position(value['admitted']), _position(value['revision']), phase,
+                         None if value['retained'] is None else _history_directory(value['retained']), optional('after'), optional('inflight'),
+                         optional('verified_after'), optional('descriptor_after'), _decimal(value['descriptors_verified'], 0), optional('policy_epoch'), optional('released_after'),
+                         None if value['snapshot'] is None else _history_basis(value['snapshot']))
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryNamespace:
+    scope: Scope
+    id: int
+    authorization: int
+    name: str
+    revision: int
+
+
+def _history_namespace(value: object) -> HistoryNamespace:
+    value = _object(value, 'scope id authorization name revision')
+    return HistoryNamespace(_scope(value['scope']), integer(value['id'], 'namespace'), integer(value['authorization'], 'authorization'), _name(value['name']), _decimal(value['revision']))
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryEntry:
+    namespace: HistoryNamespace
+    name: str
+    definition: StoredDefinition
+    accepted: Position
+    catalog: Position
+
+
+def _history_entry(value: object) -> HistoryEntry:
+    value = _object(value, 'namespace name declaration accepted catalog')
+    return HistoryEntry(_history_namespace(value['namespace']), _name(value['name']), _stored(value['declaration']), _position(value['accepted']), _position(value['catalog']))
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryCursor(_Saved):
+    @classmethod
+    def restore(cls, saved: str) -> HistoryCursor: return cls(saved)
+    def _validate(self, value: Any) -> None:
+        value = _object(value, 'selector namespace directory after')
+        HistoricalSnapshot(value['selector']); integer(value['namespace'], 'namespace'); _history_directory(value['directory']); _decimal(value['after'])
+    @property
+    def snapshot(self) -> HistoricalSnapshot: return HistoricalSnapshot(self._wire()['selector'])
+    @property
+    def namespace(self) -> int: return integer(self._wire()['namespace'], 'namespace')
+    def _check(self, snapshot: HistoricalSnapshot, namespace: int) -> object:
+        if self.snapshot != snapshot or self.namespace != namespace: raise ValueError('History cursor belongs to a different selection')
+        return self._wire()
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryPage:
+    basis: HistoryBasis
+    namespace: int
+    entries: tuple[HistoryEntry, ...]
+    next: HistoryCursor | None
+
+
+def _history_page(value: object, snapshot: HistoricalSnapshot, scope: Scope, namespace: int, previous: HistoryCursor | None = None) -> HistoryPage:
+    value = _object(value, 'snapshot namespace entries next'); basis = _history_basis(value['snapshot'], snapshot)
+    if value['namespace'] != namespace or not isinstance(value['entries'], list) or len(value['entries']) > 8: raise ValueError('Changed history page scope or bound')
+    entries = tuple(_history_entry(item) for item in value['entries'])
+    if any(item.namespace.id != namespace or item.namespace.scope != scope for item in entries): raise ValueError('Changed history entry scope')
+    cursor = None if value['next'] is None else HistoryCursor.restore(encode(value['next']).decode())
+    if cursor:
+        cursor._check(snapshot, namespace)
+        native = cursor._wire()
+        if _history_directory(native['directory']) != HistoryDirectory(basis.sources_root, basis.source_count, 0) or (previous is not None and _decimal(native['after']) <= _decimal(previous._wire()['after'])):
+            raise ValueError('Historical continuation changed directory or failed to advance')
+    return HistoryPage(basis, namespace, entries, cursor)
+
+
+@dataclass(frozen=True, slots=True)
+class HistorySource:
+    basis: HistoryBasis
+    binding: HistoryEntry
+    schema: Schema
+    row_count: int
+    changed_lsn: int
+    authority: ReadAuthority
+
+
+def _history_source(value: object, snapshot: HistoricalSnapshot, object_id: int) -> HistorySource:
+    value = _object(value, 'snapshot binding schema rows changed_lsn authority')
+    basis = _history_basis(value['snapshot'], snapshot); binding = _history_entry(value['binding']); schema = _schema(value['schema'])
+    if binding.definition.interpretation.object.object_id != object_id or schema.object_id != object_id or binding.definition.interpretation.object.scope != basis.owner.scope or binding.definition.interpretation.object.branch != basis.branch: raise ValueError('Changed historical source object')
+    return HistorySource(basis, binding, schema, _decimal(value['rows'], 0), _decimal(value['changed_lsn'], 0), _authority(value['authority']))
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectionColumn:
+    column: int
+    physical: int | None
+    initial_definition: Interpretation | None
+    initial_state: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectionDefinition:
+    physical: StoredDefinition
+    schema_revision: int
+    rows: int
+    columns: tuple[ProjectionColumn, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectionLocation:
+    origin: int
+    operation: int
+    ordinal: int
+    physical: StoredDefinition
+    schema_revision: int
+    kind: str
+    position: int
+    offset: int
+    content: Content | None
+    row_bytes: int | None
+    row_digest: bytes | None
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryCoverageCursor(_Saved):
+    @classmethod
+    def restore(cls, saved: str) -> HistoryCoverageCursor: return cls(saved)
+    def _validate(self, value: Any) -> None:
+        value = _object(value, 'selector object kind source after')
+        HistoricalSnapshot(value['selector']); _decimal(value['object']); _content(value['source'])
+        if value['kind'] == 'definitions': _decimal(value['after'])
+        elif value['kind'] == 'locations': _hex(value['after'], 20, True)
+        else: raise ValueError('Invalid coverage kind')
+    def _check(self, snapshot: HistoricalSnapshot, object_id: int, kind: str) -> object:
+        value = self._wire()
+        if value['selector'] != snapshot.selector or _decimal(value['object']) != object_id or value['kind'] != kind: raise ValueError('Coverage cursor belongs to a different selection')
+        return value
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryCoverage:
+    basis: HistoryBasis
+    logical: StoredDefinition
+    accepted: Position
+    total_rows: int
+    definition: ProjectionDefinition | None
+    locations: tuple[ProjectionLocation, ...]
+    next: HistoryCoverageCursor | None
+
+
+def _history_coverage(value: object, snapshot: HistoricalSnapshot, object_id: int, kind: str, previous: HistoryCoverageCursor | None) -> HistoryCoverage:
+    value = _object(value, 'snapshot logical accepted total_rows definitions locations next')
+    basis = _history_basis(value['snapshot'], snapshot); logical = _stored(value['logical'])
+    if logical.interpretation.object.object_id != object_id or logical.interpretation.object.scope != basis.owner.scope or logical.interpretation.object.branch != basis.branch: raise ValueError('Changed coverage source')
+    definition = None
+    if value['definitions'] is not None:
+        if kind != 'definitions': raise ValueError('Changed coverage kind')
+        item = _object(value['definitions'], 'physical schema_revision rows columns')
+        columns = []
+        if not isinstance(item['columns'], list) or len(item['columns']) > 128: raise ValueError('Invalid coverage columns')
+        for column in item['columns']:
+            column = _object(column, 'column source'); source = column['source']
+            if isinstance(source, dict) and set(source) == {'physical'}: columns.append(ProjectionColumn(_decimal(column['column']), _decimal(source['physical']), None, None))
+            else:
+                source = _object(_object(source, 'initial')['initial'], 'definition state')
+                if source['state'] not in ('value', 'null', 'missing', 'type_error', 'conflict'): raise ValueError('Invalid initial state')
+                columns.append(ProjectionColumn(_decimal(column['column']), None, _interpretation(source['definition']), source['state']))
+        definition = ProjectionDefinition(_stored(item['physical']), _decimal(item['schema_revision']), _decimal(item['rows']), tuple(columns))
+    if not isinstance(value['locations'], list) or len(value['locations']) > 8 or (kind != 'locations' and value['locations']): raise ValueError('Invalid coverage locations')
+    locations = []
+    for entry in value['locations']:
+        entry = _object(entry, 'identity physical schema_revision location'); identity = _object(entry['identity'], 'origin operation ordinal')
+        location = entry['location']; content = None; row_bytes = None; row_digest = None
+        if isinstance(location, dict) and set(location) == {'segment'}:
+            item = _object(location['segment'], 'id row content'); location_kind = 'segment'; position = _decimal(item['id']); offset = integer(item['row'], 'row', minimum=0, maximum=4294967295); content = _content(item['content'])
+        else:
+            item = _object(_object(location, 'wal')['wal'], 'lsn offset bytes row_digest'); location_kind = 'wal'; position = _decimal(item['lsn'], 0); offset = integer(item['offset'], 'offset', minimum=0, maximum=4294967295); row_bytes = integer(item['bytes'], 'bytes'); row_digest = _hex(item['row_digest'], 32, True)
+        locations.append(ProjectionLocation(_decimal(identity['origin']), _decimal(identity['operation']), integer(identity['ordinal'], 'ordinal', minimum=0, maximum=4294967295), _stored(entry['physical']), _decimal(entry['schema_revision']), location_kind, position, offset, content, row_bytes, row_digest))
+    cursor = None if value['next'] is None else HistoryCoverageCursor.restore(encode(value['next']).decode())
+    if cursor:
+        cursor._check(snapshot, object_id, kind)
+        if previous and (cursor._wire()['source'] != previous._wire()['source'] or (int(cursor._wire()['after']) <= int(previous._wire()['after']) if kind == 'definitions' else cursor._wire()['after'] <= previous._wire()['after'])): raise ValueError('Coverage continuation failed to advance')
+    return HistoryCoverage(basis, logical, _position(value['accepted']), _decimal(value['total_rows'], 0), definition, tuple(locations), cursor)

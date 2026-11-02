@@ -124,6 +124,7 @@ pub fn acquireCurrent(self: *Self, client: c.DirectTableClient, table: c.DirectT
     return self.acquireCurrentWithMetadata(client, table, null);
 }
 pub fn acquireCurrentWithMetadata(self: *Self, client: c.DirectTableClient, table: c.DirectTableBinding, known_metadata: ?w.Definition) !Record {
+    if (table.catalog != null) return error.HistoricalRetentionOwned;
     try self.mutex.lock(self.io);
     defer self.mutex.unlock(self.io);
     if (!std.meta.eql(client.connection, table.connection)) return error.CatalogIdentityConflict;

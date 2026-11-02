@@ -98,6 +98,73 @@ pub const Cursor = struct {
     }
 };
 
+/// Complete traversal of the original read, or one verified interval between
+/// its cumulative cursors. Shape validation authenticates neither boundary.
+/// The native owner must verify every cursor, its live pin and current group.
+pub const Progress = union(enum) {
+    exhausted: Cursor,
+    interval: struct { first: Cursor, last: Cursor },
+
+    fn intervalCoverage(first: Cursor, last: Cursor) !q.Coverage {
+        try first.validate();
+        try last.validate();
+        if (!std.meta.eql(first.read, last.read) or
+            !std.meta.eql(first.coverage.cut, last.coverage.cut) or
+            first.coverage.from != last.coverage.from or first.coverage.until != last.coverage.until or
+            first.coverage.through > last.coverage.through or first.coverage.rows > last.coverage.rows)
+            return error.InvalidStreamProgress;
+        const result: q.Coverage = .{
+            .cut = last.coverage.cut,
+            .from = first.coverage.through,
+            .until = last.coverage.through,
+            .through = last.coverage.through,
+            .rows = last.coverage.rows - first.coverage.rows,
+            .complete = true,
+        };
+        try result.validate();
+        return result;
+    }
+    /// Choose one canonical representation; an interval spanning the entire
+    /// exhausted read uses the existing final cursor alone.
+    pub fn between(first: Cursor, last: Cursor) !Progress {
+        const selected = try intervalCoverage(first, last);
+        return if (last.coverage.complete and selected.from == last.coverage.from)
+            .{ .exhausted = last }
+        else
+            .{ .interval = .{ .first = first, .last = last } };
+    }
+    pub fn end(self: Progress) Cursor {
+        return switch (self) {
+            .exhausted => |cursor| cursor,
+            .interval => |value| value.last,
+        };
+    }
+    /// The interval has its own complete coverage; neither cursor is modified
+    /// or relabeled as exhaustion of the larger original read.
+    pub fn coverage(self: Progress) !q.Coverage {
+        return switch (self) {
+            .exhausted => |cursor| blk: {
+                try cursor.validate();
+                if (!cursor.coverage.complete) return error.InvalidStreamProgress;
+                break :blk cursor.coverage;
+            },
+            .interval => |value| blk: {
+                const selected = try intervalCoverage(value.first, value.last);
+                if (value.last.coverage.complete and selected.from == value.last.coverage.from) return error.InvalidStreamProgress;
+                break :blk selected;
+            },
+        };
+    }
+    pub fn validate(self: Progress) !void {
+        _ = try self.coverage();
+    }
+    pub fn requireReceipt(self: Progress, receipt: Receipt) !void {
+        try self.validate();
+        try self.end().requireReceipt(receipt);
+        if (self == .interval) try self.interval.first.requireReceipt(receipt);
+    }
+};
+
 pub const Release = struct {
     target: q.Partition,
     operation: d.Operation,

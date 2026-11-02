@@ -11,6 +11,13 @@ counts. Closing or failing a reader preserves an incomplete prefix; releasing an
 already completed result preserves its evidence. `copyRow` copies validated nested
 values into a caller-owned bounded arena before iterator scratch can change.
 
+`Workload` binds an original native selection to its saved intent, schema and
+projection. Its terminal position is separate from output row count: Stream
+filtering can reduce output without reducing examined offset coverage. Claim and
+append completion cover every original row. `ResultSet.receive` validates this
+evidence atomically before publishing progress. These shared types do not yet
+enable workload SQL or SQL service reopening.
+
 `BatchBuilder` owns up to 32 rows and 1 MiB of canonical cells, with independent
 row/byte limits. A row that does not fit remains with its source; an oversized
 row fails. `init(allocator, capacity)` reserves fixed aligned representation
@@ -35,6 +42,15 @@ row. A row or byte limit leaves the next row unread and does not establish
 completion. A previously received terminal survives truncation, but its count
 does not imply that the window contains every row. The caller can continue
 streaming or close the result.
+
+Historical data observations carry the selected catalog snapshot and complete
+source vector. Historical metadata observations carry the catalog identity
+without inventing a row-data snapshot. Validation checks scope, definitions,
+source count and consistency; independent selections cannot claim an atomic
+transaction cut. These descriptors attribute results but do not acquire or
+extend retention. Explicit schema projections retain original source identity
+and schema while reporting accepted target identity, schema and mapping policy
+separately. Current disclosure rights remain the source owner's duty.
 
 Interactive sources may implement `Source.validate_disclosure`. Calling
 `ResultSet.holdDisclosure` retains the last source scope after exhaustion until

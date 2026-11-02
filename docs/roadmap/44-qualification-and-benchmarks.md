@@ -1,4 +1,4 @@
-# 42. Qualification and complete benchmarks
+# 44. Qualification and complete benchmarks
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -10,11 +10,11 @@ remains a gate for every preceding milestone.
 
 ## Remaining work
 
-- Execute the [SQL grammar, standards comparison and dialect ergonomics corpus](41-sql-grammar-and-dialect-ergonomics.md)
+- Execute the [SQL grammar, standards comparison and dialect ergonomics corpus](43-sql-grammar-and-dialect-ergonomics.md)
   at the common committed revision: verify zero ANTLR/production grammar
   conflicts, byte-identical `FQP1`/`FDM1`/`FTS1` plan lowering for ergonomic
   desugarings (`FROM`-first queries, `SELECT * EXCLUDE/REPLACE`, `GROUP BY ALL`,
-  `ORDER BY ALL`, trailing commas and numeric underscores), stateful dataflow
+  `ORDER BY ALL`, multi-head deductive/recursive rule blocks, trailing commas and numeric underscores), stateful dataflow
   lifecycle DDL (`ACTIVATE`, `SUSPEND`, `RESUME`, `REFRESH`, `RETIRE`),
   2-way/3-way `DIFF(...)` and `DIFF_SCHEMA(...)` over `.tseg` segment skipping
   and 5-state `IS CONFLICT` cells, `REMOTE`/`FETCH`/`MIRROR` incremental sync
@@ -137,6 +137,8 @@ not defer focused checks or infer support from schemas, parsers or fixtures.
 | [Robotics](38-robotics-and-sensor-replay.md) | Calibrated sensor/camera replay, revised calibration and changed features; clock drift/reset, transform validity, restart, retention gaps and zero physical effects during replay |
 | [Software evidence](39-software-build-and-deployment-evidence.md) | Source/dependency/build/test/artifact/deployment investigation; exact-candidate checks, forged attestations, incomplete negative queries, stale evidence and an independently qualified Platform exchange when claimed |
 | [Constrained planning](40-constrained-planning-and-optimization.md) | Frozen scheduling problem through feasible candidate, bounds, interruption and reviewed publication; independently checked feasibility/optimality scope and unknown-versus-infeasible outcomes |
+| [Deductive rules, Datalog and equivalence graphs](41-deductive-rules-datalog-and-equivalence-graphs.md) | Multi-stratum mutually recursive fixpoints, WCOJ cyclic bodies, monotonic lattice aggregations, Union-Find / `e-graph` equivalence classes, incremental DBSP retraction equivalence, derivation witnesses and negative-cycle / budget-truncation refusals |
+| [Hardware design, RTL and EDA verification](42-hardware-design-rtl-and-eda-verification.md) | Elaborated Verilog/SystemVerilog RTL, netlist, `VCD`/`FST` waveform and `.layout_manhattan` (`GDSII`/`OASIS`/`LEF`/`DEF`) verification; Datalog information-flow/taint and CDC checks, incremental DBSP `DRC`/`LVS`, IP spatial-RLS compartmentalization and branch-isolated ECO / tape-out provenance |
 
 Run the calibrated-sensor demonstrator across scientific, media and robotics
 owners with lost replies, worker replacement, calibration changes and revocation
@@ -236,4 +238,4 @@ is qualification of that existing service, not implementing publication again:
    inferring a general GitHub CDN guarantee.
 
 These checks do not claim runtime qualification. Release-versioned documentation
-and immutable release links remain part of [release distribution](43-releases.md).
+and immutable release links remain part of [release distribution](45-releases.md).

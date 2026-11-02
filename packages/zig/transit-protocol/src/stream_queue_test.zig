@@ -7,6 +7,57 @@ fn fixture() !std.json.Parsed(q.SchemaTypes) {
     return p.Json.parseFromSlice(q.SchemaTypes, t.allocator, @embedFile("fixtures/stream-queue-v1.json"));
 }
 
+test "stream progress separates complete intervals from original read exhaustion" {
+    const parsed = try fixture();
+    defer parsed.deinit();
+    const receipt = parsed.value.read;
+    const last = parsed.value.read_cursor;
+    // These are shape-only examples; changing coverage invalidates their MAC.
+    // Storage tests must independently authenticate every supplied boundary.
+    var first = last;
+    first.coverage = try receipt.initialCoverage();
+    var middle = first;
+    middle.coverage.through += 2;
+    middle.coverage.rows = 1;
+    const prefix = try p.StreamRead.Progress.between(first, middle);
+    try prefix.requireReceipt(receipt);
+    try t.expect(prefix == .interval);
+    try t.expect(!prefix.end().coverage.complete);
+    const consumed = try prefix.coverage();
+    try t.expect(consumed.complete);
+    try t.expectEqual(receipt.request.from, consumed.from);
+    try t.expectEqual(receipt.request.from + 2, consumed.until);
+    try t.expectEqual(@as(u64, 1), consumed.rows);
+
+    const suffix = try p.StreamRead.Progress.between(middle, last);
+    try suffix.requireReceipt(receipt);
+    try t.expect(suffix == .interval);
+    try t.expectEqual(consumed.until, (try suffix.coverage()).from);
+    try t.expectEqual(@as(u64, 1), (try suffix.coverage()).rows);
+    const full = try p.StreamRead.Progress.between(first, last);
+    try t.expect(full == .exhausted);
+    try t.expectEqualDeep(last.coverage, try full.coverage());
+    const empty = try p.StreamRead.Progress.between(middle, middle);
+    try t.expectEqual(middle.coverage.through, (try empty.coverage()).from);
+    try t.expectEqual(@as(u64, 0), (try empty.coverage()).rows);
+
+    try t.expectError(error.InvalidStreamProgress, (p.StreamRead.Progress{ .exhausted = middle }).validate());
+    try t.expectError(error.InvalidStreamProgress, (p.StreamRead.Progress{ .interval = .{ .first = first, .last = last } }).validate());
+    try t.expectError(error.InvalidStreamProgress, p.StreamRead.Progress.between(middle, first));
+    var changed = last;
+    changed.coverage.rows = 0;
+    try t.expectError(error.InvalidStreamProgress, p.StreamRead.Progress.between(middle, changed));
+    changed = last;
+    changed.read.source.sha256[0] ^= 1;
+    try t.expectError(error.InvalidStreamProgress, p.StreamRead.Progress.between(first, changed));
+    changed = last;
+    changed.coverage.cut.accepted.next_lsn += 1;
+    try t.expectError(error.InvalidStreamProgress, p.StreamRead.Progress.between(first, changed));
+    changed = last;
+    changed.authentication = @splat(0);
+    try t.expectError(error.InvalidStreamCursor, p.StreamRead.Progress.between(first, changed));
+}
+
 test "queue payload release binds the original claimant selection and a later acceptance" {
     const parsed = try fixture();
     defer parsed.deinit();
@@ -151,6 +202,8 @@ test "stream queue fixture keeps logical offsets separate from WAL and preserves
     try v.offset_receipt.validate();
     try v.read.validate();
     try v.read_cursor.requireReceipt(v.read);
+    try v.read_progress.requireReceipt(v.read);
+    try v.read_progress_complete.requireReceipt(v.read);
     try v.read_release.validate();
     try v.settlement.validate();
     try t.expectEqual(std.math.maxInt(u64), v.append.next);

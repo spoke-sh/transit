@@ -10,7 +10,9 @@ indexes, publish a CRS registry or authorize access. Those owners reject spatial
 data until their complete type/value/consumer cutover.
 
 This new descriptor family binds the existing mandatory shared Transit definition.
-Existing native messages, stored types and ABIs retain their current bytes.
+Table column semantics may retain this exact descriptor on an opaque BINARY
+column. That metadata is not a geometry type or execution capability; the
+[Table schema contract](TABLE_SCHEMA_V1.md) owns its enclosing encoding.
 Subsequent incompatible changes to this encoding or its interpretation require
 the shared-definition review in the [versioning policy](../docs/handbook/reference/versioning.md).
 Readers never supply a current definition for a missing or foreign field.

@@ -26,6 +26,7 @@ test "warmed binary codec preserves every logical kind and state across changing
     const child: r.Types.Field = .{ .name = "text", .type = .utf8, .nullable = true, .optional = true };
     const nested = [_]r.Types.Values.Cell{.{ .value = .{ .atom = .{ .bytes = "snow ☃" } } }};
     const entries = [_]r.Types.Values.Entry{.{ .key = .{ .bytes = "key" }, .value = nested[0] }};
+    const vector_bytes: [2]u8 align(64) = .{ 0xfe, 0x7f };
     inline for (tags, 0..) |tag, i| {
         fields[i] = .{ .name = @tagName(tag), .nullable = true, .optional = true, .type = switch (tag) {
             .decimal => .{ .decimal = .{ .precision = 38, .scale = 2 } },
@@ -35,6 +36,9 @@ test "warmed binary codec preserves every logical kind and state across changing
             .array => .{ .array = .{ .length = 1, .element = .{ .type = &.utf8 } } },
             .map => .{ .map = .{ .key = &.utf8, .value = .{ .type = &.utf8 } } },
             .tagged_union => .{ .tagged_union = &.{.{ .name = "text", .type = .utf8 }} },
+            .range => .{ .range = &.int64 },
+            .multirange => .{ .multirange = &.int64 },
+            .vector => .{ .vector = .{ .dimensions = 2, .element = .int8 } },
             else => @unionInit(r.Types.Type, @tagName(tag), {}),
         } };
         values[i] = switch (tag) {
@@ -58,6 +62,12 @@ test "warmed binary codec preserves every logical kind and state across changing
             .map => .{ .map = &entries },
             .tagged_union => .{ .tagged_union = .{ .index = 0, .value = &nested[0] } },
             .json => .{ .json = "{\"ok\":[1,true,null]}" },
+            .range => .{ .range = .{ .lower = .{ .value = .{ .signed = -37 }, .inclusive = true }, .upper = .{ .value = .{ .signed = 197 }, .inclusive = false } } },
+            .multirange => .{ .multirange = &.{
+                .{ .lower = .{ .value = .{ .signed = -37 }, .inclusive = true }, .upper = .{ .value = .{ .signed = 0 }, .inclusive = false } },
+                .{ .lower = .{ .value = .{ .signed = 197 }, .inclusive = true } },
+            } },
+            .vector => .{ .vector = &vector_bytes },
         };
     }
     var alternatives: [tags.len][2]r.Types.Values.Alternative = undefined;

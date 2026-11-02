@@ -20,11 +20,13 @@ test("installed catalog, exact preview, profiles and session workbook", async ({
   await page.goto("/");
   await expect(page.getByRole("navigation", { name: "Activities" })).toContainText("Workbooks");
   await expect(page.getByRole("heading", { name: "Catalog", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "items", exact: true })).toBeVisible();
+  const firstNames = await page.getByRole("table").getByRole("link").allTextContents();
   expect(
     (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze())
       .violations,
   ).toEqual([]);
-  await Promise.all([
+  const [secondPage] = await Promise.all([
     page.waitForResponse(
       (response) =>
         response.url().endsWith("/api/v1/catalog") &&
@@ -33,15 +35,24 @@ test("installed catalog, exact preview, profiles and session workbook", async ({
     ),
     page.getByRole("button", { name: "Next page", exact: true }).click(),
   ]);
-  await expect(page.getByRole("table").getByRole("row")).toHaveCount(4);
+  const secondEntries: { name: string }[] = (await secondPage.json()).catalog.tables.entries.filter(
+    Boolean,
+  );
+  // The object directory also contains five foreign definitions. Its bounded
+  // scan may return fewer Tables on a page without completing the traversal.
+  expect(firstNames.length).toBeLessThanOrEqual(8);
+  expect(secondEntries.length).toBeLessThanOrEqual(8);
+  expect(firstNames.length + secondEntries.length).toBe(11);
+  expect(new Set([...firstNames, ...secondEntries.map((entry) => entry.name)]).size).toBe(11);
+  await expect(page.getByRole("table").getByRole("row")).toHaveCount(secondEntries.length + 1);
   await expect(page.getByRole("button", { name: "First page", exact: true })).toBeEnabled();
   expect(runs).toBe(0);
   await page.getByRole("button", { name: "First page", exact: true }).click();
-  await expect(page.getByRole("table").getByRole("row")).toHaveCount(9);
+  await expect(page.getByRole("table").getByRole("row")).toHaveCount(firstNames.length + 1);
   // Catalog pages follow object identity; a named Table can be on either page.
   if (!(await page.getByRole("link", { name: "metrics", exact: true }).count())) {
     await page.getByRole("button", { name: "Next page", exact: true }).click();
-    await expect(page.getByRole("table").getByRole("row")).toHaveCount(4);
+    await expect(page.getByRole("table").getByRole("row")).toHaveCount(secondEntries.length + 1);
   }
   await page.getByRole("link", { name: "metrics", exact: true }).click();
   await expect(page.getByRole("heading", { name: "metrics", exact: true })).toBeVisible();
@@ -267,4 +278,95 @@ test("unavailable workbook metadata removes inspector disclosure without rerunni
   await expect(inspector).toBeHidden();
   expect(runs).toBe(1);
   expect(throttles).toBe(1);
+});
+
+test("retained catalog inspection is bounded and clears revoked coverage", async ({ page }) => {
+  const selector = process.env.BOARD_HISTORY_SELECTOR;
+  expect(selector).toMatch(/^[0-9a-f]{594}$/);
+  let runs = 0,
+    denied = false;
+  const actions: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().endsWith("/api/v1/sql-read") && request.postDataJSON()?.action.run) runs++;
+  });
+  await page.route("**/api/v1/catalog", async (route) => {
+    const action = route.request().postDataJSON().action;
+    const history = action.history;
+    if (history) {
+      actions.push(Object.keys(history)[0]!);
+      if (denied) {
+        await route.fulfill({ status: 403, json: { err: "Forbidden", diagnostic: null } });
+        return;
+      }
+    }
+    if (action.definitions) {
+      actions.push(`interpretation.${Object.keys(action.definitions)[0]!}`);
+      if (denied) {
+        await route.fulfill({ status: 403, json: { err: "Forbidden", diagnostic: null } });
+        return;
+      }
+    }
+    await route.continue();
+  });
+  await page.goto("/");
+  await page.getByText("Inspect a retained catalog", { exact: true }).click();
+  await page.getByLabel("Snapshot selector", { exact: true }).fill(selector!);
+  await page.getByRole("button", { name: "Inspect snapshot", exact: true }).click();
+  const catalog = page.getByRole("region", { name: "Retained catalog", exact: true });
+  await expect(catalog).toContainText("single_partition");
+  await catalog.getByRole("button", { name: "metrics", exact: true }).click();
+  const interpretation = page.getByRole("region", { name: "Retained interpretation", exact: true });
+  await expect(interpretation).toContainText("145 retained rows");
+  await expect(interpretation).toContainText("physical column");
+  await interpretation
+    .getByRole("combobox", { name: "Coverage", exact: true })
+    .selectOption("locations");
+  await expect(interpretation).toContainText("Partial directory coverage");
+  await expect(interpretation).toContainText(
+    "Payload verification and query completion are separate",
+  );
+  const rows = () => interpretation.locator("p").filter({ hasText: /^Row / });
+  await expect(rows()).toHaveCount(8);
+  const before = await rows().allTextContents();
+  await interpretation.getByRole("button", { name: "Next coverage page", exact: true }).click();
+  await expect
+    .poll(async () => (await rows().allTextContents()).filter((row) => before.includes(row)).length)
+    .toBe(0);
+  await expect(rows()).toHaveCount(8);
+  await catalog.getByText("Inspect retained definitions", { exact: true }).click();
+  const definitions = page.getByRole("region", { name: "Retained definitions", exact: true });
+  await expect(definitions).toContainText("More definitions are available.");
+  await definitions.getByRole("button", { name: "decoder_0", exact: true }).click();
+  const accepted = page.getByRole("region", { name: "Accepted interpretation", exact: true });
+  await expect(accepted).toContainText("foreign · Definition 1");
+  await accepted.getByText("Output schema and interpretation", { exact: true }).click();
+  await expect(accepted).toContainText("comp_3");
+  await definitions.getByRole("button", { name: "Next definitions", exact: true }).click();
+  await expect(definitions).toContainText("decoder_4");
+  await expect(definitions).toContainText("End of the selected definition directory.");
+  await expect(
+    page.getByRole("region", { name: "Accepted interpretation", exact: true }),
+  ).toHaveCount(0);
+  denied = true;
+  await expect(
+    page.getByRole("heading", { name: "Data connection unavailable" }).first(),
+  ).toBeVisible({
+    timeout: 12000,
+  });
+  await expect(page.getByText(/145 retained rows/)).toHaveCount(0);
+  expect(runs).toBe(0);
+  expect(actions.length).toBeGreaterThan(5);
+  expect(
+    actions.every((action) =>
+      [
+        "namespace",
+        "list",
+        "source",
+        "definitions",
+        "locations",
+        "interpretation.list",
+        "interpretation.historical",
+      ].includes(action),
+    ),
+  ).toBe(true);
 });

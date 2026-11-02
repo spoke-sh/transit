@@ -148,7 +148,7 @@ test "logical steps retain eager predicate and source-order overflow evidence" {
         const delta: i64 = if (edge > 0) 1 else -1;
         try e.expectError(error.Overflow, s.step(sum, first.progress, .{ .binding = basis, .ordinal = 1, .end = true, .rows = &.{ .{ .cells = &.{integer(delta)} }, .{ .cells = &.{integer(-delta)} } } }, &.{}, &.{}, &cancelled, &failure));
         try e.expectEqualDeep(s.Failure{ .operation = .sum, .row = 2, .page_row = 0, .column = 0 }, failure.?);
-        try e.expectEqual(@as(?i64, edge), first.progress.counters.sum);
+        try e.expectEqual(@as(?i128, edge), first.progress.counters.sum);
     }
     const count: q.Plan = .{ .schema = simple, .source_basis = basis, .projection = &.{0}, .aggregate = .count_values };
     try e.expectError(error.QueryTypeError, s.step(count, try .start(count), .{ .binding = basis, .ordinal = 0, .end = true, .rows = page.rows }, &.{}, &.{}, &cancelled, &failure));

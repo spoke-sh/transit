@@ -162,6 +162,7 @@ pub fn compile(allocator: std.mem.Allocator, text: []const u8, dialect: Sql.Dial
     switch (verb) {
         .create => {
             const shape = try TableDdl.columnDefinitions(&parser, name, false);
+            if (!shape.integrity.empty()) return error.UnsupportedTableConstraint;
             if (shape.primary_key.len != 0) return error.UnsupportedLogPrimaryKey;
             statement.action = .{ .create = shape };
             if (try parser.takeWord("PARTITION")) {

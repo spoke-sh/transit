@@ -141,7 +141,8 @@ fn applyHost(arena: *std.heap.ArenaAllocator, session: *c.DirectTableBridge.Sess
     for (0..64) |_| {
         switch (state) {
             .name_assertion => return state,
-            inline .ddl, .rows => |value| if (value == .committed) return state else try t.expect(value == .admitted),
+            .ddl => |value| if (value == .committed) return state else try t.expect(value == .admitted or value == .finalizing),
+            .rows => |value| if (value == .committed) return state else try t.expect(value == .admitted),
         }
         state = (try session.apply(arena, client, .{ .operation = .{ .reference = reference, .command = .execute, .steps = 32 } }, null)).observation;
     }
@@ -199,7 +200,7 @@ fn sharedTypedHost(allocator: std.mem.Allocator, client: c.DirectTableClient) !v
     metadata = (try session.apply(&output, client, .{ .lookup = .{ .namespace = 1, .name = request.name } }, null)).metadata.?;
     const stale = metadata.binding;
     request.operation = "519";
-    request.action = .{ .alter = .{ .basis = metadata.binding, .change = .{ .add = .{ .name = "note", .type = .utf8, .nullable = true, .default = .{ .value = .{ .atom = .{ .utf8 = "typed" } } }, .max_characters = null, .encoding = .plain, .collation = .none } } } };
+    request.action = .{ .alter = .{ .basis = metadata.binding, .change = .{ .add = .{ .name = "note", .type = .utf8, .nullable = true, .default = .{ .value = .{ .atom = .{ .utf8 = "typed" } } }, .max_characters = null, .encoding = .plain, .collation = .none, .semantics = .{ .rounding = null, .metric = null, .timezone = null, .spatial = null } } } } };
     _ = try applyHost(&output, &session, client, (try session.apply(&output, client, .{ .prepare = request }, null)).compiled);
     const old_insert = (try session.apply(&output, client, .{ .load = inserted.saved }, null)).loaded;
     try t.expectEqual(.stale_definition, (try session.apply(&output, client, .{ .preview = old_insert.id }, null)).preview.rows.reason);

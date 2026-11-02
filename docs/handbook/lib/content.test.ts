@@ -24,7 +24,12 @@ describe("documentation ownership and navigation", () => {
     }
   });
   it("describes capabilities without delivery-plan references across usage and interface sources", () => {
-    const deliveryReference = /\b(?:m\d+|milestones?|roadmap)\b/i;
+    // Qualified feature IDs such as M001-MED name the SQL support ledger.
+    // Bare M10/M001 and delivery prose still identify planning material.
+    const deliveryReference = /\b(?:m(?!\d{3}-[a-z]+\b)\d+|milestones?|roadmap)\b/i;
+    expect("M001-MED").not.toMatch(deliveryReference);
+    for (const reference of ["M10", "M001", "M10-MED", "Milestone 10", "roadmap"])
+      expect(reference).toMatch(deliveryReference);
     for (const entry of handbookPages) {
       // The contributor index names source owners, including the separate roadmap.
       if (entry.source === "docs/README.md") continue;

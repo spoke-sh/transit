@@ -60,10 +60,14 @@ public final class JavaCatalogValues {
         JsonObject physical = schema().wire(); JsonObject column = physical.getAsJsonArray("columns").get(0).getAsJsonObject();
         column.add("type", obj("utf8", obj())); column.addProperty("encoding", "ebcdic"); column.addProperty("collation", "ebcdic_cp037");
         check(CatalogValues.schema(physical).columns().getFirst().collation() == Collation.EBCDIC_CP037);
-        for (String field : List.of("encoding", "collation")) {
+        for (String field : List.of("encoding", "collation", "semantics")) {
             JsonObject bad = physical.deepCopy(); bad.getAsJsonArray("columns").get(0).getAsJsonObject().remove(field);
             rejects(TransitException.class, () -> CatalogValues.decode(() -> CatalogValues.schema(bad)));
         }
+        JsonObject missingIntegrity = physical.deepCopy(); missingIntegrity.remove("integrity");
+        rejects(TransitException.class, () -> CatalogValues.decode(() -> CatalogValues.schema(missingIntegrity)));
+        JsonObject retiredIntegrity = physical.deepCopy(); retiredIntegrity.getAsJsonObject("integrity").addProperty("next_id", 2);
+        rejects(TransitException.class, () -> CatalogValues.decode(() -> CatalogValues.schema(retiredIntegrity)));
         Logical.Cell large = new Logical.Present(new Logical.Binary(new Logical.BinaryData(new byte[1024*1024])));
         Logical.Cell invalid = new Logical.Present(new Logical.Sequence(Logical.SequenceKind.LIST, List.of(large, large)));
         Schema oversizedSchema = new Schema(n(1), n(1), n(3), List.of(

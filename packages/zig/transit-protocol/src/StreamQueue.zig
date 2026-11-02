@@ -457,6 +457,8 @@ pub const SchemaTypes = struct {
     offset_receipt: OffsetReceipt,
     read: p.StreamRead.Receipt,
     read_cursor: p.StreamRead.Cursor,
+    read_progress: p.StreamRead.Progress,
+    read_progress_complete: p.StreamRead.Progress,
     read_release: p.StreamRead.ReleaseReceipt,
     claim: ClaimReceipt,
     clock: LogClock,

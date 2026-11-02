@@ -42,6 +42,15 @@ be in 1–60000. Trust and current authorization follow the existing
 Local construction and local capability values establish no running-service
 support or permission.
 
+`Catalog.call(.definitions)` returns owned view, property-graph and foreign-layout
+interpretations through the same metadata and current-authorization boundary.
+Lookup, exact revision inspection and current/historical pages use
+`DirectCatalogDefinitions`; each page contains at most four entries and its
+continuation binds the connection, namespace and optional retained selector.
+These reads do not acquire retention or execute the definition. Native typed
+publication and its original-operation recovery remain in `DirectDefinition`.
+See [versioned catalog interpretations](../../../contracts/CATALOG_DEFINITIONS_V1.md).
+
 The caller supplies I/O shared with other admitted work. It must outlive the
 client. Keep each client at a stable address during calls and join active calls
 before destruction or changing its observer. One call can use a handle at a
@@ -58,6 +67,13 @@ execute/inspect/cancel, metadata, administration, dependency, resource and
 retention operations. These are explicit operations, not an automatic settlement
 API. Metadata-dependent preparation performs authorized reads. Importing a
 saved operation does not supply a new identity or grant.
+
+`history` actions expose selected historical catalog acquisition, explicit
+advancement/abandonment/release, metadata lookup and bounded listing through the
+same handle. Save the original key and selection intent before acquisition;
+resume them after uncertainty. Results own copied full-width host values in
+`output`. Neither closing the handle nor closing a SQL result releases history.
+See the [historical catalog contract](../../../contracts/HISTORICAL_CATALOG_V1.md#shared-host-operations).
 
 `Catalog.callLog(output, action)` exposes the shared `DirectLogClient.Action`
 for Stream/Queue lifecycle preview, admission, bounded execution/inspection/

@@ -30,6 +30,25 @@ class TimestampType:
 
 
 @dataclass(frozen=True, slots=True)
+class RangeType:
+    subtype: Descriptor
+
+
+@dataclass(frozen=True, slots=True)
+class MultiRangeType:
+    subtype: Descriptor
+
+
+VectorElement = Literal['float32', 'float16', 'bfloat16', 'int8', 'binary']
+
+
+@dataclass(frozen=True, slots=True)
+class VectorType:
+    dimensions: int
+    element: VectorElement
+
+
+@dataclass(frozen=True, slots=True)
 class Field:
     name: str
     type: Descriptor
@@ -72,7 +91,7 @@ class MapType:
     value: Element
 
 
-Descriptor: TypeAlias = ScalarType | DecimalType | TimestampType | StructureType | UnionType | ListType | ArrayType | MapType
+Descriptor: TypeAlias = ScalarType | DecimalType | TimestampType | StructureType | UnionType | ListType | ArrayType | MapType | RangeType | MultiRangeType | VectorType
 AtomKind = Literal['signed', 'unsigned', 'decimal', 'float', 'boolean', 'utf8', 'binary', 'date_days', 'time_nanos', 'timestamp_micros', 'interval', 'uuid']
 
 
@@ -122,7 +141,35 @@ class JsonValue:
     json: str
 
 
-CellValue: TypeAlias = Atom | SequenceValue | MapValue | TaggedValue | JsonValue
+@dataclass(frozen=True, slots=True)
+class RangeBound:
+    value: Atom
+    inclusive: bool
+
+
+@dataclass(frozen=True, slots=True)
+class RangeValue:
+    empty: bool = False
+    lower: RangeBound | None = None
+    upper: RangeBound | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class MultiRangeValue:
+    ranges: tuple[RangeValue, ...]
+    def __post_init__(self) -> None: object.__setattr__(self, 'ranges', tuple(self.ranges))
+
+
+@dataclass(frozen=True, slots=True)
+class VectorValue:
+    """Owned exact little-endian elements; shape belongs to the VectorType."""
+    data: bytes
+    def __post_init__(self) -> None:
+        if not isinstance(self.data, (bytes, bytearray, memoryview)): raise TypeError('Expected dense vector bytes')
+        object.__setattr__(self, 'data', bytes(self.data))
+
+
+CellValue: TypeAlias = Atom | SequenceValue | MapValue | TaggedValue | JsonValue | RangeValue | MultiRangeValue | VectorValue
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,9 +184,9 @@ class Null:
 
 @dataclass(frozen=True, slots=True)
 class SourceTypeError:
-    actual: ScalarKind | Literal['decimal', 'timestamp', 'structure', 'tagged_union', 'list', 'array', 'map', 'unknown', 'null_value', 'text', 'character']
+    actual: ScalarKind | Literal['decimal', 'timestamp', 'structure', 'tagged_union', 'list', 'array', 'map', 'range', 'multirange', 'vector', 'unknown', 'null_value', 'text', 'character']
     def __post_init__(self) -> None:
-        if self.actual not in _SCALARS | {'decimal', 'timestamp', 'structure', 'tagged_union', 'list', 'array', 'map', 'unknown', 'null_value', 'text', 'character'}: raise ValueError('Unknown source type')
+        if self.actual not in _SCALARS | {'decimal', 'timestamp', 'structure', 'tagged_union', 'list', 'array', 'map', 'range', 'multirange', 'vector', 'unknown', 'null_value', 'text', 'character'}: raise ValueError('Unknown source type')
 
 
 @dataclass(frozen=True, slots=True)
@@ -223,6 +270,11 @@ def type_wire(value: Descriptor, budget: _Budget | None = None, depth: int = 0) 
     if isinstance(value, TimestampType):
         if value.zone not in ('civil', 'utc'): raise ValueError('Unknown timestamp zone')
         return {'timestamp': value.zone}
+    if isinstance(value, (RangeType, MultiRangeType)):
+        return {'range' if isinstance(value, RangeType) else 'multirange': type_wire(value.subtype, budget, depth + 1)}
+    if isinstance(value, VectorType):
+        if value.element not in ('float32', 'float16', 'bfloat16', 'int8', 'binary'): raise ValueError('Unknown vector element')
+        return {'vector': dict(dimensions=_integer(value.dimensions, 1, 65536), element=value.element)}
     if isinstance(value, (StructureType, UnionType)):
         return {'structure' if isinstance(value, StructureType) else 'tagged_union': [dict(name=budget.name(item.name), type=type_wire(item.type, budget, depth + 1), nullable=_boolean(item.nullable), optional=_boolean(item.optional)) for item in value.fields]}
     if isinstance(value, ListType): return {'list': element(value.element)}
@@ -247,6 +299,13 @@ def type_from_wire(value: object, budget: _Budget | None = None, depth: int = 0)
     if kind == 'timestamp':
         if payload not in ('civil', 'utc'): raise ValueError('Unknown timestamp zone')
         return TimestampType(payload)
+    if kind in ('range', 'multirange'):
+        subtype = type_from_wire(payload, budget, depth + 1)
+        return RangeType(subtype) if kind == 'range' else MultiRangeType(subtype)
+    if kind == 'vector':
+        item = _object(payload, 'dimensions element')
+        if item['element'] not in ('float32', 'float16', 'bfloat16', 'int8', 'binary'): raise ValueError('Unknown vector element')
+        return VectorType(_integer(item['dimensions'], 1, 65536), item['element'])
     if kind in ('structure', 'tagged_union'):
         if not isinstance(payload, list): raise ValueError('Expected logical fields')
         fields = []
@@ -344,6 +403,16 @@ def cell_wire(value: Cell, budget: _Budget | None = None, depth: int = 0) -> dic
     if not isinstance(value, Present): raise TypeError('Expected logical cell')
     item = value.value
     if isinstance(item, Atom): data: object = {'atom': atom_wire(item, budget)}
+    elif isinstance(item, RangeValue): data = {'range': _range_wire(item, budget)}
+    elif isinstance(item, MultiRangeValue):
+        runs = []
+        for run in item.ranges:
+            budget.enter(depth + 1)
+            runs.append(_range_wire(run, budget))
+        data = {'multirange': runs}
+    elif isinstance(item, VectorValue):
+        budget.data(len(item.data))
+        data = {'vector': item.data.hex()}
     elif isinstance(item, SequenceValue):
         if item.kind not in ('structure', 'list', 'array'): raise ValueError('Unknown logical sequence')
         data = {item.kind: [cell_wire(child, budget, depth + 1) for child in item.cells]}
@@ -383,6 +452,19 @@ def cell_from_wire(value: object, budget: _Budget | None = None, depth: int = 0)
     if kind != 'value': raise ValueError('Unknown logical cell state')
     kind, payload = _variant(payload)
     if kind == 'atom': return Present(atom_from_wire(payload, budget))
+    if kind == 'range': return Present(_range_from_wire(payload, budget))
+    if kind == 'multirange':
+        if not isinstance(payload, list): raise ValueError('Expected ranges')
+        runs = []
+        for run in payload:
+            budget.enter(depth + 1)
+            runs.append(_range_from_wire(run, budget))
+        return Present(MultiRangeValue(tuple(runs)))
+    if kind == 'vector':
+        text = _text(payload)
+        budget.data(len(text) // 2)
+        if len(text) % 2 or any(c not in '0123456789abcdef' for c in text): raise ValueError('Invalid vector bytes')
+        return Present(VectorValue(bytes.fromhex(text)))
     if kind in ('structure', 'list', 'array'):
         if not isinstance(payload, list): raise ValueError('Expected sequence cells')
         return Present(SequenceValue(kind, tuple(cell_from_wire(child, budget, depth + 1) for child in payload)))  # type: ignore[arg-type]
@@ -401,3 +483,18 @@ def cell_from_wire(value: object, budget: _Budget | None = None, depth: int = 0)
         text = _text(payload); budget.data(len(text.encode()))
         return Present(JsonValue(text))
     raise ValueError('Unknown logical value')
+
+
+def _range_wire(value: RangeValue, budget: _Budget) -> dict[str, Any]:
+    def bound(item: RangeBound | None) -> object:
+        return None if item is None else dict(value=atom_wire(item.value, budget), inclusive=_boolean(item.inclusive))
+    return dict(is_empty=_boolean(value.empty), lower=bound(value.lower), upper=bound(value.upper))
+
+
+def _range_from_wire(value: object, budget: _Budget) -> RangeValue:
+    item = _object(value, 'is_empty lower upper')
+    def bound(value: object) -> RangeBound | None:
+        if value is None: return None
+        entry = _object(value, 'value inclusive')
+        return RangeBound(atom_from_wire(entry['value'], budget), _boolean(entry['inclusive']))
+    return RangeValue(_boolean(item['is_empty']), bound(item['lower']), bound(item['upper']))

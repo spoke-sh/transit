@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "082c5ef4fcfe2d1daa385774f5843ecf933af68d68a91df4b7d1281faf55dca1"
+definition = "7c81d0916913d774febe2bec8f739f95a194f3ca88056c9f1214c0f77f22fa89"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -55,6 +55,7 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
         "selection": "exact",
         "owner": {"scope": request_input["connection"]["scope"], "principal": 4, "operation": 2**64 - 1},
         "retention": "snapshot", "purpose": [11] * 32,
+        "copied_from": None, "projection": None,
     }
     delegation_context = hashlib.sha256(b"transit.table.read-delegation.v1\0" + canonical(read_binding)).digest()
     delegated_claim = {**claim, "context": list(delegation_context)}
@@ -72,8 +73,9 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
         + struct.pack("<QQQ", 9, 7, 2) + bytes([3] * 32)
         + struct.pack("<QQQBB", 9, 10, 2**64 - 1, 0, 1) + bytes([11] * 32)
         + struct.pack("<Q", 1) + delegation_context + bytes(delegated_proof["signature"])
+        + bytes(122)
     )
-    assert len(retained_grant) == 311
+    assert len(retained_grant) == 433
     delegated_fixture = {"request": delegated_request, "caller_key": public_key, "executor_key": executor.public,
                          "retained_grant": base64.b64encode(retained_grant).decode()}
     borrow_binding = {"executor": 10, "target": {"snapshot": {"object": read_binding["interpretation"]["object"], "handle": {"owner": read_binding["owner"], "content": {"bytes": 128, "sha256": [12] * 32}}}}, "purpose": [13] * 32}
@@ -157,7 +159,7 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
 
     dependent_definition = {"object": {"scope": {"realm": 42, "resource": 9, "catalog": 8}, "branch": 1, "object": 99}, "revision": 2**64 - 1, "digest": [4] * 32}
     source_definition = {"object": {"scope": request_input["connection"]["scope"], "branch": 1, "object": 2**64 - 2}, "revision": 2**64 - 3, "digest": [3] * 32}
-    edge = {"source": source_definition, "dependent": {"kind": "captured", "interpretation": dependent_definition}, "privileges": 1}
+    edge = {"source": source_definition, "dependent": {"kind": "captured", "interpretation": dependent_definition}, "privileges": 1, "foreign_key": None}
     dependency_binding = {"definition": definition, "connection": request_input["connection"], "operation": 2**64 - 1, "edge": edge, "action": "register", "authority": "dependent"}
     dependency_input = {**request_input, "action": {"dependency_operation": {"binding": dependency_binding, "command": "accept"}}}
     dependency_context = hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(dependency_input)).digest()
@@ -247,6 +249,16 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
     queue_wait_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(queue_wait_input)).digest())}
     queue_wait_request = {**queue_wait_input, "proof": {"claim": queue_wait_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(queue_wait_claim)).digest())}}
     queue_wait_fixture = {"request": queue_wait_request, "public_key": public_key, "intent_digest": list(queue_digest)}
+    for workload_kind, workload, fixture_value in (("stream", stream_work, stream_fixture), ("queue", queue_work, queue_fixture)):
+        cancel_input = {**request_input, "action": {workload_kind: {"cancel": workload}}}
+        cancel_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(cancel_input)).digest())}
+        fixture_value["cancel_request"] = {**cancel_input, "proof": {"claim": cancel_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(cancel_claim)).digest())}}
+        request_kind = next(iter(workload))
+        fixture_value["closed"] = {
+            "binding": {workload_kind: {"definition": definition, "operation": workload[request_kind]["operation"],
+                         "target": workload[request_kind]["target"], "kind": request_kind, "intent": fixture_value["intent_digest"]}},
+            "recorded": {"partition": 91, "next_lsn": 11}, "reason": {"cancelled": {}},
+        }
     queue_release_work = {"release": {
         "operation": {**log_binding["identity"], "operation": 2**64-2},
         "claim": {"claim": queue_work["claim"], "accepted": {"partition": 91, "next_lsn": 11},
@@ -277,6 +289,96 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
     branch_fixture = {"request": branch_request, "public_key": public_key,
                       "intent_digest": list(hashlib.sha256(b"transit.catalog.table-branch.v1\0" + canonical(branch_intent)).digest())}
 
+    history_intent = {
+        "connection": request_input["connection"], "namespace": 1, "operation": 2**64 - 1,
+        "selection": {"content": {"bytes": 512, "sha256": [25] * 32}, "count": 2, "descriptors": 0},
+        "common": None,
+    }
+    history_input = {**request_input, "action": {"historical_catalog": {"acquire": {
+        "key": branch_key, "intent": history_intent,
+        "budget": {"limits": {"operations": 1000000, "bytes": 4294967296, "pending": 1024}, "bytes": 4608},
+    }}}}
+    history_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(history_input)).digest())}
+    history_request = {**history_input, "proof": {"claim": history_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(history_claim)).digest())}}
+    history_snapshot = {
+        "definition": definition,
+        "owner": {"scope": request_input["connection"]["scope"], "principal": 4, "operation": 2**64 - 1},
+        "branch": 1, "catalog_root": history_intent["selection"]["content"],
+        "sources_root": {"bytes": 768, "sha256": [26] * 32}, "source_count": 2,
+        "consistency": {"independent": {}},
+    }
+    history_selector = (b"THSNAP01" + bytes.fromhex(definition)
+                        + struct.pack("<6Q", 42, 3, 2**64 - 1, 4, 2**64 - 1, 1)
+                        + struct.pack("<Q", 512) + bytes([25] * 32)
+                        + struct.pack("<Q", 768) + bytes([26] * 32)
+                        + struct.pack("<QBQQ", 2, 2, 0, 0) + bytes(104))
+    assert len(history_selector) == 297
+    history_fixture = {"request": history_request, "public_key": public_key,
+                       "intent_digest": list(hashlib.sha256(b"transit.catalog.history.v1\0" + canonical(history_intent)).digest()),
+                       "snapshot": history_snapshot, "selector": history_selector.hex()}
+
+
+    common_cut = {"transaction": {"scope": request_input["connection"]["scope"], "principal": 4, "operation": 2**64 - 2},
+                  "acquired": {"partition": 1, "next_lsn": 17},
+                  "sources": {"bytes": 1024, "sha256": [27] * 32}, "source_count": 3}
+    common_intent = {**history_intent, "common": {"key": branch_key, "cut": common_cut}}
+    common_input = {**history_input, "action": {"historical_catalog": {"acquire": {
+        **history_input["action"]["historical_catalog"]["acquire"], "intent": common_intent}}}}
+    common_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(common_input)).digest())}
+    common_request = {**common_input, "proof": {"claim": common_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(common_claim)).digest())}}
+    common_selector = (history_selector[:176] + bytes([3]) + bytes(16)
+                       + struct.pack("<8Q", 42, 3, 2**64 - 1, 4, 2**64 - 2, 1, 17, 1024)
+                       + bytes([27] * 32) + struct.pack("<Q", 3))
+    assert len(common_selector) == 297
+    common_history_fixture = {"request": common_request, "public_key": public_key,
+        "intent_digest": list(hashlib.sha256(b"transit.catalog.history.v1\0" + canonical(common_intent)).digest()),
+        "snapshot": {**history_snapshot, "consistency": {"common_transaction": common_cut}},
+        "selector": common_selector.hex()}
+
+    # Independent metadata-only acquisition, including its zero-Table selector.
+    metadata_intent = copy.deepcopy(history_intent)
+    metadata_intent['selection']['count'] = 0
+    metadata_intent['selection']['descriptors'] = 1
+    metadata_input = {**history_input, 'action': {'historical_catalog': {'acquire': {
+        **history_input['action']['historical_catalog']['acquire'], 'intent': metadata_intent}}}}
+    metadata_claim = {**claim, 'context': list(hashlib.sha256(b'transit.table.direct.request.v1\0' + canonical(metadata_input)).digest())}
+    metadata_request = {**metadata_input, 'proof': {'claim': metadata_claim, 'signature': key.sign(hashlib.sha256(b'transit.authorization.subject.v1\0' + canonical(metadata_claim)).digest())}}
+    metadata_history_fixture = {'request': metadata_request, 'public_key': public_key,
+        'intent_digest': list(hashlib.sha256(b'transit.catalog.history.v1\0' + canonical(metadata_intent)).digest()),
+        'snapshot': {**history_snapshot, 'source_count': 0},
+        'selector': (history_selector[:168] + bytes(8) + history_selector[176:]).hex()}
+
+    # Canonical foreign interpretation constructed independently from public
+    # primitive byte layouts. No production encoder supplies these expected bytes.
+    from query.logical.fuze_types import descriptor
+    table_definition = b'transit.table.schema.v1.2026-11-01.spatial-reference'
+    column_id = 2**64 - 2
+    column_type = descriptor('int64')
+    table_bytes = (b'FTS1' + bytes([len(table_definition)]) + table_definition
+        + struct.pack('<QQQH', 7, 1, 2**64 - 1, 1)
+        + struct.pack('<QB', column_id, 6) + b'amount'
+        + struct.pack('<H', len(column_type)) + column_type
+        + struct.pack('<BIBH', 0, 0, 0, 0))
+    captured_bytes = bytes.fromhex('123d1a3d')
+    captured_content = dict(bytes=len(captured_bytes), sha256=list(hashlib.sha256(captured_bytes).digest()))
+    native_name = dict(len=9, bytes=list(b'mainframe' + bytes(54)))
+    payload = dict(schema=dict(base64=base64.b64encode(table_bytes).decode()), sources=[],
+        body=dict(foreign=dict(record_bytes=2, fields=[dict(column=column_id, offset=0, bytes=2, encoding='comp_3')],
+            malformed='type_error', input=dict(content=captured_content, availability='retained', provenance='file:///never-refetched'))))
+    interpretation_intent = dict(kind='foreign', namespace=1, name=native_name, action=dict(create=dict(owner=0, payload=payload)))
+    intent_hash = hashlib.sha256(b'transit.catalog.interpretation.intent.v1\0' + canonical(interpretation_intent)).digest()
+    interpretation_binding = dict(definition=definition, identity=read_binding['owner'], target=read_binding['interpretation']['object'],
+        action='create', expected_definition=None, expected_data=None, intent=list(intent_hash), prerequisite=None)
+    interpretation_input = {**request_input, 'action': {'descriptor': {'declaration': dict(request=dict(binding=interpretation_binding, intent=interpretation_intent), command='preview', steps=1)}}}
+    interpretation_claim = {**claim, 'context': list(hashlib.sha256(b'transit.table.direct.request.v1\0' + canonical(interpretation_input)).digest())}
+    interpretation_request = {**interpretation_input, 'proof': dict(claim=interpretation_claim, signature=key.sign(hashlib.sha256(b'transit.authorization.subject.v1\0' + canonical(interpretation_claim)).digest()))}
+    interpretation_value = dict(definition=definition, object=read_binding['interpretation']['object'], revision=1,
+        properties=dict(namespace=1, authorization=17, name=native_name), retired=False, **payload)
+    interpretation_bytes = b'TCDESC01' + bytes.fromhex(definition) + canonical(interpretation_value)
+    interpretation_fixture = dict(request=interpretation_request, public_key=public_key, value=interpretation_value,
+        artifact_hex=interpretation_bytes.hex(), digest=list(hashlib.sha256(interpretation_bytes).digest()),
+        schema_digest=list(hashlib.sha256(table_bytes).digest()), input_hex=captured_bytes.hex())
+
 request = {**request_input, "proof": {"claim": claim, "signature": signature}}
 fixture = {
     "request": request,
@@ -287,6 +389,17 @@ fixture = {
 validator = jsonschema.Draft202012Validator({**schema, "$ref": "#/$defs/Request"})
 validator.validate(request)
 validator.validate(branch_request)
+validator.validate(history_request)
+validator.validate(common_request)
+validator.validate(metadata_request)
+validator.validate(interpretation_request)
+missing_common = copy.deepcopy(history_request)
+del missing_common["action"]["historical_catalog"]["acquire"]["intent"]["common"]
+assert not validator.is_valid(missing_common)
+for field in ("key", "cut"):
+    invalid_common = copy.deepcopy(common_request)
+    del invalid_common["action"]["historical_catalog"]["acquire"]["intent"]["common"][field]
+    assert not validator.is_valid(invalid_common), field
 for field in ("connection", "namespace", "operation", "name", "source", "mode"):
     invalid = copy.deepcopy(branch_request)
     del invalid["action"]["branch"]["create"]["intent"][field]
@@ -316,6 +429,35 @@ for field in ("binding", "changes"):
     del invalid["action"]["kv"]["mutate"][field]
     assert not validator.is_valid(invalid), field
 validator.validate(stream_request)
+validator.validate(stream_fixture["cancel_request"])
+validator.validate(queue_fixture["cancel_request"])
+
+# The response reflector shares the closure definition between both native
+# unions. Check its independent evidence, mandatory fields and exact definition.
+def closure_shapes(node):
+    if isinstance(node, dict):
+        if set(node.get("properties", {})) == {"binding", "recorded", "reason"}:
+            yield node
+        for child in node.values():
+            yield from closure_shapes(child)
+    elif isinstance(node, list):
+        for child in node:
+            yield from closure_shapes(child)
+
+closure_schemas = list(closure_shapes(schema))
+assert len(closure_schemas) == 1
+for closure_schema in closure_schemas:
+    closure_validator = jsonschema.Draft202012Validator({**closure_schema, "$defs": schema["$defs"]})
+    for workload_kind, fixture_value in (("stream", stream_fixture), ("queue", queue_fixture)):
+        closed = fixture_value["closed"]
+        closure_validator.validate(closed)
+        for field in ("binding", "recorded", "reason"):
+            invalid = copy.deepcopy(closed)
+            del invalid[field]
+            assert not closure_validator.is_valid(invalid), field
+        invalid = copy.deepcopy(closed)
+        invalid["binding"][workload_kind]["definition"] = "0" * 64
+        assert not closure_validator.is_valid(invalid)
 validator.validate(queue_request)
 validator.validate(queue_wait_request)
 for field in ("claim", "milliseconds"):
@@ -378,7 +520,95 @@ def persist(path, content):
         assert path.read_bytes() == content, f"Direct Table contract drift: {path}"
 
 
+# Independent fixed-width accepted-interpretation directory value. This oracle
+# uses only struct packing, never the production codec. Fixture content is MIT.
+def accepted_interpretation_fixture():
+    revision, frontier = 2**53 + 1, 2**64 - 1
+    scope = dict(realm=42, resource=3, catalog=2**64 - 1)
+    stored = dict(kind="table", interpretation=dict(object=dict(scope=scope, branch=1, object=7), revision=revision, digest=[3]*32),
+                  content=dict(bytes=104, sha256=[3]*32), schema_fingerprint=[4]*32, retired=False)
+    value = dict(declaration=stored, next_lsn=frontier, origins=dict(digest=[5]*32, location=[6]*32))
+    encoded = (struct.pack("<7Q", 42, 3, 2**64 - 1, 1, 7, revision, 104)
+               + bytes([3]*32) + bytes([4]*32) + bytes([0])
+               + struct.pack("<Q", frontier) + bytes([1]) + bytes([5]*32) + bytes([6]*32))
+    assert len(encoded) == 194
+    return dict(value=value, hex=encoded.hex())
+
+
+persist(root / "packages/zig/transit-storage/src/fixtures/accepted-interpretation-v1.json",
+        (json.dumps(accepted_interpretation_fixture(), indent=2) + "\n").encode())
+
+
+# Independent signed projection preparation includes both exact declarations.
+projection_stored = accepted_interpretation_fixture()["value"]["declaration"]
+schema_projection_input = {**request_input, "action": {"schema_projection": {"prepare": {"source": projection_stored, "target": projection_stored}}}}
+schema_projection_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(schema_projection_input)).digest())}
+with tempfile.TemporaryDirectory(prefix="transit-schema-projection-contract-") as directory:
+    signing_key = Key(Path(directory), "public-test-key", 9)
+    schema_projection_request = {**schema_projection_input, "proof": {"claim": schema_projection_claim,
+        "signature": signing_key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(schema_projection_claim)).digest())}}
+validator.validate(schema_projection_request)
+for field in ("source", "target"):
+    invalid = copy.deepcopy(schema_projection_request)
+    del invalid["action"]["schema_projection"]["prepare"][field]
+    assert not validator.is_valid(invalid), field
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-schema-projection-v1.json",
+        (json.dumps({"request": schema_projection_request, "public_key": public_key}, indent=2) + "\n").encode())
+
+
+# Independent language-neutral history oracle: all u64 identities remain decimal
+# strings, while native authority IDs remain bounded JSON numbers.
+def history_host_scope(value):
+    return dict(realm=value["realm"], resource=value["resource"], catalog=str(value["catalog"]))
+
+
+def history_host_operation(value):
+    return dict(scope=history_host_scope(value["scope"]), principal=value["principal"], operation=str(value["operation"]))
+
+
+def history_host_content(value):
+    return dict(bytes=str(value["bytes"]), sha256=bytes(value["sha256"]).hex())
+
+
+def history_host_directory(value):
+    return dict(content=history_host_content(value["content"]), count=str(value["count"]), descriptors=str(value["descriptors"]))
+
+
+def history_host_key(value):
+    connection = value["connection"]
+    return dict(definition=value["definition"], connection=dict(connection, scope=history_host_scope(connection["scope"]), branch=str(connection["branch"])),
+                account=bytes(value["account"]).hex(), token=bytes(value["token"]).hex())
+
+
+def history_host_cut(value):
+    return dict(transaction=history_host_operation(value["transaction"]), acquired={k: str(v) for k, v in value["acquired"].items()},
+                sources=history_host_content(value["sources"]), source_count=str(value["source_count"]))
+
+
+common_acquire = common_history_fixture["request"]["action"]["historical_catalog"]["acquire"]
+common_intent = common_acquire["intent"]
+common_snapshot = common_history_fixture["snapshot"]
+history_host_key_value = history_host_key(common_acquire["key"])
+history_host = dict(
+    acquire=dict(key=history_host_key_value,
+                 intent=dict(definition=definition, connection=history_host_key_value["connection"], namespace=common_intent["namespace"], operation=str(common_intent["operation"]),
+                             selection=history_host_directory(common_intent["selection"]),
+                             common=dict(key=history_host_key(common_intent["common"]["key"]), cut=history_host_cut(common_intent["common"]["cut"]))),
+                 budget=dict(operations="1000000", bytes="4294967296", pending="1024", charge_bytes="4608")),
+    snapshot=dict(selector=common_history_fixture["selector"], definition=definition, owner=history_host_operation(common_snapshot["owner"]), branch=str(common_snapshot["branch"]),
+                  catalog_root=history_host_content(common_snapshot["catalog_root"]), sources_root=history_host_content(common_snapshot["sources_root"]), source_count=str(common_snapshot["source_count"]),
+                  consistency=dict(common_transaction=history_host_cut(common_snapshot["consistency"]["common_transaction"]))),
+)
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-history-host-v1.json", (json.dumps(history_host, indent=2) + "\n").encode())
+
+
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-history-metadata-v1.json", (json.dumps(metadata_history_fixture, ensure_ascii=False, indent=2) + "\n").encode())
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-catalog-definition-v1.json", (json.dumps(interpretation_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "contracts/direct-table-v1.schema.json", raw)
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-history-common-v1.json",
+        (json.dumps(common_history_fixture, ensure_ascii=False, indent=2) + "\n").encode())
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-history-v1.json",
+        (json.dumps(history_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-branch-v1.json",
         (json.dumps(branch_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-kv-v1.json",
@@ -500,6 +730,82 @@ persist(root / "packages/zig/transit-catalog/src/fixtures/direct-log-token-v1.js
         (json.dumps({"request": log_token_request, "public_key": public_key, "bytes": {"base64": base64.b64encode(saved_log_bytes).decode()},
                      "digest": list(log_reference_digest)}, ensure_ascii=False, indent=2) + "\n").encode())
 
+# Independent workload reference/signature vectors. These descriptors exercise
+# commitment and envelope validation, not stored-body existence or admission;
+# disk owner tests stage and reconstruct actual schema-bound workload bytes.
+saved_workload_shape = schema
+for segment in schema["$defs"]["SavedWorkloadIntent"]["$ref"].split("/")[1:]:
+    saved_workload_shape = saved_workload_shape[segment]
+assert set(saved_workload_shape["required"]) == {"definition", "connection", "source", "work", "projection"}
+workload_vectors = []
+workload_result_vectors = []
+for workload_kind, workload, fixture_value in (("stream", stream_work, stream_fixture), ("queue", queue_work, queue_fixture)):
+    policy = ({"compact_key_column": None, "timestamp_column": None} if workload_kind == "stream" else
+              {"ordering": "unordered", "key_column": None, "lease_ms": 1000, "maximum_lease_ms": 10000,
+               "maximum_attempts": 5, "backoff": {"initial_ms": 1, "maximum_ms": 100, "multiplier": 2}, "dead_letter": None})
+    declared = {"definition": definition, "interpretation": source_definition,
+                "schema": {"bytes": 128, "sha256": [29] * 32},
+                "configuration": {"partitioning": {"count": 2, "key_column": None, "hash": "sha256_64"},
+                                  "retention": {"max_age_ms": None}, "policy": {workload_kind: policy}},
+                "limits": {"append_rows": 128, "append_bytes": 1048576, "claim_rows": 16, "read_rows": 256,
+                           "read_bytes": 1048576, "active_leases": 64, "waiters": 64, "timer_steps": 64}}
+    workload_reference = {"connection": request_input["connection"], "namespace": 1,
+                          "binding": fixture_value["closed"]["binding"],
+                          "source": {"declaration": declared, "content": {"bytes": 1024, "sha256": source_definition["digest"]}, "retired": False},
+                          "record": {"scope": {field: token_key[field] for field in ("definition", "connection", "account")}, "format": 0x574c4931,
+                                     "content": {"bytes": 2048, "sha256": [31] * 32}}}
+    workload_intent = {"workload": workload_reference}
+    workload_reference_digest = hashlib.sha256(b"transit.catalog.workload.binding.v1\0" + b"GIR1" + bytes.fromhex(definition) + canonical(workload_intent)).digest()
+    workload_token_input = {**request_input, "action": {"client_token": {"bind": {**token_binding, "intent": workload_intent, "budget": {**token_binding["budget"], "bytes": 2048 + 4096 + 512}}}}}
+    workload_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(workload_token_input)).digest())}
+    with tempfile.TemporaryDirectory(prefix="transit-workload-token-contract-") as directory:
+        signing_key = Key(Path(directory), "public-test-key", 9)
+        workload_request = {**workload_token_input, "proof": {"claim": workload_claim,
+            "signature": signing_key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(workload_claim)).digest())}}
+    validator.validate(workload_request)
+    for field in ("connection", "namespace", "binding", "source", "record"):
+        invalid = copy.deepcopy(workload_request)
+        del invalid["action"]["client_token"]["bind"]["intent"]["workload"][field]
+        assert not validator.is_valid(invalid), field
+    invalid = copy.deepcopy(workload_request)
+    invalid["action"]["client_token"]["bind"]["intent"]["workload"]["binding"][workload_kind]["definition"] = "0" * 64
+    assert not validator.is_valid(invalid)
+    workload_vectors.append({"request": workload_request, "public_key": public_key, "digest": list(workload_reference_digest)})
+    result_limits = {"rows": 2, "encoded_bytes": 4096, "scanned_rows": 16}
+    if workload_kind == "stream":
+        cut = {"target": workload["consume"]["target"], "accepted": {"partition": 91, "next_lsn": 10},
+               "retained_from": 0, "next": 2}
+        receipt = {"request": workload["consume"], "cut": cut, "until": 2,
+                   "source": {"bytes": 512, "sha256": [47] * 32}, "accepted": {"partition": 91, "next_lsn": 11}}
+        selection = {"consume": receipt}
+        position = {"consume": {"read": {"owner": receipt["request"]["operation"], "source": receipt["source"]},
+                               "coverage": {"cut": cut, "from": 0, "until": 2, "through": 1, "rows": 1, "complete": False},
+                               "authentication": [48] * 32}}
+    else:
+        receipt = queue_release_work["release"]["claim"]
+        selection = {"claim": receipt}
+        position = {"claim": {"receipt": receipt, "next": 1}}
+    result_reference = {"intent": workload_reference, "selection": selection, "limits": result_limits}
+    for result_action in ({"open": {"intent": workload_reference, "limits": result_limits}},
+                          {"page": {"reference": result_reference, "position": position, "rows": 1}}):
+        result_input = {**request_input, "action": {"workload_result": result_action}}
+        result_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(result_input)).digest())}
+        with tempfile.TemporaryDirectory(prefix="transit-workload-result-contract-") as directory:
+            signing_key = Key(Path(directory), "public-test-key", 9)
+            result_request = {**result_input, "proof": {"claim": result_claim,
+                "signature": signing_key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(result_claim)).digest())}}
+        validator.validate(result_request)
+        action_name, action_value = next(iter(result_action.items()))
+        for field in action_value:
+            invalid = copy.deepcopy(result_request)
+            del invalid["action"]["workload_result"][action_name][field]
+            assert not validator.is_valid(invalid), field
+        workload_result_vectors.append({"request": result_request, "public_key": public_key})
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-workload-token-v1.json",
+        (json.dumps(workload_vectors, ensure_ascii=False, indent=2) + "\n").encode())
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-workload-result-v1.json",
+        (json.dumps(workload_result_vectors, ensure_ascii=False, indent=2) + "\n").encode())
+
 # A transaction has the same original-token owner, with a separate typed begin
 # descriptor. This vector checks bytes/signatures, not selection acquisition.
 transaction_begin = {
@@ -511,7 +817,7 @@ transaction_begin = {
     "limits": {"resident_bytes": 65536, "workspace_bytes": 1048576,
                "participants": 100, "statements": 1000, "savepoints": 32},
 }
-transaction_reference = {"connection": request_input["connection"], "namespace": 1, "begin": transaction_begin}
+transaction_reference = {"connection": request_input["connection"], "namespace": 1, "begin": transaction_begin, "purpose": {"interactive": {}}}
 transaction_binding = {**token_binding, "intent": {"transaction": transaction_reference}}
 transaction_input = {**request_input, "action": {"client_token": {"bind": transaction_binding}}}
 transaction_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(transaction_input)).digest())}
@@ -520,6 +826,9 @@ with tempfile.TemporaryDirectory(prefix="transit-transaction-contract-") as dire
     transaction_request = {**transaction_input, "proof": {"claim": transaction_claim,
         "signature": signing_key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(transaction_claim)).digest())}}
 validator.validate(transaction_request)
+missing_purpose = copy.deepcopy(transaction_request)
+del missing_purpose["action"]["client_token"]["bind"]["intent"]["transaction"]["purpose"]
+assert not validator.is_valid(missing_purpose), 'transaction purpose is mandatory'
 for field in transaction_begin:
     invalid = copy.deepcopy(transaction_request)
     del invalid["action"]["client_token"]["bind"]["intent"]["transaction"]["begin"][field]
@@ -632,7 +941,7 @@ def host_interpretation(value):
 
 
 host_edge = {"source": host_interpretation(source_definition),
-             "dependent": {"kind": "captured", "interpretation": host_interpretation(dependent_definition)}, "privileges": 1}
+             "dependent": {"kind": "captured", "interpretation": host_interpretation(dependent_definition)}, "privileges": 1, "foreign_key": None}
 host_dependency = {"definition": definition, "connection": host_reference["connection"], "operation": str(2**64 - 1),
                    "edge": host_edge, "action": "register", "authority": "dependent"}
 host_dependency_action = {"dependencies": {"operation": {"binding": host_dependency, "command": "accept"}}}
@@ -646,7 +955,7 @@ numeric_dependency_operation["dependencies"]["operation"]["binding"]["operation"
 assert not host_action_validator.is_valid(numeric_dependency_operation)
 dependency_cursor = {"definition": definition, "connection": host_reference["connection"],
                      "selection": {"dependents": host_edge["source"]["object"]}, "authority": "dependent",
-                     "position": {"partition": str(2**64 - 1), "next_lsn": str(2**64 - 1)}, "after": edge_digest.hex()}
+                     "position": {"partition": str(2**64 - 1), "next_lsn": str(2**64 - 1)}, "after": (struct.pack(">Q", 2**64 - 2) + b"\0" + edge_digest).hex()}
 host_action_validator.validate({"dependencies": {"page": {"selection": dependency_cursor["selection"],
                                                          "authority": "dependent", "cursor": dependency_cursor}}})
 host_resource = {"definition": definition, "connection": host_reference["connection"], "operation": str(2**64 - 1),

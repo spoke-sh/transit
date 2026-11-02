@@ -2,15 +2,25 @@
 
 The public [SQL statement reference](../../docs/handbook/reference/sql.md#statement-forms)
 covers every statement below with syntax, examples and execution limits, including
-the separate [historical-read fragment](../../docs/handbook/reference/sql/as-of.md).
+the [historical snapshot suffix](../../docs/handbook/reference/sql/as-of.md).
 The [grammar surface inventory](../../docs/handbook/reference/sql/grammar-surface.md)
 separates implemented profiles, checked grammar, proposed syntax and undecided
-syntax. Column `COLLATE UTF8_BINARY`, `ASCII_CI` and `EBCDIC_CP037` clauses
+syntax. Column `COLLATE UTF8_BINARY`, `ASCII_CI`, `EBCDIC_CP037`,
+`EBCDIC_037_PAD` and `EBCDIC_1047_NOPAD` clauses
 belong to the checked Table grammar. Proposed graph, foreign-relation, physical
-encoding (`ENCODING`), expression collation, branching, and historical-selector examples are
-not inputs to this checked grammar. The integer system-time fragment has no
-execution semantics; the intended language reserves that spelling for SQL
-temporal meaning and uses separate typed Transit selectors.
+encoding (`ENCODING`), expression collation and branching examples remain outside
+this checked grammar. `AS OF SNAPSHOT` optionally selects a retained namespace
+with `IN SCHEMA name`; it is a statement-level suffix over the
+exact retained catalog; its quoted selector is validated by `HistoricalSql`
+before names are resolved. The former ambiguous integer system-time fragment
+is removed. `FOR SYSTEM_TIME` remains reserved for temporal-table semantics.
+
+Companion declarations `RANGE<T>`, `MULTIRANGE<T>` and `VECTOR(dim, element)`
+belong to the checked Table grammar. Column `ROUNDING`, `METRIC` and
+`TIMEZONE 'zone' TZDB 'version' TZIF X'hex'` clauses lower through the same
+typed schema validator. Their exact supported combinations follow the
+[schema contract](../TABLE_SCHEMA_V1.md); declaring them does not enable an
+unimplemented expression or transport.
 
 The reference grammar covers finite SELECT, general typed Table DDL/DML and
 administrative extension syntax. `TransitExtensions.g4` is the checked reference;
@@ -27,9 +37,134 @@ limits and unsupported options through `just test::table-ddl-sql`. Named
 `SHOW STREAM/QUEUE` and `DESCRIBE STREAM/QUEUE` use the ordinary SQL metadata
 result lifecycle. The [executable profile](../../docs/handbook/reference/sql/streaming.md#stream-and-queue-declarations)
 lists exact options and limits. `SHOW STREAMS` and `SHOW QUEUES` use bounded
-Catalog pages with current disclosure checks; payload verbs remain outside
-that profile. `just test::sql-log-declarations` exercises actual native,
-PostgreSQL and MySQL sessions, original-token recovery and buffered denial.
+Catalog pages with current disclosure checks. `just test::sql-log-declarations`
+exercises native, PostgreSQL, MySQL and console declarations and appends,
+original-token/result recovery and buffered denial.
+
+`LogAppendSql` has a dedicated `logAppendStatement` compiler root; its command
+also belongs to the ordinary SQL statement grammar. It binds `PRODUCE INTO` and
+`ENQUEUE INTO` to an explicit schema, shares typed VALUES/defaults with Table
+binding, and owns its dedicated metadata and RETURNING clauses:
+
+```text
+PRODUCE INTO name [(columns)] VALUES (values) [, (values)]
+  [PARTITION operand]
+  [PRODUCER ID operand EPOCH operand SEQUENCE operand]
+  [RETURNING * | column [AS name] [, column [AS name]]]
+
+ENQUEUE INTO name [(columns)] VALUES (values) [, (values)]
+  [PARTITION operand]
+  [PRODUCER ID operand EPOCH operand SEQUENCE operand]
+  [WITH (visible_at = operand)]
+  [RETURNING * | column [AS name] [, column [AS name]]]
+```
+
+`DEFAULT VALUES` replaces the column/VALUES portion. Row and metadata operands
+share typed `$n` parameters; the MySQL dialect also binds positional `?` and
+backtick names. Partition operands are unsigned integers fitting 32 bits.
+Producer UUID, epoch and sequence must be nonzero. Queue visibility is a UTC
+timestamp at or after the Unix epoch with whole-millisecond precision. NULL
+metadata is refused. The Catalog adapter validates declared routing and limits,
+then freezes the exact original native operation before token admission.
+Current authority is checked by the native owner at admission and disclosure.
+
+RETURNING expands `*` to application columns only; unqualified `_partition` and
+`_offset` select native metadata. Qualify a colliding application column with
+its source name. The current FQP1 layout cannot contain both that column and its
+same-named metadata field; preparation refuses this combination. Output names
+must be distinct. Repeated input fields with distinct aliases share one frozen
+input field. Aggregates, predicates and LIMIT are outside append RETURNING.
+The projection is encoded only against the final original native binding.
+The [append corpus](corpus/log-appends.json), exercised by
+`just test::table-dml-sql`, compares the dedicated grammar, canonical typed row
+bytes, metadata and projections independently. Installed SQL checks separately
+exercise routing, durable publication and original-result delivery. One append
+targets one partition; cross-partition rows are refused before admission. An
+explicit partition is required for a multi-partition declaration without a hash
+key. These forms are excluded from attached interactive transactions until
+their shared transaction lowering is implemented.
+
+`LogConsumeSql.Prepared` is a pure compiler with a separate checked
+`logConsumeStatement` root and a command in the ordinary statement grammar.
+The SQL service admits the positional subset; GROUP and WAIT remain preparation
+only:
+
+```text
+CONSUME * | column [AS name] [, column [AS name]]
+  FROM name [AS alias] [GROUP text-or-parameter]
+  [WHERE predicate] [LIMIT integer-or-parameter] [WAIT text-or-parameter]
+```
+
+Preparation owns the supplied schema, projection, Boolean/state predicate and
+one typed parameter namespace. It returns an independent logical plan, input
+field layout, unresolved group name and wait duration. Unqualified `_partition`
+and `_offset` are unsigned metadata fields; star includes application columns
+only, even when a predicate needs metadata. The same physical-name collision
+refusal as append projections applies. Predicates preserve declared collations.
+Group names must be nonempty text. Waits accept positive whole `ms`, `s` or `m`
+durations fitting unsigned 32-bit milliseconds; the native owner must still
+enforce its wait policy. NULL metadata, aggregate/derived sources, joins,
+sorting and extra statements are refused. The MySQL compiler dialect supports
+positional parameters and backtick names.
+
+LIMIT is a logical output bound, not an offset interval or proof of completed
+native coverage. The schema fingerprint used during pure preparation is not a
+native operation/result binding. This helper performs no capture, group lookup,
+assignment, admission, waiting or offset settlement. `DirectLogPreparedConsume`
+binds the positional subset to an exact catalog definition and native operation,
+then freezes its plan as an original workload result. A multi-partition Stream
+requires a predicate whose conservative metadata bounds select one partition.
+Lower offset bounds select the starting position; upper comparisons remain row
+predicates within the accepted native cut. Ambiguous or contradictory routing,
+GROUP and WAIT are refused by this adapter. The [consumption corpus](corpus/log-consumes.json)
+uses independent expected layouts and five-row predicate outcomes through
+`just test::table-dml-sql`; those checks establish preparation only.
+
+`LogClaimSql.Prepared` has a dedicated preparation-only `logClaimStatement` root:
+
+```text
+CLAIM * | column [AS name] [, column [AS name]]
+  FROM name [AS alias] [WHERE predicate] [LIMIT integer-or-parameter]
+  WITH LEASE text-or-parameter [WAIT text-or-parameter]
+```
+
+The schema, projection, predicate and one parameter namespace are owned exactly
+as for consumption. Application columns and `_partition`/`_offset` can select
+work. `_lease_epoch`, `_attempt` and binary `_receipt_handle` are generated acquisition outputs: they can
+be projected, but predicates on them are refused. Star includes application
+columns only. LIMIT is a positive unsigned 32-bit acquisition maximum; omission
+leaves it for the declaration owner to resolve. It is removed from the bound
+logical output limit so a later adapter cannot hide already leased rows.
+WITH LEASE is required. Lease and optional WAIT accept positive whole ms/s/m
+text, within unsigned 64-bit milliseconds for leases and unsigned 32-bit
+milliseconds for waits. Native policy enforcement is still required. NULL operands, invalid budgets and unsafe statement shapes are refused.
+
+The predicate must run before lease acquisition, preserving Queue ordering and
+the exact accepted selection. This compiler is not a native selector or a
+post-filter for original claim results. The shared SQL service admits a narrower
+partition-routed profile: no predicate for one partition, or a single exact
+`_partition` equality. Catalog discharges that routing into the native target and
+freezes an unfiltered original-result projection. Other predicates and WAIT
+refuse before admission. Receipt handles and ACK use the Catalog settlement
+adapter; NACK and lease extension execution remain outside SQL. The [claim corpus](corpus/log-claims.json) independently checks
+five-row predicates, projections, lease metadata and acquisition budgets through
+`just test::table-dml-sql` without asserting acquisition or settlement.
+
+`LogSettlementSql.Prepared` owns dedicated ACK and extension syntax:
+
+```text
+ACK ON QUEUE name RECEIPT binary-literal-or-parameter
+EXTEND LEASE ON QUEUE name RECEIPT binary-literal-or-parameter BY text-or-parameter
+```
+
+Its two possible operand sites share one typed, gap-free parameter namespace.
+Receipt parameters are binary; BY is UTF-8. NULLs, foreign definitions, malformed
+receipts, nonpositive durations and deadline overflow refuse. Binding owns the
+lease by value and computes extension from its recorded deadline without reading
+a clock. The [settlement corpus](corpus/log-settlements.json) independently
+constructs QLH1 bytes and checks these results. None of these pure checks grants
+a live lease or establishes native completion. Only ACK is bound by the SQL
+Catalog adapter; renewal needs an updated-receipt result contract before execution.
 
 Table schemas and projections admit up to 128 columns. Logical types, parameter
 bounds, row budgets and operator/transport capabilities are checked by their
@@ -81,8 +216,18 @@ promote a standalone helper to SQL support. Physical-codec entries describe
 typed TableSchema admission; SQL `ENCODING` remains reference-only.
 
 `tests/query/logical/standards_ledger.py --write` regenerates the ledger digest and
-its Zig projection, `StandardsLedgerData.zig`. The check compares every field,
-including lifecycle states, dependencies and fixture paths. This is a consistency
+its Zig projection, `StandardsLedgerData.zig`, and the generated capability
+summary in the [grammar inventory](../../docs/handbook/reference/sql/grammar-surface.md#capability-ledger).
+Feature records require an explicit public profile, evidence sources and a
+`reference_verified` flag; unverified edition/clause labels are not standards
+conformance claims. The Transit-authored MIT compiler cases bind a feature to an
+actual `table_ddl`, `table_ddl_catalog`, `relational_sql` or `inspection` entry point and its expected
+acceptance. Fuze executes those cases against the production compiler.
+The catalog DDL cases supply exact parent metadata to the production resolver;
+they do not publish a constraint or assert runtime authorization. Positive cases
+require an implemented parse profile; negative cases also cover exclusions within
+implemented profiles. The check compares every field, rejects dependency cycles
+and contradictory positive expectations, and verifies the generated public summary. This is a consistency
 check. Actual compiler tests and installed SQL session tests establish behavior;
 file presence and fixture regeneration do not establish execution or recovery.
 

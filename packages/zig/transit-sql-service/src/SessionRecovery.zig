@@ -85,7 +85,7 @@ pub fn step(self: *Self, registry: *g.Registry) !bool {
     };
     self.after[index] = reference.id;
     if (page.next == null and page.entries[1] == null) self.complete[index] = true;
-    if (reference.kind == .table or reference.kind == .transaction) return true;
+    if (reference.kind.database()) return true;
     try self.advanceOperation(registry, index, &source, reference);
     // Terminal evidence can precede bookkeeping/cleanup. Only the durable
     // pending bit discharges this recovery obligation.
@@ -116,6 +116,6 @@ fn advanceOperation(self: *Self, registry: *g.Registry, index: usize, source: *g
             try g.CapturedOperations.select(host, reference.id);
             _ = try g.CapturedOperations.resumeOperation(host, reference.id);
         },
-        .table, .transaction => unreachable,
+        .table, .transaction, .workload => unreachable,
     }
 }

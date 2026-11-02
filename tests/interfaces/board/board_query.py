@@ -247,6 +247,11 @@ def run(node, host, proof, board, browser=False):
                 # next prepares without admitting work; submit carries an already
                 # frozen signed token. Recovery reuses this exact encoded body.
                 recovering = path == "/api/v1/query" and status == 200 and kind in ("next", "submit")
+                if path == "/api/v1/query" and kind == "submit" and status == 200:
+                    # Keep the exact signed request in the private installation
+                    # before dispatch. A failed Python invocation must not lose
+                    # the only recovery token for an uncertain submission.
+                    (fixture.root / "query-last-submit.json").write_bytes(body)
                 if recovering and deadline is None: deadline = time.monotonic() + 10
                 attempts = (12 if path.split("?", 1)[0] == "/api/v1/atlas" else 8) if reading or recovering else 1
                 if not retry: attempts = 1
@@ -380,6 +385,7 @@ def run(node, host, proof, board, browser=False):
                 assert "committed" in observed, observed
                 return receipt
             def upload(namespace, bundle):
+                (fixture.root / f"query-upload-{namespace}.json").write_text(json.dumps({"namespace": namespace, "bundle": bundle}))
                 until = time.monotonic() + 120
                 while True:
                     prepared = api({"next": {"namespace": namespace, "bundle": bundle}}, deadline=until)["prepared"]

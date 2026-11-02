@@ -34,6 +34,9 @@ pub const Root = struct {
     /// Stable column ID -> immutable ADD-time declaration. Current insertion
     /// defaults never supply values for older physical rows.
     column_origins: ?pages.Reference,
+    /// Required accepted definition revision -> declaration, acceptance and
+    /// frozen ADD origins. Staged artifacts alone cannot be projection targets.
+    definitions: ?pages.Reference,
     receipts: ?pages.Reference = null,
     pins: ?pages.Reference = null,
     /// Mandatory logical read boundary. Zero retains all accepted history.
@@ -64,6 +67,7 @@ pub const Root = struct {
         if (self.transaction) |reference| try reference.validate();
         if (self.recovery) |reference| try reference.validate(self.next_lsn);
         if (self.partition == 0 or self.next_segment == 0 or self.changed_lsn > self.next_lsn or self.history_floor > self.next_lsn or
+            (self.next_lsn == 0) != (self.definitions == null) or
             (self.history_pins != null and self.pins == null) or
             (self.live_rows == 0) != (self.rows == null) or
             (self.live_rows == 0) != (self.scan_rows == null) or
@@ -87,7 +91,7 @@ pub const Operation = struct {
     intent: d.Content,
     basis: struct { interpretation: d.Definition, position: d.Position, changed_lsn: u64 },
     phase: enum { admitted, rejected, cancelled },
-    reason: enum { none, definition_changed, data_changed, duplicate_key, missing_row, invalid_rows, work_limit },
+    reason: enum { none, definition_changed, data_changed, duplicate_key, missing_row, invalid_rows, work_limit, check_violation },
 
     pub fn validate(self: Operation) !void {
         try self.binding.validate();
@@ -131,6 +135,7 @@ pub const Record = struct {
         recovery,
         history_floor,
         pin: struct { owner: d.Operation, basis: d.Content },
+        pin_copy: struct { owner: d.Operation, basis: d.Content, source: p.Transaction.Pin },
         release: struct { owner: d.Operation, basis: d.Content },
     },
 
@@ -166,6 +171,14 @@ pub const Record = struct {
                 try value.owner.validate();
                 try value.basis.validate();
                 if (!std.meta.eql(value.owner.scope, self.root.interpretation.object.scope)) return error.InvalidTableHistory;
+            },
+            .pin_copy => |value| {
+                try value.owner.validate();
+                try value.basis.validate();
+                try value.source.owner.validate();
+                try value.source.content.validate();
+                if (!std.meta.eql(value.owner.scope, self.root.interpretation.object.scope) or
+                    !std.meta.eql(value.source.owner.scope, value.owner.scope) or std.meta.eql(value.source.owner, value.owner)) return error.InvalidTableHistory;
             },
             .operation => |value| {
                 try value.validate();

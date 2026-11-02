@@ -39,9 +39,11 @@ fn count(client: c.DirectTableClient, snapshot: c.DirectTableProtocol.Snapshot, 
     try t.expectEqual(@as(u128, expected), rows.rows[0].?.cells[0].value.atom.unsigned);
 }
 pub fn run(client: c.DirectTableClient) !void {
-    for ([_]struct { name: []const u8, collation: []const u8, range_count: u64, equality_count: u64 }{
+    for ([_]struct { name: []const u8, collation: []const u8, range_count: u64, equality_count: u64, literal: []const u8 = "ALPHA" }{
         .{ .name = "folded_rows", .collation = "ASCII_CI", .range_count = 2, .equality_count = 1 },
         .{ .name = "cp037_rows", .collation = "EBCDIC_CP037", .range_count = 3, .equality_count = 0 },
+        .{ .name = "cp037_pad_rows", .collation = "EBCDIC_037_PAD", .range_count = 3, .equality_count = 1, .literal = "Alpha   " },
+        .{ .name = "cp1047_rows", .collation = "EBCDIC_1047_NOPAD", .range_count = 3, .equality_count = 0, .literal = "Alpha   " },
     }, 0..) |case, i| {
         var arena: std.heap.ArenaAllocator = .init(client.allocator);
         defer arena.deinit();
@@ -59,11 +61,11 @@ pub fn run(client: c.DirectTableClient) !void {
         // The index path and identity scan must use the same declared order.
         try count(client, snapshot, case.name, try std.fmt.allocPrint(a, "SELECT COUNT(*) FROM {s} WHERE k < 'B'", .{case.name}), case.range_count);
         try count(client, snapshot, case.name, try std.fmt.allocPrint(a, "SELECT COUNT(*) FROM {s} WHERE k < 'B' AND k IS NOT NULL", .{case.name}), case.range_count);
-        const equality = try std.fmt.allocPrint(a, "SELECT COUNT(*) FROM {s} WHERE label = 'ALPHA'", .{case.name});
+        const equality = try std.fmt.allocPrint(a, "SELECT COUNT(*) FROM {s} WHERE label = '{s}'", .{ case.name, case.literal });
         try count(client, snapshot, case.name, equality, case.equality_count);
         var prepared = try q.direct.DirectTablePrepared.prepare(a, client, 1, try std.fmt.allocPrint(a, "SELECT COUNT(*) FROM {s} WHERE label = $1", .{case.name}), .transit, null);
         defer prepared.deinit();
-        var query = try q.direct.DirectTableQuery.openPreparedRetained(a, client, snapshot, &prepared, &.{.{ .bytes = "ALPHA" }}, .{ .requests = 100, .rows = 8, .result_bytes = 8192 }, null, null, .{});
+        var query = try q.direct.DirectTableQuery.openPreparedRetained(a, client, snapshot, &prepared, &.{.{ .bytes = case.literal }}, .{ .requests = 100, .rows = 8, .result_bytes = 8192 }, null, null, .{});
         defer query.deinit();
         var result = try query.nextBatch(8);
         defer result.deinit();
@@ -79,7 +81,7 @@ pub fn run(client: c.DirectTableClient) !void {
         const definition: q.SourceDefinition = .{ .resource = client.connection.scope.resource, .source = .{ .table = source.source } };
         var template = try q.SqlTemplate.init(a, definition, case.name, try std.fmt.allocPrint(a, "SELECT k FROM {s} WHERE label = $1", .{case.name}));
         defer template.deinit();
-        var bound = try template.bind(a, definition, &.{.{ .bytes = "ALPHA" }}, .{ .pages = 100, .segments = 100, .result_bytes = 8192 });
+        var bound = try template.bind(a, definition, &.{.{ .bytes = case.literal }}, .{ .pages = 100, .segments = 100, .result_bytes = 8192 });
         defer bound.deinit();
         const neutral = try q.Values.Bundle.fromNative(a, bound.bundle);
         const restored = try neutral.native(a);
@@ -99,7 +101,7 @@ pub fn run(client: c.DirectTableClient) !void {
         forged.plan.collations = .{};
         try t.expectError(error.SourceChanged, forged.validate());
 
-        try mutate(client, base + 3, try std.fmt.allocPrint(a, "UPDATE {s} SET label = 'Changed' WHERE label = 'ALPHA'", .{case.name}));
+        try mutate(client, base + 3, try std.fmt.allocPrint(a, "UPDATE {s} SET label = 'Changed' WHERE label = '{s}'", .{ case.name, case.literal }));
         const current = try pin(client, base + 4, case.name);
         defer (client.call(.{ .release = current }) catch unreachable).deinit();
         try count(client, current, case.name, try std.fmt.allocPrint(a, "SELECT COUNT(*) FROM {s} WHERE label = 'Changed'", .{case.name}), case.equality_count);
@@ -108,6 +110,16 @@ pub fn run(client: c.DirectTableClient) !void {
         const deleted = try pin(client, base + 6, case.name);
         defer (client.call(.{ .release = deleted }) catch unreachable).deinit();
         try count(client, deleted, case.name, try std.fmt.allocPrint(a, "SELECT COUNT(*) FROM {s}", .{case.name}), 5 - case.range_count);
+        if (i != 0) {
+            try count(client, deleted, case.name, try std.fmt.allocPrint(a, "SELECT COUNT(*) FROM {s} WHERE k = 'B '", .{case.name}), if (i == 2) 1 else 0);
+            try mutate(client, base + 7, try std.fmt.allocPrint(a, "INSERT INTO {s} VALUES ('^','Caret'),('¬','Not-sign')", .{case.name}));
+            const punctuation = try pin(client, base + 8, case.name);
+            defer (client.call(.{ .release = punctuation }) catch unreachable).deinit();
+            const expected: u64 = if (i == 3) 0 else 1;
+            try count(client, punctuation, case.name, try std.fmt.allocPrint(a, "SELECT COUNT(*) FROM {s} WHERE k < '^'", .{case.name}), expected);
+            try count(client, punctuation, case.name, try std.fmt.allocPrint(a, "SELECT COUNT(*) FROM {s} WHERE k < '^' AND k IS NOT NULL", .{case.name}), expected);
+            try count(client, snapshot, case.name, try std.fmt.allocPrint(a, "SELECT COUNT(*) FROM {s}", .{case.name}), 5);
+        }
     }
-    std.debug.print("Table collations: declared ASCII_CI/CP037, range/scan controls, prepared and captured plans, UPDATE/DELETE and retained snapshots passed.\n", .{});
+    std.debug.print("Table collations: ASCII_CI/CP037/CP037 PAD/CP1047, range/scan controls, prepared and captured plans, UPDATE/DELETE and retained snapshots passed.\n", .{});
 }

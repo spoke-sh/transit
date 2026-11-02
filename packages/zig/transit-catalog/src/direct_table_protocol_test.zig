@@ -224,9 +224,20 @@ test "direct Table request proof binds the complete typed action and current def
 }
 
 test "direct Queue signs frozen claims and requires saved definition" {
-    const Fixture = struct { request: w.Request, public_key: [32]u8, intent_digest: [32]u8, release_request: w.Request, release_intent_digest: [32]u8 };
+    const Fixture = struct { cancel_request: w.Request, closed: p.LogWorkload.Closure, request: w.Request, public_key: [32]u8, intent_digest: [32]u8, release_request: w.Request, release_intent_digest: [32]u8 };
     const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-queue-v1.json"));
     defer parsed.deinit();
+    const cancellation = parsed.value.cancel_request;
+    try cancellation.validate(t.allocator);
+    try cancellation.proof.verify(parsed.value.public_key);
+    try t.expect(cancellation.transport().mutation and cancellation.transport().control != null);
+    try parsed.value.closed.requireQueue(cancellation.action.queue.cancel);
+    var altered_closure = parsed.value.closed;
+    altered_closure.binding.queue.intent[0] ^= 1;
+    try t.expectError(error.DataIdentityConflict, altered_closure.requireQueue(cancellation.action.queue.cancel));
+    altered_closure = parsed.value.closed;
+    altered_closure.reason = .{ .refused = .lease_expired };
+    try t.expectError(error.InvalidLogClosure, altered_closure.validate());
     const request = parsed.value.request;
     try request.validate(t.allocator);
     try request.proof.verify(parsed.value.public_key);
@@ -264,9 +275,20 @@ test "direct Queue signs frozen claims and requires saved definition" {
 }
 
 test "direct Stream preserves independent signed work and required saved definition" {
-    const Fixture = struct { request: w.Request, public_key: [32]u8, intent_digest: [32]u8 };
+    const Fixture = struct { cancel_request: w.Request, closed: p.LogWorkload.Closure, request: w.Request, public_key: [32]u8, intent_digest: [32]u8 };
     const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-stream-v1.json"));
     defer parsed.deinit();
+    const cancellation = parsed.value.cancel_request;
+    try cancellation.validate(t.allocator);
+    try cancellation.proof.verify(parsed.value.public_key);
+    try t.expect(cancellation.transport().mutation and cancellation.transport().control != null);
+    try parsed.value.closed.requireStream(cancellation.action.stream.cancel);
+    var altered_closure = parsed.value.closed;
+    altered_closure.binding.stream.intent[0] ^= 1;
+    try t.expectError(error.DataIdentityConflict, altered_closure.requireStream(cancellation.action.stream.cancel));
+    altered_closure = parsed.value.closed;
+    altered_closure.reason = .{ .refused = .lease_expired };
+    try t.expectError(error.InvalidLogClosure, altered_closure.validate());
     const request = parsed.value.request;
     try request.validate(t.allocator);
     try request.proof.verify(parsed.value.public_key);
@@ -394,7 +416,7 @@ test "direct dependency graph response rejects substituted objects and mixed obs
     request.proof.claim.context = try w.Request.context(request.input(), t.allocator);
     request.proof = try p.Authorization.Proof.sign(request.proof.claim, try p.Ed25519.KeyPair.generateDeterministic(@splat(9)));
     const position: p.DataLifecycle.Position = .{ .partition = 1, .next_lsn = 10 };
-    const cursor: c.DirectDependency.Cursor = .{ .selection = selection, .authority = .dependent, .position = position, .after = try edge.digest() };
+    const cursor: c.DirectDependency.Cursor = .{ .selection = selection, .authority = .dependent, .position = position, .after = try edge.forwardKey() };
     const page: c.DirectDependency.Page = .{ .entries = .{ edge, null, null, null }, .next = cursor, .position = position };
     const response: w.Response = .{ .definition = p.Growth.current_definition, .context = request.proof.claim.context, .policy_revision = 1, .subject = .{ .principal = 4, .login_role = 4, .role = 4, .credential_epoch = 1, .audience = 5, .context = request.proof.claim.context }, .result = .{ .dependencies = page } };
     try c.DirectTableClient.validateResponse(t.allocator, request, response);

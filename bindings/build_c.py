@@ -4,12 +4,28 @@ import argparse
 import json
 from pathlib import Path
 import re
+import subprocess
 import tarfile
+import tempfile
 
 from package_metadata import BASE_VERSION, rewrite, rewrite_tree, version
 
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = version('c')
+
+
+def installed_binary(path, runtime_library_path):
+    # Zig's linked artifacts can contain absolute dependency-cache rpaths.
+    # Rewrite a private copy: installation must load SDK peers from this prefix,
+    # while keeping the selected build's explicit runtime closure.
+    rpath = '$ORIGIN/../lib' if path.parent.name == 'bin' else '$ORIGIN'
+    if runtime_library_path:
+        rpath += ':' + runtime_library_path
+    with tempfile.TemporaryDirectory(prefix='transit-c-package-') as directory:
+        copy = Path(directory) / path.name
+        copy.write_bytes(path.read_bytes())
+        subprocess.run(['patchelf', '--set-rpath', rpath, str(copy)], check=True)
+        return copy.read_bytes()
 
 
 def build(output, native_prefix, sdk_prefix):
@@ -35,15 +51,15 @@ def build(output, native_prefix, sdk_prefix):
     packages = {
         'transit-native-client-c': {'lib/libtransit_client.so': native.read_bytes(),
             'include/transit_client.h': (ROOT / 'packages/zig/transit-client/include/transit_client.h').read_bytes()},
-        'transit-client-c': {'lib/libtransit_sdk_client.so': sdk.read_bytes()},
+        'transit-client-c': {'lib/libtransit_sdk_client.so': installed_binary(sdk, sdk_build['runtime_library_path'])},
         'transit-client-cpp': {},
         'transit-native-station-c': {'lib/libtransit_station.so': (native_prefix / 'lib/libtransit_station.so').read_bytes(),
             'include/transit_station.h': (ROOT / 'packages/zig/transit-station-bindings/include/transit_station.h').read_bytes()},
-        'transit-station-c': {'lib/libtransit_sdk_station.so': (sdk_prefix / 'lib/libtransit_sdk_station.so').read_bytes()},
+        'transit-station-c': {'lib/libtransit_sdk_station.so': installed_binary(sdk_prefix / 'lib/libtransit_sdk_station.so', sdk_build['runtime_library_path'])},
         'transit-station-cpp': {},
         'transit-sdk-examples-c': {'lib/libtransit_sdk_examples_c.a': (sdk_prefix / 'lib/libtransit_sdk_examples_c.a').read_bytes(),
-            'bin/transit-c-counter': (sdk_prefix / 'bin/transit-c-counter').read_bytes()},
-        'transit-sdk-examples-cpp': {'bin/transit-cpp-counter': (sdk_prefix / 'bin/transit-cpp-counter').read_bytes()},
+            'bin/transit-c-counter': installed_binary(sdk_prefix / 'bin/transit-c-counter', sdk_build['runtime_library_path'])},
+        'transit-sdk-examples-cpp': {'bin/transit-cpp-counter': installed_binary(sdk_prefix / 'bin/transit-cpp-counter', sdk_build['runtime_library_path'])},
     }
     specifications = [
         ('transit-client-c', 'sdks/c/transit-client', 'transit_sdk_client', ['transit-native-client-c']),

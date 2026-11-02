@@ -16,17 +16,18 @@ pub const Request = union(enum) {
     observe: q.Partition,
     mutate: struct { work: Mutation.Request, payload: ?w.Binary },
     operation: Mutation.Request,
+    cancel: Mutation.Request,
     group: struct { target: q.Partition, id: u64 },
     cursor: struct { target: q.Partition, read: read.Handle },
     page: struct { cursor: read.Cursor, limits: Stream.ReadLimits },
     wait: struct { consume: read.Request, milliseconds: u32 },
 
     pub fn mutation(self: Request) bool {
-        return self == .mutate or self == .wait;
+        return self == .mutate or self == .wait or self == .cancel;
     }
     pub fn control(self: Request) bool {
         return switch (self) {
-            .operation => true,
+            .operation, .cancel => true,
             .mutate => |value| value.work.control(),
             else => false,
         };
@@ -35,7 +36,7 @@ pub const Request = union(enum) {
         return switch (self) {
             .observe => |value| value,
             .mutate => |value| value.work.target(),
-            .operation => |value| value.target(),
+            .operation, .cancel => |value| value.target(),
             .page => |value| value.cursor.coverage.cut.target,
             .wait => |value| value.consume.target,
             inline .group, .cursor => |value| value.target,
@@ -44,7 +45,7 @@ pub const Request = union(enum) {
     pub fn access(self: Request) c.LogAuthority.Access {
         return switch (self) {
             .mutate => |value| value.work.access(),
-            .operation => |value| value.access(),
+            .operation, .cancel => |value| value.access(),
             .group => .acquire,
             .observe => .inspect,
             .cursor, .page => .read,
@@ -54,7 +55,7 @@ pub const Request = union(enum) {
     pub fn identity(self: Request) ?d.Operation {
         return switch (self) {
             .mutate => |value| value.work.identity(),
-            .operation => |value| value.identity(),
+            .operation, .cancel => |value| value.identity(),
             .cursor => |value| value.read.owner,
             .page => |value| value.cursor.read.owner,
             .wait => |value| value.consume.operation,
@@ -73,7 +74,7 @@ pub const Request = union(enum) {
                 try value.work.validate();
                 if ((value.work == .append) != (value.payload != null)) return error.InvalidStreamPayload;
             },
-            .operation => |value| try value.validate(),
+            .operation, .cancel => |value| try value.validate(),
             .group => |value| if (value.id == 0) return error.InvalidLogGroup,
             .cursor => |value| try value.read.validate(),
             .page => |value| {
@@ -95,6 +96,7 @@ pub const Receipt = union(enum) {
     consume: read.Receipt,
     release: read.ReleaseReceipt,
     offset: q.OffsetReceipt,
+    closed: p.LogWorkload.Closure,
 };
 pub const Row = struct {
     offset: u64,
@@ -157,9 +159,14 @@ fn receipt(record: s.LogEvidence.Record) !Receipt {
         .read => |value| .{ .consume = value },
         .release => |value| .{ .release = value },
         .offset => |value| .{ .offset = value.receipt },
+        .closed => |value| .{ .closed = value },
     };
 }
 fn originalReceipt(work: Mutation.Request, record: s.LogEvidence.Record) !Receipt {
+    if (record.outcome == .closed) {
+        try record.outcome.closed.requireStream(work);
+        return .{ .closed = record.outcome.closed };
+    }
     switch (work) {
         .append => |value| {
             if (record.outcome != .append) return error.LogOperationConflict;
@@ -180,10 +187,21 @@ fn originalReceipt(work: Mutation.Request, record: s.LogEvidence.Record) !Receip
         .offset => |value| {
             if (record.outcome != .offset) return error.LogOperationConflict;
             try record.outcome.offset.receipt.requireCommit(value.commit);
-            if (!std.meta.eql(record.outcome.offset.cursor, value.cursor)) return error.StreamReadConflict;
+            if (!std.meta.eql(record.outcome.offset.progress, value.progress)) return error.StreamReadConflict;
         },
     }
     return receipt(record);
+}
+
+fn mutate(owner: *Stream, declared: s.LogDeclaration.Stored, request: Mutation.Request, payload: []const u8, environment: Environment, guard: s.PublicationGuard, nonempty: bool) !Receipt {
+    _ = nonempty;
+    return switch (request) {
+        .append => |work| .{ .append = try owner.append(declared, work, payload, guard) },
+        .assign => |work| .{ .assign = try owner.assign(declared, work, guard) },
+        .consume => |work| .{ .consume = try owner.beginRead(declared, work, guard) },
+        .release => |work| .{ .release = try owner.releaseRead(declared, work, guard) },
+        .offset => |work| .{ .offset = try owner.commitOffset(declared, work.commit, work.progress, environment.authority, guard) },
+    };
 }
 
 /// `slot` and its provider/allocator lifetimes belong to the host. The slot
@@ -195,7 +213,7 @@ pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.
     var current = try catalog.logAuthorization(scratch, .stream, request.target(), request.access(), policy);
     const binding: ?Mutation.Binding = switch (request) {
         .mutate => |value| try value.work.binding(scratch),
-        .operation => |value| try value.binding(scratch),
+        .operation, .cancel => |value| try value.binding(scratch),
         .wait => |value| try (Mutation.Request{ .consume = value.consume }).binding(scratch),
         else => null,
     };
@@ -267,6 +285,11 @@ pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.
     }
     const result: Result = switch (selected) {
         .wait => unreachable,
+        .cancel => |value| blk: {
+            try authorize(current.guard);
+            try c.OperationBinding.claimStream(scratch, catalog.store.objects, binding.?);
+            break :blk .{ .operation = try originalReceipt(value, try owner.cancel(current.definition.stored, value, current.guard)) };
+        },
         .observe => .{ .cut = try owner.observe(current.definition.stored, current.guard) },
         .operation => |value| .{ .operation = if (try owner.operation(value.identity(), current.guard)) |record| try originalReceipt(value, record) else null },
         .group => |value| .{ .group = try owner.group(value.id, current.guard) },
@@ -309,12 +332,12 @@ pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.
             try authorize(current.guard);
             const objects = if (value.work.control()) catalog.store.objects else catalog.data_objects;
             try c.OperationBinding.claimStream(scratch, objects, binding.?);
-            const accepted: Receipt = switch (value.work) {
-                .append => |work| .{ .append = try owner.append(current.definition.stored, work, payload, current.guard) },
-                .assign => |work| .{ .assign = try owner.assign(current.definition.stored, work, current.guard) },
-                .consume => |work| .{ .consume = try owner.beginRead(current.definition.stored, work, current.guard) },
-                .release => |work| .{ .release = try owner.releaseRead(current.definition.stored, work, current.guard) },
-                .offset => |work| .{ .offset = try owner.commitOffset(current.definition.stored, work.commit, work.cursor, environment.authority, current.guard) },
+            const accepted = mutate(owner, current.definition.stored, value.work, payload, environment, current.guard, request == .wait) catch |err| failure: {
+                // The mutation owner already checks original success. Only its
+                // closed/conflicting path needs another receipt lookup.
+                if (err == error.LogOperationConflict) if (try owner.operation(value.work.identity(), current.guard)) |record|
+                    break :failure try originalReceipt(value.work, record);
+                break :failure try originalReceipt(value.work, try owner.refuse(current.definition.stored, value.work, err, current.guard));
             };
             break :blk .{ .operation = accepted };
         },

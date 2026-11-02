@@ -26,6 +26,7 @@ TABLE_CONTROL_ACTIONS = {
     'client_token': frozenset(('bind', 'lookup')),
     'client_progress': frozenset(('inspect', 'operation', 'list', 'update')),
     'record': frozenset(('stage', 'read')),
+    'workload_result': frozenset(('open', 'page')),
 }
 
 

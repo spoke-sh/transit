@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { shareValidatorSchemas } from "../../../tasks/validator_schema.mjs";
 import Ajv2020 from "ajv/dist/2020.js";
 import standalone from "ajv/dist/standalone/index.js";
+import { booleanValidatorSource } from "../../../tasks/validator_source.mjs";
 const schemas = JSON.parse(readFileSync(new URL("./src/schemas.json", import.meta.url), "utf8"));
 const ajv = new Ajv2020({
   allErrors: false,
@@ -33,7 +34,10 @@ for (const [file, selected] of [
       : "";
   const text =
     '// Generated; no runtime code generation or eval.\nimport lengthModule from "ajv/dist/runtime/ucs2length.js";\nconst ucs2length = lengthModule.default ?? lengthModule;\n' +
-    generated.replaceAll('require("ajv/dist/runtime/ucs2length").default', "ucs2length") +
+    booleanValidatorSource(generated).replaceAll(
+      'require("ajv/dist/runtime/ucs2length").default',
+      "ucs2length",
+    ) +
     reexports;
   const declarations =
     (file === "validators" ? names : selected)

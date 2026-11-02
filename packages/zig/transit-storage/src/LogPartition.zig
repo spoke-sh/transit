@@ -349,7 +349,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                             _ = try self.append(source.root.declared, transfer.destination, payload, guard);
                         },
                         .stream_offset => |request| {
-                            _ = try self.commitOffset(source.root.declared, request, value.offset_cursor orelse return error.InvalidTransactionActions, authority orelse return error.InvalidStreamReadAuthority, guard);
+                            _ = try self.commitOffset(source.root.declared, request, value.offset_progress orelse return error.InvalidTransactionActions, authority orelse return error.InvalidStreamReadAuthority, guard);
                         },
                         .queue_ack => |request| {
                             if (kind != .queue) return error.InvalidTransactionActions;
@@ -599,6 +599,44 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             try authorize(guard);
             return result;
         }
+        /// Serialize cancellation with admission in this partition. The adapter
+        /// must first reserve the exact global operation binding. Accepted work
+        /// wins; cancellation never releases its lease, offsets or result pins.
+        pub fn cancel(self: *Self, declared: Declaration.Stored, request: if (kind == .stream) p.LogWorkload.StreamRequest else p.LogWorkload.QueueRequest, guard: Guard) !Evidence.Record {
+            return self.close(declared, request, .cancelled, guard);
+        }
+        /// The serialized adapter invokes this only after this owner's mutation
+        /// returned a qualified terminal refusal. Other failures retain their
+        /// uncertainty and cannot create closure evidence.
+        pub fn refuse(self: *Self, declared: Declaration.Stored, request: if (kind == .stream) p.LogWorkload.StreamRequest else p.LogWorkload.QueueRequest, cause: anyerror, guard: Guard) !Evidence.Record {
+            const reason = p.LogWorkload.Refusal.fromError(cause) orelse return cause;
+            return self.close(declared, request, .{ .refused = reason }, guard);
+        }
+        fn close(self: *Self, declared: Declaration.Stored, request: if (kind == .stream) p.LogWorkload.StreamRequest else p.LogWorkload.QueueRequest, reason: @FieldType(p.LogWorkload.Closure, "reason"), guard: Guard) !Evidence.Record {
+            try authorize(guard);
+            try self.requireReady();
+            if (self.private_position != null) return error.PrivateLogWorkspace;
+            try self.root.requireControlDeclaration(declared);
+            try self.requireTarget(request.target());
+            var bytes: [16 * 1024]u8 = undefined;
+            var scratch = std.heap.FixedBufferAllocator.init(&bytes);
+            const binding: p.LogWorkload.Binding = if (kind == .stream)
+                .{ .stream = try request.binding(scratch.allocator()) }
+            else
+                .{ .queue = try request.binding(scratch.allocator()) };
+            if (try self.original(request.identity())) |record| {
+                try binding.requireSame(try record.binding(scratch.allocator()));
+                try authorize(guard);
+                return record;
+            }
+            const record: Evidence.Record = .{ .declared = declared, .outcome = .{ .closed = .{
+                .binding = binding,
+                .recorded = try self.nextPosition(),
+                .reason = reason,
+            } } };
+            try self.publish(record, &.{}, guard);
+            return record;
+        }
         pub fn observe(self: *Self, declared: Declaration.Stored, guard: Guard) !q.Cut {
             try authorize(guard);
             try self.requireReady();
@@ -671,12 +709,132 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             return .{ .store = &self.store, .scratch = &self.scratch, .bitmap = bitmap, .container = &self.queue_container, .key_buffer = self.key_buffer, .visibility = &self.queue_visibility, .affinity = &self.queue_affinity, .timer_workspace = self.queue_timers, .timer_seed = .{ .definition = p.Growth.current_definition, .interpretation = self.root.initialization.declared.declaration.interpretation, .partition = self.root.initialization.ordinal }, .timer_read_work = self.options.queue_timer_read_work };
         }
         fn persistQueue(self: *Self, next: Root) !void {
-            try self.candidate_objects.persistSelected(try QueueSchedule.Buffers.init(next.queue.?.eligible, next.queue.?.deadlines));
+            try @import("QueueCandidateObjects.zig").persist(&self.candidate_objects, &self.store, &self.scratch, next);
         }
         fn queueTime(self: *Self, floor: ?u64) !Time.Sample {
             return (Time.bounds(self.options.clock, floor, true) catch |err| return if (err == error.LogTimeUnavailable) error.QueueTimeUnavailable else err).?;
         }
         pub const ClaimReadiness = struct { available: bool, wake_after_ms: ?u64 };
+
+        pub const DeadLetterCandidate = struct {
+            source: @FieldType(@FieldType(p.Transaction.TerminalTransfer, "source"), "exhausted"),
+            destination: d.Definition,
+        };
+        /// A finite metadata sweep, not a retained snapshot. Each call observes
+        /// current state. A newly blocked earlier offset belongs to the next
+        /// sweep; later appends cannot extend this sweep's fixed upper bound.
+        pub const DeadLetterCursor = struct {
+            target: q.Partition,
+            until: u64,
+            next: u64,
+            pub fn complete(self: DeadLetterCursor) bool {
+                return self.next == self.until;
+            }
+        };
+        pub const DeadLetterPage = struct {
+            observed: q.Cut,
+            cursor: DeadLetterCursor,
+            scanned: u16,
+            candidate: ?DeadLetterCandidate,
+        };
+        pub const DeadLetterWork = struct {
+            request: p.Transaction.TerminalTransfer,
+            /// Borrows the caller's encoding buffer, never owner scratch.
+            payload: []const u8,
+        };
+
+        /// Returns at most one blocked item's exact accepted exhaustion and
+        /// destination. Discovery writes nothing, claims no lease and supplies
+        /// no transfer authority. The caller must retain an original attempt
+        /// before dispatch and use the common paired transaction decision.
+        pub fn deadLetterNext(self: *Self, declared: Declaration.Stored, after: ?DeadLetterCursor, maximum: u16, guard: Guard) !DeadLetterPage {
+            if (maximum == 0 or maximum > 256 or maximum > declared.declaration.limits.timer_steps) return error.InvalidQueueTimerBudget;
+            try authorize(guard);
+            try self.requireReady();
+            if (self.private_position != null) return error.PrivateLogWorkspace;
+            const observed = try self.root.retainedCut(declared);
+            var cursor = after orelse DeadLetterCursor{ .target = observed.target, .until = observed.next, .next = 0 };
+            try cursor.target.requireSame(observed.target);
+            if (cursor.next > cursor.until or cursor.until > observed.next) return error.InvalidQueueCursor;
+            var result: DeadLetterPage = .{ .observed = observed, .cursor = cursor, .scanned = 0, .candidate = null };
+            const root = self.root.queue.?;
+            if (root.blocked == 0) cursor.next = cursor.until;
+            var bitmap: Bitmap = undefined;
+            const index = self.queueIndex(&bitmap);
+            while (!cursor.complete() and result.scanned < maximum) {
+                const item = try index.item(root, cursor.next);
+                try item.validate();
+                cursor.next += 1;
+                result.scanned += 1;
+                if (item.blocked != .dead_letter) continue;
+                if (try index.state(root, item) != .available or item.offset < observed.retained_from) return error.QueueStateConflict;
+                result.candidate = .{
+                    .source = .{ .target = observed.target, .offset = item.offset, .lease_epoch = item.epoch, .attempt = item.attempts, .not_before_ms = item.blocked_after_ms.? },
+                    .destination = item.blocked.dead_letter,
+                };
+                break;
+            }
+            result.cursor = cursor;
+            try authorize(guard);
+            return result;
+        }
+
+        /// Materialize the exact source row for a prospective paired transfer.
+        /// No attempt, transaction, append or source settlement is accepted here.
+        /// The caller must retain this work before dispatch; current destination
+        /// authority and trusted exhaustion time are checked by the transaction.
+        pub fn deadLetterWork(self: *Self, declared: Declaration.Stored, selected: DeadLetterCandidate, source_operation: d.Operation, destination: q.Partition, destination_operation: d.Operation, buffer: []u8, guard: Guard) !DeadLetterWork {
+            try selected.source.target.requireOperation(source_operation);
+            try destination.requireOperation(destination_operation);
+            if (!std.meta.eql(selected.destination, destination.interpretation)) return error.InvalidTransactionTransfer;
+            try authorize(guard);
+            try self.requireReady();
+            if (self.private_position != null) return error.PrivateLogWorkspace;
+            const cut = try self.root.retainedCut(declared);
+            try cut.target.requireSame(selected.source.target);
+            if (selected.source.offset < cut.retained_from or selected.source.offset >= cut.next) return error.QueueStateConflict;
+            var bitmap: Bitmap = undefined;
+            const index = self.queueIndex(&bitmap);
+            const item = try index.item(self.root.queue.?, selected.source.offset);
+            if (try index.state(self.root.queue.?, item) != .available or item.blocked != .dead_letter or
+                item.epoch != selected.source.lease_epoch or item.attempts != selected.source.attempt or
+                item.blocked_after_ms != selected.source.not_before_ms or !std.meta.eql(item.blocked.dead_letter, selected.destination)) return error.QueueStateConflict;
+            const bytes = try self.encodeTransferPayload(destination, destination_operation, item.offset, buffer, guard);
+            const request: p.Transaction.TerminalTransfer = .{
+                .operation = source_operation,
+                .source = .{ .exhausted = selected.source },
+                .destination = .{ .target = destination, .operation = destination_operation, .kind = .queue, .producer = null, .rows = 1, .payload = Batch.content(bytes) },
+            };
+            try request.validate();
+            try authorize(guard);
+            return .{ .request = request, .payload = bytes };
+        }
+
+        /// Automatic transfers honor the destination's canonical key routing.
+        /// Without a routing key, preserve the source ordinal modulo the
+        /// destination count. The selected ordinal is frozen with the attempt.
+        pub fn deadLetterRoutedWork(self: *Self, declared: Declaration.Stored, selected: DeadLetterCandidate, source_operation: d.Operation, destination_operation: d.Operation, buffer: []u8, guard: Guard) !DeadLetterWork {
+            var work = try self.deadLetterWork(declared, selected, source_operation, .{ .definition = p.Growth.current_definition, .interpretation = selected.destination, .partition = 0 }, destination_operation, buffer, guard);
+            var destination = try Declaration.resolve(self.allocator, self.objects, selected.destination);
+            defer destination.deinit();
+            const routing = destination.definition.configuration.partitioning;
+            var ordinal = selected.source.target.partition % routing.count;
+            if (routing.key_column) |column_id| {
+                defer _ = self.scratch.reset(.retain_capacity);
+                const schema = destination.definition.schema;
+                var rows = try Batch.Iterator.init(work.payload, schema, .queue, 1);
+                const row = try (try rows.next() orelse return error.InvalidLogBatch).decode(self.scratch.allocator(), schema, destination_operation);
+                if (try rows.next() != null) return error.InvalidLogBatch;
+                const ci = try schema.index(column_id);
+                const column = schema.columns[ci];
+                const key = try f.Collation.encodeSortKey(row.cells[ci], column.type, column.collation, self.key_buffer);
+                ordinal = try routing.select(key);
+            }
+            work.request.destination.target.partition = ordinal;
+            try work.request.validate();
+            try authorize(guard);
+            return work;
+        }
 
         /// No operation binding, selection artifact or WAL record is published.
         /// Hosts serialize this probe with the subsequent claim. Running the
@@ -936,17 +1094,20 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             try authorize(guard);
         }
         fn verifyTransferPayload(self: *Self, request: p.Transaction.TerminalTransfer, buffer: []u8, guard: Guard) !void {
+            const bytes = try self.encodeTransferPayload(request.destination.target, request.destination.operation, transferOffset(request), buffer, guard);
+            if (!std.meta.eql(Batch.content(bytes), request.destination.payload)) return error.LogPayloadConflict;
+        }
+        fn encodeTransferPayload(self: *Self, target: q.Partition, identity: d.Operation, offset: u64, buffer: []u8, guard: Guard) ![]const u8 {
             var source = try Declaration.load(self.allocator, self.objects, self.root.declared);
             defer source.deinit();
-            var destination = try Declaration.resolve(self.allocator, self.objects, request.destination.target.interpretation);
+            var destination = try Declaration.resolve(self.allocator, self.objects, target.interpretation);
             defer destination.deinit();
             if (destination.definition.retired or destination.definition.configuration.policy != .queue or
-                request.destination.target.partition >= destination.definition.configuration.partitioning.count) return error.InvalidQueueDestination;
+                target.partition >= destination.definition.configuration.partitioning.count) return error.InvalidQueueDestination;
             var normalized = destination.definition.schema;
             normalized.object = source.definition.schema.object;
             normalized.revision = source.definition.schema.revision;
             if (!std.mem.eql(u8, &try normalized.fingerprint(), &try source.definition.schema.fingerprint())) return error.QueueDestinationSchemaMismatch;
-            const offset = transferOffset(request);
             const cut = try self.root.retainedCut(self.root.declared);
             var borrowed = try self.borrowAt(cut, self.root.batches, self.root.segments, .empty, offset, guard) orelse return error.QueueItemMissing;
             defer borrowed.deinit();
@@ -955,9 +1116,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 if (row.ordinal != offset - borrowed.receipt.first) continue;
                 defer _ = self.scratch.reset(.retain_capacity);
                 const decoded = try row.decode(self.scratch.allocator(), source.definition.schema, borrowed.receipt.append.operation);
-                const bytes = try Batch.encode(destination.definition.schema, request.destination.operation, .queue, &.{decoded}, buffer);
-                if (!std.meta.eql(Batch.content(bytes), request.destination.payload)) return error.LogPayloadConflict;
-                return;
+                return Batch.encode(destination.definition.schema, identity, .queue, &.{decoded}, buffer);
             }
             return error.QueueItemMissing;
         }
@@ -1220,33 +1379,33 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             try self.publish(.{ .declared = declared, .outcome = .{ .release = receipt } }, &.{}, guard);
             return receipt;
         }
-        fn advanceGroup(self: *Self, commit: q.OffsetCommit, cursor: read.Cursor) !q.GroupProgress {
+        fn advanceGroup(self: *Self, commit: q.OffsetCommit, issued: read.Progress) !q.GroupProgress {
             try commit.validate();
-            const retained = try self.retainedRead(cursor.read);
-            try cursor.requireReceipt(retained.receipt);
-            if (!std.meta.eql(commit.coverage, cursor.coverage)) return error.LogOffsetConflict;
+            const retained = try self.retainedRead(issued.end().read);
+            try issued.requireReceipt(retained.receipt);
+            if (!std.meta.eql(commit.coverage, try issued.coverage())) return error.LogOffsetConflict;
             const selected = retained.receipt.request.group orelse return error.LogGroupRequired;
             if (!std.meta.eql(selected, commit.group)) return error.LogGroupFenced;
             return (try self.requireGroup(commit.group, commit.expected_next)).advance(commit);
         }
-        pub fn commitOffset(self: *Self, declared: Declaration.Stored, commit: q.OffsetCommit, cursor: read.Cursor, authority: Read.Authority, guard: Guard) !q.OffsetReceipt {
+        pub fn commitOffset(self: *Self, declared: Declaration.Stored, commit: q.OffsetCommit, issued: read.Progress, authority: Read.Authority, guard: Guard) !q.OffsetReceipt {
             try commit.validate();
-            try cursor.validate();
+            try issued.validate();
             try self.requireTarget(commit.coverage.cut.target);
             try authorize(guard);
             try self.requireReady();
             if (try self.original(commit.operation)) |record| {
                 if (record.outcome != .offset) return error.LogOperationConflict;
                 try record.outcome.offset.receipt.requireCommit(commit);
-                if (!std.meta.eql(record.outcome.offset.cursor, cursor)) return error.LogOffsetConflict;
+                if (!std.meta.eql(record.outcome.offset.progress, issued)) return error.LogOffsetConflict;
                 try authorize(guard);
                 return record.outcome.offset.receipt;
             }
             try self.root.requireControlDeclaration(declared);
-            try authority.verify(cursor);
-            _ = try self.advanceGroup(commit, cursor);
+            try authority.verifyProgress(issued);
+            _ = try self.advanceGroup(commit, issued);
             const receipt: q.OffsetReceipt = .{ .commit = commit, .accepted = try self.nextPosition() };
-            try self.publish(.{ .declared = declared, .outcome = .{ .offset = .{ .receipt = receipt, .cursor = cursor } } }, &.{}, guard);
+            try self.publish(.{ .declared = declared, .outcome = .{ .offset = .{ .receipt = receipt, .progress = issued } } }, &.{}, guard);
             return receipt;
         }
         fn nextPosition(self: *Self) !d.Position {
@@ -1286,7 +1445,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         }
         fn candidate(self: *Self, evidence: Evidence.Record, payload: []const u8, guard: Guard) !Root {
             try evidence.validate();
-            if (evidence.outcome == .offset or evidence.outcome == .release or evidence.outcome == .settlement or evidence.outcome == .terminal or evidence.outcome == .queue_release)
+            if (evidence.outcome == .offset or evidence.outcome == .release or evidence.outcome == .settlement or evidence.outcome == .terminal or evidence.outcome == .queue_release or evidence.outcome == .closed)
                 try self.root.requireControlDeclaration(evidence.declared)
             else
                 try self.root.requireDeclaration(evidence.declared);
@@ -1302,6 +1461,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             result.next_lsn = evidence.accepted().next_lsn;
             result.receipts = try self.tree().put(result.receipts, try Evidence.operationKey(evidence.operation()), reference);
             switch (evidence.outcome) {
+                .closed => {},
                 .queue_release => |receipt| if (kind == .queue) {
                     try self.requireOriginalClaim(receipt.release.claim);
                     if (try self.claimReadReleased(receipt.release.claim)) return error.QueueReadReleased;
@@ -1358,7 +1518,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                     result.pins = try self.tree().put(result.pins, try Evidence.operationKey(receipt.release.read.owner), try (Read.Pin{ .source = receipt.release.read.source, .released = true }).encode());
                 },
                 .offset => |value| {
-                    const advanced = try self.advanceGroup(value.receipt.commit, value.cursor);
+                    const advanced = try self.advanceGroup(value.receipt.commit, value.progress);
                     try self.putGroup(&result, try self.progress(advanced.group.id), advanced);
                 },
             }
@@ -1367,7 +1527,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         }
         fn publish(self: *Self, evidence: Evidence.Record, payload: []const u8, guard: Guard) !void {
             const reserve = switch (evidence.outcome) {
-                .release, .offset, .settlement, .terminal, .queue_release => true,
+                .release, .offset, .settlement, .terminal, .queue_release, .closed => true,
                 .assignment => |value| value.assignment.expected != null,
                 .append, .read, .claim => false,
             };
@@ -2094,6 +2254,10 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             const found = try self.tree().get(root, key) orelse return error.InvalidLogHistory;
             if (!std.mem.eql(u8, found.data[0..found.len], value.data[0..value.len])) return error.InvalidLogHistory;
         }
+        fn privateIndexObject(raw: *anyopaque, name: []const u8) bool {
+            const overlay: *CandidateObjects = @ptrCast(@alignCast(raw));
+            return overlay.contains(name);
+        }
         fn verifyTransition(self: *Self, record: r.Record, payload: []const u8, guard: Guard) !void {
             if (record.action == .operation and record.action.operation.outcome == .terminal) return error.InvalidLogPreparation;
             const next = record.root;
@@ -2110,8 +2274,13 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 try self.candidate_objects.reset(self.objects);
                 self.objects = self.candidate_objects.objectStore();
                 self.store.store = self.objects;
-                self.store.clearCache();
-                defer self.store.clearCache();
+                self.store.clearDerived();
+                const provenance = self.store.load_provenance;
+                self.store.load_provenance = .{ .context = &self.candidate_objects, .is_private = privateIndexObject };
+                defer {
+                    self.store.clearDerived();
+                    self.store.load_provenance = provenance;
+                }
                 try self.store.begin(self.options.index_work_bytes);
                 defer self.store.end();
                 var expected = switch (record.action) {
@@ -2220,7 +2389,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 return;
             }
             const evidence = record.action.operation;
-            if (evidence.outcome == .offset or evidence.outcome == .release)
+            if (evidence.outcome == .offset or evidence.outcome == .release or evidence.outcome == .closed)
                 try self.root.requireControlDeclaration(evidence.declared)
             else
                 try self.root.requireDeclaration(evidence.declared);
@@ -2238,6 +2407,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             expected.changed_lsn = next.changed_lsn;
             expected.receipts = next.receipts;
             switch (evidence.outcome) {
+                .closed => {},
                 .claim, .settlement, .terminal, .queue_release => return error.InvalidLogHistory,
                 .append => |receipt| {
                     if (receipt.first != self.root.next_offset) return error.InvalidLogHistory;
@@ -2274,7 +2444,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 .offset => |value| {
                     // Acceptance already authenticated coverage under the then-current
                     // key. Key rotation cannot revoke that accepted result on replay.
-                    const advanced = try self.advanceGroup(value.receipt.commit, value.cursor);
+                    const advanced = try self.advanceGroup(value.receipt.commit, value.progress);
                     expected.groups = next.groups;
                     expected.group_offsets = next.group_offsets;
                     try self.verifyGroup(next, try self.progress(advanced.group.id), advanced);

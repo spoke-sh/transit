@@ -27,7 +27,8 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
         scanned: u64 = 0,
         selected: u64 = 0,
         value_count: u64 = 0,
-        sum: ?i64 = null,
+        sum: ?i128 = null,
+        scalar_work: logical.Scalar.Workspace = .{},
         emitted: u64 = 0,
         /// Host output boundary to serve with single-row acquisition first.
         startup_rows: u16 = 1,
@@ -50,8 +51,11 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
         pub fn initBudget(scan: Scan, plan: logical.Plan, limits: batch.Limits) !Self {
             var physical = try batch.init(scan.allocator, plan, limits);
             errdefer physical.deinit();
-            const row_allocator = if (!borrows and @hasDecl(Scan, "nextAllocated")) try RowAllocator.init(scan.allocator) else null;
-            return .{ .scan = scan, .row_allocator = row_allocator, .physical = physical, .fingerprint = physical.fingerprint };
+            const row_allocator: ?*RowAllocator = if (!borrows and @hasDecl(Scan, "nextAllocated")) try RowAllocator.init(scan.allocator) else null;
+            errdefer if (row_allocator) |allocator| allocator.deinit();
+            var result: Self = .{ .scan = scan, .row_allocator = row_allocator, .physical = physical, .fingerprint = physical.fingerprint };
+            try physical.plan.scalars.prepare(physical.plan.schema.structure, &result.scalar_work);
+            return result;
         }
         pub fn deinit(self: *Self) void {
             if (self.pending) |*row| row.deinit();
@@ -208,21 +212,37 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
                     },
                     .truth => |truth| if (!truth.selects()) continue,
                 }
-                self.selected = try std.math.add(u64, self.selected, 1);
+                if (plan.scalars.instructions.len != 0) {
+                    var inputs: [128]Cell = undefined;
+                    for (self.physical.columns, inputs[0..plan.schema.structure.len]) |column, *cell| {
+                        // Unretained values are used only by state predicates or
+                        // COUNT(column); scalar dependencies retain their values.
+                        cell.* = if (column.data == .states_only and column.states[i] == .value) .{ .value = .{ .atom = .{ .boolean = false } } } else column.view(self.physical.len).cell(i);
+                    }
+                    const evaluated = plan.materialize(inputs[0..plan.schema.structure.len], &self.scalar_work) catch |err| {
+                        if (self.scalar_work.failed) |instruction| self.capture(.projection, @intCast(plan.schema.structure.len + instruction), i, instruction);
+                        return err;
+                    };
+                    var counters: logical.Counters = .{ .selected = self.selected, .value_count = self.value_count, .sum = self.sum };
+                    var site: ?logical.Counters.FailureSite = null;
+                    _ = counters.contribute(plan, evaluated, &site) catch |err| {
+                        if (site) |failure| self.capture(failure.operation, failure.column, i, failure.instruction);
+                        return err;
+                    };
+                    self.selected = counters.selected;
+                    self.value_count = counters.value_count;
+                    self.sum = counters.sum;
+                } else self.selected = try std.math.add(u64, self.selected, 1);
                 self.physical.selection[self.physical.selected] = i;
                 self.physical.selected += 1;
-                if (plan.aggregate == .count_values) {
+                if (plan.scalars.instructions.len == 0 and plan.aggregate == .count_values) {
                     self.value_count = @import("Finite.zig").countState(self.value_count, self.physical.columns[plan.projection[0]].states[i]) catch |err| {
                         self.capture(.count, plan.projection[0], i, null);
                         return err;
                     };
                 }
-                if (plan.aggregate == .sum) {
-                    self.sum = @import("Finite.zig").sum(self.sum, self.physical.columns[plan.projection[0]].view(self.physical.len).cell(i), struct {
-                        fn integer(value: types.Values.Value) !i64 {
-                            return @intCast(value.atom.signed);
-                        }
-                    }.integer) catch |err| {
+                if (plan.scalars.instructions.len == 0 and plan.aggregate == .sum) {
+                    self.sum = logical.Counters.addSum(self.sum, try plan.sumType(), self.physical.columns[plan.projection[0]].view(self.physical.len).cell(i)) catch |err| {
                         self.capture(.sum, plan.projection[0], i, null);
                         return err;
                     };
@@ -232,7 +252,7 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
                     errdefer arena.deinit();
                     const cells = try arena.allocator().alloc(Cell, plan.projection.len);
                     for (plan.projection, cells) |column, *cell| {
-                        cell.* = try types.Values.cloneValidated(arena.allocator(), self.physical.columns[column].view(self.physical.len).cell(i));
+                        cell.* = try types.Values.cloneValidated(arena.allocator(), if (plan.scalars.instructions.len == 0) self.physical.columns[column].view(self.physical.len).cell(i) else self.scalar_work.row[column]);
                     }
                     try self.disclose();
                     self.emitted = try std.math.add(u64, self.emitted, 1);
@@ -249,7 +269,7 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
                 var arena: std.heap.ArenaAllocator = .init(self.scan.allocator);
                 errdefer arena.deinit();
                 const cells = try arena.allocator().alloc(Cell, 1);
-                cells[0] = try (logical.Counters{ .selected = self.selected, .value_count = self.value_count, .sum = self.sum }).result(plan.aggregate);
+                cells[0] = try (logical.Counters{ .selected = self.selected, .value_count = self.value_count, .sum = self.sum }).result(plan);
                 try self.disclose();
                 self.complete = true;
                 self.emitted = 1;
@@ -280,10 +300,10 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
                 self.sum = counters.sum;
             }
             var site: ?logical.Counters.FailureSite = null;
-            const selected = counters.observe(plan, row.cells, &site) catch |err| {
+            const selected = counters.observePrepared(plan, row.cells, &self.scalar_work, &site) catch |err| {
                 self.scanned = counters.scanned;
                 if (site) |failure| {
-                    self.captureState(failure.operation, failure.column, std.meta.activeTag(row.cells[failure.column]), failure.instruction);
+                    self.captureState(failure.operation, failure.column, if (failure.column < row.cells.len) std.meta.activeTag(row.cells[failure.column]) else .value, failure.instruction);
                     if (@hasDecl(Scan, "restoreBatchPosition")) if (self.pending_provenance.location) |position| self.scan.restoreBatchPosition(position);
                 }
                 return err;
@@ -293,13 +313,13 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
                 var arena: std.heap.ArenaAllocator = .init(self.scan.allocator);
                 errdefer arena.deinit();
                 const projected = try arena.allocator().alloc(Cell, plan.projection.len);
-                for (plan.projection, projected) |column, *cell| cell.* = try types.Values.cloneValidated(arena.allocator(), row.cells[column]);
+                for (plan.projection, projected) |column, *cell| cell.* = try types.Values.cloneValidated(arena.allocator(), plan.evaluated(row.cells, &self.scalar_work)[column]);
                 try self.disclose();
                 self.emitted = try std.math.add(u64, self.emitted, 1);
                 return .{ .arena = arena, .cells = projected };
             }
             const projected = try row.arena.allocator().alloc(Cell, plan.projection.len);
-            for (plan.projection, projected) |column, *cell| cell.* = row.cells[column];
+            for (plan.projection, projected) |column, *cell| cell.* = plan.evaluated(row.cells, &self.scalar_work)[column];
             row.cells = projected;
             try self.disclose();
             self.emitted = try std.math.add(u64, self.emitted, 1);
@@ -308,12 +328,12 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
         }
 
         fn capture(self: *Self, operation: @FieldType(logical.Failure, "operation"), column: u8, row: usize, instruction: ?u8) void {
-            self.captureState(operation, column, self.physical.columns[column].states[row], instruction);
+            self.captureState(operation, column, if (column < self.physical.columns.len) self.physical.columns[column].states[row] else .value, instruction);
             if (@hasDecl(Scan, "restoreBatchPosition")) if (self.physical.provenance[row].location) |position| self.scan.restoreBatchPosition(position);
         }
         fn captureState(self: *Self, operation: @FieldType(logical.Failure, "operation"), column: u8, state: types.State, instruction: ?u8) void {
             const plan = self.physical.plan;
-            const field = plan.schema.structure[column];
+            const field = plan.inputField(column) catch return;
             const typed = @import("FileValueDiagnostic.zig").init(.{}, field.type, null);
             var detail: logical.Failure = .{
                 .operation = operation,

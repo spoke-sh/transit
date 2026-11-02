@@ -5,6 +5,7 @@ const g = @import("root.zig");
 const Self = @This();
 pub const Subject = union(enum) {
     table: g.catalog.protocol.DataLifecycle.Definition,
+    historical: @FieldType(g.catalog.DirectHistory.Request, "source"),
     log: g.catalog.DirectLog.Definition,
     namespace: g.catalog.TableAuthority.Schema,
     database: g.DatabaseAccount.Binding,
@@ -14,6 +15,7 @@ len: u8 = 0,
 origins: bool = false,
 transaction: ?g.catalog.protocol.Transaction.Handle = null,
 transaction_context: ?g.catalog.DirectTransactionRead.Context = null,
+workload: ?g.catalog.DirectWorkloadResult.Reference = null,
 pub fn append(self: *Self, subject: ?Subject) !void {
     const value = subject orelse return;
     if (self.len == self.subjects.len) return error.InvalidReadBatch;
@@ -22,12 +24,23 @@ pub fn append(self: *Self, subject: ?Subject) !void {
 }
 pub fn validate(self: Self, host: *g.Session, prepared: *g.Session.Prepared) !void {
     try host.validate(prepared);
+    if (self.workload) |reference| {
+        if (prepared.* != .workload) return error.WorkloadResultConflict;
+        const opened = try prepared.workload.open(host.table);
+        try reference.requireSame(opened.reference);
+    }
     if (self.transaction_context != null and (!std.meta.eql(self.transaction_context, host.table.transaction) or !std.meta.eql(self.transaction, host.transaction.handle))) return error.TransactionReadChanged;
     if (self.origins) {
         const settings = try @import("SessionSettings.zig").client(host);
         if (!try host.freshOn(.settings, g.query.SettingsClient.canSeeOrigins, .{settings})) return error.ConfigurationDenied;
     }
+    var historical: [g.ReadBatch.max_rows]g.catalog.DirectTableProtocol.ReadCheck = undefined;
+    var count: usize = 0;
     for (self.subjects[0..self.len]) |slot| switch (slot.?) {
+        .historical => |input| {
+            historical[count] = .{ .historical = input };
+            count += 1;
+        },
         .table => |definition| {
             _ = try host.table.require(.{ .namespace = host.namespace, .target = definition, .access = .inspect });
         },
@@ -49,4 +62,8 @@ pub fn validate(self: Self, host: *g.Session, prepared: *g.Session.Prepared) !vo
             _ = try table.require(.{ .namespace = null, .target = null, .access = .database });
         },
     };
+    if (count != 0) {
+        const response = try host.table.call(.{ .check_set = historical[0..count] });
+        defer response.deinit();
+    }
 }

@@ -22,7 +22,7 @@ ROW_MODES = ('rows', 'empty', 'incomplete', 'interrupt_fetch', 'drop_fetch') + B
 def peer(mode, *, length=None, maximum=32, empty_terminal=False):
     definition = re.search(r'\b([a-f0-9]{64})\b', (ROOT/'packages/zig/transit-protocol/src/Growth.zig').read_text()).group(1)
     logical = json.loads((ROOT/'packages/zig/transit-sql-protocol/src/fixtures/logical.json').read_text())
-    observation = dict(metadata=dict(kind='probe', consistency='session', namespace=None, definitions=[], configuration_revision=None, session_settings=None, source=None))
+    observation = dict(metadata=dict(kind='probe', consistency='session', namespace=None, definitions=[], configuration_revision=None, session_settings=None, source=None, historical=None, projections=[]))
     state = dict(actions=[], token=None, entered=threading.Event(), expired=False, observations=0, submitted=None, dropped=False)
     def failure(code, state='HY000'):
         return dict(err=dict(code=code, sqlstate=list(state.encode()), message=code, retry='never', operation=None, diagnostic=None))

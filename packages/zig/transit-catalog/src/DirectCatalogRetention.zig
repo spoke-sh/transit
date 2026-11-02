@@ -38,7 +38,7 @@ pub const Snapshot = struct {
     pub fn native(self: Snapshot, connection: w.Connection) !w.Snapshot {
         return .{ .object = try self.owner.object.native(), .handle = .{ .owner = try self.owner.check(connection), .content = try self.content.native() } };
     }
-    fn foreign(allocator: Allocator, owner: Owner, handle: c.storage.TablePartition.SnapshotHandle) !Snapshot {
+    pub fn foreign(allocator: Allocator, owner: Owner, handle: c.storage.TablePartition.SnapshotHandle) !Snapshot {
         if (!std.meta.eql(try owner.identity(), handle.owner)) return error.InvalidTableResponse;
         return .{ .owner = try owner.copy(allocator), .content = try h.Content.foreign(allocator, handle.content) };
     }

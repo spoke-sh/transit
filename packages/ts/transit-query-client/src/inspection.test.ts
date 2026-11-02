@@ -28,6 +28,7 @@ test("compiled metadata preserves output names and rejects malformed name vector
     plan: {
       version: 1,
       collations: null,
+      scalar_program: "00",
       projection: [1, 0],
       output_names: ["Result", null],
       limit: null,
@@ -144,6 +145,7 @@ test("compiled Table metadata is complete and scope-bound independently of displ
     plan: {
       version: 1,
       collations: null,
+      scalar_program: "00",
       projection: [0],
       output_names: null,
       limit: null,
@@ -153,6 +155,28 @@ test("compiled Table metadata is complete and scope-bound independently of displ
   };
   expect(validateUnifiedQuery({ compiled })).toBe(true);
   const table = compiled.source.source.table;
+  for (const collation of ["ebcdic_037_pad", "ebcdic_1047_nopad"]) {
+    const collations = ["none", collation];
+    const textTable = {
+      ...table,
+      collations,
+      row_type: {
+        structure: [
+          table.row_type.structure[0],
+          { ...table.row_type.structure[1], type: { utf8: {} } },
+        ],
+      },
+    };
+    expect(
+      validateUnifiedQuery({
+        compiled: {
+          ...compiled,
+          source: { ...compiled.source, source: { table: textTable } },
+          plan: { ...compiled.plan, collations },
+        },
+      }),
+    ).toBe(true);
+  }
   for (const replacement of [
     { ...table, owner: 0 },
     { ...table, object: "0" },

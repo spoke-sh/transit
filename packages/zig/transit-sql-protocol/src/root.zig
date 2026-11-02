@@ -106,26 +106,35 @@ pub const Operation = struct {
     transaction: ?results.Transaction = null,
     configuration_phase: ?enum { applying, applied, pending_restart, rejected, partial } = null,
     diagnostic: ?@import("transit_protocol").Diagnostic = null,
+    result_kind: enum { command, rows } = .command,
+    workload: ?results.Workload.Evidence = null,
     pub fn validate(self: Operation) !void {
         if (self.identity.id == 0 or ((self.phase == .terminal) != (self.outcome != null))) return error.InvalidSqlOperation;
         if (self.phase == .terminal) {
-            _ = try self.completion();
-        } else if (self.matched != 0 or self.changed != 0 or self.transaction != null) return error.InvalidSqlOperation;
+            _ = try self.commandEvidence();
+        } else if (self.matched != 0 or self.changed != 0 or self.transaction != null or self.workload != null) return error.InvalidSqlOperation;
+        if (self.result_kind == .rows and (self.identity.kind != .workload or (self.phase == .terminal and self.outcome != .applied) or
+            (self.command != .produce and self.command != .consume and self.command != .enqueue and self.command != .claim))) return error.InvalidSqlOperation;
         if ((self.phase == .ready or self.phase == .active) and self.command == null) return error.InvalidSqlOperation;
     }
     pub fn completion(self: Operation) !results.CommandCompletion {
+        if (self.result_kind == .rows) return error.SqlRowsRequired;
+        return self.commandEvidence();
+    }
+    fn commandEvidence(self: Operation) !results.CommandCompletion {
         if (self.phase != .terminal or self.outcome == null or self.command == null) return error.SqlOutcomeUnknown;
         const value: results.CommandCompletion = .{
             .kind = self.command.?,
             .outcome = self.outcome.?,
             .counts = switch (self.command.?) {
-                .insert, .update, .delete, .create_table, .alter_table, .drop_table, .create_schema, .alter_schema, .drop_schema, .create_stream, .alter_stream, .drop_stream, .create_queue, .alter_queue, .drop_queue => .{ .matched = self.matched, .changed = self.changed },
+                .insert, .update, .delete, .produce, .enqueue, .create_table, .alter_table, .drop_table, .create_schema, .alter_schema, .drop_schema, .create_stream, .alter_stream, .drop_stream, .create_queue, .alter_queue, .drop_queue => .{ .matched = self.matched, .changed = self.changed },
                 else => null,
             },
             .operation = self.identity,
             .pending_restart = self.configuration_phase == .pending_restart,
             .diagnostic = self.diagnostic,
             .transaction = self.transaction,
+            .workload = self.workload,
         };
         try value.validate();
         return value;

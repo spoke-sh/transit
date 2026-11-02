@@ -253,7 +253,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .root_source_file = b.path("tests/interfaces/sql/sql_mutation.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{.{ .name = "transit_station", .module = station.module("transit_station") }},
+        .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
     }) });
     sql_test.addArtifactArg(mutation_sql);
     const table_dml_sql = b.addSystemCommand(&.{ "python3", "-B" });
@@ -1405,6 +1405,24 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .imports = &.{ .{ .name = "transit_station", .module = station.module("transit_station") }, .{ .name = "fixture_growing_support", .module = test_modules.get(.growing_support) }, .{ .name = "fixture_growing_views", .module = test_modules.get(.growing_views) } },
     }) });
     growing_service.addArtifactArg(growing_station);
+    const station_turn = b.addExecutable(.{ .name = "transit-station-turn-baseline", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/performance/load/station_turn.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_station", .module = station.module("transit_station") }, .{ .name = "fixture_growing_support", .module = test_modules.get(.growing_support) }, .{ .name = "transit_memory", .module = b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory") } },
+    }) });
+    const station_turn_run = b.addSystemCommand(&.{ "python3", "-B" });
+    station_turn_run.addFileArg(b.path("tests/runner/launch.py"));
+    station_turn_run.addFileArg(b.path("tests/performance/load/station_turn.py"));
+    station_turn_run.addArtifactArg(node_artifact);
+    station_turn_run.addArtifactArg(station_turn);
+    station_turn_run.addPassthruArgs();
+    station_turn_run.has_side_effects = true;
+    station_turn_run.stdio = .inherit;
+    b.step("test-station-turn-baseline", "Measure confirmed installed Station handler turns and restart readback").dependOn(&station_turn_run.step);
+    const station_turn_build = b.step("station-turn-baseline-build", "Build installed Station handler baseline artifacts");
+    station_turn_build.dependOn(&station_turn.step);
+    station_turn_build.dependOn(&node_artifact.step);
     const growing_query = b.addExecutable(.{ .name = "transit-query-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/query/execution/growing_query.zig"),
         .target = target,
@@ -1466,7 +1484,17 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     direct_table_client.root_module.addImport("fixture_direct_state_transaction", test_modules.get(.direct_state_transaction));
     direct_table_client.root_module.addImport("fixture_direct_queue_transfer", test_modules.get(.direct_queue_transfer));
     direct_table_client.root_module.addImport("fixture_direct_log_token", test_modules.get(.direct_log_token));
+    direct_table_client.root_module.addImport("fixture_log_runtime", test_modules.get(.log_runtime));
     b.step("direct-table-proof", "Build the signed direct database proof caller").dependOn(&b.addInstallArtifact(direct_table_client, .{}).step);
+    const log_runtime = b.addSystemCommand(&.{ "python3", "-B" });
+    log_runtime.addFileArg(b.path("tests/runner/launch.py"));
+    log_runtime.addFileArg(b.path("tests/performance/storage/log_runtime.py"));
+    log_runtime.addArtifactArg(node_artifact);
+    log_runtime.addArtifactArg(direct_table_client);
+    log_runtime.addPassthruArgs();
+    log_runtime.has_side_effects = true;
+    log_runtime.stdio = .inherit;
+    b.step("test-log-runtime-baseline", "Measure installed signed Stream and Queue calls with restart readback").dependOn(&log_runtime.step);
     const direct_table_service = b.addSystemCommand(&.{ "python3", "-B" });
     direct_table_service.addFileArg(b.path("tests/runner/launch.py"));
     direct_table_service.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
@@ -1861,6 +1889,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .link_libc = true,
         .imports = &.{ .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_sql_service", .module = sql_gateway.module("transit_sql_service") }, .{ .name = "transit_sql_client", .module = sql_client.module("transit_sql_client") }, .{ .name = "transit_http_server", .module = b.dependency("transit_http_server", .{ .target = target, .optimize = optimize }).module("transit_http_server") }, .{ .name = "transit_serving_http", .module = serving_http.module("transit_serving_http") } },
     }) });
+    configuration_probe.root_module.linkSystemLibrary("crypto", .{ .use_pkg_config = .force, .preferred_link_mode = if (target.result.abi.isMusl()) .static else .dynamic });
     const sql_wire_gateway = b.addSystemCommand(&.{ "python3", "-B" });
     const sql_wire_build = b.step("test-sql-wire-build", "Install SQL proof binaries for measurements after compilation finishes");
     sql_wire_gateway.step.dependOn(&encoding_cost.step);
@@ -2162,6 +2191,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     b.step("growing-capacity-proof", "Install the growing physical pressure proof driver").dependOn(&b.addInstallArtifact(growing_capacity, .{}).step);
     build_test_step.dependOn(&growing_capacity.step);
     test_modules.wire(&.{
+        .{ .name = "transit_memory", .module = b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory") },
         .{ .name = "transit_data_client", .module = b.dependency("transit_data_client", .{ .target = target, .optimize = optimize }).module("transit_data_client") },
         .{ .name = "cli_support", .module = cli_support },
         .{ .name = "transit_backend_ursula", .module = adapter.module("transit_backend_ursula") },

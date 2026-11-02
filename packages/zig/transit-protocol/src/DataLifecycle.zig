@@ -258,11 +258,28 @@ pub const SourceCut = struct {
     }
 };
 
+/// Attribution to an acquired transaction closure. The publishing owner must
+/// authenticate this closure and every retained participant; copying these
+/// fields alone proves neither acquisition nor membership.
+pub const CommonCut = struct {
+    transaction: Operation,
+    acquired: Position,
+    sources: Content,
+    source_count: u64,
+    pub fn validate(self: CommonCut) !void {
+        try self.transaction.validate();
+        try self.acquired.validate();
+        try self.sources.validate();
+        if (self.acquired.next_lsn == 0 or self.source_count == 0) return error.InconsistentSnapshot;
+    }
+};
+
 pub const Consistency = union(enum) {
     /// All sources have one exclusive frontier in the same acceptance domain.
     single_partition: Position,
     /// Exact individual bases, without a cross-partition consistency promise.
     independent: void,
+    common_transaction: CommonCut,
 };
 
 /// The source directory is immutable and paged; source count is not a resident
@@ -284,6 +301,10 @@ pub const Snapshot = struct {
         switch (self.consistency) {
             .single_partition => |position| try position.validate(),
             .independent => {},
+            .common_transaction => |cut| {
+                try cut.validate();
+                if (!std.meta.eql(cut.transaction.scope, self.owner.scope) or cut.source_count < self.source_count) return error.InconsistentSnapshot;
+            },
         }
     }
 
@@ -295,6 +316,7 @@ pub const Snapshot = struct {
         switch (self.consistency) {
             .single_partition => |position| if (!std.meta.eql(position, source.accepted)) return error.InconsistentSnapshot,
             .independent => {},
+            .common_transaction => {}, // membership is checked against the owner's immutable directory
         }
     }
 };

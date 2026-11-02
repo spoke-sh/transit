@@ -26,7 +26,7 @@ identities of your already-provisioned owners and login role):
 
 ```yaml
 version: 1
-definition: 082c5ef4fcfe2d1daa385774f5843ecf933af68d68a91df4b7d1281faf55dca1
+definition: 7c81d0916913d774febe2bec8f739f95a194f3ca88056c9f1214c0f77f22fa89
 sources:
   - name: counters
     database: transit

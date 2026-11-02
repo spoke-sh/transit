@@ -11,6 +11,80 @@ fn hash(bytes: []const u8) [32]u8 {
 fn open(dir: std.Io.Dir) !Store {
     return Store.openDiskAt(t.allocator, t.io, dir, "objects");
 }
+
+test "bounded whole-object reads use one descriptor and preserve caller buffers" {
+    const Probe = struct {
+        var real: *const std.Io.VTable = undefined;
+        var opens: usize = 0;
+        fn openFile(context: ?*anyopaque, dir: std.Io.Dir, path: []const u8, options: std.Io.Dir.OpenFileOptions) std.Io.File.OpenError!std.Io.File {
+            opens += 1;
+            return real.dirOpenFile(context, dir, path, options);
+        }
+    };
+    Probe.real = t.io.vtable;
+    var vtable = t.io.vtable.*;
+    vtable.dirOpenFile = Probe.openFile;
+    var io = t.io;
+    io.vtable = &vtable;
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var allocations = t.FailingAllocator.init(t.allocator, .{});
+    var store = try Store.openDiskAt(allocations.allocator(), io, tmp.dir, "objects");
+    defer store.deinit();
+    const value = "owned immutable bytes";
+    const expected = try store.objectStore().putImmutable("whole", value, hash(value));
+    _ = try store.objectStore().putImmutable("empty", "", hash(""));
+    allocations.fail_index = allocations.alloc_index;
+    const before = allocations.alloc_index;
+    var ordinary = store.objectStore().vtable.*;
+    ordinary.getObject = null;
+    const fallback: @import("TransitObjectStore.zig").ObjectStore = .{ .context = &store, .vtable = &ordinary };
+    for ([_]bool{ false, true }) |fused| {
+        const objects = if (fused) store.objectStore() else fallback;
+        var output: [64]u8 = @splat(99);
+        Probe.opens = 0;
+        try t.expectEqualDeep(expected, (try objects.getObject("whole", &output)).?);
+        try t.expectEqual(@as(usize, if (fused) 2 else 3), Probe.opens);
+        try t.expectEqualStrings(value, output[0..value.len]);
+        try t.expect(std.mem.allEqual(u8, output[value.len..], 99));
+        var small: [1]u8 = .{99};
+        try t.expectError(error.BufferTooSmall, objects.getObject("whole", &small));
+        try t.expectEqual(@as(u8, 99), small[0]);
+        try t.expect(try objects.getObject("missing", &small) == null);
+        const empty = (try objects.getObject("empty", &small)).?;
+        try t.expectEqual(@as(u64, 0), empty.size);
+        try t.expectEqualDeep(hash(""), empty.sha256);
+        try t.expectEqual(@as(u8, 99), small[0]);
+        // Subsequent reads cannot invalidate the earlier caller-owned bytes.
+        try t.expectEqualStrings(value, output[0..value.len]);
+        try t.expectError(error.InvalidObjectKey, objects.getObject("../whole", &output));
+    }
+    try t.expectEqual(before, allocations.alloc_index);
+}
+
+test "whole-object read composition refuses a descriptor publication race" {
+    const Race = struct {
+        fn head(context: *anyopaque, key: []const u8) !?@import("TransitObjectStore.zig").ObjectMeta {
+            const store: *Store = @ptrCast(@alignCast(context));
+            const before = (try store.headObject(key)).?;
+            try t.expect(try store.objectStore().putConditional(key, .{ .if_match = before.sha256 }, "after!"));
+            return before;
+        }
+    };
+    var objects = Store.initMemory(t.allocator);
+    defer objects.deinit();
+    try t.expect(try objects.objectStore().putConditional("manifest", .if_none_match, "before"));
+    var vtable = objects.objectStore().vtable.*;
+    vtable.getObject = null;
+    vtable.head = Race.head;
+    const composed: @import("TransitObjectStore.zig").ObjectStore = .{ .context = &objects, .vtable = &vtable };
+    var output: [6]u8 = undefined;
+    try t.expectError(error.ObjectDigestMismatch, composed.getObject("manifest", &output));
+    // The replacement remains the provider's actual value, not an invented
+    // snapshot assembled from the old descriptor and newer bytes.
+    try t.expectEqualDeep(hash("after!"), (try objects.objectStore().getObject("manifest", &output)).?.sha256);
+    try t.expectEqualStrings("after!", &output);
+}
 test "independent disk handles cannot publish using a stale cached precondition" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
@@ -131,6 +205,11 @@ test "bounded range reads cross chunks and detect touched data and checksum corr
     defer store.deinit();
     const key = "segments/1/big.tseg";
     _ = try store.objectStore().putImmutable(key, bytes, hash(bytes));
+    const complete = try t.allocator.alloc(u8, bytes.len);
+    defer t.allocator.free(complete);
+    const metadata = (try store.objectStore().getObject(key, complete)).?;
+    try t.expectEqualDeep(hash(bytes), metadata.sha256);
+    try t.expectEqualSlices(u8, bytes, complete);
     var out: [1024]u8 = undefined;
     const offset = Disk.chunk_bytes - 13;
     try t.expectEqualSlices(u8, bytes[offset..][0..out.len], try store.objectStore().getRange(key, offset, out.len, &out));
@@ -143,11 +222,13 @@ test "bounded range reads cross chunks and detect touched data and checksum corr
     defer data.close(t.io);
     try data.writePositionalAll(t.io, "bad", offset);
     try t.expectError(error.ObjectDigestMismatch, store.objectStore().getRange(key, offset, out.len, &out));
+    try t.expectError(error.ObjectDigestMismatch, store.objectStore().getObject(key, complete));
     try data.writePositionalAll(t.io, bytes[offset..][0..3], offset);
     const checks = try tmp.dir.openFile(t.io, try std.fmt.bufPrint(&path, "objects/objects/{s}-{s}.checks", .{ key_hex, data_hex }), .{ .mode = .read_write });
     defer checks.close(t.io);
     try checks.writePositionalAll(t.io, "bad", 0);
     try t.expectError(error.ObjectDigestMismatch, store.objectStore().getRange(key, offset, out.len, &out));
+    try t.expectError(error.ObjectDigestMismatch, store.objectStore().getObject(key, complete));
 }
 
 test "object count and total bytes do not populate the disk owner's allocator" {

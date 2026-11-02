@@ -260,10 +260,17 @@ def generated():
             cut=coverage['cut'], until=coverage['until'], source=read_source,
             accepted=dict(partition=91, next_lsn=13))
         read_handle = dict(owner=read_operation, source=read_source)
-        coverage_body = b'transit.stream.read.coverage.v1\0' + bytes.fromhex(definition) + compact(dict(read=read_handle, coverage=coverage))
-        stream_queue['read_cursor'] = dict(read=read_handle, coverage=coverage,
-                                         authentication=list(hmac.digest(bytes([7]*32), coverage_body, 'sha256')))
+        def read_cursor(selected):
+            body = b'transit.stream.read.coverage.v1\0' + bytes.fromhex(definition) + compact(dict(read=read_handle, coverage=selected))
+            return dict(read=read_handle, coverage=selected,
+                        authentication=list(hmac.digest(bytes([7]*32), body, 'sha256')))
+        stream_queue['read_cursor'] = read_cursor(coverage)
+        first_coverage = dict(coverage, through=coverage['from'], rows=0, complete=False)
+        middle_coverage = dict(coverage, through=coverage['from']+2, rows=1, complete=False)
+        stream_queue['read_progress'] = dict(interval=dict(first=read_cursor(first_coverage), last=read_cursor(middle_coverage)))
+        stream_queue['read_progress_complete'] = dict(exhausted=stream_queue['read_cursor'])
         results[ROOT / 'packages/zig/transit-storage/src/stream_read_fixture.json'] = stream_queue['read_cursor']
+        results[ROOT / 'packages/zig/transit-storage/src/stream_progress_fixture.json'] = stream_queue['read_progress']
         stream_queue['read_release'] = dict(
             release=dict(target=log_target, operation=dict(scope=log_scope, principal=17, operation=2**64-13),
                          read=read_handle), accepted=dict(partition=91, next_lsn=14))

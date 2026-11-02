@@ -33,7 +33,15 @@ row identities, byte budgets and exact cursor advance. The signed `queue` action
 and `DirectQueueClient` expose standalone operations through the native service.
 Saved work preserves the exact original mutation and payload commitment. The
 local node performs bounded automatic lease expiry through catalog maintenance.
-SQL workload verbs and automatic DLQ transfer scheduling remain unavailable.
+Stream and Queue `cancel` requests carry that same saved work and use control
+capacity. A committed mutation returns its original receipt; an unaccepted one
+receives a durable closure that prevents later admission under that identity.
+Mutation and lookup can return `closed` with cancellation or a qualified producer/
+lease refusal. Retryable failures and absent receipts remain unresolved. Closing
+an accepted claim's delivery resources remains the separate `release` mutation.
+SQL admits appends and positional consumption through the shared workload owner.
+The local node can schedule protected
+DLQ transfers with an explicitly configured database signer.
 
 `DirectLogIntent` freezes complete Stream/Queue declaration work in an immutable,
 account-scoped record before caller-token acceptance. The Catalog verifies the
@@ -41,6 +49,94 @@ body, current declaration rights and original operation reservation. Exact token
 recovery resumes the existing declaration owner without resolving a new name or
 recompiling a proposal. Accepted work remains pending through incomplete partition
 initialization; only the owner's actual terminal observation permits settlement.
+
+`DirectWorkloadIntent` prepares a canonical Stream/Queue workload body containing
+the exact source definition/schema, original native request and payload. It
+validates encoded rows and routing against that frozen definition and uses the
+existing account-scoped `DirectRecord` store. The complete JSON body, including
+base64 schema/payload, must fit its 4 MiB bound. Its typed reference can inspect,
+execute or cancel that saved native operation; staging creates neither an
+operation reservation nor acceptance. `DirectClientToken` can select the complete
+reference under current original-operation rights and reserves its native global
+identity. Use `Reference.reservationBytes()` for the minimum retained-work byte
+reservation. Clearing pending requires a matching terminal receipt from the host's
+normal Stream/Queue owner. Bounded recovery, missing receipts and the sticky
+cancel flag supply no completion. SQL result recovery uses this original owner.
+Catalog storage traversal verifies the body and retains its source declaration.
+
+`DirectLogPreparedAppend` binds the standalone `LogAppendSql` compiler to an
+exact named Catalog definition. Preparation owns the schema and template after
+metadata buffers are released. Binding creates a complete workload body with
+native row identities, producer metadata, Queue visibility and the frozen
+RETURNING projection; it performs no upload or admission. Manual multi-partition
+definitions require an explicit partition. Hash routing uses canonical collation
+keys and requires every row to reach the same partition; cross-partition work
+requires the transaction owner and is refused before publication here. Declared
+row/byte budgets and the existing encoded record bound apply. Native token
+acceptance and dispatch retain current write authorization, and result opening
+retains current read authorization. SQL sessions reuse this adapter for append admission.
+
+`DirectLogPreparedConsume` binds the typed consumption compiler to an exact
+Catalog Stream definition for positional preparation. It freezes one native read
+and its owned projection without uploading, accepting or retaining a read.
+Metadata constraints must select one declared partition (a one-partition Stream
+can omit them); Boolean alternatives use a conservative enclosure. The lower
+offset is a positional source boundary. It neither traverses earlier offsets nor
+advances a group checkpoint. The upper cut is chosen once by the native owner at
+acceptance; upper-offset comparisons remain row predicates within that cut.
+The complete predicate retains Fuze's eager evaluation for traversed rows.
+LIMIT stays in the logical plan and never becomes an offset span. Contradictory
+metadata selections, named groups and waits are refused by this preparation
+profile until their admission owners are supplied. SQL `CONSUME` admission
+uses this adapter and the same durable workload runtime as append operations.
+
+`DirectLogPreparedClaim` binds an unfiltered acquisition to one Queue partition.
+A missing selector requires a single partition; otherwise only exact `_partition`
+equality is admitted. It freezes the declared claim maximum (or a smaller LIMIT),
+checked lease duration and complete original-row projection. Routing becomes the
+native target, so the result plan has neither a predicate nor an output limit.
+Other selection predicates and WAIT refuse before admission. The native owner
+still checks eligibility, FIFO, capacity, current rights and trusted time.
+SQL sessions reuse the same workload token and original-result runtime.
+
+`DirectLogPreparedSettlement` binds ACK to the named Queue's stable object,
+partition and claimant, preserving the original lease. Control intents can pair
+an older exact receipt with current preparation metadata for that same object.
+This permits compatible ALTER without rebinding the lease. Data operations still
+require the exact interpretation. Native current policy, time, live-lease and
+original-outcome checks remain authoritative. No result projection is attached
+to ACK; renewal and NACK SQL remain outside this adapter.
+
+`createProjected` additionally freezes a Fuze projection and ordered input layout
+in that body. Validation binds the encoded plan to the exact operation and schema;
+restoration owns its aliases and literals without a new catalog lookup or SQL
+parse. Every body explicitly carries a projection or `null`; older missing fields
+reject. Malformed projection layouts, encodings and foreign plan definitions
+refuse as invalid requests; source mismatches remain conflicts and allocation
+failure remains a resource failure. Native result delivery continues to expose
+the original encoded rows.
+
+`DirectWorkloadResult` owns original-result reads for service composition.
+`DirectWorkloadResultProtocol` exposes `open` and `page` through the signed
+`workload_result` action. Its reference binds the frozen workload, actual append/consume/claim
+receipt and delivery limits. Append/enqueue rows come from the verified saved
+payload; consume and claim pages use the native retained selection. Opening,
+paging and empty completion recheck current original-operation and READ rights.
+The caller supplies separate scratch and output allocation; cursor advancement
+occurs only after disclosure checks, and returned rows survive scratch resets.
+`Page.deinit` releases owned output; failed reads free partial output. Saved
+delivery positions can reopen the same selection; append positions
+use bounded ordinal seeking, while native Stream pages authenticate their cursors.
+Delivery pages are bounded to 128 rows and 1 MiB of encoded rows, within the source's read
+limits. Closing frees local buffers without releasing the shared durable read
+dependency or changing leases/group progress. `offsetWork` prepares a separate
+settlement from the exhausted authenticated cursor and the original group;
+`offsetIntervalWork` uses two issued boundaries from the same read. Save
+it as a workload intent before dispatch. It cannot derive coverage from a caller's
+numeric offset or result row count. The native owner still authenticates the cursor
+and rechecks current rights/assignment. The SQL service restores frozen projections
+and opens original results through this owner. SQL append and positional
+consumption admission are implemented; SQL group settlement remains unavailable.
 
 `DirectLogPreparedDdl` binds the shared `LogDdl` compiler to current Catalog
 metadata and resolves named DLQ references to exact definitions. Native preview
@@ -67,6 +163,21 @@ read-only operation lookup can disclose its actual receipt after commit.
 `DirectStreamResponse` validates exact operation attribution, pinned schemas,
 ordered row identities, byte budgets and finite coverage. Pages carry the
 original source declaration, including after a later ALTER or DROP.
+
+`DirectQueueTransferPlan` freezes an exhausted item's exact paired transfer,
+one caller token, limits and four original operation identities. The internal
+`DirectCatalog.admitQueueTransfer` verifies the source, recorded destination,
+payload and current grants before admitting a standard transaction with a
+protected purpose. One catalog acceptance binds its source key and pending
+recovery entry. The source key excludes mutable policy and caller fields; its
+permanent binding prevents a replacement signer or account from reissuing work.
+`advanceQueueTransfer` uses the existing statement workspace and decision log;
+`abortQueueTransfer` settles the original identity and cannot undo a commit.
+Generic transaction mutations cannot modify these entries. The retained graph
+protects the plan's payload and definitions before acquisition. These library
+operations require the host's exclusive database publication/collection gate.
+The node's optional `table.queue_transfers` worker composes this owner; generic
+wire callers can inspect its original transaction but cannot mutate its purpose.
 
 `DirectStream.apply` composes Stream append, original-operation inspection,
 finite reads, consumer assignment and offset settlement with the current catalog
@@ -199,7 +310,9 @@ admit or execute data. See the
 for identity, quota and uncertainty rules. SQL account recovery uses these
 Catalog records independently of Station.
 
-`DirectTransaction.Reference` binds a begin descriptor through that token owner.
+`DirectTransaction.Reference` binds a begin descriptor and mandatory purpose
+through that token owner. Ordinary callers use `interactive`; protected purposes
+can be admitted and changed only by their catalog composition owner.
 Acceptance reserves one coordination partition and preserves it across lost
 replies and retries. The paged selection remains a descriptor: this operation
 does not acquire a common cut or execute a transaction. Its limits and current
@@ -253,6 +366,13 @@ scan coverage unchanged; callers explicitly release their pins. See the
 [retained read contract](../../../contracts/DIRECT_TABLE_V1.md#retained-reads-and-binary-payloads)
 for bounds, current authorization and historical-lease limits.
 
+`DirectCatalogProjection` exposes bounded retained definition and locator
+coverage through the shared catalog `projection` action. Definition pages use
+current metadata visibility; per-row placement pages require SELECT. Both bind
+the original private snapshot, return owned full-width host values and perform
+no row decoding, segment scan or retention mutation. Directory coverage and payload
+verification remain distinct. See [projection coverage](../../../contracts/DIRECT_TABLE_V1.md#retained-projection-coverage).
+
 `HistoricalCatalog` supplies pure, borrowed historical-cut validation and query
 fixtures. Its digest includes the complete supplied cut: schemas, interpretation
 profiles, constraint and dependency descriptors, column origins, segments and
@@ -269,6 +389,33 @@ unchanged. Every fetch, including terminal observation, requires current grants;
 filter evaluation reports `QueryTypeError` and `QueryConflict` rather than
 silently excluding those cells. These borrowed fixtures do not establish disk
 paging, a SQL historical selector or runtime policy integration.
+
+`DirectHistory` is the durable selected-Table owner. Its signed
+`historical_catalog` operations stage exact source selections, bind acquisition
+to an original client token, acquire and verify pins, publish the complete cut,
+and resume bounded abandonment or release. `DirectHistoryDirectory` stores
+content-addressed paged name, namespace and definition directories. The storage
+graph follows accepted acquisition roots and retained Table pins; a staged
+selection alone does not retain rows. `DirectHistory.Selector` encodes the full
+snapshot identity for SQL and callers without narrowing its identifiers.
+
+Historical lookup, metadata pages and scans apply current permissions to the
+original objects. Metadata calls read no segments and acquire no pins. Readers
+borrow a published catalog's retention; closing a reader never releases that
+catalog. An explicitly released snapshot refuses even while cleanup is pending.
+Single-Table cuts, independent vectors and transferred common transaction cuts
+retain their distinct consistency evidence. Common transfers preserve the acquired
+namespaces and definitions, reserve original transaction pins during acquisition,
+and publish independently owned copies. Transaction completion can precede copy
+completion; its cleanup waits for publication or completed abandonment. See the [historical catalog contract](../../../contracts/HISTORICAL_CATALOG_V1.md)
+for operation ownership, pagination, interruption and disclosure limits.
+
+`DirectCatalogHistory` exposes these bounded actions through
+`DirectTableBridge.Action.history` and the shared Catalog host. It copies results
+into the caller's output arena, preserves full-width identities as decimal text,
+and binds list continuations to the exact selector and namespace. Persist the
+original acquisition key and intent before dispatch. Closing the host does not
+abandon or release the catalog.
 
 Browser declaration administration is a typed public interface in
 `BrowserAdministration`: inspect a key, list an eight-entry page, conditionally
@@ -288,3 +435,22 @@ without dispatching an exchange. Expiry and disablement never delete accepted
 history. Native owner quotas still apply. Private secret bytes stay outside these
 records. Signing in confers no native privilege; bindings refer to an existing
 reader's actual credential and reject the bootstrap owner/root role.
+
+`DirectSchemaProjection` exposes metadata-only target preparation and bounded
+forward reads over existing private pins or published historical catalogs.
+`DirectTableReader.projectTo` owns the target schema and preserves the original
+source evidence. CURRENT resolves once; accepted targets and ADD origins survive
+later defaults and DROP. Cursors bind both interpretations and current SELECT
+still governs every read. SQL and its prepared plans use these same operations.
+The [projection contract](../../../contracts/HISTORICAL_CATALOG_V1.md#explicit-schema-projection)
+defines supported mappings and refusal behavior.
+
+## Versioned interpretations
+
+`CatalogDefinition` and `DirectDefinition` publish immutable view, property-graph
+and foreign-decoder interpretations through the same catalog and dependency
+owner. `DirectCatalogDefinitions` projects bounded, owned metadata reads into
+`Catalog.call(.definitions)` and Board's read API. Historical selection retains
+metadata separately from Table pins; zero-source metadata catalogs are explicit.
+The [interpretation contract](../../../contracts/CATALOG_DEFINITIONS_V1.md) owns
+publication, identity, execution limits, current access and artifact verification.

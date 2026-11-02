@@ -22,6 +22,10 @@ pub const Binding = struct {
     /// Application-owned immutable work commitment. The data owner enforces
     /// the Table/pin scope; this digest does not prove honest computation.
     purpose: [32]u8,
+    /// Copy this exact retained pin into owner. The source is needed only on
+    /// first acceptance; the independently owned copy survives source release.
+    copied_from: ?c.storage.TablePartition.SnapshotHandle = null,
+    projection: ?d.Definition = null,
 
     pub fn validate(self: Binding) !void {
         if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
@@ -32,6 +36,16 @@ pub const Binding = struct {
         try self.connection.owner(self.owner);
         if (self.executor > p.max_counter or self.expected.next_lsn == 0 or std.mem.allEqual(u8, &self.purpose, 0)) return error.InvalidTableDelegation;
         if (self.selection == .current and self.retention != .snapshot) return error.InvalidTableDelegation;
+        if (self.projection) |target| {
+            try target.validate();
+            if (self.copied_from == null or !std.meta.eql(target.object, self.interpretation.object) or target.revision < self.interpretation.revision) return error.InvalidTableDelegation;
+        }
+        if (self.copied_from) |source| {
+            try source.owner.validate();
+            try source.content.validate();
+            if (self.selection != .exact or self.retention != .snapshot or
+                !std.meta.eql(source.owner.scope, self.connection.scope) or std.meta.eql(source.owner, self.owner)) return error.InvalidTableDelegation;
+        }
     }
     pub fn context(self: Binding, allocator: std.mem.Allocator) ![32]u8 {
         try self.validate();
@@ -101,7 +115,7 @@ pub const Closure = struct {
 
 /// Bounded canonical storage for the original grant. Repeated claim fields are
 /// constrained by validate; decoding never supplies a missing definition/epoch.
-pub const encoded_bytes = 311;
+pub const encoded_bytes = 433;
 pub fn encode(self: Self, allocator: std.mem.Allocator) ![encoded_bytes]u8 {
     try self.validate(allocator);
     var bytes: [encoded_bytes]u8 = undefined;
@@ -128,6 +142,19 @@ pub fn encode(self: Self, allocator: std.mem.Allocator) ![encoded_bytes]u8 {
     try writer.writeInt(u64, self.proof.claim.credential_epoch, .little);
     try writer.writeAll(&self.proof.claim.context);
     try writer.writeAll(&self.proof.signature);
+    try writer.writeByte(@intFromBool(self.binding.copied_from != null));
+    if (self.binding.copied_from) |source| {
+        inline for (.{ "realm", "resource", "catalog" }) |field| try writer.writeInt(u64, @field(source.owner.scope, field), .little);
+        try writer.writeInt(u64, source.owner.principal, .little);
+        try writer.writeInt(u64, source.owner.operation, .little);
+        try writer.writeInt(u64, source.content.bytes, .little);
+        try writer.writeAll(&source.content.sha256);
+    } else try writer.splatByteAll(0, 80);
+    try writer.writeByte(@intFromBool(self.binding.projection != null));
+    if (self.binding.projection) |target| {
+        try writer.writeInt(u64, target.revision, .little);
+        try writer.writeAll(&target.digest);
+    } else try writer.splatByteAll(0, 40);
     std.debug.assert(writer.end == bytes.len);
     return bytes;
 }
@@ -158,13 +185,28 @@ pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Self {
     const retention = std.enums.fromInt(c.storage.TablePartition.Retention, try reader.takeByte()) orelse return error.InvalidTableDelegation;
     const selection = std.enums.fromInt(w.CaptureSelection, try reader.takeByte()) orelse return error.InvalidTableDelegation;
     const purpose = (try reader.takeArray(32)).*;
-    const result: Self = .{
+    var result: Self = .{
         .binding = .{ .definition = p.Growth.current_definition, .connection = connection, .executor = executor, .interpretation = interpretation, .expected = expected, .selection = selection, .owner = .{ .scope = connection.scope, .principal = connection.principal, .operation = operation }, .retention = retention, .purpose = purpose },
         .proof = .{
             .claim = .{ .definition = p.Growth.current_definition, .realm = connection.scope.realm, .principal = connection.principal, .role = connection.role, .audience = connection.audience, .credential_epoch = try reader.takeInt(u64, .little), .context = (try reader.takeArray(32)).* },
             .signature = (try reader.takeArray(64)).*,
         },
     };
+    const copied = try reader.takeByte();
+    if (copied == 0) {
+        if (!std.mem.allEqual(u8, try reader.take(80), 0)) return error.InvalidTableDelegation;
+    } else if (copied == 1) {
+        result.binding.copied_from = .{
+            .owner = .{ .scope = .{ .realm = try reader.takeInt(u64, .little), .resource = try reader.takeInt(u64, .little), .catalog = try reader.takeInt(u64, .little) }, .principal = try reader.takeInt(u64, .little), .operation = try reader.takeInt(u64, .little) },
+            .content = .{ .bytes = try reader.takeInt(u64, .little), .sha256 = (try reader.takeArray(32)).* },
+        };
+    } else return error.InvalidTableDelegation;
+    const projected = try reader.takeByte();
+    if (projected == 0) {
+        if (!std.mem.allEqual(u8, try reader.take(40), 0)) return error.InvalidTableDelegation;
+    } else if (projected == 1) {
+        result.binding.projection = .{ .object = interpretation.object, .revision = try reader.takeInt(u64, .little), .digest = (try reader.takeArray(32)).* };
+    } else return error.InvalidTableDelegation;
     try result.validate(allocator);
     return result;
 }
@@ -225,9 +267,21 @@ pub fn allow(self: Self, action: w.Action) !void {
         .pin_status => |value| try self.requirePin(value.object, value.owner),
         inline .snapshot, .release => |value| try self.requirePin(value.object, value.handle.owner),
         inline .scan, .column_scan, .filter_scan, .read_key, .key_range => |value| try self.requirePin(value.snapshot.object, value.snapshot.handle.owner),
+        .schema_projection => |request| {
+            const target = self.binding.projection orelse return error.TableDelegationDenied;
+            switch (request) {
+                .prepare => |input| {
+                    if (!std.meta.eql(input.source.interpretation, self.binding.interpretation) or input.target == null or !std.meta.eql(input.target.?.interpretation, target)) return error.TableDelegationDenied;
+                },
+                .scan => |input| {
+                    if (!std.meta.eql(input.target.interpretation, target) or input.source != .snapshot) return error.TableDelegationDenied;
+                    try self.requirePin(input.source.snapshot.object, input.source.snapshot.handle.owner);
+                },
+            }
+        },
         .check_set => |values| for (values) |value| switch (value) {
             .snapshot => |snapshot| try self.requirePin(snapshot.object, snapshot.handle.owner),
-            .access => return error.TableDelegationDenied,
+            .access, .historical => return error.TableDelegationDenied,
         },
         else => return error.TableDelegationDenied,
     }
@@ -270,6 +324,30 @@ test "direct read delegation binds one caller role, executor, definition, pin an
     encoded = try original.encode(t.allocator);
     encoded[110] ^= 1;
     try t.expectError(error.InvalidTableDelegation, decode(t.allocator, &encoded));
+    var copy = original;
+    copy.binding.copied_from = .{ .owner = .{ .scope = binding.connection.scope, .principal = 20, .operation = 21 }, .content = .{ .bytes = 200, .sha256 = @splat(22) } };
+    copy.binding.projection = binding.interpretation;
+    var copy_claim = original.proof.claim;
+    copy_claim.context = try copy.binding.context(t.allocator);
+    copy.proof = try p.Authorization.Proof.sign(copy_claim, key);
+    try t.expectEqualDeep(copy, try decode(t.allocator, &try copy.encode(t.allocator)));
+    try copy.proof.verify(key.public_key.toBytes());
+    try copy.allow(.{ .pin = .{ .object = binding.interpretation.object, .owner = binding.owner, .expected = binding.expected, .selection = .exact } });
+    try t.expectError(error.TableDelegationDenied, copy.allow(.{ .release = .{ .object = binding.interpretation.object, .handle = copy.binding.copied_from.? } }));
+    const source_declaration: c.storage.TableDeclaration.Stored = .{ .kind = .table, .interpretation = binding.interpretation, .content = .{ .bytes = 200, .sha256 = binding.interpretation.digest }, .schema_fingerprint = @splat(30), .retired = false };
+    try copy.allow(.{ .schema_projection = .{ .prepare = .{ .source = source_declaration, .target = source_declaration } } });
+    var other_target = source_declaration;
+    other_target.interpretation.digest[0] ^= 1;
+    try t.expectError(error.TableDelegationDenied, copy.allow(.{ .schema_projection = .{ .prepare = .{ .source = source_declaration, .target = other_target } } }));
+    var changed_copy = copy;
+    changed_copy.binding.copied_from.?.content.sha256[0] ^= 1;
+    try t.expectError(error.InvalidTableDelegation, changed_copy.validate(t.allocator));
+    changed_copy = copy;
+    changed_copy.binding.projection.?.revision += 1;
+    try t.expectError(error.InvalidTableDelegation, changed_copy.validate(t.allocator));
+    changed_copy = copy;
+    changed_copy.binding.copied_from.?.owner = binding.owner;
+    try t.expectError(error.InvalidTableDelegation, changed_copy.binding.validate());
     try original.requirePin(binding.interpretation.object, binding.owner);
     const rotated = try p.Ed25519.KeyPair.generateDeterministic(@splat(29));
     var closure_claim = original.proof.claim;

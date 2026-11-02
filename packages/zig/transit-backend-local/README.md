@@ -33,9 +33,23 @@ Concurrent attempts that both observe a missing key can reserve twice; those
 conservative reservations remain charged until reopen. Direct-object syncs therefore
 do not hold up unrelated native reads or control publication through this mutex.
 Device contention and the serialized WAL can still delay them.
+Bounded whole-object reads forward through the same direct-key boundary and
+return bytes in caller-owned output. The local provider reads the descriptor
+once for both metadata and payload verification. This counts as one observed
+object-read attempt; separate metadata/range calls retain their separate counts.
+Publication authority, payload verification and caller disclosure fences are
+unchanged.
 Direct creation also records a durable key/content inventory before publication.
 The private FIFO and latest per-key epoch use a separate mutex: slow inventory
 syncs can delay other direct creators, but do not hold the native journal mutex.
+Native and direct inventory appends check cancellation before entering their
+bounded WAL publication, then defer cooperative cancellation through that one
+batch of at most eight fixed-size records. Cancellation remains pending for
+subsequent marker/object work. A maintenance deadline can therefore stop private
+work without interrupting this shared bookkeeping commit and forcing foreground
+owner replacement. The deadline still reports a timeout and joins its work;
+joining may wait for the in-flight durability barrier. Actual write/sync failures
+retain the original uncertainty and exclusive-recovery requirement.
 Reusing existing content after a storage fence records the newer epoch, which
 prevents an older inventory item from removing its latest marker. Creation holds
 a shared reclamation fence until publication finishes. Inventory markers, queue
@@ -183,6 +197,10 @@ eligible; a complete mark, native epoch/time fences and exact allocation identit
 are still required before removal. Paged private work and deletion progress
 resume after reopen. See [direct-data collection](docs/maintenance.md#direct-table-and-catalog-collection)
 for invocation, memory limits and permanent saved-intent ownership.
+Each marking step reuses one eight-page immutable batch buffer within its
+existing 64 MiB memory budget. Each bounded graph unit flushes its private index
+pages before the collection checkpoint can publish their roots. Partial staging
+failure preserves the prior checkpoint and cannot authorize a sweep.
 
 Run `nix develop --command zig build test-local-native` from the repository root,
 or `zig build test` here inside the pinned development shell. The root unit task

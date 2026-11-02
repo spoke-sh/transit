@@ -36,9 +36,52 @@ const Script = struct {
         self.releases += 1;
     }
     fn open(self: *Script) !r.ResultSet {
-        return r.ResultSet.init(schema, observation, .{ .result = @splat(1), .schema = try schema.fingerprint(), .observation = try r.Observation.fingerprint(t.allocator, observation) }, .{ .context = self, .next = next, .close = close, .deinit = deinit });
+        return self.openWith(observation);
+    }
+    fn openWith(self: *Script, basis: r.Observation.Value) !r.ResultSet {
+        return r.ResultSet.init(schema, basis, .{ .result = @splat(1), .schema = try schema.fingerprint(), .observation = try r.Observation.fingerprint(t.allocator, basis) }, .{ .context = self, .next = next, .close = close, .deinit = deinit });
     }
 };
+
+test "workload completion validates original claim coverage before publishing semantic progress" {
+    const p = r.protocol;
+    const scope: p.DataLifecycle.Scope = .{ .realm = 1, .resource = 2, .catalog = 3 };
+    const target: p.StreamQueue.Partition = .{ .definition = p.Growth.current_definition, .interpretation = .{ .object = .{ .scope = scope, .branch = 1, .object = 7 }, .revision = 1, .digest = @splat(3) }, .partition = 0 };
+    for ([_]u32{ 0, 2 }) |count| {
+        const receipt: p.StreamQueue.ClaimReceipt = .{ .claim = .{ .target = target, .operation = .{ .scope = scope, .principal = 5, .operation = 11 }, .maximum = 2, .lease_ms = 100 }, .accepted = .{ .partition = 13, .next_lsn = 7 }, .observed_ms = 100, .expires_ms = 200, .rows = count, .leases = if (count == 0) null else .{ .bytes = 256, .sha256 = @splat(9) } };
+        const basis: r.Observation.Value = .{ .data = .{ .workload = .{ .intent = .{ .bytes = 512, .sha256 = @splat(5) }, .schema = @splat(7), .projection = @splat(11), .limit = null, .selection = .{ .claim = receipt } } } };
+        const cells = [_]r.Types.Values.Cell{.{ .value = .{ .atom = .{ .unsigned = 42 } } }};
+        const rows = [_]r.Row{ &cells, &cells };
+        var script: Script = .{};
+        var result = try script.openWith(basis);
+        defer result.deinit();
+        const terminal: r.Completion = .{ .rows = count, .workload = .{ .intent = basis.data.workload.intent, .position = .{ .claim = .{ .receipt = receipt, .next = count } } } };
+        try t.expectError(error.UnexpectedWorkloadCoverage, terminal.validate(observation));
+        const values: r.Batch = .fromRows(rows[0..count]);
+        try t.expectError(error.MissingWorkloadCoverage, result.receive(.{ .values = values, .completion = .{ .rows = count } }));
+        try t.expectEqual(0, result.progress.received);
+        try t.expect(result.completion() == null);
+        if (count != 0) {
+            var partial = terminal;
+            partial.workload.?.position.claim.next -= 1;
+            try t.expectError(error.IncompleteWorkloadCoverage, result.receive(.{ .values = values, .completion = partial }));
+            try t.expectEqual(0, result.progress.received);
+        }
+        try result.receive(.{ .values = values, .completion = terminal });
+        try t.expectEqualDeep(terminal, result.completion().?);
+        try result.close();
+        try t.expectEqual(0, result.progress.delivered);
+        try t.expectEqualDeep(terminal, result.completion().?);
+        try t.expectEqual(1, script.closes);
+        if (count != 0) {
+            var early = try script.openWith(basis);
+            defer early.deinit();
+            try early.receive(.{ .values = .fromRows(rows[0..1]), .completion = null });
+            try early.close();
+            try t.expect(early.completion() == null);
+        }
+    }
+}
 
 test "one semantic consumer handles all chunkings and terminal shapes" {
     for (0..8) |length| for (1..9) |maximum| for ([_]bool{ false, true }) |terminal_empty| {

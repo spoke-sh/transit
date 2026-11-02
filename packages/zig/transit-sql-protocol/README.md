@@ -48,11 +48,15 @@ framing, initial descriptors and subsequent commitments. `ResultColumns` reuses
 Fuze's plain column codec: common scalar values borrow Arrow-compatible buffers;
 other types retain canonical logical cells and borrow variable payloads. The full
 five-state cell meaning remains available. The body owner must outlive its columns.
+Terminal frames may additionally carry up to 16 KiB of original workload evidence,
+separate from output row count. The logical result owner checks that evidence
+against the frozen selection; parsing a frame cannot authenticate a native cursor
+or establish current permission. This carriage does not enable workload SQL.
 
 `ResultFrame.encodeInto` writes to caller-owned 64-byte-aligned capacity, including
 initial metadata and zero padding. `encodedSize` checks the exact required bytes
 without allocating; `encode` provides the explicit owned-allocation variant.
-`parseInto` uses a caller-owned column directory and supplied initial-metadata
+`parseInto` uses a caller-owned column directory and supplied metadata
 allocator. The directory, metadata and immutable input must outlive every frame
 view. Columns retain their own typed validation; framing alone does not admit
 values. `ResultColumns` accepts separate scratch/output allocators, which can

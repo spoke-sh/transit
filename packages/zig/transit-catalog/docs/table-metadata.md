@@ -13,7 +13,9 @@ DROP; a saved operation or dependent definition still names its original object.
 
 CREATE reserves its name during catalog admission. Native registration and Table
 acceptance must finish before lookup exposes it. ALTER preserves column identity
-and distinguishes metadata changes from bounded validation or rewrites. RENAME
+and distinguishes metadata changes from bounded validation or required phased
+rewrites. Populated physical rewrites reject until their owning runtime is
+available. RENAME
 retains the object; DROP requires dependencies to be closed and preserves exact
 historical receipts. These operations share the
 [declarative catalog contract](../../../../contracts/DECLARATIVE_CATALOG_V1.md).

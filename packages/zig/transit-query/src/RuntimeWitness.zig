@@ -7,7 +7,7 @@ const m = q.fuze.Unified;
 const d = p.Diagnostic;
 const Self = @This();
 pub const encoded_bytes = 104;
-pub const Operation = enum(u8) { validate = 1, predicate = 2, count = 3, sum = 4 };
+pub const Operation = enum(u8) { validate = 1, predicate = 2, count = 3, sum = 4, projection = 5 };
 pub const KeyKind = enum(u8) { none = 0, kv = 1, table = 2, element = 3 };
 pub const Decoding = enum(u8) { none = 0, invalid_utf8 = 1, invalid_length = 2, invalid_boolean = 3, nonfinite_float = 4 };
 resource: u64,
@@ -30,9 +30,9 @@ detail: [39]u8,
 
 pub fn capture(bound: q.fuze.LogicalQuery.Plan, page: *const q.UnifiedSource.Batch, failed: q.fuze.LogicalStream.Failure) !Self {
     const index = failed.column orelse return error.InvalidRuntimeWitness;
-    if (bound.schema != .structure or index >= bound.schema.structure.len) return error.InvalidRuntimeWitness;
-    if (failed.page_row >= page.count or index >= page.column_count or failed.row == 0 or !std.mem.eql(u8, &try page.basis.fingerprint(), &bound.source_basis)) return error.InvalidRuntimeWitness;
-    const column = bound.schema.structure[index];
+    if (bound.schema != .structure or index >= bound.schema.structure.len + bound.scalars.instructions.len) return error.InvalidRuntimeWitness;
+    if (failed.page_row >= page.count or failed.row == 0 or !std.mem.eql(u8, &try page.basis.fingerprint(), &bound.source_basis)) return error.InvalidRuntimeWitness;
+    const column = try bound.inputField(index);
     const name = column.name;
     const maximum: usize = if (page.basis.cut.kind == .table) 19 else 23;
     var length = @min(name.len, maximum);
@@ -51,6 +51,7 @@ pub fn capture(bound: q.fuze.LogicalQuery.Plan, page: *const q.UnifiedSource.Bat
         .operation = switch (failed.operation) {
             .validate => .validate,
             .predicate => .predicate,
+            .projection => .projection,
             .count => .count,
             .sum => .sum,
         },
@@ -82,7 +83,7 @@ pub fn capture(bound: q.fuze.LogicalQuery.Plan, page: *const q.UnifiedSource.Bat
             std.mem.writeInt(u64, value.keyPrefixMut()[8..16], id.replica, .little);
         },
     };
-    if (page.decoding[failed.page_row][index]) |decoder| {
+    if (index < page.column_count) if (page.decoding[failed.page_row][index]) |decoder| {
         value.decoding = switch (decoder.reason) {
             .invalid_utf8 => .invalid_utf8,
             .invalid_length => .invalid_length,
@@ -90,7 +91,7 @@ pub fn capture(bound: q.fuze.LogicalQuery.Plan, page: *const q.UnifiedSource.Bat
             .nonfinite_float => .nonfinite_float,
         };
         value.actual_bytes = decoder.actual_bytes;
-    }
+    };
     try value.validate();
     return value;
 }
@@ -104,13 +105,13 @@ fn keyPrefixMut(self: *Self) []u8 {
     return self.detail[self.column_length..][0..@min(self.key_length, self.detail.len - self.column_length)];
 }
 pub fn validate(self: Self) !void {
-    if (self.resource == 0 or self.resource > p.max_counter or (self.revision orelse 0) > p.max_counter or self.row == 0 or self.column >= q.SourceDefinition.max_columns or self.column_length == 0 or self.column_length > 23) return error.InvalidRuntimeWitness;
+    if (self.resource == 0 or self.resource > p.max_counter or (self.revision orelse 0) > p.max_counter or self.row == 0 or self.column >= q.SourceDefinition.max_columns + q.fuze.ScalarProgram.max_instructions or self.column_length == 0 or self.column_length > 23) return error.InvalidRuntimeWitness;
     if ((self.kind == .table) != (self.revision == null)) return error.InvalidRuntimeWitness;
     if (!std.unicode.utf8ValidateSlice(self.columnName()) or std.mem.indexOfScalar(u8, self.columnName(), 0) != null) return error.InvalidRuntimeWitness;
     const maximum: u8 = if (self.kind == .table) 19 else 23;
     if (self.column_length > maximum or (self.column_truncated and self.column_length < maximum - 3)) return error.InvalidRuntimeWitness;
-    if ((self.operation == .predicate) != (self.instruction != null)) return error.InvalidRuntimeWitness;
-    if (self.instruction) |index| if (index >= m.PredicateProgram.max_instructions) return error.InvalidRuntimeWitness;
+    if ((self.operation == .predicate or self.operation == .projection) != (self.instruction != null)) return error.InvalidRuntimeWitness;
+    if (self.instruction) |index| if (index >= @as(usize, if (self.operation == .projection) q.fuze.ScalarProgram.max_instructions else m.PredicateProgram.max_instructions)) return error.InvalidRuntimeWitness;
     switch (self.key_kind) {
         .none => if (self.key_length != 0 or self.kind != .document) return error.InvalidRuntimeWitness,
         .kv => if (self.kind != .kv or self.key_length > p.Value.max_bytes) return error.InvalidRuntimeWitness,
@@ -263,4 +264,30 @@ test "runtime column prefixes retain complete UTF-8 at each source boundary" {
         try diagnostic.validate();
         try t.expectEqual(d.Availability.truncated, diagnostic.facts[2].?.availability);
     }
+}
+
+test "scalar failure witnesses retain virtual column and instruction without reading source columns" {
+    const t = std.testing;
+    const f = q.fuze;
+    const schema: f.Types.Type = .{ .structure = &.{.{ .name = "amount", .type = .{ .decimal = .{ .precision = 8, .scale = 2 } } }} };
+    const basis: q.Basis = .{ .cut = .{ .kind = .table, .resource = 7, .position = .{ .table = @splat(1) } }, .contract = @splat(7), .schema = try schema.fingerprint() };
+    const plan: f.LogicalQuery.Plan = .{ .schema = schema, .source_basis = try basis.fingerprint(), .projection = &.{2}, .scalars = .{ .instructions = &.{
+        .{ .input = 0 },
+        .{ .decimal_rescale = .{ .value = 0, .result = .{ .precision = 1, .scale = 0 }, .rounding = .reject } },
+    } } };
+    var page: q.UnifiedSource.Batch = .{ .basis = basis, .count = 1, .column_count = 1 };
+    page.keys[0] = .{ .table = .{ .origin = 1, .operation = 2, .ordinal = 3 } };
+    const witness = try capture(plan, &page, .{ .operation = .projection, .row = 1, .page_row = 0, .column = 2, .instruction = 1 });
+    try t.expectEqualDeep(witness, try decode(&try witness.encode()));
+    try t.expectEqual(.decimal, witness.expected);
+    try t.expectEqual(.none, witness.decoding);
+    var diagnostic = try d.init("query.decimal_overflow", .limit, .execute, .rejected, .domain_status, "Decimal overflow.");
+    try witness.enrich(&diagnostic);
+    try diagnostic.validate();
+    var invalid = witness;
+    invalid.instruction = 32;
+    try t.expectError(error.InvalidRuntimeWitness, invalid.validate());
+    invalid = witness;
+    invalid.instruction = null;
+    try t.expectError(error.InvalidRuntimeWitness, invalid.validate());
 }

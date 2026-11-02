@@ -72,9 +72,10 @@ def _run(node, cli, libraries, cold):
             schema = dict(definition=definition, object='1', revision='1', next_column='4',
                 columns=[dict(id=str(i), name=name, type={kind: {}}, nullable=False,
                     default={'value': {'atom': {'utf8': 'materialized'}}} if i == 3 else None,
-                    max_characters=None, encoding='plain', collation='none')
+                    max_characters=None, encoding='plain', collation='none',
+                    semantics=dict(rounding=None, metric=None, timezone=None, spatial=None))
                     for i, name, kind in ((1, 'id', 'int64'), (2, 'amount', 'int64'), (3, 'label', 'utf8'))],
-                primary_key=['1'])
+                primary_key=['1'], integrity=dict(next_id=1, checks=[], foreign_keys=[]))
             return [{'create': dict(realm=72, resource=resource, schema=schema,
                 limits=dict(record_bytes=65536, staging_bytes='8388608', staging_records=1024))}]
 

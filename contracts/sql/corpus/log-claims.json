@@ -1,0 +1,337 @@
+{
+  "version": 1,
+  "basis": "CREATE TABLE items (id BIGINT NOT NULL, body TEXT COLLATE ASCII_CI)",
+  "cases": [
+    {
+      "sql": "CLAIM * FROM items WITH LEASE '30s'",
+      "expected": {
+        "fields": [
+          {
+            "column": 1
+          },
+          {
+            "column": 2
+          }
+        ],
+        "indices": [
+          0,
+          1
+        ],
+        "names": [
+          null,
+          null
+        ],
+        "limit": null,
+        "maximum": null,
+        "lease_ms": 30000,
+        "wait_ms": null,
+        "matched": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ]
+      }
+    },
+    {
+      "sql": "CLAIM id FROM items LIMIT 2 WITH LEASE '1s' WAIT '250ms'",
+      "expected": {
+        "fields": [
+          {
+            "column": 1
+          }
+        ],
+        "indices": [
+          0
+        ],
+        "names": [
+          null
+        ],
+        "limit": null,
+        "maximum": 2,
+        "lease_ms": 1000,
+        "wait_ms": 250,
+        "matched": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ]
+      }
+    },
+    {
+      "sql": "CLAIM _offset, id AS task_id, _attempt, _lease_epoch FROM items WHERE body = 'a' AND _partition = 0 LIMIT 1 WITH LEASE '2s'",
+      "expected": {
+        "fields": [
+          {
+            "offset": {}
+          },
+          {
+            "column": 1
+          },
+          {
+            "attempt": {}
+          },
+          {
+            "lease_epoch": {}
+          },
+          {
+            "column": 2
+          },
+          {
+            "partition": {}
+          }
+        ],
+        "indices": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "names": [
+          null,
+          "task_id",
+          null,
+          null
+        ],
+        "limit": null,
+        "maximum": 1,
+        "lease_ms": 2000,
+        "wait_ms": null,
+        "matched": [
+          true,
+          false,
+          true,
+          false,
+          true
+        ]
+      }
+    },
+    {
+      "sql": "CLAIM body FROM items WHERE id >= 1 AND (body IS NULL OR body = 'b') WITH LEASE '1m'",
+      "expected": {
+        "fields": [
+          {
+            "column": 2
+          },
+          {
+            "column": 1
+          }
+        ],
+        "indices": [
+          0
+        ],
+        "names": [
+          null
+        ],
+        "limit": null,
+        "maximum": null,
+        "lease_ms": 60000,
+        "wait_ms": null,
+        "matched": [
+          false,
+          false,
+          false,
+          true,
+          false
+        ]
+      }
+    },
+    {
+      "sql": "CLAIM * FROM items WHERE body IS NULL LIMIT 4 WITH LEASE '1s'",
+      "expected": {
+        "fields": [
+          {
+            "column": 1
+          },
+          {
+            "column": 2
+          }
+        ],
+        "indices": [
+          0,
+          1
+        ],
+        "names": [
+          null,
+          null
+        ],
+        "limit": null,
+        "maximum": 4,
+        "lease_ms": 1000,
+        "wait_ms": null,
+        "matched": [
+          false,
+          false,
+          false,
+          true,
+          false
+        ]
+      }
+    },
+    {
+      "sql": "CLAIM id FROM items WHERE NOT (_offset >= 102 OR id < 0) WITH LEASE '1s'",
+      "expected": {
+        "fields": [
+          {
+            "column": 1
+          },
+          {
+            "offset": {}
+          }
+        ],
+        "indices": [
+          0
+        ],
+        "names": [
+          null
+        ],
+        "limit": null,
+        "maximum": null,
+        "lease_ms": 1000,
+        "wait_ms": null,
+        "matched": [
+          false,
+          true,
+          false,
+          false,
+          false
+        ]
+      }
+    },
+    {
+      "sql": "CLAIM _partition FROM items LIMIT 4294967295 WITH LEASE '4294967296ms'",
+      "expected": {
+        "fields": [
+          {
+            "partition": {}
+          }
+        ],
+        "indices": [
+          0
+        ],
+        "names": [
+          null
+        ],
+        "limit": null,
+        "maximum": 4294967295,
+        "lease_ms": 4294967296,
+        "wait_ms": null,
+        "matched": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ]
+      }
+    },
+    {
+      "sql": "CLAIM x.id AS first, x.id AS second FROM items AS x WITH LEASE '1s'",
+      "expected": {
+        "fields": [
+          {
+            "column": 1
+          }
+        ],
+        "indices": [
+          0,
+          0
+        ],
+        "names": [
+          "first",
+          "second"
+        ],
+        "limit": null,
+        "maximum": null,
+        "lease_ms": 1000,
+        "wait_ms": null,
+        "matched": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ]
+      }
+    },
+    {
+      "sql": "CLAIM id FROM items LIMIT 0 WITH LEASE '1s'",
+      "error": "InvalidLogClaimMaximum"
+    },
+    {
+      "sql": "CLAIM id FROM items LIMIT 4294967296 WITH LEASE '1s'",
+      "error": "InvalidLogClaimMaximum"
+    },
+    {
+      "sql": "CLAIM id FROM items WITH LEASE NULL",
+      "error": "InvalidLogClaimOperand"
+    },
+    {
+      "sql": "CLAIM id FROM items WITH LEASE '0ms'",
+      "error": "InvalidLogLeaseDuration"
+    },
+    {
+      "sql": "CLAIM id FROM items WITH LEASE '1.5s'",
+      "error": "InvalidLogLeaseDuration"
+    },
+    {
+      "sql": "CLAIM id FROM items WITH LEASE '1s' WAIT '0ms'",
+      "error": "InvalidLogWait"
+    },
+    {
+      "sql": "CLAIM id FROM items WHERE _attempt > 0 WITH LEASE '1s'",
+      "error": "InvalidLogClaimPredicate"
+    },
+    {
+      "sql": "CLAIM id FROM items WHERE _lease_epoch = 1 WITH LEASE '1s'",
+      "error": "InvalidLogClaimPredicate"
+    },
+    {
+      "sql": "CLAIM _receipt_handle FROM items WITH LEASE '1s'",
+      "expected": {
+        "fields": [
+          {
+            "receipt_handle": {}
+          }
+        ],
+        "indices": [
+          0
+        ],
+        "names": [
+          null
+        ],
+        "limit": null,
+        "maximum": null,
+        "lease_ms": 1000,
+        "wait_ms": null,
+        "matched": [
+          true,
+          true,
+          true,
+          true,
+          true
+        ]
+      }
+    },
+    {
+      "sql": "CLAIM wrong.id FROM items WITH LEASE '1s'",
+      "error": "UnknownQualifier"
+    },
+    {
+      "sql": "CLAIM id, id FROM items WITH LEASE '1s'",
+      "error": "DuplicateProjection"
+    },
+    {
+      "sql": "CLAIM id FROM items LIMIT -1 WITH LEASE '1s'",
+      "error": "InvalidSqlSyntax",
+      "syntax_error": true
+    },
+    {
+      "sql": "CLAIM id FROM items WHERE _receipt_handle IS NOT NULL WITH LEASE '1s'",
+      "error": "InvalidLogClaimPredicate"
+    }
+  ]
+}

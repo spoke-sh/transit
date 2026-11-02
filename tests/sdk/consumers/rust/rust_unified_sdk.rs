@@ -111,8 +111,9 @@ fn inspected_atom(value: q::InspectedAtom) -> Value {
 }
 fn codecs(config: &Value) -> AnyResult<()> {
     let collations: Value = serde_json::from_slice(&fs::read(text(config, "collations"))?)?;
+    assert_eq!(collations.as_array().unwrap().len(), 6);
     for (fixture, collation) in collations.as_array().unwrap().iter().zip([
-        c::Collation::None, c::Collation::Utf8Binary, c::Collation::AsciiCi, c::Collation::EbcdicCp037,
+        c::Collation::None, c::Collation::Utf8Binary, c::Collation::AsciiCi, c::Collation::EbcdicCp037, c::Collation::Ebcdic037Pad, c::Collation::Ebcdic1047Nopad,
     ]) {
         let collated = table_source(vec![
             c::Column { nullable: false, ..c::Column::new(1, "id".into(), l::Descriptor::Scalar(l::ScalarType::Int64)) },

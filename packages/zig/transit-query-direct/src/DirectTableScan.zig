@@ -25,14 +25,31 @@ range_after: ?q.storage.TablePartition.KeyRange.Cursor = null,
 range_complete: bool = false,
 ordinal: u64 = 0,
 selected: u64 = 0,
+view: ?q.protocol.DataLifecycle.Definition = null,
+view_filter: ?f.LogicalPlanCodec.Owned = null,
 
 pub fn open(allocator: std.mem.Allocator, client: c.DirectTableClient, snapshot: c.DirectTableProtocol.Snapshot, request_limit: u64, cancellation: ?*const std.atomic.Value(bool)) !Self {
     if (request_limit < 2) return error.InvalidQueryBudget;
     if (cancellation) |flag| if (flag.load(.acquire)) return error.Cancelled;
     return .{ .allocator = allocator, .client = client, .reader = try c.DirectTableReader.open(allocator, client, snapshot), .request_limit = request_limit, .cancellation = cancellation };
 }
+pub fn openCatalog(allocator: std.mem.Allocator, client: c.DirectTableClient, snapshot: q.protocol.DataLifecycle.Snapshot, object: u64, request_limit: u64, cancellation: ?*const std.atomic.Value(bool)) !Self {
+    if (request_limit < 2) return error.InvalidQueryBudget;
+    if (cancellation) |flag| if (flag.load(.acquire)) return error.Cancelled;
+    return .{ .allocator = allocator, .client = client, .reader = try c.DirectTableReader.openCatalog(allocator, client, snapshot, object), .request_limit = request_limit, .cancellation = cancellation };
+}
+pub fn projectTo(self: *Self, target: c.DirectSchemaProjection.Accepted) !void {
+    // Metadata preparation and final original-source validation each require
+    // at most a credential exchange and one direct call.
+    try self.charge();
+    try self.charge();
+    try self.reader.projectTo(self.client, target.declaration);
+    if (!std.meta.eql(self.reader.basis.projection.?, target)) return error.SourceChanged;
+    try self.checkCancellation();
+}
 pub fn deinit(self: *Self) void {
     if (self.page) |*page| page.deinit();
+    if (self.view_filter) |*value| value.deinit();
     self.reader.deinit();
     self.* = undefined;
 }
@@ -54,11 +71,22 @@ fn rejected(self: *Self, err: anyerror) anyerror {
 }
 pub fn validateCurrent(self: *Self) !void {
     try self.charge();
+    if (self.view) |definition| {
+        const response = self.client.call(.{ .descriptor = .{ .authorize = .{ .interpretation = definition, .rows = true } } }) catch |err| return self.rejected(err);
+        response.deinit();
+        try self.charge();
+    }
     self.reader.check(self.client) catch |err| return self.rejected(err);
     try self.checkCancellation();
 }
 pub fn fingerprint(self: *const Self) ![32]u8 {
-    return self.reader.basis.fingerprint();
+    const source = try self.reader.basis.fingerprint();
+    const definition = self.view orelse return source;
+    var hash = std.crypto.hash.sha2.Sha256.init(.{});
+    hash.update("transit.table.view.source.v1\x00");
+    hash.update(&source);
+    hash.update(&definition.digest);
+    return hash.finalResult();
 }
 /// Finite SELECT may select one complete primary key. Extra conditions keep
 /// the original scan and evaluation order; the engine still tests the predicate.
@@ -83,6 +111,9 @@ pub fn selectPoint(self: *Self, plan: f.LogicalQuery.Plan) void {
     self.point_key = Key.init(key) catch unreachable; // bounded by encoded above
 }
 pub fn selectAccess(self: *Self, plan: f.LogicalQuery.Plan) !void {
+    // Historical sources evaluate the same plan over their original layout.
+    // Current physical access paths require separate historical qualification.
+    if (self.view != null or self.reader.basis.catalog != null or self.reader.basis.projection != null) return;
     self.selectPoint(plan);
     if (self.point_key == null) self.count_range = CountRange.qualify(self.reader.schema.schema, plan);
     if (self.point_key != null or self.count_range != null) return;
@@ -100,6 +131,16 @@ pub fn next(self: *Self) !?f.LogicalQuery.Row {
 /// immutable until the next call after batchAvailable reaches zero, or deinit.
 /// A caller must consume/reset its views before crossing that page boundary.
 pub fn nextBorrowed(self: *Self) !?[]const f.Types.Values.Cell {
+    while (try self.nextSource()) |cells| {
+        if (self.view_filter) |filter| {
+            var failed: ?f.LogicalQuery.Plan.PredicateFailure = null;
+            if (!try filter.plan.matches(cells, &failed)) continue;
+        }
+        return cells;
+    }
+    return null;
+}
+fn nextSource(self: *Self) !?[]const f.Types.Values.Cell {
     try self.checkCancellation();
     if (self.complete) return null;
     if (self.point_key) |*key| {
@@ -157,6 +198,10 @@ pub fn nextBorrowed(self: *Self) !?[]const f.Types.Values.Cell {
     return row.row().cells;
 }
 pub fn batchAvailable(self: *const Self) usize {
+    // Filtering may consume the rest of this page before returning another row.
+    // End the borrowed morsel first so that transition cannot invalidate a prior
+    // row still retained by the outer vector executor. No per-row scratch arena.
+    if (self.view_filter != null) return 0;
     return if (self.page) |page| page.count - self.index else 0;
 }
 pub fn batchOrdinal(self: *const Self) u64 {

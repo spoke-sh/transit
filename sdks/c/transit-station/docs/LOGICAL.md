@@ -34,6 +34,14 @@ civil/UTC timestamps, structures, tagged unions, lists, fixed arrays and maps.
 Fields carry names, types, nullable and optional flags; elements carry type and
 nullable flags. Fixed array length is positive uint32.
 
+This construction-view profile does not expose `RANGE`, `MULTIRANGE` or `VECTOR`.
+Their neutral descriptors and present cells return
+`TRANSIT_SDK_INVALID_ARGUMENT`, including when nested in supported containers
+or conflict alternatives. Missing, NULL and supported source-error cells remain
+independent of those descriptors. Use the shared Zig, Python or TypeScript
+logical APIs for companion values; generated neutral schemas do not expand the
+C model's admitted families.
+
 An atom carries a signed or unsigned 128-bit number, decimal coefficient,
 finite float32/64, boolean, UTF-8, binary, date days, time nanoseconds, timestamp
 microseconds, month/day/nanosecond interval or 16-byte UUID. The 128-bit public

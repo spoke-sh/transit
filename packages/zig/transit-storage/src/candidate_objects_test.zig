@@ -33,6 +33,12 @@ test "candidate objects reuse bounded storage and resolve full keys without back
         try t.expectEqualStrings("first", try store.getRange(first_name, 0, 5, &output));
         try t.expectEqualStrings("cond", try store.getRange(second_name, 2, 4, &output));
         try t.expectEqualStrings("accepted", try store.getRange("base", 0, 8, &output));
+        try t.expectEqual(@as(u64, 5), (try store.getObject(first_name, &output)).?.size);
+        try t.expectEqualStrings("first", output[0..5]);
+        try t.expectEqual(@as(u64, 8), (try store.getObject("base", &output)).?.size);
+        try t.expectEqualStrings("accepted", output[0..8]);
+        try t.expectError(error.BufferTooSmall, store.getObject(first_name, output[0..1]));
+        try t.expect(try store.getObject("absent", &output) == null);
         try t.expect(try base.objectStore().head(first_name) == null);
         const used = candidates.used;
         try put(store, first_name, "first");
@@ -43,6 +49,26 @@ test "candidate objects reuse bounded storage and resolve full keys without back
         try t.expectEqual(used, candidates.used);
         try put(store, "third", "3");
         try put(store, "fourth", "4");
+        candidates.beginSelection();
+        try candidates.select("base", 0, @splat(7));
+        try t.expect(candidates.nextSelected() == null);
+        try candidates.select(first_name, 2, @splat(7));
+        try candidates.select(first_name, 2, @splat(7));
+        try candidates.select(second_name, 1, @splat(8));
+        try t.expectEqualStrings(first_name, candidates.nextSelected().?.name);
+        // Requeue an examined object behind another pending object, and add
+        // another interpretation while it is already queued.
+        try candidates.select(first_name, 0, @splat(7));
+        try candidates.select(first_name, 7, @splat(7));
+        try t.expectEqualStrings(second_name, candidates.nextSelected().?.name);
+        try t.expectEqual(@as(u3, 0), candidates.nextSelected().?.domain);
+        try t.expectEqual(@as(u3, 7), candidates.nextSelected().?.domain);
+        try t.expect(candidates.nextSelected() == null);
+        try t.expectError(error.InvalidCandidateObject, candidates.select(first_name, 1, @splat(9)));
+        try t.expect(candidates.isSelected(first_name) and candidates.isSelected(second_name));
+        try t.expect(!candidates.isSelected("base") and !candidates.isSelected("third"));
+        candidates.beginSelection();
+        try t.expect(!candidates.isSelected(first_name) and candidates.nextSelected() == null);
         try t.expectError(error.CandidateObjectBudgetExceeded, put(store, "fifth", "5"));
         try t.expectError(error.CandidateMutationUnsupported, store.delete("base"));
         try t.expectError(error.CandidateMutationUnsupported, store.putConditional("base", .if_none_match, "changed"));
@@ -119,8 +145,25 @@ test "candidate objects release failed initialization allocations and enforce re
 const Fault = struct {
     underlying: s.TransitObjectStore.ObjectStore,
     lose_reply: bool = true,
+    corrupt_metadata: bool = false,
+    batches: usize = 0,
+    largest_batch: usize = 0,
     fn objectStore(self: *@This()) s.TransitObjectStore.ObjectStore {
         return .{ .context = self, .vtable = &.{ .putImmutable = immutable, .putConditional = conditional, .getRange = get, .head = head, .delete = delete } };
+    }
+    fn batchStore(self: *@This()) s.TransitObjectStore.ObjectStore {
+        return .{ .context = self, .vtable = &.{ .putImmutable = immutable, .putImmutableBatch = batch, .putConditional = conditional, .getRange = get, .head = head, .delete = delete } };
+    }
+    fn batch(ctx: *anyopaque, inputs: []const s.TransitObjectStore.ImmutablePut, output: []s.TransitObjectStore.ObjectMeta) !void {
+        const self: *@This() = @ptrCast(@alignCast(ctx));
+        self.batches += 1;
+        self.largest_batch = @max(self.largest_batch, inputs.len);
+        try self.underlying.putImmutableBatch(inputs, output);
+        if (self.lose_reply) {
+            self.lose_reply = false;
+            return error.TestLostObjectReply;
+        }
+        if (self.corrupt_metadata) output[0].size += 1;
     }
     fn immutable(ctx: *anyopaque, name: []const u8, value: []const u8, digest: [32]u8) !s.TransitObjectStore.ObjectMeta {
         const self: *@This() = @ptrCast(@alignCast(ctx));
@@ -167,4 +210,47 @@ test "candidate objects retain exact private bytes through partial persistence a
     try t.expectError(error.ImmutableObjectConflict, candidates.persist());
     var output: [32]u8 = undefined;
     try t.expectEqualStrings("1", try base.objectStore().getRange("first", 0, 1, &output));
+}
+
+test "candidate objects batch selected persistence and preserve original bytes after a lost group reply" {
+    var base = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer base.deinit();
+    var fault: Fault = .{ .underlying = base.objectStore() };
+    var allocator = t.FailingAllocator.init(t.allocator, .{});
+    var candidates = try Candidates.init(allocator.allocator(), fault.batchStore(), .{ .bytes = 4096, .objects = 16, .resident_bytes = 8192 });
+    defer candidates.deinit();
+    allocator.fail_index = allocator.alloc_index;
+    const selection = struct {
+        pub fn keep(_: @This(), name: []const u8) bool {
+            return !std.mem.eql(u8, name, "excluded");
+        }
+    }{};
+    var name: [32]u8 = undefined;
+    for (0..9) |number| {
+        if (number == 4) try put(candidates.objectStore(), "excluded", "private intermediate");
+        const key = try std.fmt.bufPrint(&name, "key-{d}", .{number});
+        try put(candidates.objectStore(), key, key);
+    }
+    const used = candidates.used;
+    try t.expectError(error.TestLostObjectReply, candidates.persistSelected(selection));
+    try t.expectEqual(@as(usize, 1), fault.batches);
+    try t.expectEqual(@as(usize, 8), fault.largest_batch);
+    try t.expect(try base.objectStore().head("key-7") != null);
+    try t.expect(try base.objectStore().head("key-8") == null);
+    try t.expect(try base.objectStore().head("excluded") == null);
+    try t.expectEqual(used, candidates.used);
+    try t.expectEqual(@as(u32, 10), candidates.count);
+    try candidates.persistSelected(selection);
+    try t.expectEqual(@as(usize, 3), fault.batches);
+    var output: [32]u8 = undefined;
+    for (0..9) |number| {
+        const key = try std.fmt.bufPrint(&name, "key-{d}", .{number});
+        try t.expectEqualStrings(key, try base.objectStore().getRange(key, 0, @intCast(key.len), &output));
+    }
+    try t.expect(try base.objectStore().head("excluded") == null);
+    fault.corrupt_metadata = true;
+    try t.expectError(error.InvalidCandidateObject, candidates.persistSelected(selection));
+    try t.expectEqual(used, candidates.used);
+    fault.corrupt_metadata = false;
+    try candidates.persistSelected(selection);
 }

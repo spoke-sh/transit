@@ -70,7 +70,7 @@ pub const Work = union(enum) {
         };
     }
     pub fn destinationEntry(self: Work, statement: x.Statement) ?Actions.Entry {
-        return if (self == .queue_transfer) .{ .work = .{ .statement = statement, .ordinal = 2, .action = .{ .queue_transfer_append = self.queue_transfer } }, .offset_cursor = null } else null;
+        return if (self == .queue_transfer) .{ .work = .{ .statement = statement, .ordinal = 2, .action = .{ .queue_transfer_append = self.queue_transfer } }, .offset_progress = null } else null;
     }
     /// Payload bytes are committed by Append.payload; coverage includes the
     /// exact owner-issued cursor, not a reconstructed coverage descriptor.
@@ -92,7 +92,7 @@ pub const Work = union(enum) {
             .stream_offset => |value| .{ .stream_offset = value.commit },
             .queue_ack => |value| .{ .queue_ack = value },
             .queue_transfer => |value| .{ .queue_terminal = value },
-        } }, .offset_cursor = if (self == .stream_offset) self.stream_offset.cursor else null };
+        } }, .offset_progress = if (self == .stream_offset) self.stream_offset.progress else null };
     }
 };
 

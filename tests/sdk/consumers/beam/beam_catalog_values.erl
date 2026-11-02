@@ -15,7 +15,7 @@ binding()->#{definition=>definition(),identity=>#{scope=>scope(),principal=>17,o
 reference()->#{table=>#{definition=>definition(),connection=>connection(),namespace=>1,binding=>binding(),content=>#{bytes=><<"200">>,sha256=>binary:copy(<<"22">>,32)}}}.
 summary()->#{id=>#{definition=>definition(),digest=>binary:copy(<<"11">>,32)},namespace=>1,binding=>#{table=>binding()}}.
 observed()->#{rows=>#{committed=>#{binding=>binding(),resulting=>stored(),transaction=>null,outcome=>#{position=>position(),matched=><<"9">>,affected=><<"9">>,live_rows=><<"9">>}}}}.
-schema()->#{definition=>definition(),object=>integer_to_binary(max()),revision=><<"1">>,next_column=><<"2">>,columns=>[#{id=><<"1">>,name=><<"id">>,type=>#{int128=>#{}},nullable=>true,default=>null,max_characters=>null,encoding=><<"plain">>,collation=><<"none">>}],primary_key=>[]}.
+schema()->#{definition=>definition(),object=>integer_to_binary(max()),revision=><<"1">>,next_column=><<"2">>,columns=>[#{id=><<"1">>,name=><<"id">>,type=>#{int128=>#{}},nullable=>true,default=>null,max_characters=>null,encoding=><<"plain">>,collation=><<"none">>,semantics=>#{rounding=>null,metric=>null,timezone=>null,spatial=>null}}],primary_key=>[],integrity=>#{next_id=>1,checks=>[],foreign_keys=>[]}}.
 page()->#{position=>position(),entries=>[#{interpretation=>interpretation(),namespace=>1,name=><<"items">>,position=>position(),changed_lsn=><<"3">>}|lists:duplicate(7,null)],next=>#{definition=>definition(),connection=>connection(),selection=>#{tables=>1},position=>position(),'after'=>integer_to_binary(max())},consistency=><<"independent">>}.
 config(Root,Override)->{#transit_config{url= <<"http://127.0.0.1:9">>,profile=native_v1,timeout_ms=1000,native_host=Override},#transit_credential{realm=46,principal=17,seed_file=unicode:characters_to_binary(filename:join(Root,"seed"))},#transit_catalog_connection{scope=#transit_catalog_scope{resource=#transit_resource{realm=46,resource=7},catalog=max()},audience=3}}.
 open(A,Root,Mode)->file:delete(filename:join(Root,"entered")),file:delete(filename:join(Root,"release")),ok=file:write_file(filename:join(Root,"mode.json"),json:encode(Mode)),{C,I,B}=config(Root,filename:join(Root,"host")),{ok,Client}=A:open(C,I,B),Client.
@@ -60,6 +60,9 @@ values(A,Root)->
     %% Saved bytes are decoded once; the response embeds the complete object.
     {ok,SnapshotBytes}=A:save(Snapshot),M=Metadata#{snapshot=>transit_sdk_value:json(SnapshotBytes,96)},
     response(A,Root,#{retention=>#{metadata=>M}},fun(C)->{ok,#transit_catalog_snapshot_metadata{row_count=9,schema=#transit_catalog_schema{columns=[_]}}}=A:snapshot_metadata(C,Snapshot) end),
+    lists:foreach(fun(S)->
+        response(A,Root,#{retention=>#{metadata=>M#{schema=>S}}},fun(C)->invalid(A:snapshot_metadata(C,Snapshot)) end)
+    end,[maps:remove(integrity,schema()),(schema())#{integrity=>#{next_id=>2,checks=>[],foreign_keys=>[]}}]),
     Stored=#{table=>#{definition=>definition(),namespace=>1,bytes=>binary:copy(<<"ab">>,300000)}},
     response(A,Root,#{compiled=>#{summary=>summary(),saved=>Stored}},fun(C)->
         Rows=[[#transit_catalog_assignment{column=1,value={value,{atom,{signed,1}}}}]],{ok,#transit_catalog_compiled{saved=Saved,intent=#transit_catalog_intent{identity=#transit_catalog_identity{operation=10}}}}=A:prepare(C,<<"items">>,#transit_catalog_identity{operation=10},{mutate,Basis,{insert,Rows},bulk}),

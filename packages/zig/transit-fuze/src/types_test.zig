@@ -27,6 +27,9 @@ test "logical descriptors own decoded names and reject incompatible incomplete o
     try t.expectError(error.InvalidTypeEncoding, m.decode(t.allocator, buffer[0 .. bytes.len + 1]));
     buffer[5] ^= 1;
     try t.expectError(error.IncompatibleDefinition, m.decode(t.allocator, bytes));
+    const previous = "transit.fuze.types.v1.2026-09-30";
+    const retired = "FTY1" ++ [_]u8{previous.len} ++ previous ++ "\x01";
+    try t.expectError(error.IncompatibleDefinition, m.decode(t.allocator, retired));
     try t.expectError(error.TypeBudgetExceeded, nested.validate(.{ .depth = 2 }));
     try t.expectError(error.TypeBudgetExceeded, nested.validate(.{ .nodes = 2 }));
     const duplicate: m.Type = .{ .structure = &.{ .{ .name = "x", .type = .int8 }, .{ .name = "x", .type = .int16 } } };

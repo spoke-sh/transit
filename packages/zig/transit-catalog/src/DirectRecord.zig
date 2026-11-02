@@ -56,7 +56,7 @@ pub fn reference(scope: Scope, format: u32, bytes: []const u8) !Reference {
     try result.validate();
     return result;
 }
-fn key(value: Reference, output: *[96]u8) ![]const u8 {
+pub fn key(value: Reference, output: *[96]u8) ![]const u8 {
     try value.validate();
     var bytes: [2048]u8 = undefined;
     var writer: std.Io.Writer = .fixed(&bytes);

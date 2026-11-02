@@ -374,6 +374,16 @@ pub fn read(self: *Self, key: []const u8, offset: u64, length: u32, out: []u8) !
     try object.validateKey(key);
     if (out.len < length) return error.BufferTooSmall;
     const record = (try self.readRecord(key)) orelse return error.ObjectNotFound;
+    return self.readContent(key, record, offset, length, out);
+}
+pub fn getObject(self: *Self, key: []const u8, out: []u8) !?object.ObjectMeta {
+    try object.validateKey(key);
+    const record = (try self.readRecord(key)) orelse return null;
+    if (record.meta.size > out.len) return error.BufferTooSmall;
+    _ = try self.readContent(key, record, 0, @intCast(record.meta.size), out);
+    return record.meta;
+}
+fn readContent(self: *Self, key: []const u8, record: Record, offset: u64, length: u32, out: []u8) ![]const u8 {
     if (offset > record.meta.size) return error.RangeOutOfBounds;
     const wanted: usize = @intCast(@min(length, record.meta.size - offset));
     var filename: [144]u8 = undefined;

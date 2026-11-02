@@ -9,9 +9,22 @@ or commit state. The signed [Queue action](DIRECT_TABLE_V1.md#queue-payloads-cla
 composes standalone enqueue, claim, original payload reads and settlements.
 SQL declarations and named inspection use the
 [shared Catalog lifecycle](../docs/handbook/reference/sql/streaming.md#stream-and-queue-declarations).
-SQL `ENQUEUE`, `CLAIM`, `ACK`, `NACK` and `EXTEND LEASE` remain unavailable.
+SQL supports [ENQUEUE](../docs/handbook/reference/sql/streaming.md#append-events-and-work).
+SQL also admits [partition-routed CLAIM](../docs/handbook/reference/sql/streaming.md#acquire-queue-work)
+with a required lease duration, bounded acquisition maximum and complete original
+result delivery and binary `_receipt_handle` projection. SQL
+[`ACK ON QUEUE ... RECEIPT`](../docs/handbook/reference/sql/streaming.md#acknowledge-queue-work)
+freezes that exact lease in an independently identified native settlement.
+Other acquisition predicates, WAIT, NACK and EXTEND LEASE remain outside the SQL
+execution profile.
 Native [transactional log work](DIRECT_TABLE_V1.md#transactional-stream-and-queue-work)
 composes enqueue, fenced ACK and paired dead-letter transfer with Table/KV state.
+
+The signed [original-result action](DIRECT_TABLE_V1.md#original-workload-result-delivery)
+reopens accepted enqueue and claim results from frozen workload intents. Saved
+page positions address the original selection, with current lease liveness
+reported separately. Refetch and local cleanup cannot claim again, ACK, renew a
+lease or release the claim's shared durable payload dependency.
 
 The [typed catalog lifecycle](DIRECT_TABLE_V1.md#stream-and-queue-lifecycle)
 publishes Queue declarations separately from payload execution. It verifies
@@ -45,13 +58,81 @@ changing logical lease state or requiring a clock. Its frozen inputs and Queue
 basis remain retained until accepted progress releases them; recovery rederives
 each complete successor. The [storage contract](TRANSIT_STORAGE_V1.md#private-scheduling-source-composition)
 defines these bounds and publication rules. Explicit dead-letter transfers use
-the same native transaction decision; automatic blocked-item transfer scheduling
-remains unimplemented.
+the same native transaction decision. The internal protected transfer composition
+in [direct operations](DIRECT_TABLE_V1.md#durable-client-token-bindings) retains
+one original attempt per exhausted source and recovers it through that owner.
+The local node enables automatic transfers only with native maintenance and an
+explicit `table.queue_transfers` database identity. Current CONNECT, schema
+USAGE, source ownership/read and destination read/append rights remain required.
+Destination routing uses its declared canonical key; without a routing key it
+uses the source partition ordinal modulo the destination partition count. That
+ordinal, the recorded destination definition and all original identities are
+frozen before dispatch. Permission, definition or capacity refusals retain the
+blocked source and any original accepted attempt; they do not authorize another
+attempt or a source-only archival.
 
 The shared [Stream contract](STREAM_V1.md) owns partition and append attribution.
 The [data lifecycle schema](data-lifecycle-v1.schema.json) and
 [fixture](../packages/zig/transit-protocol/src/fixtures/stream-queue-v1.json)
 are generated/checked through the existing public contract workflow.
+
+## Original-operation cancellation
+
+`DirectQueue.Request.cancel` carries the exact enqueue, claim, settlement or
+claim-result release request under its original identity. It uses the shared
+canonical operation reservation and current rights for that operation. The
+partition serializes cancellation with admission: existing success wins and is
+returned unchanged; otherwise a durable `LogWorkload.Closure` records the exact
+binding and cancellation position in the ordinary receipt directory.
+
+The closure advances no offsets, lease state or data-change frontier. It fences
+late native mutation and wait admission, survives replacement, and remains
+available through original-operation lookup. Repeating or cancelling an accepted
+claim never selects again, renews a lease, ACKs or releases its retained result.
+Cancellation of an unaccepted ACK leaves the original claim and lease untouched.
+Changed requests cannot reuse a closed identity. Current authorization remains
+necessary after buffering; missing receipts, timeouts and stopped waits are not
+closure evidence. The Stream contract's control-capacity, declaration,
+transaction-barrier and lost-reply rules apply equally to Queue closure.
+
+## Opaque lease descriptor codec
+
+`transit-protocol.QueueLeaseHandle` encodes an exact `StreamQueue.Lease` as
+168 bytes beginning with `QLH1`. It is a fenced descriptor for transport, not a
+signature, bearer credential or proof of current liveness. Decoding performs no
+I/O and grants no rights. The Queue owner must still verify the accepted original
+claim, exact current lease, current caller rights and authoritative time at the
+settlement boundary. Changing the encoded expiry cannot renew a lease.
+
+All integers use unsigned little-endian encoding. The exact layout is:
+
+| Offset | Bytes | Value |
+| --- | --- | --- |
+| 0 | 4 | `QLH1` |
+| 4 | 32 | Current contract definition bytes |
+| 36 | 24 | Scope: realm, resource, catalog, each 8 bytes |
+| 60 | 16 | Stable object branch and object ID, each 8 bytes |
+| 76 | 8 | Exact interpretation revision |
+| 84 | 32 | Exact interpretation digest |
+| 116 | 4 | Logical partition ordinal |
+| 120 | 16 | Original claimant principal and claim operation, each 8 bytes |
+| 136 | 32 | Message offset, lease epoch, attempt, expiry milliseconds, each 8 bytes |
+
+The claim scope is the target scope; native validation requires their equality.
+Inputs must have exactly 168 bytes, the exact magic and an explicit matching
+current definition before any lease is constructed. Missing, foreign, truncated,
+trailing or structurally invalid data refuse. Encoding uses a caller-owned fixed
+buffer and decoding allocates nothing. SQL `_receipt_handle` projects these
+bytes from each original claim row. Fuze's projection buffer is reused per row;
+result encoders must copy retained values before requesting the next row. The
+Catalog ACK adapter freezes the complete lease by value, independently of the
+caller and parser buffers. Current native authorization and exact live-lease
+validation remain mandatory.
+
+`LogSettlementSql` also prepares EXTEND LEASE syntax and computes a proposed
+deadline from the original receipt's expiry plus the positive BY duration. This
+is pure preparation only: SQL execution must return a usable updated receipt
+through the shared result lifecycle before renewal can be enabled.
 
 ## Lease identity and time
 

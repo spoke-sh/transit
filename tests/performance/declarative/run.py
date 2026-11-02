@@ -136,8 +136,10 @@ def expected_candidate(case):
 def expected_schema():
     definition = json.loads((ROOT / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition']
     columns = [dict(id=str(index), name=name, type={'int64': {}}, nullable=index != 1,
-                    default=None, max_characters=None, encoding='plain', collation='none') for index, name in enumerate(('id', 'quantity'), 1)]
-    return dict(definition=definition, object='1', revision='1', next_column='3', columns=columns, primary_key=['1'])
+                    default=None, max_characters=None, encoding='plain', collation='none',
+                    semantics=dict(rounding=None, metric=None, timezone=None, spatial=None)) for index, name in enumerate(('id', 'quantity'), 1)]
+    return dict(definition=definition, object='1', revision='1', next_column='3', columns=columns,
+                primary_key=['1'], integrity=dict(next_id=1, checks=[], foreign_keys=[]))
 
 
 def verify(records, data, config, directory):

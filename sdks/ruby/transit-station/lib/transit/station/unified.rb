@@ -58,7 +58,7 @@ module Transit
           { 'version' => 1, 'resource' => resource.resource, 'source' => { 'table' => {
             'scope' => scope.wire, 'owner' => audience, 'branch' => branch.to_s, 'namespace' => namespace, 'object' => schema.object.to_s,
             'interpretation' => interpretation.wire, 'row_type' => Logical.type_wire(row_type),
-            'collations' => schema.columns.map { |column| column.collation.to_s } } } }
+            'collations' => schema.columns.map { |column| column.collation.to_s }, 'semantics' => schema.columns.map { |_| { 'rounding' => nil, 'metric' => nil, 'timezone' => nil, 'spatial' => nil } } } } }
         end
       end
       Tables = Data.define(:url, :scope, :branch, :audience) do
@@ -151,7 +151,7 @@ module Transit
             output_names: output_names&.map { |v| v.nil? ? nil : Values.name(v) }&.freeze)
         end
         def wire = { 'version' => 1, 'projection' => projection, 'predicate' => predicate&.wire || { 'all' => {} },
-          'limit' => limit&.to_s, 'aggregate' => aggregate.to_s, 'output_names' => output_names }
+          'limit' => limit&.to_s, 'aggregate' => aggregate.to_s, 'output_names' => output_names, 'scalar_program' => '00' }
       end
       Budgets = Data.define(:pages, :segments, :result_bytes) do
         def initialize(pages:, segments:, result_bytes:)

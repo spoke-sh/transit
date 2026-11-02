@@ -67,6 +67,7 @@ pub const LocalSegmentStore = struct {
                 .putImmutableBatch = putImmutableBatchErased,
                 .putConditional = putConditionalErased,
                 .getRange = getRangeErased,
+                .getObject = getObjectErased,
                 .head = headErased,
                 .delete = deleteErased,
             },
@@ -232,6 +233,25 @@ pub const LocalSegmentStore = struct {
         self.range_reads += 1;
         self.bytes_read += to_read;
         return out[0..to_read];
+    }
+
+    fn getObjectErased(context: *anyopaque, key: []const u8, out: []u8) !?TransitObjectStore.ObjectMeta {
+        const self: *LocalSegmentStore = @ptrCast(@alignCast(context));
+        if (self.disk) |disk| {
+            const metadata = (try disk.getObject(key, out)) orelse return null;
+            self.counters_mutex.lockUncancelable(disk.io);
+            defer self.counters_mutex.unlock(disk.io);
+            self.range_reads += 1;
+            self.bytes_read += metadata.size;
+            return metadata;
+        }
+        try TransitObjectStore.validateKey(key);
+        const obj = (self.findMemory(key)) orelse return null;
+        if (obj.bytes.len > out.len) return error.BufferTooSmall;
+        @memcpy(out[0..obj.bytes.len], obj.bytes);
+        self.range_reads += 1;
+        self.bytes_read += obj.bytes.len;
+        return .{ .size = obj.bytes.len, .sha256 = obj.sha256 };
     }
 
     pub fn headObject(self: *LocalSegmentStore, key: []const u8) !?TransitObjectStore.ObjectMeta {

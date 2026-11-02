@@ -58,7 +58,7 @@ pub fn ready(installation: *Installation) !void {
     const response = try reference.operation(client, .execute, 32);
     defer response.deinit();
     switch (response.value.result.ddl) {
-        .not_observed, .admitted => return error.TableWriterNotReady,
+        .not_observed, .admitted, .finalizing => return error.TableWriterNotReady,
         .rejected, .cancelled => return error.InstallationDefaultTableRejected,
         .committed => |evidence| {
             try reference.binding.requireSame(evidence.binding);

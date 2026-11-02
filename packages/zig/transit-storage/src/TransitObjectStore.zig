@@ -62,6 +62,9 @@ pub const ObjectStore = struct {
         putImmutableBatch: ?*const fn (ctx: *anyopaque, batch: []const ImmutablePut, output: []ObjectMeta) anyerror!void = null,
         putConditional: *const fn (ctx: *anyopaque, key: []const u8, condition: Condition, bytes: []const u8) anyerror!bool,
         getRange: *const fn (ctx: *anyopaque, key: []const u8, offset: u64, length: u32, out: []u8) anyerror![]const u8,
+        /// Copy one complete object into caller-owned output and return its
+        /// matching descriptor. Refuse before copying if it does not fit.
+        getObject: ?*const fn (ctx: *anyopaque, key: []const u8, out: []u8) anyerror!?ObjectMeta = null,
         head: *const fn (ctx: *anyopaque, key: []const u8) anyerror!?ObjectMeta,
         delete: *const fn (ctx: *anyopaque, key: []const u8) anyerror!void,
     };
@@ -103,6 +106,32 @@ pub const ObjectStore = struct {
     pub fn head(self: ObjectStore, key: []const u8) !?ObjectMeta {
         try validateKey(key);
         return self.vtable.head(self.context, key);
+    }
+
+    /// Bounded whole-object read. Output belongs to the caller and survives the
+    /// next provider call. Providers may fuse descriptor and payload retrieval;
+    /// all callers still verify the expected content identity and stored format.
+    pub fn getObject(self: ObjectStore, key: []const u8, out: []u8) !?ObjectMeta {
+        try validateKey(key);
+        const metadata = if (self.vtable.getObject) |get|
+            (try get(self.context, key, out)) orelse return null
+        else blk: {
+            const value = (try self.head(key)) orelse return null;
+            if (value.size > max_object_bytes) return error.ObjectTooLarge;
+            if (value.size > out.len) return error.BufferTooSmall;
+            const bytes = try self.getRange(key, 0, @intCast(value.size), out);
+            if (bytes.len != value.size) return error.ObjectSizeMismatch;
+            // Separate provider calls may straddle a conditional publication.
+            // Never return its newer bytes with the earlier descriptor.
+            var digest: [32]u8 = undefined;
+            std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
+            if (!std.mem.eql(u8, &digest, &value.sha256)) return error.ObjectDigestMismatch;
+            if (bytes.ptr != out.ptr) @memcpy(out[0..bytes.len], bytes);
+            break :blk value;
+        };
+        if (metadata.size > max_object_bytes) return error.ObjectTooLarge;
+        if (metadata.size > out.len) return error.BufferTooSmall;
+        return metadata;
     }
 
     pub fn delete(self: ObjectStore, key: []const u8) !void {

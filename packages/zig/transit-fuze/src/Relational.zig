@@ -75,6 +75,13 @@ pub const Plan = struct {
     budgets: Budgets,
 
     pub fn validate(self: Plan) !void {
+        _ = try self.traits();
+    }
+    pub fn traits(self: Plan) !@import("OperatorTraits.zig").Summary {
+        return @import("OperatorTraits.zig").forRelationalPlan(self);
+    }
+    /// Structural validation used by shared trait derivation; no I/O or effects.
+    pub fn validateShape(self: Plan) !void {
         if (self.sources.len == 0 or self.sources.len > max_sources) return error.InvalidRelationalSources;
         if ((self.sources.len == 2) != (self.join != null)) return error.InvalidRelationalJoin;
         if (self.outputs.len == 0 or self.outputs.len > max_outputs) return error.InvalidRelationalOutputs;

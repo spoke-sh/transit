@@ -304,7 +304,7 @@ fn step(self: *Self) !void {
         },
         .execute => {
             const bound: s.Bound = .{ .prepared = self.prepared.handle, .values = self.values };
-            if (self.prepared.mutation) try self.request(.{ .write = bound }, .written) else try self.request(.{ .open_read = bound }, .opened);
+            if (self.prepared.mutation and self.prepared.fields.len == 0) try self.request(.{ .write = bound }, .written) else try self.request(.{ .open_read = bound }, .opened);
         },
         .written => {
             const result = self.result.completion;
@@ -381,6 +381,7 @@ fn step(self: *Self) !void {
                 .{ .source = "22001".*, .code = 1406, .state = "22001".* },
                 .{ .source = "23505".*, .code = 1062, .state = "23000".* },
                 .{ .source = "23502".*, .code = 1048, .state = "23000".* },
+                .{ .source = "23514".*, .code = 3819, .state = "HY000".* },
                 .{ .source = "42P07".*, .code = 1050, .state = "42S01".* },
                 .{ .source = "42P01".*, .code = 1146, .state = "42S02".* },
                 .{ .source = "42601".*, .code = 1064, .state = "42000".* },

@@ -20,19 +20,37 @@ pub fn init(allocator: std.mem.Allocator, text: []const u8, name: []const u8, sc
     var owned_schema = try schema.clone(allocator);
     errdefer owned_schema.deinit();
     var arena: std.heap.ArenaAllocator = .init(allocator);
-    errdefer arena.deinit();
+    defer arena.deinit();
     const a = arena.allocator();
     var parser = try f.SqlTyped.initDialect(a, try a.dupe(u8, text), location, true, dialect);
     const syntax = try dml.syntax(&parser, owned_schema.schema);
     try parser.finish();
-    var result: Self = .{ .arena = arena, .schema = owned_schema, .name = try a.dupe(u8, name), .syntax = syntax };
+    return adoptOwned(allocator, &arena, name, owned_schema, syntax, &.{}, location);
+}
+
+pub const Parameter = struct { site: sql.Parameter, type: t.Type };
+
+/// Share typed VALUES binding with dedicated workload parsers. All syntax and
+/// its borrowed input must belong to `arena`. Success transfers that arena and
+/// resets the caller's owner; failure leaves cleanup with the caller. Metadata
+/// parameters participate in the same type/gap checks as row parameters.
+pub fn adoptSyntax(allocator: std.mem.Allocator, arena: *std.heap.ArenaAllocator, name: []const u8, schema: f.TableSchema.Schema, syntax: dml.Syntax, extra: []const Parameter, location: ?*sql.Location) !Self {
+    var owned_schema = try schema.clone(allocator);
+    errdefer owned_schema.deinit();
+    return adoptOwned(allocator, arena, name, owned_schema, syntax, extra, location);
+}
+fn adoptOwned(allocator: std.mem.Allocator, arena: *std.heap.ArenaAllocator, name: []const u8, owned_schema: f.TableSchema.Owned, syntax: dml.Syntax, extra: []const Parameter, location: ?*sql.Location) !Self {
+    const a = arena.allocator();
+    var result: Self = .{ .arena = undefined, .schema = owned_schema, .name = try a.dupe(u8, name), .syntax = syntax };
     try result.infer(location);
+    for (extra) |parameter| try result.register(parameter.site, try parameter.type.cloneInto(a), location);
     for (result.sites[0..result.count]) |site| if (site == null) return error.ParameterGap;
     var witnesses: [max_parameters]?t.Values.Atom = undefined;
     for (result.parameterTypes(), witnesses[0..result.count]) |kind, *value| value.* = try f.LogicalPrepared.witness(kind);
     const plan = try syntax.bindParameters(a, result.name, owned_schema.schema, location, witnesses[0..result.count]);
     _ = try plan.fingerprint(allocator);
-    result.arena = arena;
+    result.arena = arena.*;
+    arena.* = .init(arena.child_allocator);
     return result;
 }
 pub fn deinit(self: *Self) void {

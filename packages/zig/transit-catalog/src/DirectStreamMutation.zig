@@ -5,99 +5,10 @@ const c = @import("root.zig");
 const p = c.protocol;
 const d = p.DataLifecycle;
 const q = p.StreamQueue;
-const read = p.StreamRead;
 
-pub const Request = union(enum) {
-    append: q.Append,
-    assign: q.GroupAssignment,
-    consume: read.Request,
-    release: read.Release,
-    offset: struct {
-        commit: q.OffsetCommit,
-        cursor: read.Cursor,
-        pub fn validate(self: @This()) !void {
-            try self.commit.validate();
-            try self.cursor.validate();
-            if (!std.meta.eql(self.commit.coverage, self.cursor.coverage) or
-                self.commit.operation.principal != self.cursor.read.owner.principal)
-                return error.StreamReadConflict;
-        }
-    },
+pub const Request = p.LogWorkload.StreamRequest;
 
-    pub fn validate(self: Request) !void {
-        switch (self) {
-            inline else => |value| try value.validate(),
-        }
-        if (self == .append and self.append.kind != .stream) return error.CatalogKindMismatch;
-    }
-    pub fn identity(self: Request) d.Operation {
-        return switch (self) {
-            .offset => |value| value.commit.operation,
-            inline else => |value| value.operation,
-        };
-    }
-    pub fn target(self: Request) q.Partition {
-        return switch (self) {
-            .assign => |value| value.cut.target,
-            .offset => |value| value.commit.coverage.cut.target,
-            inline else => |value| value.target,
-        };
-    }
-    pub fn access(self: Request) c.LogAuthority.Access {
-        return switch (self) {
-            .append => .append,
-            .assign => .administer,
-            .consume => |value| if (value.group != null) .acquire else .read,
-            .release => .read,
-            .offset => .settle,
-        };
-    }
-    pub fn control(self: Request) bool {
-        return switch (self) {
-            .assign => |value| value.expected != null,
-            .release, .offset => true,
-            .append, .consume => false,
-        };
-    }
-    /// Payload bytes are already bound by Append.payload. Hash every remaining
-    /// frozen field, including cursor authentication and exact consumer basis.
-    pub fn binding(self: Request, scratch: std.mem.Allocator) !Binding {
-        try self.validate();
-        const bytes = try p.Json.valueAllocBounded(scratch, self, 16 * 1024);
-        defer scratch.free(bytes);
-        var digest = std.crypto.hash.sha2.Sha256.init(.{});
-        digest.update("transit.catalog.stream.operation.v1\x00");
-        digest.update(&p.Growth.definition_bytes);
-        digest.update(bytes);
-        const result: Binding = .{
-            .definition = p.Growth.current_definition,
-            .operation = self.identity(),
-            .target = self.target(),
-            .kind = std.meta.activeTag(self),
-            .intent = digest.finalResult(),
-        };
-        try result.validate();
-        return result;
-    }
-};
-
-pub const Binding = struct {
-    definition: p.Growth.Definition,
-    operation: d.Operation,
-    target: q.Partition,
-    kind: std.meta.Tag(Request),
-    intent: [32]u8,
-    pub fn validate(self: Binding) !void {
-        if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
-        try self.target.requireOperation(self.operation);
-        if (std.mem.allEqual(u8, &self.intent, 0)) return error.InvalidStreamOperationBinding;
-    }
-    pub fn requireSame(self: Binding, other: Binding) !void {
-        try self.validate();
-        try other.validate();
-        if (!std.meta.eql(self, other)) return error.DataIdentityConflict;
-    }
-};
+pub const Binding = p.LogWorkload.StreamBinding;
 
 test "stream operation bindings freeze target payload producer and read intent" {
     const t = std.testing;

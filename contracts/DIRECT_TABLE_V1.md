@@ -11,6 +11,14 @@ and shared SQL runtime. Captured-source and SDK migration remain incomplete. The
 
 ## Requests and authority
 
+The `descriptor` action publishes and inspects versioned views, property-graph
+mappings and foreign layouts through `DirectDefinition`. These metadata objects
+share stable catalog identities, namespace/name claims and current native Table
+permissions. Their original-operation outcomes and dependency replacements commit
+atomically in the catalog log. They allocate no data partition. See
+[catalog interpretations](CATALOG_DEFINITIONS_V1.md) for the exact publication,
+historical selection and execution profiles.
+
 The `branch` action and result use `DirectBranch.Request` and `DirectBranch.Result`
 for named immutable single-Table branches. Creation, publication, cancellation,
 source reads and paged scans share this endpoint and the typed local owner.
@@ -137,10 +145,13 @@ the declaration owner. Pending removal requires a complete, rejected or cancelle
 owner observation. Retrying a token cannot substitute a changed declaration,
 account, operation or name. Immutable staging records retain the existing saved
 record lifetime and remain outside physical collection authority. The SQL
-compiler does not yet accept Stream/Queue declaration syntax.
+compiler accepts Stream/Queue declaration and named inspection syntax; workload
+verbs have separate, unfinished execution contracts.
 
-A transaction reference fixes the connection, selected namespace and
-`Transaction.Begin` descriptor. Initial acceptance checks the exact Catalog
+A transaction reference fixes the connection, selected namespace,
+`Transaction.Begin` descriptor and mandatory `purpose`. Ordinary requests use
+`interactive`. Missing purpose fields do not default to that value. Initial
+acceptance checks the exact Catalog
 observation, the complete paged selection of read-only Table/KV and partitioned
 Stream/Queue descriptors and
 configured limits. Admission accepts `explicit_objects`; it rejects the neutral
@@ -155,6 +166,41 @@ CONNECT authorizes saving and recovering this caller-supplied descriptor. The
 descriptor grants no Table access and establishes no acquired cut, retained pin,
 workspace or decision. Selection descriptors do not make nonexistent Tables
 readable. Execution must independently acquire and authorize its complete cut.
+
+The internal exhausted-Queue transfer owner uses `purpose.queue_transfer`, an
+immutable `DQP1` plan reference. It admits exactly two Queue participants and one
+paired transfer statement. The plan fixes one account/token, the begin,
+settlement, source transfer and destination append identities, exact exhausted
+tuple and recorded destination. Admission reconstructs and verifies the payload
+under current source administration, both participants' read rights and
+destination append rights before one
+catalog acceptance publishes the token, permanent source binding and pending
+recovery index. The account's byte charge covers the plan and payload; ordinary
+transaction reservations also apply. The retained storage graph includes those
+definitions and payload before source pins or a workspace exist.
+
+If the immutable begin reservation survives a failed catalog append, the
+protected owner reuses its exact plan, token and selection even after unrelated
+catalog publication. Both admission and replay verify that original reservation;
+ordinary transactions still require the current catalog observation. A private
+reservation alone is not acceptance or a retention pin. Missing pre-acceptance
+artifacts refuse recovery rather than selecting new work under the old identity.
+
+The source key excludes caller/account, policy revision and destination, so a
+changed worker cannot create another attempt for the same exhausted item.
+Generic token binding, transaction mutations and caller-record access cannot
+create or modify this protected purpose. Internal advance uses the existing
+workspace to save the exact request before execution and the existing decision
+owner for commit/abort and cleanup. Only verified cleanup removes the pending
+entry; the source binding survives either outcome. An abort cannot replace a
+commit, and an aborted attempt does not authorize automatic fresh identities.
+The library requires exclusive host serialization across admission and each
+advance. The local node's optional `table.queue_transfers` worker uses these
+operations under its separately configured database signer. Recovery scans the
+paged pending index and advances one original transaction unit; discovery
+retains one finite Queue sweep. A worker cannot adopt another signer's or
+account's binding. The public wire surface exposes the existing transaction
+inspection; protected transfer mutation remains internal to this owner.
 
 The typed `transaction.begin` control accepts an ordered array of exact
 `Transaction.Target` values for `explicit_objects`, bounded by 100,000 and the
@@ -282,8 +328,8 @@ independent Catalog `revision`, `pending`, sticky `cancel` and optional immutabl
 record reference. `update` compares the expected revision. An exact repeated
 update returns its existing state, including after a lost reply. A stale changed
 update conflicts; settled work cannot become pending and cancellation cannot be
-cleared. Table, name and namespace settlement requires an actual terminal owner
-observation. External bookkeeping is not evidence of external completion.
+cleared. Table, log declaration, workload, name and namespace settlement requires
+an actual terminal owner observation. External bookkeeping is not evidence of external completion.
 
 `Binding.budget` declares account limits for operations, retained recovery bytes
 and pending operations, plus this operation's byte reservation. Defaults are
@@ -300,6 +346,100 @@ binds exact byte length and SHA-256. `record.read` verifies both. Current CONNEC
 is required for staging and reading; these records never grant data or execution
 rights. Accepted references and subsequent progress records retain complete
 original work; a body alone does not establish token acceptance.
+
+`DirectWorkloadIntent` uses format `WLI1` (`0x574c4931`) for canonical JSON
+containing mandatory current `definition`, `connection`, complete source
+declaration/schema, native Stream/Queue mutation with its nullable payload, and
+an explicit nullable `projection` (no missing-field default).
+The source matches the exact original target; append/enqueue payload bytes,
+row attribution, schema and partition routing are validated before staging.
+The 4 MiB record ceiling includes base64 and metadata overhead. Restoring rejects
+noncanonical bytes and missing/foreign definitions; it never resolves a new name.
+When present, `projection` contains an ordered input layout and encoded Fuze
+plan. Validation binds it to the exact native operation, source schema (including
+collations), stable column IDs and selected metadata fields. The canonical body
+owns the plan, aliases and literals independently of compiler buffers. Restoration
+decodes the saved plan without reparsing SQL or resolving a current source name.
+Malformed layouts, truncated encodings and foreign plan definitions refuse as
+invalid requests; source mismatches remain conflicts. Allocation failure is
+preserved separately and never establishes invalid caller data.
+Current projections support application columns, partition and offset, plus
+original lease epoch and attempt for claims. They cannot aggregate or impose a
+result limit; native acquisition and coverage retain their own bounds. Predicates
+are supported only for Stream consumption; claim filtering must precede lease
+acquisition. The native result action returns raw original rows; the SQL service
+evaluates the frozen projection through its shared original-result reader.
+Its reference binds connection, namespace, canonical workload binding, original
+stored declaration and the account-scoped record. The shared helper loads that
+body before inspect/execute/cancel and checks the complete reference again.
+`DirectIntent.Reference.workload` selects this body under a caller token. Binding
+verifies the account and current original-operation rights, then reserves the
+same global Stream/Queue operation identity used by native mutation and cancel.
+It does not execute the work. Exact token retries return the first accepted
+reference before loading a competing proposal; a changed fingerprint conflicts.
+Catalog history retains the accepted body and original declaration. Its byte
+reservation must cover the body plus 4096 bytes for the bounded reference and
+512 bytes of token bookkeeping; `Reference.reservationBytes()` supplies that
+minimum. Under-reservation rejects before acceptance. Native payload and retained
+result storage remain subject to their separate owner quotas.
+
+Clearing workload `pending` requires the normal host-owned partition reader to
+return a matching success or durable closure for the original request. Bounded
+recovery and absent receipts leave it pending. Unavailable native owners and
+storage/authorization failures cannot supply completion. The service rechecks
+current rights after buffering the outcome and at Catalog publication. A sticky
+cancellation flag records caller intent only; it neither closes a workload nor
+rolls back an accepted mutation. Native cancellation uses the saved request.
+An exact repeated settled update returns the retained bookkeeping state without
+re-executing the operation. SQL operation recovery and result reopening use this
+shared owner. SQL workload text admission remains unavailable.
+
+### Original workload result delivery
+
+The signed read-only `workload_result` action opens and pages the original
+accepted append/enqueue, consume or claim. `open` takes the complete workload
+intent reference and explicit row/byte/scan budgets. It returns `opened` with
+the original native success receipt, frozen source/schema, delivery limits and
+initial position. A staged body or absent receipt is not an accepted result;
+incomplete native recovery and missing outcomes return pending conflict. Durable
+cancellation/refusal has no row result and remains inspectable through the
+original native operation. The action never executes or cancels a mutation.
+
+`page` carries that entire result reference and its saved delivery position.
+It reopens the same owner receipt and selection before reading. Append/enqueue
+rows come from the verified frozen payload and accepted offset range. Stream
+pages retain the original cut and authenticated coverage; Queue pages traverse
+the original claim and report current lease liveness. Refetch does not renew a
+lease, ACK, advance a group or choose another selection. Output binds the original
+schema and operation, exact row ordinals/offsets and next position. A complete
+empty selection remains empty even after later appends. Source-history or
+explicit read-release failures are visible; neither produces empty completion.
+
+A page request also requires an explicit positive `rows` budget no greater
+than the frozen delivery limit. Lowering it controls this page alone and cannot
+change the original selection, source or retained reference.
+
+One delivery page has at most 128 rows and 1 MiB of encoded row bytes, also within
+the frozen source's read limits; Stream scan work is bounded to 65,536 examined
+rows. A single row that exceeds the byte budget fails without advancing delivery.
+Encoded row bytes exclude base64 and schema overhead. The workload's existing
+4 MiB complete-body limit remains separate. Each read requires current
+original-operation rights plus READ and rechecks disclosure after buffering,
+including empty and repeated responses. Descriptors and cursor possession grant
+no permission. The service uses its normal bounded native owners and preserves
+verified replay progress when an original-result probe remains pending.
+
+There is no new durable cursor or implicit close mutation. Local page/cursor
+cleanup releases delivery buffers; explicit native read release remains a
+separate saved operation and can make future delivery unavailable. Stream
+`offsetWork` prepares a separate request from an exhausted authenticated read;
+`offsetIntervalWork` takes an earlier issued cursor from that read and settles
+only the traversed interval through the current cursor. Both preserve the
+original group generation. Save that exact handoff before
+dispatch; the native owner still authenticates it and checks current assignment
+and settlement rights. A requested numeric offset or SQL output count cannot
+replace it. SQL result reopening uses this native boundary; workload SQL text
+admission and its finite-consumption handoff remain unavailable.
 
 An optional signed request `lease` contains a token key and exact recovery
 revision. Its scope/principal/audience must match the request. The local host
@@ -799,8 +939,12 @@ and conditional name assertions. A reused identity must match the entire saved
 binding, including authority. Transport credential replacement does not change it.
 
 An edge binds a source Table, Stream, Queue or named KV/Document's exact `DataLifecycle.Definition`, a dependent's
-kind (`kv`, `document`, `captured`, `maintained`, `stream`, `queue`) and exact definition, and a
-nonzero mask of required logical actions. Table sources accept Table action masks;
+kind (`kv`, `document`, `captured`, `maintained`, `stream`, `queue`, `table`) and exact definition, and a
+mask of required logical actions. Generic registrations require a nonzero mask.
+Table-owned staged foreign-key edges carry `foreign_key {constraint, column}`
+and zero privileges: protection requires metadata authority and grants no row
+access. Generic `dependency_operation` cannot register or remove these edges.
+Table sources accept Table action masks;
 direct KV sources use `KVAuthority` privileges; named Document sources accept
 SELECT only, mapped to native INSPECT and READ.
 Stream/Queue sources accept their own five-bit action masks; their dependents
@@ -862,11 +1006,31 @@ definitions and may leave a consumer stale; they do not rewrite it. Namespace
 DROP checks live/pending Table and named-resource membership. Neither registry discovers
 unregistered consumers or dependencies embedded in arbitrary payloads.
 
+Staged Table foreign keys are registered by the original admitted Table DDL.
+Each bounded step atomically records one referenced-column edge in both graph
+directions and advances `protected_columns`/`dependency_steps`. All required
+edges precede child visibility. Parent DROP and changes to a protected column's
+type, collation, physical encoding or membership reject with a generic dependency
+reason; compatible renames preserve bindings. A saved target definition remains
+unchanged by parent renames. Newly registered edges require the exact current
+parent definition and metadata rights, rechecked at publication.
+
+Table DDL with foreign keys records `requires_settlement`. After Table commit,
+`finalizing {evidence, operation}` exposes that durable outcome while bounded
+dependency cleanup remains pending. It is not a rejected or replayable new
+operation. Settlement records a closure before scanning one reverse edge per
+step; obsolete registrations are removed only against the original known Table
+outcome. Cancelled unpublished declarations release their acquired protection.
+Cleanup uses current child metadata authority and requires no parent grant.
+The object remains pending until settlement; retrying/cancelling a committed
+operation continues its original cleanup and cannot roll back the commit.
+`committed` is returned once this required settlement completes.
+
 `dependencies` selects `dependents` of a source object or `dependencies` of a
 dependent object, with an explicit authority and nullable cursor. Each call scans
 at most four edges; denied edges are omitted while scan progress advances.
 An empty page with `next` is incomplete. The cursor binds selection, authority,
-catalog position and the last scanned edge digest. A changed catalog position
+catalog position and the last scanned full index key. A changed catalog position
 returns HTTP 409 (`CatalogObservationChanged`), requiring a fresh traversal;
 pages from different observations cannot be joined into one complete graph.
 Durable graph cardinality is independent of resident cache and page size.
@@ -880,10 +1044,13 @@ point observation does not certify data availability or a cross-catalog snapshot
 
 The edge key digest is SHA-256 over `transit.catalog.dependency.v1` and a zero
 byte, followed by 169 bytes: source definition, one-byte dependent kind (KV=1,
-Document=2, captured=3, maintained=4), dependent definition, and a big-endian
+Document=2, captured=3, maintained=4, Stream=5, Queue=6, Table=7), dependent definition, and a big-endian
 unsigned 64-bit privilege mask. Each 80-byte definition contains big-endian
 unsigned 64-bit realm/resource/catalog/branch/object/revision, then its 32-byte
-digest. Forward keys prefix the digest with the source's big-endian object ID.
+digest. Foreign-key digests append a big-endian u32 constraint ID and u64
+referenced ColumnId to that body. Forward keys contain the source's big-endian
+object ID, a one-byte kind (0 generic, 1 foreign key), the referenced big-endian
+ColumnId for kind 1, then the digest (41 or 49 bytes respectively).
 Reverse keys prefix it with SHA-256 over `transit.catalog.dependent.v1`, a zero
 byte and the dependent's five big-endian object fields. Full edge records must
 match when a key already exists. Persisted catalog roots require both graph
@@ -1013,7 +1180,7 @@ retained-read delegations and borrowed-read grants do not permit this action.
 
 ### Delegated retained reads
 
-`DirectReadDelegation.encode` retains the original grant in a canonical 311-byte
+`DirectReadDelegation.encode` retains the original grant in a canonical 433-byte
 `TRG1` record. It contains the four-byte magic, mandatory 32-byte current
 definition, connection scope (realm/resource/catalog), branch, audience,
 principal, role-present byte and role value, executor, object ID, definition
@@ -1022,6 +1189,18 @@ revision and 32-byte digest, partition and accepted frontier, pin operation, ret
 in that order. All integers are unsigned 64-bit little-endian except the
 one-byte role flag, retention tag (`snapshot = 0`, `history = 1`) and selection
 tag (`exact = 1`, `current = 2`).
+The signature is followed by a copy-present byte, 80 source-handle bytes,
+a projection-present byte, and 40 target-definition bytes. An absent optional
+value has a zero tag and zero-filled payload. A source handle contains its
+realm/resource/catalog, principal, operation and content length as little-endian
+u64s followed by its 32-byte digest. The projection contains a u64 revision and
+32-byte digest; its object must equal the original source object. A copy grant
+requires exact snapshot selection, a distinct destination owner, and the same
+catalog scope. The source definition and accepted frontier are checked before
+copy acceptance; retries verify the accepted copy even after source release.
+A projection grant authorizes only preparation of that exact source/target pair
+and projected scans of the query-owned copy. Discovery remains denied.
+
 An absent role has flag/value zero. Object and pin scope,
 pin principal and repeated claim fields must match the connection; decoding
 reconstructs only these constrained duplicates. Missing, foreign, truncated,
@@ -1075,7 +1254,7 @@ replaced shared definition rejects previous envelopes without a fallback.
 
 An explicit `DirectReadDelegation.Closure` authorizes cleanup after the original
 credential changes. Its context is SHA-256 of `transit.table.pin-closure.v1`, a
-zero byte and the exact 311-byte original `TRG1` grant, including its original
+zero byte and the exact 433-byte original `TRG1` grant, including its original
 signature. It carries a current credential epoch and a 64-byte signature; the
 remaining claim fields come from that original grant. Its compact encoding is
 little-endian uint64 epoch followed by the signature (72 bytes). The transport
@@ -1086,6 +1265,9 @@ The owner checks the current closure proof and executor proof together. Only
 Schema and row reads reject, and cleanup cannot replace execution authority or
 choose a newer cut. Exact-original acquisition may be needed to create a terminal
 release record for an uncertain request whose frontier has not advanced.
+For a copy grant, later live definitions/frontiers cannot prove acquisition
+impossible. Closure retries the original copy and releases it, or requires a
+qualified released-pin response that permanently excludes a delayed copy.
 
 `DirectReadDelegation.Borrow` grants another executor read access to one existing
 cut. Its `binding` contains, in order, an executor principal, a target
@@ -1093,7 +1275,7 @@ cut. Its `binding` contains, in order, an executor principal, a target
 It also carries the original caller's 64-byte signature. The claim retains the
 original grant's identity, role, audience and credential epoch; its context is
 SHA-256 of `transit.table.borrowed-read.v1`, a zero byte, the exact original
-311-byte `TRG1` grant and canonical JSON of the borrowed binding. Preparing this
+433-byte `TRG1` grant and canonical JSON of the borrowed binding. Preparing this
 proof after the caller's epoch changes rejects instead of renewing accepted work.
 
 The request carries both the original delegation and `borrow`. The transport
@@ -1426,6 +1608,45 @@ that retained root and its last returned canonical 20-byte row identity. Rows
 are strictly increasing by identity, independent of their current physical
 locators. It never substitutes the latest name or definition.
 
+### Retained projection coverage
+
+`projection_definitions` accepts `snapshot` and nullable `after` with the pin's
+`source` content and last physical `after` schema revision. It returns the exact
+pin, logical `TableDeclaration.Stored`, accepted position, total live rows, one
+nullable `entry` and nullable `next`. Each entry carries the physical stored
+definition, a separate `schema_revision`, its positive live locator count, and
+up to 128 logical column mappings. A mapping identifies the same stable physical
+ColumnId or the exact ADD-time definition and initial five-state tag. Default
+payloads are not returned. The definition revision and schema revision are
+distinct; a Table rename need not change the physical schema revision.
+
+`projection_locations` accepts `snapshot` and a nullable original identity
+cursor. It returns at most eight entries in strict row-identity order, with the
+same envelope and a continuation bound to the last returned identity. An entry
+carries the physical definition and schema revision plus either a WAL LSN,
+offset, byte length and row digest, or a segment ID, row ordinal and immutable
+content descriptor. These are retained locator references, not a successful
+payload-availability or checksum verification. Missing/corrupt payloads retain
+their ordinary errors when a read attempts to load them.
+
+The first operation requires current metadata visibility on the original Table;
+the second requires current SELECT. Both require the pin's original principal,
+recheck current rights before disclosure, and reject released pins. No latest
+lookup, pin acquisition, renewal, row decoding or mutation occurs. Reopening an
+owner may read its recovery WAL; inspection does not open segment payloads. Delegated
+read and active transaction overlays do not admit these operations. An empty
+first page is complete only for a zero-row source. A continuation cannot change
+its source; a caller must visit every page and account for the original total
+before claiming complete inspection. Inspection completion does not complete a
+query result or modify its initial observation evidence.
+
+The shared host catalog's `projection` action supplies `definitions` and
+`locations` inputs with an owned retention `snapshot` and nullable saved cursor.
+It returns an owned page and cursor. Counts, schema/definition/column IDs,
+positions and row identities retain full-width decimal strings; location cursor
+identities and digests use canonical lower-case hex. Each call performs one
+public read and leaves the retention lifecycle with its caller.
+
 `column_scan` accepts `snapshot`, `columns`, nullable `after` and `limits` and
 returns the same `page` envelope as `scan`. `columns` is a JSON array of 1–128
 unsigned integer ordinals, each in 0–127, strictly increasing without duplicates.
@@ -1644,6 +1865,15 @@ and settlement use reserved control capacity; other calls use data capacity.
 All transaction actions exclude database publication. Current scoped checks share
 one writer/policy epoch, checked again before disclosing a buffered response.
 
+The acquired result additionally requires nullable `catalog`: an immutable paged
+directory of the selected Tables' namespace/name/definition bindings, frozen
+under the cut's publication fence. It is null when no selected participant is a
+Table. KV and log participants remain in the complete transaction source
+directory. Historical acquisition can transfer this authenticated cut to its own
+retention through the [historical catalog owner](HISTORICAL_CATALOG_V1.md).
+A pending transfer defers original-pin cleanup; it does not undo a durable
+decision or turn incomplete cleanup into transaction rejection.
+
 ### Transactional Stream and Queue work
 
 Explicit transaction selections can combine Table/KV objects and declared
@@ -1829,3 +2059,13 @@ not replace the frozen command with abort, undo a decision or establish that a
 remote reply was never accepted. Explicit settle commands retain the original
 transaction attempt and the common decision owner. See [SQL sessions](SQL_SESSION_V1.md#table-transactions-and-recovery)
 for attachment and uncertainty behavior.
+
+## Selected historical catalogs
+
+The [historical catalog contract](HISTORICAL_CATALOG_V1.md) owns selection,
+original-operation acquisition, publication, current disclosure and bounded
+release. It reuses `DataLifecycle.Snapshot` and the direct Table authority.
+SQL `AS OF SNAPSHOT` binds that catalog before names and schemas; historical
+SELECT observations carry its immutable identity and exact source evidence.
+Metadata observations retain catalog attribution without claiming row execution.
+An independent source vector is not an atomic cross-Table cut.

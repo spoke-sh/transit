@@ -251,6 +251,35 @@ pub fn dataType(self: *Self) anyerror!names.Resolved {
     self.annotate(.type_name);
     var name_text = self.token.text;
     try self.advance();
+    if (std.ascii.eqlIgnoreCase(name_text, "RANGE") or std.ascii.eqlIgnoreCase(name_text, "MULTIRANGE")) {
+        try self.require(.lt);
+        const subtype = try self.allocator.create(t.Type);
+        subtype.* = try self.nested();
+        try self.require(.gt);
+        const result: t.Type = if (std.ascii.eqlIgnoreCase(name_text, "RANGE")) .{ .range = subtype } else .{ .multirange = subtype };
+        try result.validate(.{});
+        return .{ .type = result };
+    }
+    if (std.ascii.eqlIgnoreCase(name_text, "VECTOR")) {
+        try self.require(.left);
+        const dimensions = try self.unsigned();
+        try self.require(.comma);
+        if (self.token.tag != .word) return error.InvalidTypeParameters;
+        const Element = @import("VectorMetric.zig").ElementType;
+        const kinds = std.StaticStringMap(Element).initComptime(.{
+            .{ "FLOAT32", .float32 }, .{ "FLOAT16", .float16 }, .{ "BFLOAT16", .bfloat16 }, .{ "INT8", .int8 }, .{ "BINARY", .binary },
+        });
+        var spelling: [8]u8 = undefined;
+        if (self.token.text.len > spelling.len) return error.InvalidTypeParameters;
+        for (self.token.text, spelling[0..self.token.text.len]) |byte, *out| out.* = std.ascii.toUpper(byte);
+        const element = kinds.get(spelling[0..self.token.text.len]) orelse return error.InvalidTypeParameters;
+        self.annotate(.type_name);
+        try self.advance();
+        try self.require(.right);
+        const result: t.Type = .{ .vector = .{ .dimensions = dimensions, .element = element } };
+        try result.validate(.{});
+        return .{ .type = result };
+    }
     if (std.ascii.eqlIgnoreCase(name_text, "STRUCT") or std.ascii.eqlIgnoreCase(name_text, "UNION")) {
         try self.require(.left);
         var fields: std.ArrayList(t.Field) = .empty;

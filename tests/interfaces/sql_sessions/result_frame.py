@@ -127,28 +127,61 @@ class Decoder:
             return value
         assert content_type == CONTENT_TYPE
         assert 192 <= len(data) <= 4194304 and data[:4] == b'TSR1'
-        assert data[4:36] == bytes.fromhex(definition) and not any(data[184:192])
+        assert data[4:36] == bytes.fromhex(definition) and not any(data[188:192])
         ordinal, rows, flags, total = struct.unpack_from('<QIIQ', data, 84)
         assert rows <= 32 and flags <= 1 and (flags or total == 0)
         assert rows or flags
         schema_size, observation_size, width = struct.unpack_from('<III', data, 172)
+        completion_size = struct.unpack_from('<I', data, 184)[0]
+        assert completion_size <= 16384 and (flags or completion_size == 0)
         assert schema_size <= 16384 and observation_size <= 65536 and width <= 256
         assert bool(schema_size) == bool(observation_size) == (ordinal == 0)
         assert bool(width) == bool(rows)
-        directory = 192 + schema_size + observation_size
+        directory = 192 + schema_size + observation_size + completion_size
         offset = rounded(directory + width * 8)
         assert offset <= len(data) and not any(data[directory + width*8:offset])
         key = data[52:84]
         commitments = data[108:172]
         if ordinal == 0:
             schema = data[192:192+schema_size]
-            observation = data[192+schema_size:directory]
+            observation = data[192+schema_size:192+schema_size+observation_size]
             assert hashlib.sha256(schema).digest() + hashlib.sha256(observation).digest() == commitments
             description = (schema.hex(), json.loads(observation), schema_kinds(schema), commitments)
             if key in self.descriptions: assert self.descriptions[key] == description
             self.descriptions[key] = description
         schema, observation, kinds, expected = self.descriptions[key]
         assert commitments == expected and (rows == 0 or len(kinds) == width)
+        completion = dict(rows=total) if flags else None
+        if completion_size:
+            completion['workload'] = json.loads(data[directory-completion_size:directory])
+        workload = observation.get('data', {}).get('workload')
+        if flags and workload:
+            evidence = completion['workload']
+            assert evidence['intent'] == workload['intent']
+            selection, position = workload['selection'], evidence['position']
+            limit = workload['limit']
+            assert len(selection) == len(position) == 1 and selection.keys() == position.keys()
+            if 'consume' in selection:
+                receipt, cursor = selection['consume'], position['consume']
+                coverage = cursor['coverage']
+                assert cursor['read'] == dict(owner=receipt['request']['operation'], source=receipt['source'])
+                assert coverage['cut'] == receipt['cut'] and coverage['from'] == receipt['request']['from']
+                assert coverage['until'] == receipt['until']
+                assert coverage['from'] <= coverage['through'] <= coverage['until']
+                assert coverage['complete'] == (coverage['through'] == coverage['until'])
+                assert limit is None or 0 <= total <= limit
+                assert coverage['complete'] or (limit is not None and total == limit)
+                assert total <= coverage['rows'] <= coverage['through'] - coverage['from']
+                assert any(cursor['authentication'])
+            elif 'claim' in selection:
+                assert limit is None
+                assert position['claim']['receipt'] == selection['claim']
+                assert total == position['claim']['next'] == selection['claim']['rows']
+            else:
+                assert limit is None
+                assert total == position['append'] == selection['append']['append']['rows']
+        elif flags:
+            assert completion_size == 0
         columns = []
         for i in range(width):
             start, size = struct.unpack_from('<II', data, directory + i*8)
@@ -162,7 +195,7 @@ class Decoder:
         assert len(cells) == rows and sum(len(bytes.fromhex(cell)) for row in cells for cell in row) <= 1048576
         return dict(version=1, definition=definition, instance=list(data[36:52]), result=dict(batch=dict(
             cursor=list(key), batch=ordinal, schema=schema, observation=observation, rows=cells,
-            complete=bool(flags), completion=dict(rows=total) if flags else None)))
+            complete=bool(flags), completion=completion)))
 
 
 def encode_fixture(definition, instance, batch):
@@ -206,8 +239,10 @@ def encode_fixture(definition, instance, batch):
     struct.pack_into('<QIIQ', data, 84, batch['batch'], len(rows), int(batch['complete']), batch['completion']['rows'] if batch['complete'] else 0)
     data[108:172] = hashlib.sha256(schema).digest() + hashlib.sha256(observation).digest()
     if batch['batch'] != 0: schema = observation = b''
-    struct.pack_into('<III', data, 172, len(schema), len(observation), len(pages))
-    data += schema + observation
+    evidence = batch['completion'].get('workload') if batch['complete'] else None
+    completion = json.dumps(evidence, separators=(',', ':'), ensure_ascii=False).encode() if evidence is not None else b''
+    struct.pack_into('<IIII', data, 172, len(schema), len(observation), len(pages), len(completion))
+    data += schema + observation + completion
     directory = len(data)
     data += bytes(len(pages)*8)
     data += bytes(rounded(len(data)) - len(data))

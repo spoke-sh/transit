@@ -20,8 +20,9 @@ def run(node, catalog, gateway):
     node, catalog, gateway = [str(Path(p).resolve()) for p in (node, catalog, gateway)]
     with tempfile.TemporaryDirectory(prefix='transit-sql-database-', dir='/var/tmp', delete=False) as directory:
         root = Path(directory)
-        (root/'identity.json').write_text(json.dumps(dict(source=provenance(ROOT),
-            binaries=[identity(Path(binary)) for binary in (node, catalog, gateway)])))
+        installation_identity = dict(source=provenance(ROOT),
+            binaries=[identity(Path(binary)) for binary in (node, catalog, gateway)])
+        (root/'identity.json').write_text(json.dumps(installation_identity))
         http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         port = free_port()
         direct = f'http://127.0.0.1:{port}'
@@ -279,6 +280,22 @@ def run(node, catalog, gateway):
             call(gateway, 'app-config', 5432)
             framing = call(gateway, 'session-framing')
             assert framing == dict(framing_refusals=17, exact_repeats=15, advanced_recoveries=2, revoked_results=3), framing
+            staged = call(gateway, 'workload-stage')
+            assert staged == dict(workloads=5, pending=True), staged
+            original_bindings = (root/'sql-workload-bindings.json').read_bytes()
+            authority.kill(); authority.wait(timeout=10)
+            authority = start()
+            workload_first = call(gateway, 'workload-read')
+            assert workload_first == dict(workloads=5, rows=116, batches=8,
+                                         originals_verified=False, revoked_terminals=5), workload_first
+            original_observations = (root/'sql-workload-observations.json').read_bytes()
+            authority.kill(); authority.wait(timeout=10)
+            authority = start()
+            workload_recovered = call(gateway, 'workload-read')
+            assert workload_recovered == dict(workloads=5, rows=116, batches=8,
+                                             originals_verified=True, revoked_terminals=5), workload_recovered
+            assert original_bindings == (root/'sql-workload-bindings.json').read_bytes()
+            assert original_observations == (root/'sql-workload-observations.json').read_bytes()
             with subprocess.Popen([gateway, url, 'idle', str(root)], stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE, text=True) as idle:
                 deadline = time.monotonic() + 60
@@ -296,12 +313,13 @@ def run(node, catalog, gateway):
             assert sends == turns == 0, 'SQL database work dispatched Station messages or turns'
             assert capacity_repeats == 1, capacity_repeats
             assert not failures, failures
-            print(json.dumps(dict(profile='native_sql_database', exact_token_recovery=True,
+            print(json.dumps(dict(profile='native_sql_database', identity=installation_identity, exact_token_recovery=True,
                                   committed_reply_timeout_crashes=2,
                                   fenced_replacements=2, direct_outcome_recovered=recovered,
                                   explicit_execute_repeated=repeated, saved_receipt_recoveries=saved_recoveries,
                                   exact_counts=True, history=history,
                                   framing=framing, exact_capacity_retries=capacity_repeats, cleanup_cancelled_and_joined=True,
+                                  workload_recovery=workload_recovered, workload_process_deaths=2,
                                   settled_idle_upstream_requests=idle_requests,
                                   lost_foreground_bind_recovered=True, lost_settlement_reply_recovered=True,
                                   station_sends=sends, station_turns=turns,

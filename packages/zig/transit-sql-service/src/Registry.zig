@@ -249,7 +249,7 @@ pub fn failure(self: *Self, allocator: std.mem.Allocator, err: anyerror) ![]alig
 /// Session must reclaim it even while request JSON/output remains alive.
 pub fn request(self: *Self, allocator: std.mem.Allocator, working: std.mem.Allocator, input: api.Request, peer: Peer) ![]align(api.ResultFrame.alignment) u8 {
     try input.validate();
-    if (input.action == .hello) return self.response(allocator, .{ .hello = .{ .encoding = api.encoding, .session_lease_ms = self.configuration.limits.session_lease_ms, .maximum_message = api.max_message_bytes, .maximum_batch = api.max_batch_bytes, .maximum_rows = api.max_rows, .capabilities = &.{ "catalog_reads", "table_ddl", "table_dml", "logical_types", "typed_parameters", "finite_relational", "source_bindings", "captured_queries", "settings", "configuration_reload", "operation_recovery", "table_transactions", "transaction_savepoints", "schema_migrations" } } });
+    if (input.action == .hello) return self.response(allocator, .{ .hello = .{ .encoding = api.encoding, .session_lease_ms = self.configuration.limits.session_lease_ms, .maximum_message = api.max_message_bytes, .maximum_batch = api.max_batch_bytes, .maximum_rows = api.max_rows, .capabilities = &.{ "catalog_reads", "table_ddl", "table_dml", "logical_types", "typed_parameters", "finite_relational", "source_bindings", "captured_queries", "settings", "configuration_reload", "operation_recovery", "table_transactions", "transaction_savepoints", "schema_migrations", "historical_catalog_reads" } } });
     if (!std.mem.eql(u8, &input.instance.?, &self.instance)) return error.SqlInstanceChanged;
     if (input.action == .open) return self.open(allocator, input.action.open, peer);
     if (input.action == .authenticate) return self.authenticate(allocator, input.action.authenticate);
@@ -298,7 +298,9 @@ pub fn request(self: *Self, allocator: std.mem.Allocator, working: std.mem.Alloc
         const state = if (host.sql_diagnostic) |value| switch (value.kind) {
             .syntax => "42601".*,
             .unsupported, .grammar_only, .interface => "0A000".*,
-            .binding => "22023".*,
+            // Compiler location is additional evidence. Preserve a specific
+            // owner SQLSTATE (including CHECK/NULL failures) during binding.
+            .binding => if (std.mem.eql(u8, &info.state, "XX000")) "22023".* else info.state,
             .limit => "54000".*,
         } else info.state;
         return self.response(allocator, .{ .err = .{ .code = @errorName(err), .sqlstate = state, .message = info.message, .diagnostic = diagnostic, .retry = if (input.action == .execute and input.action.execute.token != null and slot.acceptance_possible and err != error.SqlTokenConflict and diagnostic == null) .control else .never } });
@@ -465,12 +467,24 @@ fn action(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: api.Act
         .execute => |value| return self.execute(allocator, slot, value),
         .result => |value| {
             if (slot.cursor != null) return error.SqlResultActive;
-            if (value.kind != .captured or !std.mem.eql(u8, &value.account, &host.account.execution.account)) return error.GatewayDenied;
+            if ((value.kind != .captured and value.kind != .workload) or !std.mem.eql(u8, &value.account, &host.account.execution.account)) return error.GatewayDenied;
             const prepared = try host.allocator.create(g.Session.Prepared);
             var owned = true;
             errdefer if (owned) host.allocator.destroy(prepared);
-            prepared.* = .{ .captured = try g.CapturedOperations.prepareResult(host, value.id) };
-            errdefer if (owned) prepared.captured.deinit();
+            if (value.kind == .workload) {
+                const reference = try host.fresh(operationReference, .{ host, value.id });
+                if (reference.kind != .workload) return error.InvalidSqlOperationReference;
+                try host.fresh(selectOperation, .{ host, reference });
+                var source = try host.observer.source();
+                const state = try source.operation(value.id);
+                if (state.receipt.binding.intent != .workload) return error.InvalidSqlOperationReference;
+                prepared.* = .{ .workload = try g.database.WorkloadRead.Prepared.init(host.table, state.receipt.binding.intent.workload) };
+            } else prepared.* = .{ .captured = try g.CapturedOperations.prepareResult(host, value.id) };
+            errdefer if (owned) switch (prepared.*) {
+                .workload => |*body| body.deinit(),
+                .captured => |*body| body.deinit(),
+                else => unreachable,
+            };
             var id: api.Id = undefined;
             try self.io.randomSecure(&id);
             const read = try host.openRead(prepared, &.{});
@@ -656,7 +670,7 @@ fn batch(self: *Self, slot: *Slot, ordinal: u64) !api.Batch {
         cursor.schema = try retained.dupe(u8, try schema.encode(&buffer));
         cursor.schema_hash = try schema.fingerprint();
     }
-    cursor.batch = .{ .instance = self.instance, .cursor = cursor.id, .ordinal = ordinal, .schema = cursor.schema_hash, .observation = cursor.observation_hash, .description = if (ordinal == 0) .{ .schema = cursor.schema.?, .observation = cursor.observation.? } else null, .rows = result.len, .columns = columns, .completion = if (result.complete) .{ .rows = cursor.rows } else null };
+    cursor.batch = .{ .instance = self.instance, .cursor = cursor.id, .ordinal = ordinal, .schema = cursor.schema_hash, .observation = cursor.observation_hash, .description = if (ordinal == 0) .{ .schema = cursor.schema.?, .observation = cursor.observation.? } else null, .rows = result.len, .columns = columns, .completion = if (result.complete) try cursor.read.?.completion(cursor.rows) else null };
     cursor.disclosure = cursor.read.?.disclosure;
     if (result.complete) {
         host.closeRead(cursor.read.?);
@@ -773,7 +787,7 @@ fn control(self: *Self, allocator: std.mem.Allocator, working: std.mem.Allocator
 }
 fn selectOperation(host: *g.Session, ref: g.SessionOperations.Reference) !void {
     var reader = try host.observer.source();
-    const binding: g.DatabaseAccount.Binding = if ((ref.kind == .table or ref.kind == .transaction)) blk: {
+    const binding: g.DatabaseAccount.Binding = if (ref.kind.database()) blk: {
         const item = try host.runtime.execution.operation(&reader, ref.id);
         break :blk .{ .resource = item.resource, .catalog = item.catalog, .owner = item.owner, .namespace = item.namespace, .role = item.selectedRole() };
     } else (try g.SessionOperations.external(host.runtime.execution, &reader, ref.id)).binding();
@@ -795,7 +809,7 @@ fn operationPage(host: *g.Session, after: u64) !g.SessionOperations.Page {
 }
 fn operationStatus(host: *g.Session, ref: g.SessionOperations.Reference) !api.Operation {
     return switch (ref.kind) {
-        .table, .transaction => try host.fresh(g.DatabaseRuntime.status, .{ host.runtime, host.allocator, &host.observer, &host.table, host.namespace, ref.id }),
+        .table, .transaction, .workload => try host.fresh(g.DatabaseRuntime.status, .{ host.runtime, host.allocator, &host.observer, &host.table, host.namespace, ref.id }),
         .dataflow => try g.ManagedOperations.status(host, ref.id),
         .configuration => try g.ConfigurationOperations.status(host, ref.id),
         .captured => try g.CapturedOperations.status(host, ref.id),
