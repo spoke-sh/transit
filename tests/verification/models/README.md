@@ -599,3 +599,32 @@ claims, settlements, scheduling and terminal payload retention. This model does
 not establish correspondence to those owners. Common state/outbox/ACK decisions
 and DLQ transfer remain unavailable; the [Queue contract](../../../contracts/QUEUE_V1.md)
 defines those execution boundaries.
+
+## Board observation, statement presentation and admission
+
+Run `just test::board-model` after installing locked frontend dependencies. The
+three independent TLA+ models start from empty owners and explore safety without
+fairness assumptions. Observation has two independent scoped owners, generation
+values 0..3 (never wrapping), successful/failed/hidden/disposed phases, current,
+old and future completions and six failure classes. Statement has one original
+reader, two explicit Run identities, generations 0..3, configuration/visibility,
+close, lost replies and current/old/foreign completions. Admission explores two
+read permits and one separate control permit. These are separate finite graphs;
+they do not claim exhaustive cross-product composition with network or server.
+
+The runner requires complete TLC exploration, exact exported state/edge counts,
+known events and full graph reachability. Every exported edge is replayed against
+production TypeScript transitions, comparing state, identity and emitted effects.
+Removing generation matching, denial clearing or the explicit-Run guard must
+violate its named model invariant. Isolated copies of those production guards
+must fail replay with a correspondence divergence; compilation/tool failures
+cannot satisfy a negative control. Sources are never changed by the controls.
+
+`observation-owner.test.ts`, `request-scheduler.test.ts` and
+`statement-state.test.ts` separately exercise real asynchronous adapters with
+injected timers/transports: late ignored abort, hidden/disposed timers, the
+64-request queue, occupied permits, independent controls and lost original Run.
+The formal graph does not model this queue, transport settlement, browser
+scheduling, server authorization, latency or unbounded generations. It establishes
+no liveness or network fairness. Logs, graphs, controls and source-attributed
+completion evidence are under `.cache/verification/board-model/`.

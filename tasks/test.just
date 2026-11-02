@@ -388,6 +388,10 @@ write-lifecycle-model *args:
 console-model *args:
     nix shell --inputs-from . nixpkgs#tlaplus --command zig build test-console-model -- {{args}}
 
+# Finite Board ownership graphs, complete TypeScript replay and guard controls.
+board-model *args:
+    nix shell --inputs-from . nixpkgs#tlaplus --command python3 -B tests/runner/launch.py tests/verification/models/board_model.py {{args}}
+
 # Finite SQL result progress/retry/disclosure models and production Progress replay.
 statement-result-model *args:
     nix shell --inputs-from . nixpkgs#tlaplus --command zig build test-statement-result-model -- {{args}}

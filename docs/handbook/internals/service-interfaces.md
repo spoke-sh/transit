@@ -708,8 +708,8 @@ responsive event loop and a later successful upstream read.
 The [workbench guide](../../../apps/transit-board/docs/workbench.md#operations-and-observation-states)
 describes result composition: unavailable connection metadata hides rows while
 retaining the original shared `StatementReader`; reconnection observes that
-reader instead of submitting SQL again. The statement presentation state machine guards explicit Run and observes the
-original reader after reconnection. Query, finite Live and publication settlement
+reader instead of submitting SQL again. The statement presentation state machine
+guards explicit Run. Query, finite Live and publication settlement
 remain in their shared owners, with scheduled transports; they do not inherit
 metadata retry or clearing rules. Configuration
 discovery remains visible across tab hiding because it contains no protected
@@ -725,9 +725,12 @@ browser interleaving. The installed
 exercise the effect boundary. Reproduce through the
 [Board checks](../../../tasks/transit-board.just); source-attributed outcomes
 belong in [qualification history](../../history/qualification/interfaces.md).
-One typed owner makes refusal and cleanup rules reviewable without introducing
-another result protocol. Extending it to the remaining UI lifecycles still
-requires preserving each owner's paging, recovery and disclosure semantics.
+The independent [Board models](../../../tests/verification/models/README.md#board-observation-statement-presentation-and-admission)
+replay every exported finite transition against the production state/effect
+projections and require three model and implementation negative controls.
+The graphs bound generations without wrapping and keep observation, statement
+and admission exploration separate. Async queue/timer behavior has separate
+adapter tests; no arbitrary interleaving or network progress claim follows.
 
 ## Declarations and controls
 
