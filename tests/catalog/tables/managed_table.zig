@@ -308,8 +308,8 @@ pub fn verify(init: std.process.Init, client: c.DirectTableClient, path: []const
     const observed = try viewer.call(.{ .managed_inspection = request });
     defer observed.deinit();
     try t.expectEqualDeep(declaration.value.connection, observed.value.result.managed_inspection.declaration.connection);
-    try t.expectEqual(@as(u64, 4), observed.value.result.managed_inspection.completed.?.revision.metadata.revision);
-    try t.expectEqual(@as(u64, 0), observed.value.result.managed_inspection.completed.?.revision.metadata.rows);
+    try t.expectEqual(@as(u64, 5), observed.value.result.managed_inspection.completed.?.revision.metadata.revision);
+    try t.expectEqual(@as(u64, 4), observed.value.result.managed_inspection.completed.?.revision.metadata.rows);
     try t.expectEqual(c.protocol.Dataflow.State.retired, observed.value.result.managed_inspection.observation.?.head.control.state);
     const projected = try q.ManagedInspection.apply(output.allocator(), viewer, .{ .definition = c.protocol.Growth.current_definition, .namespace = request.namespace, .name = request.name.slice(), .expected = null, .revision = "1" });
     try t.expectEqualStrings("1", projected.completed.?.revision);
