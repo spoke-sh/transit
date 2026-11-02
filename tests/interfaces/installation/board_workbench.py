@@ -65,7 +65,7 @@ def direct_client(fixture, definition, connection, seed):
     return direct, identity
 
 
-def retained_metrics(fixture, definition, connection, seed, operation=900030, name='metrics'):
+def retained_metrics(fixture, definition, connection, seed, operation=900030, name='metrics', native_snapshot=None):
     """Provision through the signed owner, outside Board's read-only boundary."""
     direct, identity = direct_client(fixture, definition, connection, seed)
     principal = connection['principal']
@@ -218,6 +218,8 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030, na
 
     status = settle(acquisition, 'published', ('acquiring', 'verifying'))
     snapshot = status['state']['snapshot']
+    if native_snapshot is not None:
+        native_snapshot.update(snapshot)
     content, sources = snapshot['catalog_root'], snapshot['sources_root']
     position = snapshot['consistency']['single_partition']
     scope = owner['scope']
@@ -443,8 +445,9 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
             raise AssertionError('Placement flush did not complete its bounded target')
         fixture.console('ALTER TABLE placement_probe ADD COLUMN score BIGINT DEFAULT 7;\n')
         fixture.console("INSERT INTO placement_probe (id,label) VALUES " + ','.join(f"({i},'after')" for i in range(10,20)) + ';\n')
+        native_snapshot = {}
         placement_selector, release_placement = retained_metrics(fixture, definition, native_connection,
-            account_dir / 'table.seed', operation=900032, name='placement_probe')
+            account_dir / 'table.seed', operation=900032, name='placement_probe', native_snapshot=native_snapshot)
         placement_object = str(target['object']['object'])
         placement_input = dict(selector=placement_selector, object=placement_object, after=None)
         def placement_coverage(kind, after=None):
@@ -467,6 +470,30 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
         assert next_page is None and len(locations) == 20
         assert {next(iter(row['location'])) for row in locations} == {'wal', 'segment'}
         assert len({json.dumps(row['identity'], sort_keys=True) for row in locations}) == 20
+        # An independent signed public caller checks the Board projection's
+        # stable identities, exact placement and sizes without using its adapter.
+        native_after, at = None, 0
+        for _ in range(4):
+            raw = direct(dict(historical_catalog=dict(locations=dict(
+                snapshot=native_snapshot, object=int(placement_object), after=native_after))))['historical_catalog']['locations']['evidence']
+            for row in raw['entries'][:raw['count']]:
+                expected = locations[at]
+                assert expected['identity'] == dict(origin=str(row['identity']['origin']),
+                    operation=str(row['identity']['operation']), ordinal=row['identity']['ordinal'])
+                assert expected['schema_revision'] == str(row['schema_revision'])
+                if 'wal' in row['location']:
+                    wal = row['location']['wal']
+                    assert expected['location']['wal'] == dict(lsn=str(wal['lsn']), offset=wal['offset'],
+                        bytes=wal['bytes'], row_digest=bytes(wal['row_digest']).hex())
+                else:
+                    segment = row['location']['segment']
+                    assert expected['location']['segment'] == dict(id=str(segment['id']), row=segment['row'],
+                        content=dict(bytes=str(segment['content']['bytes']), sha256=bytes(segment['content']['sha256']).hex()))
+                at += 1
+            native_after = raw['next']
+            if native_after is None:
+                break
+        assert at == 20 and native_after is None
         evidence = dict(selector=placement_selector, object=placement_object,
             definitions=[first_definition, second_definition], locations=locations)
         # Rename after retaining the source. Historical discovery keeps its name
