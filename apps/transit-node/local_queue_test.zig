@@ -90,12 +90,15 @@ pub fn exercise(service: *Service, declaration: c.DirectLog.Definition, schema: 
     try t.expectEqualDeep(settlement.settle, renewed.settlement);
     settlement.settle.operation.operation = 504;
     settlement.settle.action = .ack;
-    const fenced = (try c.DirectQueueClient.apply(&output, caller, .{ .mutate = .{ .work = settlement } })).operation.?.closed;
-    try fenced.requireQueue(settlement);
-    try t.expectEqual(p.LogWorkload.Refusal.lease_fenced, fenced.reason.refused);
-    try t.expectEqualDeep(fenced, (try c.DirectQueueClient.apply(&output, caller, .{ .operation = settlement })).operation.?.closed);
-    // The durable refusal closes this exact request. Corrected work gets a
-    // new identity; it never rewrites the original settlement intent.
+    const fenced = settlement;
+    const refused = (try c.DirectQueueClient.apply(&output, caller, .{ .mutate = .{ .work = fenced } })).operation.?.closed;
+    try t.expectEqual(p.LogWorkload.Refusal.lease_fenced, refused.reason.refused);
+    try t.expectEqualDeep(fenced.identity(), refused.binding.operation());
+    try t.expectEqualDeep(refused, (try c.DirectQueueClient.apply(&output, caller, .{ .mutate = .{ .work = fenced } })).operation.?.closed);
+    const still_acquired = (try c.DirectQueueClient.apply(&output, caller, .{ .page = page_request.page })).page;
+    try t.expectEqual(.acquired, still_acquired.rows[0].lease.state);
+    // The refusal durably closes this identity without ACKing the lease.
+    // Corrected work gets a new identity and preserves the original outcome.
     settlement.settle.operation.operation = 505;
     settlement.settle.lease.expires_ms = 305;
     endpoint.lose = true;
@@ -125,5 +128,6 @@ pub fn exercise(service: *Service, declaration: c.DirectLog.Definition, schema: 
     try t.expectEqual(.acquired, expired.rows[0].lease.state);
     try t.expectEqual(@as(u64, 2), expired.rows[0].lease.epoch);
     try t.expectEqualDeep(ack, (try c.DirectQueueClient.apply(&output, caller, .{ .mutate = .{ .work = settlement } })).operation.?.settle);
+    try t.expectEqualDeep(refused, (try c.DirectQueueClient.apply(&output, caller, .{ .operation = fenced })).operation.?.closed);
     return .{ .page = .{ .cursor = terminal.cursor, .limits = page_request.page.limits } };
 }
