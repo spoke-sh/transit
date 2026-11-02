@@ -432,6 +432,12 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
             result = selected.call(dict(fetch=dict(cursor=result['cursor'], batch=result['batch']+1)))['batch']
             batches.append(dict(selected.sample, rows=len(result['rows'])))
         assert len(rows) == count
+        padding = 64 if name == 'document' else 128
+        expected = []
+        for index in range(count):
+            value = f"東京🙂/{'x'*padding}/{index:02}".encode()
+            expected.append([(b'\x03' + len(value).to_bytes(4, 'little') + value).hex()])
+        assert sorted(rows) == sorted(expected), 'Recovered result changed original source values'
         print(json.dumps(dict(profile='native_sql_retained_batches', source=name, rows=count,
                               batches=batches, logical_cell_bytes=sum(len(cell)//2 for row in rows for cell in row),
                               limits='Retained result after SQL service restart. Every returned batch is retried for exact equality; retry latency/bytes are excluded here. HTTP body bytes include schema and source basis. This does not measure ledger/storage bytes or isolate concurrent recovery.')), flush=True)
