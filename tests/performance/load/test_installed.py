@@ -1,10 +1,12 @@
 """Independent encoded values and rejection of failed or altered experiments."""
 import copy
+import io
+import json
 import unittest
 from unittest.mock import patch
 
-from performance.load.installed import admission_refusal, integers, settle
-from performance.load.report import compare, inventory, summarize
+from performance.load.installed import Recorder, admission_refusal, integers, settle
+from performance.load.report import OWNER_COUNTERS, UNAVAILABLE, compare, inventory, summarize
 
 
 def campaign():
@@ -13,7 +15,8 @@ def campaign():
              source={'revision': 'a'*40}, binary_revision='a'*40, binaries={'cli': 'b'*64}, drivers={'driver': 'c'*64},
              system='Linux', machine='x86_64', cpus=2, host_id='d'*64, storage_device=1, toolchain='zig',
              maintenance='enabled', durability='sync', cache='retained', instrumentation='procfs', bounds={'rows': 1000},
-             build_mode='ReleaseSafe', tls='peer', client_versions={'python': '3'}, sql_limits={'command_ms': 30000})]
+             build_mode='ReleaseSafe', tls='peer', client_versions={'python': '3'}, sql_limits={'command_ms': 30000},
+             attribution=False, host_limits={'affinity': [0, 1]}, unavailable=list(UNAVAILABLE))]
     for case in ('startup', 'foreground_baseline', 'activation', 'source_update', 'idle', 'retained_restart'):
         row = dict(phase='sample', case=case, index=0, outcome='complete', verified=True, elapsed_ns=100)
         if case == 'startup':
@@ -25,6 +28,62 @@ def campaign():
 
 
 class InstalledReportTest(unittest.TestCase):
+    def attributed(self):
+        records = campaign()
+        records[1]['attribution'] = True
+        snapshot = dict(instance=[1]*16, **{owner: dict(values={field: 0 for field in fields}, overflowed=False)
+                                          for owner, fields in OWNER_COUNTERS.items()})
+        for row in records:
+            if row.get('case') in ('foreground_baseline', 'activation', 'source_update', 'idle'):
+                row.update(owner_before=copy.deepcopy(snapshot), owner_after=copy.deepcopy(snapshot),
+                           owner_counters={owner: dict(values['values']) for owner, values in snapshot.items() if owner != 'instance'})
+        return records
+
+    def test_owner_attribution_requires_complete_monotonic_same_instance(self):
+        records = self.attributed()
+        self.assertEqual(summarize(records)['cases']['activation']['owner_totals']['managed']['result_rows'], 0)
+        mutations = (
+            lambda row: row.pop('owner_counters'),
+            lambda row: row['owner_after']['owned_records'].update(overflowed=True),
+            lambda row: row['owner_after'].update(instance=[2]*16),
+            lambda row: row['owner_after']['managed']['values'].pop('evaluate_ns'),
+            lambda row: row['owner_before']['managed']['values'].update(result_rows=1),
+            lambda row: row['owner_counters']['managed'].update(result_rows=True),
+            lambda row: row['owner_counters']['managed'].update(result_rows=2**64),
+            lambda row: row['owner_after']['managed']['values'].update(result_rows=1),
+        )
+        for mutate in mutations:
+            altered = copy.deepcopy(records)
+            mutate(altered[4])
+            with self.assertRaises(ValueError):
+                summarize(altered)
+        with self.assertRaisesRegex(ValueError, 'incomparable'):
+            compare(summarize(campaign()), summarize(records))
+        with self.assertRaisesRegex(ValueError, 'incomparable'):
+            changed = copy.deepcopy(records)
+            changed[2]['definition'] = 'f'*64
+            compare(summarize(records), summarize(changed))
+
+    def test_failed_operation_retains_counters_without_masking_original_error(self):
+        for diagnostic_failure in (False, True):
+            output = io.StringIO()
+            recorder = Recorder(output)
+            from unittest.mock import Mock
+            probe = Mock()
+            probe.snapshot.return_value = {'local:table': 10}
+            probe.delta.side_effect = RuntimeError('inspection failed') if diagnostic_failure else None
+            probe.delta.return_value = {'local:table': 2}
+            with self.assertRaisesRegex(BrokenPipeError, 'original'), patch('builtins.print'):
+                with recorder.sample('activation', probe=probe):
+                    raise BrokenPipeError('original')
+            record = json.loads(output.getvalue())
+            self.assertEqual(record['outcome'], 'failed')
+            self.assertEqual(record['error_type'], 'BrokenPipeError')
+            if diagnostic_failure:
+                self.assertEqual(record['observation_error'], 'RuntimeError')
+            else:
+                self.assertEqual(record['local_attempts'], {'local:table': 2})
+
     def test_final_verified_output_must_arrive_within_deadline(self):
         for final, late in ((180, False), (180.001, True)):
             record = {}
