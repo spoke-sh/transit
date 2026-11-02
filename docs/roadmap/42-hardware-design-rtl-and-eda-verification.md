@@ -14,6 +14,11 @@ provenance boundary; it does not bundle a proprietary logic synthesizer, SPICE
 analog solver, commercial foundry PDK or FPGA vendor bitstream generator in the
 kernel.
 
+The supporting [on-demand specialization research workflow](on-demand-specialization-research.md)
+defines experiments for Nix-packaged RTL tools, captured analysis evidence and
+Platform execution. Physical FPGA specialization is a separate optional profile;
+RTL ingestion, CPU simulation and synthesis do not establish device deployment.
+
 ## Prerequisites and ownership
 
 Consume [managed computations and bitemporal queries](12-sql-and-dataflows.md),
