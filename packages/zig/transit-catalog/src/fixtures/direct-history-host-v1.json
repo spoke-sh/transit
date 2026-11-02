@@ -1,0 +1,133 @@
+{
+  "acquire": {
+    "key": {
+      "definition": "7c81d0916913d774febe2bec8f739f95a194f3ca88056c9f1214c0f77f22fa89",
+      "connection": {
+        "scope": {
+          "realm": 42,
+          "resource": 3,
+          "catalog": "18446744073709551615"
+        },
+        "branch": "1",
+        "audience": 5,
+        "principal": 4,
+        "role": null
+      },
+      "account": "1313131313131313131313131313131313131313131313131313131313131313",
+      "token": "17171717171717171717171717171717"
+    },
+    "intent": {
+      "definition": "7c81d0916913d774febe2bec8f739f95a194f3ca88056c9f1214c0f77f22fa89",
+      "connection": {
+        "scope": {
+          "realm": 42,
+          "resource": 3,
+          "catalog": "18446744073709551615"
+        },
+        "branch": "1",
+        "audience": 5,
+        "principal": 4,
+        "role": null
+      },
+      "namespace": 1,
+      "operation": "18446744073709551615",
+      "selection": {
+        "content": {
+          "bytes": "512",
+          "sha256": "1919191919191919191919191919191919191919191919191919191919191919"
+        },
+        "count": "2",
+        "descriptors": "0"
+      },
+      "common": {
+        "key": {
+          "definition": "7c81d0916913d774febe2bec8f739f95a194f3ca88056c9f1214c0f77f22fa89",
+          "connection": {
+            "scope": {
+              "realm": 42,
+              "resource": 3,
+              "catalog": "18446744073709551615"
+            },
+            "branch": "1",
+            "audience": 5,
+            "principal": 4,
+            "role": null
+          },
+          "account": "1313131313131313131313131313131313131313131313131313131313131313",
+          "token": "17171717171717171717171717171717"
+        },
+        "cut": {
+          "transaction": {
+            "scope": {
+              "realm": 42,
+              "resource": 3,
+              "catalog": "18446744073709551615"
+            },
+            "principal": 4,
+            "operation": "18446744073709551614"
+          },
+          "acquired": {
+            "partition": "1",
+            "next_lsn": "17"
+          },
+          "sources": {
+            "bytes": "1024",
+            "sha256": "1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b"
+          },
+          "source_count": "3"
+        }
+      }
+    },
+    "budget": {
+      "operations": "1000000",
+      "bytes": "4294967296",
+      "pending": "1024",
+      "charge_bytes": "4608"
+    }
+  },
+  "snapshot": {
+    "selector": "5448534e415030317c81d0916913d774febe2bec8f739f95a194f3ca88056c9f1214c0f77f22fa892a000000000000000300000000000000ffffffffffffffff0400000000000000ffffffffffffffff01000000000000000002000000000000191919191919191919191919191919191919191919191919191919191919191900030000000000001a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a020000000000000003000000000000000000000000000000002a000000000000000300000000000000ffffffffffffffff0400000000000000feffffffffffffff0100000000000000110000000000000000040000000000001b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b0300000000000000",
+    "definition": "7c81d0916913d774febe2bec8f739f95a194f3ca88056c9f1214c0f77f22fa89",
+    "owner": {
+      "scope": {
+        "realm": 42,
+        "resource": 3,
+        "catalog": "18446744073709551615"
+      },
+      "principal": 4,
+      "operation": "18446744073709551615"
+    },
+    "branch": "1",
+    "catalog_root": {
+      "bytes": "512",
+      "sha256": "1919191919191919191919191919191919191919191919191919191919191919"
+    },
+    "sources_root": {
+      "bytes": "768",
+      "sha256": "1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a"
+    },
+    "source_count": "2",
+    "consistency": {
+      "common_transaction": {
+        "transaction": {
+          "scope": {
+            "realm": 42,
+            "resource": 3,
+            "catalog": "18446744073709551615"
+          },
+          "principal": 4,
+          "operation": "18446744073709551614"
+        },
+        "acquired": {
+          "partition": "1",
+          "next_lsn": "17"
+        },
+        "sources": {
+          "bytes": "1024",
+          "sha256": "1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b"
+        },
+        "source_count": "3"
+      }
+    }
+  }
+}

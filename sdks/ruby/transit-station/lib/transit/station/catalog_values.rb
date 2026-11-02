@@ -10,7 +10,7 @@ module Transit
       DEFINITION = CONTRACT.fetch('definition').freeze
       LIMITS = CONTRACT.fetch('limits').freeze
       ENCODINGS = %i[plain bitpacked rle dictionary fsst comp comp_3 zoned ibm_hfp ebcdic].freeze
-      COLLATIONS = %i[none utf8_binary ascii_ci ebcdic_cp037 icu_root].freeze
+      COLLATIONS = %i[none utf8_binary ascii_ci ebcdic_cp037 icu_root ebcdic_037_pad ebcdic_1047_nopad].freeze
       module Values
         class WireBudget
           def initialize(limit) = @remaining = limit
@@ -63,7 +63,7 @@ module Transit
           v = object(value, %w[realm resource catalog]); Scope.new(resource: ResourceRef.new(realm: v.fetch('realm'), resource: v.fetch('resource')), catalog: decimal(v.fetch('catalog')))
         end
         def column(name, type, nullable, default, max_characters, encoding, collation)
-          { 'name' => self.name(name), 'type' => Logical.type_wire(type), 'nullable' => Internal.boolean(nullable), 'default' => default.nil? ? nil : Logical.cell_wire(default), 'max_characters' => optional(max_characters) { |v| Internal.integer(v, max: (1 << 32)-1) }, 'encoding' => symbol(encoding, ENCODINGS), 'collation' => symbol(collation, COLLATIONS) }
+          { 'name' => self.name(name), 'type' => Logical.type_wire(type), 'nullable' => Internal.boolean(nullable), 'default' => default.nil? ? nil : Logical.cell_wire(default), 'max_characters' => optional(max_characters) { |v| Internal.integer(v, max: (1 << 32)-1) }, 'encoding' => symbol(encoding, ENCODINGS), 'collation' => symbol(collation, COLLATIONS), 'semantics' => { 'rounding' => nil, 'metric' => nil, 'timezone' => nil, 'spatial' => nil } }
         end
       end
       private_constant :CONTRACT, :Values
@@ -120,7 +120,8 @@ module Transit
         end
         def wire
           budget = Values::WireBudget.new(2 * 1024 * 1024)
-          { 'definition' => DEFINITION, 'object' => object.to_s, 'revision' => revision.to_s, 'next_column' => next_column.to_s, 'columns' => columns.map { |c| budget.take(c.wire) }, 'primary_key' => primary_key.map(&:to_s) }
+          { 'definition' => DEFINITION, 'object' => object.to_s, 'revision' => revision.to_s, 'next_column' => next_column.to_s, 'columns' => columns.map { |c| budget.take(c.wire) }, 'primary_key' => primary_key.map(&:to_s),
+            'integrity' => { 'next_id' => 1, 'checks' => [], 'foreign_keys' => [] } }
         end
       end
       Identity = Data.define(:operation, :namespace) do
@@ -228,7 +229,7 @@ module Transit
           Values.symbol(encoding, ENCODINGS); Values.symbol(collation, COLLATIONS)
           super(column: Values.wide(column), encoding: encoding, collation: collation)
         end
-        def wire = { 'physical' => { 'column' => column.to_s, 'encoding' => encoding.to_s, 'collation' => collation.to_s } }
+        def wire = { 'physical' => { 'column' => column.to_s, 'encoding' => encoding.to_s, 'collation' => collation.to_s, 'semantics' => nil } }
       end
       Create = Data.define(:schema, :if_not_exists) do
         def initialize(schema:, if_not_exists: false) = super(schema: Values.typed(schema, Schema), if_not_exists: Internal.boolean(if_not_exists))
@@ -269,10 +270,14 @@ module Transit
       module Values
         module_function
         def schema(value)
+          value = value.dup
+          raise IncompatibleNative, 'Missing or unsupported integrity descriptor' unless value.delete('integrity') == { 'next_id' => 1, 'checks' => [], 'foreign_keys' => [] }
           v = object(value, %w[definition object revision next_column columns primary_key]); definition(v.fetch('definition'))
           raise IncompatibleNative, 'Invalid Table columns' unless v['columns'].is_a?(Array) && v['columns'].length.between?(1, 128) && v['primary_key'].is_a?(Array)
           columns = v.fetch('columns').map do |c|
-            object(c, %w[id name type nullable default max_characters encoding collation]); Column.new(id: decimal(c.fetch('id')), name: c.fetch('name'), type: Logical.type_from_wire(c.fetch('type')), nullable: c.fetch('nullable'), default: optional(c.fetch('default')) { |cell| Logical.cell_from_wire(cell) }, max_characters: c.fetch('max_characters'), encoding: enum(c.fetch('encoding'), ENCODINGS), collation: enum(c.fetch('collation'), COLLATIONS))
+            object(c, %w[id name type nullable default max_characters encoding collation semantics])
+            raise IncompatibleNative, 'Column semantics unsupported by this caller' unless c.fetch('semantics') == { 'rounding' => nil, 'metric' => nil, 'timezone' => nil, 'spatial' => nil }
+            Column.new(id: decimal(c.fetch('id')), name: c.fetch('name'), type: Logical.type_from_wire(c.fetch('type')), nullable: c.fetch('nullable'), default: optional(c.fetch('default')) { |cell| Logical.cell_from_wire(cell) }, max_characters: c.fetch('max_characters'), encoding: enum(c.fetch('encoding'), ENCODINGS), collation: enum(c.fetch('collation'), COLLATIONS))
           end
           Schema.new(object: decimal(v.fetch('object')), revision: decimal(v.fetch('revision')), next_column: decimal(v.fetch('next_column')), columns: columns, primary_key: v.fetch('primary_key').map { |k| decimal(k) })
         end
@@ -403,6 +408,11 @@ module Transit
           expected = original.kind == :name_assertion ? 'name_assertion' : (%w[insert update delete].include?(b.fetch('action')) ? 'rows' : 'ddl')
           raise IncompatibleNative, 'Changed observation kind' unless kind == expected
           return Observation.new(kind: kind.to_sym, state: :not_observed, reference: original) if state == 'not_observed'
+          if state == 'finalizing'
+            raise IncompatibleNative, 'Invalid finalizing phase' unless raw.fetch('operation').fetch('requires_settlement') == true && %w[admitted ready].include?(raw.fetch('operation').fetch('phase'))
+            raise IncompatibleNative, 'Changed finalizing binding' unless kind == 'ddl' && raw.fetch('operation').fetch('binding') == b
+            return observation({ 'ddl' => { 'committed' => raw.fetch('evidence') } }, original).with(state: :finalizing)
+          end
           raise IncompatibleNative, 'Changed original binding' unless raw.fetch('binding') == b
           if kind == 'name_assertion'
             return Observation.new(kind: :name_assertion, state: raw.fetch('state').to_sym, reference: original,

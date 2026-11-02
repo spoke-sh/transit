@@ -16,6 +16,12 @@ fn frontier(position: d.Position, changed_lsn: u64) !void {
     try position.validate();
     if (position.next_lsn == 0 or changed_lsn > position.next_lsn) return error.InvalidTableResponse;
 }
+fn projectionEnvelope(connection: w.Connection, expected: w.Snapshot, handle: P.SnapshotHandle, logical: c.storage.TableDeclaration.Stored, accepted: d.Position) !void {
+    if (!std.meta.eql(expected.handle, handle) or !std.meta.eql(expected.object, logical.interpretation.object)) return error.InvalidTableResponse;
+    try definition(connection, logical);
+    try accepted.validate();
+    if (accepted.next_lsn == 0 or logical.retired) return error.InvalidTableResponse;
+}
 fn schema(allocator: std.mem.Allocator, binary: w.Binary, stored: c.storage.TableDeclaration.Stored) !void {
     const bytes = try binary.decode(allocator, c.fuze.TableSchema.max_bytes);
     defer allocator.free(bytes);
@@ -104,6 +110,11 @@ pub fn stateDdl(kind: c.storage.TableDeclaration.Kind, binding: d.Binding, value
     switch (value) {
         .not_observed => {},
         .committed => |result| try stateEvidence(kind, binding, result),
+        .finalizing => |value_| {
+            try stateEvidence(kind, binding, value_.evidence);
+            try binding.requireSame(value_.operation.binding);
+            if (!value_.operation.pending() or !value_.operation.requires_settlement) return error.InvalidTableResponse;
+        },
         inline .admitted, .rejected, .cancelled => |operation, tag| {
             try binding.requireSame(operation.binding);
             try operation.intent.validate();
@@ -151,6 +162,9 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .queue => .queue,
         .workload_result => .workload_result,
         .branch => .branch,
+        .historical_catalog => .historical_catalog,
+        .descriptor => .descriptor,
+        .schema_projection => .schema_projection,
         .kv => .kv,
         .kv_declaration => .kv_declaration,
         .kv_lookup => .kv_lookup,
@@ -203,6 +217,8 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .history_scan => .history_page,
         .pin_status => .pin_state,
         .snapshot => .snapshot,
+        .projection_definitions => .projection_definitions,
+        .projection_locations => .projection_locations,
         .read_key => .point,
         .scan, .column_scan => .page,
         .filter_scan => .filtered_page,
@@ -215,6 +231,9 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .queue => |value| try c.DirectQueueResponse.validate(allocator, request.connection, request.action.queue, value),
         .workload_result => |value| try c.DirectWorkloadResultProtocol.validate(allocator, request.connection, request.action.workload_result, value),
         .branch => |value| try c.DirectBranch.validateResult(allocator, request.connection, request.action.branch, value),
+        .descriptor => |value| try c.DirectDefinition.validateResult(allocator, request.connection, request.action.descriptor, value),
+        .historical_catalog => |value| try c.DirectHistory.validateResult(allocator, request.connection, request.action.historical_catalog, value),
+        .schema_projection => |value| try c.DirectSchemaProjection.validateResult(allocator, request.connection, request.action.schema_projection, value),
         .kv => |value| {
             try c.DirectKVResponse.validate(allocator, request.action.kv, value);
             if (value == .value) try workspace(request, value.value.workspace, value.value.interpretation.interpretation, value.value.position, value.value.changed_lsn, null);
@@ -417,7 +436,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
             try page.position.validate();
             if (page.position.next_lsn == 0) return error.InvalidTableResponse;
             if (input.cursor) |cursor| if (!std.meta.eql(cursor.position, page.position)) return error.InvalidTableResponse;
-            var previous: ?[32]u8 = if (input.cursor) |cursor| cursor.after else null;
+            var previous: ?c.storage.TreeStore.pages.Key = if (input.cursor) |cursor| cursor.after else null;
             var ended = false;
             for (page.entries) |slot| {
                 const edge = slot orelse {
@@ -431,14 +450,15 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
                     .dependents => |object| if (!std.meta.eql(edge.source.object, object)) return error.InvalidTableResponse,
                     .dependencies => |object| if (!std.meta.eql(edge.dependent.interpretation.object, object)) return error.InvalidTableResponse,
                 }
-                const digest = try edge.digest();
-                if (previous) |before| if (std.mem.order(u8, &before, &digest) != .lt) return error.InvalidTableResponse;
-                previous = digest;
+                const key = if (input.selection == .dependents) try edge.forwardKey() else try edge.reverseKey();
+                if (previous) |before| if (std.mem.order(u8, before.slice(), key.slice()) != .lt) return error.InvalidTableResponse;
+                previous = key;
             }
             if (page.next) |cursor| {
+                try cursor.validate();
                 if (!std.meta.eql(cursor.selection, input.selection) or !std.meta.eql(cursor.position, page.position) or cursor.authority != input.authority) return error.InvalidTableResponse;
-                if (input.cursor) |before| if (std.mem.order(u8, &before.after, &cursor.after) != .lt) return error.InvalidTableResponse;
-                if (previous) |before| if (std.mem.order(u8, &before, &cursor.after) == .gt) return error.InvalidTableResponse;
+                if (input.cursor) |before| if (std.mem.order(u8, before.after.slice(), cursor.after.slice()) != .lt) return error.InvalidTableResponse;
+                if (previous) |before| if (std.mem.order(u8, before.slice(), cursor.after.slice()) == .gt) return error.InvalidTableResponse;
             }
         },
         .namespace_preview => |value| {
@@ -722,6 +742,8 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
             try frontier(value.accepted, value.changed_lsn);
             try schema(allocator, value.schema, value.interpretation);
         },
+        .projection_definitions => |value| try projectionDefinitions(request.connection, .{ .snapshot = request.action.projection_definitions.snapshot, .after = request.action.projection_definitions.after }, value),
+        .projection_locations => |value| try projectionLocations(request.connection, .{ .snapshot = request.action.projection_locations.snapshot, .after = request.action.projection_locations.after }, value),
         .point => |value| {
             if (request.delegation) |delegation| delegation.requireSource(value.interpretation.interpretation, value.accepted) catch return error.InvalidTableResponse;
             if (!std.meta.eql(value.snapshot, request.action.read_key.snapshot)) return error.InvalidTableResponse;
@@ -844,4 +866,61 @@ fn validateRowEnvelope(allocator: std.mem.Allocator, connection: w.Connection, s
         bytes += decoded.len;
     }
     if (bytes != value.encoded_bytes) return error.InvalidTableResponse;
+}
+
+pub fn projectionDefinitions(connection: w.Connection, input: struct { snapshot: w.Snapshot, after: ?P.ProjectionEvidence.Cursor }, value: P.ProjectionEvidence) !void {
+    try projectionEnvelope(connection, input.snapshot, value.snapshot, value.logical, value.accepted);
+    if (value.entry) |entry| {
+        try definition(connection, entry.physical);
+        if (entry.schema_revision == 0) return error.InvalidTableResponse;
+        if (!std.meta.eql(entry.physical.interpretation.object, value.logical.interpretation.object) or entry.physical.interpretation.revision > value.logical.interpretation.revision or entry.rows == 0 or entry.rows > value.total_rows or entry.column_count == 0 or entry.column_count > entry.columns.len) return error.InvalidTableResponse;
+        for (entry.columns, 0..) |slot, i| {
+            if (i >= entry.column_count) {
+                if (slot != null) return error.InvalidTableResponse;
+                continue;
+            }
+            const column = slot orelse return error.InvalidTableResponse;
+            if (column.column == 0) return error.InvalidTableResponse;
+            for (entry.columns[0..i]) |previous| if (previous.?.column == column.column) return error.InvalidTableResponse;
+            switch (column.source) {
+                .physical => |id| if (id != column.column) return error.InvalidTableResponse,
+                .initial => |initial| {
+                    try initial.definition.validate();
+                    if (!std.meta.eql(initial.definition.object, value.logical.interpretation.object) or initial.definition.revision <= entry.physical.interpretation.revision or initial.definition.revision > value.logical.interpretation.revision) return error.InvalidTableResponse;
+                },
+            }
+        }
+        if (input.after) |before| if (entry.schema_revision <= before.after) return error.InvalidTableResponse;
+        if (value.next) |next| if (next.after != entry.schema_revision) return error.InvalidTableResponse;
+    } else if (value.next != null or (input.after == null and value.total_rows != 0)) return error.InvalidTableResponse;
+    if (value.next) |next| if (!std.meta.eql(next.source, value.snapshot.content) or next.after == 0) return error.InvalidTableResponse;
+}
+
+pub fn projectionLocations(connection: w.Connection, input: struct { snapshot: w.Snapshot, after: ?P.SnapshotCursor }, value: P.ProjectionLocations) !void {
+    try projectionEnvelope(connection, input.snapshot, value.snapshot, value.logical, value.accepted);
+    if (value.count > value.entries.len or value.count > value.total_rows) return error.InvalidTableResponse;
+    var previous: ?[c.fuze.TableRow.Identity.encoded_bytes]u8 = if (input.after) |cursor| cursor.after else null;
+    for (value.entries, 0..) |slot, i| {
+        if (i >= value.count) {
+            if (slot != null) return error.InvalidTableResponse;
+            continue;
+        }
+        const entry = slot orelse return error.InvalidTableResponse;
+        try definition(connection, entry.physical);
+        if (entry.schema_revision == 0) return error.InvalidTableResponse;
+        if (!std.meta.eql(entry.physical.interpretation.object, value.logical.interpretation.object) or entry.physical.interpretation.revision > value.logical.interpretation.revision) return error.InvalidTableResponse;
+        const identity = try entry.identity.encode();
+        if (previous) |before| if (std.mem.order(u8, &before, &identity) != .lt) return error.InvalidTableResponse;
+        previous = identity;
+        switch (entry.location) {
+            .wal => |wal| if (wal.lsn >= value.accepted.next_lsn or wal.bytes == 0 or wal.bytes > c.fuze.TableRow.max_bytes) return error.InvalidTableResponse,
+            .segment => |segment| {
+                try segment.content.validate();
+                if (segment.id == 0 or segment.content.bytes == 0 or segment.content.bytes > c.fuze.TSeg.max_segment_bytes) return error.InvalidTableResponse;
+            },
+        }
+    }
+    if (value.next) |next| {
+        if (value.count == 0 or !std.meta.eql(next.source, value.snapshot.content) or !std.meta.eql(next.after, previous.?)) return error.InvalidTableResponse;
+    } else if (input.after == null and value.count != value.total_rows) return error.InvalidTableResponse;
 }

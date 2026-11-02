@@ -10,6 +10,15 @@ rows, bytes and source requests. `DirectRelationalCompilation` and
 `DirectRelationalQuery` supply finite joins and grouped aggregation over explicit
 source cuts. Independent Table cuts remain an independent source vector.
 
+The historical preparation entry points bind names and schemas through a
+published `DirectHistory` catalog before compiling. Prepared bindings retain
+the exact catalog identity as well as each source cut. Historical executors
+scan those retained sources and validate current access on every disclosure;
+they never substitute a live-name lookup or a newer physical index. Their
+borrowed catalog pins remain owned by the original acquisition. The
+[historical SQL reference](../../../docs/handbook/reference/sql/as-of.md)
+defines the admitted selector and read-only scope.
+
 The caller owns snapshot acquisition and release. Closing an executor releases
 its local buffers and spill work; it does not release the caller's retained pin.
 Current authorization is checked after computation and before disclosure,
@@ -37,6 +46,15 @@ Run `zig build check` and `zig build test` from this directory in `nix develop`.
 The [query reference](../../../docs/handbook/reference/queries.md) describes
 supported SQL and source semantics; the [SQL service](../transit-sql/README.md)
 owns sessions, operation recovery and read-pin cleanup.
+
+`DirectView` expands an accepted single-Table projection/filter over the exact
+source declaration. Historical preparation resolves the retained view before
+compiling the outer SELECT. Source filtering precedes outer expressions, and
+view identity participates in the binding fingerprint and disclosure guard.
+DESCRIBE and EXPLAIN use the same metadata bindings. General graph/foreign
+execution, view joins, captured views, explicit schema projection and transaction
+composition over views remain unavailable. See the
+[catalog interpretation contract](../../../contracts/CATALOG_DEFINITIONS_V1.md).
 
 `ManagedTable` composes immutable catalog records, named direct KV control and
 common Table/KV transactions for finite recomputation. Save the complete

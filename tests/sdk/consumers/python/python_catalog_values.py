@@ -230,15 +230,16 @@ try:
     owner._api.response['metadata']['binding']['name'] = 'changed'
     assert current.basis.name == 'items'
     rejects(IncompatibleNative, lambda: owner.lookup('items'))
-    physical_wire = dict(definition=definition, object=str(schema.object_id), revision='1', next_column='2',
+    physical_wire = dict(integrity={'next_id': 1, 'checks': [], 'foreign_keys': []}, definition=definition, object=str(schema.object_id), revision='1', next_column='2',
         columns=[dict(id='1', name='text', type={'utf8': {}}, nullable=True, default=None,
-                      max_characters=None, encoding='ebcdic', collation='ebcdic_cp037')], primary_key=[])
+                      max_characters=None, encoding='ebcdic', collation='ebcdic_cp037',
+                      semantics=dict(rounding=None, metric=None, timezone=None, spatial=None))], primary_key=[])
     owner._api.response = {'metadata': dict(metadata, schema=physical_wire)}
     physical = owner.lookup('items').schema
     assert physical.columns[0].encoding == m.Encoding.EBCDIC and physical.columns[0].collation == m.Collation.EBCDIC_CP037
     assert physical._wire() == physical_wire
-    assert v._change(m.SetPhysical(1, m.Encoding.FSST, m.Collation.ASCII_CI)) == {'physical': dict(column='1', encoding='fsst', collation='ascii_ci')}
-    for field in ('encoding', 'collation'):
+    assert v._change(m.SetPhysical(1, m.Encoding.FSST, m.Collation.ASCII_CI)) == {'physical': dict(column='1', encoding='fsst', collation='ascii_ci', semantics=None)}
+    for field in ('encoding', 'collation', 'semantics'):
         for missing in (True, False):
             bad = copy.deepcopy(physical_wire)
             if missing: del bad['columns'][0][field]
@@ -322,3 +323,179 @@ async def cancellation():
 
 asyncio.run(cancellation())
 print('Python direct Tables: nested owned schemas/cells, exact widths, strict pages/identity, uncertain recovery and cancelled-await joined cleanup passed.')
+
+parent_definition = m.Interpretation(m.ObjectIdentity(scope, 1, 90), 8, 'ab' * 32)
+integrity = m.TableIntegrity(3, (m.CheckConstraint(1, 'check_id', (m.CheckLiteral(1, 'gte', l.Atom('signed', 0)),), False),),
+    (m.ForeignKeyConstraint(2, 'parent_id', (1,), parent_definition, 3, (7,)),))
+constrained = m.Schema(91, 2, 2, (m.Column(1, 'id', l.ScalarType('int64'), False),), (1,), integrity)
+assert v._schema(constrained._wire()) == constrained
+assert constrained.integrity.foreign_keys[0].target_definition.revision == 8
+assert constrained.integrity.foreign_keys[0].target_schema_revision == 3
+assert not constrained.integrity.checks[0].validated
+
+
+# A durable Table commit with unfinished dependency cleanup remains pending.
+final_reference_wire = copy.deepcopy(reference_wire)
+final_binding = final_reference_wire['table']['binding']
+final_binding['action'] = 'alter'
+final_original = m.Reference.restore(json.dumps(final_reference_wire))
+final_resulting = copy.deepcopy(stored)
+final_resulting['interpretation']['revision'] = str(int(final_binding['expected_definition']['revision']) + 1)
+final_evidence = dict(binding=final_binding, resulting=final_resulting, transaction=None,
+    outcome=dict(position=dict(partition='10', next_lsn='8'), matched='0', affected='0', live_rows='1'))
+final_operation = dict(binding=final_binding, intent=final_reference_wire['table']['content'], phase='admitted', reason='none',
+    dependency_steps=1, protected_columns=1, requires_settlement=True, closing=None)
+final_value = {'ddl': {'finalizing': dict(evidence=final_evidence, operation=final_operation)}}
+final_result = v._observation(final_value, final_original)
+assert final_result.state == 'finalizing' and final_result.reference is final_original and final_result.commit is not None
+final_operation['requires_settlement'] = False
+rejects(ValueError, lambda: v._observation(final_value, final_original))
+
+# Shared independent oracle, including maximum-width identities and common-cut attribution.
+import sys
+history_fixture = json.loads(Path(sys.argv[1]).read_bytes())
+history_acquisition = m.HistoryAcquisition.restore(json.dumps(history_fixture['acquire']))
+history_key = history_acquisition.key
+history_snapshot = m.HistoricalSnapshot(history_fixture['snapshot']['selector'])
+maximum = (1 << 64) - 1
+assert history_acquisition.intent.operation == maximum
+assert history_acquisition.intent.common_cut.transaction.operation == maximum - 1
+assert json.loads(history_acquisition.save()) == history_fixture['acquire']
+assert m.HistoricalSnapshot.restore(history_snapshot.save()) == history_snapshot
+for field in ('definition', 'common', 'selection'):
+    invalid = copy.deepcopy(history_fixture['acquire']); del invalid['intent'][field]
+    rejects(ValueError, lambda: m.HistoryAcquisition.restore(json.dumps(invalid)))
+invalid = copy.deepcopy(history_fixture['acquire']); invalid['intent']['operation'] = maximum
+rejects(ValueError, lambda: m.HistoryAcquisition.restore(json.dumps(invalid)))
+rejects(ValueError, lambda: m.HistoricalSnapshot('00' * 193))
+status = dict(key=history_fixture['acquire']['key'], intent=history_fixture['acquire']['intent'],
+              admitted=dict(partition='1', next_lsn='20'), revision=dict(partition='1', next_lsn='30'),
+              phase='published', retained=dict(content=history_fixture['snapshot']['sources_root'], count='2', descriptors='0'),
+              after=str(maximum), inflight=None, verified_after=str(maximum), descriptor_after=None, descriptors_verified='0', policy_epoch=str(maximum), released_after=None, snapshot=history_fixture['snapshot'])
+owner = client()
+# The common fixture uses its own explicit service connection and principal.
+history_connection, history_principal = v._connection(history_fixture['acquire']['key']['connection'])
+owner._queries = m._Queries(history_connection, history_principal)
+try:
+    owner._api.response = {'history': {'status': copy.deepcopy(status)}}
+    original = owner.prepare_common_history_acquisition(history_key, maximum, 1, history_acquisition.intent.selection,
+        history_acquisition.intent.common_key, history_acquisition.intent.common_cut)
+    assert json.loads(original.save()) == history_fixture['acquire']
+    result = owner.acquire_history(original)
+    assert result.phase == 'published' and result.intent.operation == maximum and result.policy_epoch == maximum
+    assert result.basis.consistency == 'common_transaction' and result.basis.snapshot == history_snapshot
+    assert owner._api.calls[-1] == {'history': {'acquire': history_fixture['acquire']}}
+    owner._api.response = UncertainOperation(recovery=b'', phase='fixture')
+    for action, expected in ((lambda: owner.acquire_history(original), original),
+                             (lambda: owner.release_history(history_key), None)):
+        try: action()
+        except m.Uncertain as error:
+            if expected is not None: assert error.original is expected
+            else: assert isinstance(error.original, m.HistoryControl) and error.original.command == 'release' and error.original.key == history_key
+        else: raise AssertionError('History outcome was not uncertain')
+    step = owner.prepare_history_step(owner.prepare_history_selection(maximum), 1, 'items')
+    assert m.HistorySelectionStep.restore(step.save()).selection.owner.operation == maximum
+    try: owner.select_history(step)
+    except m.Uncertain as error: assert error.original is step
+    else: raise AssertionError('Selection loss discarded original step')
+    selected = dict(definition=definition, owner=history_fixture['snapshot']['owner'], branch='1', directory=dict(content=history_fixture['snapshot']['catalog_root'], count='2', descriptors='0'))
+    owner._api.response = {'history': {'selection': selected}}
+    selection = owner.select_history(step)
+    independent = owner.prepare_history_acquisition(selection, history_key)
+    assert independent.intent.common_cut is None and independent.intent.selection.count == 2
+    for change in ('intent', 'owner', 'key', 'phase'):
+        invalid = copy.deepcopy(status)
+        if change == 'intent': invalid['intent']['operation'] = '1'
+        elif change == 'owner': invalid['snapshot']['owner']['operation'] = '1'
+        elif change == 'key': invalid['key']['token'] = '00' * 16
+        elif change == 'phase': invalid['phase'] = 'acquiring'
+        owner._api.response = {'history': {'status': invalid}}
+        rejects(m.Uncertain, lambda: owner.acquire_history(original))
+    ns = dict(scope=history_connection.scope._wire(), id=1, authorization=10, name='original', revision=str(maximum))
+    declaration = copy.deepcopy(stored); declaration['interpretation']['object']['scope'] = history_connection.scope._wire()
+    entry = dict(namespace=ns, name='items', declaration=declaration, accepted=dict(partition='9', next_lsn='10'), catalog=dict(partition='1', next_lsn='12'))
+    page = dict(snapshot=history_fixture['snapshot'], namespace=1, entries=[entry], next=dict(selector=history_snapshot.selector, namespace=1, directory=dict(content=history_fixture['snapshot']['sources_root'], count='2', descriptors='0'), after=str(maximum-1)))
+    owner._api.response = {'history': {'listing': copy.deepcopy(page)}}
+    listing = owner.historical_tables(history_snapshot, 1)
+    assert listing.entries[0].namespace.revision == maximum and listing.basis.snapshot == history_snapshot
+    calls = len(owner._api.calls)
+    rejects(ValueError, lambda: owner.historical_tables(history_snapshot, 2, listing.next))
+    rejects(ValueError, lambda: owner.historical_tables(m.HistoricalSnapshot('00' * 297), 1, listing.next))
+    assert len(owner._api.calls) == calls
+    rejects(IncompatibleNative, lambda: owner.historical_tables(history_snapshot, 1, listing.next))
+    for change in ('selector', 'namespace', 'directory', 'bound'):
+        invalid = copy.deepcopy(page)
+        if change == 'selector': invalid['snapshot']['selector'] = '00' * 297
+        elif change == 'namespace': invalid['namespace'] = 2
+        elif change == 'directory': invalid['next']['directory']['count'] = '3'
+        elif change == 'bound': invalid['entries'] *= 9
+        owner._api.response = {'history': {'listing': invalid}}
+        rejects(IncompatibleNative, lambda: owner.historical_tables(history_snapshot, 1))
+    owner._api.response = {'history': {'listing': dict(page, entries=[], next=None)}}
+    assert owner.historical_tables(history_snapshot, 1).entries == ()
+    owner._api.response = {'history': {'namespace': ns}}
+    assert owner.historical_namespace(history_snapshot, 'original').revision == maximum
+    owner._api.response = {'history': {'source': dict(snapshot=history_fixture['snapshot'], binding=entry, schema=schema._wire(), rows=str(maximum), changed_lsn=str(maximum), authority=dict(database=9, schema=10, table=11))}}
+    source = owner.historical_source(history_snapshot, maximum)
+    assert source.row_count == maximum and source.changed_lsn == maximum
+    coverage = dict(snapshot=history_fixture['snapshot'], logical=entry['declaration'], accepted=entry['accepted'], total_rows=str(maximum), definitions=dict(physical=entry['declaration'], schema_revision=str(maximum), rows=str(maximum), columns=[dict(column='1', source=dict(physical='1'))]), locations=[], next=dict(selector=history_snapshot.selector, object=str(maximum), kind='definitions', source=history_fixture['snapshot']['sources_root'], after=str(maximum)))
+    owner._api.response = {'history': {'coverage': coverage}}
+    observed = owner.historical_coverage(history_snapshot, maximum)
+    assert observed.total_rows == maximum and observed.definition.rows == maximum and observed.definition.columns[0].physical == 1
+    cursor = m.HistoryCoverageCursor.restore(observed.next.save())
+    rejects(ValueError, lambda: owner.historical_coverage(history_snapshot, maximum, 'locations', cursor))
+    rejects(IncompatibleNative, lambda: owner.historical_coverage(history_snapshot, maximum, cursor=cursor))
+    calls = len(owner._api.calls)
+finally:
+    owner.close()
+assert len(owner._api.calls) == calls and owner._api.destroyed
+print('Python history: exact common/independent acquisition, uncertain original work, bounded metadata and current-selector fencing passed.')
+
+
+# A zero-Table retained catalog still owns exact descriptor verification progress.
+metadata_fixture = json.loads(Path(sys.argv[1]).with_name('direct-history-metadata-v1.json').read_bytes())
+metadata_request = copy.deepcopy(history_fixture['acquire'])
+metadata_request['intent']['common'] = None
+metadata_request['intent']['selection'].update(count='0', descriptors='1')
+metadata_original = m.HistoryAcquisition.restore(json.dumps(metadata_request))
+metadata_status = dict(status, intent=metadata_request['intent'],
+    retained=dict(status['retained'], count='0'), after=None, verified_after=None,
+    descriptor_after=str(maximum), descriptors_verified='1',
+    snapshot=dict(history_fixture['snapshot'], selector=metadata_fixture['selector'], source_count='0', consistency=dict(independent={})))
+owner = client(); owner._queries = m._Queries(history_connection, history_principal)
+try:
+    owner._api.response = {'history': {'status': metadata_status}}
+    result = owner.acquire_history(metadata_original)
+    assert result.intent.selection.descriptors == 1 and result.descriptor_after == maximum
+    assert result.descriptors_verified == 1 and result.basis.source_count == 0
+    assert result.basis.consistency == 'independent'
+    del metadata_request['intent']['selection']['descriptors']
+    rejects(ValueError, lambda: m.HistoryAcquisition.restore(json.dumps(metadata_request)))
+finally:
+    owner.close()
+
+
+async def history_cancellation():
+    owner = client(); owner._queries = m._Queries(history_connection, history_principal)
+    asynchronous = m.AsyncClient.__new__(m.AsyncClient); asynchronous._owner = owner
+    api = owner._api; api.entered, api.release = threading.Event(), threading.Event()
+    api.response = {'history': {'status': status}}
+    try:
+        pending = asyncio.create_task(asynchronous.acquire_history(history_acquisition))
+        assert await asyncio.to_thread(api.entered.wait, 5)
+        pending.cancel()
+        try: await pending
+        except asyncio.CancelledError: pass
+        else: raise AssertionError('Await was not cancelled')
+        closing = asyncio.create_task(asynchronous.close())
+        await asyncio.sleep(0)
+        assert not closing.done() and not api.destroyed
+        api.release.set()
+        await closing
+        assert api.destroyed and api.calls == [{'history': {'acquire': history_fixture['acquire']}}]
+    finally:
+        api.release.set()
+        await asynchronous.close()
+
+
+asyncio.run(history_cancellation())

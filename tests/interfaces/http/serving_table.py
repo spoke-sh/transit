@@ -197,7 +197,7 @@ def query_bytes(definition, owner, limits, *, requester, requests, principal, ex
     value = _native_source(definition, owner)
     fields = value['source']['table']['row_type']['structure']
     assert fields == [dict(name='id', type={'int64': {}}, nullable=False, optional=False), dict(name='count', type={'int64': {}}, nullable=True, optional=False)], fields
-    types = b'transit.fuze.types.v1.2026-09-30'
+    types = b'transit.fuze.types.v1.2026-11-01.companions'
     descriptor = b'FTY1' + bytes([len(types)]) + types + b'\x16\2\2id\0\1\5count\1\1'
     table_source = value['source']['table']
     scope, stored = table_source['scope'], table_source['interpretation']
@@ -206,11 +206,11 @@ def query_bytes(definition, owner, limits, *, requester, requests, principal, ex
     table = (b'TQS1' + contract + struct.pack('<8Q', scope['realm'], scope['resource'], scope['catalog'], owner,
                 table_source['branch'], table_source['namespace'], table_source['object'], interpretation['revision'])
              + bytes(interpretation['digest']) + struct.pack('<Q', stored['content']['bytes'])
-             + bytes(stored['schema_fingerprint']) + struct.pack('<H', len(descriptor)) + descriptor + b'\0\0')
+             + bytes(stored['schema_fingerprint']) + struct.pack('<H', len(descriptor)) + descriptor + b'\0\0\0\0\0')
     source = b'UQS1' + contract + struct.pack('<QBH', scope['resource'], 2, len(table)) + table
     declaration = hashlib.sha256(b'transit.table.query.declaration.v1\0' + table).digest()
-    plan_definition = hashlib.sha256(b'transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names:nullable-parameters:collations').digest()
-    plan = b'FQP1' + plan_definition + declaration + hashlib.sha256(descriptor).digest() + b'\0\2\0\1\0\0\0' + struct.pack('<Q', 0) + b'\0\0\0'
+    plan_definition = hashlib.sha256(b'transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names:nullable-parameters:collations:scalar-programs:decimal-sum.2026-11-01').digest()
+    plan = b'FQP1' + plan_definition + declaration + hashlib.sha256(descriptor).digest() + b'\0\2\0\1\0\0\0' + struct.pack('<Q', 0) + b'\0\0\0\0'
     header = b'UQB1' + contract + struct.pack('<HH', len(source), len(plan)) + limits
     description = header + b'\0\0' + source + plan
     purpose = hashlib.sha256(b'transit.query.direct-retention.v1\0' + struct.pack('<4Q', owner, scope['resource'], requester, requests) + description).digest()
@@ -218,7 +218,7 @@ def query_bytes(definition, owner, limits, *, requester, requests, principal, ex
     expected = {name: int(value) for name, value in definition['position'].items()}
     binding = dict(definition=contract.hex(), connection=connection, executor=executor, interpretation=interpretation,
         expected=expected, selection='current', owner=dict(scope=scope, principal=principal, operation=operation),
-        retention='snapshot', purpose=list(purpose))
+        retention='snapshot', purpose=list(purpose), copied_from=None, projection=None)
     grant_context = hashlib.sha256(b'transit.table.read-delegation.v1\0' + json.dumps(binding, separators=(',', ':')).encode()).digest()
     delegated = proof(grant_context)
     grant_claim = delegated['claim']
@@ -226,8 +226,8 @@ def query_bytes(definition, owner, limits, *, requester, requests, principal, ex
     grant = (b'TRG1' + contract + struct.pack('<6QB4Q', scope['realm'], scope['resource'], scope['catalog'],
         table_source['branch'], owner, principal, 0, 0, executor, table_source['object'], interpretation['revision'])
         + bytes(interpretation['digest']) + struct.pack('<3QBB', expected['partition'], expected['next_lsn'], operation, 0, 2)
-        + purpose + struct.pack('<Q', grant_claim['credential_epoch']) + grant_context + bytes(delegated['signature']))
-    assert len(grant) == 311
+        + purpose + struct.pack('<Q', grant_claim['credential_epoch']) + grant_context + bytes(delegated['signature']) + bytes(122))
+    assert len(grant) == 433
     unsigned = header + b'\0\1' + grant + source + plan
     context = hashlib.sha256(b'transit.query.original-subject.v1\0' + struct.pack('<QQ', requester, requests) + unsigned).digest()
     original = proof(context)

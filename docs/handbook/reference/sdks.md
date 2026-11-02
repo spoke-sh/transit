@@ -174,6 +174,33 @@ requires a fresh listing. Every metadata call rechecks current inspection and
 native rights. The [catalog caller](../../../packages/zig/transit-catalog/README.md) uses the same
 Zig owner; query connections do not enable administration.
 
+Zig, Python and TypeScript preserve schema-owned CHECK and staged foreign-key
+descriptors, including full-width parent definitions and owned literal values.
+The other typed Catalog wrappers emit and require the explicit empty integrity
+descriptor. They reject missing descriptors, nonempty constraints and retained
+constraint identity high-water marks; they never discard constraints when copying a
+schema. SQL submissions use the shared compiler independently of these schema
+wrapper limits. DDL observations distinguish `finalizing` (Table commit accepted,
+dependency cleanup pending) from `committed`; continue the original operation
+to settlement rather than resubmitting SQL.
+
+Python and TypeScript also expose typed historical catalog selection, acquisition,
+explicit progress/release, and bounded metadata inspection through the same
+shared Catalog host. Saved requests preserve original account/token and operation
+identities, including common transaction cuts. Published snapshots report exact
+catalog/source roots and consistency; current rights govern disclosure. Closing
+an SDK client does not release durable history. See the language catalog guides
+for `HistoryAcquisition`, `HistoricalSnapshot` and `HistoryCursor`. These adapters
+provide metadata operations; row results use the shared SQL result lifecycle.
+Other language Catalog wrappers retain their documented current-catalog profile.
+
+History directories report Table and metadata-definition counts separately;
+metadata-only selections can have zero Table sources. Zig's owned
+`Catalog.call(.definitions)` read surface exposes exact view, graph and foreign
+definitions, including typed dependencies and decoder mappings. The neutral host
+and Board share that surface. Python and TypeScript retain their typed history
+operations; their convenience APIs do not yet project those definition bodies.
+
 ## Rules that travel across languages
 
 - Supply credentials and the protocol profile explicitly; imports perform no I/O.

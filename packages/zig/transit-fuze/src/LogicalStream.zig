@@ -6,7 +6,7 @@ const t = @import("Types.zig");
 const arrow = @import("LogicalArrow.zig");
 const Cancellation = @import("execute.zig").Cancellation;
 pub const max_rows = arrow.max_rows;
-pub const progress_bytes = 126;
+pub const progress_bytes = 134;
 pub const Finish = enum(u8) { source_end = 1, limit = 2 };
 pub const Progress = struct {
     binding: [32]u8,
@@ -23,6 +23,11 @@ pub const Progress = struct {
         try self.validateRecord();
         if (!std.mem.eql(u8, &self.binding, &plan.source_basis) or !std.mem.eql(u8, &self.plan, &try plan.fingerprint())) return error.SourceChanged;
         const count = self.counters;
+        if (count.sum) |coefficient| {
+            if (plan.aggregate != .sum) return error.InvalidQueryProgress;
+            const kind = try plan.sumType();
+            typesCheckSum(kind, coefficient) catch return error.InvalidQueryProgress;
+        }
         if (count.value_count > count.selected or (plan.aggregate != .count_values and count.value_count != 0)) return error.InvalidQueryProgress;
         if (plan.limit) |limit| {
             if (count.selected > limit or (self.finished == .limit and count.selected != limit)) return error.InvalidQueryProgress;
@@ -40,6 +45,9 @@ pub const Progress = struct {
                 if ((plan.aggregate != .sum or count.selected == 0) and count.sum != null) return error.InvalidQueryProgress;
             },
         }
+    }
+    fn typesCheckSum(kind: t.Type, coefficient: i128) !void {
+        try t.Semantics.validate(if (kind == .decimal) .{ .decimal = coefficient } else .{ .signed = coefficient }, kind);
     }
     fn pagesFor(rows: u64) u64 {
         return rows / max_rows + @intFromBool(rows % max_rows != 0);
@@ -68,7 +76,7 @@ pub const Progress = struct {
         try writer.writeInt(u64, self.segments, .little);
         try writer.writeInt(u64, self.rows, .little);
         try writer.writeByte(@intFromBool(self.counters.sum != null));
-        try writer.writeInt(i64, self.counters.sum orelse 0, .little);
+        try writer.writeInt(i128, self.counters.sum orelse 0, .little);
         try writer.writeByte(if (self.finished) |finish| @backingInt(finish) else 0);
         std.debug.assert(writer.end == progress_bytes);
         return bytes;
@@ -87,7 +95,7 @@ pub const Progress = struct {
         progress.segments = try reader.takeInt(u64, .little);
         progress.rows = try reader.takeInt(u64, .little);
         const present = try reader.takeByte();
-        const sum = try reader.takeInt(i64, .little);
+        const sum = try reader.takeInt(i128, .little);
         if (present > 1 or (present == 0 and sum != 0)) return error.InvalidQueryProgress;
         progress.counters.sum = if (present == 1) sum else null;
         const finish = try reader.takeByte();
@@ -100,7 +108,7 @@ pub const Page = struct { binding: [32]u8, ordinal: u64, end: bool, rows: []cons
 pub const Segment = struct { bytes: []const u8, rows: u8, digest: [32]u8 };
 pub const Step = struct { progress: Progress, segment: ?Segment };
 pub const Failure = struct {
-    operation: enum { validate, predicate, count, sum },
+    operation: enum { validate, predicate, projection, count, sum },
     row: u64,
     page_row: u8,
     column: ?u8 = null,
@@ -127,6 +135,8 @@ pub fn step(plan: q.Plan, previous: Progress, page: Page, workspace: []u8, outpu
         if (diagnostic) |detail| detail.* = .{ .operation = .validate, .row = std.math.add(u64, previous.counters.scanned, row_index + 1) catch return err, .page_row = @intCast(row_index) };
         return err;
     };
+    var scalar_work: q.Scalar.Workspace = .{};
+    try plan.scalars.prepare(plan.schema.structure, &scalar_work);
     var next = previous;
     next.pages = try std.math.add(u64, next.pages, 1);
     var cells: [max_rows][128]t.Values.Cell = undefined;
@@ -149,7 +159,11 @@ pub fn step(plan: q.Plan, previous: Progress, page: Page, workspace: []u8, outpu
             },
         }
         var failure: ?q.Counters.FailureSite = null;
-        const matches = next.counters.contribute(plan, row.cells, &failure) catch |err| {
+        const evaluated = plan.materialize(row.cells, &scalar_work) catch |err| {
+            if (diagnostic) |detail| detail.* = .{ .operation = .projection, .row = next.counters.scanned, .page_row = @intCast(row_index), .column = if (scalar_work.failed) |index| @intCast(plan.schema.structure.len + index) else null, .instruction = scalar_work.failed };
+            return err;
+        };
+        const matches = next.counters.contribute(plan, evaluated, &failure) catch |err| {
             if (diagnostic) |detail| if (failure) |site| {
                 detail.* = .{ .operation = switch (site.operation) {
                     inline else => |tag| @field(@FieldType(Failure, "operation"), @tagName(tag)),
@@ -158,7 +172,7 @@ pub fn step(plan: q.Plan, previous: Progress, page: Page, workspace: []u8, outpu
             return err;
         };
         if (matches and plan.aggregate == .rows) {
-            for (plan.projection, 0..) |column, index| cells[count][index] = row.cells[column];
+            for (plan.projection, 0..) |column, index| cells[count][index] = evaluated[column];
             selected[count] = .{ .cells = cells[count][0..plan.projection.len] };
             count += 1;
         }
@@ -170,7 +184,7 @@ pub fn step(plan: q.Plan, previous: Progress, page: Page, workspace: []u8, outpu
     if (plan.aggregate == .rows) {
         if (count > 0 or (next.finished != null and previous.segments == 0)) segment = try encode(schema, selected[0..count], workspace, output);
     } else if (next.finished != null) {
-        const value = try next.counters.result(plan.aggregate);
+        const value = try next.counters.result(plan);
         segment = try encode(schema, &.{.{ .cells = &.{value} }}, workspace, output);
     }
     if (cancellation.load(.acquire)) return error.Cancelled;

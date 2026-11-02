@@ -9,6 +9,130 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Standards and historical catalogs before main integration — 2026-11-01
+
+These experiments ask whether the selected historical catalog preserves exact
+names, definitions, collation/codec semantics, data cuts and current rights
+through mutation, replacement and recovery. The implementation was audited from
+`c8d060cb2dfcf3bc531ef2e41fcdf7d4f172c2d5` and incorporated main through
+`f49a3da6502ac8d3e12347a3812d6d81404d8d47`. They precede integration of the later
+managed-computation, string, gateway, document and spatial work and its shared
+contract replacement. They do not qualify that later integration or close the
+milestone. Current semantics belong to the
+[historical catalog](../../../contracts/HISTORICAL_CATALOG_V1.md),
+[catalog definitions](../../../contracts/CATALOG_DEFINITIONS_V1.md) and
+[Table schema](../../../contracts/TABLE_SCHEMA_V1.md) contracts.
+
+Commands used the pinned Nix shells and Zig
+`0.17.0-dev.2267+48abf1a34`. Installed authorities, WALs and object stores used
+local physical disk. Complete clean lanes used separate committed checkouts and
+fresh compiler caches. Their scope is local process/disk recovery, not provider,
+power-loss or distributed ownership qualification.
+
+| Completed clean lane | Source | Targets | Archived runner record |
+| --- | --- | --- | --- |
+| `interfaces-connectors` | `5146ef4c1f19` | 12/12 | `.cache/ci/clean/5146ef4c1f19-transit-ci-nhoryted` |
+| `formal` | `7da21116e10c` | 14/14 | `.cache/ci/clean/7da21116e10c-transit-ci-vnt_1xmd` |
+| `interfaces-relational` | `b8d4e91099d8` | 5/5 | `.cache/ci/clean/b8d4e91099d8-transit-ci-hg7_gp1c` |
+| `launchers` | `b8d4e91099d8` | 2/2 | `.cache/ci/clean/b8d4e91099d8-transit-ci-jrnaj03k` |
+| `interfaces-sql` | `348f664e2808` | 8/8 | `.cache/ci/clean/348f664e2808-transit-ci-7s_9mzrj` |
+| `sdks-conformance` | `1ad1c0b48332` | 7/7 | `.cache/ci/clean/1ad1c0b48332-transit-ci-deodu8d1` |
+| `sdks-managed` | `1ad1c0b48332` | 3/3 | `.cache/ci/clean/1ad1c0b48332-transit-ci-uupnzt_h` |
+| `sdks-scripting` | `ff25eff22136` | 3/3 | `.cache/ci/clean/ff25eff22136-transit-ci-xpouzqn1` |
+
+These are separately attributed lane passes, not their union at one source.
+The SQL lane exercises native/PostgreSQL/MySQL history, integrity, allocation,
+wire, session, Stream/Queue declaration and transaction schedules. Historical
+cases preserve old names and columns through rename/DROP/recreation, explicit
+projection targets, changed views, prepared statements, parameters and
+aggregates, gateway restart, current disclosure checks after buffering and
+explicit release. Integrity covers CHECK writes and transaction/savepoint
+candidates, NULL, NOT VALID admission, validation, stable-column renames,
+original DDL recovery and staged foreign-key cleanup. Companion cases include
+ranges/vectors, decimal expressions and SUM, exact pinned TZif artifacts and
+explicit unsupported wire-profile refusals. The scripting lane executes public
+Python and Node catalog recovery, retained SQL and revocation schedules; managed
+SDK coverage includes Java, .NET, Erlang and Elixir.
+
+At `ff25eff221361232a8650d431d9f9b48ff099383`, a separate committed-source runner
+passes all 43 standalone package builds and the complete Fuze, catalog, storage,
+query-direct, SQL protocol/client/service and data-client owners. Full catalog
+measurements compare 8 and 137 objects: both retain an eight-page cache,
+136,160 bytes of index allocation and zero backing allocations after warmup.
+Cache-cleared lookup uses 2/3 ranges and 1,924/3,976 bytes; warm lookup uses one
+range and 1,278 bytes in either case. Complete scans grow from 1 to 18 pages,
+9 to 193 ranges and 10,678 to 210,096 bytes. This measures bounded resident state
+and increasing total work, not a throughput or latency guarantee.
+
+The storage owner executes lazy ALTER over 1,028 rows with four ranges, three
+index pages, no segment reads and no row-index changes. Retained interval cases
+use 4/512 rows, 2/8 segments, 279,684/1,118,736 bytes, 10/40 ranges and 74/2,621
+index misses with separate cold owners and one resident index page. Raw logs
+are under `/var/tmp/transit-m10-final-agu5ltr4/`; the outer transcript is
+`/tmp/transit-m10-final-acceptance.log`. That runner is **not passed overall**:
+a misspelled `transit-sql-result` target fails, and later installed checks are
+interrupted for integration. The real `transit-sql-results` owner passes at
+`bd1f0d8cd` after correcting the metadata-only historical observation test.
+
+At `1766c6d11f090da5fa483c95b43cb60a9acace5e`, the remaining core targets
+(storage, service, authorization, CLI/Table authorization, runtime upgrade,
+callers, inspection and state) and the complete 14-target formal inventory pass
+in a new committed checkout reusing the prior compiler cache. This is a
+continuation, not a complete clean core lane. The final report is
+`.cache/m10-qualification/final-core-tail3.json`; raw output is
+`/tmp/transit-m10-final-core-tail3.log`. The runner initially wrote a `tail2`
+report name; the completed report was copied without changing phase outcomes.
+The Station driver at the same source passes its full scenario after replacing
+stale FQS1/UQC1 offsets with the current 134-byte progress and 249-byte Table
+checkpoint layout (`/tmp/transit-m10-station-progress-committed-width.log`).
+
+Failures and incomplete observations remain material:
+
+- The `1ad1c0b48332` systems SDK lane passes Rust and Go, then fails the C logical
+  fixture because it expects unsupported companion-value construction. The
+  explicit narrower C/C++ profile is corrected at `5f837bcf4`: 245 admitted
+  round trips and 125 explicit refusals, plus ownership/malformed controls,
+  pass against the unchanged installed C artifact. This does not make the full
+  systems lane passed. Evidence: `/tmp/transit-m10-clean-sdks-systems2.log` and
+  `/tmp/transit-m10-c-logical-profile-committed.log`.
+- The `348f664e2808` installation/UI lane passes its first 14 targets, then the
+  workbench's historical acquisition returns 409. The same original operation
+  is later observed published; the original 409's cause is unresolved. Separate
+  workbench fixes preserve original tokens across pending and lost transport
+  replies. Full workbench and real dropped-response controls pass at `dd5c15956`
+  with the frozen installation. Logs are `/tmp/transit-m10-workbench-diagnostic3.log`
+  and `/tmp/transit-m10-board-recovery-faults.log`; these do not replace the
+  failed full-lane result.
+- Browser attempts retain a missed unchanged 1,000-ms admission bound and a
+  later query setup returning 503 while the authority is deliberately stopped.
+  The former operation is subsequently recovered and both pins released; the
+  latter lost its saved local token and remains unresolved. `67215a3a7` preserves
+  exact future submissions for diagnosis. No timeout was raised or assertion
+  removed. Archives retain the `b8d4e9109-transit-ci-da_pw6js-browser1` and
+  `-browser2` failures under `.cache/ci/failed/`.
+- The `b8d4e91099d8` storage-query lane passes its first 12 targets, including
+  local-catalog, before its active checkout is removed by an unknown actor.
+  The next target cannot start. Its outer transcript and retained-path audit
+  are archived at
+  `.cache/ci/failed/b8d4e9109-transit-ci-0krmpttf-checkout-removed/`;
+  per-target records inside the removed checkout are unavailable. Other old
+  `transit-ci-*` checkouts were also removed. Named failure installations and
+  previously copied archives remain; absent raw files cannot be reconstructed
+  as new passing evidence.
+- Later common-source acceptance, matrix and storage continuations are
+  interrupted when main integration begins. An earlier matrix runner also
+  overwrote another progress-report path before being stopped and restarted
+  with a separate report. Raw per-phase logs retain source attribution; neither
+  interrupted orchestration is passed, and the reports must not be combined
+  into a fabricated complete run.
+
+Independent fixtures, finite models and concrete comparator/key/pruning,
+CHECK/evolution and historical recovery checks establish their executed cases.
+They do not prove arbitrary Unicode/UCA, all physical codecs, general graph or
+foreign execution, whole-catalog branch atomicity, or refinement of every native
+path. Remaining qualification is tracked in the
+[milestone](../../roadmap/10-standards-and-catalogs.md#progress-pr-scope--2026-11-01).
+
 ## Immutable single-Table branches — 2026-10-31
 
 The implementation through `5ebdc096d`, based on `b60f12154`, supplies the

@@ -36,6 +36,12 @@ std::string columns_wire(const transit_station_unified_column *columns,size_t co
 logical::Json digest_array(const uint8_t (&bytes)[32]) {
     auto out=logical::Json::array();for(const auto b:bytes)out.items.push_back(logical::Json::integer(b));return out;
 }
+logical::Json table_semantics(const transit_station_catalog_schema &schema) {
+    require(schema.columns && schema.column_count>0 && schema.column_count<=128,"query-table-columns");
+    auto result=logical::Json::array();
+    for(size_t n=0;n<schema.column_count;++n)result.items.push_back(logical::Json::object({{"rounding",logical::Json{}},{"metric",logical::Json{}},{"timezone",logical::Json{}},{"spatial",logical::Json{}}}));
+    return result;
+}
 logical::Json table_collations(const transit_station_catalog_schema &schema) {
     require(schema.columns && schema.column_count>0 && schema.column_count<=128,"query-table-columns");
     auto result=logical::Json::array();
@@ -56,7 +62,7 @@ std::string table_wire(const transit_station_unified_source &source) {
         {"scope",transit::sdk::catalog_detail::scope_wire(scope)},
         {"owner",J::integer(t.audience)},{"branch",J::string(decimal(t.branch))},{"namespace",J::integer(t.namespace_id)},{"object",J::string(decimal(s.object))},
         {"interpretation",J::object({{"revision",J::string(decimal(i.revision))},{"digest",digest_array(i.digest)},{"bytes",J::string(decimal(i.byte_count))},{"schema",digest_array(i.schema_digest)}})},
-        {"row_type",logical::type_json(row)},{"collations",table_collations(s)}})}}));
+        {"row_type",logical::type_json(row)},{"collations",table_collations(s)},{"semantics",table_semantics(s)}})}}));
 }
 std::string path_wire(const char *const *names,size_t count) {
     require(count<=8 && (names || !count),"query-path");std::string out="[";
@@ -120,7 +126,7 @@ std::string plan_wire(const transit_station_unified_plan &v) {
     for(size_t i=0;i<128;++i){if(i>=v.projection_count)require(!v.output_names[i],"query-output-names");else{if(i)names+=',';names+=v.output_names[i]?quote(query_name(v.output_names[i])):"null";}}
     for(size_t i=0;i<v.projection_count;++i){require(v.projection[i]<128,"query-column");if(i)projection+=',';projection+=decimal(v.projection[i]);}
     const auto predicate=predicate_wire(v);
-    return "{\"version\":1,\"projection\":"+projection+"],\"output_names\":"+names+"],\"predicate\":"+predicate+",\"aggregate\":"+quote(aggregates[v.aggregate])+",\"limit\":"+(v.has_limit?quote(decimal(v.limit)):"null")+"}";
+    return "{\"version\":1,\"scalar_program\":\"00\",\"projection\":"+projection+"],\"output_names\":"+names+"],\"predicate\":"+predicate+",\"aggregate\":"+quote(aggregates[v.aggregate])+",\"limit\":"+(v.has_limit?quote(decimal(v.limit)):"null")+"}";
 }
 std::string limits_wire(transit_station_unified_budgets v) {require(v.pages && v.segments && v.result_bytes,"query-budgets");return "{\"pages\":"+quote(decimal(v.pages))+",\"segments\":"+quote(decimal(v.segments))+",\"result_bytes\":"+quote(decimal(v.result_bytes))+"}";}
 Bytes codec(Local &local,const std::string &action) {
@@ -294,7 +300,7 @@ transit_sdk_error transit_station_unified_lookup_table(transit_station_unified_c
         const auto root=logical::parse(bytes);const auto &v=root.at("table");if(v.is_null())return;
         v.fields({"source","schema","expected"});const auto &envelope=v.at("source");envelope.fields({"version","resource","source"});
         envelope.at("source").fields({"table"});const auto &direct=envelope.at("source").at("table");
-        direct.fields({"scope","owner","branch","namespace","object","interpretation","row_type","collations"});
+        direct.fields({"scope","owner","branch","namespace","object","interpretation","row_type","collations","semantics"});
         direct.at("scope").fields({"realm","resource","catalog"});direct.at("interpretation").fields({"revision","digest","bytes","schema"});v.at("expected").fields({"partition","next_lsn"});
         const auto &r=n.local.raw;const std::string p="table/source/source/table/";
         auto owner=std::make_unique<transit_station_unified_table_definition>();auto &source=owner->value.source;auto &table=source.source.table;
@@ -308,6 +314,9 @@ transit_sdk_error transit_station_unified_lookup_table(transit_station_unified_c
         const auto expected=logical::JsonParser(table_wire(source)).parse();
         require(logical::encode(logical::type_json(row))==logical::encode(expected.at("table").at("row_type")),"query-table-row-type");
         require(logical::encode(direct.at("collations"))==logical::encode(expected.at("table").at("collations")),"query-table-collations");
+        const auto &semantics=direct.at("semantics");
+        require(semantics.items.size()==owner->schema.column_count,"query-table-semantics");
+        for(const auto &semantic:semantics.items){semantic.fields({"rounding","metric","timezone","spatial"});for(const auto *key:{"rounding","metric","timezone","spatial"})require(semantic.at(key).is_null(),"unsupported-column-semantics");}
         owner->value.partition=wide(r,bytes,"table/expected/partition");owner->value.next_lsn=wide(r,bytes,"table/expected/next_lsn");
         require(owner->value.partition,"query-table-partition");*out=owner.release();
     });

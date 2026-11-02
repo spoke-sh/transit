@@ -130,8 +130,9 @@ test "standards ledger binds collation, physical codec and feature lifecycle sta
     try testing.expect(comp3.zone_map_pruning_sound);
 
     const fk_feat = StandardsLedger.findFeature("F492").?;
-    try testing.expectEqual(StandardsLedger.StageState.rejected, fk_feat.states.parse);
-    try testing.expectEqual(StandardsLedger.StageState.rejected, fk_feat.states.lower);
+    try testing.expectEqual(StandardsLedger.StageState.implemented, fk_feat.states.parse);
+    try testing.expectEqual(StandardsLedger.StageState.implemented, fk_feat.states.lower);
+    try testing.expectEqual(StandardsLedger.StageState.staged, fk_feat.states.execute);
 }
 
 test "operator traits preserve comparison failures" {
@@ -168,17 +169,143 @@ test "standards ledger unsupported declarations match the production compiler" {
     const cases = .{
         .{ "F491", "CREATE TABLE t (id BIGINT CHECK (id > 0))", error.UnsupportedTableConstraint },
         .{ "F492", "CREATE TABLE t (id BIGINT REFERENCES parent(id))", error.UnsupportedTableConstraint },
-        .{ "X001-RANGE", "CREATE TABLE t (span RANGE<BIGINT>)", error.UnknownSqlType },
+        .{ "X001-RANGE", "CREATE TABLE t (span RANGE<BOOLEAN>)", error.UnsupportedRangeSubtype },
         .{ "X002-VECTOR", "CREATE TABLE t (embedding VECTOR(3, FLOAT64))", error.InvalidTypeParameters },
     };
     inline for (cases) |case| {
-        try testing.expectEqual(StandardsLedger.StageState.rejected, StandardsLedger.findFeature(case[0]).?.states.parse);
         try testing.expectError(case[2], f.TableDdl.compile(testing.allocator, case[1], null, null));
     }
-    inline for (.{ "EBCDIC_037_PAD", "EBCDIC_1047_NOPAD", "ICU_ROOT" }) |collation| {
+    inline for (.{"ICU_ROOT"}) |collation| {
         try testing.expectEqual(StandardsLedger.StageState.rejected, StandardsLedger.findCollation(collation).?.states.parse);
         try testing.expectError(error.UnsupportedColumnCollation, f.TableDdl.compile(testing.allocator, "CREATE TABLE t (label UTF8 COLLATE " ++ collation ++ ")", null, null));
     }
+    inline for (.{ "EBCDIC_037_PAD", "EBCDIC_1047_NOPAD" }) |collation| {
+        const descriptor = StandardsLedger.findCollation(collation).?;
+        try testing.expectEqual(StandardsLedger.StageState.implemented, descriptor.states.parse);
+        var compiled = try f.TableDdl.compile(testing.allocator, "CREATE TABLE t (label UTF8 COLLATE " ++ collation ++ ")", null, null);
+        defer compiled.deinit();
+        try testing.expectEqual(descriptor.runtime_tag.?, compiled.statement.create.columns[0].collation);
+    }
+}
+
+fn compilerAccepts(case: StandardsLedger.CompilerCase) !bool {
+    switch (case.entrypoint) {
+        .table_ddl_catalog => {
+            const Parent = struct {
+                fn lookup(_: *anyopaque, arena: std.mem.Allocator, name: []const u8) !f.TableDdl.ForeignKey.Resolver.Parent {
+                    if (!std.mem.eql(u8, name, "parent")) return error.UnknownTable;
+                    const columns = try arena.dupe(f.TableSchema.Column, &.{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }});
+                    return .{ .schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = columns, .primary_key = &.{1} }, .definition = .{ .object = .{ .scope = .{ .realm = 1, .resource = 1, .catalog = 1 }, .branch = 1, .object = 7 }, .revision = 1, .digest = @splat(4) } };
+                }
+            };
+            var context: u8 = 0;
+            var compiled = f.TableDdl.compileWithForeignKeys(testing.allocator, case.sql, null, null, .transit, .{ .context = &context, .lookup = Parent.lookup }) catch |err| {
+                if (err == error.OutOfMemory) return err;
+                return false;
+            };
+            defer compiled.deinit();
+            return true;
+        },
+        .table_ddl => {
+            var compiled = f.TableDdl.compile(testing.allocator, case.sql, null, null) catch |err| {
+                if (err == error.OutOfMemory) return err;
+                return false;
+            };
+            defer compiled.deinit();
+            return true;
+        },
+        .relational_sql => {
+            var parsed = f.RelationalSql.parse(testing.allocator, case.sql, null) catch |err| {
+                if (err == error.OutOfMemory) return err;
+                return false;
+            };
+            defer parsed.deinit();
+            return true;
+        },
+        .inspection => return (f.Sql.parseInspection(case.sql) catch return false) != null,
+    }
+}
+
+test "standards ledger corpus exercises actual production compiler boundaries" {
+    for (StandardsLedger.compiler_cases) |case| {
+        const accepted = try compilerAccepts(case);
+        if (accepted != case.accept) std.debug.print("\nCapability case {s} ({s}): {s}\n", .{ case.id, case.feature, case.sql });
+        try testing.expectEqual(case.accept, accepted);
+        const declared = StandardsLedger.findFeature(case.feature).?.states.parse;
+        if (case.accept) try testing.expectEqual(StandardsLedger.StageState.implemented, declared);
+    }
+}
+
+test "CHECK traits resolve through schema validation and compose with atomic mutation" {
+    const t = std.testing;
+    const check: f.TableConstraints.CheckConstraint = .{
+        .id = 1,
+        .name = "allowed_code",
+        .atoms = &.{
+            .{ .compare_literal = .{ .column = 2, .op = .eq, .literal = .{ .bytes = "ABC" } } },
+            .{ .compare_columns = .{ .left_column = 2, .op = .eq, .right_column = 2 } },
+        },
+        .validated = false,
+    };
+    const columns = [_]f.TableSchema.Column{
+        .{ .id = 1, .name = "id", .type = .int64, .nullable = false },
+        .{ .id = 2, .name = "code", .type = .utf8, .collation = .ebcdic_037_pad },
+    };
+    const schema: f.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 3, .columns = &columns, .integrity = .{ .next_id = 2, .checks = &.{check} } };
+    try schema.validate();
+    const traits = try check.traits(schema);
+    try t.expectEqualDeep(OperatorTraits.EffectSet.none, traits.effects);
+    try t.expect(traits.deterministic and traits.fallible);
+    try t.expectEqual(.check_constraint_true_or_null, traits.five_state_rule);
+    try t.expectEqual(@as(u16, 1), traits.active_collations); // repeated comparisons do not multiply columns
+    try t.expectEqual(@as(u8, 0), traits.work_bound.max_source_pins);
+    try t.expect(!traits.work_bound.acquires_data_pins and !traits.work_bound.reads_storage_segments and !traits.work_bound.mutates_durable_state);
+    try t.expect(!traits.forExplain().doesWork());
+    const cells = [_]f.Types.Values.Cell{ .{ .value = .{ .atom = .{ .signed = 1 } } }, .{ .value = .{ .atom = .{ .bytes = "ABC " } } } };
+    const plan: f.TableDml.Plan = .{ .name = "events", .schema = schema, .action = .{ .insert = &.{&cells} } };
+    try plan.validate();
+    const mutation = try plan.traits();
+    try t.expectEqualDeep(OperatorTraits.EffectSet.table_mutation, mutation.effects);
+    try t.expectEqual(.atomic_mutation, mutation.change_mode);
+    try t.expectEqual(.check_constraint_true_or_null, mutation.five_state_rule);
+    try t.expect(mutation.work_bound.mutates_durable_state);
+    try t.expectEqual(@as(?u64, 0), mutation.work_bound.max_output_rows);
+    try t.expect(!mutation.forExplain().doesWork());
+    var deletion = plan;
+    deletion.action = .delete;
+    try t.expectEqual(.checked_scalar, (try deletion.traits()).five_state_rule);
+    var invalid = check;
+    invalid.atoms = &.{.{ .compare_columns = .{ .left_column = 1, .op = .eq, .right_column = 2 } }};
+    try t.expectError(error.IncompatibleCheckColumns, invalid.traits(schema));
+    var rejected = cells;
+    rejected[1] = .{ .value = .{ .atom = .{ .bytes = "NO" } } };
+    var invalid_plan = plan;
+    invalid_plan.action = .{ .insert = &.{&rejected} };
+    try t.expectError(error.CheckConstraintViolation, invalid_plan.traits());
+}
+
+test "resolved schema projection traits preserve frozen defaults without storage effects" {
+    const t = std.testing;
+    const old_columns = [_]f.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64 }};
+    const new_columns = [_]f.TableSchema.Column{
+        old_columns[0],
+        .{ .id = 2, .name = "label", .type = .utf8, .collation = .ascii_ci, .default = .{ .value = .{ .atom = .{ .bytes = "later" } } } },
+    };
+    const before: f.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &old_columns };
+    const after: f.TableSchema.Schema = .{ .object = 7, .revision = 3, .next_column = 3, .columns = &new_columns };
+    const mapping = try f.TableSchemaProjection.init(before, after, &.{.{ .column = 2, .value = .{ .value = .{ .atom = .{ .bytes = "at add" } } } }});
+    const traits = mapping.traits();
+    try t.expectEqualDeep(OperatorTraits.EffectSet.none, traits.effects);
+    try t.expect(traits.deterministic and traits.fallible);
+    try t.expectEqual(.preserves_all_states, traits.five_state_rule);
+    try t.expectEqual(@as(u16, 1), traits.active_collations);
+    try t.expectEqual(@as(u8, 0), traits.work_bound.max_source_pins);
+    try t.expectEqual(@as(?u64, 1), traits.work_bound.max_output_rows);
+    try t.expect(!traits.forExplain().doesWork());
+    var output: [2]f.Types.Values.Cell = undefined;
+    const row = try mapping.row(&.{.null}, &output);
+    try t.expect(row[0] == .null);
+    try t.expectEqualStrings("at add", row[1].value.atom.bytes);
 }
 
 test "analytical component helpers do not advertise production SQL support" {

@@ -151,11 +151,8 @@ fn checkTable(self: *Self, client: *q.UnifiedClient) !void {
     const retained = self.table orelse return error.QueryTableSnapshotRequired;
     const direct = client.tables orelse return error.QuerySourceUnavailable;
     try self.bundle.source.source.table.requireConnection(direct);
-    const response = try direct.call(.{ .snapshot = retained.snapshot });
-    defer response.deinit();
-    const source = response.value.result.snapshot;
-    const actual: q.catalog.DirectTableReader.Basis = .{ .snapshot = source.snapshot, .interpretation = source.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .row_count = source.row_count, .authority = source.authority };
-    if (!std.meta.eql(actual, retained)) return error.SourceChanged;
+    const current = try self.bundle.source.source.table.capture(direct.allocator, direct, retained.snapshot);
+    if (!std.meta.eql(current.retained, retained)) return error.SourceChanged;
 }
 
 fn diagnosticAllowed(self: *Self, client: *q.UnifiedClient) bool {

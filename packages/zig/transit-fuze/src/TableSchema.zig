@@ -3,10 +3,11 @@
 const std = @import("std");
 const t = @import("Types.zig");
 const v = t.Values;
-pub const definition = "transit.table.schema.v1.2026-10-23";
+pub const definition = "transit.table.schema.v1.2026-11-01.spatial-reference";
 pub const max_columns = 128;
 pub const max_bytes = 65536;
 pub const ColumnId = u64;
+pub const Semantics = @import("ColumnSemantics.zig");
 /// Orthogonal physical column representation ($\epsilon$). Logical values and
 /// expressions evaluate over `Type` ($\tau$) independently of physical codec.
 pub const Encoding = enum(u8) {
@@ -28,6 +29,8 @@ pub const Collation = enum(u8) {
     ascii_ci = 2,
     ebcdic_cp037 = 3,
     icu_root = 4,
+    ebcdic_037_pad = 5,
+    ebcdic_1047_nopad = 6,
 };
 pub const Column = struct {
     id: ColumnId,
@@ -39,6 +42,7 @@ pub const Column = struct {
     max_characters: ?u32 = null,
     encoding: Encoding = .plain,
     collation: Collation = .none,
+    semantics: Semantics = .{},
 
     pub fn field(self: Column) t.Field {
         return .{ .name = self.name, .type = self.type, .nullable = self.nullable };
@@ -65,7 +69,7 @@ pub const Column = struct {
         if (!valid_encoding) return error.IncompatibleColumnEncoding;
         const valid_collation = switch (self.collation) {
             .none => true,
-            .utf8_binary, .ascii_ci, .ebcdic_cp037 => self.type == .utf8,
+            .utf8_binary, .ascii_ci, .ebcdic_cp037, .ebcdic_037_pad, .ebcdic_1047_nopad => self.type == .utf8,
             .icu_root => return error.UnsupportedColumnCollation,
         };
         if (!valid_collation) return error.IncompatibleColumnCollation;
@@ -106,6 +110,7 @@ pub const Schema = struct {
     columns: []const Column,
     /// Empty means internal row identity; column position never implies a key.
     primary_key: []const ColumnId = &.{},
+    integrity: @import("TableConstraints.zig").Integrity = .{},
 
     pub fn index(self: Schema, id: ColumnId) !usize {
         for (self.columns, 0..) |column, i| if (column.id == id) return i;
@@ -160,6 +165,10 @@ pub const Schema = struct {
         }
         return false;
     }
+    pub fn hasSemantics(self: Schema) bool {
+        for (self.columns) |column| if (!column.semantics.empty()) return true;
+        return false;
+    }
     /// Physical row interpretation only. Preparation/admission must retain the
     /// full schema fingerprint; this digest never authorizes stale operations.
     pub fn layoutFingerprint(self: Schema) ![32]u8 {
@@ -179,6 +188,17 @@ pub const Schema = struct {
                 hash.update(&.{ @backingInt(column.encoding), @backingInt(column.collation) });
             }
         }
+        if (self.hasSemantics()) {
+            hash.update("FTK1");
+            // Schema validation bounds every retained descriptor. Hash the
+            // canonical interpretation, including the complete TZif artifact.
+            var bytes: [max_bytes]u8 = undefined;
+            for (self.columns) |column| {
+                var writer: std.Io.Writer = .fixed(&bytes);
+                try column.semantics.write(&writer);
+                hash.update(writer.buffered());
+            }
+        }
         return hash.finalResult();
     }
     pub fn validate(self: Schema) !void {
@@ -193,6 +213,7 @@ pub const Schema = struct {
             }
             if (column.max_characters) |limit| if (limit == 0 or column.type != .utf8) return error.InvalidCharacterLimit;
             try column.validateEncodingAndCollation();
+            try column.semantics.validate(column.type);
             if (column.default) |value| try column.validateCell(value);
         }
         try row_type.validate(.{});
@@ -205,6 +226,7 @@ pub const Schema = struct {
             if (!keyType(column.type)) return error.UnsupportedPrimaryKeyType;
             for (self.primary_key[0..i]) |previous| if (previous == id) return error.DuplicatePrimaryKeyColumn;
         }
+        try self.integrity.validate(self);
         var scratch: [256]u8 = undefined;
         var count: std.Io.Writer.Discarding = .init(&scratch);
         try self.write(&count.writer);
@@ -212,6 +234,22 @@ pub const Schema = struct {
     }
     pub fn validateRow(self: Schema, cells: []const v.Cell) !void {
         return self.validateRowDetailed(cells, null);
+    }
+    /// New mutations enforce every CHECK, including NOT VALID declarations.
+    /// Stored-row decoding uses validateRow so historical violations remain
+    /// inspectable until the owner completes an explicit validation scan.
+    pub fn validateWrite(self: Schema, cells: []const v.Cell) !void {
+        return self.validateWriteDetailed(cells, null);
+    }
+    pub fn validateWriteDetailed(self: Schema, cells: []const v.Cell, failure: ?*?ColumnId) !void {
+        try self.validateRowDetailed(cells, failure);
+        var violation: @import("TableConstraints.zig").CheckViolation = undefined;
+        self.integrity.enforce(self, cells, &violation) catch |err| {
+            if (err == error.CheckConstraintViolation) if (failure) |column| {
+                column.* = violation.column_id;
+            };
+            return err;
+        };
     }
     /// Reports the stable column ID at the actual failing cell. A shared
     /// whole-row budget failure has no invented column attribution.
@@ -249,7 +287,7 @@ pub const Schema = struct {
         const row = output[0..self.columns.len];
         for (self.columns, row) |column, *cell| cell.* = column.initial();
         try self.assign(assignments, row);
-        try self.validateRow(row);
+        try self.validateWrite(row);
         return row;
     }
     pub fn update(self: Schema, previous: []const v.Cell, assignments: []const Assignment, output: []v.Cell) ![]const v.Cell {
@@ -258,7 +296,7 @@ pub const Schema = struct {
         const row = output[0..self.columns.len];
         std.mem.copyForwards(v.Cell, row, previous);
         try self.assign(assignments, row);
-        try self.validateRow(row);
+        try self.validateWrite(row);
         return row;
     }
     fn assign(self: Schema, assignments: []const Assignment, output: []v.Cell) !void {
@@ -328,6 +366,14 @@ pub const Schema = struct {
                 try writer.writeByte(@backingInt(column.collation));
             }
         }
+        if (self.hasSemantics()) {
+            try writer.writeAll("FTK1");
+            for (self.columns) |column| try column.semantics.write(writer);
+        }
+        if (!self.integrity.empty()) {
+            try writer.writeAll("FTI1");
+            try self.integrity.write(self, writer);
+        }
     }
     pub fn fingerprint(self: Schema) ![32]u8 {
         var bytes: [max_bytes]u8 = undefined;
@@ -388,8 +434,8 @@ pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Owned {
     const primary = try a.alloc(ColumnId, keys);
     for (primary) |*id| id.* = try reader.takeInt(u64, .little);
     schema.primary_key = primary;
-    if (reader.seek < bytes.len) {
-        if (bytes.len - reader.seek != 4 + columns.len * 2) return error.InvalidTableSchemaEncoding;
+    if (std.mem.startsWith(u8, bytes[reader.seek..], "FTP1")) {
+        if (bytes.len - reader.seek < 4 + columns.len * 2) return error.InvalidTableSchemaEncoding;
         if (!std.mem.eql(u8, try reader.take(4), "FTP1")) return error.InvalidTableSchemaEncoding;
         var has_physical = false;
         for (columns) |*column| {
@@ -398,6 +444,16 @@ pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Owned {
             if (column.encoding != .plain or column.collation != .none) has_physical = true;
         }
         if (!has_physical) return error.InvalidTableSchemaEncoding;
+    }
+    if (std.mem.startsWith(u8, bytes[reader.seek..], "FTK1")) {
+        _ = try reader.take(4);
+        for (columns) |*column| column.semantics = try Semantics.read(a, &reader);
+        if (!schema.hasSemantics()) return error.InvalidTableSchemaEncoding;
+    }
+    if (reader.seek < bytes.len) {
+        if (bytes.len - reader.seek < 4 or !std.mem.eql(u8, try reader.take(4), "FTI1")) return error.InvalidTableSchemaEncoding;
+        schema.integrity = try @import("TableConstraints.zig").Integrity.read(a, schema, &reader);
+        if (schema.integrity.empty()) return error.InvalidTableSchemaEncoding;
     }
     if (reader.seek != bytes.len) return error.InvalidTableSchemaEncoding;
     try schema.validate();
@@ -412,7 +468,7 @@ fn boolean(reader: *std.Io.Reader) !bool {
 }
 pub fn keyType(data_type: t.Type) bool {
     return switch (data_type) {
-        .structure, .list, .array, .map, .tagged_union, .json, .interval => false,
+        .structure, .list, .array, .map, .tagged_union, .json, .interval, .range, .multirange, .vector => false,
         else => true,
     };
 }
@@ -423,7 +479,7 @@ fn stored(cell: v.Cell) anyerror!void {
         .conflict => return error.TableConflict,
         .missing, .null => {},
         .value => |value| switch (value) {
-            .atom, .json => {},
+            .atom, .json, .range, .multirange, .vector => {},
             .structure, .list, .array => |children| for (children) |child| try stored(child),
             .map => |entries| for (entries) |entry| try stored(entry.value),
             .tagged_union => |tagged| try stored(tagged.value.*),

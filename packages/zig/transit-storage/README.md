@@ -7,6 +7,25 @@ indexes. Separate components include the content-verified
 `NvmeCache`, immutable `TableManifest` (`"TMAN"` v1) artifacts and optimistic
 manifest rebasing (`PartitionLease.OccCoordinator`).
 
+`TableInterpretations.Accepted` records each active definition's declaration,
+acceptance frontier and ADD-time column origins in a paged directory published
+with CREATE/ALTER/RENAME. This metadata remains available after later default
+changes, column removal and physical normalization. DROP preserves it but is
+not an active target. Collection walks the directory and its origin references
+without a resident list of all revisions.
+
+`TablePartition.inspectDefinition` verifies an exact accepted declaration.
+`scanSnapshotProjected` maps an existing source pin forward to that definition,
+using stable column IDs and frozen ADD values. It never acquires a target data
+pin or converts physical types/collations. Returned pages retain the original
+source evidence and report the target separately. Continuations bind both;
+rows own their values independently of metadata scratch and subsequent pages.
+One call reads at most eight source rows within 16 MiB, with a separate caller
+output byte budget. Backward mapping, staged targets, insufficient budgets and
+current authorization failures refuse. `prepareProjection` validates a target
+without reading rows or retaining data. The catalog composes these operations
+through `DirectSchemaProjection` and the shared retained reader.
+
 Immutable object batches sync independent files with at most eight concurrent
 tasks through `SyncBatch`. Every task joins on failure as well as success.
 Content files and names become durable before descriptor publication; the final
@@ -631,6 +650,13 @@ and the catalog's retained dependency graph.
   maintenance while preserving original no-op receipts and a fixed upper cut.
   See [Table partition ownership](docs/table-partitions.md) for caller obligations,
   budgets and the current integration boundary.
+- `TableSnapshot.zig`: Exact retained Table roots and independently owned copies.
+  A copy preserves the original schema, row/deletion directories, WAL cut and
+  transaction decisions, recording its source handle as attribution. Its own pin
+  retains the data after the source owner releases. The required `copied_from`
+  metadata field is null for ordinary pins. `pin_copy` replay authenticates both
+  manifests and their original live-pin transition; attribution alone grants no
+  retention or access.
 - `TableEvidence.zig`: Bounded immutable outcome and operation metadata,
   published through the Table's paged indexes. Original receipt and pending-work
   recovery do not read the accepting row payload or retain its old row roots.
@@ -663,6 +689,15 @@ owner uses that projection. `scanSnapshotFiltered` also supplies bounded encoded
 predicate decisions over live identities, with explicit skipped-row coverage
 and deferred failures. Signed filtered reads bind those decisions to the retained
 source and plan; finite SQL preserves coverage, LIMIT and original error positions.
+
+`inspectProjection` reports one retained physical definition and its stable
+column mappings per call. Frozen ADD-time definitions supply absent columns;
+later insertion defaults cannot reinterpret old data. `inspectProjectionLocations`
+reports at most eight row-identity locators with exact WAL/segment references.
+Both use a caller-owned scratch arena and return owned bounded evidence, without
+loading row payloads, acquiring pins or modifying the Table. Directory coverage
+does not imply payload verification or completed query execution. The catalog
+adapts these operations to separate metadata and SELECT permissions.
 
 Opening a disk WAL validates every retained partition before returning, even
 when segment names span multiple directory pages. Nested recovery scans use an

@@ -29,6 +29,7 @@ operations; [contribution instructions](AGENTS.md) describe their test boundary.
 | Disconnects, replacement and cancellation | [faults.py](faults.py), [boundaries.py](boundaries.py) |
 | Node and Table storage observations, wire consumers and buffered revocation | [storage.py](storage.py), executed by [native.py](native.py) before captured-query workloads |
 | Table transactions, original decisions and checkpoint/outbox histories | [transactions.py](transactions.py), via `just test::sql-transactions` |
+| CHECK enforcement, staged FK dependencies, deferred validation and original DDL recovery | [integrity.py](integrity.py), via `just test::sql-integrity` |
 | Console peer and measurements | [editor_peer.py](editor_peer.py), [measurements.py](measurements.py) |
 | Shared client allocation bounds over Unix, HTTP and TLS | [allocations.py](allocations.py), [client probe](../sql/sql_result_allocations.zig) |
 
@@ -115,3 +116,9 @@ The native session schedule also loses one successful `commit_saved` reply at
 the authority proxy. INSERT settlement must still observe the original
 identity, terminal outcome and exact counts; typed reads and restart/token retry retain
 that same row and operation. This tests uncertain-owner reply recovery without changing physical sync semantics.
+
+`history.py` drives selected historical catalogs through native SQL, PostgreSQL
+and MySQL, including rename/name reuse, prepared execution, current revocation,
+gateway replacement and explicit release. `just test::sql-history` owns this
+installed check. Retention uses the public direct historical operations; its
+selector bytes and expected rows are independently specified in the driver.

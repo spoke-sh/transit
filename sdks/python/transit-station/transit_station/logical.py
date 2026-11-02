@@ -15,6 +15,8 @@ from transit_client.types import owned_bytes
 
 
 from .logical_values import (
+    RangeType as RangeType, MultiRangeType as MultiRangeType, VectorType as VectorType,
+    RangeBound as RangeBound, RangeValue as RangeValue, MultiRangeValue as MultiRangeValue, VectorValue as VectorValue,
     ScalarType as ScalarType,
     DecimalType as DecimalType,
     TimestampType as TimestampType,

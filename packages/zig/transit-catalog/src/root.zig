@@ -9,6 +9,9 @@ pub const Inspection = @import("Inspection.zig");
 pub const DirectBranch = @import("DirectBranch.zig");
 pub const DirectCatalog = @import("DirectCatalog.zig");
 pub const DirectCatalogRoots = @import("DirectCatalogRoots.zig");
+pub const DirectSchemaProjection = @import("DirectSchemaProjection.zig");
+pub const DirectHistory = @import("DirectHistory.zig");
+pub const DirectHistoryDirectory = @import("DirectHistoryDirectory.zig");
 pub const DirectCatalogWalk = @import("DirectCatalogWalk.zig");
 pub const DirectStorageGraph = @import("DirectStorageGraph.zig");
 pub const DirectTableProtocol = @import("DirectTableProtocol.zig");
@@ -25,11 +28,14 @@ pub const DirectTablePreparedDdl = @import("DirectTablePreparedDdl.zig");
 pub const DirectTableValues = @import("DirectTableValues.zig");
 pub const DirectTableBridge = @import("DirectTableBridge.zig");
 pub const DirectCatalogInspection = @import("DirectCatalogInspection.zig");
+pub const DirectCatalogDefinitions = @import("DirectCatalogDefinitions.zig");
 pub const DirectCatalogRead = @import("DirectCatalogRead.zig");
 pub const DirectCatalogAdministration = @import("DirectCatalogAdministration.zig");
 pub const DirectCatalogDependencies = @import("DirectCatalogDependencies.zig");
 pub const DirectCatalogResources = @import("DirectCatalogResources.zig");
 pub const DirectCatalogRetention = @import("DirectCatalogRetention.zig");
+pub const DirectCatalogProjection = @import("DirectCatalogProjection.zig");
+pub const DirectCatalogHistory = @import("DirectCatalogHistory.zig");
 pub const DirectTableDiagnostic = @import("DirectTableDiagnostic.zig");
 pub const DirectTableTyped = @import("DirectTableTyped.zig");
 pub const DirectTableReader = @import("DirectTableReader.zig");
@@ -89,8 +95,13 @@ test {
     // indirect callers in the catalog lifecycle suite.
     _ = @import("DirectCatalogRecords.zig");
     _ = DirectTableClient;
+    _ = CatalogDefinition;
+    _ = DirectHistoryDirectory;
+    _ = DirectSchemaProjection;
     _ = DirectTableDiagnostic;
     _ = DirectCatalogRetention;
+    _ = DirectCatalogHistory;
+    _ = DirectCatalogProjection;
     _ = DirectTableValues;
     _ = DirectTableBridge;
     _ = DirectCatalogInspection;
@@ -173,3 +184,7 @@ pub const DirectTransactionGraph = @import("DirectTransactionGraph.zig");
 pub const DirectTransactionClient = @import("DirectTransactionClient.zig");
 
 pub const DirectTransactionRead = @import("DirectTransactionRead.zig");
+
+pub const CatalogDefinition = @import("CatalogDefinition.zig");
+
+pub const DirectDefinition = @import("DirectDefinition.zig");

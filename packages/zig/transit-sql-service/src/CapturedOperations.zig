@@ -156,7 +156,12 @@ pub fn resumeOperation(host: *g.Session, id: u64) !api.Operation {
     const content = try host.fresh(bytes, .{ host, id, @as(u64, 1), @as(usize, q.Bundle.max_bytes) });
     defer host.allocator.free(content);
     const bundle = try q.Bundle.decode(arena.allocator(), content);
-    if (!std.mem.eql(u8, &try bundle.source.fingerprint(), &try source.definition.fingerprint())) return error.SqlOperationBindingChanged;
+    if (bundle.source.source == .table and bundle.source.source.table.historical != null) {
+        // The saved route still belongs to this account/source policy, while
+        // its accepted historical Table is independent of the configured live
+        // schema. The bundle signature binds that complete original selection.
+        try bundle.source.source.table.requireConnection(source.client.tables orelse return error.QuerySourceUnavailable);
+    } else if (!std.mem.eql(u8, &try bundle.source.fingerprint(), &try source.definition.fingerprint())) return error.SqlOperationBindingChanged;
     // Cancellation first settles any published command. Once requested it
     // never resumes the upload or submits a new query execution.
     const pending = if (local.cancel == 1) try source.client.prepare(.{ .cancel = try namespace(item) }) else (try source.client.prepareNext(try namespace(item), bundle)) orelse return observed;
@@ -212,6 +217,7 @@ pub const Read = struct {
     cursor: ?q.UnifiedResult.Cursor = null,
     complete: bool = false,
     basis: ?q.Basis = null,
+    table_basis: ?q.TableSource.Basis = null,
     pub fn init(host: *g.Session, prepared: *Prepared) !Read {
         try validateResult(host, prepared);
         var arena: std.heap.ArenaAllocator = .init(host.allocator);
@@ -253,6 +259,7 @@ pub const Read = struct {
             const acquired = try self.host.fresh(page, .{self});
             self.cursor = acquired.next;
             self.basis = acquired.basis;
+            self.table_basis = acquired.table_basis;
             self.complete = acquired.next == null;
         }
         const count = @min(maximum, self.decoded.?.rows.len - self.index);

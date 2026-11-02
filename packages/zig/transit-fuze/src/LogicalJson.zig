@@ -31,8 +31,14 @@ pub const Cell = union(types.State) {
 };
 pub const Alternative = struct { counter: []const u8, replica: []const u8, value: union(enum) { null, type_error: types.Kind, value: Value } };
 pub const Entry = struct { key: Atom, value: Cell };
+pub const Range = struct {
+    is_empty: bool,
+    lower: ?Bound,
+    upper: ?Bound,
+    pub const Bound = struct { value: Atom, inclusive: bool };
+};
 pub const Value = union(enum) {
-    pub const json_schema_sequence_bounds = .{ .structure = 65536, .list = 65536, .array = 65536, .map = 65536 };
+    pub const json_schema_sequence_bounds = .{ .structure = 65536, .list = 65536, .array = 65536, .map = 65536, .multirange = 65536 };
     atom: Atom,
     structure: []const Cell,
     list: []const Cell,
@@ -40,6 +46,9 @@ pub const Value = union(enum) {
     map: []const Entry,
     tagged_union: struct { index: u8, value: *const Cell },
     json: []const u8,
+    range: Range,
+    multirange: []const Range,
+    vector: []const u8,
 };
 pub const Envelope = struct { definition: []const u8, field: types.Field, cell: Cell };
 pub const Decoded = struct {
@@ -240,6 +249,30 @@ fn nativeCell(allocator: std.mem.Allocator, cell: Cell, expected: types.Type, de
 }
 fn nativeValue(allocator: std.mem.Allocator, value: Value, expected: types.Type, depth: usize, budget: *Budget) anyerror!values.Value {
     return switch (value) {
+        .range => |range| blk: {
+            if (expected != .range) return error.TypeMismatch;
+            break :blk .{ .range = try nativeRange(allocator, range, expected.range.*, budget) };
+        },
+        .multirange => |ranges| blk: {
+            if (expected != .multirange) return error.TypeMismatch;
+            try budget.count(ranges.len);
+            const result = try allocator.alloc(types.Ranges.Value, ranges.len);
+            for (result, ranges) |*out, range| {
+                try budget.child(depth + 1);
+                out.* = try nativeRange(allocator, range, expected.multirange.*, budget);
+            }
+            break :blk .{ .multirange = result };
+        },
+        .vector => |text| blk: {
+            if (expected != .vector) return error.TypeMismatch;
+            const size = try expected.vector.byteLen();
+            if (text.len != size * 2) return error.VectorDimensionMismatch;
+            try budget.data(size);
+            for (text) |byte| if (!(std.ascii.isDigit(byte) or (byte >= 'a' and byte <= 'f'))) return error.InvalidHexEncoding;
+            const result = try allocator.alignedAlloc(u8, .fromByteUnits(types.Vectors.alignment), size);
+            _ = try std.fmt.hexToBytes(result, text);
+            break :blk .{ .vector = result };
+        },
         .atom => |atom| .{ .atom = try nativeAtom(allocator, atom, expected, budget) },
         .structure => |cells| blk: {
             if (expected != .structure or cells.len != expected.structure.len) return error.TypeMismatch;
@@ -277,6 +310,13 @@ fn nativeValue(allocator: std.mem.Allocator, value: Value, expected: types.Type,
             try budget.data(bytes.len);
             break :blk .{ .json = bytes };
         },
+    };
+}
+fn nativeRange(allocator: std.mem.Allocator, range: Range, subtype: types.Type, budget: *Budget) !types.Ranges.Value {
+    return .{
+        .is_empty = range.is_empty,
+        .lower = if (range.lower) |bound| .{ .value = try nativeAtom(allocator, bound.value, subtype, budget), .inclusive = bound.inclusive } else null,
+        .upper = if (range.upper) |bound| .{ .value = try nativeAtom(allocator, bound.value, subtype, budget), .inclusive = bound.inclusive } else null,
     };
 }
 fn foreignAtom(allocator: std.mem.Allocator, atom: types.Semantics.Atom, expected: types.Type) !Atom {
@@ -317,6 +357,13 @@ pub fn foreignCell(allocator: std.mem.Allocator, cell: values.Cell, expected: ty
 }
 fn foreignValue(allocator: std.mem.Allocator, value: values.Value, expected: types.Type) anyerror!Value {
     return switch (value) {
+        .range => |range| .{ .range = try foreignRange(allocator, range, expected.range.*) },
+        .multirange => |ranges| blk: {
+            const result = try allocator.alloc(Range, ranges.len);
+            for (result, ranges) |*out, range| out.* = try foreignRange(allocator, range, expected.multirange.*);
+            break :blk .{ .multirange = result };
+        },
+        .vector => |bytes| .{ .vector = try hex(allocator, bytes) },
         .atom => |atom| .{ .atom = try foreignAtom(allocator, atom, expected) },
         .structure => |cells| blk: {
             const result = try allocator.alloc(Cell, cells.len);
@@ -342,6 +389,13 @@ fn foreignValue(allocator: std.mem.Allocator, value: values.Value, expected: typ
         .json => |bytes| .{ .json = try allocator.dupe(u8, bytes) },
     };
 }
+fn foreignRange(allocator: std.mem.Allocator, range: types.Ranges.Value, subtype: types.Type) !Range {
+    return .{
+        .is_empty = range.is_empty,
+        .lower = if (range.lower) |bound| .{ .value = try foreignAtom(allocator, bound.value, subtype), .inclusive = bound.inclusive } else null,
+        .upper = if (range.upper) |bound| .{ .value = try foreignAtom(allocator, bound.value, subtype), .inclusive = bound.inclusive } else null,
+    };
+}
 test "neutral JSON owns recursive descriptors and never rounds full width numbers" {
     const t = std.testing;
     const field: types.Field = .{ .name = "x", .type = .{ .structure = &.{ .{ .name = "wide", .type = .uint128 }, .{ .name = "values", .type = .{ .list = .{ .type = &.float32, .nullable = true } } } } } };
@@ -354,7 +408,10 @@ test "neutral JSON owns recursive descriptors and never rounds full width number
     const again = try encode(t.allocator, decoded.cell, decoded.field);
     defer t.allocator.free(again);
     try t.expectEqualStrings(encoded, again);
-    try t.checkAllAllocationFailures(t.allocator, struct {
+    // Arena growth must take the same allocation path in every failure run;
+    // in-place resize availability depends on the backing allocator's addresses.
+    var no_resize = t.FailingAllocator.init(t.allocator, .{ .resize_fail_index = 0 });
+    try t.checkAllAllocationFailures(no_resize.allocator(), struct {
         fn run(allocator: std.mem.Allocator, bytes: []const u8) !void {
             var owner = try decode(allocator, bytes);
             defer owner.deinit();

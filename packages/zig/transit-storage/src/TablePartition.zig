@@ -296,6 +296,7 @@ const CachedSnapshot = struct {
     handle: SnapshotHandle,
     retention: Retention,
     root: Root,
+    copied_from: ?SnapshotHandle = null,
 };
 
 allocator: std.mem.Allocator,
@@ -343,13 +344,16 @@ pub fn init(allocator: std.mem.Allocator, partition: u64, definition: Declaratio
 }
 
 fn emptyRoot(stored: Declaration.Stored, partition: u64) Root {
-    return .{ .kind = stored.kind, .interpretation = stored.interpretation, .declaration = stored.content, .schema_fingerprint = stored.schema_fingerprint, .retired = stored.retired, .next_segment = 1, .partition = partition, .operations = null, .pending = null, .identities = null, .ordered_rows = null, .physical_schemas = null, .column_origins = null, .archive = .empty, .recovery = null, .history_floor = 0, .history_pins = null, .maintenance = .empty, .transaction = null };
+    return .{ .kind = stored.kind, .interpretation = stored.interpretation, .declaration = stored.content, .schema_fingerprint = stored.schema_fingerprint, .retired = stored.retired, .next_segment = 1, .partition = partition, .operations = null, .pending = null, .identities = null, .ordered_rows = null, .physical_schemas = null, .column_origins = null, .definitions = null, .archive = .empty, .recovery = null, .history_floor = 0, .history_pins = null, .maintenance = .empty, .transaction = null };
 }
 
 fn requireTransition(before: Root, record: r.Record, operation: ?Operation) !void {
     const after = record.root;
     if (before.kind != after.kind) return error.DataKindMismatch;
     if (!std.meta.eql(after.maintenance, try @import("TableMaintenanceState.zig").transition(before, after, record.action))) return error.InvalidTableMaintenance;
+    const defines = (record.action == .declaration and !after.retired) or
+        (record.action == .mutation and record.action.mutation.binding.action == .create);
+    if (!defines and !std.meta.eql(before.definitions, after.definitions)) return error.InvalidTableHistory;
     if ((record.action != .declaration or record.action.declaration.binding.action != .alter) and
         !std.meta.eql(before.column_origins, after.column_origins)) return error.InvalidTableHistory;
     if (record.action != .mutation and record.action != .checkpoint and record.action != .compaction and
@@ -412,7 +416,7 @@ fn requireTransition(before: Root, record: r.Record, operation: ?Operation) !voi
             if (record.action == .operation) {
                 if (!std.meta.eql(before.pins, after.pins)) return error.InvalidTableHistory;
             } else if (!std.meta.eql(before.operations, after.operations) or !std.meta.eql(before.pending, after.pending)) return error.InvalidTableHistory;
-            if (before.retired and record.action != .release and record.action != .archive and record.action != .recovery and record.action != .history_floor and record.action != .maintenance) return error.InvalidTableHistory;
+            if (before.retired and record.action != .pin_copy and record.action != .release and record.action != .archive and record.action != .recovery and record.action != .history_floor and record.action != .maintenance) return error.InvalidTableHistory;
         },
     }
 }
@@ -557,7 +561,7 @@ fn recoverSinceOptions(self: *Self, prior: ?RecoveryState, retain_cache: bool) !
     }
     // Verify all top-level roots before exposing the recovered state. Descendant
     // pages and row objects remain checked on access, never substituted by empty.
-    for ([_]?pages.Reference{ next.rows, next.scan_rows, next.identities, next.ordered_rows, next.physical_schemas, next.column_origins, next.receipts, next.pins, next.history_pins, next.operations, next.pending, next.archive.directory }) |reference| if (reference) |ref| {
+    for ([_]?pages.Reference{ next.rows, next.scan_rows, next.identities, next.ordered_rows, next.physical_schemas, next.column_origins, next.definitions, next.receipts, next.pins, next.history_pins, next.operations, next.pending, next.archive.directory }) |reference| if (reference) |ref| {
         _ = try self.index.load(ref);
     };
     if (end != 0 and (!retain_cache or !had_prior_root or !std.meta.eql(next.declared(), prior_declared))) {
@@ -614,6 +618,12 @@ fn requireReceiptTransition(self: *Self, before: Root, record: r.Record) !void {
         else => return,
     }
     const receipt = try record.receipt();
+    if ((record.action == .declaration and !record.root.retired) or receipt.binding.action == .create) {
+        const revision = record.root.interpretation.revision;
+        if (try Interpretations.accepted(&self.index, before.definitions, revision) != null) return error.InvalidTableInterpretation;
+        const entry = try Interpretations.accepted(&self.index, record.root.definitions, revision) orelse return error.MissingTableInterpretation;
+        if (!std.meta.eql(entry, Interpretations.Accepted{ .declaration = record.root.declared(), .next_lsn = record.root.next_lsn, .origins = record.root.column_origins })) return error.InvalidTableInterpretation;
+    }
     const key = try r.operationKey(receipt.binding.identity);
     if (try self.tree().get(before.receipts, key) != null) return error.InvalidTableReceipt;
     const pointer = try self.tree().get(record.root.receipts, key) orelse return error.InvalidTableReceipt;
@@ -622,6 +632,10 @@ fn requireReceiptTransition(self: *Self, before: Root, record: r.Record) !void {
 
 fn stageReceipt(self: *Self, record: *r.Record) !void {
     const receipt = try record.receipt();
+    if ((record.action == .declaration and !record.root.retired) or receipt.binding.action == .create) {
+        const entry: Interpretations.Accepted = .{ .declaration = record.root.declared(), .next_lsn = record.root.next_lsn, .origins = record.root.column_origins };
+        record.root.definitions = try self.tree().put(record.root.definitions, try Interpretations.key(entry.declaration.interpretation.revision), try entry.encode());
+    }
     const value = try StoredEvidence.stageInTree(&self.index, try StoredEvidence.Record.fromAcceptance(record.*));
     record.root.receipts = try self.tree().put(record.root.receipts, try r.operationKey(receipt.binding.identity), value);
 }
@@ -664,7 +678,7 @@ pub fn history(self: *Self, from: d.Position, through: d.Position, frames: u8, g
                 result.entries[result.count] = .{ .root = record.root, .receipt = try record.receipt(), .commitment = commitment };
                 result.count += 1;
             },
-            .operation, .transaction_prepare, .transaction_abort, .checkpoint, .compaction, .maintenance, .archive, .recovery, .history_floor, .pin, .release => {},
+            .operation, .transaction_prepare, .transaction_abort, .checkpoint, .compaction, .maintenance, .archive, .recovery, .history_floor, .pin, .pin_copy, .release => {},
         }
         previous = commitment;
         result.scanned += 1;
@@ -925,6 +939,7 @@ fn performPrepared(self: *Self, operation: Operation, known_request: ?Dml.Reques
             error.DuplicatePrimaryKey, error.DuplicateBatchKey => .duplicate_key,
             error.TableRowMissing => .missing_row,
             error.TableRowIdentityChanged, error.DuplicateTableRowIdentity => .invalid_rows,
+            error.CheckConstraintViolation => .check_violation,
             error.StorageCandidateTooLarge, error.TableStatementScanLimit, error.TableBatchTooLarge, error.TableBuildBudget => .work_limit,
             else => return err,
         };
@@ -1057,6 +1072,7 @@ fn applyWithinBudget(self: *Self, allocator: std.mem.Allocator, binding: d.Bindi
     var largest_row: usize = 0;
     for (changes) |change| switch (change) {
         inline .put, .replace => |value| {
+            try schema.validateWrite(value.row.cells);
             const length = try value.row.encodedSize(schema);
             if (length > max_row_bytes - row_bytes) return error.WriteFailed;
             row_bytes += length;
@@ -1426,6 +1442,7 @@ fn changeDefinitionWithinBudget(self: *Self, allocator: std.mem.Allocator, bindi
     }
     var columns: [f.TableSchema.max_columns]f.TableSchema.Column = undefined;
     var transition: ?f.TableEvolution.Transition = if (edit == .alter) try f.TableEvolution.apply(self.declaration.schema.schema, edit.alter.change, &columns) else null;
+    if (transition) |value| _ = try f.TableConstraints.checkSynchronousEvolutionAdmission(value, self.root.live_rows != 0);
     var replacement = try Declaration.prepare(self.allocator, .{
         .kind = self.root.kind,
         .object = self.root.interpretation.object,
@@ -1464,7 +1481,20 @@ fn changeDefinitionWithinBudget(self: *Self, allocator: std.mem.Allocator, bindi
                     continue;
                 };
             }
-        } else try self.rewrite(allocator, &next, value.*);
+        } else if (value.work == .validate_rows) {
+            try self.validateTransition(allocator, value.*);
+        } else {
+            // Physical rewrites of populated Tables belong to the phased
+            // lifecycle. An empty current root can adopt the new layout while
+            // every historical root retains its own interpretation and data.
+            if (self.root.live_rows != 0) return error.OnlinePhasedRewriteRequired;
+            next.rows = null;
+            next.scan_rows = null;
+            next.identities = null;
+            next.ordered_rows = null;
+            next.physical_schemas = null;
+            next.column_origins = null;
+        }
     }
     const outcome: Outcome = .{ .position = .{ .partition = next.partition, .next_lsn = next.next_lsn }, .matched = 0, .affected = 0, .live_rows = next.live_rows };
     var record: r.Record = .{ .definition = p.Growth.current_definition, .previous = self.chain, .root = next, .action = .{ .declaration = .{ .binding = binding, .changes = digest, .outcome = outcome } } };
@@ -1554,58 +1584,28 @@ fn orderedKeys(self: *Self) OrderedKeys {
     return .{ .store = &self.index };
 }
 
-fn rewrite(self: *Self, allocator: std.mem.Allocator, next: *Root, transition: f.TableEvolution.Transition) !void {
-    next.rows = null;
-    next.scan_rows = null;
-    next.identities = null;
-    next.ordered_rows = null;
-    next.physical_schemas = null;
-    next.column_origins = null;
-    var index_batch: RowIndexBatch = .{ .table = self, .root = next };
+/// A validation-only ALTER never rewrites row bytes or rebuilds indexes. The
+/// complete scan uses the statement's explicit work quota and one reused page
+/// arena. A failure publishes no successor definition or successful prefix.
+fn validateTransition(self: *Self, allocator: std.mem.Allocator, transition: f.TableEvolution.Transition) !void {
+    var budget: StatementBudget = .{ .rows = self.options.statement_scan_rows, .bytes = self.options.statement_scan_bytes };
+    if (self.root.live_rows > budget.rows) return error.TableStatementScanLimit;
+    var scratch = std.heap.ArenaAllocator.init(allocator);
+    defer scratch.deinit();
     var cursor: ?pages.Key = null;
-    var done = false;
     var count: u64 = 0;
-    const encoded = try allocator.alloc(u8, max_row_bytes);
-    defer allocator.free(encoded);
-    while (!done) {
-        var arena = std.heap.ArenaAllocator.init(allocator);
-        defer arena.deinit();
-        const a = arena.allocator();
-        var rows: std.ArrayList(f.TableRow.Row) = .empty;
-        var bytes: usize = 0;
-        group: while (rows.items.len < max_changes) {
-            const batch = try self.scan(self.root, cursor);
-            for (batch.entries) |slot| if (slot) |entry| {
-                const old = try self.readRow(a, self.root, entry.key, entry.value);
-                const cells = try a.alloc(f.Types.Values.Cell, transition.after.columns.len);
-                const row: f.TableRow.Row = .{ .identity = old.row().identity, .cells = try transition.row(old.row().cells, cells) };
-                const length = (try row.encode(transition.after, encoded)).len;
-                if (length > max_row_bytes - bytes or rows.items.len == max_changes) break :group;
-                try rows.append(a, row);
-                bytes += length;
-                cursor = try (try r.Locator.decode(entry.value)).scanKey();
-            };
-            if (batch.next == null) {
-                done = true;
-                break;
-            }
-        }
-        if (rows.items.len == 0) {
-            if (!done) return error.TableBatchTooLarge;
-            break;
-        }
-        const segment = try self.stageSegment(a, transition.after, next.next_segment, rows.items);
-        next.next_segment = try std.math.add(u64, next.next_segment, 1);
-        for (segment.footer.pk_index) |entry| {
-            const index_key = try r.rowKey(entry.pk_sort_key);
-            // Includes collisions across different bounded rewrite groups. A
-            // hash collision rejects conservatively; it never merges two rows.
-            if (try self.tree().get(next.rows, index_key) != null) return error.DuplicatePrimaryKey;
-            const locator: r.Locator = .{ .kind = .segment, .schema_revision = segment.footer.schema_revision, .lsn = segment.footer.segment_id, .offset = entry.global_row_offset, .length = @intCast(segment.content.bytes), .digest = segment.content.sha256 };
-            try index_batch.insert(entry.pk_sort_key, index_key, entry.identity, locator);
+    while (true) {
+        _ = scratch.reset(.retain_capacity);
+        const batch = try self.scan(self.root, cursor);
+        for (batch.entries) |slot| if (slot) |entry| {
+            var old = try self.readRowSchemaInto(scratch.allocator(), self.root, transition.before, entry.key, entry.value, .point);
+            const row = old.row();
+            try budget.visit(try row.encodedSize(transition.before));
+            var cells: [f.TableSchema.max_columns]f.Types.Values.Cell = undefined;
+            _ = try transition.row(row.cells, &cells);
             count = try std.math.add(u64, count, 1);
-        }
-        try index_batch.flush();
+        };
+        cursor = batch.next orelse break;
     }
     if (count != self.root.live_rows) return error.InvalidTableHistory;
 }
@@ -1845,6 +1845,44 @@ fn readRowSchemaInto(self: *Self, allocator: std.mem.Allocator, basis: Root, sch
     var selected: f.TableProjection = .{ .len = @intCast(schema.columns.len) };
     for (selected.indices[0..selected.len], 0..) |*column, i| column.* = @intCast(i);
     return self.readRowInto(allocator, basis, schema, key, value, mode, selected, true);
+}
+
+pub const AcceptedDefinition = struct {
+    accepted: Interpretations.Accepted,
+    definition: Declaration.Owned,
+    pub fn deinit(self: *AcceptedDefinition) void {
+        self.definition.deinit();
+        self.* = undefined;
+    }
+};
+
+/// Exact accepted interpretation, with current authorization supplied by the
+/// adapter. This reads metadata only and never acquires a data pin. An artifact
+/// staged by a caller is insufficient, even if its declaration is well formed.
+pub fn inspectDefinition(self: *Self, allocator: std.mem.Allocator, target: Declaration.Stored, guard: Guard) !AcceptedDefinition {
+    try self.ready();
+    _ = try guard.acquire(guard.context);
+    defer guard.release(guard.context);
+    try target.validate();
+    if (target.retired or !std.meta.eql(target.interpretation.object, self.root.interpretation.object)) return error.InvalidTableInterpretation;
+    const accepted = try Interpretations.accepted(&self.index, self.root.definitions, target.interpretation.revision) orelse return error.MissingTableInterpretation;
+    if (!std.meta.eql(accepted.declaration, target) or accepted.next_lsn > self.root.next_lsn) return error.InvalidTableInterpretation;
+    return .{ .accepted = accepted, .definition = try Declaration.load(allocator, self.objects, target) };
+}
+
+/// Freeze and validate a forward interpretation without reading rows or pinning
+/// target data. CURRENT resolves once here; later calls use the returned target.
+pub fn prepareProjection(self: *Self, allocator: std.mem.Allocator, source: Declaration.Stored, target: ?Declaration.Stored, guard: Guard) !AcceptedDefinition {
+    var original = try self.inspectDefinition(allocator, source, guard);
+    defer original.deinit();
+    var destination = try self.inspectDefinition(allocator, target orelse self.root.declared(), guard);
+    errdefer destination.deinit();
+    var scratch = std.heap.ArenaAllocator.init(allocator);
+    defer scratch.deinit();
+    _ = try self.resolveSchemaProjection(scratch.allocator(), original.definition.schema.schema, destination.definition.schema.schema, destination.accepted);
+    _ = try guard.acquire(guard.context);
+    guard.release(guard.context);
+    return destination;
 }
 
 fn physicalSchema(self: *Self, allocator: std.mem.Allocator, basis: Root, logical: f.TableSchema.Schema, revision: u64, owned: *?Declaration.Owned) !f.TableSchema.Schema {
@@ -2659,6 +2697,19 @@ fn oldestHistoryLease(self: *Self, basis: Root) !?u64 {
 
 fn requireHistoryRetentionTransition(self: *Self, before: Root, record: r.Record) !void {
     switch (record.action) {
+        .pin_copy => |value| {
+            if (try self.tree().get(before.pins, try r.operationKey(value.owner)) != null) return error.InvalidTablePin;
+            const original = try self.tree().get(before.pins, try r.operationKey(value.source.owner)) orelse return error.InvalidTablePin;
+            if (!std.meta.eql(original, try (Snapshot.Pin{ .content = value.source.content }).encode())) return error.InvalidTablePin;
+            const published = try self.tree().get(record.root.pins, try r.operationKey(value.owner)) orelse return error.InvalidTablePin;
+            if (!std.meta.eql(published, try (Snapshot.Pin{ .content = value.basis }).encode())) return error.InvalidTablePin;
+            var source = try Snapshot.load(self.allocator, self.objects, value.source);
+            defer source.deinit();
+            var copied = try Snapshot.load(self.allocator, self.objects, .{ .owner = value.owner, .content = value.basis });
+            defer copied.deinit();
+            if (copied.retention != .snapshot or !std.meta.eql(copied.copied_from, value.source) or
+                !std.meta.eql(source.root, copied.root)) return error.InvalidTablePin;
+        },
         .history_floor => {
             if (try self.oldestHistoryLease(before)) |oldest| if (record.root.history_floor > oldest) return error.InvalidTableHistory;
         },
@@ -2671,6 +2722,7 @@ fn requireHistoryRetentionTransition(self: *Self, before: Root, record: r.Record
             else
                 try self.loadSnapshot(self.allocator, .{ .owner = value.owner, .content = value.basis });
             defer frozen.deinit();
+            if (record.action == .pin and frozen.copied_from != null) return error.InvalidTablePin;
             if (frozen.retention == .snapshot) {
                 if (!std.meta.eql(before.history_pins, record.root.history_pins)) return error.InvalidTablePin;
                 return;
@@ -2705,11 +2757,11 @@ pub fn retainHistory(self: *Self, owner: d.Operation, expected: d.Position, guar
 fn loadSnapshot(self: *Self, allocator: std.mem.Allocator, handle: SnapshotHandle) !SnapshotDefinition {
     if (self.snapshot_cache) |cached| {
         if (std.meta.eql(cached.handle, handle) and std.meta.eql(cached.root.declared(), self.root.declared())) {
-            return .{ .owner = handle.owner, .retention = cached.retention, .root = cached.root, .schema = try self.declaration.schema.schema.clone(allocator) };
+            return .{ .owner = handle.owner, .retention = cached.retention, .root = cached.root, .schema = try self.declaration.schema.schema.clone(allocator), .copied_from = cached.copied_from };
         }
     }
     const frozen = try Snapshot.load(allocator, self.objects, handle);
-    self.snapshot_cache = .{ .handle = handle, .retention = frozen.retention, .root = frozen.root };
+    self.snapshot_cache = .{ .handle = handle, .retention = frozen.retention, .root = frozen.root, .copied_from = frozen.copied_from };
     return frozen;
 }
 
@@ -2725,7 +2777,7 @@ fn retain(self: *Self, owner: d.Operation, expected: d.Position, retention: Rete
             const handle: SnapshotHandle = .{ .owner = owner, .content = existing.content };
             var frozen = try self.loadSnapshot(self.allocator, handle);
             defer frozen.deinit();
-            if (retention != frozen.retention or expected.partition != frozen.root.partition or expected.next_lsn != frozen.root.next_lsn) return error.DataIdentityConflict;
+            if (frozen.copied_from != null or retention != frozen.retention or expected.partition != frozen.root.partition or expected.next_lsn != frozen.root.next_lsn) return error.DataIdentityConflict;
             return handle;
         }
         if (self.root.retired) return error.TableRetired;
@@ -2747,6 +2799,47 @@ fn retain(self: *Self, owner: d.Operation, expected: d.Position, retention: Rete
         self.snapshot_cache = previous_cache;
         return err;
     };
+    try self.reply();
+    return handle;
+}
+
+/// Give a retained cut an independent owner without observing the current head.
+/// The source must still be live on first acceptance. Exact retries retain the
+/// copied handle even after source release; a different source is a conflict.
+pub fn copySnapshot(self: *Self, owner: d.Operation, source: SnapshotHandle, guard: Guard) !SnapshotHandle {
+    try self.ready();
+    try self.scope(owner);
+    try self.scope(source.owner);
+    try source.content.validate();
+    if (std.meta.eql(owner, source.owner)) return error.DataIdentityConflict;
+    {
+        _ = try guard.acquire(guard.context);
+        defer guard.release(guard.context);
+        if (try self.tree().get(self.root.pins, try r.operationKey(owner))) |value| {
+            const existing = try Snapshot.Pin.decode(value);
+            if (existing.released) return error.TableSnapshotReleased;
+            const handle: SnapshotHandle = .{ .owner = owner, .content = existing.content };
+            var copied = try self.loadSnapshot(self.allocator, handle);
+            defer copied.deinit();
+            if (!std.meta.eql(copied.copied_from, source)) return error.DataIdentityConflict;
+            return handle;
+        }
+        if ((try self.requirePin(source)).released) return error.TableSnapshotReleased;
+    }
+    var frozen = try self.loadSnapshot(self.allocator, source);
+    defer frozen.deinit();
+    var tree_batch: TreeStore.Batch = .{};
+    try self.index.beginBatch(self.options.index_work_bytes, &tree_batch);
+    defer self.index.end();
+    const handle = try Snapshot.stageCopyInTree(self.allocator, &self.index, owner, source, frozen.root, frozen.schema.schema);
+    var next = self.root;
+    next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
+    next.pins = try self.tree().put(next.pins, try r.operationKey(owner), try (Snapshot.Pin{ .content = handle.content }).encode());
+    // Publication validation compares both immutable manifests, including an
+    // older schema that cannot use the current declaration's snapshot cache.
+    // Staging these objects alone grants neither a pin nor read authority.
+    try self.index.flush();
+    try self.publish(.{ .definition = p.Growth.current_definition, .previous = self.chain, .root = next, .action = .{ .pin_copy = .{ .owner = owner, .basis = handle.content, .source = source } } }, &.{}, guard);
     try self.reply();
     return handle;
 }
@@ -2848,6 +2941,158 @@ pub fn inspectSnapshot(self: *Self, allocator: std.mem.Allocator, handle: Snapsh
     return frozen;
 }
 
+/// One physical definition per step, including rows still backed by the WAL.
+/// Counts describe the immutable locator directory, not execution completion.
+/// No segment or row payload is read, and no pin is acquired or renewed.
+pub const ProjectionEvidence = struct {
+    pub const Column = struct {
+        column: f.TableSchema.ColumnId,
+        source: union(enum) {
+            physical: f.TableSchema.ColumnId,
+            initial: struct { definition: d.Definition, state: f.Types.State },
+        },
+    };
+    pub const Entry = struct {
+        physical: Declaration.Stored,
+        schema_revision: u64,
+        rows: u64,
+        columns: [f.TableSchema.max_columns]?Column = @splat(null),
+        column_count: u8,
+    };
+    pub const Cursor = struct { source: d.Content, after: u64 };
+    snapshot: SnapshotHandle,
+    logical: Declaration.Stored,
+    accepted: d.Position,
+    total_rows: u64,
+    entry: ?Entry,
+    next: ?Cursor,
+};
+
+/// scratch belongs to the caller and can be reset after return. Every returned
+/// identity, count and mapping is owned. The bound is one physical definition
+/// plus at most one ADD-time declaration per logical column, independent of
+/// the number of physical definitions or retained segments in the Table.
+pub fn inspectProjection(self: *Self, scratch: std.mem.Allocator, handle: SnapshotHandle, after: ?ProjectionEvidence.Cursor, guard: Guard) !ProjectionEvidence {
+    var frozen = try self.inspectSnapshot(scratch, handle, guard);
+    defer frozen.deinit();
+    const basis = frozen.root;
+    const logical = frozen.schema.schema;
+    const cursor: ?pages.Key = if (after) |value| blk: {
+        if (!std.meta.eql(value.source, handle.content)) return error.InvalidTableSnapshotCursor;
+        const key_value = try Interpretations.key(value.after);
+        if (try self.tree().get(basis.physical_schemas, key_value) == null) return error.InvalidTableSnapshotCursor;
+        break :blk key_value;
+    } else null;
+    const page = try self.tree().scan(basis.physical_schemas, cursor);
+    var result: ProjectionEvidence = .{ .snapshot = handle, .logical = basis.declared(), .accepted = frozen.position(), .total_rows = basis.live_rows, .entry = null, .next = null };
+    if (page.entries[0]) |item| {
+        const revision = try Interpretations.identity(item.key);
+        const mapping = try Interpretations.Physical.decode(item.value);
+        var physical_owner: ?Declaration.Owned = null;
+        defer if (physical_owner) |*owned| owned.deinit();
+        const physical = try self.physicalSchema(scratch, basis, logical, revision, &physical_owner);
+        var evidence: ProjectionEvidence.Entry = .{ .physical = mapping.declaration, .schema_revision = revision, .rows = mapping.rows, .column_count = @intCast(logical.columns.len) };
+        var initials: [f.TableSchema.max_columns]f.TableSchemaProjection.Initial = undefined;
+        var initial_count: usize = 0;
+        for (logical.columns, 0..) |column, i| {
+            if (physical.index(column.id)) |_| {
+                evidence.columns[i] = .{ .column = column.id, .source = .{ .physical = column.id } };
+            } else |err| {
+                if (err != error.UnknownColumn) return err;
+                const value = try self.tree().get(basis.column_origins, try Interpretations.key(column.id)) orelse return error.MissingTableInterpretation;
+                const stored = try Interpretations.decode(value);
+                if (!std.meta.eql(stored.interpretation.object, basis.interpretation.object) or stored.interpretation.revision > basis.interpretation.revision) return error.InvalidTableInterpretation;
+                var origin = try Declaration.load(scratch, self.objects, stored);
+                defer origin.deinit();
+                const schema = origin.schema.schema;
+                if (schema.revision <= physical.revision or schema.revision > logical.revision or column.id != schema.next_column - 1) return error.InvalidTableInterpretation;
+                const initial = schema.columns[try schema.index(column.id)].initial();
+                initials[initial_count] = .{ .column = column.id, .value = try f.Types.Values.cloneValidated(scratch, initial) };
+                initial_count += 1;
+                evidence.columns[i] = .{ .column = column.id, .source = .{ .initial = .{ .definition = stored.interpretation, .state = std.meta.activeTag(initial) } } };
+            }
+        }
+        _ = try f.TableSchemaProjection.init(physical, logical, initials[0..initial_count]);
+        result.entry = evidence;
+        if (page.entries[1] != null or page.next != null) result.next = .{ .source = handle.content, .after = revision };
+    } else if (after == null and basis.live_rows != 0) return error.MissingTableInterpretation;
+    _ = try guard.acquire(guard.context);
+    defer guard.release(guard.context);
+    return result;
+}
+
+pub const ProjectionLocations = struct {
+    pub const Entry = struct {
+        identity: f.TableRow.Identity,
+        physical: Declaration.Stored,
+        schema_revision: u64,
+        location: union(enum) {
+            wal: struct { lsn: u64, offset: u32, bytes: u32, row_digest: [32]u8 },
+            segment: struct { id: u64, row: u32, content: d.Content },
+        },
+    };
+    snapshot: SnapshotHandle,
+    logical: Declaration.Stored,
+    accepted: d.Position,
+    total_rows: u64,
+    entries: [pages.page_entries]?Entry = @splat(null),
+    count: u8 = 0,
+    next: ?SnapshotCursor = null,
+};
+
+/// Bounded locator coverage complements definition-level projection evidence.
+/// This reports durable references; it does not claim that payload checksums,
+/// decoding or query execution have completed. Reading those payloads retains
+/// their normal corruption/unavailability checks. Original row identities bind
+/// continuations even when several entries share one immutable segment.
+pub fn inspectProjectionLocations(self: *Self, scratch: std.mem.Allocator, handle: SnapshotHandle, after: ?SnapshotCursor, guard: Guard) !ProjectionLocations {
+    var frozen = try self.inspectSnapshot(scratch, handle, guard);
+    defer frozen.deinit();
+    const basis = frozen.root;
+    const cursor: ?pages.Key = if (after) |value| blk: {
+        if (!std.meta.eql(value.source, handle.content)) return error.InvalidTableSnapshotCursor;
+        const key_value = try pages.Key.init(&value.after);
+        if (try self.tree().get(basis.identities, key_value) == null) return error.InvalidTableSnapshotCursor;
+        break :blk key_value;
+    } else null;
+    const page = try self.tree().scan(basis.identities, cursor);
+    var result: ProjectionLocations = .{ .snapshot = handle, .logical = basis.declared(), .accepted = frozen.position(), .total_rows = basis.live_rows };
+    for (page.entries) |maybe| {
+        const item = maybe orelse break;
+        if (item.key.len != f.TableRow.Identity.encoded_bytes or item.value.len != 32) return error.InvalidTableRowReference;
+        const key_value = try pages.Key.init(item.value.data[0..32]);
+        const stored = try self.tree().get(basis.rows, key_value) orelse return error.InvalidTableRowReference;
+        const locator = try r.Locator.decode(stored);
+        const mapping = try Interpretations.physical(&self.index, basis.physical_schemas, locator.schema_revision) orelse return error.MissingTableInterpretation;
+        var physical_owner: ?Declaration.Owned = null;
+        defer if (physical_owner) |*owned| owned.deinit();
+        _ = try self.physicalSchema(scratch, basis, frozen.schema.schema, locator.schema_revision, &physical_owner);
+        const identity = try f.TableRow.Identity.decode(item.key.data[0..f.TableRow.Identity.encoded_bytes]);
+        const location: @FieldType(ProjectionLocations.Entry, "location") = switch (locator.kind) {
+            .wal => blk: {
+                if (locator.lsn >= basis.next_lsn or locator.length == 0 or locator.length > f.TableRow.max_bytes) return error.InvalidTableRowReference;
+                break :blk .{ .wal = .{ .lsn = locator.lsn, .offset = locator.offset, .bytes = locator.length, .row_digest = locator.digest } };
+            },
+            .segment => blk: {
+                if (locator.lsn == 0 or locator.lsn >= basis.next_segment or locator.length == 0 or locator.length > f.TSeg.max_segment_bytes) return error.InvalidTableRowReference;
+                const content: d.Content = .{ .bytes = locator.length, .sha256 = locator.digest };
+                try content.validate();
+                break :blk .{ .segment = .{ .id = locator.lsn, .row = locator.offset, .content = content } };
+            },
+        };
+        result.entries[result.count] = .{ .identity = identity, .physical = mapping.declaration, .schema_revision = locator.schema_revision, .location = location };
+        result.count += 1;
+    }
+    if (page.next) |next| {
+        if (next.len != f.TableRow.Identity.encoded_bytes) return error.InvalidTableRowReference;
+        result.next = .{ .source = handle.content, .after = next.data[0..f.TableRow.Identity.encoded_bytes].* };
+    }
+    if (after == null and page.next == null and result.count != basis.live_rows) return error.InvalidTableInterpretation;
+    _ = try guard.acquire(guard.context);
+    defer guard.release(guard.context);
+    return result;
+}
+
 /// Physical pages are independent of query result batches. Values in the
 /// returned page own their storage and remain valid across subsequent reads.
 /// Cursor completion means this pinned Table traversal is exhausted, not that
@@ -2860,6 +3105,109 @@ pub fn scanSnapshot(self: *Self, allocator: std.mem.Allocator, handle: SnapshotH
     page.accepted = frozen.position();
     page.changed_lsn = frozen.changedLsn();
     return page;
+}
+
+pub const ProjectedPage = struct {
+    /// Original source evidence is unchanged; row cells use the separate target.
+    page: SnapshotPage,
+    target: Interpretations.Accepted,
+    pub fn deinit(self: *ProjectedPage) void {
+        self.page.deinit();
+        self.* = undefined;
+    }
+};
+
+pub fn projectionCursorSource(handle: SnapshotHandle, target: Interpretations.Accepted) !d.Content {
+    try handle.owner.validate();
+    try handle.content.validate();
+    const encoded = try target.encode();
+    var hash = std.crypto.hash.sha2.Sha256.init(.{});
+    const domain = "transit.table.schema-projection.v1\x00";
+    hash.update(domain);
+    hash.update(&p.Growth.definition_bytes);
+    var length: [8]u8 = undefined;
+    std.mem.writeInt(u64, &length, handle.content.bytes, .little);
+    hash.update(&length);
+    hash.update(&handle.content.sha256);
+    hash.update(encoded.slice());
+    return .{ .bytes = domain.len + 32 + 8 + 32 + encoded.len, .sha256 = hash.finalResult() };
+}
+
+/// Forward mapping over an existing source pin. The target must be an accepted
+/// definition of this object; its exact ADD origins remain metadata-owned even
+/// after later DROP COLUMN or normalization. Source/target metadata is validated
+/// before any row read, including empty sources. No target data pin is acquired.
+pub fn scanSnapshotProjected(self: *Self, allocator: std.mem.Allocator, handle: SnapshotHandle, target: Declaration.Stored, after: ?SnapshotCursor, limits: ReadLimits, guard: Guard) !ProjectedPage {
+    try limits.validate();
+    var source = try self.inspectSnapshot(allocator, handle, guard);
+    defer source.deinit();
+    var destination = try self.inspectDefinition(allocator, target, guard);
+    defer destination.deinit();
+    var scratch = std.heap.ArenaAllocator.init(allocator);
+    defer scratch.deinit();
+    const projection = try self.resolveSchemaProjection(scratch.allocator(), source.schema.schema, destination.definition.schema.schema, destination.accepted);
+    const cursor_source = try projectionCursorSource(handle, destination.accepted);
+    const input_after: ?SnapshotCursor = if (after) |cursor| blk: {
+        if (!std.meta.eql(cursor.source, cursor_source)) return error.InvalidTableSnapshotCursor;
+        break :blk .{ .source = handle.content, .after = cursor.after };
+    } else null;
+    // Input and output bytes are separate bounds. At most one eight-row input
+    // page is resident; a narrow target does not require whole-source materialization.
+    var input = try self.scanRetainedRoot(allocator, source.root, source.schema.schema, handle, handle.content, input_after, .{ .rows = limits.rows, .encoded_bytes = 16 * 1024 * 1024 }, guard);
+    defer input.deinit();
+    var result: ProjectedPage = .{ .target = destination.accepted, .page = .{
+        .source = handle,
+        .interpretation = source.root.declared(),
+        .accepted = source.position(),
+        .changed_lsn = source.changedLsn(),
+        .total_rows = source.root.live_rows,
+        .next = if (input.next) |cursor| .{ .source = cursor_source, .after = cursor.after } else null,
+    } };
+    errdefer result.deinit();
+    var output = ReadPage.init(allocator);
+    defer output.deinit();
+    var cells: [f.TableSchema.max_columns]f.Types.Values.Cell = undefined;
+    for (input.rows[0..input.count]) |slot| {
+        const row = slot.?.row();
+        const mapped: f.TableRow.Row = .{ .identity = row.identity, .cells = try projection.row(row.cells, &cells) };
+        const bytes = try mapped.encodedSize(destination.definition.schema.schema);
+        if (bytes > limits.encoded_bytes - result.page.encoded_bytes) {
+            if (result.page.count == 0) return error.TableReadBudgetTooSmall;
+            const previous = result.page.rows[result.page.count - 1].?.row().identity;
+            result.page.next = .{ .source = cursor_source, .after = try previous.encode() };
+            break;
+        }
+        result.page.rows[result.page.count] = try output.keep(mapped);
+        result.page.count += 1;
+        result.page.encoded_bytes += @intCast(bytes);
+    }
+    _ = try guard.acquire(guard.context);
+    defer guard.release(guard.context);
+    return result;
+}
+
+/// The caller owns source/target schemas and scratch until mapping completes.
+/// Every absent column gets its immutable ADD value, never the target's default.
+fn resolveSchemaProjection(self: *Self, scratch: std.mem.Allocator, source: f.TableSchema.Schema, target: f.TableSchema.Schema, accepted: Interpretations.Accepted) !f.TableSchemaProjection {
+    if (source.object != target.object or source.revision > target.revision) return error.IncompatibleSchemaProjection;
+    var initials: [f.TableSchema.max_columns]f.TableSchemaProjection.Initial = undefined;
+    var count: usize = 0;
+    for (target.columns) |column| {
+        _ = source.index(column.id) catch |err| {
+            if (err != error.UnknownColumn) return err;
+            const entry = try self.tree().get(accepted.origins, try Interpretations.key(column.id)) orelse return error.MissingTableInterpretation;
+            const stored = try Interpretations.decode(entry);
+            if (!std.meta.eql(stored.interpretation.object, accepted.declaration.interpretation.object) or stored.interpretation.revision > accepted.declaration.interpretation.revision) return error.InvalidTableInterpretation;
+            var origin = try Declaration.load(scratch, self.objects, stored);
+            defer origin.deinit();
+            const schema = origin.schema.schema;
+            if (schema.revision <= source.revision or schema.revision > target.revision or column.id != schema.next_column - 1) return error.InvalidTableInterpretation;
+            initials[count] = .{ .column = column.id, .value = try f.Types.Values.cloneValidated(scratch, schema.columns[try schema.index(column.id)].initial()) };
+            count += 1;
+            continue;
+        };
+    }
+    return f.TableSchemaProjection.init(source, target, initials[0..count]);
 }
 
 /// Read a canonical physical column subset while preserving identity traversal,

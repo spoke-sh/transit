@@ -81,21 +81,27 @@ Tables contain 1–128 ordered named columns with the shared
 [logical types](sql/types.md), plus orthogonal physical encoding descriptors
 ($\epsilon$: `plain`, `bitpacked`, `rle`, `dictionary`, `fsst`, `comp3`, `zoned`,
 `comp`, `ibm_hfp`, `ebcdic`) and collation descriptors ($\kappa$: `none`,
-`utf8_binary`, `ascii_ci`, `ebcdic_cp037`, `icu_root`). Encodings and collations
+`utf8_binary`, `ascii_ci`, `ebcdic_cp037`, `ebcdic_037_pad`,
+`ebcdic_1047_nopad`, `icu_root`). Encodings and collations
 are validated against the column's logical type and committed into the schema
 layout fingerprint so physical layout or collation evolution is tracked explicitly.
 The [representation contract](../../../contracts/TABLE_SCHEMA_V1.md#physical-representation-and-collation)
 defines admitted type/codec pairs. CP037 accepts UTF-8 scalars U+0000–U+00FF;
 HFP accepts exactly representable values in its normalized range and preserves
 signed zero. Unrepresentable values reject before mutation acceptance. Text
-collations use no space padding. `icu_root` rejects explicitly.
+collations use NO PAD except `ebcdic_037_pad`, which compares as if the shorter
+string were padded with CP037 spaces. Thus `A` and `A ` are the same key under
+that profile; original stored text retains its spaces. Both code pages require
+U+0000–U+00FF, and CP1047 has its own punctuation weights. `icu_root` rejects
+explicitly.
 
 The direct typed interface preserves physical descriptors in its schema bytes.
 The neutral JSON schema and language SDKs preserve each column’s explicit
 `encoding` and `collation`, including default `plain`/`none` values. Missing or
 unknown wire descriptors reject; constructors supply defaults for new schemas.
-SQL CREATE TABLE and ADD COLUMN accept `COLLATE UTF8_BINARY`, `COLLATE ASCII_CI`
-and `COLLATE EBCDIC_CP037` on text columns. Omission keeps binary comparison.
+SQL CREATE TABLE and ADD COLUMN accept `COLLATE UTF8_BINARY`, `COLLATE ASCII_CI`,
+`COLLATE EBCDIC_CP037`, `COLLATE EBCDIC_037_PAD` and
+`COLLATE EBCDIC_1047_NOPAD` on text columns. Omission keeps binary comparison.
 Direct and captured finite SELECT, prepared comparisons and UPDATE/DELETE
 predicates use that declared collation, as do primary-key lookups and range
 counts. Saved plans bind each input column's collation alongside its logical
@@ -114,6 +120,23 @@ allocates a new identity. Immutable metadata and schema revisions bind prepared
 plans, saved operations and retained readers to their original meaning.
 Unsupported or incompatible definitions reject before execution; stored data
 and accepted work are never silently reset or decoded as another profile.
+
+Accepted active definitions also retain their exact ADD-time column origins in
+a paged metadata directory. Later default changes, column removal, compaction
+and Table retirement do not erase this interpretation evidence. A staged schema
+artifact is not an accepted definition. Retaining definitions does not retain
+old rows; an exact data read still needs its own retained cut.
+
+Explicit schema projection maps a retained source forward to an accepted
+definition of the same object. It matches stable ColumnIds, uses frozen ADD
+values and keeps source evidence separate from the target. It rejects backward
+mapping and type/collation conversion. Ordinary historical reads use the original
+schema. Append `PROJECTING TO CURRENT` or `PROJECTING TO SNAPSHOT 'target'`
+to a historical SELECT, DESCRIBE or EXPLAIN to choose a target explicitly. CURRENT
+resolves once during preparation; later defaults, DROP or name reuse do not
+replace that prepared target. A target snapshot supplies metadata for the original
+object, not its rows. See the [historical contract](../../../contracts/HISTORICAL_CATALOG_V1.md#explicit-schema-projection)
+for bounds, provenance and current authorization.
 
 The protocol package also validates offline index declarations and coverage
 descriptors. They bind stable index/source/column identities, comparison and
@@ -183,13 +206,29 @@ reconcile the original Table outcome before advancing native progress.
 
 [CREATE TABLE](sql/create-table.md) publishes the name, immutable definition and
 empty head. [ALTER TABLE](sql/alter-table.md) supports column and Table renames,
-column addition/removal, defaults, nullability and selected exact type changes.
-Metadata-only changes and complete row/index rewrites have separate execution
-paths. Existing rows must satisfy every tightened constraint before publication.
+column addition/removal, defaults, nullability and constraints. Metadata changes
+and bounded existing-row validation have separate execution paths. Populated
+Tables reject changes requiring physical rewrites until the phased rewrite
+runtime is available. Existing rows must satisfy tightened constraints before publication.
 Compatible additions, non-key renames and drops project older physical rows by
 stable column identity. Changing a default does not rewrite earlier values or
 change a column's frozen ADD-time value. Flush and bounded compaction normalize
 selected rows later; retained readers keep their original schema and values.
+
+Table-level CHECK constraints enforce bounded deterministic comparisons after
+defaults on every candidate write, including private transaction writes. TRUE
+and NULL pass; FALSE, missing, type_error and conflict reject the whole mutation.
+`NOT VALID` defers validation of existing rows while enforcing new writes.
+`ALTER TABLE ... VALIDATE CONSTRAINT` publishes validation only after a complete
+bounded scan; exceeding its work budget preserves the old definition.
+
+`FOREIGN KEY ... REFERENCES ... NOT ENFORCED` records a staged declaration with
+exact parent definition and column identities. It checks compatible types,
+collations and the parent primary key without asserting row-level integrity.
+The catalog protects parent columns before publishing the child and removes
+obsolete protection through recoverable bounded cleanup. Enforced foreign keys
+and referential actions await the index-backed enforcement runtime. Staged
+constraints never dispatch CASCADE or SET NULL writes.
 
 [DROP TABLE](sql/drop-table.md) removes the live name and retires its object.
 Historical references do not make a name live. The direct Table owner rejects
@@ -224,13 +263,35 @@ availability and schema-evolution work without staging or admitting a change.
 It does not scan rows to certify tightened constraints. Save the complete
 `DirectTableIntent`, explicitly admit it, then inspect, execute or cancel its
 original binding. Outcomes distinguish `not_observed`, `admitted`, `committed`,
-`rejected` and `cancelled`; inspection alone starts no work.
+`finalizing`, `rejected` and `cancelled`; inspection alone starts no work.
+`finalizing` carries a committed Table outcome whose required dependency cleanup
+is still pending. Continue the original operation to settlement; a retry as new
+SQL would be a different operation.
 
 Already captured readers retain their original schema and cut, subject to
 current authorization and their own lifetimes. New admissions cannot substitute
 a dropped/recreated object. Exact operation receipts remain reconcilable after
 rename, ALTER or DROP. An exact historical definition contains its accepted
 metadata and schema, without claiming a current live head.
+
+Retained projection inspection explains how those rows are interpreted without
+scanning their payloads. `projection_definitions` reports one physical schema
+generation per page: its exact definition, schema revision, live locator count,
+and each logical column's stable physical ID or frozen ADD-time definition and
+initial cell state. Current metadata visibility is required. The separate
+`projection_locations` read requires SELECT and reports up to eight original row
+identities with their physical definition and WAL or immutable segment reference.
+Both require an existing snapshot owned by the caller and recheck current rights.
+
+These pages report retained directory coverage. They do not verify that every
+payload is available or decoded, and their completion is separate from query
+completion. Traverse every continuation to account for the original total; an
+early stop reports partial coverage. Cursors bind the exact pin, so later ALTER,
+DROP or name reuse cannot change the inspection basis. The shared catalog caller
+exposes private-pin reads through its `projection` action. Published historical
+catalogs expose the same coverage through `history.definitions` and
+`history.locations`, with selector/object/kind-bound continuations. Inspection never acquires,
+renews or releases retention.
 
 DROP does not physically erase retained data. The installed direct service
 exposes no Table garbage collector; accepted history, staged intents and operation
@@ -336,3 +397,33 @@ See the [schema](../../../contracts/TABLE_SCHEMA_V1.md),
 [direct Table](../../../contracts/DIRECT_TABLE_V1.md) and
 [data lifecycle](../../../contracts/DATA_LIFECYCLE_V1.md) contracts, and the
 [catalog owner guide](../../../packages/zig/transit-catalog/docs/direct-catalog.md).
+
+## Selected historical catalogs
+
+The public Zig `transit_catalog.DirectHistory` operations select exact Table
+bindings, acquire retention with an original account/client token, and publish
+a `DataLifecycle.Snapshot` only after every source has a verified pin. Progress
+can be inspected and resumed after an uncertain reply. A selected set can retain
+old names, columns, defaults and collations through later ALTER, DROP and name
+reuse. It includes accepted WAL-only rows and the physical schema directory.
+
+Use the published [SQL snapshot selector](sql/as-of.md) for historical SELECT,
+SHOW TABLES, DESCRIBE and EXPLAIN. Current metadata and SELECT privileges remain
+separate and are checked on the original objects before disclosure. Independent
+selections make no common transaction-cut promise. A transfer from an acquired
+transaction instead preserves its common cut, frozen Table names and namespaces
+and complete source commitment. History acquires independent pins while a paged
+reservation protects the original transaction pins. Completing the transaction
+does not release those historical copies. Explicit release changes
+availability without erasing the original acquisition outcome; reader close
+does not release that separately retained basis. See the
+[exact contract](../../../contracts/HISTORICAL_CATALOG_V1.md) for bounded progress,
+private-pin ownership, collection roots and failure distinctions.
+
+Selections can also retain [versioned views, graph mappings and foreign layouts](../../../contracts/CATALOG_DEFINITIONS_V1.md).
+Views and graphs include their exact Table dependencies; foreign layouts retain
+captured input content separately. Metadata definitions have their own count and
+paged inspection. A selection containing only foreign metadata has zero Table
+sources and independent consistency. Inspecting it neither acquires a data pin
+nor fetches an external URI. SQL expands the accepted historical view definition,
+so replacing its current definition cannot change the retained query.

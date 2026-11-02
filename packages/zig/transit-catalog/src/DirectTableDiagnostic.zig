@@ -23,6 +23,7 @@ fn identity(action: b.Action) ?p.DataLifecycle.Operation {
         .name_assertion => |binding| (binding.native() catch return null).identity(),
     };
     return switch (action) {
+        .history => |value| value.identity() catch null,
         .retention => |value| (switch (value) {
             .acquire => |acquisition| acquisition.owner,
             .status => |owner| owner,
@@ -47,7 +48,8 @@ fn identity(action: b.Action) ?p.DataLifecycle.Operation {
 }
 fn stage(action: b.Action) d.Stage {
     return switch (action) {
-        .catalog, .lookup => .read,
+        .catalog, .lookup, .projection, .definitions => .read,
+        .history => |value| if (value.isRead()) .read else .prepare,
         .retention => |value| if (value == .status or value == .metadata) .read else .prepare,
         .compile => .compile,
         .operation => |value| if (value.command == .inspect) .read else .prepare,

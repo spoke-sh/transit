@@ -17,8 +17,9 @@ SELECT aggregate FROM (
   SELECT projection FROM source [AS alias] [WHERE predicate] [LIMIT count]
 ) AS alias;
 
-projection := * | column [AS name] [, column [AS name] ...]
-aggregate  := (COUNT(*) | COUNT(column) | SUM(column)) [AS name]
+projection := * | expression [AS name] [, expression [AS name] ...]
+aggregate  := (COUNT(*) | COUNT(expression) | SUM(expression)) [AS name]
+expression := column | admitted scalar expression
 predicate  := disjunction
 disjunction := conjunction [OR conjunction ...]
 conjunction := negation [AND negation ...]
@@ -141,7 +142,7 @@ apply filtering and an input limit before aggregation, so null/missing rows
 still consume a restricted derived input's LIMIT.
 The default output names are `count` and `sum`; `AS name` replaces that name.
 
-`SUM(column)` requires int64. It adds values with checked overflow in source order,
+`SUM(column)` accepts int64 or DECIMAL. Decimal results use DECIMAL(38,s) with the input scale. It adds values with checked overflow in source order,
 skips missing/null, and returns null on empty/all-skipped
 input. An error or conflict cell fails the sum. `AVG`, `MIN`, `MAX`, grouping,
 multiple aggregates and mixing an aggregate with row columns are unsupported.

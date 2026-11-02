@@ -366,6 +366,13 @@ scan coverage unchanged; callers explicitly release their pins. See the
 [retained read contract](../../../contracts/DIRECT_TABLE_V1.md#retained-reads-and-binary-payloads)
 for bounds, current authorization and historical-lease limits.
 
+`DirectCatalogProjection` exposes bounded retained definition and locator
+coverage through the shared catalog `projection` action. Definition pages use
+current metadata visibility; per-row placement pages require SELECT. Both bind
+the original private snapshot, return owned full-width host values and perform
+no row decoding, segment scan or retention mutation. Directory coverage and payload
+verification remain distinct. See [projection coverage](../../../contracts/DIRECT_TABLE_V1.md#retained-projection-coverage).
+
 `HistoricalCatalog` supplies pure, borrowed historical-cut validation and query
 fixtures. Its digest includes the complete supplied cut: schemas, interpretation
 profiles, constraint and dependency descriptors, column origins, segments and
@@ -382,6 +389,33 @@ unchanged. Every fetch, including terminal observation, requires current grants;
 filter evaluation reports `QueryTypeError` and `QueryConflict` rather than
 silently excluding those cells. These borrowed fixtures do not establish disk
 paging, a SQL historical selector or runtime policy integration.
+
+`DirectHistory` is the durable selected-Table owner. Its signed
+`historical_catalog` operations stage exact source selections, bind acquisition
+to an original client token, acquire and verify pins, publish the complete cut,
+and resume bounded abandonment or release. `DirectHistoryDirectory` stores
+content-addressed paged name, namespace and definition directories. The storage
+graph follows accepted acquisition roots and retained Table pins; a staged
+selection alone does not retain rows. `DirectHistory.Selector` encodes the full
+snapshot identity for SQL and callers without narrowing its identifiers.
+
+Historical lookup, metadata pages and scans apply current permissions to the
+original objects. Metadata calls read no segments and acquire no pins. Readers
+borrow a published catalog's retention; closing a reader never releases that
+catalog. An explicitly released snapshot refuses even while cleanup is pending.
+Single-Table cuts, independent vectors and transferred common transaction cuts
+retain their distinct consistency evidence. Common transfers preserve the acquired
+namespaces and definitions, reserve original transaction pins during acquisition,
+and publish independently owned copies. Transaction completion can precede copy
+completion; its cleanup waits for publication or completed abandonment. See the [historical catalog contract](../../../contracts/HISTORICAL_CATALOG_V1.md)
+for operation ownership, pagination, interruption and disclosure limits.
+
+`DirectCatalogHistory` exposes these bounded actions through
+`DirectTableBridge.Action.history` and the shared Catalog host. It copies results
+into the caller's output arena, preserves full-width identities as decimal text,
+and binds list continuations to the exact selector and namespace. Persist the
+original acquisition key and intent before dispatch. Closing the host does not
+abandon or release the catalog.
 
 Browser declaration administration is a typed public interface in
 `BrowserAdministration`: inspect a key, list an eight-entry page, conditionally
@@ -401,3 +435,22 @@ without dispatching an exchange. Expiry and disablement never delete accepted
 history. Native owner quotas still apply. Private secret bytes stay outside these
 records. Signing in confers no native privilege; bindings refer to an existing
 reader's actual credential and reject the bootstrap owner/root role.
+
+`DirectSchemaProjection` exposes metadata-only target preparation and bounded
+forward reads over existing private pins or published historical catalogs.
+`DirectTableReader.projectTo` owns the target schema and preserves the original
+source evidence. CURRENT resolves once; accepted targets and ADD origins survive
+later defaults and DROP. Cursors bind both interpretations and current SELECT
+still governs every read. SQL and its prepared plans use these same operations.
+The [projection contract](../../../contracts/HISTORICAL_CATALOG_V1.md#explicit-schema-projection)
+defines supported mappings and refusal behavior.
+
+## Versioned interpretations
+
+`CatalogDefinition` and `DirectDefinition` publish immutable view, property-graph
+and foreign-decoder interpretations through the same catalog and dependency
+owner. `DirectCatalogDefinitions` projects bounded, owned metadata reads into
+`Catalog.call(.definitions)` and Board's read API. Historical selection retains
+metadata separately from Table pins; zero-source metadata catalogs are explicit.
+The [interpretation contract](../../../contracts/CATALOG_DEFINITIONS_V1.md) owns
+publication, identity, execution limits, current access and artifact verification.

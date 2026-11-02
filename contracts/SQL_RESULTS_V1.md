@@ -37,6 +37,14 @@ session-settings commitment where relevant. Independent metadata observations do
 not acquire a fictional data snapshot. EXPLAIN observes a prepared plan without
 executing that plan. Hashes identify content; they grant no rights or retained pin.
 
+A Table observation can additionally identify the accepted view definition whose
+projection/filter interpreted that source. The view identity participates in the
+binding fingerprint. Historical view observations retain the selected catalog and
+original source cut; metadata observations include both view and source definitions.
+Current rights on both objects still govern schema, rows and terminal disclosure.
+A metadata-only historical catalog may have zero Table sources with independent
+consistency; it establishes no data snapshot.
+
 ## Abstract progress
 
 Let a result's state be `(I, S, O, r, d, q, c, released)`:
@@ -219,3 +227,22 @@ protocol. `Observation.PublishedResourceObservation` binds the result stream to
 `investigation_id`, `basis_revision`, `basis_digest`, `is_globally_atomic`, and
 `attribution_receipt_digest`, re-verifying disclosure and withdrawal status
 before each batch is released.
+
+## Selected historical catalogs
+
+The [historical catalog contract](HISTORICAL_CATALOG_V1.md) owns selection,
+original-operation acquisition, publication, current disclosure and bounded
+release. It reuses `DataLifecycle.Snapshot` and the direct Table authority.
+SQL `AS OF SNAPSHOT` binds that catalog before names and schemas; historical
+SELECT observations carry its immutable identity and exact source evidence.
+Metadata observations retain catalog attribution without claiming row execution.
+An independent source vector is not an atomic cross-Table cut.
+
+Explicit projections preserve `Table.interpretation` and `Table.schema` as the
+original source definition and schema fingerprint. Its optional `projection`
+identifies source/target definitions, accepted target declaration content, target
+schema, acceptance LSN and `stable_columns_add_origins` policy. Metadata results
+carry a bounded `projections` vector, whose source definitions must appear in
+`definitions`. Every target belongs to the same stable object and has an equal
+or later revision. This evidence remains immutable through result completion;
+it neither grants current access nor retains source rows.

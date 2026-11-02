@@ -55,8 +55,24 @@ and character limit. See the [DDL value grammar](../../../../contracts/TABLE_DDL
 
 Primary keys admit integer, finite float, decimal, boolean, UTF-8, binary, date,
 time, timestamp and UUID columns. Interval, nested values and JSON are not key
-types. Keys compare canonical typed values; text uses exact UTF-8 bytes without
-collation or normalization. Floating zero signs compare equal for keys.
+types. Keys compare canonical typed values under the declared collation.
+Text defaults to `UTF8_BINARY`; `ASCII_CI`, `EBCDIC_CP037`, `EBCDIC_037_PAD`
+and `EBCDIC_1047_NOPAD` are also admitted. Floating zero signs compare equal for keys.
+
+Table-level `[CONSTRAINT name] CHECK (predicate [AND predicate ...])` supports
+column/literal and compatible column/column comparisons plus `IS [NOT] NULL`.
+It enforces every new write. `NOT VALID` defers existing-row validation when
+added later. Names bind stable column identities after the complete declaration.
+There are at most 64 constraints and 32 predicates per CHECK.
+A violation reports `23514` through native SQL and PostgreSQL, or MySQL error
+`3819` with SQLSTATE `HY000`. A rejected mutation leaves prior rows intact.
+
+Table-level `[CONSTRAINT name] FOREIGN KEY (columns) REFERENCES parent (columns)
+NOT ENFORCED` freezes the exact parent definition and primary-key columns.
+Optional `ON DELETE`/`ON UPDATE` actions are recorded as staged metadata.
+The declaration protects the referenced columns from incompatible changes;
+it does not enforce parent-row existence or execute referential actions.
+An ordinary enforced foreign key rejects rather than silently becoming staged.
 
 ## Publication and recovery
 
@@ -82,8 +98,8 @@ an unconfirmed outcome if necessary. A newly issued CREATE is new work. Current
 inspection rights govern outcome and metadata reads, including after later
 schema changes or name reuse.
 
-UNIQUE, CHECK, named constraints, foreign keys, generated/identity columns,
-collations, CREATE TABLE AS SELECT and transaction sessions are unsupported.
+UNIQUE, inline CHECK/REFERENCES, generated/identity columns,
+CREATE TABLE AS SELECT and enforced foreign keys are unsupported.
 These forms reject before mutation. [ALTER TABLE](alter-table.md),
 [DROP TABLE](drop-table.md) and [typed DML](insert.md) have their own selected
 profiles; storing a type does not qualify every relational operator on it.

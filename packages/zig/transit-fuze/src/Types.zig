@@ -4,7 +4,9 @@ const std = @import("std");
 pub const Diagnostic = @import("TypeDiagnostic.zig");
 pub const Query = @import("Scalar.zig");
 pub const State = Query.State;
-pub const definition = "transit.fuze.types.v1.2026-09-30";
+pub const definition = "transit.fuze.types.v1.2026-11-01.companions";
+pub const Ranges = @import("RangeValue.zig");
+pub const Vectors = @import("VectorValue.zig");
 pub const max_encoding_bytes = 16384;
 pub const Limits = struct {
     depth: usize = 16,
@@ -41,6 +43,9 @@ pub const Tag = enum(u8) {
     map,
     tagged_union,
     json,
+    range,
+    multirange,
+    vector,
 };
 /// Observed source kinds are evidence, not admissible logical descriptors.
 /// Logical kinds retain Tag's IDs; the extra cases preserve decoder/Document
@@ -74,6 +79,9 @@ pub const Kind = enum(u8) {
     map,
     tagged_union,
     json,
+    range,
+    multirange,
+    vector,
     null_value,
     text,
     character,
@@ -126,6 +134,9 @@ pub const Type = union(Tag) {
     map: Map,
     tagged_union: []const Field,
     json,
+    range: *const Type,
+    multirange: *const Type,
+    vector: Vectors.Descriptor,
 
     pub fn tag(self: Type) Tag {
         return std.meta.activeTag(self);
@@ -270,13 +281,18 @@ fn validateType(value: Type, depth: usize, budget: *Budget, path: Diagnostic.Pat
             try validateType(map.key.*, depth + 1, budget, path.field("map").field("key"));
             try validateType(map.value.type.*, depth + 1, budget, path.field("map").field("value").field("type"));
         },
+        .range, .multirange => |subtype| {
+            try Ranges.validateSubtype(subtype.*);
+            try validateType(subtype.*, depth + 1, budget, path.field(@tagName(value)));
+        },
+        .vector => |vector| try vector.validate(),
         else => {},
     }
 }
 
 pub fn isMapKey(value: Type) bool {
     return switch (value) {
-        .structure, .list, .array, .map, .tagged_union, .json, .interval => false,
+        .structure, .list, .array, .map, .tagged_union, .json, .interval, .range, .multirange, .vector => false,
         else => true,
     };
 }
@@ -285,6 +301,11 @@ fn writeType(value: Type, writer: *std.Io.Writer) anyerror!void {
     switch (value) {
         .decimal => |d| try writer.writeAll(&.{ d.precision, d.scale }),
         .timestamp => |zone| try writer.writeByte(@backingInt(zone)),
+        .range, .multirange => |subtype| try writeType(subtype.*, writer),
+        .vector => |vector| {
+            try writer.writeInt(u32, vector.dimensions, .little);
+            try writer.writeByte(@backingInt(vector.element));
+        },
         .structure, .tagged_union => |fields| {
             try writer.writeByte(@intCast(fields.len));
             for (fields) |field| {
@@ -320,6 +341,11 @@ pub const Decoded = struct {
 };
 fn cloneType(allocator: std.mem.Allocator, value: Type) anyerror!Type {
     return switch (value) {
+        .range, .multirange => |subtype| blk: {
+            const child = try allocator.create(Type);
+            child.* = try cloneType(allocator, subtype.*);
+            break :blk if (value == .range) .{ .range = child } else .{ .multirange = child };
+        },
         .structure, .tagged_union => |fields| blk: {
             const owned = try allocator.alloc(Field, fields.len);
             for (fields, owned) |field, *copy| copy.* = .{
@@ -371,6 +397,12 @@ fn readType(allocator: std.mem.Allocator, reader: *std.Io.Reader, depth: usize, 
     return switch (kind) {
         .decimal => .{ .decimal = .{ .precision = try reader.takeByte(), .scale = try reader.takeByte() } },
         .timestamp => .{ .timestamp = std.enums.fromInt(Timestamp, try reader.takeByte()) orelse return error.InvalidTypeEncoding },
+        .range, .multirange => blk: {
+            const child = try allocator.create(Type);
+            child.* = try readType(allocator, reader, depth + 1, budget);
+            break :blk if (kind == .range) .{ .range = child } else .{ .multirange = child };
+        },
+        .vector => .{ .vector = .{ .dimensions = try reader.takeInt(u32, .little), .element = std.enums.fromInt(@import("VectorMetric.zig").ElementType, try reader.takeByte()) orelse return error.InvalidTypeEncoding } },
         .structure, .tagged_union => blk: {
             const count = try reader.takeByte();
             if (count > budget.limits.nodes -| budget.nodes) return error.TypeBudgetExceeded;
@@ -412,4 +444,5 @@ test {
     _ = Json;
     _ = Operations;
     _ = @import("types_test.zig");
+    _ = @import("companion_values_test.zig");
 }

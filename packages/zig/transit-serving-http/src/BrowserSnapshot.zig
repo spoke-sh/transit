@@ -91,6 +91,8 @@ pub fn read(request: Request, name: []const u8, cookie: ?[]const u8, previous: ?
     var scratch: std.heap.ArenaAllocator = .init(allocator);
     defer scratch.deinit();
     var after: ?f.TableRow.Identity = null;
+    var scalar_work: f.ScalarProgram.Workspace = .{};
+    try compiled.plan.scalars.prepare(compiled.plan.schema.structure, &scalar_work);
     var counters: f.LogicalQuery.Counters = .{};
     var failure: ?f.LogicalQuery.Counters.FailureSite = null;
     var first = true;
@@ -113,14 +115,14 @@ pub fn read(request: Request, name: []const u8, cookie: ?[]const u8, previous: ?
             const bytes = try encoded.decode(scratch.allocator(), 65536);
             const row = try f.TableRow.decodeInto(scratch.allocator(), schema.schema, bytes);
             const cells = row.row().cells;
-            if (try counters.observe(compiled.plan, cells, &failure)) {
+            if (try counters.observePrepared(compiled.plan, cells, &scalar_work, &failure)) {
                 if (!first) try output.append(output_allocator, ',');
                 first = false;
                 try output.append(output_allocator, '[');
                 for (compiled.plan.projection, 0..) |column, index| {
                     if (index != 0) try output.append(output_allocator, ',');
-                    if (cells[column] == .missing) return error.MissingPublishedCell;
-                    try c.PublishedProjection.appendPublishedCellJson(output_allocator, &output, cells[column]);
+                    if (compiled.plan.evaluated(cells, &scalar_work)[column] == .missing) return error.MissingPublishedCell;
+                    try c.PublishedProjection.appendPublishedCellJson(output_allocator, &output, compiled.plan.evaluated(cells, &scalar_work)[column]);
                     if (output.items.len > publication.max_bytes or output.items.len > publication.descriptor.work_bound.max_bytes) return error.ResourceWorkBoundExceeded;
                 }
                 try output.append(output_allocator, ']');

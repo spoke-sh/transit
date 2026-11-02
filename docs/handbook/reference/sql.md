@@ -102,8 +102,8 @@ The console and configured database-wire adapters also execute [settings SQL](sq
 ## Support and execution
 
 This reference covers every statement in the
-[SQL grammar](../../../contracts/sql/TransitExtensions.g4), its separate historical-read
-fragment, and the [application declaration grammar](../../../contracts/application/Application.g4).
+[SQL grammar](../../../contracts/sql/TransitExtensions.g4), its historical snapshot
+suffix, and the [application declaration grammar](../../../contracts/application/Application.g4).
 Syntax recognition, query compilation and administrative publication are separate
 capabilities. Each operation has an explicit support boundary:
 
@@ -190,7 +190,7 @@ Arrow int64 columns.
 | `LIMIT n` | Full u64 count; no implicit truncation when omitted |
 | `COUNT(*)` | uint64, counting every cell state; Flight checks conversion to int64 |
 | `COUNT(column)` | uint64, counting top-level values; skips missing/null; error/conflict fails; Flight checks conversion to int64 |
-| `SUM(column)` | Checked int64; skips missing/null; error/conflict fails |
+| `SUM(column)` | Checked int64 or DECIMAL(38,s); skips missing/null; error/conflict fails |
 | Comparison with `NULL` | Rejected; use `IS NULL` |
 | Results | Nested typed cells: value, null, missing, type error, conflict |
 
@@ -218,7 +218,7 @@ Start with [syntax, names and literals](sql/syntax.md) for notation and shared r
 | `SHOW`                                                     | Settings, configured database/schema/Table names and direct Table storage progress execute; connectors are grammar only | [Settings, catalogs and storage](sql/show.md) |
 | `DESCRIBE`                                                 | Executable in configured scope                                                          | [Named-object description](sql/describe.md)                               |
 | `EXPLAIN`                                                  | Executable for finite SELECT; no query execution                                        | [Proposed plan and output columns](sql/explain.md)                        |
-| `FOR SYSTEM_TIME AS OF`                                    | Separate grammar fragment; not part of `SELECT`                                         | [Revision selection](sql/as-of.md)                                        |
+| `AS OF SNAPSHOT`                                         | Retained direct Table catalog selection for SELECT and metadata                          | [Historical catalog selection](sql/as-of.md)                                        |
 | `CREATE INTERFACE`, `THEME`, `SCREEN`, `BINDING`, `ACTION` | Separate application compiler; publication is explicit                                  | [Application declarations](sql/application.md)                            |
 
 ### Other SQL operations
@@ -229,7 +229,7 @@ Start with [syntax, names and literals](sql/syntax.md) for notation and shared r
 | `TRUNCATE`, non-Table `ALTER`/`DROP` | No execution contract; selected Table ALTER/DROP are described above |
 | `BEGIN`, `COMMIT`, `ROLLBACK`, savepoints | [Serializable local Table transactions](sql/transactions.md), retained cuts and explicit original-decision recovery |
 | `COPY`, `MERGE`, upsert forms | No SQL import/export or mutation contract |
-| `CREATE VIEW`, `CREATE MATERIALIZED VIEW` | No named SQL view or maintained-query definition |
+| `CREATE VIEW`, `CREATE MATERIALIZED VIEW` | SQL declarations are unavailable. Accepted typed views support [current and historical SELECT/inspection](sql/as-of.md); maintained queries have no execution contract |
 | `SUBSCRIBE`, streaming windows, event-time watermarks | No continuous SQL contract; see [streaming and effects](sql/streaming.md) |
 | `PREPARE`, `EXECUTE`, parameters | [Typed templates, SDK and CLI bindings](sql/parameters.md) use a separate grammar entry; named prepared statements remain unsupported |
 

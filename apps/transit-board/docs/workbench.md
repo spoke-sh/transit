@@ -114,6 +114,23 @@ The SQL connection must resolve the selected Table in its configured namespace.
 A different namespace or source cannot substitute a same-named Table: the exact
 definition comparison refuses that result.
 
+## Retained catalog inspection
+
+Open **Inspect a retained catalog**, enter its saved snapshot selector and the
+schema name recorded in that catalog, then choose **Inspect snapshot**. Board
+resolves that schema inside the retained selection and displays eight Tables per
+page. Selecting a Table shows its original schema, codecs, collations, constraints,
+semantic descriptors and exact catalog/source digests.
+
+**Physical definitions** reads one generation and its stable-column or ADD-time
+mapping per page using metadata rights. **Row placement** requires SELECT and
+shows at most eight original row identities with WAL or segment references.
+Continuation controls replace the displayed page; partial traversal stays visible.
+Directory exhaustion does not establish payload verification or query completion.
+Failed reads and document hiding clear displayed evidence. Visible pages recheck
+current permissions every five seconds. Inspection neither acquires nor releases
+retention and never runs SQL.
+
 ## Workbook and results
 
 A workbook is temporary in-memory presentation: up to four narrative/SQL cells,

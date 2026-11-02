@@ -56,7 +56,10 @@ File and general Table queries use bounded typed columns. Int64, uint64, finite
 float64 and Boolean comparisons have specialized kernels; other admitted logical
 values retain generic comparisons and deep-owned projections. Eager predicates
 preserve the first error by original row and instruction. COUNT observes all
-five states, and SUM checks each selected int64 contribution in source order.
+five states, and SUM checks each selected int64 or DECIMAL contribution in source order.
+DECIMAL SUM returns DECIMAL(38,s), retaining the input scale and refusing overflow.
+Bounded [scalar projections](sql/expressions.md) run after the row filter, retain
+exact numeric/metric/timezone rules in saved plans, and preserve missing versus NULL.
 
 Compute batches default to 256 rows and 256 KiB, with a maximum of 1024 rows and
 1 MiB; width and payload size can reduce the actual row count. Source decoding,
@@ -278,8 +281,8 @@ General sorting, arbitrary writes and continuous SQL remain unsupported.
 
 COUNT(*) counts selected rows. COUNT(column) counts top-level values of any
 admitted column type, skips missing/null and rejects type errors/conflicts.
-Both return uint64; null/missing still consume the input LIMIT. Checked int64
-SUM adds the selected values of one declared source.
+Both return uint64; null/missing still consume the input LIMIT. Checked int64 or
+DECIMAL SUM adds the selected values of one declared source.
 Those single-source interfaces retain their original cut and operator profile.
 The separate [finite relational contract](../../../contracts/RELATIONAL_V1.md)
 supports one or two explicitly routed Tables, one inner/left int64 or UTF-8 equijoin,

@@ -92,6 +92,7 @@ fn literalShape(literal: Parser.Literal, expected: t.Type) bool {
         .map => literal.value == .map,
         .tagged_union => literal.value == .tagged_union,
         .interval => literal.value == .interval,
+        .range, .multirange, .vector => literal.value == .string,
     };
 }
 /// The exact expected descriptor controls parameter width and representation.

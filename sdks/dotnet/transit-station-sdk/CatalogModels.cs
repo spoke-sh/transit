@@ -16,15 +16,15 @@ public static partial class Catalog
     internal static string Current(string value) => value == ContractDefinition ? value : throw new ArgumentException("Missing or foreign Table definition");
     internal static Bytes Digest(Bytes value) { ArgumentNullException.ThrowIfNull(value); if (value.Length != 32) throw new ArgumentException("Expected digest"); return value; }
     public enum Encoding { Plain, Bitpacked, Rle, Dictionary, Fsst, Comp, Comp_3, Zoned, IbmHfp, Ebcdic }
-    public enum Collation { None, Utf8Binary, AsciiCi, EbcdicCp037, IcuRoot }
+    public enum Collation { None, Utf8Binary, AsciiCi, EbcdicCp037, IcuRoot, Ebcdic_037Pad, Ebcdic_1047Nopad }
     public enum Kind { Create, Alter, Rename, Drop, Insert, Update, Delete }
     public enum Ingestion { Point, Bulk }
     public enum Dialect { Transit, Mysql }
     public enum WorkKind { Table, NameAssertion }
     public enum ObservationKind { Ddl, Rows, NameAssertion }
-    public enum OperationState { NotObserved, Admitted, Rejected, Cancelled, Committed, Unchanged }
+    public enum OperationState { NotObserved, Admitted, Rejected, Cancelled, Committed, Unchanged, Finalizing }
     public enum Phase { Admitted, Ready, Settled, Rejected, Cancelled }
-    public enum Reason { None, NameConflict, ObjectConflict, StaleDefinition, StaleData, Dependency, Constraint, DefinitionChanged, DataChanged, DuplicateKey, MissingRow, InvalidRows, WorkLimit, ConditionChanged }
+    public enum Reason { None, NameConflict, ObjectConflict, StaleDefinition, StaleData, Dependency, Constraint, DefinitionChanged, DataChanged, DuplicateKey, MissingRow, InvalidRows, WorkLimit, ConditionChanged, RewriteRequired, CheckViolation }
     public enum EvolutionWork { Metadata, ValidateRows, RewriteRows }
     public sealed record Scope {
         public ResourceRef Resource { get; }
@@ -108,7 +108,7 @@ public static partial class Catalog
             return value;
         }
     }
-    private static JsonObject ColumnWire(string name, Logical.Descriptor type, bool nullable, Logical.Cell? defaultValue, uint? maxCharacters, Encoding encoding, Collation collation) => V.Obj(("name", name), ("type", Logical.TypeWire(type)), ("nullable", nullable), ("default", defaultValue is null ? null : Logical.CellWire(defaultValue)), ("max_characters", maxCharacters.HasValue ? (ulong?)maxCharacters.Value : null), ("encoding", Logical.EnumName(encoding)), ("collation", Logical.EnumName(collation)));
+    private static JsonObject ColumnWire(string name, Logical.Descriptor type, bool nullable, Logical.Cell? defaultValue, uint? maxCharacters, Encoding encoding, Collation collation) => V.Obj(("name", name), ("type", Logical.TypeWire(type)), ("nullable", nullable), ("default", defaultValue is null ? null : Logical.CellWire(defaultValue)), ("max_characters", maxCharacters.HasValue ? (ulong?)maxCharacters.Value : null), ("encoding", Logical.EnumName(encoding)), ("collation", Logical.EnumName(collation)), ("semantics", V.Obj(("rounding", null), ("metric", null), ("timezone", null), ("spatial", null))));
     public sealed record Schema {
         public ulong ObjectId { get; }
         public ulong Revision { get; }
@@ -122,7 +122,8 @@ public static partial class Catalog
         internal JsonObject Wire() {
             var budget = new WireBudget(2 * 1024 * 1024);
             var value = V.Obj(("definition", ContractDefinition), ("object", Turn.Decimal(ObjectId)), ("revision", Turn.Decimal(Revision)), ("next_column", Turn.Decimal(NextColumn)),
-                ("columns", new JsonArray(Columns.Select(c => (JsonNode?)budget.Take(c.Wire())).ToArray())), ("primary_key", new JsonArray(PrimaryKey.Select(k => (JsonNode?)JsonValue.Create(Turn.Decimal(k))).ToArray())));
+                ("columns", new JsonArray(Columns.Select(c => (JsonNode?)budget.Take(c.Wire())).ToArray())), ("primary_key", new JsonArray(PrimaryKey.Select(k => (JsonNode?)JsonValue.Create(Turn.Decimal(k))).ToArray())),
+                ("integrity", V.Obj(("next_id", 1u), ("checks", new JsonArray()), ("foreign_keys", new JsonArray()))));
             V.Text(value.ToJsonString(CatalogJson), 2 * 1024 * 1024); return value;
         }
     }
@@ -229,7 +230,7 @@ public static partial class Catalog
         public Encoding Encoding { get; }
         public Collation Collation { get; }
         public SetPhysical(ulong column, Encoding encoding, Collation collation) { Column = Positive(column); Logical.EnumName(encoding); Logical.EnumName(collation); Encoding = encoding; Collation = collation; }
-        internal override JsonObject Wire() => V.Obj(("physical", V.Obj(("column", Turn.Decimal(Column)), ("encoding", Logical.EnumName(Encoding)), ("collation", Logical.EnumName(Collation)))));
+        internal override JsonObject Wire() => V.Obj(("physical", V.Obj(("column", Turn.Decimal(Column)), ("encoding", Logical.EnumName(Encoding)), ("collation", Logical.EnumName(Collation)), ("semantics", null))));
     }
     public sealed record SetType : Change {
         public ulong Column { get; }

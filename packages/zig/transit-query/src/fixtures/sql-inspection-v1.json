@@ -111,7 +111,23 @@
           "collations": [
             "none",
             "none"
-          ]
+          ],
+          "semantics": [
+            {
+              "rounding": null,
+              "metric": null,
+              "timezone": null,
+              "spatial": null
+            },
+            {
+              "rounding": null,
+              "metric": null,
+              "timezone": null,
+              "spatial": null
+            }
+          ],
+          "historical": null,
+          "projection": null
         }
       }
     },

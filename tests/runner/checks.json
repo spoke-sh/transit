@@ -254,6 +254,26 @@
         ]
       },
       {
+        "id": "companion_values",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/query/logical/companion_values.py"
+        ]
+      },
+      {
+        "id": "scalar_programs",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/query/logical/scalar_programs.py"
+        ]
+      },
+      {
         "id": "standards_ledger",
         "phase": "static",
         "command": [

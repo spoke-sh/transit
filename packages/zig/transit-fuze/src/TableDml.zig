@@ -18,12 +18,19 @@ pub const Plan = struct {
     action: Action,
     predicate: ?Predicate.Program = null,
     pub fn validate(self: Plan) !void {
+        _ = try self.traits();
+    }
+    pub fn traits(self: Plan) !@import("OperatorTraits.zig").Summary {
+        return @import("OperatorTraits.zig").forTableDmlPlan(self);
+    }
+    /// Structural validation used by shared trait derivation; no I/O or effects.
+    pub fn validateShape(self: Plan) !void {
         try self.schema.validate();
         switch (self.action) {
             .insert => |rows| {
                 if (rows.len == 0 or rows.len > max_rows) return error.MutationBatchTooLarge;
                 if (self.predicate != null) return error.InvalidMutationPlan;
-                for (rows) |row| try self.schema.validateRow(row);
+                for (rows) |row| try self.schema.validateWrite(row);
             },
             .update => |assignments| {
                 if (assignments.len == 0 or assignments.len > self.schema.columns.len) return error.InvalidMutationColumns;

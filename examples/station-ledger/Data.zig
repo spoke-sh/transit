@@ -196,7 +196,13 @@ pub fn prepare(allocator: std.mem.Allocator, turn: *s.Turn, record: Dispatch) !v
 pub const Outcome = union(enum) { pending, committed: c.storage.TablePartition.Evidence, rejected, cancelled };
 fn outcome(result: w.Result) !Outcome {
     return switch (result) {
-        inline .ddl, .rows => |value| switch (value) {
+        .ddl => |value| switch (value) {
+            .not_observed, .admitted, .finalizing => .pending,
+            .committed => |evidence| .{ .committed = evidence },
+            .rejected => .rejected,
+            .cancelled => .cancelled,
+        },
+        .rows => |value| switch (value) {
             .not_observed, .admitted => .pending,
             .committed => |evidence| .{ .committed = evidence },
             .rejected => .rejected,

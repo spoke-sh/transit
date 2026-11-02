@@ -108,9 +108,11 @@ def codecs(config):
     wide_source = table_source([catalog.Column(i+1, f'列 {i}', l.ScalarType('uint128')) for i in range(128)])
     wide_bundle = q.Bundle.prepare(wide_source, q.Plan(tuple(range(128)), q.Compare(127, Comparison.EQ, q.Scalar('unsigned', 2**128-1))), q.Budgets(1, 1, 65536))
     assert len(wide_bundle.data) > 1000
+    derived_bundle = q.Bundle.prepare(wide_source, q.Plan((128,), scalar_program=b'\x01\x01\x7f'), q.Budgets(1, 1, 65536))
+    assert len(derived_bundle.data) > 1000
     datatype = l.ListType(l.Element(l.ScalarType('uint128'), True))
     with l.Codec() as codec:
-        value = codec.value_json(json.dumps(dict(definition='transit.fuze.types.v1.2026-09-30',
+        value = codec.value_json(json.dumps(dict(definition='transit.fuze.types.v1.2026-11-01.companions',
             field=dict(name='value', type=wire_type(datatype)), cell={'value': {'list': [{'value': {'atom': {'unsigned': str(2**128-1)}}}, {'null': {}}]}})))
         nested = q.decode_arrow((q.Column('value', datatype),), codec.arrow(value), 1)
         assert nested == ((l.Present(l.SequenceValue('list', (l.Present(l.Atom('unsigned', 2**128-1)), l.Null()))),),)

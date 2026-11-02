@@ -249,7 +249,7 @@ pub fn failure(self: *Self, allocator: std.mem.Allocator, err: anyerror) ![]alig
 /// Session must reclaim it even while request JSON/output remains alive.
 pub fn request(self: *Self, allocator: std.mem.Allocator, working: std.mem.Allocator, input: api.Request, peer: Peer) ![]align(api.ResultFrame.alignment) u8 {
     try input.validate();
-    if (input.action == .hello) return self.response(allocator, .{ .hello = .{ .encoding = api.encoding, .session_lease_ms = self.configuration.limits.session_lease_ms, .maximum_message = api.max_message_bytes, .maximum_batch = api.max_batch_bytes, .maximum_rows = api.max_rows, .capabilities = &.{ "catalog_reads", "table_ddl", "table_dml", "logical_types", "typed_parameters", "finite_relational", "source_bindings", "captured_queries", "settings", "configuration_reload", "operation_recovery", "table_transactions", "transaction_savepoints", "schema_migrations" } } });
+    if (input.action == .hello) return self.response(allocator, .{ .hello = .{ .encoding = api.encoding, .session_lease_ms = self.configuration.limits.session_lease_ms, .maximum_message = api.max_message_bytes, .maximum_batch = api.max_batch_bytes, .maximum_rows = api.max_rows, .capabilities = &.{ "catalog_reads", "table_ddl", "table_dml", "logical_types", "typed_parameters", "finite_relational", "source_bindings", "captured_queries", "settings", "configuration_reload", "operation_recovery", "table_transactions", "transaction_savepoints", "schema_migrations", "historical_catalog_reads" } } });
     if (!std.mem.eql(u8, &input.instance.?, &self.instance)) return error.SqlInstanceChanged;
     if (input.action == .open) return self.open(allocator, input.action.open, peer);
     if (input.action == .authenticate) return self.authenticate(allocator, input.action.authenticate);
@@ -298,7 +298,9 @@ pub fn request(self: *Self, allocator: std.mem.Allocator, working: std.mem.Alloc
         const state = if (host.sql_diagnostic) |value| switch (value.kind) {
             .syntax => "42601".*,
             .unsupported, .grammar_only, .interface => "0A000".*,
-            .binding => "22023".*,
+            // Compiler location is additional evidence. Preserve a specific
+            // owner SQLSTATE (including CHECK/NULL failures) during binding.
+            .binding => if (std.mem.eql(u8, &info.state, "XX000")) "22023".* else info.state,
             .limit => "54000".*,
         } else info.state;
         return self.response(allocator, .{ .err = .{ .code = @errorName(err), .sqlstate = state, .message = info.message, .diagnostic = diagnostic, .retry = if (input.action == .execute and input.action.execute.token != null and slot.acceptance_possible and err != error.SqlTokenConflict and diagnostic == null) .control else .never } });

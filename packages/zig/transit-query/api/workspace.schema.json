@@ -808,7 +808,7 @@
               ],
               "properties": {
                 "sql_capabilities": {
-                  "$ref": "#/$defs/Response/$defs/T62"
+                  "$ref": "#/$defs/Response/$defs/T95"
                 }
               }
             },
@@ -820,7 +820,7 @@
               ],
               "properties": {
                 "suggestions": {
-                  "$ref": "#/$defs/Response/$defs/T63"
+                  "$ref": "#/$defs/Response/$defs/T96"
                 }
               }
             },
@@ -832,7 +832,7 @@
               ],
               "properties": {
                 "assistance": {
-                  "$ref": "#/$defs/Response/$defs/T66"
+                  "$ref": "#/$defs/Response/$defs/T99"
                 }
               }
             },
@@ -844,7 +844,7 @@
               ],
               "properties": {
                 "compiled": {
-                  "$ref": "#/$defs/Response/$defs/T75"
+                  "$ref": "#/$defs/Response/$defs/T108"
                 }
               }
             },
@@ -856,7 +856,7 @@
               ],
               "properties": {
                 "inspection": {
-                  "$ref": "#/$defs/Response/$defs/T104"
+                  "$ref": "#/$defs/Response/$defs/T137"
                 }
               }
             },
@@ -868,7 +868,7 @@
               ],
               "properties": {
                 "prepared": {
-                  "$ref": "#/$defs/Response/$defs/T131"
+                  "$ref": "#/$defs/Response/$defs/T166"
                 }
               }
             },
@@ -880,7 +880,7 @@
               ],
               "properties": {
                 "receipt": {
-                  "$ref": "#/$defs/Response/$defs/T133"
+                  "$ref": "#/$defs/Response/$defs/T168"
                 }
               }
             },
@@ -892,7 +892,7 @@
               ],
               "properties": {
                 "recovered_preparation": {
-                  "$ref": "#/$defs/Response/$defs/T134"
+                  "$ref": "#/$defs/Response/$defs/T169"
                 }
               }
             },
@@ -904,7 +904,7 @@
               ],
               "properties": {
                 "observation": {
-                  "$ref": "#/$defs/Response/$defs/T135"
+                  "$ref": "#/$defs/Response/$defs/T170"
                 }
               }
             },
@@ -916,7 +916,7 @@
               ],
               "properties": {
                 "status": {
-                  "$ref": "#/$defs/Response/$defs/T137"
+                  "$ref": "#/$defs/Response/$defs/T172"
                 }
               }
             },
@@ -928,7 +928,7 @@
               ],
               "properties": {
                 "page": {
-                  "$ref": "#/$defs/Response/$defs/T180"
+                  "$ref": "#/$defs/Response/$defs/T214"
                 }
               }
             },
@@ -940,7 +940,7 @@
               ],
               "properties": {
                 "draft": {
-                  "$ref": "#/$defs/Response/$defs/T218"
+                  "$ref": "#/$defs/Response/$defs/T259"
                 }
               }
             }
@@ -968,13 +968,13 @@
               "$ref": "#/$defs/Response/$defs/T6"
             },
             "sql": {
-              "$ref": "#/$defs/Response/$defs/T59"
+              "$ref": "#/$defs/Response/$defs/T92"
             },
             "budgets": {
-              "$ref": "#/$defs/Response/$defs/T57"
+              "$ref": "#/$defs/Response/$defs/T90"
             },
             "columns": {
-              "$ref": "#/$defs/Response/$defs/T60"
+              "$ref": "#/$defs/Response/$defs/T93"
             }
           },
           "required": [
@@ -1095,10 +1095,10 @@
               "$ref": "#/$defs/Response/$defs/T5"
             },
             "limits": {
-              "$ref": "#/$defs/Response/$defs/T57"
+              "$ref": "#/$defs/Response/$defs/T90"
             },
             "active": {
-              "$ref": "#/$defs/Response/$defs/T58"
+              "$ref": "#/$defs/Response/$defs/T91"
             }
           },
           "required": [
@@ -1185,7 +1185,7 @@
             "source": 1,
             "plan": 1,
             "result": 1,
-            "bundle_bytes": 25743,
+            "bundle_bytes": 26713,
             "part_bytes": 128,
             "segment_bytes": 65536,
             "batch_rows": 8,
@@ -1281,7 +1281,7 @@
               ],
               "properties": {
                 "document": {
-                  "$ref": "#/$defs/Response/$defs/T45"
+                  "$ref": "#/$defs/Response/$defs/T78"
                 }
               }
             }
@@ -1358,7 +1358,10 @@
             "object",
             "interpretation",
             "row_type",
-            "collations"
+            "collations",
+            "semantics",
+            "historical",
+            "projection"
           ],
           "properties": {
             "scope": {
@@ -1383,7 +1386,16 @@
               "$ref": "#/$defs/Response/$defs/T21"
             },
             "collations": {
-              "$ref": "#/$defs/Response/$defs/T43"
+              "$ref": "#/$defs/Response/$defs/T47"
+            },
+            "semantics": {
+              "$ref": "#/$defs/Response/$defs/T49"
+            },
+            "historical": {
+              "$ref": "#/$defs/Response/$defs/T67"
+            },
+            "projection": {
+              "$ref": "#/$defs/Response/$defs/T71"
             }
           },
           "required": [
@@ -1394,9 +1406,16 @@
             "object",
             "interpretation",
             "row_type",
-            "collations"
+            "collations",
+            "semantics",
+            "historical",
+            "projection"
           ],
-          "x-transit-defaults": {}
+          "x-transit-defaults": {
+            "semantics": [],
+            "historical": null,
+            "projection": null
+          }
         },
         "T18": {
           "type": "object",
@@ -1737,7 +1756,7 @@
               ],
               "properties": {
                 "list": {
-                  "$ref": "#/$defs/Response/$defs/T39"
+                  "$ref": "#/$defs/Response/$defs/T41"
                 }
               }
             },
@@ -1749,7 +1768,7 @@
               ],
               "properties": {
                 "array": {
-                  "$ref": "#/$defs/Response/$defs/T41"
+                  "$ref": "#/$defs/Response/$defs/T43"
                 }
               }
             },
@@ -1761,7 +1780,7 @@
               ],
               "properties": {
                 "map": {
-                  "$ref": "#/$defs/Response/$defs/T42"
+                  "$ref": "#/$defs/Response/$defs/T44"
                 }
               }
             },
@@ -1786,6 +1805,42 @@
               "properties": {
                 "json": {
                   "$ref": "#/$defs/Response/$defs/T22"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "range"
+              ],
+              "properties": {
+                "range": {
+                  "$ref": "#/$defs/Response/$defs/T42"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "multirange"
+              ],
+              "properties": {
+                "multirange": {
+                  "$ref": "#/$defs/Response/$defs/T42"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "vector"
+              ],
+              "properties": {
+                "vector": {
+                  "$ref": "#/$defs/Response/$defs/T45"
                 }
               }
             }
@@ -2193,6 +2248,42 @@
                   "$ref": "#/$defs/Response/$defs/T29"
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "range"
+              ],
+              "properties": {
+                "range": {
+                  "$ref": "#/$defs/Response/$defs/T34"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "multirange"
+              ],
+              "properties": {
+                "multirange": {
+                  "$ref": "#/$defs/Response/$defs/T34"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "vector"
+              ],
+              "properties": {
+                "vector": {
+                  "$ref": "#/$defs/Response/$defs/T39"
+                }
+              }
             }
           ]
         },
@@ -2317,12 +2408,43 @@
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
+            "dimensions",
+            "element"
+          ],
+          "properties": {
+            "dimensions": {
+              "$ref": "#/$defs/Response/$defs/T37"
+            },
+            "element": {
+              "$ref": "#/$defs/Response/$defs/T40"
+            }
+          },
+          "required": [
+            "dimensions",
+            "element"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T40": {
+          "type": "string",
+          "enum": [
+            "float32",
+            "float16",
+            "bfloat16",
+            "int8",
+            "binary"
+          ]
+        },
+        "T41": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
             "type",
             "nullable"
           ],
           "properties": {
             "type": {
-              "$ref": "#/$defs/Response/$defs/T40"
+              "$ref": "#/$defs/Response/$defs/T42"
             },
             "nullable": {
               "$ref": "#/$defs/Response/$defs/T11"
@@ -2336,10 +2458,10 @@
             "nullable": false
           }
         },
-        "T40": {
+        "T42": {
           "$ref": "#/$defs/Response/$defs/T21"
         },
-        "T41": {
+        "T43": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -2348,7 +2470,7 @@
           ],
           "properties": {
             "element": {
-              "$ref": "#/$defs/Response/$defs/T39"
+              "$ref": "#/$defs/Response/$defs/T41"
             },
             "length": {
               "$ref": "#/$defs/Response/$defs/T9"
@@ -2360,7 +2482,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T42": {
+        "T44": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -2369,10 +2491,10 @@
           ],
           "properties": {
             "key": {
-              "$ref": "#/$defs/Response/$defs/T40"
+              "$ref": "#/$defs/Response/$defs/T42"
             },
             "value": {
-              "$ref": "#/$defs/Response/$defs/T39"
+              "$ref": "#/$defs/Response/$defs/T41"
             }
           },
           "required": [
@@ -2381,24 +2503,553 @@
           ],
           "x-transit-defaults": {}
         },
-        "T43": {
+        "T45": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "dimensions",
+            "element"
+          ],
+          "properties": {
+            "dimensions": {
+              "$ref": "#/$defs/Response/$defs/T9"
+            },
+            "element": {
+              "$ref": "#/$defs/Response/$defs/T46"
+            }
+          },
+          "required": [
+            "dimensions",
+            "element"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T46": {
+          "type": "string",
+          "enum": [
+            "float32",
+            "float16",
+            "bfloat16",
+            "int8",
+            "binary"
+          ]
+        },
+        "T47": {
           "type": "array",
           "maxItems": 128,
           "items": {
-            "$ref": "#/$defs/Response/$defs/T44"
+            "$ref": "#/$defs/Response/$defs/T48"
           }
         },
-        "T44": {
+        "T48": {
           "type": "string",
           "enum": [
             "none",
             "utf8_binary",
             "ascii_ci",
             "ebcdic_cp037",
-            "icu_root"
+            "icu_root",
+            "ebcdic_037_pad",
+            "ebcdic_1047_nopad"
           ]
         },
-        "T45": {
+        "T49": {
+          "type": "array",
+          "maxItems": 128,
+          "items": {
+            "$ref": "#/$defs/Response/$defs/T50"
+          }
+        },
+        "T50": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "rounding",
+            "metric",
+            "timezone",
+            "spatial"
+          ],
+          "properties": {
+            "rounding": {
+              "$ref": "#/$defs/Response/$defs/T51"
+            },
+            "metric": {
+              "$ref": "#/$defs/Response/$defs/T53"
+            },
+            "timezone": {
+              "$ref": "#/$defs/Response/$defs/T55"
+            },
+            "spatial": {
+              "$ref": "#/$defs/Response/$defs/T58"
+            }
+          },
+          "required": [
+            "rounding",
+            "metric",
+            "timezone",
+            "spatial"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T51": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Response/$defs/T52"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "T52": {
+          "type": "string",
+          "enum": [
+            "reject",
+            "half_even",
+            "toward_zero"
+          ]
+        },
+        "T53": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Response/$defs/T54"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "T54": {
+          "type": "string",
+          "enum": [
+            "l2_squared",
+            "cosine",
+            "dot_product",
+            "hamming"
+          ]
+        },
+        "T55": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Response/$defs/T56"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "T56": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "version",
+            "zone",
+            "tzif_hex"
+          ],
+          "properties": {
+            "version": {
+              "$ref": "#/$defs/Response/$defs/T57"
+            },
+            "zone": {
+              "$ref": "#/$defs/Response/$defs/T5"
+            },
+            "tzif_hex": {
+              "$ref": "#/$defs/Response/$defs/T5"
+            }
+          },
+          "required": [
+            "version",
+            "zone",
+            "tzif_hex"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T57": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "version_id",
+            "digest"
+          ],
+          "properties": {
+            "version_id": {
+              "$ref": "#/$defs/Response/$defs/T5"
+            },
+            "digest": {
+              "$ref": "#/$defs/Response/$defs/T20"
+            }
+          },
+          "required": [
+            "version_id",
+            "digest"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T58": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Response/$defs/T59"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "T59": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "definition",
+            "srid",
+            "local_frame",
+            "axes",
+            "manifold",
+            "linear_unit_nm",
+            "vertical_datum",
+            "precision"
+          ],
+          "properties": {
+            "definition": {
+              "$ref": "#/$defs/Response/$defs/T60"
+            },
+            "srid": {
+              "$ref": "#/$defs/Response/$defs/T9"
+            },
+            "local_frame": {
+              "$ref": "#/$defs/Response/$defs/T61"
+            },
+            "axes": {
+              "$ref": "#/$defs/Response/$defs/T62"
+            },
+            "manifold": {
+              "$ref": "#/$defs/Response/$defs/T63"
+            },
+            "linear_unit_nm": {
+              "$ref": "#/$defs/Response/$defs/T5"
+            },
+            "vertical_datum": {
+              "$ref": "#/$defs/Response/$defs/T64"
+            },
+            "precision": {
+              "$ref": "#/$defs/Response/$defs/T65"
+            }
+          },
+          "required": [
+            "definition",
+            "srid",
+            "local_frame",
+            "axes",
+            "manifold",
+            "linear_unit_nm",
+            "vertical_datum",
+            "precision"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T60": {
+          "type": "string",
+          "enum": [
+            "7c81d0916913d774febe2bec8f739f95a194f3ca88056c9f1214c0f77f22fa89"
+          ]
+        },
+        "T61": {
+          "type": "array",
+          "minItems": 16,
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/Response/$defs/T8"
+          }
+        },
+        "T62": {
+          "type": "string",
+          "enum": [
+            "xy",
+            "xyz",
+            "longitude_latitude",
+            "longitude_latitude_height"
+          ]
+        },
+        "T63": {
+          "type": "string",
+          "enum": [
+            "planar",
+            "wgs84_ellipsoid"
+          ]
+        },
+        "T64": {
+          "type": "string",
+          "enum": [
+            "none",
+            "local",
+            "wgs84_ellipsoid"
+          ]
+        },
+        "T65": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "exact"
+              ],
+              "properties": {
+                "exact": {
+                  "$ref": "#/$defs/Response/$defs/T22"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "binary_grid"
+              ],
+              "properties": {
+                "binary_grid": {
+                  "$ref": "#/$defs/Response/$defs/T66"
+                }
+              }
+            }
+          ]
+        },
+        "T66": {
+          "type": "integer",
+          "minimum": -32768,
+          "maximum": 32767,
+          "x-transit-bits": 16,
+          "x-transit-signed": true
+        },
+        "T67": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Response/$defs/T68"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "T68": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "selector",
+            "accepted",
+            "pin"
+          ],
+          "properties": {
+            "selector": {
+              "$ref": "#/$defs/Response/$defs/T5"
+            },
+            "accepted": {
+              "$ref": "#/$defs/Response/$defs/T69"
+            },
+            "pin": {
+              "$ref": "#/$defs/Response/$defs/T70"
+            }
+          },
+          "required": [
+            "selector",
+            "accepted",
+            "pin"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T69": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "partition",
+            "next_lsn"
+          ],
+          "properties": {
+            "partition": {
+              "$ref": "#/$defs/Response/$defs/T5"
+            },
+            "next_lsn": {
+              "$ref": "#/$defs/Response/$defs/T5"
+            }
+          },
+          "required": [
+            "partition",
+            "next_lsn"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T70": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "bytes",
+            "sha256"
+          ],
+          "properties": {
+            "bytes": {
+              "$ref": "#/$defs/Response/$defs/T5"
+            },
+            "sha256": {
+              "$ref": "#/$defs/Response/$defs/T5"
+            }
+          },
+          "required": [
+            "bytes",
+            "sha256"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T71": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Response/$defs/T72"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "T72": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "declaration",
+            "accepted_lsn",
+            "origins"
+          ],
+          "properties": {
+            "declaration": {
+              "$ref": "#/$defs/Response/$defs/T73"
+            },
+            "accepted_lsn": {
+              "$ref": "#/$defs/Response/$defs/T5"
+            },
+            "origins": {
+              "$ref": "#/$defs/Response/$defs/T76"
+            }
+          },
+          "required": [
+            "declaration",
+            "accepted_lsn",
+            "origins"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T73": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "interpretation",
+            "content",
+            "schema_fingerprint",
+            "retired"
+          ],
+          "properties": {
+            "interpretation": {
+              "$ref": "#/$defs/Response/$defs/T74"
+            },
+            "content": {
+              "$ref": "#/$defs/Response/$defs/T70"
+            },
+            "schema_fingerprint": {
+              "$ref": "#/$defs/Response/$defs/T5"
+            },
+            "retired": {
+              "$ref": "#/$defs/Response/$defs/T11"
+            }
+          },
+          "required": [
+            "interpretation",
+            "content",
+            "schema_fingerprint",
+            "retired"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T74": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "object",
+            "revision",
+            "digest"
+          ],
+          "properties": {
+            "object": {
+              "$ref": "#/$defs/Response/$defs/T75"
+            },
+            "revision": {
+              "$ref": "#/$defs/Response/$defs/T5"
+            },
+            "digest": {
+              "$ref": "#/$defs/Response/$defs/T5"
+            }
+          },
+          "required": [
+            "object",
+            "revision",
+            "digest"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T75": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "scope",
+            "branch",
+            "object"
+          ],
+          "properties": {
+            "scope": {
+              "$ref": "#/$defs/Response/$defs/T18"
+            },
+            "branch": {
+              "$ref": "#/$defs/Response/$defs/T5"
+            },
+            "object": {
+              "$ref": "#/$defs/Response/$defs/T5"
+            }
+          },
+          "required": [
+            "scope",
+            "branch",
+            "object"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T76": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Response/$defs/T77"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "T77": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "digest",
+            "location"
+          ],
+          "properties": {
+            "digest": {
+              "$ref": "#/$defs/Response/$defs/T20"
+            },
+            "location": {
+              "$ref": "#/$defs/Response/$defs/T20"
+            }
+          },
+          "required": [
+            "digest",
+            "location"
+          ],
+          "x-transit-defaults": {
+            "location": "\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000"
+          }
+        },
+        "T78": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -2409,16 +3060,16 @@
           ],
           "properties": {
             "reference": {
-              "$ref": "#/$defs/Response/$defs/T46"
+              "$ref": "#/$defs/Response/$defs/T79"
             },
             "change_format": {
               "$ref": "#/$defs/Response/$defs/T9"
             },
             "expand": {
-              "$ref": "#/$defs/Response/$defs/T47"
+              "$ref": "#/$defs/Response/$defs/T80"
             },
             "projections": {
-              "$ref": "#/$defs/Response/$defs/T50"
+              "$ref": "#/$defs/Response/$defs/T83"
             }
           },
           "required": [
@@ -2432,7 +3083,7 @@
             "expand": null
           }
         },
-        "T46": {
+        "T79": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -2468,35 +3119,35 @@
           ],
           "x-transit-defaults": {}
         },
-        "T47": {
+        "T80": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Response/$defs/T48"
+              "$ref": "#/$defs/Response/$defs/T81"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T48": {
+        "T81": {
           "type": "array",
           "maxItems": 8,
           "items": {
-            "$ref": "#/$defs/Response/$defs/T49"
+            "$ref": "#/$defs/Response/$defs/T82"
           }
         },
-        "T49": {
+        "T82": {
           "type": "string",
           "maxLength": 131072
         },
-        "T50": {
+        "T83": {
           "type": "array",
           "maxItems": 8,
           "items": {
-            "$ref": "#/$defs/Response/$defs/T51"
+            "$ref": "#/$defs/Response/$defs/T84"
           }
         },
-        "T51": {
+        "T84": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -2509,22 +3160,22 @@
           ],
           "properties": {
             "column": {
-              "$ref": "#/$defs/Response/$defs/T52"
+              "$ref": "#/$defs/Response/$defs/T85"
             },
             "path": {
-              "$ref": "#/$defs/Response/$defs/T48"
+              "$ref": "#/$defs/Response/$defs/T81"
             },
             "relative": {
-              "$ref": "#/$defs/Response/$defs/T54"
+              "$ref": "#/$defs/Response/$defs/T87"
             },
             "mode": {
-              "$ref": "#/$defs/Response/$defs/T55"
+              "$ref": "#/$defs/Response/$defs/T88"
             },
             "text_bytes": {
-              "$ref": "#/$defs/Response/$defs/T56"
+              "$ref": "#/$defs/Response/$defs/T89"
             },
             "text_steps": {
-              "$ref": "#/$defs/Response/$defs/T56"
+              "$ref": "#/$defs/Response/$defs/T89"
             }
           },
           "required": [
@@ -2542,7 +3193,7 @@
             "text_steps": 4096
           }
         },
-        "T52": {
+        "T85": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -2551,10 +3202,10 @@
           ],
           "properties": {
             "name": {
-              "$ref": "#/$defs/Response/$defs/T49"
+              "$ref": "#/$defs/Response/$defs/T82"
             },
             "type": {
-              "$ref": "#/$defs/Response/$defs/T53"
+              "$ref": "#/$defs/Response/$defs/T86"
             }
           },
           "required": [
@@ -2563,7 +3214,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T53": {
+        "T86": {
           "type": "string",
           "enum": [
             "int64",
@@ -2574,10 +3225,10 @@
             "binary"
           ]
         },
-        "T54": {
+        "T87": {
           "type": "boolean"
         },
-        "T55": {
+        "T88": {
           "type": "string",
           "enum": [
             "scalar",
@@ -2586,14 +3237,14 @@
             "element_replica"
           ]
         },
-        "T56": {
+        "T89": {
           "type": "integer",
           "minimum": 0,
           "maximum": 65535,
           "x-transit-bits": 16,
           "x-transit-signed": false
         },
-        "T57": {
+        "T90": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -2619,7 +3270,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T58": {
+        "T91": {
           "anyOf": [
             {
               "$ref": "#/$defs/Response/$defs/T5"
@@ -2629,7 +3280,7 @@
             }
           ]
         },
-        "T59": {
+        "T92": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -2707,14 +3358,14 @@
             "continuous": false
           }
         },
-        "T60": {
+        "T93": {
           "type": "array",
           "maxItems": 128,
           "items": {
-            "$ref": "#/$defs/Response/$defs/T61"
+            "$ref": "#/$defs/Response/$defs/T94"
           }
         },
-        "T61": {
+        "T94": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -2748,7 +3399,7 @@
             "optional": false
           }
         },
-        "T62": {
+        "T95": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -2784,7 +3435,7 @@
             "statement_bytes": 4096
           }
         },
-        "T63": {
+        "T96": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -2800,7 +3451,7 @@
               "$ref": "#/$defs/Response/$defs/T20"
             },
             "items": {
-              "$ref": "#/$defs/Response/$defs/T64"
+              "$ref": "#/$defs/Response/$defs/T97"
             }
           },
           "required": [
@@ -2810,14 +3461,14 @@
           ],
           "x-transit-defaults": {}
         },
-        "T64": {
+        "T97": {
           "type": "array",
           "maxItems": 128,
           "items": {
-            "$ref": "#/$defs/Response/$defs/T65"
+            "$ref": "#/$defs/Response/$defs/T98"
           }
         },
-        "T65": {
+        "T98": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -2838,7 +3489,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T66": {
+        "T99": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -2862,13 +3513,13 @@
               "$ref": "#/$defs/Response/$defs/T9"
             },
             "coverage": {
-              "$ref": "#/$defs/Response/$defs/T67"
+              "$ref": "#/$defs/Response/$defs/T100"
             },
             "status": {
-              "$ref": "#/$defs/Response/$defs/T68"
+              "$ref": "#/$defs/Response/$defs/T101"
             },
             "profile": {
-              "$ref": "#/$defs/Response/$defs/T69"
+              "$ref": "#/$defs/Response/$defs/T102"
             },
             "resource": {
               "$ref": "#/$defs/Response/$defs/T3"
@@ -2883,10 +3534,10 @@
               "$ref": "#/$defs/Response/$defs/T5"
             },
             "range": {
-              "$ref": "#/$defs/Response/$defs/T70"
+              "$ref": "#/$defs/Response/$defs/T103"
             },
             "items": {
-              "$ref": "#/$defs/Response/$defs/T72"
+              "$ref": "#/$defs/Response/$defs/T105"
             }
           },
           "required": [
@@ -2907,14 +3558,14 @@
             "profile": "unified_v1"
           }
         },
-        "T67": {
+        "T100": {
           "type": "string",
           "enum": [
             "complete",
             "limited"
           ]
         },
-        "T68": {
+        "T101": {
           "type": "string",
           "enum": [
             "ready",
@@ -2922,7 +3573,7 @@
             "unsupported"
           ]
         },
-        "T69": {
+        "T102": {
           "type": "string",
           "enum": [
             "unified_v1",
@@ -2931,17 +3582,17 @@
             "direct_table_v1"
           ]
         },
-        "T70": {
+        "T103": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Response/$defs/T71"
+              "$ref": "#/$defs/Response/$defs/T104"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T71": {
+        "T104": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -2969,14 +3620,14 @@
             "quoted": false
           }
         },
-        "T72": {
+        "T105": {
           "type": "array",
           "maxItems": 128,
           "items": {
-            "$ref": "#/$defs/Response/$defs/T73"
+            "$ref": "#/$defs/Response/$defs/T106"
           }
         },
-        "T73": {
+        "T106": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -2989,7 +3640,7 @@
               "$ref": "#/$defs/Response/$defs/T5"
             },
             "kind": {
-              "$ref": "#/$defs/Response/$defs/T74"
+              "$ref": "#/$defs/Response/$defs/T107"
             },
             "detail": {
               "$ref": "#/$defs/Response/$defs/T5"
@@ -3002,7 +3653,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T74": {
+        "T107": {
           "type": "string",
           "enum": [
             "keyword",
@@ -3013,7 +3664,7 @@
             "meta"
           ]
         },
-        "T75": {
+        "T108": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -3032,10 +3683,10 @@
               "$ref": "#/$defs/Response/$defs/T12"
             },
             "plan": {
-              "$ref": "#/$defs/Response/$defs/T76"
+              "$ref": "#/$defs/Response/$defs/T109"
             },
             "limits": {
-              "$ref": "#/$defs/Response/$defs/T57"
+              "$ref": "#/$defs/Response/$defs/T90"
             },
             "contract": {
               "$ref": "#/$defs/Response/$defs/T20"
@@ -3054,13 +3705,14 @@
           ],
           "x-transit-defaults": {}
         },
-        "T76": {
+        "T109": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
             "collations",
             "version",
             "projection",
+            "scalar_program",
             "output_names",
             "limit",
             "aggregate",
@@ -3068,31 +3720,35 @@
           ],
           "properties": {
             "collations": {
-              "$ref": "#/$defs/Response/$defs/T77"
+              "$ref": "#/$defs/Response/$defs/T110"
             },
             "version": {
               "$ref": "#/$defs/Response/$defs/T8"
             },
             "projection": {
-              "$ref": "#/$defs/Response/$defs/T78"
+              "$ref": "#/$defs/Response/$defs/T111"
+            },
+            "scalar_program": {
+              "$ref": "#/$defs/Response/$defs/T5"
             },
             "output_names": {
-              "$ref": "#/$defs/Response/$defs/T79"
+              "$ref": "#/$defs/Response/$defs/T112"
             },
             "limit": {
-              "$ref": "#/$defs/Response/$defs/T58"
+              "$ref": "#/$defs/Response/$defs/T91"
             },
             "aggregate": {
-              "$ref": "#/$defs/Response/$defs/T81"
+              "$ref": "#/$defs/Response/$defs/T114"
             },
             "predicate": {
-              "$ref": "#/$defs/Response/$defs/T82"
+              "$ref": "#/$defs/Response/$defs/T115"
             }
           },
           "required": [
             "collations",
             "version",
             "projection",
+            "scalar_program",
             "output_names",
             "limit",
             "aggregate",
@@ -3101,6 +3757,7 @@
           "x-transit-defaults": {
             "collations": null,
             "version": 1,
+            "scalar_program": "00",
             "output_names": null,
             "limit": null,
             "aggregate": "rows",
@@ -3109,41 +3766,41 @@
             }
           }
         },
-        "T77": {
+        "T110": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Response/$defs/T43"
+              "$ref": "#/$defs/Response/$defs/T47"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T78": {
+        "T111": {
           "type": "array",
           "maxItems": 128,
           "items": {
             "$ref": "#/$defs/Response/$defs/T9"
           }
         },
-        "T79": {
+        "T112": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Response/$defs/T80"
+              "$ref": "#/$defs/Response/$defs/T113"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T80": {
+        "T113": {
           "type": "array",
           "maxItems": 128,
           "items": {
-            "$ref": "#/$defs/Response/$defs/T58"
+            "$ref": "#/$defs/Response/$defs/T91"
           }
         },
-        "T81": {
+        "T114": {
           "type": "string",
           "enum": [
             "rows",
@@ -3152,7 +3809,7 @@
             "count_values"
           ]
         },
-        "T82": {
+        "T115": {
           "oneOf": [
             {
               "type": "object",
@@ -3174,7 +3831,7 @@
               ],
               "properties": {
                 "state": {
-                  "$ref": "#/$defs/Response/$defs/T83"
+                  "$ref": "#/$defs/Response/$defs/T116"
                 }
               }
             },
@@ -3186,7 +3843,7 @@
               ],
               "properties": {
                 "compare": {
-                  "$ref": "#/$defs/Response/$defs/T85"
+                  "$ref": "#/$defs/Response/$defs/T118"
                 }
               }
             },
@@ -3198,7 +3855,7 @@
               ],
               "properties": {
                 "null_compare": {
-                  "$ref": "#/$defs/Response/$defs/T89"
+                  "$ref": "#/$defs/Response/$defs/T122"
                 }
               }
             },
@@ -3210,13 +3867,13 @@
               ],
               "properties": {
                 "program": {
-                  "$ref": "#/$defs/Response/$defs/T90"
+                  "$ref": "#/$defs/Response/$defs/T123"
                 }
               }
             }
           ]
         },
-        "T83": {
+        "T116": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -3228,7 +3885,7 @@
               "$ref": "#/$defs/Response/$defs/T8"
             },
             "value": {
-              "$ref": "#/$defs/Response/$defs/T84"
+              "$ref": "#/$defs/Response/$defs/T117"
             }
           },
           "required": [
@@ -3237,7 +3894,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T84": {
+        "T117": {
           "type": "string",
           "enum": [
             "missing",
@@ -3247,7 +3904,7 @@
             "conflict"
           ]
         },
-        "T85": {
+        "T118": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -3260,10 +3917,10 @@
               "$ref": "#/$defs/Response/$defs/T8"
             },
             "op": {
-              "$ref": "#/$defs/Response/$defs/T86"
+              "$ref": "#/$defs/Response/$defs/T119"
             },
             "value": {
-              "$ref": "#/$defs/Response/$defs/T87"
+              "$ref": "#/$defs/Response/$defs/T120"
             }
           },
           "required": [
@@ -3273,7 +3930,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T86": {
+        "T119": {
           "type": "string",
           "enum": [
             "eq",
@@ -3284,7 +3941,7 @@
             "ge"
           ]
         },
-        "T87": {
+        "T120": {
           "oneOf": [
             {
               "type": "object",
@@ -3414,7 +4071,7 @@
               ],
               "properties": {
                 "interval": {
-                  "$ref": "#/$defs/Response/$defs/T88"
+                  "$ref": "#/$defs/Response/$defs/T121"
                 }
               }
             },
@@ -3432,7 +4089,7 @@
             }
           ]
         },
-        "T88": {
+        "T121": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -3458,7 +4115,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T89": {
+        "T122": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -3470,7 +4127,7 @@
               "$ref": "#/$defs/Response/$defs/T8"
             },
             "op": {
-              "$ref": "#/$defs/Response/$defs/T86"
+              "$ref": "#/$defs/Response/$defs/T119"
             }
           },
           "required": [
@@ -3479,14 +4136,14 @@
           ],
           "x-transit-defaults": {}
         },
-        "T90": {
+        "T123": {
           "type": "array",
           "maxItems": 64,
           "items": {
-            "$ref": "#/$defs/Response/$defs/T91"
+            "$ref": "#/$defs/Response/$defs/T124"
           }
         },
-        "T91": {
+        "T124": {
           "oneOf": [
             {
               "type": "object",
@@ -3496,7 +4153,7 @@
               ],
               "properties": {
                 "atom": {
-                  "$ref": "#/$defs/Response/$defs/T92"
+                  "$ref": "#/$defs/Response/$defs/T125"
                 }
               }
             },
@@ -3508,7 +4165,7 @@
               ],
               "properties": {
                 "negate": {
-                  "$ref": "#/$defs/Response/$defs/T93"
+                  "$ref": "#/$defs/Response/$defs/T126"
                 }
               }
             },
@@ -3520,7 +4177,7 @@
               ],
               "properties": {
                 "conjunction": {
-                  "$ref": "#/$defs/Response/$defs/T93"
+                  "$ref": "#/$defs/Response/$defs/T126"
                 }
               }
             },
@@ -3532,13 +4189,13 @@
               ],
               "properties": {
                 "disjunction": {
-                  "$ref": "#/$defs/Response/$defs/T93"
+                  "$ref": "#/$defs/Response/$defs/T126"
                 }
               }
             }
           ]
         },
-        "T92": {
+        "T125": {
           "oneOf": [
             {
               "type": "object",
@@ -3548,7 +4205,7 @@
               ],
               "properties": {
                 "all": {
-                  "$ref": "#/$defs/Response/$defs/T93"
+                  "$ref": "#/$defs/Response/$defs/T126"
                 }
               }
             },
@@ -3560,7 +4217,7 @@
               ],
               "properties": {
                 "state": {
-                  "$ref": "#/$defs/Response/$defs/T94"
+                  "$ref": "#/$defs/Response/$defs/T127"
                 }
               }
             },
@@ -3572,7 +4229,7 @@
               ],
               "properties": {
                 "compare": {
-                  "$ref": "#/$defs/Response/$defs/T97"
+                  "$ref": "#/$defs/Response/$defs/T130"
                 }
               }
             },
@@ -3584,17 +4241,17 @@
               ],
               "properties": {
                 "null_compare": {
-                  "$ref": "#/$defs/Response/$defs/T103"
+                  "$ref": "#/$defs/Response/$defs/T136"
                 }
               }
             }
           ]
         },
-        "T93": {
+        "T126": {
           "type": "object",
           "maxProperties": 0
         },
-        "T94": {
+        "T127": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -3603,10 +4260,10 @@
           ],
           "properties": {
             "column": {
-              "$ref": "#/$defs/Response/$defs/T95"
+              "$ref": "#/$defs/Response/$defs/T128"
             },
             "value": {
-              "$ref": "#/$defs/Response/$defs/T96"
+              "$ref": "#/$defs/Response/$defs/T129"
             }
           },
           "required": [
@@ -3615,14 +4272,14 @@
           ],
           "x-transit-defaults": {}
         },
-        "T95": {
+        "T128": {
           "type": "integer",
           "minimum": 0,
           "maximum": 255,
           "x-transit-bits": 8,
           "x-transit-signed": false
         },
-        "T96": {
+        "T129": {
           "type": "string",
           "enum": [
             "missing",
@@ -3632,7 +4289,7 @@
             "conflict"
           ]
         },
-        "T97": {
+        "T130": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -3642,13 +4299,13 @@
           ],
           "properties": {
             "column": {
-              "$ref": "#/$defs/Response/$defs/T95"
+              "$ref": "#/$defs/Response/$defs/T128"
             },
             "op": {
-              "$ref": "#/$defs/Response/$defs/T98"
+              "$ref": "#/$defs/Response/$defs/T131"
             },
             "value": {
-              "$ref": "#/$defs/Response/$defs/T99"
+              "$ref": "#/$defs/Response/$defs/T132"
             }
           },
           "required": [
@@ -3658,7 +4315,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T98": {
+        "T131": {
           "type": "string",
           "enum": [
             "eq",
@@ -3669,7 +4326,7 @@
             "ge"
           ]
         },
-        "T99": {
+        "T132": {
           "oneOf": [
             {
               "type": "object",
@@ -3679,7 +4336,7 @@
               ],
               "properties": {
                 "signed": {
-                  "$ref": "#/$defs/Response/$defs/T100"
+                  "$ref": "#/$defs/Response/$defs/T133"
                 }
               }
             },
@@ -3691,7 +4348,7 @@
               ],
               "properties": {
                 "unsigned": {
-                  "$ref": "#/$defs/Response/$defs/T100"
+                  "$ref": "#/$defs/Response/$defs/T133"
                 }
               }
             },
@@ -3703,7 +4360,7 @@
               ],
               "properties": {
                 "decimal": {
-                  "$ref": "#/$defs/Response/$defs/T100"
+                  "$ref": "#/$defs/Response/$defs/T133"
                 }
               }
             },
@@ -3715,7 +4372,7 @@
               ],
               "properties": {
                 "float_bits": {
-                  "$ref": "#/$defs/Response/$defs/T100"
+                  "$ref": "#/$defs/Response/$defs/T133"
                 }
               }
             },
@@ -3727,7 +4384,7 @@
               ],
               "properties": {
                 "boolean": {
-                  "$ref": "#/$defs/Response/$defs/T101"
+                  "$ref": "#/$defs/Response/$defs/T134"
                 }
               }
             },
@@ -3739,7 +4396,7 @@
               ],
               "properties": {
                 "utf8": {
-                  "$ref": "#/$defs/Response/$defs/T100"
+                  "$ref": "#/$defs/Response/$defs/T133"
                 }
               }
             },
@@ -3751,7 +4408,7 @@
               ],
               "properties": {
                 "binary": {
-                  "$ref": "#/$defs/Response/$defs/T100"
+                  "$ref": "#/$defs/Response/$defs/T133"
                 }
               }
             },
@@ -3763,7 +4420,7 @@
               ],
               "properties": {
                 "date_days": {
-                  "$ref": "#/$defs/Response/$defs/T100"
+                  "$ref": "#/$defs/Response/$defs/T133"
                 }
               }
             },
@@ -3775,7 +4432,7 @@
               ],
               "properties": {
                 "time_nanos": {
-                  "$ref": "#/$defs/Response/$defs/T100"
+                  "$ref": "#/$defs/Response/$defs/T133"
                 }
               }
             },
@@ -3787,7 +4444,7 @@
               ],
               "properties": {
                 "timestamp_micros": {
-                  "$ref": "#/$defs/Response/$defs/T100"
+                  "$ref": "#/$defs/Response/$defs/T133"
                 }
               }
             },
@@ -3799,7 +4456,7 @@
               ],
               "properties": {
                 "interval": {
-                  "$ref": "#/$defs/Response/$defs/T102"
+                  "$ref": "#/$defs/Response/$defs/T135"
                 }
               }
             },
@@ -3811,20 +4468,20 @@
               ],
               "properties": {
                 "uuid": {
-                  "$ref": "#/$defs/Response/$defs/T100"
+                  "$ref": "#/$defs/Response/$defs/T133"
                 }
               }
             }
           ]
         },
-        "T100": {
+        "T133": {
           "type": "string",
           "maxLength": 131072
         },
-        "T101": {
+        "T134": {
           "type": "boolean"
         },
-        "T102": {
+        "T135": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -3834,13 +4491,13 @@
           ],
           "properties": {
             "months": {
-              "$ref": "#/$defs/Response/$defs/T100"
+              "$ref": "#/$defs/Response/$defs/T133"
             },
             "days": {
-              "$ref": "#/$defs/Response/$defs/T100"
+              "$ref": "#/$defs/Response/$defs/T133"
             },
             "nanos": {
-              "$ref": "#/$defs/Response/$defs/T100"
+              "$ref": "#/$defs/Response/$defs/T133"
             }
           },
           "required": [
@@ -3850,7 +4507,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T103": {
+        "T136": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -3859,10 +4516,10 @@
           ],
           "properties": {
             "column": {
-              "$ref": "#/$defs/Response/$defs/T95"
+              "$ref": "#/$defs/Response/$defs/T128"
             },
             "op": {
-              "$ref": "#/$defs/Response/$defs/T98"
+              "$ref": "#/$defs/Response/$defs/T131"
             }
           },
           "required": [
@@ -3871,7 +4528,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T104": {
+        "T137": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -3891,7 +4548,7 @@
               "$ref": "#/$defs/Response/$defs/T8"
             },
             "scope": {
-              "$ref": "#/$defs/Response/$defs/T105"
+              "$ref": "#/$defs/Response/$defs/T138"
             },
             "name": {
               "$ref": "#/$defs/Response/$defs/T5"
@@ -3900,7 +4557,7 @@
               "$ref": "#/$defs/Response/$defs/T3"
             },
             "source_kind": {
-              "$ref": "#/$defs/Response/$defs/T106"
+              "$ref": "#/$defs/Response/$defs/T139"
             },
             "contract": {
               "$ref": "#/$defs/Response/$defs/T20"
@@ -3915,7 +4572,7 @@
               "$ref": "#/$defs/Response/$defs/T5"
             },
             "details": {
-              "$ref": "#/$defs/Response/$defs/T107"
+              "$ref": "#/$defs/Response/$defs/T140"
             }
           },
           "required": [
@@ -3935,13 +4592,13 @@
             "scope": "configured_source"
           }
         },
-        "T105": {
+        "T138": {
           "type": "string",
           "enum": [
             "configured_source"
           ]
         },
-        "T106": {
+        "T139": {
           "type": "string",
           "enum": [
             "kv",
@@ -3949,7 +4606,7 @@
             "document"
           ]
         },
-        "T107": {
+        "T140": {
           "oneOf": [
             {
               "type": "object",
@@ -3959,7 +4616,7 @@
               ],
               "properties": {
                 "description": {
-                  "$ref": "#/$defs/Response/$defs/T108"
+                  "$ref": "#/$defs/Response/$defs/T141"
                 }
               }
             },
@@ -3971,7 +4628,7 @@
               ],
               "properties": {
                 "tables": {
-                  "$ref": "#/$defs/Response/$defs/T109"
+                  "$ref": "#/$defs/Response/$defs/T142"
                 }
               }
             },
@@ -3983,13 +4640,13 @@
               ],
               "properties": {
                 "explanation": {
-                  "$ref": "#/$defs/Response/$defs/T110"
+                  "$ref": "#/$defs/Response/$defs/T143"
                 }
               }
             }
           ]
         },
-        "T108": {
+        "T141": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -3997,7 +4654,7 @@
           ],
           "properties": {
             "columns": {
-              "$ref": "#/$defs/Response/$defs/T60"
+              "$ref": "#/$defs/Response/$defs/T93"
             }
           },
           "required": [
@@ -4005,14 +4662,14 @@
           ],
           "x-transit-defaults": {}
         },
-        "T109": {
+        "T142": {
           "type": "array",
           "maxItems": 128,
           "items": {
             "$ref": "#/$defs/Response/$defs/T5"
           }
         },
-        "T110": {
+        "T143": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -4026,25 +4683,25 @@
           ],
           "properties": {
             "operators": {
-              "$ref": "#/$defs/Response/$defs/T111"
+              "$ref": "#/$defs/Response/$defs/T144"
             },
             "predicate": {
-              "$ref": "#/$defs/Response/$defs/T113"
+              "$ref": "#/$defs/Response/$defs/T146"
             },
             "projection": {
-              "$ref": "#/$defs/Response/$defs/T109"
+              "$ref": "#/$defs/Response/$defs/T142"
             },
             "limit": {
-              "$ref": "#/$defs/Response/$defs/T58"
+              "$ref": "#/$defs/Response/$defs/T91"
             },
             "aggregate": {
-              "$ref": "#/$defs/Response/$defs/T81"
+              "$ref": "#/$defs/Response/$defs/T114"
             },
             "columns": {
-              "$ref": "#/$defs/Response/$defs/T60"
+              "$ref": "#/$defs/Response/$defs/T93"
             },
             "budgets": {
-              "$ref": "#/$defs/Response/$defs/T57"
+              "$ref": "#/$defs/Response/$defs/T90"
             }
           },
           "required": [
@@ -4058,14 +4715,14 @@
           ],
           "x-transit-defaults": {}
         },
-        "T111": {
+        "T144": {
           "type": "array",
           "maxItems": 128,
           "items": {
-            "$ref": "#/$defs/Response/$defs/T112"
+            "$ref": "#/$defs/Response/$defs/T145"
           }
         },
-        "T112": {
+        "T145": {
           "type": "string",
           "enum": [
             "scan",
@@ -4077,7 +4734,7 @@
             "count_values"
           ]
         },
-        "T113": {
+        "T146": {
           "oneOf": [
             {
               "type": "object",
@@ -4099,7 +4756,7 @@
               ],
               "properties": {
                 "state": {
-                  "$ref": "#/$defs/Response/$defs/T114"
+                  "$ref": "#/$defs/Response/$defs/T147"
                 }
               }
             },
@@ -4111,7 +4768,7 @@
               ],
               "properties": {
                 "compare": {
-                  "$ref": "#/$defs/Response/$defs/T115"
+                  "$ref": "#/$defs/Response/$defs/T148"
                 }
               }
             },
@@ -4123,7 +4780,7 @@
               ],
               "properties": {
                 "null_compare": {
-                  "$ref": "#/$defs/Response/$defs/T116"
+                  "$ref": "#/$defs/Response/$defs/T149"
                 }
               }
             },
@@ -4135,13 +4792,13 @@
               ],
               "properties": {
                 "program": {
-                  "$ref": "#/$defs/Response/$defs/T117"
+                  "$ref": "#/$defs/Response/$defs/T150"
                 }
               }
             }
           ]
         },
-        "T114": {
+        "T147": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -4153,7 +4810,7 @@
               "$ref": "#/$defs/Response/$defs/T5"
             },
             "value": {
-              "$ref": "#/$defs/Response/$defs/T84"
+              "$ref": "#/$defs/Response/$defs/T117"
             }
           },
           "required": [
@@ -4162,7 +4819,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T115": {
+        "T148": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -4175,7 +4832,7 @@
               "$ref": "#/$defs/Response/$defs/T5"
             },
             "op": {
-              "$ref": "#/$defs/Response/$defs/T86"
+              "$ref": "#/$defs/Response/$defs/T119"
             },
             "type": {
               "$ref": "#/$defs/Response/$defs/T21"
@@ -4188,7 +4845,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T116": {
+        "T149": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -4201,7 +4858,7 @@
               "$ref": "#/$defs/Response/$defs/T5"
             },
             "op": {
-              "$ref": "#/$defs/Response/$defs/T86"
+              "$ref": "#/$defs/Response/$defs/T119"
             },
             "type": {
               "$ref": "#/$defs/Response/$defs/T21"
@@ -4214,14 +4871,14 @@
           ],
           "x-transit-defaults": {}
         },
-        "T117": {
+        "T150": {
           "type": "array",
           "maxItems": 64,
           "items": {
-            "$ref": "#/$defs/Response/$defs/T118"
+            "$ref": "#/$defs/Response/$defs/T151"
           }
         },
-        "T118": {
+        "T151": {
           "oneOf": [
             {
               "type": "object",
@@ -4231,7 +4888,7 @@
               ],
               "properties": {
                 "atom": {
-                  "$ref": "#/$defs/Response/$defs/T119"
+                  "$ref": "#/$defs/Response/$defs/T152"
                 }
               }
             },
@@ -4243,7 +4900,7 @@
               ],
               "properties": {
                 "negate": {
-                  "$ref": "#/$defs/Response/$defs/T93"
+                  "$ref": "#/$defs/Response/$defs/T126"
                 }
               }
             },
@@ -4255,7 +4912,7 @@
               ],
               "properties": {
                 "conjunction": {
-                  "$ref": "#/$defs/Response/$defs/T93"
+                  "$ref": "#/$defs/Response/$defs/T126"
                 }
               }
             },
@@ -4267,13 +4924,13 @@
               ],
               "properties": {
                 "disjunction": {
-                  "$ref": "#/$defs/Response/$defs/T93"
+                  "$ref": "#/$defs/Response/$defs/T126"
                 }
               }
             }
           ]
         },
-        "T119": {
+        "T152": {
           "oneOf": [
             {
               "type": "object",
@@ -4283,7 +4940,7 @@
               ],
               "properties": {
                 "all": {
-                  "$ref": "#/$defs/Response/$defs/T93"
+                  "$ref": "#/$defs/Response/$defs/T126"
                 }
               }
             },
@@ -4295,7 +4952,7 @@
               ],
               "properties": {
                 "state": {
-                  "$ref": "#/$defs/Response/$defs/T120"
+                  "$ref": "#/$defs/Response/$defs/T153"
                 }
               }
             },
@@ -4307,7 +4964,7 @@
               ],
               "properties": {
                 "compare": {
-                  "$ref": "#/$defs/Response/$defs/T121"
+                  "$ref": "#/$defs/Response/$defs/T154"
                 }
               }
             },
@@ -4319,13 +4976,13 @@
               ],
               "properties": {
                 "null_compare": {
-                  "$ref": "#/$defs/Response/$defs/T130"
+                  "$ref": "#/$defs/Response/$defs/T165"
                 }
               }
             }
           ]
         },
-        "T120": {
+        "T153": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -4334,10 +4991,10 @@
           ],
           "properties": {
             "column": {
-              "$ref": "#/$defs/Response/$defs/T100"
+              "$ref": "#/$defs/Response/$defs/T133"
             },
             "value": {
-              "$ref": "#/$defs/Response/$defs/T96"
+              "$ref": "#/$defs/Response/$defs/T129"
             }
           },
           "required": [
@@ -4346,7 +5003,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T121": {
+        "T154": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -4356,13 +5013,13 @@
           ],
           "properties": {
             "column": {
-              "$ref": "#/$defs/Response/$defs/T100"
+              "$ref": "#/$defs/Response/$defs/T133"
             },
             "op": {
-              "$ref": "#/$defs/Response/$defs/T98"
+              "$ref": "#/$defs/Response/$defs/T131"
             },
             "type": {
-              "$ref": "#/$defs/Response/$defs/T122"
+              "$ref": "#/$defs/Response/$defs/T155"
             }
           },
           "required": [
@@ -4372,7 +5029,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T122": {
+        "T155": {
           "oneOf": [
             {
               "type": "object",
@@ -4382,7 +5039,7 @@
               ],
               "properties": {
                 "int64": {
-                  "$ref": "#/$defs/Response/$defs/T93"
+                  "$ref": "#/$defs/Response/$defs/T126"
                 }
               }
             },
@@ -4394,7 +5051,7 @@
               ],
               "properties": {
                 "uint64": {
-                  "$ref": "#/$defs/Response/$defs/T93"
+                  "$ref": "#/$defs/Response/$defs/T126"
                 }
               }
             },
@@ -4406,7 +5063,7 @@
               ],
               "properties": {
                 "float64": {
-                  "$ref": "#/$defs/Response/$defs/T93"
+                  "$ref": "#/$defs/Response/$defs/T126"
                 }
               }
             },
@@ -4418,7 +5075,7 @@
               ],
               "properties": {
                 "boolean": {
-                  "$ref": "#/$defs/Response/$defs/T93"
+                  "$ref": "#/$defs/Response/$defs/T126"
                 }
               }
             },
@@ -4430,7 +5087,7 @@
               ],
               "properties": {
                 "utf8": {
-                  "$ref": "#/$defs/Response/$defs/T93"
+                  "$ref": "#/$defs/Response/$defs/T126"
                 }
               }
             },
@@ -4442,7 +5099,7 @@
               ],
               "properties": {
                 "binary": {
-                  "$ref": "#/$defs/Response/$defs/T93"
+                  "$ref": "#/$defs/Response/$defs/T126"
                 }
               }
             },
@@ -4454,7 +5111,7 @@
               ],
               "properties": {
                 "int8": {
-                  "$ref": "#/$defs/Response/$defs/T93"
+                  "$ref": "#/$defs/Response/$defs/T126"
                 }
               }
             },
@@ -4466,7 +5123,7 @@
               ],
               "properties": {
                 "int16": {
-                  "$ref": "#/$defs/Response/$defs/T93"
+                  "$ref": "#/$defs/Response/$defs/T126"
                 }
               }
             },
@@ -4478,7 +5135,7 @@
               ],
               "properties": {
                 "int32": {
-                  "$ref": "#/$defs/Response/$defs/T93"
+                  "$ref": "#/$defs/Response/$defs/T126"
                 }
               }
             },
@@ -4490,7 +5147,7 @@
               ],
               "properties": {
                 "int128": {
-                  "$ref": "#/$defs/Response/$defs/T93"
+                  "$ref": "#/$defs/Response/$defs/T126"
                 }
               }
             },
@@ -4502,7 +5159,7 @@
               ],
               "properties": {
                 "uint8": {
-                  "$ref": "#/$defs/Response/$defs/T93"
+                  "$ref": "#/$defs/Response/$defs/T126"
                 }
               }
             },
@@ -4514,7 +5171,7 @@
               ],
               "properties": {
                 "uint16": {
-                  "$ref": "#/$defs/Response/$defs/T93"
+                  "$ref": "#/$defs/Response/$defs/T126"
                 }
               }
             },
@@ -4526,7 +5183,7 @@
               ],
               "properties": {
                 "uint32": {
-                  "$ref": "#/$defs/Response/$defs/T93"
+                  "$ref": "#/$defs/Response/$defs/T126"
                 }
               }
             },
@@ -4538,7 +5195,7 @@
               ],
               "properties": {
                 "uint128": {
-                  "$ref": "#/$defs/Response/$defs/T93"
+                  "$ref": "#/$defs/Response/$defs/T126"
                 }
               }
             },
@@ -4550,7 +5207,7 @@
               ],
               "properties": {
                 "float32": {
-                  "$ref": "#/$defs/Response/$defs/T93"
+                  "$ref": "#/$defs/Response/$defs/T126"
                 }
               }
             },
@@ -4562,7 +5219,7 @@
               ],
               "properties": {
                 "decimal": {
-                  "$ref": "#/$defs/Response/$defs/T123"
+                  "$ref": "#/$defs/Response/$defs/T156"
                 }
               }
             },
@@ -4574,7 +5231,7 @@
               ],
               "properties": {
                 "date": {
-                  "$ref": "#/$defs/Response/$defs/T93"
+                  "$ref": "#/$defs/Response/$defs/T126"
                 }
               }
             },
@@ -4586,7 +5243,7 @@
               ],
               "properties": {
                 "time": {
-                  "$ref": "#/$defs/Response/$defs/T93"
+                  "$ref": "#/$defs/Response/$defs/T126"
                 }
               }
             },
@@ -4598,7 +5255,7 @@
               ],
               "properties": {
                 "timestamp": {
-                  "$ref": "#/$defs/Response/$defs/T124"
+                  "$ref": "#/$defs/Response/$defs/T157"
                 }
               }
             },
@@ -4610,7 +5267,7 @@
               ],
               "properties": {
                 "interval": {
-                  "$ref": "#/$defs/Response/$defs/T93"
+                  "$ref": "#/$defs/Response/$defs/T126"
                 }
               }
             },
@@ -4622,7 +5279,7 @@
               ],
               "properties": {
                 "uuid": {
-                  "$ref": "#/$defs/Response/$defs/T93"
+                  "$ref": "#/$defs/Response/$defs/T126"
                 }
               }
             },
@@ -4646,7 +5303,7 @@
               ],
               "properties": {
                 "list": {
-                  "$ref": "#/$defs/Response/$defs/T125"
+                  "$ref": "#/$defs/Response/$defs/T158"
                 }
               }
             },
@@ -4658,7 +5315,7 @@
               ],
               "properties": {
                 "array": {
-                  "$ref": "#/$defs/Response/$defs/T127"
+                  "$ref": "#/$defs/Response/$defs/T160"
                 }
               }
             },
@@ -4670,7 +5327,7 @@
               ],
               "properties": {
                 "map": {
-                  "$ref": "#/$defs/Response/$defs/T129"
+                  "$ref": "#/$defs/Response/$defs/T162"
                 }
               }
             },
@@ -4694,13 +5351,49 @@
               ],
               "properties": {
                 "json": {
-                  "$ref": "#/$defs/Response/$defs/T93"
+                  "$ref": "#/$defs/Response/$defs/T126"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "range"
+              ],
+              "properties": {
+                "range": {
+                  "$ref": "#/$defs/Response/$defs/T159"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "multirange"
+              ],
+              "properties": {
+                "multirange": {
+                  "$ref": "#/$defs/Response/$defs/T159"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "vector"
+              ],
+              "properties": {
+                "vector": {
+                  "$ref": "#/$defs/Response/$defs/T163"
                 }
               }
             }
           ]
         },
-        "T123": {
+        "T156": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -4709,10 +5402,10 @@
           ],
           "properties": {
             "precision": {
-              "$ref": "#/$defs/Response/$defs/T95"
+              "$ref": "#/$defs/Response/$defs/T128"
             },
             "scale": {
-              "$ref": "#/$defs/Response/$defs/T95"
+              "$ref": "#/$defs/Response/$defs/T128"
             }
           },
           "required": [
@@ -4721,14 +5414,14 @@
           ],
           "x-transit-defaults": {}
         },
-        "T124": {
+        "T157": {
           "type": "string",
           "enum": [
             "civil",
             "utc"
           ]
         },
-        "T125": {
+        "T158": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -4737,10 +5430,10 @@
           ],
           "properties": {
             "type": {
-              "$ref": "#/$defs/Response/$defs/T126"
+              "$ref": "#/$defs/Response/$defs/T159"
             },
             "nullable": {
-              "$ref": "#/$defs/Response/$defs/T101"
+              "$ref": "#/$defs/Response/$defs/T134"
             }
           },
           "required": [
@@ -4751,10 +5444,10 @@
             "nullable": false
           }
         },
-        "T126": {
-          "$ref": "#/$defs/Response/$defs/T122"
+        "T159": {
+          "$ref": "#/$defs/Response/$defs/T155"
         },
-        "T127": {
+        "T160": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -4763,10 +5456,10 @@
           ],
           "properties": {
             "element": {
-              "$ref": "#/$defs/Response/$defs/T125"
+              "$ref": "#/$defs/Response/$defs/T158"
             },
             "length": {
-              "$ref": "#/$defs/Response/$defs/T128"
+              "$ref": "#/$defs/Response/$defs/T161"
             }
           },
           "required": [
@@ -4775,14 +5468,14 @@
           ],
           "x-transit-defaults": {}
         },
-        "T128": {
+        "T161": {
           "type": "integer",
           "minimum": 0,
           "maximum": 4294967295,
           "x-transit-bits": 32,
           "x-transit-signed": false
         },
-        "T129": {
+        "T162": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -4791,10 +5484,10 @@
           ],
           "properties": {
             "key": {
-              "$ref": "#/$defs/Response/$defs/T126"
+              "$ref": "#/$defs/Response/$defs/T159"
             },
             "value": {
-              "$ref": "#/$defs/Response/$defs/T125"
+              "$ref": "#/$defs/Response/$defs/T158"
             }
           },
           "required": [
@@ -4803,7 +5496,38 @@
           ],
           "x-transit-defaults": {}
         },
-        "T130": {
+        "T163": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "dimensions",
+            "element"
+          ],
+          "properties": {
+            "dimensions": {
+              "$ref": "#/$defs/Response/$defs/T161"
+            },
+            "element": {
+              "$ref": "#/$defs/Response/$defs/T164"
+            }
+          },
+          "required": [
+            "dimensions",
+            "element"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T164": {
+          "type": "string",
+          "enum": [
+            "float32",
+            "float16",
+            "bfloat16",
+            "int8",
+            "binary"
+          ]
+        },
+        "T165": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -4813,13 +5537,13 @@
           ],
           "properties": {
             "column": {
-              "$ref": "#/$defs/Response/$defs/T100"
+              "$ref": "#/$defs/Response/$defs/T133"
             },
             "op": {
-              "$ref": "#/$defs/Response/$defs/T98"
+              "$ref": "#/$defs/Response/$defs/T131"
             },
             "type": {
-              "$ref": "#/$defs/Response/$defs/T122"
+              "$ref": "#/$defs/Response/$defs/T155"
             }
           },
           "required": [
@@ -4829,17 +5553,17 @@
           ],
           "x-transit-defaults": {}
         },
-        "T131": {
+        "T166": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Response/$defs/T132"
+              "$ref": "#/$defs/Response/$defs/T167"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T132": {
+        "T167": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -4855,7 +5579,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T133": {
+        "T168": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -4871,17 +5595,17 @@
           ],
           "x-transit-defaults": {}
         },
-        "T134": {
+        "T169": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Response/$defs/T133"
+              "$ref": "#/$defs/Response/$defs/T168"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T135": {
+        "T170": {
           "oneOf": [
             {
               "type": "object",
@@ -4915,29 +5639,29 @@
               ],
               "properties": {
                 "rejected": {
-                  "$ref": "#/$defs/Response/$defs/T136"
+                  "$ref": "#/$defs/Response/$defs/T171"
                 }
               }
             }
           ]
         },
-        "T136": {
+        "T171": {
           "type": "string",
           "pattern": "^(?:[0-9a-f]{2})*$",
           "maxLength": 512,
           "x-transit-encoding": "lowercase-hex"
         },
-        "T137": {
+        "T172": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Response/$defs/T138"
+              "$ref": "#/$defs/Response/$defs/T173"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T138": {
+        "T173": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -4951,25 +5675,25 @@
           ],
           "properties": {
             "reference": {
-              "$ref": "#/$defs/Response/$defs/T136"
+              "$ref": "#/$defs/Response/$defs/T171"
             },
             "phase": {
-              "$ref": "#/$defs/Response/$defs/T139"
+              "$ref": "#/$defs/Response/$defs/T174"
             },
             "correlation": {
               "$ref": "#/$defs/Response/$defs/T5"
             },
             "manifest": {
-              "$ref": "#/$defs/Response/$defs/T140"
+              "$ref": "#/$defs/Response/$defs/T175"
             },
             "collected": {
               "$ref": "#/$defs/Response/$defs/T11"
             },
             "failure": {
-              "$ref": "#/$defs/Response/$defs/T141"
+              "$ref": "#/$defs/Response/$defs/T176"
             },
             "diagnostic": {
-              "$ref": "#/$defs/Response/$defs/T146"
+              "$ref": "#/$defs/Response/$defs/T181"
             }
           },
           "required": [
@@ -4983,7 +5707,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T139": {
+        "T174": {
           "type": "string",
           "enum": [
             "uploading",
@@ -4997,27 +5721,27 @@
             "prepared"
           ]
         },
-        "T140": {
+        "T175": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Response/$defs/T136"
+              "$ref": "#/$defs/Response/$defs/T171"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T141": {
+        "T176": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Response/$defs/T142"
+              "$ref": "#/$defs/Response/$defs/T177"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T142": {
+        "T177": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -5029,13 +5753,13 @@
           ],
           "properties": {
             "code": {
-              "$ref": "#/$defs/Response/$defs/T143"
+              "$ref": "#/$defs/Response/$defs/T178"
             },
             "stage": {
-              "$ref": "#/$defs/Response/$defs/T144"
+              "$ref": "#/$defs/Response/$defs/T179"
             },
             "dimension": {
-              "$ref": "#/$defs/Response/$defs/T145"
+              "$ref": "#/$defs/Response/$defs/T180"
             },
             "limit": {
               "$ref": "#/$defs/Response/$defs/T5"
@@ -5053,7 +5777,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T143": {
+        "T178": {
           "type": "string",
           "enum": [
             "policy_denied",
@@ -5127,17 +5851,31 @@
             "source_definition_too_large",
             "catalog_scope_changed",
             "adapter_memory_budget",
-            "arrow_workspace_budget"
+            "arrow_workspace_budget",
+            "missing_column_semantics",
+            "scalar_program_budget",
+            "invalid_scalar_reference",
+            "invalid_scalar_encoding",
+            "decimal_overflow",
+            "division_by_zero",
+            "inexact_decimal_rounding",
+            "timestamp_overflow",
+            "zero_magnitude_cosine_vector",
+            "invalid_time_bucket",
+            "nonexistent_local_time",
+            "ambiguous_local_time",
+            "timezone_coverage_unavailable",
+            "invalid_column_semantics"
           ]
         },
-        "T144": {
+        "T179": {
           "type": "string",
           "enum": [
             "admission",
             "execution"
           ]
         },
-        "T145": {
+        "T180": {
           "type": "string",
           "enum": [
             "none",
@@ -5146,17 +5884,17 @@
             "result_bytes"
           ]
         },
-        "T146": {
+        "T181": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Response/$defs/T147"
+              "$ref": "#/$defs/Response/$defs/T182"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T147": {
+        "T182": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -5179,40 +5917,40 @@
               "const": 1
             },
             "definition": {
-              "$ref": "#/$defs/Response/$defs/T148"
+              "$ref": "#/$defs/Response/$defs/T60"
             },
             "code": {
-              "$ref": "#/$defs/Response/$defs/T149"
+              "$ref": "#/$defs/Response/$defs/T183"
             },
             "category": {
-              "$ref": "#/$defs/Response/$defs/T150"
+              "$ref": "#/$defs/Response/$defs/T184"
             },
             "stage": {
-              "$ref": "#/$defs/Response/$defs/T151"
+              "$ref": "#/$defs/Response/$defs/T185"
             },
             "outcome": {
-              "$ref": "#/$defs/Response/$defs/T152"
+              "$ref": "#/$defs/Response/$defs/T186"
             },
             "evidence": {
-              "$ref": "#/$defs/Response/$defs/T153"
+              "$ref": "#/$defs/Response/$defs/T187"
             },
             "message": {
-              "$ref": "#/$defs/Response/$defs/T154"
+              "$ref": "#/$defs/Response/$defs/T188"
             },
             "cause": {
-              "$ref": "#/$defs/Response/$defs/T155"
+              "$ref": "#/$defs/Response/$defs/T189"
             },
             "identity": {
-              "$ref": "#/$defs/Response/$defs/T156"
+              "$ref": "#/$defs/Response/$defs/T190"
             },
             "location": {
-              "$ref": "#/$defs/Response/$defs/T161"
+              "$ref": "#/$defs/Response/$defs/T195"
             },
             "facts": {
-              "$ref": "#/$defs/Response/$defs/T166"
+              "$ref": "#/$defs/Response/$defs/T200"
             },
             "actions": {
-              "$ref": "#/$defs/Response/$defs/T176"
+              "$ref": "#/$defs/Response/$defs/T210"
             }
           },
           "required": [
@@ -5260,18 +5998,12 @@
             ]
           }
         },
-        "T148": {
-          "type": "string",
-          "enum": [
-            "22ddc953c1268d7f6a785c40860c62c727050223f8916e052f626b434974cb10"
-          ]
-        },
-        "T149": {
+        "T183": {
           "type": "string",
           "maxLength": 96,
           "x-transit-max-utf8-bytes": 96
         },
-        "T150": {
+        "T184": {
           "type": "string",
           "enum": [
             "syntax",
@@ -5287,7 +6019,7 @@
             "internal"
           ]
         },
-        "T151": {
+        "T185": {
           "type": "string",
           "enum": [
             "input",
@@ -5306,7 +6038,7 @@
             "control"
           ]
         },
-        "T152": {
+        "T186": {
           "type": "string",
           "enum": [
             "not_applicable",
@@ -5325,7 +6057,7 @@
             "closed_unknown"
           ]
         },
-        "T153": {
+        "T187": {
           "type": "string",
           "enum": [
             "none",
@@ -5335,32 +6067,32 @@
             "domain_status"
           ]
         },
-        "T154": {
+        "T188": {
           "type": "string",
           "maxLength": 384,
           "x-transit-max-utf8-bytes": 384
         },
-        "T155": {
+        "T189": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Response/$defs/T149"
+              "$ref": "#/$defs/Response/$defs/T183"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T156": {
+        "T190": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Response/$defs/T157"
+              "$ref": "#/$defs/Response/$defs/T191"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T157": {
+        "T191": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -5372,19 +6104,19 @@
           ],
           "properties": {
             "domain": {
-              "$ref": "#/$defs/Response/$defs/T158"
+              "$ref": "#/$defs/Response/$defs/T192"
             },
             "id": {
-              "$ref": "#/$defs/Response/$defs/T159"
+              "$ref": "#/$defs/Response/$defs/T193"
             },
             "realm": {
-              "$ref": "#/$defs/Response/$defs/T160"
+              "$ref": "#/$defs/Response/$defs/T194"
             },
             "resource": {
-              "$ref": "#/$defs/Response/$defs/T160"
+              "$ref": "#/$defs/Response/$defs/T194"
             },
             "sequence": {
-              "$ref": "#/$defs/Response/$defs/T160"
+              "$ref": "#/$defs/Response/$defs/T194"
             }
           },
           "required": [
@@ -5400,7 +6132,7 @@
             "sequence": null
           }
         },
-        "T158": {
+        "T192": {
           "type": "string",
           "enum": [
             "sql",
@@ -5418,32 +6150,32 @@
             "internal"
           ]
         },
-        "T159": {
+        "T193": {
           "type": "string",
           "maxLength": 20,
           "pattern": "^(0|[1-9][0-9]*)$"
         },
-        "T160": {
+        "T194": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Response/$defs/T159"
+              "$ref": "#/$defs/Response/$defs/T193"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T161": {
+        "T195": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Response/$defs/T162"
+              "$ref": "#/$defs/Response/$defs/T196"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T162": {
+        "T196": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -5458,28 +6190,28 @@
           ],
           "properties": {
             "source": {
-              "$ref": "#/$defs/Response/$defs/T163"
+              "$ref": "#/$defs/Response/$defs/T197"
             },
             "source_encoding": {
-              "$ref": "#/$defs/Response/$defs/T165"
+              "$ref": "#/$defs/Response/$defs/T199"
             },
             "source_truncated": {
               "$ref": "#/$defs/Response/$defs/T11"
             },
             "statement": {
-              "$ref": "#/$defs/Response/$defs/T160"
+              "$ref": "#/$defs/Response/$defs/T194"
             },
             "offset": {
-              "$ref": "#/$defs/Response/$defs/T159"
+              "$ref": "#/$defs/Response/$defs/T193"
             },
             "length": {
-              "$ref": "#/$defs/Response/$defs/T159"
+              "$ref": "#/$defs/Response/$defs/T193"
             },
             "line": {
-              "$ref": "#/$defs/Response/$defs/T159"
+              "$ref": "#/$defs/Response/$defs/T193"
             },
             "byte_column": {
-              "$ref": "#/$defs/Response/$defs/T159"
+              "$ref": "#/$defs/Response/$defs/T193"
             }
           },
           "required": [
@@ -5499,47 +6231,47 @@
             "statement": null
           }
         },
-        "T163": {
+        "T197": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Response/$defs/T164"
+              "$ref": "#/$defs/Response/$defs/T198"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T164": {
+        "T198": {
           "type": "string",
           "maxLength": 512,
           "x-transit-max-utf8-bytes": 512
         },
-        "T165": {
+        "T199": {
           "type": "string",
           "enum": [
             "utf8",
             "escaped_bytes"
           ]
         },
-        "T166": {
+        "T200": {
           "type": "array",
           "minItems": 16,
           "maxItems": 16,
           "items": {
-            "$ref": "#/$defs/Response/$defs/T167"
+            "$ref": "#/$defs/Response/$defs/T201"
           }
         },
-        "T167": {
+        "T201": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Response/$defs/T168"
+              "$ref": "#/$defs/Response/$defs/T202"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T168": {
+        "T202": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -5550,16 +6282,16 @@
           ],
           "properties": {
             "field": {
-              "$ref": "#/$defs/Response/$defs/T169"
+              "$ref": "#/$defs/Response/$defs/T203"
             },
             "origin": {
-              "$ref": "#/$defs/Response/$defs/T170"
+              "$ref": "#/$defs/Response/$defs/T204"
             },
             "availability": {
-              "$ref": "#/$defs/Response/$defs/T171"
+              "$ref": "#/$defs/Response/$defs/T205"
             },
             "value": {
-              "$ref": "#/$defs/Response/$defs/T172"
+              "$ref": "#/$defs/Response/$defs/T206"
             }
           },
           "required": [
@@ -5570,7 +6302,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T169": {
+        "T203": {
           "type": "string",
           "enum": [
             "object",
@@ -5653,7 +6385,7 @@
             "dependency_owner"
           ]
         },
-        "T170": {
+        "T204": {
           "type": "string",
           "enum": [
             "caller",
@@ -5663,7 +6395,7 @@
             "owner"
           ]
         },
-        "T171": {
+        "T205": {
           "type": "string",
           "enum": [
             "provided",
@@ -5674,17 +6406,17 @@
             "inapplicable"
           ]
         },
-        "T172": {
+        "T206": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Response/$defs/T173"
+              "$ref": "#/$defs/Response/$defs/T207"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T173": {
+        "T207": {
           "oneOf": [
             {
               "type": "object",
@@ -5694,7 +6426,7 @@
               ],
               "properties": {
                 "text": {
-                  "$ref": "#/$defs/Response/$defs/T174"
+                  "$ref": "#/$defs/Response/$defs/T208"
                 }
               }
             },
@@ -5706,7 +6438,7 @@
               ],
               "properties": {
                 "signed": {
-                  "$ref": "#/$defs/Response/$defs/T175"
+                  "$ref": "#/$defs/Response/$defs/T209"
                 }
               }
             },
@@ -5718,7 +6450,7 @@
               ],
               "properties": {
                 "unsigned": {
-                  "$ref": "#/$defs/Response/$defs/T159"
+                  "$ref": "#/$defs/Response/$defs/T193"
                 }
               }
             },
@@ -5754,41 +6486,41 @@
               ],
               "properties": {
                 "location": {
-                  "$ref": "#/$defs/Response/$defs/T162"
+                  "$ref": "#/$defs/Response/$defs/T196"
                 }
               }
             }
           ]
         },
-        "T174": {
+        "T208": {
           "type": "string",
           "maxLength": 256,
           "x-transit-max-utf8-bytes": 256
         },
-        "T175": {
+        "T209": {
           "type": "string",
           "maxLength": 20,
           "pattern": "^(0|-?[1-9][0-9]*)$"
         },
-        "T176": {
+        "T210": {
           "type": "array",
           "minItems": 4,
           "maxItems": 4,
           "items": {
-            "$ref": "#/$defs/Response/$defs/T177"
+            "$ref": "#/$defs/Response/$defs/T211"
           }
         },
-        "T177": {
+        "T211": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Response/$defs/T178"
+              "$ref": "#/$defs/Response/$defs/T212"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T178": {
+        "T212": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -5797,10 +6529,10 @@
           ],
           "properties": {
             "kind": {
-              "$ref": "#/$defs/Response/$defs/T179"
+              "$ref": "#/$defs/Response/$defs/T213"
             },
             "target": {
-              "$ref": "#/$defs/Response/$defs/T156"
+              "$ref": "#/$defs/Response/$defs/T190"
             }
           },
           "required": [
@@ -5811,7 +6543,7 @@
             "target": null
           }
         },
-        "T179": {
+        "T213": {
           "type": "string",
           "enum": [
             "correct_input",
@@ -5827,7 +6559,7 @@
             "contact_operator"
           ]
         },
-        "T180": {
+        "T214": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -5836,10 +6568,10 @@
           ],
           "properties": {
             "evidence": {
-              "$ref": "#/$defs/Response/$defs/T181"
+              "$ref": "#/$defs/Response/$defs/T215"
             },
             "cells": {
-              "$ref": "#/$defs/Response/$defs/T194"
+              "$ref": "#/$defs/Response/$defs/T228"
             }
           },
           "required": [
@@ -5848,7 +6580,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T181": {
+        "T215": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -5861,10 +6593,10 @@
           ],
           "properties": {
             "manifest": {
-              "$ref": "#/$defs/Response/$defs/T182"
+              "$ref": "#/$defs/Response/$defs/T216"
             },
             "columns": {
-              "$ref": "#/$defs/Response/$defs/T60"
+              "$ref": "#/$defs/Response/$defs/T93"
             },
             "ordinal": {
               "$ref": "#/$defs/Response/$defs/T5"
@@ -5876,7 +6608,7 @@
               "$ref": "#/$defs/Response/$defs/T5"
             },
             "next": {
-              "$ref": "#/$defs/Response/$defs/T58"
+              "$ref": "#/$defs/Response/$defs/T91"
             }
           },
           "required": [
@@ -5889,7 +6621,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T182": {
+        "T216": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -5918,7 +6650,7 @@
               "$ref": "#/$defs/Response/$defs/T3"
             },
             "source": {
-              "$ref": "#/$defs/Response/$defs/T183"
+              "$ref": "#/$defs/Response/$defs/T217"
             },
             "requester": {
               "$ref": "#/$defs/Response/$defs/T3"
@@ -5930,13 +6662,13 @@
               "$ref": "#/$defs/Response/$defs/T5"
             },
             "request": {
-              "$ref": "#/$defs/Response/$defs/T136"
+              "$ref": "#/$defs/Response/$defs/T171"
             },
             "basis": {
-              "$ref": "#/$defs/Response/$defs/T186"
+              "$ref": "#/$defs/Response/$defs/T220"
             },
             "table_position": {
-              "$ref": "#/$defs/Response/$defs/T189"
+              "$ref": "#/$defs/Response/$defs/T223"
             },
             "plan": {
               "$ref": "#/$defs/Response/$defs/T20"
@@ -5963,10 +6695,10 @@
               "$ref": "#/$defs/Response/$defs/T5"
             },
             "sum": {
-              "$ref": "#/$defs/Response/$defs/T58"
+              "$ref": "#/$defs/Response/$defs/T91"
             },
             "finished": {
-              "$ref": "#/$defs/Response/$defs/T192"
+              "$ref": "#/$defs/Response/$defs/T226"
             },
             "chain": {
               "$ref": "#/$defs/Response/$defs/T20"
@@ -5995,7 +6727,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T183": {
+        "T217": {
           "oneOf": [
             {
               "type": "object",
@@ -6005,7 +6737,7 @@
               ],
               "properties": {
                 "native": {
-                  "$ref": "#/$defs/Response/$defs/T184"
+                  "$ref": "#/$defs/Response/$defs/T218"
                 }
               }
             },
@@ -6017,13 +6749,13 @@
               ],
               "properties": {
                 "table": {
-                  "$ref": "#/$defs/Response/$defs/T185"
+                  "$ref": "#/$defs/Response/$defs/T219"
                 }
               }
             }
           ]
         },
-        "T184": {
+        "T218": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -6049,7 +6781,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T185": {
+        "T219": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -6065,7 +6797,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T186": {
+        "T220": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -6075,7 +6807,7 @@
           ],
           "properties": {
             "cut": {
-              "$ref": "#/$defs/Response/$defs/T187"
+              "$ref": "#/$defs/Response/$defs/T221"
             },
             "contract": {
               "$ref": "#/$defs/Response/$defs/T20"
@@ -6091,7 +6823,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T187": {
+        "T221": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -6101,13 +6833,13 @@
           ],
           "properties": {
             "kind": {
-              "$ref": "#/$defs/Response/$defs/T106"
+              "$ref": "#/$defs/Response/$defs/T139"
             },
             "resource": {
               "$ref": "#/$defs/Response/$defs/T3"
             },
             "position": {
-              "$ref": "#/$defs/Response/$defs/T188"
+              "$ref": "#/$defs/Response/$defs/T222"
             }
           },
           "required": [
@@ -6117,7 +6849,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T188": {
+        "T222": {
           "oneOf": [
             {
               "type": "object",
@@ -6145,17 +6877,17 @@
             }
           ]
         },
-        "T189": {
+        "T223": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Response/$defs/T190"
+              "$ref": "#/$defs/Response/$defs/T224"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T190": {
+        "T224": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -6170,10 +6902,10 @@
               "$ref": "#/$defs/Response/$defs/T3"
             },
             "partition": {
-              "$ref": "#/$defs/Response/$defs/T191"
+              "$ref": "#/$defs/Response/$defs/T225"
             },
             "accepted": {
-              "$ref": "#/$defs/Response/$defs/T191"
+              "$ref": "#/$defs/Response/$defs/T225"
             },
             "contract": {
               "$ref": "#/$defs/Response/$defs/T20"
@@ -6191,44 +6923,44 @@
           ],
           "x-transit-defaults": {}
         },
-        "T191": {
+        "T225": {
           "type": "string",
           "pattern": "^(0|[1-9][0-9]*)$",
           "maxLength": 20,
           "x-transit-encoding": "unsigned-decimal-u64"
         },
-        "T192": {
+        "T226": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Response/$defs/T193"
+              "$ref": "#/$defs/Response/$defs/T227"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T193": {
+        "T227": {
           "type": "string",
           "enum": [
             "source_end",
             "limit"
           ]
         },
-        "T194": {
+        "T228": {
           "type": "array",
           "maxItems": 8,
           "items": {
-            "$ref": "#/$defs/Response/$defs/T195"
+            "$ref": "#/$defs/Response/$defs/T229"
           }
         },
-        "T195": {
+        "T229": {
           "type": "array",
           "maxItems": 128,
           "items": {
-            "$ref": "#/$defs/Response/$defs/T196"
+            "$ref": "#/$defs/Response/$defs/T230"
           }
         },
-        "T196": {
+        "T230": {
           "oneOf": [
             {
               "type": "object",
@@ -6262,7 +6994,7 @@
               ],
               "properties": {
                 "type_error": {
-                  "$ref": "#/$defs/Response/$defs/T197"
+                  "$ref": "#/$defs/Response/$defs/T231"
                 }
               }
             },
@@ -6274,7 +7006,7 @@
               ],
               "properties": {
                 "value": {
-                  "$ref": "#/$defs/Response/$defs/T198"
+                  "$ref": "#/$defs/Response/$defs/T232"
                 }
               }
             },
@@ -6286,13 +7018,13 @@
               ],
               "properties": {
                 "conflict": {
-                  "$ref": "#/$defs/Response/$defs/T213"
+                  "$ref": "#/$defs/Response/$defs/T251"
                 }
               }
             }
           ]
         },
-        "T197": {
+        "T231": {
           "type": "string",
           "enum": [
             "unknown",
@@ -6323,12 +7055,15 @@
             "map",
             "tagged_union",
             "json",
+            "range",
+            "multirange",
+            "vector",
             "null_value",
             "text",
             "character"
           ]
         },
-        "T198": {
+        "T232": {
           "oneOf": [
             {
               "type": "object",
@@ -6338,7 +7073,7 @@
               ],
               "properties": {
                 "atom": {
-                  "$ref": "#/$defs/Response/$defs/T87"
+                  "$ref": "#/$defs/Response/$defs/T120"
                 }
               }
             },
@@ -6350,7 +7085,7 @@
               ],
               "properties": {
                 "structure": {
-                  "$ref": "#/$defs/Response/$defs/T199"
+                  "$ref": "#/$defs/Response/$defs/T233"
                 }
               }
             },
@@ -6362,7 +7097,7 @@
               ],
               "properties": {
                 "list": {
-                  "$ref": "#/$defs/Response/$defs/T199"
+                  "$ref": "#/$defs/Response/$defs/T233"
                 }
               }
             },
@@ -6374,7 +7109,7 @@
               ],
               "properties": {
                 "array": {
-                  "$ref": "#/$defs/Response/$defs/T199"
+                  "$ref": "#/$defs/Response/$defs/T233"
                 }
               }
             },
@@ -6386,7 +7121,7 @@
               ],
               "properties": {
                 "map": {
-                  "$ref": "#/$defs/Response/$defs/T208"
+                  "$ref": "#/$defs/Response/$defs/T242"
                 }
               }
             },
@@ -6398,7 +7133,7 @@
               ],
               "properties": {
                 "tagged_union": {
-                  "$ref": "#/$defs/Response/$defs/T216"
+                  "$ref": "#/$defs/Response/$defs/T254"
                 }
               }
             },
@@ -6413,17 +7148,53 @@
                   "$ref": "#/$defs/Response/$defs/T5"
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "range"
+              ],
+              "properties": {
+                "range": {
+                  "$ref": "#/$defs/Response/$defs/T256"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "multirange"
+              ],
+              "properties": {
+                "multirange": {
+                  "$ref": "#/$defs/Response/$defs/T250"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "vector"
+              ],
+              "properties": {
+                "vector": {
+                  "$ref": "#/$defs/Response/$defs/T5"
+                }
+              }
             }
           ]
         },
-        "T199": {
+        "T233": {
           "type": "array",
           "maxItems": 65536,
           "items": {
-            "$ref": "#/$defs/Response/$defs/T200"
+            "$ref": "#/$defs/Response/$defs/T234"
           }
         },
-        "T200": {
+        "T234": {
           "oneOf": [
             {
               "type": "object",
@@ -6433,7 +7204,7 @@
               ],
               "properties": {
                 "missing": {
-                  "$ref": "#/$defs/Response/$defs/T201"
+                  "$ref": "#/$defs/Response/$defs/T235"
                 }
               }
             },
@@ -6445,7 +7216,7 @@
               ],
               "properties": {
                 "null": {
-                  "$ref": "#/$defs/Response/$defs/T201"
+                  "$ref": "#/$defs/Response/$defs/T235"
                 }
               }
             },
@@ -6457,7 +7228,7 @@
               ],
               "properties": {
                 "type_error": {
-                  "$ref": "#/$defs/Response/$defs/T202"
+                  "$ref": "#/$defs/Response/$defs/T236"
                 }
               }
             },
@@ -6469,7 +7240,7 @@
               ],
               "properties": {
                 "value": {
-                  "$ref": "#/$defs/Response/$defs/T203"
+                  "$ref": "#/$defs/Response/$defs/T237"
                 }
               }
             },
@@ -6481,17 +7252,17 @@
               ],
               "properties": {
                 "conflict": {
-                  "$ref": "#/$defs/Response/$defs/T213"
+                  "$ref": "#/$defs/Response/$defs/T251"
                 }
               }
             }
           ]
         },
-        "T201": {
+        "T235": {
           "type": "object",
           "maxProperties": 0
         },
-        "T202": {
+        "T236": {
           "type": "string",
           "enum": [
             "unknown",
@@ -6522,12 +7293,15 @@
             "map",
             "tagged_union",
             "json",
+            "range",
+            "multirange",
+            "vector",
             "null_value",
             "text",
             "character"
           ]
         },
-        "T203": {
+        "T237": {
           "oneOf": [
             {
               "type": "object",
@@ -6537,7 +7311,7 @@
               ],
               "properties": {
                 "atom": {
-                  "$ref": "#/$defs/Response/$defs/T204"
+                  "$ref": "#/$defs/Response/$defs/T238"
                 }
               }
             },
@@ -6549,7 +7323,7 @@
               ],
               "properties": {
                 "structure": {
-                  "$ref": "#/$defs/Response/$defs/T199"
+                  "$ref": "#/$defs/Response/$defs/T233"
                 }
               }
             },
@@ -6561,7 +7335,7 @@
               ],
               "properties": {
                 "list": {
-                  "$ref": "#/$defs/Response/$defs/T199"
+                  "$ref": "#/$defs/Response/$defs/T233"
                 }
               }
             },
@@ -6573,7 +7347,7 @@
               ],
               "properties": {
                 "array": {
-                  "$ref": "#/$defs/Response/$defs/T199"
+                  "$ref": "#/$defs/Response/$defs/T233"
                 }
               }
             },
@@ -6585,7 +7359,7 @@
               ],
               "properties": {
                 "map": {
-                  "$ref": "#/$defs/Response/$defs/T208"
+                  "$ref": "#/$defs/Response/$defs/T242"
                 }
               }
             },
@@ -6597,7 +7371,7 @@
               ],
               "properties": {
                 "tagged_union": {
-                  "$ref": "#/$defs/Response/$defs/T210"
+                  "$ref": "#/$defs/Response/$defs/T244"
                 }
               }
             },
@@ -6609,13 +7383,49 @@
               ],
               "properties": {
                 "json": {
-                  "$ref": "#/$defs/Response/$defs/T205"
+                  "$ref": "#/$defs/Response/$defs/T239"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "range"
+              ],
+              "properties": {
+                "range": {
+                  "$ref": "#/$defs/Response/$defs/T247"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "multirange"
+              ],
+              "properties": {
+                "multirange": {
+                  "$ref": "#/$defs/Response/$defs/T250"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "vector"
+              ],
+              "properties": {
+                "vector": {
+                  "$ref": "#/$defs/Response/$defs/T239"
                 }
               }
             }
           ]
         },
-        "T204": {
+        "T238": {
           "oneOf": [
             {
               "type": "object",
@@ -6625,7 +7435,7 @@
               ],
               "properties": {
                 "signed": {
-                  "$ref": "#/$defs/Response/$defs/T205"
+                  "$ref": "#/$defs/Response/$defs/T239"
                 }
               }
             },
@@ -6637,7 +7447,7 @@
               ],
               "properties": {
                 "unsigned": {
-                  "$ref": "#/$defs/Response/$defs/T205"
+                  "$ref": "#/$defs/Response/$defs/T239"
                 }
               }
             },
@@ -6649,7 +7459,7 @@
               ],
               "properties": {
                 "decimal": {
-                  "$ref": "#/$defs/Response/$defs/T205"
+                  "$ref": "#/$defs/Response/$defs/T239"
                 }
               }
             },
@@ -6661,7 +7471,7 @@
               ],
               "properties": {
                 "float_bits": {
-                  "$ref": "#/$defs/Response/$defs/T205"
+                  "$ref": "#/$defs/Response/$defs/T239"
                 }
               }
             },
@@ -6673,7 +7483,7 @@
               ],
               "properties": {
                 "boolean": {
-                  "$ref": "#/$defs/Response/$defs/T206"
+                  "$ref": "#/$defs/Response/$defs/T240"
                 }
               }
             },
@@ -6685,7 +7495,7 @@
               ],
               "properties": {
                 "utf8": {
-                  "$ref": "#/$defs/Response/$defs/T205"
+                  "$ref": "#/$defs/Response/$defs/T239"
                 }
               }
             },
@@ -6697,7 +7507,7 @@
               ],
               "properties": {
                 "binary": {
-                  "$ref": "#/$defs/Response/$defs/T205"
+                  "$ref": "#/$defs/Response/$defs/T239"
                 }
               }
             },
@@ -6709,7 +7519,7 @@
               ],
               "properties": {
                 "date_days": {
-                  "$ref": "#/$defs/Response/$defs/T205"
+                  "$ref": "#/$defs/Response/$defs/T239"
                 }
               }
             },
@@ -6721,7 +7531,7 @@
               ],
               "properties": {
                 "time_nanos": {
-                  "$ref": "#/$defs/Response/$defs/T205"
+                  "$ref": "#/$defs/Response/$defs/T239"
                 }
               }
             },
@@ -6733,7 +7543,7 @@
               ],
               "properties": {
                 "timestamp_micros": {
-                  "$ref": "#/$defs/Response/$defs/T205"
+                  "$ref": "#/$defs/Response/$defs/T239"
                 }
               }
             },
@@ -6745,7 +7555,7 @@
               ],
               "properties": {
                 "interval": {
-                  "$ref": "#/$defs/Response/$defs/T207"
+                  "$ref": "#/$defs/Response/$defs/T241"
                 }
               }
             },
@@ -6757,20 +7567,20 @@
               ],
               "properties": {
                 "uuid": {
-                  "$ref": "#/$defs/Response/$defs/T205"
+                  "$ref": "#/$defs/Response/$defs/T239"
                 }
               }
             }
           ]
         },
-        "T205": {
+        "T239": {
           "type": "string",
           "maxLength": 131072
         },
-        "T206": {
+        "T240": {
           "type": "boolean"
         },
-        "T207": {
+        "T241": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -6780,13 +7590,13 @@
           ],
           "properties": {
             "months": {
-              "$ref": "#/$defs/Response/$defs/T205"
+              "$ref": "#/$defs/Response/$defs/T239"
             },
             "days": {
-              "$ref": "#/$defs/Response/$defs/T205"
+              "$ref": "#/$defs/Response/$defs/T239"
             },
             "nanos": {
-              "$ref": "#/$defs/Response/$defs/T205"
+              "$ref": "#/$defs/Response/$defs/T239"
             }
           },
           "required": [
@@ -6796,14 +7606,14 @@
           ],
           "x-transit-defaults": {}
         },
-        "T208": {
+        "T242": {
           "type": "array",
           "maxItems": 65536,
           "items": {
-            "$ref": "#/$defs/Response/$defs/T209"
+            "$ref": "#/$defs/Response/$defs/T243"
           }
         },
-        "T209": {
+        "T243": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -6812,10 +7622,10 @@
           ],
           "properties": {
             "key": {
-              "$ref": "#/$defs/Response/$defs/T204"
+              "$ref": "#/$defs/Response/$defs/T238"
             },
             "value": {
-              "$ref": "#/$defs/Response/$defs/T200"
+              "$ref": "#/$defs/Response/$defs/T234"
             }
           },
           "required": [
@@ -6824,7 +7634,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T210": {
+        "T244": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -6833,10 +7643,10 @@
           ],
           "properties": {
             "index": {
-              "$ref": "#/$defs/Response/$defs/T211"
+              "$ref": "#/$defs/Response/$defs/T245"
             },
             "value": {
-              "$ref": "#/$defs/Response/$defs/T212"
+              "$ref": "#/$defs/Response/$defs/T246"
             }
           },
           "required": [
@@ -6845,24 +7655,88 @@
           ],
           "x-transit-defaults": {}
         },
-        "T211": {
+        "T245": {
           "type": "integer",
           "minimum": 0,
           "maximum": 255,
           "x-transit-bits": 8,
           "x-transit-signed": false
         },
-        "T212": {
-          "$ref": "#/$defs/Response/$defs/T200"
+        "T246": {
+          "$ref": "#/$defs/Response/$defs/T234"
         },
-        "T213": {
+        "T247": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "is_empty",
+            "lower",
+            "upper"
+          ],
+          "properties": {
+            "is_empty": {
+              "$ref": "#/$defs/Response/$defs/T240"
+            },
+            "lower": {
+              "$ref": "#/$defs/Response/$defs/T248"
+            },
+            "upper": {
+              "$ref": "#/$defs/Response/$defs/T248"
+            }
+          },
+          "required": [
+            "is_empty",
+            "lower",
+            "upper"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T248": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Response/$defs/T249"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "T249": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "value",
+            "inclusive"
+          ],
+          "properties": {
+            "value": {
+              "$ref": "#/$defs/Response/$defs/T238"
+            },
+            "inclusive": {
+              "$ref": "#/$defs/Response/$defs/T240"
+            }
+          },
+          "required": [
+            "value",
+            "inclusive"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T250": {
           "type": "array",
           "maxItems": 65536,
           "items": {
-            "$ref": "#/$defs/Response/$defs/T214"
+            "$ref": "#/$defs/Response/$defs/T247"
           }
         },
-        "T214": {
+        "T251": {
+          "type": "array",
+          "maxItems": 65536,
+          "items": {
+            "$ref": "#/$defs/Response/$defs/T252"
+          }
+        },
+        "T252": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -6872,13 +7746,13 @@
           ],
           "properties": {
             "counter": {
-              "$ref": "#/$defs/Response/$defs/T205"
+              "$ref": "#/$defs/Response/$defs/T239"
             },
             "replica": {
-              "$ref": "#/$defs/Response/$defs/T205"
+              "$ref": "#/$defs/Response/$defs/T239"
             },
             "value": {
-              "$ref": "#/$defs/Response/$defs/T215"
+              "$ref": "#/$defs/Response/$defs/T253"
             }
           },
           "required": [
@@ -6888,7 +7762,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T215": {
+        "T253": {
           "oneOf": [
             {
               "type": "object",
@@ -6898,7 +7772,7 @@
               ],
               "properties": {
                 "null": {
-                  "$ref": "#/$defs/Response/$defs/T201"
+                  "$ref": "#/$defs/Response/$defs/T235"
                 }
               }
             },
@@ -6910,7 +7784,7 @@
               ],
               "properties": {
                 "type_error": {
-                  "$ref": "#/$defs/Response/$defs/T202"
+                  "$ref": "#/$defs/Response/$defs/T236"
                 }
               }
             },
@@ -6922,13 +7796,13 @@
               ],
               "properties": {
                 "value": {
-                  "$ref": "#/$defs/Response/$defs/T203"
+                  "$ref": "#/$defs/Response/$defs/T237"
                 }
               }
             }
           ]
         },
-        "T216": {
+        "T254": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -6940,7 +7814,7 @@
               "$ref": "#/$defs/Response/$defs/T8"
             },
             "value": {
-              "$ref": "#/$defs/Response/$defs/T217"
+              "$ref": "#/$defs/Response/$defs/T255"
             }
           },
           "required": [
@@ -6949,20 +7823,77 @@
           ],
           "x-transit-defaults": {}
         },
-        "T217": {
-          "$ref": "#/$defs/Response/$defs/T196"
+        "T255": {
+          "$ref": "#/$defs/Response/$defs/T230"
         },
-        "T218": {
+        "T256": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "is_empty",
+            "lower",
+            "upper"
+          ],
+          "properties": {
+            "is_empty": {
+              "$ref": "#/$defs/Response/$defs/T11"
+            },
+            "lower": {
+              "$ref": "#/$defs/Response/$defs/T257"
+            },
+            "upper": {
+              "$ref": "#/$defs/Response/$defs/T257"
+            }
+          },
+          "required": [
+            "is_empty",
+            "lower",
+            "upper"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T257": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Response/$defs/T219"
+              "$ref": "#/$defs/Response/$defs/T258"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T219": {
+        "T258": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "value",
+            "inclusive"
+          ],
+          "properties": {
+            "value": {
+              "$ref": "#/$defs/Response/$defs/T120"
+            },
+            "inclusive": {
+              "$ref": "#/$defs/Response/$defs/T11"
+            }
+          },
+          "required": [
+            "value",
+            "inclusive"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T259": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Response/$defs/T260"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "T260": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -6991,10 +7922,10 @@
               "$ref": "#/$defs/Response/$defs/T20"
             },
             "budgets": {
-              "$ref": "#/$defs/Response/$defs/T57"
+              "$ref": "#/$defs/Response/$defs/T90"
             },
             "namespaces": {
-              "$ref": "#/$defs/Response/$defs/T220"
+              "$ref": "#/$defs/Response/$defs/T261"
             }
           },
           "required": [
@@ -7008,7 +7939,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T220": {
+        "T261": {
           "type": "array",
           "minItems": 8,
           "maxItems": 8,
@@ -7235,7 +8166,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "22ddc953c1268d7f6a785c40860c62c727050223f8916e052f626b434974cb10"
+            "7c81d0916913d774febe2bec8f739f95a194f3ca88056c9f1214c0f77f22fa89"
           ]
         },
         "T2": {

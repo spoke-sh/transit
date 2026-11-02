@@ -189,7 +189,7 @@ fn pageAt(client: c.DirectTableClient, selection: dep.Selection, cursor: ?dep.Cu
         .selection = try host.Selection.foreign(arena.allocator(), value.selection),
         .authority = value.authority,
         .position = try c.DirectTableValues.Position.foreign(arena.allocator(), value.position),
-        .after = try c.TableValues.hex(arena.allocator(), &value.after),
+        .after = try c.TableValues.hex(arena.allocator(), value.after.slice()),
     } else null;
     const value = (try host.apply(arena.allocator(), client, .{ .page = .{ .selection = try host.Selection.foreign(arena.allocator(), selection), .cursor = saved_cursor, .authority = .dependent } })).page;
     var result: dep.Page = .{ .position = try value.position.native(), .next = if (value.next) |next| try next.native(client.connection) else null };

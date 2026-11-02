@@ -138,6 +138,9 @@ pub const Plan = struct {
     collations: ?[]const f.TableSchema.Collation = null,
     version: u8 = 1,
     projection: []const u32,
+    /// Canonical ScalarProgram bytes, hexadecimal. "00" denotes no instructions.
+    /// Stored bundles still require their exact current definition before decode.
+    scalar_program: []const u8 = "00",
     output_names: ?[]const ?[]const u8 = null,
     limit: ?[]const u8 = null,
     aggregate: m.Plan.Aggregate = .rows,
@@ -147,7 +150,7 @@ pub const Plan = struct {
         if (self.projection.len == 0 or self.projection.len > f.TableSchema.max_columns) return error.InvalidProjection;
         const selected = try alloc.alloc(u8, self.projection.len);
         for (selected, self.projection) |*out, in| {
-            if (in >= f.TableSchema.max_columns) return error.UnknownColumn;
+            if (in >= f.TableSchema.max_columns + f.ScalarProgram.max_instructions) return error.UnknownColumn;
             out.* = @intCast(in);
         }
         const names = if (self.output_names) |input| owned: {
@@ -158,7 +161,15 @@ pub const Plan = struct {
             };
             break :owned result;
         } else &.{};
-        const result: f.LogicalQuery.Plan = .{ .schema = try schema.cloneInto(alloc), .source_basis = binding, .collations = if (self.collations) |columns_| try f.QueryCollations.fromSlice(schema, columns_) else .{}, .projection = selected, .output_names = names, .limit = if (self.limit) |v| try unsigned(v) else null, .aggregate = self.aggregate, .predicate = try self.predicate.native(alloc, schema) };
+        const scalar_bytes = try unhex(alloc, self.scalar_program, f.LogicalPlanCodec.max_bytes);
+        var scalar_reader: std.Io.Reader = .fixed(scalar_bytes);
+        const scalars = try f.ScalarProgram.read(alloc, &scalar_reader);
+        if (scalar_reader.bufferedLen() != 0) return error.InvalidScalarEncoding;
+        var canonical: [f.LogicalPlanCodec.max_bytes]u8 = undefined;
+        var writer: std.Io.Writer = .fixed(&canonical);
+        try scalars.write(&writer);
+        if (!std.mem.eql(u8, scalar_bytes, writer.buffered())) return error.InvalidScalarEncoding;
+        const result: f.LogicalQuery.Plan = .{ .scalars = scalars, .schema = try schema.cloneInto(alloc), .source_basis = binding, .collations = if (self.collations) |columns_| try f.QueryCollations.fromSlice(schema, columns_) else .{}, .projection = selected, .output_names = names, .limit = if (self.limit) |v| try unsigned(v) else null, .aggregate = self.aggregate, .predicate = try self.predicate.native(alloc, schema) };
         try result.validate();
         return result;
     }
@@ -170,7 +181,10 @@ pub const Plan = struct {
         };
         const selected = try alloc.alloc(u32, value.projection.len);
         for (selected, value.projection) |*out, in| out.* = in;
-        return .{ .collations = try alloc.dupe(f.TableSchema.Collation, value.collations.columns[0..value.schema.structure.len]), .projection = selected, .output_names = names, .limit = if (value.limit) |v| try decimal(alloc, v) else null, .aggregate = value.aggregate, .predicate = try Predicate.fromNative(alloc, value.predicate, value.schema) };
+        var scalar_bytes: [f.LogicalPlanCodec.max_bytes]u8 = undefined;
+        var writer: std.Io.Writer = .fixed(&scalar_bytes);
+        try value.scalars.write(&writer);
+        return .{ .scalar_program = try hex(alloc, writer.buffered()), .collations = try alloc.dupe(f.TableSchema.Collation, value.collations.columns[0..value.schema.structure.len]), .projection = selected, .output_names = names, .limit = if (value.limit) |v| try decimal(alloc, v) else null, .aggregate = value.aggregate, .predicate = try Predicate.fromNative(alloc, value.predicate, value.schema) };
     }
 };
 

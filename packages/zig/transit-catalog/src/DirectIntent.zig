@@ -30,6 +30,7 @@ pub const NamespaceChange = struct {
     }
 };
 pub const Reference = union(enum) {
+    history: c.DirectHistory.Intent,
     branch: c.DirectBranch.Intent,
     transaction: c.DirectTransaction.Reference,
     transaction_call: c.DirectTransactionCall,
@@ -57,7 +58,7 @@ pub const Reference = union(enum) {
     }
     pub fn identity(self: Reference) p.DataLifecycle.Operation {
         return switch (self) {
-            inline .branch, .transaction, .transaction_call => |value| value.identity(),
+            inline .history, .branch, .transaction, .transaction_call => |value| value.identity(),
             .external => |value| value.identity(),
             .table => |value| value.binding.identity,
             .log => |value| value.binding.identity,
@@ -76,6 +77,7 @@ pub const Reference = union(enum) {
     }
     pub fn digest(self: Reference) ![32]u8 {
         return switch (self) {
+            .history => |value| value.digest(),
             .branch => |value| value.digest(),
             .transaction, .transaction_call => blk: {
                 var bytes: [max_bytes]u8 = undefined;
@@ -116,6 +118,7 @@ pub const Reference = union(enum) {
         if (!std.meta.eql(self, other)) return error.DataIdentityConflict;
     }
     pub fn admit(self: Reference, client: c.DirectTableClient) !std.json.Parsed(w.Response) {
+        if (self == .history) return error.HistoricalOperationRequired;
         if (self == .branch) return error.BranchOperationRequired;
         if (self == .transaction or self == .transaction_call) return error.TransactionOperationRequired;
         if (self == .external) return error.ExternalOperationOwnerRequired;
@@ -133,6 +136,7 @@ pub const Reference = union(enum) {
         try self.validate();
         if (!std.meta.eql(self.connection(), client.connection)) return error.CatalogIdentityConflict;
         return switch (self) {
+            .history => error.HistoricalOperationRequired,
             .branch => error.BranchOperationRequired,
             .transaction, .transaction_call => error.TransactionOperationRequired,
             .external => error.ExternalOperationOwnerRequired,

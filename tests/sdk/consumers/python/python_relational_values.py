@@ -3,6 +3,7 @@ import asyncio
 import copy
 from dataclasses import FrozenInstanceError
 import json
+import sys
 from pathlib import Path
 import threading
 from types import SimpleNamespace
@@ -13,12 +14,54 @@ from transit_station import relational as r
 from transit_station.catalog_values import DEFINITION
 from transit_station import catalog_values as v
 from transit_client import ResourceRef
+from transit_station import logical_values as logical
+
+COMPANION_FIXTURE = Path(sys.argv.pop(1))
 
 REF = dict(definition=DEFINITION, id='01'*16, plan='02'*32, basis='03'*32)
 PAGE = dict(reference=REF, ordinal=str((1 << 64)-1), row=dict(identity=dict(group=[None, {'signed': str(-(1 << 63))}, {'utf8': 'A\0é '}, {'utf8': ''}]), cells=[dict(value=dict(atom=dict(signed=str(-(1 << 63))))), dict(value=dict(atom=dict(unsigned=str((1 << 64)-1)))), {'null': {}}, {'value': {'atom': {'utf8': 'A\0é '}}}, {'value': {'atom': {'utf8': ''}}}]), complete_coverage=False)
 
 
 class Values(unittest.TestCase):
+    def test_semantic_descriptors_preserve_zero_digest_bytes_and_full_width_units(self):
+        digest = bytearray(range(32))
+        raw = bytearray(b'TZif\x00\xff')
+        rules = v.TimezoneRules('fixture', digest, 'Etc/UTC', raw)
+        semantics = v.ColumnSemantics(timezone=rules)
+        digest[:] = bytes(32)
+        raw[:] = bytes(6)
+        self.assertEqual(v._semantics(semantics._wire()), semantics)
+        self.assertEqual(rules.digest, bytes(range(32)))
+        self.assertEqual(rules.tzif, b'TZif\x00\xff')
+        spatial = v.ColumnSemantics(spatial=v.SpatialSemantics(v.DEFINITION, 0, bytes(range(16)), 'xy', 'planar', (1 << 64)-1, 'none', None))
+        self.assertEqual(v._semantics(spatial._wire()), spatial)
+        bad = spatial._wire()
+        bad['spatial']['axes'] = 'invented'
+        with self.assertRaises(ValueError): v._semantics(bad)
+        for change in ('missing_definition', 'foreign_definition', 'frame', 'precision', 'unit'):
+            bad = spatial._wire()
+            if change == 'missing_definition': del bad['spatial']['definition']
+            elif change == 'foreign_definition': bad['spatial']['definition'] = '0'*64
+            elif change == 'frame': bad['spatial']['local_frame'] = [0]*15
+            elif change == 'precision': bad['spatial']['precision'] = {'binary_grid': 101}
+            else: bad['spatial']['linear_unit_nm'] = '01'
+            with self.assertRaises(ValueError): v._semantics(bad)
+        with self.assertRaises(ValueError): v._semantics(dict(rounding=None, metric=None, timezone=None))
+
+    def test_companion_values_preserve_independent_descriptors_and_bits(self):
+        fixtures = json.loads(COMPANION_FIXTURE.read_text())
+        for case in fixtures['cases']:
+            if case['error'] is not None:
+                continue  # Semantic admission belongs to Zig.
+            with self.subTest(case=case['name']):
+                self.assertEqual(logical.type_wire(logical.type_from_wire(case['field']['type'])), case['field']['type'])
+                native = logical.cell_from_wire(case['cell'])
+                self.assertEqual(logical.cell_wire(native), case['cell'])
+        mutable = bytearray(b'\x00\x00\xa0\x3f')
+        vector = logical.VectorValue(mutable)
+        mutable[:] = b'\0' * 4
+        self.assertEqual(vector.data, b'\x00\x00\xa0\x3f')
+
     def test_references_require_definition_and_own_identity(self):
         ref = r.Reference.restore(json.dumps(REF))
         self.assertEqual(json.loads(ref.save()), REF)

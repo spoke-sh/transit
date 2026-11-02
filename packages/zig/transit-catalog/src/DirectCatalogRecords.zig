@@ -67,8 +67,13 @@ pub const Entry = struct {
     resource: ?u64,
     /// Latest Stream/Queue lifecycle record in this same control log.
     log: ?u64,
+    descriptor: ?u64,
     pub fn validate(self: Entry, config: Configuration) !void {
         if (self.object == 0) return error.InvalidDirectCatalogEntry;
+        if (self.descriptor) |at| {
+            if (at == 0 or self.partition != 0 or self.seed != null or self.resource != null or self.log != null) return error.InvalidDirectCatalogEntry;
+            return;
+        }
         if (self.log) |at| {
             if (at == 0 or self.resource != null or self.seed != null or self.partition <= config.partition) return error.InvalidDirectCatalogEntry;
             return;
@@ -124,11 +129,14 @@ pub const Root = struct {
     branches: ?pages.Reference,
     branch_names: ?pages.Reference,
     branch_owners: ?pages.Reference,
+    /// Original transaction owner -> pending historical acquisition token.
+    history_transactions: ?pages.Reference,
+    descriptor_definitions: ?pages.Reference,
     queue_transfer_sources: ?pages.Reference,
     queue_transfer_pending: ?pages.Reference,
     pub fn empty(config: Configuration) !Root {
         try config.validate();
-        return .{ .configuration = config, .next_lsn = 0, .next_partition = config.partition + 1, .initialized = false, .schemas = null, .schema_names = null, .namespace_claims = null, .namespace_pending = null, .objects = null, .names = null, .operations = null, .pending = null, .native_allocations = null, .dependents = null, .dependencies = null, .client_tokens = null, .client_token_count = 0, .client_operations = null, .client_pending = null, .client_accounts = null, .branches = null, .branch_names = null, .branch_owners = null, .queue_transfer_sources = null, .queue_transfer_pending = null };
+        return .{ .configuration = config, .next_lsn = 0, .next_partition = config.partition + 1, .initialized = false, .schemas = null, .schema_names = null, .namespace_claims = null, .namespace_pending = null, .objects = null, .names = null, .operations = null, .pending = null, .native_allocations = null, .dependents = null, .dependencies = null, .client_tokens = null, .client_token_count = 0, .client_operations = null, .client_pending = null, .client_accounts = null, .branches = null, .branch_names = null, .branch_owners = null, .history_transactions = null, .descriptor_definitions = null, .queue_transfer_sources = null, .queue_transfer_pending = null };
     }
     pub fn validate(self: Root) !void {
         try self.configuration.validate();
@@ -141,8 +149,16 @@ pub const Root = struct {
 };
 
 pub const Phase = enum { admitted, ready, rejected, cancelled, settled };
-pub const Reason = enum { none, name_conflict, object_conflict, stale_definition, stale_data, dependency, constraint };
+pub const Reason = enum { none, name_conflict, object_conflict, stale_definition, stale_data, dependency, constraint, rewrite_required, work_limit };
+pub const DependencyChange = struct { edge: c.DirectDependency.Edge, remove: bool };
+pub const Closure = struct { phase: Phase, reason: Reason };
 pub const Operation = struct {
+    requires_settlement: bool = false,
+    dependency_steps: u32 = 0,
+    protected_columns: u16 = 0,
+    dependency_change: ?DependencyChange = null,
+    closing: ?Closure = null,
+    cleanup_after: ?pages.Key = null,
     binding: d.Binding,
     intent: d.Content,
     phase: Phase,
@@ -153,6 +169,19 @@ pub const Operation = struct {
     pub fn validate(self: Operation, config: Configuration) !void {
         try self.binding.validate();
         try self.intent.validate();
+        if (self.protected_columns > c.fuze.TableConstraints.max_constraints_per_table * c.fuze.TableSchema.max_columns or self.protected_columns > self.dependency_steps) return error.InvalidDirectCatalogOperation;
+        if (self.dependency_change) |change| {
+            try change.edge.validate();
+            if (self.dependency_steps == 0 or change.edge.foreign_key == null or !std.meta.eql(change.edge.dependent.interpretation.object, self.binding.target)) return error.InvalidDirectCatalogOperation;
+            if (change.remove != (self.closing != null)) return error.InvalidDirectCatalogOperation;
+        }
+        if (self.cleanup_after) |after| {
+            after.validate() catch return error.InvalidDirectCatalogOperation;
+            if (after.len != 64 or !std.mem.startsWith(u8, after.slice(), &try c.DirectDependency.dependentKey(self.binding.target))) return error.InvalidDirectCatalogOperation;
+        }
+        if (self.closing) |close| {
+            if (close.phase == .admitted or close.phase == .ready or (close.phase == .rejected) != (close.reason != .none)) return error.InvalidDirectCatalogOperation;
+        } else if (self.cleanup_after != null) return error.InvalidDirectCatalogOperation;
         if (!std.meta.eql(self.binding.identity.scope, config.scope) or self.binding.target.branch != config.branch or self.intent.bytes > max_intent_bytes or
             (self.phase == .rejected) != (self.reason != .none) or (self.phase == .ready and self.binding.action != .create)) return error.InvalidDirectCatalogOperation;
         switch (self.binding.action) {
@@ -166,11 +195,15 @@ pub const Record = struct {
     definition: p.Growth.Definition,
     previous: [32]u8,
     root: Root,
-    action: union(enum) { initialize, operation: Operation, assertion: c.NameAssertion.Outcome, namespace: c.DirectNamespace.Operation, dependency: c.DirectDependency.Outcome, resource: c.DirectResource.Operation, log: c.DirectLog.Operation, client_token: c.DirectClientToken.Progress },
+    action: union(enum) { initialize, operation: Operation, assertion: c.NameAssertion.Outcome, namespace: c.DirectNamespace.Operation, dependency: c.DirectDependency.Outcome, resource: c.DirectResource.Operation, log: c.DirectLog.Operation, descriptor: c.DirectDefinition.Operation, client_token: c.DirectClientToken.Progress },
     pub fn validate(self: Record, position: u64) !void {
         try self.root.validate();
         if (self.root.next_lsn != try std.math.add(u64, position, 1) or !self.root.initialized) return error.InvalidDirectCatalogHistory;
         switch (self.action) {
+            .descriptor => |value| {
+                try value.validate();
+                if (position == 0 or !std.meta.eql(value.binding.target.scope, self.root.configuration.scope) or value.binding.target.branch != self.root.configuration.branch or value.position.partition != self.root.configuration.partition or value.position.next_lsn != self.root.next_lsn) return error.InvalidDirectCatalogHistory;
+            },
             .log => |value| {
                 try value.validate();
                 if (position == 0 or !std.meta.eql(value.binding.target.scope, self.root.configuration.scope) or

@@ -78,9 +78,11 @@ static class Program
     }
     static async Task Codecs(JsonNode config) {
         var collations=JsonNode.Parse(File.ReadAllText(Text(config,"collations")))!.AsArray();
-        for(int i=0;i<4;i++) {
+        C.Collation[] profiles=[C.Collation.None,C.Collation.Utf8Binary,C.Collation.AsciiCi,C.Collation.EbcdicCp037,C.Collation.Ebcdic_037Pad,C.Collation.Ebcdic_1047Nopad];
+        Check(collations.Count==profiles.Length);
+        for(int i=0;i<profiles.Length;i++) {
             var collated=TableSource([new C.Column(1,"id",new L.Scalar(L.ScalarKind.Int64),nullable:false),
-                new C.Column(2,"label",new L.Scalar(L.ScalarKind.Utf8),collation:(C.Collation)i)]);
+                new C.Column(2,"label",new L.Scalar(L.ScalarKind.Utf8),collation:profiles[i])]);
             var prepared=await Q.Bundle.PrepareAsync(collated,new([1]),new(1000,500,1048576));
             Check(Hex(prepared.Bytes)==Text(collations[i]!,"wire_hex"));
         }

@@ -43,6 +43,15 @@ completion. A previously received terminal survives truncation, but its count
 does not imply that the window contains every row. The caller can continue
 streaming or close the result.
 
+Historical data observations carry the selected catalog snapshot and complete
+source vector. Historical metadata observations carry the catalog identity
+without inventing a row-data snapshot. Validation checks scope, definitions,
+source count and consistency; independent selections cannot claim an atomic
+transaction cut. These descriptors attribute results but do not acquire or
+extend retention. Explicit schema projections retain original source identity
+and schema while reporting accepted target identity, schema and mapping policy
+separately. Current disclosure rights remain the source owner's duty.
+
 Interactive sources may implement `Source.validate_disclosure`. Calling
 `ResultSet.holdDisclosure` retains the last source scope after exhaustion until
 explicit close/deinit or source lease expiry. `validateDisclosure` checks current

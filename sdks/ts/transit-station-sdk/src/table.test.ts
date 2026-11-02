@@ -155,6 +155,16 @@ test("general handler plans freeze arbitrary projections and exact predicates", 
     128,
   );
   assert.throws(() => new QueryPlan({ projection: [128] }));
+  assert.deepEqual(
+    new QueryPlan({ projection: [128], scalarProgram: new Uint8Array([1, 1, 127]) }).wire()
+      .projection,
+    [128],
+  );
+  assert.throws(
+    () => new QueryPlan({ projection: [129], scalarProgram: new Uint8Array([1, 1, 127]) }),
+  );
+  for (const scalarProgram of [new Uint8Array(), new Uint8Array([33])])
+    assert.throws(() => new QueryPlan({ projection: [0], scalarProgram }));
 });
 
 test("row identity ownership and mutation operation budgets are explicit", () => {

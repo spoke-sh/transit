@@ -1396,3 +1396,48 @@ automatic fallback loading, execute an obsolete decoder or fetch historical code
 with ambient authority. Tests need rename, drop/recreate, changed views, defaults,
 type conversion failures, moved branch heads and current revocation. These are
 proposed cases, not additions to the executed finite-query evidence.
+
+
+## Resolved finite operator traits
+
+Logical, relational and Table mutation plans expose `traits()` through the shared
+`OperatorTraits` owner. Public plan validation derives that same summary; metadata
+EXPLAIN obtains it from the bound plan. Traits describe determinism, fallibility,
+five-state rules, declared collations, lifetime and data-work bounds. Unknown
+resident or CPU work remains unknown rather than being inferred from an expression
+count. EXPLAIN's own summary has zero source pins, segment reads and durable work.
+
+CHECK shape validation derives a deterministic, fallible, row-local summary:
+TRUE/NULL pass, and FALSE/missing/type_error/conflict refuse the candidate.
+Comparison collations come from referenced columns; repeated references count a
+column once. CHECK itself has no read, mutation, capture or dispatch effects.
+Table DML composes those traits with its own read/mutation effects and atomic
+publication lifetime. DELETE does not acquire CHECK's candidate-row rule.
+The typed mutation summary does not expand the executable SQL EXPLAIN profile.
+
+`TableSchemaProjection.init` retains a summary beside the validated stable-column
+mapping and frozen ADD-time cells. Mapping has no storage or retention effects;
+its enclosing scan owns those. It preserves admitted cell states and may fail
+physical/destination validation instead of converting errors to NULL. Its
+one-row output bound describes the mapping, not total query coverage. Default
+changes after ADD do not replace the mapping's recorded initial values.
+
+## Accepted catalog views
+
+The implemented finite view profile binds one exact Table definition to an
+accepted projection and predicate. Source text is provenance. Historical
+preparation resolves the view and Table from the selected catalog before
+compiling the outer query. Current view and source permissions remain separate
+disclosure checks. [The exact contract](../../../contracts/CATALOG_DEFINITIONS_V1.md)
+defines publication, replacement and unsupported operators.
+
+[`DirectView`](../../../packages/zig/transit-query-direct/src/DirectView.zig)
+remaps outer column and scalar inputs to the accepted source ordinals. The scan
+evaluates the view predicate first: combining it with an eager outer predicate
+could expose an error in a row the view excluded. Filtered scans end borrowed
+morsels before crossing a page boundary, keeping earlier row slices valid until
+their consumer finishes. This sacrifices batching opportunities; it makes no
+throughput claim. The package test checks independent ordinals, output names,
+aggregate/scalar mapping and the excluded-error case. Installed replacement,
+restart and revocation schedules live in the
+[SQL history driver](../../../tests/interfaces/sql_sessions/history.py).

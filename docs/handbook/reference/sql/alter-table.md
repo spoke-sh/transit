@@ -19,8 +19,9 @@ ALTER TABLE people RENAME TO contacts;
 One statement contains one action. SET DATA TYPE is also accepted for type
 changes. New columns receive new stable identities. Rename preserves identity;
 dropped identities are never reused. Dropping the last column, dropping a key
-column or making a key column nullable rejects. General constraint addition or
-removal and USING expressions are unsupported.
+column or making a key column nullable rejects. CHECK and explicitly staged
+foreign keys support `ADD [CONSTRAINT name]`, `DROP CONSTRAINT name [RESTRICT]`
+and (for CHECK) `VALIDATE CONSTRAINT name`. USING expressions reject.
 
 Table and non-key column renames, default changes, supported column drops and
 nullable or constant-default additions publish metadata without rewriting rows.
@@ -32,13 +33,12 @@ value. Adding a required column
 without a default can succeed for an empty Table; it fails if any existing row
 cannot acquire a valid value.
 
-Nullability and character-limit tightening validate every existing row. Physical
-layout changes rewrite rows by stable column identity. Admitted type changes use
-exact checked integer/decimal, integer-to-float and float-width conversions;
-overflow and inexact rounding reject. Different text, temporal and nested
-descriptors do not acquire implicit conversions. Key type changes rebuild the
-index and revalidate uniqueness. Key column renames also use the complete rewrite
-path. Later flushes and bounded compaction normalize selected old rows while
+Nullability and character-limit tightening and CHECK validation scan existing
+rows under explicit row/byte budgets. Exceeding a budget rejects the change.
+Physical type, codec, collation and key-layout changes on populated Tables reject
+with a rewrite-required outcome pending the online phased rewrite runtime.
+The pure type-conversion helpers do not establish that runtime. Key column
+renames preserve identity and need no rewrite. Later flushes and bounded compaction normalize selected old rows while
 retained readers keep their original interpretation.
 
 The owner freezes the source/schema, fences conflicting DDL/DML and stages

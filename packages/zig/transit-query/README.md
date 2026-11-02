@@ -272,6 +272,16 @@ number of consumed rows. Its
 keeps retention, requester-policy mapping and durable result publication with the
 host. `UnifiedCapture` records the complete direct source cut and `UnifiedResult` checks
 current rights before returning owned logical Arrow rows.
+
+Historical Table descriptors additionally carry the published catalog selector,
+original accepted frontier and pin commitment, plus an optional exact accepted
+projection target. `TableSource.fromHistoricalProjected` owns the decoded schema;
+`UnifiedClient.authorizeCurrent` recognizes a historical descriptor and signs an
+exact copy grant under the supplied new operation. Save that authorized bundle
+before upload. Recovery keeps the original descriptor after live DDL or release
+of the independently retained catalog. See [historical SQL](../../../docs/handbook/reference/sql/as-of.md)
+for release-before-copy behavior and result attribution.
+
 `UnifiedRecords.Policy` has explicit declaration and catalog targets. A catalog
 target constrains the authenticated requester's original principal, scope and
 owner. The immutable bundle carries a separately signed proof bound to the

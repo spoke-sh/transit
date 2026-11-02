@@ -416,7 +416,7 @@ test "direct dependency graph response rejects substituted objects and mixed obs
     request.proof.claim.context = try w.Request.context(request.input(), t.allocator);
     request.proof = try p.Authorization.Proof.sign(request.proof.claim, try p.Ed25519.KeyPair.generateDeterministic(@splat(9)));
     const position: p.DataLifecycle.Position = .{ .partition = 1, .next_lsn = 10 };
-    const cursor: c.DirectDependency.Cursor = .{ .selection = selection, .authority = .dependent, .position = position, .after = try edge.digest() };
+    const cursor: c.DirectDependency.Cursor = .{ .selection = selection, .authority = .dependent, .position = position, .after = try edge.forwardKey() };
     const page: c.DirectDependency.Page = .{ .entries = .{ edge, null, null, null }, .next = cursor, .position = position };
     const response: w.Response = .{ .definition = p.Growth.current_definition, .context = request.proof.claim.context, .policy_revision = 1, .subject = .{ .principal = 4, .login_role = 4, .role = 4, .credential_epoch = 1, .audience = 5, .context = request.proof.claim.context }, .result = .{ .dependencies = page } };
     try c.DirectTableClient.validateResponse(t.allocator, request, response);

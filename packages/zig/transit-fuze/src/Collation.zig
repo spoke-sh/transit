@@ -26,6 +26,8 @@ pub const Profile = enum(u8) {
             .ascii_ci => .ascii_ci,
             .ebcdic_cp037 => .ebcdic_cp037,
             .icu_root => .icu_root,
+            .ebcdic_037_pad => .ebcdic_037_pad,
+            .ebcdic_1047_nopad => .ebcdic_1047_nopad,
         };
     }
 };
@@ -44,8 +46,7 @@ pub fn validateProfile(profile: Profile) !void {
     if (profile == .icu_root) return error.UnsupportedColumnCollation;
 }
 pub fn validateBytes(bytes: []const u8, collation: Collation) !void {
-    try validate(collation);
-    if (collation == .ebcdic_cp037) try Ebcdic.validate(bytes);
+    try validateBytesProfile(bytes, Profile.fromCollation(collation));
 }
 pub fn validateBytesProfile(bytes: []const u8, profile: Profile) !void {
     try validateProfile(profile);

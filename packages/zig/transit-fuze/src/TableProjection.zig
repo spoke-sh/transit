@@ -45,7 +45,12 @@ pub fn fromPlan(schema: table.Schema, plan: logical.Plan) !Self {
         !std.meta.eql(plan.collations, collations.fromTable(schema))) return error.SourceChanged;
     var needed: [table.max_columns]bool = @splat(false);
     for (schema.primary_key) |id| needed[try schema.index(id)] = true;
-    for (plan.projection) |index| needed[index] = true;
+    for (plan.projection) |index| if (index < schema.columns.len) {
+        needed[index] = true;
+    };
+    for (plan.scalars.instructions) |instruction| if (instruction == .input) {
+        needed[instruction.input] = true;
+    };
     switch (plan.predicate) {
         .program => |program| for (program.instructions) |instruction| {
             if (instruction == .atom) needAtom(&needed, instruction.atom);
@@ -95,6 +100,9 @@ pub fn projectedSchema(self: *const Self, original: table.Schema, output: *[tabl
     for (self.columns(), output[0..self.len]) |index, *column| column.* = original.columns[index];
     var result = original;
     result.columns = output[0..self.len];
+    // Integrity belongs to the accepted full-row declaration. A private read
+    // representation may omit its inputs and never admits writes itself.
+    result.integrity = .{};
     try result.validate();
     return result;
 }
@@ -103,6 +111,7 @@ pub const Workspace = struct {
     columns: [table.max_columns]table.Column = undefined,
     fields: [table.max_columns]types.Field = undefined,
     outputs: [table.max_columns]u8 = undefined,
+    scalars: [logical.Scalar.max_instructions]logical.Scalar.Instruction = undefined,
     instructions: [logical.Program.max_instructions]logical.Program.Instruction = undefined,
 };
 
@@ -115,8 +124,13 @@ pub fn remap(self: *const Self, original: table.Schema, plan: logical.Plan, work
     var result = plan;
     result.schema = try projected.rowType(&work.fields);
     result.collations = collations.fromTable(projected);
-    for (plan.projection, work.outputs[0..plan.projection.len]) |index, *out| out.* = try self.ordinal(index);
+    for (plan.projection, work.outputs[0..plan.projection.len]) |index, *out| out.* = if (index < original.columns.len) try self.ordinal(index) else @intCast(@as(usize, self.len) + index - original.columns.len);
     result.projection = work.outputs[0..plan.projection.len];
+    for (plan.scalars.instructions, work.scalars[0..plan.scalars.instructions.len]) |instruction, *out| out.* = switch (instruction) {
+        .input => |index| .{ .input = try self.ordinal(index) },
+        else => instruction,
+    };
+    result.scalars.instructions = work.scalars[0..plan.scalars.instructions.len];
     result.predicate = switch (plan.predicate) {
         .program => |program| blk: {
             for (program.instructions, work.instructions[0..program.instructions.len]) |instruction, *out| out.* = switch (instruction) {
@@ -180,4 +194,40 @@ test "Table projection retains keys predicate inputs collation and named duplica
     try t.expectError(error.InvalidProjection, init(original, &.{ 2, 4 }));
     try t.expectError(error.InvalidProjection, init(original, &.{ 0, 4, 2 }));
     try t.expectError(error.InvalidProjection, init(original, &.{ 0, 0, 2 }));
+}
+
+test "Table projection reads a subset without evaluating omitted integrity inputs" {
+    const t = std.testing;
+    const original: table.Schema = .{ .object = 7, .revision = 1, .next_column = 4, .primary_key = &.{1}, .columns = &.{
+        .{ .id = 1, .name = "id", .type = .int64, .nullable = false },
+        .{ .id = 2, .name = "amount", .type = .int64 },
+        .{ .id = 3, .name = "parent_id", .type = .int64 },
+    }, .integrity = .{ .next_id = 3, .checks = &.{.{
+        .id = 1,
+        .name = "positive",
+        .atoms = &.{.{ .compare_literal = .{ .column = 2, .op = .gte, .literal = .{ .signed = 0 } } }},
+    }}, .foreign_keys = &.{.{
+        .id = 2,
+        .name = "parent",
+        .local_columns = &.{3},
+        .target_object = 8,
+        .target_revision = 1,
+        .target_definition = .{ .object = .{ .scope = .{ .realm = 1, .resource = 2, .catalog = 3 }, .branch = 1, .object = 8 }, .revision = 1, .digest = @splat(4) },
+        .target_columns = &.{1},
+    }} } };
+    var fields: [table.max_columns]types.Field = undefined;
+    const plan: logical.Plan = .{ .schema = try original.rowType(&fields), .source_basis = @splat(17), .collations = collations.fromTable(original), .projection = &.{0}, .limit = 10, .predicate = .all };
+    const selected = try fromPlan(original, plan);
+    try t.expectEqualSlices(u8, &.{0}, selected.columns());
+    var work: Workspace = .{};
+    const mapped = try selected.remap(original, plan, &work);
+    var failure: ?logical.Plan.PredicateFailure = null;
+    const id: types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 1 } } };
+    try t.expect(try mapped.matches(&.{id}, &failure));
+    const projected = try selected.projectedSchema(original, &work.columns);
+    try t.expect(projected.integrity.empty());
+    // The accepted declaration still rejects the same invalid full-row write.
+    const negative: types.Values.Cell = .{ .value = .{ .atom = .{ .signed = -1 } } };
+    try t.expectError(error.CheckConstraintViolation, original.integrity.enforce(original, &.{ id, negative, id }, null));
+    try t.expectEqual(@as(usize, 1), original.integrity.foreign_keys.len);
 }

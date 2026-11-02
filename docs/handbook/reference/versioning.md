@@ -108,8 +108,33 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`22ddc953c1268d7f6a785c40860c62c727050223f8916e052f626b434974cb10`.
-It binds direct KV, mixed state/log transactions and frozen Stream/Queue
+`7c81d0916913d774febe2bec8f739f95a194f3ca88056c9f1214c0f77f22fa89`.
+It adds canonical range/multirange and unboxed vector values, their logical
+Arrow layouts, and mandatory neutral column semantics. Schema/layout identities
+bind decimal rounding, vector metrics, actual pinned TZif artifacts and reserved
+spatial metadata. Old logical definitions and the former type-error kind IDs
+reject at their enclosing definition boundary. It binds historical catalog acquisition and release progress, immutable catalog
+selectors, and catalog-aware read fingerprints and SQL observation provenance.
+It persists CHECK and staged foreign-key integrity, exact parent definitions,
+column dependency indices and original-operation cleanup progress, including the
+`finalizing` DDL observation. It also admits CP037 PAD SPACE and CP1047 NO PAD as distinct Table collations across
+schemas, SQL, query plans and language bindings. The Table schema definition is
+`transit.table.schema.v1.2026-11-01.spatial-reference`; earlier schemas and shared definitions
+reject before execution. Existing CP037 NO PAD comparison is unchanged.
+
+Catalog roots also require the accepted interpretation index. Historical
+directories and acquisition progress count metadata definitions separately from
+Table pins; retained views, graph mappings and foreign decoders bind exact
+artifacts and dependencies. Earlier roots and host descriptions cannot synthesize
+those fields. Retained branch records use `TBR1`, separate from browser `BRC1`;
+the former shared record tag is rejected under this definition.
+
+It also includes managed Table computation declarations and controls, offline
+Document Profiles and compact string execution. Managed dependency records have
+a distinct tag from Table constraints and versioned catalog interpretations.
+Both former branch definitions reject before stored work is interpreted.
+
+It also binds direct KV, mixed state/log transactions and frozen Stream/Queue
 declaration intents together with retained Table branches and installed worker
 rotation. Catalog roots require branch identity, name and retention-owner
 directories; typed branch operations share the original client-token decision
