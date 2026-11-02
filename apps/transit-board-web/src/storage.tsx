@@ -17,14 +17,15 @@ import { ReadStatus } from "./read-status";
 import { InspectorPanel, useInspector } from "./workbench-layout";
 import { positionPercent, type StorageFact } from "./storage-model";
 import "./storage.css";
+import { bytes, byteAllowance, formatBytes } from "./quantities";
+import { ByteSize, ExactBytes } from "./quantity";
 
-const bytes = (value: number | null | undefined) =>
-  value == null ? "Unavailable" : `${value.toLocaleString()} bytes`;
 const quota = (used: number | null | undefined, limit: number | null | undefined) =>
   used != null && limit != null && limit > 0
     ? {
-        percent: positionPercent(String(used), String(limit)),
-        scale: `${bytes(limit)} configured limit`,
+        percent: byteAllowance(used, limit).percent,
+        scale: byteAllowance(used, limit).text,
+        byteLimit: limit,
       }
     : {};
 
@@ -55,7 +56,13 @@ function Evidence({ title, basis, facts }: { title: string; basis: string; facts
                 }
               >
                 <span>{item.label}</span>
-                <strong>{item.value}</strong>
+                <strong
+                  aria-label={
+                    item.byteValue != null ? formatBytes(item.byteValue).accessible : undefined
+                  }
+                >
+                  {item.value}
+                </strong>
                 <span className="storage-track" aria-hidden="true">
                   <span style={{ width: `${item.percent}%` }} />
                 </span>
@@ -66,7 +73,7 @@ function Evidence({ title, basis, facts }: { title: string; basis: string; facts
       )}
       <div className="workbench-grid">
         <table>
-          <caption>{title} · exact values</caption>
+          <caption>{title} · observed values</caption>
           <thead>
             <tr>
               <th>Measure</th>
@@ -89,7 +96,7 @@ function Evidence({ title, basis, facts }: { title: string; basis: string; facts
                     {item.label}
                   </button>
                 </th>
-                <td>{item.value}</td>
+                <td>{item.byteValue != null ? <ByteSize value={item.byteValue} /> : item.value}</td>
               </tr>
             ))}
           </tbody>
@@ -104,11 +111,17 @@ function Evidence({ title, basis, facts }: { title: string; basis: string; facts
           dimensions={[{ id: "evidence", label: "Evidence" }]}
         >
           <p className="storage-exact">{fact.value}</p>
+          {fact.byteValue != null && <ExactBytes value={fact.byteValue} />}
+          {fact.byteLimit != null && (
+            <p>
+              <ExactBytes value={fact.byteLimit} label="Configured limit" />
+            </p>
+          )}
           <p>{fact.explanation}</p>
           {fact.scale && (
             <p>
-              Visual scale: {fact.scale}. The drawing is rounded and capped at the scale; the value
-              above is exact.
+              Visual scale: {fact.scale}. The drawing is rounded and capped at the scale. Byte
+              labels marked ≈ are rounded; exact counts remain available in the details.
             </p>
           )}
         </InspectorPanel>
@@ -152,6 +165,7 @@ export function Storage() {
                 key: "allocated",
                 label: "Accounted storage",
                 value: bytes(page.allocated_bytes),
+                byteValue: page.allocated_bytes,
                 explanation:
                   "Backend accounting, not total disk usage. An unavailable counter is not zero.",
                 ...quota(page.allocated_bytes, page.limits?.bytes),
@@ -160,6 +174,7 @@ export function Storage() {
                 key: "limit",
                 label: "Ordinary storage limit",
                 value: bytes(page.limits?.bytes),
+                byteValue: page.limits?.bytes,
                 explanation:
                   "Configured ordinary storage allowance. Capacity pressure does not authorize expiry.",
               },
@@ -167,6 +182,7 @@ export function Storage() {
                 key: "reserve",
                 label: "Storage control reserve",
                 value: bytes(page.limits?.control_bytes),
+                byteValue: page.limits?.control_bytes,
                 explanation:
                   "Separate allowance for control and recovery progress; not ordinary free capacity.",
               },
@@ -174,6 +190,7 @@ export function Storage() {
                 key: "data",
                 label: "Direct request allocation",
                 value: bytes(page.data_requests?.used),
+                byteValue: page.data_requests?.used,
                 explanation:
                   "Current accounted direct request allocations. Excludes process stacks, sockets and filesystem caches.",
                 ...quota(page.data_requests?.used, page.data_requests?.limit),
@@ -182,12 +199,14 @@ export function Storage() {
                 key: "data-peak",
                 label: "Direct request peak",
                 value: bytes(page.data_requests?.peak),
+                byteValue: page.data_requests?.peak,
                 explanation: "Peak request allocation since the owner started; not a time series.",
               },
               {
                 key: "control",
                 label: "Recovery request allocation",
                 value: bytes(page.control_requests?.used),
+                byteValue: page.control_requests?.used,
                 explanation:
                   "Current accounted recovery request allocations, independent of direct requests.",
                 ...quota(page.control_requests?.used, page.control_requests?.limit),
@@ -196,6 +215,7 @@ export function Storage() {
                 key: "control-peak",
                 label: "Recovery request peak",
                 value: bytes(page.control_requests?.peak),
+                byteValue: page.control_requests?.peak,
                 explanation: "Peak recovery request allocation since the owner started.",
               },
             ]}
@@ -235,6 +255,7 @@ export function Storage() {
                 key: "budget",
                 label: "Maintenance allocation limit",
                 value: bytes(page.settings?.resident_bytes),
+                byteValue: page.settings?.resident_bytes,
                 explanation: "Configured resident budget for maintenance work.",
               },
             ]}
@@ -308,11 +329,18 @@ export function TableStorageView({ page }: { page: CatalogStorage }) {
             "Current logical row count at this storage observation, independent of any SQL result.",
         },
         {
-          key: "pending",
-          label: "Pending rows / bytes",
-          value: `${value.pending_rows} / ${value.pending_bytes} · ${value.pending_complete ? "complete backlog" : "bounded prefix"}`,
+          key: "pending-rows",
+          label: "Pending rows",
+          value: `${value.pending_rows} rows · ${value.pending_complete ? "complete backlog" : "bounded prefix (lower bound)"}`,
           explanation:
             "At most 1,024 pending records are inspected. A bounded prefix is not a total backlog or a completion estimate.",
+        },
+        {
+          key: "pending-bytes",
+          label: "Pending data size",
+          value: bytes(value.pending_bytes),
+          byteValue: value.pending_bytes,
+          explanation: `${value.pending_complete ? "Complete backlog" : "Bounded prefix (lower bound)"}. At most 1,024 pending records are inspected. No total size or completion time is inferred.`,
         },
         {
           key: "oldest",

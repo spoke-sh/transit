@@ -1,3 +1,4 @@
+import { ByteSize } from "./quantity";
 import { Link } from "@tanstack/react-router";
 import type { StateResponse } from "@transit/board-client";
 import { present, text } from "./components";
@@ -31,7 +32,7 @@ function Declaration({ lens }: { lens: Lens }) {
         </p>
         {d.table.pending !== null && <p>Pending operation {text(d.table.pending)}</p>}
         <p>
-          Schema record {text(d.table.schema.record)} · {d.table.schema.bytes} bytes
+          Schema record {text(d.table.schema.record)} · <ByteSize value={d.table.schema.bytes} />
         </p>
         <p>
           Schema publication digest:{" "}

@@ -1,3 +1,4 @@
+import { ByteSize } from "./quantity";
 import { CaptureFailure } from "./capture-failure";
 import { httpMetadata } from "@transit/board-client";
 import { useMetadata } from "./use-metadata";
@@ -34,7 +35,8 @@ export function HttpMetadata({ resource, exchange }: { resource: number; exchang
               <dd>{policy.timeout_ms}</dd>
               <dt>Request / response byte limits</dt>
               <dd>
-                {policy.request_bytes} / {policy.response_bytes}
+                <ByteSize value={policy.request_bytes} /> /{" "}
+                <ByteSize value={policy.response_bytes} />
               </dd>
               <dt>Trust bundle digest</dt>
               <dd>
@@ -76,7 +78,8 @@ export function HttpMetadata({ resource, exchange }: { resource: number; exchang
               </dd>
               <dt>Request / response body byte counts</dt>
               <dd>
-                {terminal.completion.request_bytes} / {terminal.completion.response_bytes}
+                <ByteSize value={terminal.completion.request_bytes} /> /{" "}
+                <ByteSize value={terminal.completion.response_bytes} />
               </dd>
             </dl>
           ) : (

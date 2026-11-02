@@ -1,3 +1,4 @@
+import { ByteSize } from "./quantity";
 import { CaptureFailure } from "./capture-failure";
 import { useState } from "react";
 import { records, BoardError, type RecordsResponse } from "@transit/board-client";
@@ -73,7 +74,7 @@ function ExchangeEvidence({ detail }: { detail: Declaration }) {
           </dd>
           <dt>Captured bytes</dt>
           <dd>
-            {d.bytes} of {d.capture_bytes} allowed
+            <ByteSize value={d.bytes} /> of <ByteSize value={d.capture_bytes} /> allowed
           </dd>
           <dt>Pending segment kind / reclaimed members</dt>
           <dd>

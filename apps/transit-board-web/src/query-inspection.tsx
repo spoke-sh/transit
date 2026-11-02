@@ -1,3 +1,4 @@
+import { ByteSize } from "./quantity";
 import { logicalTypeText } from "@transit/query-client";
 import type { UnifiedQueryResponse } from "@transit/board-client";
 
@@ -51,7 +52,7 @@ export function QueryInspection({ value, changed }: { value: Inspection; changed
           </p>
           <p>
             Budgets: {explanation.budgets.pages} pages · {explanation.budgets.segments} segments ·{" "}
-            {explanation.budgets.result_bytes} result bytes.
+            <ByteSize value={explanation.budgets.result_bytes} /> result size.
           </p>
         </>
       )}

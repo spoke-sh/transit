@@ -69,12 +69,10 @@ test("Table storage links visual, grid and inspector without executing SQL", asy
   ).toHaveAttribute("aria-pressed", "true");
   const inspector = page.getByRole("complementary", { name: "Inspector" });
   await expect(inspector).toContainText("partition-local coordinate");
-  await grid.getByRole("button", { name: "Pending rows / bytes", exact: true }).click();
+  await grid.getByRole("button", { name: "Pending rows", exact: true }).click();
   await expect(inspector).toContainText("1,024");
   await page.keyboard.press("Escape");
-  await expect(
-    grid.getByRole("button", { name: "Pending rows / bytes", exact: true }),
-  ).toBeFocused();
+  await expect(grid.getByRole("button", { name: "Pending rows", exact: true })).toBeFocused();
   expect(
     (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze())
       .violations,

@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="880" viewBox="0 0 1100 880" role="img" aria-labelledby="title desc">
+<title id="title">Readable storage quantities and selected evidence</title>
+<desc id="desc">Synthetic monochrome wireframes for allocation, selected retained placement and aggregate maintenance, each paired with exact contextual evidence.</desc>
+<rect width="1100" height="880" fill="white"/>
+<g fill="none" stroke="#222" stroke-width="1.5">
+<rect x="24" y="62" width="690" height="225"/><rect x="734" y="62" width="342" height="225"/>
+<rect x="48" y="146" width="630" height="16"/><rect x="48" y="146" width="158" height="16" fill="#333"/>
+<path d="M48 205H688 M48 235H688"/>
+<rect x="24" y="330" width="690" height="265"/><rect x="734" y="330" width="342" height="265"/>
+<rect x="48" y="402" width="220" height="40"/><rect x="48" y="468" width="220" height="40"/>
+<rect x="400" y="402" width="290" height="40"/><rect x="400" y="468" width="290" height="40"/>
+<path d="M268 422H400 M268 488H400 M390 416L400 422L390 428 M390 482L400 488L390 494"/>
+<rect x="24" y="638" width="690" height="214"/><rect x="734" y="638" width="342" height="214"/>
+<rect x="48" y="700" width="160" height="40"/><path d="M48 766H688"/>
+</g>
+<g fill="#111" font-family="sans-serif" font-size="17">
+<text x="24" y="35" font-size="24">Operations · storage evidence</text><text x="754" y="35">SYNTHETIC STRUCTURE STUDY</text>
+<text x="48" y="94" font-size="21">Direct request allocation</text><text x="48" y="130">128 MiB of 512 MiB · 25%</text>
+<text x="48" y="191">Measure</text><text x="400" y="191">Observed value</text>
+<text x="48" y="226">Current allocation</text><text x="400" y="226">128 MiB [exact size]</text>
+<text x="48" y="264">Independent node observation · current permission required</text>
+<text x="754" y="94" font-size="21">Inspector · allocation</text><text x="754" y="130">128 MiB</text>
+<text x="754" y="169">Exact: 134,217,728 bytes</text><text x="754" y="205">[Copy exact bytes]</text><text x="754" y="247">Request allocations only.</text>
+<text x="48" y="362" font-size="21">Retained placement · [Physical definitions] [Rows]</text>
+<text x="65" y="428">Row identity A</text><text x="417" y="428">WAL · exact LSN / offset</text>
+<text x="65" y="494">Row identity B</text><text x="417" y="494">Segment · row / content ID</text>
+<text x="48" y="545">Selected page: 2 illustrated rows · more pages remain</text><text x="48" y="575">[Matching evidence grid] [First page] [Next page]</text>
+<text x="754" y="362" font-size="21">Inspector · row B</text><text x="754" y="405">Retained selector and source cut</text>
+<text x="754" y="445">Original row identity</text><text x="754" y="485">Segment identity and row</text>
+<text x="754" y="525">Complete content digest</text><text x="754" y="565">Payload is not inspected.</text>
+<text x="48" y="672" font-size="21">Maintenance · aggregate worker observation</text><text x="65" y="726">Waiting</text>
+<text x="240" y="726">Completed steps 12 · failed steps 0</text><text x="48" y="792">Memory budget 128 MiB · interval 1 s</text>
+<text x="48" y="827">Flush thresholds and work limits · separate Table progress</text>
+<text x="754" y="672" font-size="21">Inspector · maintenance</text><text x="754" y="713">Configured budget, not usage</text>
+<text x="754" y="753">Exact values and units</text><text x="754" y="793">Counters reset on owner restart</text><text x="754" y="827">Inspection starts no work.</text>
+</g></svg>

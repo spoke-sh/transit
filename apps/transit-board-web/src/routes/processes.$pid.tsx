@@ -1,3 +1,4 @@
+import { ByteSize } from "../quantity";
 import { createFileRoute, Link, Outlet, useMatchRoute } from "@tanstack/react-router";
 import { useObservation, useStateObservation } from "../state";
 import { QueryDiagnostic } from "../query-diagnostic";
@@ -167,7 +168,7 @@ function Resource({ pid, tab }: { pid: number; tab: Exclude<Tab, "associations">
                 Payload {payload.id} · {payload.phase}
               </h3>
               <p>
-                {payload.bytes} bytes · deletion{" "}
+                <ByteSize value={payload.bytes} /> · deletion{" "}
                 {payload.allow_delete ? "opted in" : "not authorized"} · retired{" "}
                 {payload.retired_at ?? "—"} · deleted {payload.deleted_at ?? "—"}
               </p>

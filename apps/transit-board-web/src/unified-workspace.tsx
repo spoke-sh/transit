@@ -1,3 +1,4 @@
+import { ByteSize } from "./quantity";
 import { sourcePositionText, prepareCapture } from "@transit/query-client";
 import { logicalTypeText } from "@transit/query-client";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -751,14 +752,14 @@ export function UnifiedWorkspace({
               {source.source.policy_revision}
             </p>
             <p>
-              Statement ≤ {source.sql.statement_bytes} bytes. Star or up to{" "}
+              Statement ≤ <ByteSize value={source.sql.statement_bytes} />. Star or up to{" "}
               {source.sql.named_columns} named columns; comparisons and exact cell-state tests with
               NOT, AND, OR and parentheses; rows, count, checked int64 sum. Uint64/float64 literals
               use explicit type suffixes. Writes are unsupported.
             </p>
             <p>
               Budgets: {source.budgets.pages} pages · {source.budgets.segments} segments ·{" "}
-              {source.budgets.result_bytes} result bytes.
+              <ByteSize value={source.budgets.result_bytes} /> result size.
             </p>
             <ul>
               {source.columns.map((c) => (

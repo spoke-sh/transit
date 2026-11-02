@@ -1,3 +1,4 @@
+import { ByteSize } from "./quantity";
 import type { HttpResponse } from "@transit/board-client";
 
 const explanation = {
@@ -31,7 +32,7 @@ export function CaptureFailure({ value: f }: { value: NonNullable<HttpResponse["
         </dd>
         <dt>Retained prefix</dt>
         <dd>
-          {f.segments} segments / {f.bytes} bytes
+          {f.segments} segments / <ByteSize value={f.bytes} />
         </dd>
         <dt>Native effect / attempt at capture closure</dt>
         <dd>{f.effect ? `${f.effect} / ${f.attempt}` : "Not bound"}</dd>
@@ -53,9 +54,11 @@ export function CaptureFailure({ value: f }: { value: NonNullable<HttpResponse["
             </dd>
             <dt>Requested bytes / original operation input</dt>
             <dd>
-              {f.operation === "begin" || f.operation === "append"
-                ? f.requested_bytes
-                : "Not recorded"}{" "}
+              {f.operation === "begin" || f.operation === "append" ? (
+                <ByteSize value={f.requested_bytes} />
+              ) : (
+                "Not recorded"
+              )}{" "}
               / {f.origin_input || "Not recorded"}
             </dd>
           </>
