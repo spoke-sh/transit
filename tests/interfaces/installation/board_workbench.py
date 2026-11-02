@@ -430,7 +430,8 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
         close(20)
         fixture.stop()
         receipts = fixture.record()['board_receipts']
-        retained_account = (account_dir / 'account.json').read_bytes()
+        retained_account = json.loads((account_dir / 'account.json').read_text())
+        retained_key = hashlib.sha256((account_dir / 'table.seed').read_bytes()).digest()
         fixture.start()
         # Only core/inspection readiness is expected: the local data principal
         # is deliberately revoked, so SQL acceptance must not be awaited.
@@ -442,7 +443,12 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
         restored = json.loads(fixture.request('/api/v1/deployment'))
         assert restored['features']['catalog'] and restored['features']['sql']
         request('catalog', dict(tables=dict(namespace=1, cursor=None)), 403)
-        assert (account_dir / 'account.json').read_bytes() == retained_account
+        restored_account = json.loads((account_dir / 'account.json').read_text())
+        # Restart may advance the SQL recovery fence; it must not change the
+        # original authority, provisioning receipts or credentials.
+        assert restored_account.pop('generation') >= retained_account.pop('generation')
+        assert restored_account == retained_account
+        assert hashlib.sha256((account_dir / 'table.seed').read_bytes()).digest() == retained_key
         assert fixture.record()['board_receipts'] == receipts
         fixture.stop()
         success = True
