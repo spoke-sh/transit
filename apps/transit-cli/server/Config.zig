@@ -23,7 +23,7 @@ query: Query = .{},
 sql: @import("SqlSettings.zig") = .{},
 pub const Query = struct { statement_timeout: u64 = 0, statement_timeout_ceiling: u64 = 0 };
 pub const Startup = struct { require_existing: bool = false };
-pub const Board = struct { port: u16 = 19107, public_origin: ?[]const u8 = null, workbench_file: ?[]const u8 = null };
+pub const Board = struct { port: u16 = 19107, public_origin: ?[]const u8 = null, local_data: bool = true, workbench_file: ?[]const u8 = null };
 pub const Applications = struct { port: u16, max_applications: u16 = 8, max_roles: u16 = 32 };
 pub const Ports = struct { node: u16, gateway: u16 };
 /// Null selects the role compiled into `transit`. Explicit paths select the

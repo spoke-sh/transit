@@ -1615,6 +1615,22 @@
       "items_schema": null
     },
     {
+      "name": "board.local_data",
+      "description": "Use the managed local account for catalog and read-only SQL when no explicit workbench file is selected",
+      "owner": "board",
+      "kind": "boolean",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "true",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
       "name": "board.workbench_file",
       "description": "Explicit public catalog and SQL connection configuration for Board",
       "owner": "board",
@@ -2804,6 +2820,13 @@
             "x-transit-owner": "board",
             "x-transit-change": "restart",
             "default": null
+          },
+          "local_data": {
+            "type": "boolean",
+            "description": "Use the managed local account for catalog and read-only SQL when no explicit workbench file is selected",
+            "x-transit-owner": "board",
+            "x-transit-change": "restart",
+            "default": true
           },
           "workbench_file": {
             "type": [

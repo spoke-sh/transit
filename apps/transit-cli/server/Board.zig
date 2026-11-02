@@ -5,9 +5,21 @@ const http = @import("transit_http_server");
 const Installation = @import("Installation.zig");
 const Files = @import("Files.zig");
 const Provider = @import("Provider.zig");
+const Sql = @import("Sql.zig");
+const sql_client = @import("transit_sql_client");
 
-pub fn configuration(installation: *Installation, allocator: std.mem.Allocator) ![]const u8 {
+const Workbench = struct {
+    catalog: struct { seed_file: []const u8, connection: q.Values.DirectConnection },
+    sql: sql_client.Client.Config,
+};
+pub const Configuration = struct { path: []const u8, awaiting_local: bool };
+
+pub fn configuration(installation: *Installation, allocator: std.mem.Allocator, sql: ?*const Sql) !Configuration {
     const board = installation.config.board.?;
+    // An explicit scope is complete: never fill a missing connection with the
+    // local owner, including when that explicit connection fails or is denied.
+    const use_local = board.local_data and board.workbench_file == null and installation.config.sql.native.local;
+    const local = if (use_local and sql != null) try localConnection(installation, allocator, sql.?) else null;
     const path = try installation.path("board.json");
     _ = try Files.jsonIfChanged(installation.init.io, allocator, path, .{
         .profile = "native_v1",
@@ -23,8 +35,30 @@ pub fn configuration(installation: *Installation, allocator: std.mem.Allocator) 
         .upstream_timeout_ms = 2000,
         .read_interval_ms = 100,
         .workbench_file = board.workbench_file,
+        .workbench = local,
     });
-    return path;
+    return .{ .path = path, .awaiting_local = use_local and local == null };
+}
+
+fn localConnection(installation: *Installation, allocator: std.mem.Allocator, sql: *const Sql) !?Workbench {
+    const account = sql.localAccount() orelse return null;
+    const location = sql.local orelse return null;
+    const catalog = installation.directCatalog();
+    if (account.binding.resource != catalog.scope.resource or account.binding.catalog != catalog.scope.catalog) return error.GatewayIdentityConflict;
+    return .{
+        .catalog = .{
+            .seed_file = try @import("SqlEnrollment.zig").accountPath(installation, allocator, account.name, "table.seed"),
+            .connection = try q.Values.DirectConnection.foreign(allocator, .{ .scope = catalog.scope, .branch = catalog.branch, .audience = catalog.audience, .principal = account.principals.table, .role = null }),
+        },
+        .sql = .{
+            .endpoint = try std.fmt.allocPrint(allocator, "unix:{s}", .{location.socket}),
+            .account = account.name,
+            .database = account.database,
+            .authentication = .peer,
+            .instance = installation.record.installation,
+            .request_timeout_ms = 2000,
+        },
+    };
 }
 
 /// This check uses Board's actual key, independently of the manager's root.
