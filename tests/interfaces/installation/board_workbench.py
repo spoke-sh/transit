@@ -494,8 +494,17 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
             if native_after is None:
                 break
         assert at == 20 and native_after is None
+        empty_selector, release_empty = retained_metrics(fixture, definition, native_connection,
+            account_dir / 'table.seed', operation=900033, name='empty_metrics')
+        empty_entries = history(dict(list=dict(selector=empty_selector, namespace=1, after=None)))['history']['listing']['entries']
+        empty_input = dict(selector=empty_selector,
+            object=empty_entries[0]['declaration']['interpretation']['object']['object'], after=None)
+        for kind in ('definitions', 'locations'):
+            empty_page = history({kind: empty_input})['history']['coverage']
+            assert empty_page['total_rows'] == '0' and empty_page['definitions'] is None
+            assert empty_page['locations'] == [] and empty_page['next'] is None
         evidence = dict(selector=placement_selector, object=placement_object,
-            definitions=[first_definition, second_definition], locations=locations)
+            definitions=[first_definition, second_definition], locations=locations, empty_selector=empty_selector)
         # Rename after retaining the source. Historical discovery keeps its name
         # and stable identity rather than falling back to the current namespace.
         fixture.console('ALTER TABLE placement_probe RENAME TO placement_renamed;\n')
@@ -514,8 +523,10 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
                 cwd=ROOT, env=dict(os.environ, BOARD_TEST_URL=fixture.board_url,
                     BOARD_PLACEMENT_EVIDENCE=str(evidence_file), BOARD_SCREENSHOT=str(screenshots / 'storage.png')), check=True)
         release_placement()
+        release_empty()
         for kind in ('definitions', 'locations'):
             assert history({kind: placement_input}, 409)['err'] == 'QueryExpired'
+            assert history({kind: empty_input}, 409)['err'] == 'QueryExpired'
         print('Retained placement: two physical generations, ADD origin, 20 WAL/segment locations, rename, disk reopen and release passed.', flush=True)
         released_selector, release_history = retained_metrics(fixture, definition, native_connection,
                                                               account_dir / 'table.seed', operation=900031)

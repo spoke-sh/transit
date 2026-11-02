@@ -11,6 +11,7 @@ test("retained diagram and grid match the public caller across evolution, rename
   const expected = JSON.parse(readFileSync(process.env.BOARD_PLACEMENT_EVIDENCE!, "utf8")) as {
     selector: string;
     object: string;
+    empty_selector: string;
     definitions: HistoricalCoverage[];
     locations: HistoricalCoverage["locations"];
   };
@@ -21,6 +22,12 @@ test("retained diagram and grid match the public caller across evolution, rename
     if (request.method() === "POST") actions.push(request.url().split("/").at(-1)!);
   });
   await page.goto("/operations");
+  await expect(page.getByRole("region", { name: "Maintenance", exact: true })).toBeVisible();
+  if (process.env.BOARD_SCREENSHOT)
+    await page.screenshot({
+      path: process.env.BOARD_SCREENSHOT.replace(/\.png$/, "-operations.png"),
+      fullPage: true,
+    });
   await page.getByText("Inspect a retained catalog", { exact: true }).click();
   await page.getByLabel("Snapshot selector", { exact: true }).fill(expected.selector);
   await page.getByRole("button", { name: "Inspect snapshot", exact: true }).click();
@@ -132,6 +139,19 @@ test("retained diagram and grid match the public caller across evolution, rename
     });
   await page.keyboard.press("Escape");
   await page.setViewportSize({ width: 1440, height: 1050 });
+  await page.getByLabel("Snapshot selector", { exact: true }).fill(expected.empty_selector);
+  await page.getByRole("button", { name: "Inspect snapshot", exact: true }).click();
+  await expect(placement).toHaveCount(0);
+  await catalog.getByRole("button", { name: "empty_metrics", exact: true }).click();
+  await expect(physical).toContainText("No physical definitions in this authorized page");
+  await interpretation
+    .getByRole("combobox", { name: "Coverage", exact: true })
+    .selectOption("locations");
+  await expect(placement).toContainText("No row locations in this authorized page");
+  await expect(placement.getByRole("table")).toHaveCount(0);
+  await expect(
+    interpretation.getByRole("button", { name: "Next coverage page", exact: true }),
+  ).toBeDisabled();
   await page.route("**/api/v1/catalog", async (route) => {
     if (route.request().postDataJSON().action.history)
       await route.fulfill({ status: 409, json: { err: "QueryExpired", diagnostic: null } });
