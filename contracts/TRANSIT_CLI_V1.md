@@ -129,7 +129,12 @@ revocation never triggers reinitialization or renewed permissions. Query-only
 local installations belong to an incompatible shared definition and reject
 without conversion or reset.
 Version-1 server configuration enables Board by default with its own retained
-inspection-only key and explicit resource grants. `--no-ui` disables its process
+inspection-only key and explicit resource grants. With `board.local_data` (default
+`true`) and `sql.native.local` enabled, Catalog and read-only SQL use the managed
+local account's binding and private peer-authenticated socket. This grants no
+additional authority: current permissions and Board's read-only SQL admission
+still apply. An explicit `board.workbench_file` overrides both automatic connections
+without fallback for omissions, failures or denials. `--no-ui` disables its process
 and listener for one invocation without changing configuration or history.
 Unsupported configuration versions reject; pinned artifact identities forbid
 implicit upgrades. Effect connectors remain unsupported optional

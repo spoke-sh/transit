@@ -190,8 +190,12 @@ access independently of the current account and object grants.
 
 Board admits viewers through its private deployment boundary. Everyone who can
 reach it sees the configured shared scope; there is no per-viewer login or
-credential session. Its upstream identity remains read-only. Optional query and
-application operators use separate capabilities. See [Board access](board-api.md).
+credential session. Its inspection identity remains read-only. The local server
+also connects Catalog and read-only SQL to its managed local account by default;
+Board rejects mutating SQL and reads require that account's current permissions.
+`board.local_data: false` disables automatic data access. An explicit connection
+file defines its complete scope without falling back to local authority. Optional
+query and application operators use separate capabilities. See [Board access](board-api.md).
 
 Serving uses scoped native proofs and current service policy. Its provisioned
 public-key configuration is not a grant database. Reactive channels additionally

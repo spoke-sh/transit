@@ -13,6 +13,11 @@ own scheme, hostname and port. Other hostnames and forwarded headers reject.
 
 ## Explore data
 
+The local server connects Catalog and read-only SQL to its managed local account
+automatically. Everyone who can reach Board shares that data scope; every read
+still requires current permission. Set `board.local_data: false` for inspection-only
+defaults, or use an explicit connection file to choose another scope.
+
 The built-in home opens Catalog when its connection is configured, Workbook
 when only SQL is configured, and Operations when neither is configured.
 Published interfaces keep their declared entry. With a configured catalog,

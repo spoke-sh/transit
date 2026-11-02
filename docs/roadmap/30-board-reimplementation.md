@@ -20,7 +20,8 @@ permission authority.
 
 ## Local connections and Document persistence plan — 2026-11-02
 
-**Status: Planned; proposed for review.** Source basis:
+**Status: L1 approved for the first implementation PR; Document prerequisites
+and persistence remain follow-up work.** Planning source basis:
 `ffbf2e9b12dceca856000faf15eebbc252ae580c`. This is an implementation plan;
 it establishes no new runtime behavior or executed proof.
 
@@ -33,11 +34,11 @@ exercise the same public data operations as other Transit applications.
 This proposal changes the earlier explicit-only local connection policy. It
 also separates saving ordinary workbook drafts from publishing retained results
 and consistent investigations. The latter keeps its M28 dependency. The dated
-delivery records below remain evidence of their original profiles. Acceptance
-of this plan would add L0–L5 below to the implementation sequence; R2–R4 and the
-other full-milestone obligations remain open.
+delivery records below remain evidence of their original profiles. The plan adds
+L0–L5 below to the implementation sequence; R2–R4 and the other full-milestone
+obligations remain open.
 
-### Current behavior and the missing integration
+### Planning baseline and the missing integration
 
 | Boundary | Current implementation | Required change |
 | --- | --- | --- |
@@ -208,8 +209,13 @@ a second selectable engine or add Board access directly to `DocumentPartition`.
 | **L4 — Save/Open and preferences in Board** | Extend `data-workbench.tsx`, `routes/workbook.tsx`, existing statement/observation owners and typed browser clients. Add bounded workbook navigation, save status, conflict handling and preference updates | L3. Real browser reload/service restart preserves accepted drafts; two-tab conflicts are visible; saving/reopening performs no SQL. Operations and local data reads remain independent of workbook-write availability |
 | **L5 — Installed cutover and qualification** | Migrate embedded/standalone/Compose/reference configuration consumers, generated schemas, fixtures, examples and public documentation. Measure resource bounds and run the affected clean lanes at one committed revision | L1–L4 and the matrix below. No supported runtime reads legacy workbench files; incompatible histories reject without reset. Publish executed evidence, limitations and public semantics |
 
-L1 is the first implementation PR after L0 review. L2 belongs to the shared
-Document work and may already be advancing independently; recheck its exact
+L1 is the first implementation PR after L0 review. Its server setting is
+`board.local_data` (default `true`); explicit `board.workbench_file` remains a
+complete override until L3/L5 replace profile storage. This stage composes existing
+public callers and bootstrap types without changing wire or persisted data
+semantics. It does not deliver Document persistence or the final file-removal
+cutover. L2 belongs to the shared Document work and may already be advancing
+independently; recheck its exact
 merged capabilities before implementation. L3/L4 must wait for its qualified
 public operations. No file-backed, localStorage or private storage fallback is
 an interim persistence deliverable.

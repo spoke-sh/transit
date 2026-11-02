@@ -173,9 +173,10 @@ nested mappings merge, scalars and lists replace. Partial customization is enoug
 ports:
   gateway: 10000
 board:
-  # Optional explicit catalog/SQL connections; no credentials are copied by default.
-  # workbench_file: "/private/board-workbench.json"
   port: 10001
+  local_data: true # Default: catalog and read-only SQL use the managed local account.
+  # Optional complete override; omitted connections stay disabled.
+  # workbench_file: "/private/board-workbench.json"
 ```
 
 Environment values override the selected file and defaults. Names start with
@@ -510,9 +511,19 @@ separate directory; startup never converts or resets existing state. See the
 [hard-cutover policy](../../../docs/handbook/reference/versioning.md).
 
 Open the printed `board_url`. Every caller that can reach this loopback listener
-shares its inspection scope; there is no viewer login. Board cannot borrow the
-console or installer signing sequence. Query and operator workspaces remain
-separate opt-in contracts and are not enabled by this server profile.
+shares its configured scope; there is no viewer login. Catalog and read-only SQL
+use the managed local account by default, with its existing native binding and
+private SQL socket. The inspection principal and its grants remain unchanged.
+Board's SQL admission rejects writes even though the local account can write;
+reads still require current permission. It does not consume the console or
+installer signing sequence or renew revoked grants.
+
+Set `board.local_data: false` to keep only operational inspection by default.
+`sql.native.local: false` also disables automatic data access. An explicit
+`board.workbench_file` completely overrides automatic connections; omitted
+connections stay disabled and failures never fall back to the local account.
+See the [workbench guide](../../transit-board/docs/workbench.md#configure-data-access).
+Query and operator workspaces retain their separate opt-in contracts.
 
 ```sh
 transit server --config transit.yaml
