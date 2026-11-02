@@ -110,3 +110,48 @@ test("malformed results require action and lost close replies remain visibly unc
   expect(calls).toHaveLength(2);
   owner.send({ type: "dispose" });
 });
+
+test("a changed shared result identity clears rows and stops automatic observation", async () => {
+  vi.useFakeTimers();
+  let id = "";
+  const fetcher = vi.fn(async (_path, options) => {
+    const action = JSON.parse(options.body).action;
+    if (action.close) return Response.json({ closed: {} });
+    if (action.run) id = action.run.id;
+    return Response.json({
+      result: {
+        id,
+        view: {
+          definition: readDefinition,
+          result: (action.run ? "b" : "c").repeat(64),
+          columns: [{ name: "n", type: { int64: {} }, nullable: false, optional: false }],
+          rows: [],
+          observation: '{"metadata":{}}',
+          observation_kind: "metadata",
+          start: "0",
+          delivered: "0",
+          complete_rows: "0",
+          stopped: "complete",
+        },
+      },
+    });
+  });
+  vi.stubGlobal("fetch", fetcher);
+  const owner = new StatementOwner(
+    () => {},
+    () => {},
+  );
+  owner.run("SHOW TABLES", null);
+  await vi.advanceTimersByTimeAsync(5000);
+  expect(owner.state.failure).toEqual({
+    kind: "incompatible",
+    code: "ResultIdentityChanged",
+    retryable: false,
+  });
+  expect(owner.view).toBeNull();
+  expect(owner.state.reader).toBe(id);
+  await vi.advanceTimersByTimeAsync(60000);
+  expect(fetcher).toHaveBeenCalledTimes(2);
+  owner.send({ type: "dispose" });
+  await vi.advanceTimersByTimeAsync(0);
+});

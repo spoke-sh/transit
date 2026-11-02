@@ -32,6 +32,7 @@ export function readFailure(cause: unknown): ReadFailure {
     return { kind: "limited", code, retryable: true };
   if (
     code === "InvalidResponse" ||
+    code === "ResultIdentityChanged" ||
     code === "IncompatibleDefinition" ||
     code === "ResponseTooLarge" ||
     code === "invalid_response" ||

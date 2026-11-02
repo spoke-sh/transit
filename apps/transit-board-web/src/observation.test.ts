@@ -16,6 +16,7 @@ test("configuration and authorization failures stop polling, for both public cli
       [403, "Forbidden", "denied"],
       [410, "Expired", "expired"],
       [200, "InvalidResponse", "incompatible"],
+      [0, "ResultIdentityChanged", "incompatible"],
     ] as const) {
       const failure = readFailure(new ErrorType(status, code));
       expect(failure).toEqual({ kind, code, retryable: false });
