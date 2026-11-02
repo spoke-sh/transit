@@ -44,6 +44,7 @@ class InstalledReportTest(unittest.TestCase):
         self.assertEqual(summarize(records)['cases']['activation']['owner_totals']['managed']['result_rows'], 0)
         mutations = (
             lambda row: row.pop('owner_counters'),
+            lambda row: row.pop('owner_before'),
             lambda row: row['owner_after']['owned_records'].update(overflowed=True),
             lambda row: row['owner_after'].update(instance=[2]*16),
             lambda row: row['owner_after']['managed']['values'].pop('evaluate_ns'),

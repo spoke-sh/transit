@@ -24461,6 +24461,16 @@
         "WriteFailed": 3
       },
       "outcomes": {
+        "MeasuredPhase": [
+          "acquire",
+          "evaluate",
+          "prepare",
+          "execute",
+          "checkpoint_prepare",
+          "checkpoint_execute",
+          "decide",
+          "abort"
+        ],
         "Work.phase": [
           "acquiring",
           "evaluating",
