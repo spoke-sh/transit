@@ -592,6 +592,60 @@ for the initial M6 recovery batch, not complete repository, provider or mileston
 qualification. Core, SQL-interface, model and performance evidence retain the
 separate revisions recorded in their owning accounts.
 
+After equivalent native fixture repairs land on main, commit `8c0657436`
+adopts their canonical progress construction and stronger Queue refusal checks.
+The fifth invocation of the same clean storage/query lane **passes all 33/33
+tasks** at `8c06574365dbe43cbbb8df8356fd77620e4bd152`, with clean source,
+complete expected inventory and zero task exit codes. It includes the complete
+native catalog task, installed Table/Queue profiles and the 139-object
+growth/restart proof. The owner reports **8,744.60 s**. Evidence is retained in
+`.cache/ci/clean/8c06574365db-transit-ci-9fzrh0rt/`:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `storage-query.meta.json` | `cf961303dfc8428e8083ecf55f39c3c63e58dd54385868c264ffc36e3f13bd5b` |
+| `storage-query.json` | `e1ff410848508f31f8daeaa0cd997be6ebb949855840f476e75a072c92bd8e2f` |
+| `preparation.json` | `5307c7fb7bd0487699c0d9ec43eb3465195ad6a73fd6ad04ed626897485739ae` |
+
+The transcript `/var/tmp/transit-m6-clean-storage-query-5.log` has SHA-256
+`a4113fd621d8a9672df9148030451096ec8f20fe06af4d425743b71115e06b6a`.
+
+Commit `e8f5cf5c6` subsequently aligns overlapping SQL and Table fixture repairs
+with main. The SQL fixtures' executable AST is unchanged after excluding
+assertion diagnostic messages. The Table fixture now verifies the unchanged
+definition and data frontier after each refused rewrite. Runtime code is
+unchanged. A separate clean clone at
+`e8f5cf5c626cb2580d41d36439c0162ebffde6e7`, with the same pinned dependency
+preparation, runs `just test::direct-table-service`. Its Table profile **passes
+2,209 typed calls**, including both original rewrite refusals and retained rows
+across replacement/restart. Its subsequent Queue profile **fails** during the
+read-only terminal observation: native `tail` reports `WalRecoveryRequired`,
+then the observation returns `AuthorityUnavailable`, following two
+`MaintenanceTimeout` warnings. No terminal ACK or successful terminal-retention
+completion is established for this installation.
+
+That combined focused command is **not a pass**. Preserve the installation at
+`/var/tmp/transit-table-queues-qrund_41`, its clean source checkout at
+`/var/tmp/transit-m6-final-fixtures-xluw1ijw/src`, and the transcript
+`/var/tmp/transit-m6-final-fixture-check.log` (SHA-256
+`0d6c470e419b3bb0965b63c06a298d7baa76bb431ac127fd338d269d1ec92256`).
+The launcher state `/var/tmp/transit-m6-final-fixture-check.state.json` has
+SHA-256 `aee81acfb86aaa0b103cd7e3c5ff804c7d624fdf0496d11b1b141279a1b9a3e2`.
+The broad lane and this focused run overlap; their timing is not an isolated
+performance measurement or a demonstrated explanation of the failure.
+
+An unchanged `just test::direct-table-service queues` rerun in that same clean
+checkout **passes** on a fresh installation, after the broad lane completes.
+It verifies **883 typed requests**, all four withheld replies, 76 expiry probes,
+terminal ACK/retention and original payload/receipt recovery across restarts.
+Its emitted provenance records clean `e8f5cf5c6`, the pinned toolchain and both
+binary hashes. The transcript `/var/tmp/transit-m6-final-queue-rerun.log` has
+SHA-256 `a4b40586b37e40295ed5dd28bf1824764f44bac7be61ab25f4c560a1ee90a3f4`.
+No deadline, lease, maintenance budget or assertion changes between these runs.
+The fresh pass does not resolve the earlier installation's maintenance-timeout
+failure. The final fixture convergence has this focused evidence; the complete
+selected clean-lane evidence remains attributed to `8c0657436`.
+
 ## Verified Queue eligibility prefixes across transitions — 2026-11-01
 
 Commit `41b371ff6` carries a bounded eligibility prefix across deterministic

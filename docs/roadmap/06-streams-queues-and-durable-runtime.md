@@ -49,8 +49,10 @@ transaction-workspace model/replay gate; the
 [integration record](../history/qualification/storage.md#m6-recovery-integration-fixture-repairs--2026-11-01)
 preserves earlier failures, interrupted checks and the exact scope of each pass.
 The subsequent [clean storage/query lane](../history/qualification/storage.md#m6-clean-storagequery-continuation--2026-11-02)
-passes all 33 tasks at `655067be1`, including repaired native and Table fixtures,
-mixed transactions, Queue transfers and catalog growth/restart verification.
+passes all 33 tasks at `655067be1` and again at `8c0657436`, including repaired
+native and Table fixtures, mixed transactions, Queue transfers and catalog
+growth/restart verification. That account also records the later fixture-only
+convergence and its separate focused outcomes.
 The selected large unordered Queue profile now
 [passes its workload and cold-recovery gate](../history/qualification/performance.md#queue-profile-4-recovery-gate-closure--2026-11-01)
 with unchanged budgets; unfinished profiles do not supply complete baselines. Earlier installed passes retain
