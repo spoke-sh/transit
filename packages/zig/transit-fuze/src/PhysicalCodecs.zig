@@ -502,7 +502,7 @@ pub const EvaluatedPredicates = struct {
 /// Outcomes preserve each atom independently; the caller composes them in the
 /// original instruction order. A dictionary retains only predicate outcomes,
 /// and FSST streams all supported atoms together or decodes each value once.
-/// The output owner frees outcomes; scratch and output have separate budgets.
+/// The caller frees outcomes and supplies scratch/output allocation budgets.
 pub fn evaluateColumnPredicates(scratch: std.mem.Allocator, arena: std.mem.Allocator, column: TableSchema.Column, bytes: []const u8, predicates: []const ColumnPredicate.Predicate) !EvaluatedPredicates {
     if (predicates.len == 0 or predicates.len > ColumnPredicate.Program.max_instructions) return error.InvalidPredicateProgram;
     for (predicates) |predicate| try predicate.validate(column);

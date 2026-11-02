@@ -212,7 +212,7 @@ bytes; other symbol-table predicates and EBCDIC strings use bounded transient
 decoding. The caller keeps the typed literal alive during evaluation and owns
 scratch/output allocations. The complete encoded page is validated before
 success, including nonmatching values. Comparisons use the column's declared
-logical type and binary, ASCII case-insensitive or CP037 collation.
+logical type and collation.
 
 For `k` active atoms and `n` rows, retained predicate outcomes use `k * n`
 bytes. Dictionary evaluation additionally caches `k * d` bytes for `d` physical

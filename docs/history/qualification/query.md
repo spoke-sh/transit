@@ -5540,3 +5540,7 @@ focused failure was known; its incomplete evidence remains at
 stopped, not passed. The Queue fixture now checks `lease_fenced`, original
 identity, identical retries, unchanged acquired state and later original-outcome
 lookup, preserving the current refusal contract.
+
+After the Queue fixture repair in `85ec3cf56`, the focused log-privilege target
+passes **2/2 tests**, including its Stream/Queue maintenance schedules and current
+disclosure checks, in 26 minutes. All **64** fast checks also pass on that source.
