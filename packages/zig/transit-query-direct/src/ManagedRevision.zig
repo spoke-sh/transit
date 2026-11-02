@@ -46,14 +46,8 @@ pub fn open(manager: M, declaration: M.Declaration, revision: u64, limits: Limit
     const status = try tx.inspect(value.transaction);
     if (status.observation != .decided or status.cut == null or !std.meta.eql(status.cut.?, value.metadata.cut)) return error.IncompleteDataflowCoverage;
     try value.metadata.requireDecision(status.observation.decided);
-    const encoded = try value.schema.decode(manager.client.allocator, f.TableSchema.max_bytes);
-    defer manager.client.allocator.free(encoded);
-    var digest: [32]u8 = undefined;
-    std.crypto.hash.sha2.Sha256.hash(encoded, &digest, .{});
-    if (encoded.len != value.metadata.schema.bytes or !std.mem.eql(u8, &digest, &value.metadata.schema.sha256)) return error.InvalidManagedTableRecord;
-    var schema = try f.TableSchema.decode(manager.client.allocator, encoded);
+    var schema = try c.ManagedInspection.verifyRevision(manager.client.allocator, declaration, .{ .manifest = root, .revision = value, .decision = status.observation.decided });
     errdefer schema.deinit();
-    if (schema.schema.object != value.metadata.output.object.object or schema.schema.revision != value.metadata.output.revision) return error.DataflowIdentityConflict;
     var result: Self = .{ .manager = manager, .root = root, .manifest = manifest, .declaration = retained, .schema = schema, .decision = status.observation.decided, .scratch = .init(manager.client.allocator), .limits = limits, .next_page = value.pages, .remaining = value.metadata.rows, .read_bytes = root.content.bytes };
     errdefer result.scratch.deinit();
     try result.validateDisclosure();
