@@ -423,6 +423,16 @@
         ]
       },
       {
+        "id": "board-history-recovery",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/interfaces/installation/board_history_test.py"
+        ]
+      },
+      {
         "id": "service-harness",
         "phase": "tooling",
         "command": [

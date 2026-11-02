@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import struct
 import sys
+import time
 from http.client import IncompleteRead, RemoteDisconnected
 
 from runner.paths import ROOT
@@ -21,6 +22,11 @@ from query.logical.fuze_types import descriptor
 
 class CatalogConflict(Exception):
     """A conflict requires observing the saved operation, never a new selection."""
+
+
+class CatalogCapacity(Exception):
+    """Request capacity is unavailable for a step of the saved acquisition."""
+
 
 UNCERTAIN_TRANSPORT = (ConnectionError, TimeoutError, IncompleteRead, RemoteDisconnected)
 
@@ -47,6 +53,9 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030):
         if status == 409 and response == {'err': 'Conflict'} and (
                 'historical_catalog' in action or 'declaration' in action.get('descriptor', {})):
             raise CatalogConflict()
+        if status == 503 and response == {'err': 'ControlCapacity'} and any(
+                step in action.get('historical_catalog', {}) for step in ('acquire', 'inspect', 'advance', 'release')):
+            raise CatalogCapacity()
         assert status == 200, (status, data)
         return response['result']
 
@@ -127,7 +136,8 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030):
 
     def settle(initial, terminal, pending):
         action, status, uncertain, conflicts, injected = initial, None, 0, 0, 0
-        for _ in range(32):
+        capacity = 0
+        for attempt in range(32):
             try:
                 status = call(action)['status']
                 if operation == 900030 and terminal == 'published' and 'advance' in action and not injected:
@@ -149,6 +159,16 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030):
                 conflicts += 1
                 action = dict(inspect=token)
                 continue
+            except CatalogCapacity:
+                # Another request can hold a lane or its memory. Let it
+                # finish, then inspect this exact identity before progressing.
+                # Capacity consumes the existing bound; no new selection or
+                # acquisition budget is permitted, even before acceptance.
+                capacity += 1
+                action = dict(inspect=token)
+                if attempt < 31:
+                    time.sleep(.15)
+                continue
             except AssertionError:
                 if status is not None:
                     state = status['state']
@@ -167,10 +187,11 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030):
             assert binding['budget'] == acquisition['acquire']['budget'], 'Historical recovery changed the saved budget'
             phase = status['state']['phase']
             if phase == terminal:
-                if uncertain or conflicts:
+                if uncertain or conflicts or capacity:
                     print(json.dumps(dict(profile='board_history_original_recovery', operation=operation,
                         phase=phase, uncertain_replies=uncertain,
-                        conflict_observations=conflicts-injected, injected_conflicts=injected)), flush=True)
+                        conflict_observations=conflicts-injected, injected_conflicts=injected,
+                        capacity_observations=capacity)), flush=True)
                 return status
             assert phase in pending, status
             action = initial if terminal == 'released' and phase == 'published' else dict(advance=token)

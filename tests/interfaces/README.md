@@ -14,7 +14,7 @@ semantics; these drivers add protocol, presentation and installation boundaries.
 | HTTP serving and reactive sessions | [http/](http/), [reactive/](reactive/) |
 | Declarative browser providers, sessions and publications | [Real listener and provider peers](http/declarative_browser.py), [buffered-read fault host](http/browser_fault_host.zig), [generated contract check](http/browser_contract.py), [runnable example](../../examples/declarative-browser/README.md) |
 | gRPC and Arrow Flight | [grpc/](grpc/), [Flight guide](flight/README.md) |
-| Installed server lifecycle and configuration | [installation/](installation/), [server schedule](installation/server.py), [data workbench](installation/board_workbench.py), [shared process/setup mechanics](../harness/local_installation.py) |
+| Installed server lifecycle and configuration | [installation/](installation/), [server schedule](installation/server.py), [data workbench](installation/board_workbench.py), [retained-history recovery controls](installation/board_history_test.py), [shared process/setup mechanics](../harness/local_installation.py) |
 | Launchers and reference deployment | [deployment/](deployment/), [launcher tasks](../../tasks/launchers.just) |
 
 The [test task module](../../tasks/test.just) supplies required binaries and
