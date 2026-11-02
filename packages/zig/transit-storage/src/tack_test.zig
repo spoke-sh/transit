@@ -71,7 +71,7 @@ test "tack disk reopen validates coverage and preserves historical states" {
     const ref = (try directory.reference(after.states[2], 0)).?;
     var key: [96]u8 = undefined;
     try objects.objectStore().delete(try B.objectKey(ref, &key));
-    directory.cached = null;
+    directory.clearCache();
     try t.expectError(error.MissingBitmapContainer, audit(decoded, &directory, &scratch));
 }
 
@@ -145,7 +145,7 @@ test "tack audit exceeds one-page cache without allocating per container" {
     }
     const value = manifest(0, 17 * 65536, .{ available, .empty, .empty, .empty });
     tree.clearCache();
-    directory.cached = null;
+    directory.clearCache();
     var cursor = try Tack.Audit.init(value);
     var pages: usize = 0;
     while (true) {

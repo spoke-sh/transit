@@ -52,8 +52,19 @@ pub const Reference = struct {
 
 store: *TreeStore,
 objects: Objects.ObjectStore,
-cached: ?struct { prefix: u64, reference: Reference } = null,
+// Four small state containers can share the existing byte slab. A dense
+// container still occupies it alone; this is not a durable cardinality limit.
+cached: [4]struct { prefix: u64, reference: Reference, start: usize, kind: b.Kind } = undefined,
+cached_count: usize = 0,
+cached_bytes: usize = 0,
 bytes: [max_container_bytes]u8 align(64) = undefined,
+
+/// Required when changing object namespaces or abandoning a private overlay.
+/// Cache entries establish verified bytes, never publication or permission.
+pub fn clearCache(self: *Self) void {
+    self.cached_count = 0;
+    self.cached_bytes = 0;
+}
 
 fn tree(self: *Self) pages.Tree(TreeStore) {
     return .{ .store = self.store };
@@ -86,17 +97,21 @@ pub fn reference(self: *Self, root: Root, prefix: u64) !?Reference {
 pub fn read(self: *Self, prefix: u64, ref: Reference) !b.View {
     _ = try key(prefix);
     try ref.validate();
-    if (self.cached) |cached| if (cached.prefix == prefix and std.meta.eql(cached.reference, ref))
-        return .{ .bytes = self.bytes[header_bytes..ref.bytes], .kind = std.enums.fromInt(b.Kind, self.bytes[header_bytes + 4]).?, .cardinality = ref.cardinality };
-    self.cached = null;
+    for (self.cached[0..self.cached_count]) |cached| if (cached.prefix == prefix and std.meta.eql(cached.reference, ref))
+        return .{ .bytes = self.bytes[cached.start + header_bytes .. cached.start + ref.bytes], .kind = cached.kind, .cardinality = ref.cardinality };
+    var start = std.mem.alignForward(usize, self.cached_bytes, 64);
+    if (self.cached_count == self.cached.len or start > self.bytes.len or ref.bytes > self.bytes.len - start) {
+        self.clearCache();
+        start = 0;
+    }
+    const bytes = self.bytes[start .. start + ref.bytes];
     var name: [96]u8 = undefined;
     const object_key = try objectKey(ref, &name);
-    const metadata = (self.objects.getObject(object_key, &self.bytes) catch |err| switch (err) {
+    const metadata = (self.objects.getObject(object_key, bytes) catch |err| switch (err) {
         error.BufferTooSmall, error.ObjectTooLarge, error.ObjectSizeMismatch => return error.InvalidBitmapContainer,
         else => return err,
     }) orelse return error.MissingBitmapContainer;
     if (metadata.size != ref.bytes or !std.mem.eql(u8, &metadata.sha256, &ref.digest)) return error.InvalidBitmapContainer;
-    const bytes = self.bytes[0..ref.bytes];
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
     if (!std.mem.eql(u8, &digest, &ref.digest) or
@@ -105,7 +120,9 @@ pub fn read(self: *Self, prefix: u64, ref: Reference) !b.View {
     if (!std.mem.eql(u8, bytes[8..40], &p.Growth.definition_bytes)) return error.IncompatibleDefinition;
     const view = try b.View.parse(bytes[header_bytes..]);
     if (view.cardinality != ref.cardinality) return error.InvalidBitmapContainer;
-    self.cached = .{ .prefix = prefix, .reference = ref };
+    self.cached[self.cached_count] = .{ .prefix = prefix, .reference = ref, .start = start, .kind = view.kind };
+    self.cached_count += 1;
+    self.cached_bytes = start + ref.bytes;
     return view;
 }
 pub fn contains(self: *Self, root: Root, offset: u64) !bool {

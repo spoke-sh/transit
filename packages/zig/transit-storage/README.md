@@ -78,6 +78,15 @@ stage private roots; lease metadata, receipts and publication remain the owning
 partition's responsibility. Terminal cardinality is a reclamation eligibility
 hint and supplies no authority to delete retained payloads.
 
+`BitmapDirectory` packs up to four verified immutable containers into its existing
+8,252-byte aligned slab. Small Queue state sets can therefore share that byte
+budget during repeated disjointness checks; a dense container occupies it alone.
+Each entry binds the full reference and offset prefix. A miss may evict all
+entries, and borrowed views remain valid only until the next miss. Changing the
+object namespace or abandoning an overlay requires `clearCache()`. The Queue
+owner creates a fresh directory at each operation/derivation boundary, so private
+container reads cannot become evidence that accepted provider objects exist.
+
 `QueueItem` computes lease, renewal, retry and exhaustion candidates using
 trusted time intervals. `QueueIndex` stages paged per-offset metadata, `.tack`
 roots, canonical full-key FIFO heads, eligibility and fenced deadline indexes.
@@ -171,6 +180,14 @@ Replay can reconstruct and compare roots without writing or requiring old
 intermediate staging objects. Persistence alone publishes no root and supplies no
 WAL acceptance. The enclosing owner must clear derived page caches when abandoning
 or resetting a candidate and must preserve original identity after uncertainty.
+
+During replay, `TreeStore` lets privately reconstructed pages use empty or private
+cache slots but prevents them from evicting independently verified provider pages.
+This preserves the provider working set within the configured page count across
+derivation boundaries. Private bytes remain available in the bounded candidate
+overlay when every cache slot is verified; they acquire no provider provenance
+by being staged, decoded or found in the cache. Changing the underlying physical
+namespace still requires clearing the complete page cache.
 
 Queue publication follows the proposed root's private index dependencies before
 staging. It includes `.tack` bitmap containers, full-key child directories and
