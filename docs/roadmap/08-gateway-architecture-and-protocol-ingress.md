@@ -445,7 +445,7 @@ their own measurements pass.
 
 #### Current-main performance implementation — 2026-11-01
 
-**Status: In Progress.** Source basis `f4abc3b18d9a621eb9fcb2f2c10ee72a48aa2ae1`
+**Status: In Progress.** Initial source basis `f4abc3b18d9a621eb9fcb2f2c10ee72a48aa2ae1`
 includes performance PR #313 and the connection, string, managed computation,
 Document, profile-parser and spatial increments #314–#319. Track the installed
 10–100× journey in [#211](https://github.com/spoke-sh/transit/issues/211), with
@@ -453,6 +453,35 @@ Table amplification in [#76](https://github.com/spoke-sh/transit/issues/76) and
 SDK ownership in [M9](09-client-foundation-and-language-apis.md#sdk-performance-implementation-sequence--2026-11-01).
 Earlier measurements retain their original source and definition; neither merged
 components nor their combined correctness checks establish a current-main speedup.
+
+The integration basis advances to `242499474` after #320–#323 land during
+qualification. M6 now supplies installed Stream/Queue and Station-turn measurement
+owners; reuse [log-runtime-baseline](../../tests/performance/storage/log_runtime.md)
+and [station-turn-baseline](../../tests/performance/load/station_turn.md), including
+their original-selection restart and deadline gates. Their recorded Queue cold
+recovery failures remain open. M10 adds retained catalogs, schema projection,
+column semantics and integrity work. Its shared-definition cutover requires new
+matching runtime/native/SDK artifacts; never open the earlier private failures
+with this build or transfer an old speed ratio to the replacement definition.
+
+The first measurement delivery keeps its finite workload scope and requalifies
+the integrated APIs. The next measurement packet adds:
+
+- M6 sealed/cold reads, consumer-group settlement, key-affinity skew, delayed
+  visibility, lease expiry and offered load through the existing owners; report
+  accepted original work and recovery debt alongside successful latency.
+- M10 named-catalog capture, metadata enumeration, retained reads, explicit schema
+  projection and release as object/column/history counts grow. Separate metadata
+  retention from data pins and include restart, current authorization and exact
+  source/target definition evidence.
+- M10 default/generated-column and composite-key/foreign-key write costs, plus
+  collation-aware reads. Separate successful writes, unchanged writes and typed
+  pre-admission refusals; preserve integrity and atomic commit gates.
+
+The new Datalog/hardware milestones and on-demand specialization workflow remain
+research plans. They do not add runnable performance profiles or establish a
+speedup. Future specialization measurements must include search, verification,
+compilation and activation cost before comparing steady execution.
 
 The outcome is faster verified startup, statements and SDK results while direct
 background computations, maintenance and connection pressure remain bounded.
