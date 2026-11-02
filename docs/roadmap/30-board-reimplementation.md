@@ -143,10 +143,11 @@ incomplete installation lane are recorded in the
 
 ## Next implementation sequence after PR 326 — 2026-11-01
 
-**Review status:** Proposed for review. **Source basis:** `origin/main` at
+**Review status:** Approved for implementation; R1 is the current delivery. **Source basis:** `origin/main` at
 `db0bb4a8f`, the merge of [PR #326](https://github.com/spoke-sh/transit/pull/326).
-This sequence scopes the next implementation PRs; it adds no runtime behavior
-or qualification. M30 remains **In Progress**.
+This sequence scopes separate implementation PRs. R2–R4 follow the R1 delivery;
+R5 retains its service prerequisites. Executed evidence is attributed separately
+below. M30 remains **In Progress**.
 
 The next outcome is a Board whose visible state and background work have explicit
 owners, followed by richer explanations of where data resides and why a

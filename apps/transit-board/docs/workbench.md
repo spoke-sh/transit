@@ -74,7 +74,7 @@ resource inspection, record metadata and interface observations use one
 deterministic observation reducer. Its phases are idle, loading, ready,
 refreshing, failed, hidden and disposed. A generation identifies each in-flight
 read. Navigation, scope replacement, hiding and disposal abort it and fence late
-responses. Hiding or a failed read removes protected observations and inspectors;
+responses. Hiding or a failed metadata read removes its observations and inspectors;
 refreshing retains the last qualified observation until replacement or failure.
 Only one request chain per owner is active; manual refresh coalesces with it.
 Per-tab transport scheduling admits two reads plus one explicit submission,
@@ -84,6 +84,11 @@ active request retains its permit until settlement. Reads have a 15-second deadl
 transient failures back off to at most 30 seconds. Capacity refusals retry sooner
 with bounded backoff. Configuration, denial, expired observations and incompatible
 responses require explicit action instead of automatic retries.
+
+Process/resource inspection retains its last-observed page during transient
+unavailability or capacity refusal, explicitly labeled stale at the original
+cut/time. Denial, expiry, incompatibility, hiding and scope replacement clear it.
+This evidence is never presented as a current read.
 
 This reducer does not restart SQL. Statement submission, terminal verification,
 original result identity, paging and cleanup remain owned by the shared

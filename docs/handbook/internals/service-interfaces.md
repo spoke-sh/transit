@@ -693,7 +693,13 @@ transport can ignore an abort. Both generation and phase guards reject that
 completion. A failed read cannot become a successful empty observation; an empty
 value is accepted only through the success transition. Storage charts, grids and
 Inspector details derive from that same value, so failure or hiding removes all
-three projections together. A refreshing value is the last qualified observation,
+three projections together. Process/resource inspection has a separately tested
+[evidence projection](../../../apps/transit-board-web/src/inspection-evidence.ts):
+one last-observed page may remain during transient unavailability or capacity
+refusal, explicitly labeled stale with its original cut/time. It survives a retry
+without becoming current; denial, expiry, incompatibility, hiding and scope
+replacement clear it. The finite reducer graph does not model this projection.
+A refreshing value is the last qualified observation,
 not a claim that the in-flight authorization check has already succeeded.
 
 Each read has a 15-second deadline and at most one active request chain per owner.
