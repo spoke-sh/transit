@@ -519,6 +519,63 @@ Publish completed commands, source hashes, failures and sampling limits in the
 clean-source lanes at committed implementation HEAD before submission. Leave
 #211 open until its durable-write and user-visible latency acceptance gates pass.
 
+**First packet implemented:** the [integrated evidence](../history/qualification/performance.md#integrated-performance-measurement-packet--2026-11-01)
+records source `a7d659b85` on integration base `242499474`: all four SDKs exercise
+UTF-8 values; managed 3/16-row growth and wire connection pressure run; eager
+Station validator sharing reduces installed Node import median 6.398 → 2.807 s
+in 15 samples per arm. Strict MySQL verification also exposed and drove a local
+certificate key-identifier fix. These are bounded measurements, not completion
+of the 10–100× milestone or numeric budget qualification.
+
+The packet retains an uninstrumented SELECT-after-DELETE cancellation and an
+uncertain Python snapshot release under default maintenance, plus a clean
+`interfaces-sql` failure waiting for captured Table recovery after replacement.
+A traced fresh console pass and an isolated SDK pass do not resolve them.
+Next implementation work follows this order:
+
+1. Resolve original snapshot acquisition/release and console cancellation
+   evidence under default maintenance, and the captured Table recovery timeout,
+   adding phase-specific diagnostics and authoritative original-outcome checks
+   before accepting full SDK scores.
+2. Profile remaining Node import compilation and qualify generated SDK validators
+   at package build time, preserving validation failures and diagnostics.
+3. Attribute managed evaluation, per-row durable record staging, transaction
+   statement preparation and publication separately; batch bounded output through
+   the existing common transaction owner. Preserve complete revisions, revocation,
+   crash/recovery and foreground progress. Review persisted work/page changes as
+   a current-v1 cutover and qualify restart with matching original identities.
+   Keep finite recomputation distinct from incremental processing. The owner is
+   [`ManagedTable`](../../packages/zig/transit-query-direct/src/ManagedTable.zig).
+4. Replace blocking deadline races before reducing reserved I/O workers. Extend
+   startup across computation/history/account cardinality and unclean recovery;
+   the measured 19-row computation takes 9.621 s to retained readiness versus
+   about 0.9 s for the small baseline, without establishing a matched causal ratio.
+5. Extend the existing M6 owners and add the M10 lifecycle/integrity profiles
+   above. Separate clean/incremental native compile/link and package preparation
+   costs from process readiness and first verified results, with explicit cache
+   identities. Then collect matched sample counts before freezing budgets.
+
+**Subsequent main review:** `0c64c4b03` ([PR #324](https://github.com/spoke-sh/transit/pull/324))
+adds retained completed revision manifests and guarded immutable result pages
+under definition `afac2bd84560136ca90c0683afdffb8f71d5f96568b05dd3de773ce3c5339b2a`.
+The measured packet and selected checks remain on `a7d659b85`, definition `7c81…`;
+its timings do not qualify this later cutover. Refresh matching artifacts before
+measuring the new publication and recovery work. Extend the M12 profile with:
+
+- Fixed-revision inspection/open, first row, complete consumption and early close,
+  including authorization/root checks after buffering and at terminal disclosure.
+- Encoded manifest/page bytes, read attempts, checksum/decode/copy/allocator work,
+  and resident memory across revision count and output cardinality.
+- Original revision reads after successors, mutable output edits, retirement and
+  restart, with exact values/schema, revocation and incomplete-prefix controls.
+
+SQL revision inspection returns metadata; historical rows currently use the
+shared Zig reader. Saved result roots/pages retain indefinitely, reader close
+releases local memory, and this profile has no result expiry/release/collection
+operation. Measure retained storage growth without inventing cleanup semantics.
+The [retained-revision contract at that source](https://github.com/spoke-sh/transit/blob/0c64c4b0362e9fe54daa66388745430e9050eee0/contracts/DATAFLOW_V1.md#retained-finite-revision-reads)
+defines this separate workload.
+
 #### Follow-up performance delivery — 2026-11-01
 
 **Status: In Progress within M8.** The plan's source

@@ -8,6 +8,13 @@ The [2026-11-01 performance account](performance.md#executable-hashing-and-insta
 records installed SDK measurements, the passing clean scripting lane and the
 failed integrated performance attempts with their exact sources and limits.
 
+The subsequent [integrated performance packet](performance.md#integrated-performance-measurement-packet--2026-11-01)
+at `a7d659b85` adds UTF-8 coverage across the four installed consumers and a
+matched Node import comparison. Its 224-operation isolated pass is separate
+from the default-maintenance snapshot-release uncertainty, and its clean-source
+checks retain their own scope in that account. Neither result closes broader
+SDK parity, concurrency, allocation or numeric budget gates.
+
 These records preserve their original dates, sources, failures and limits. They
 do not define current interfaces or qualify later changes. Commands and then-open
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
