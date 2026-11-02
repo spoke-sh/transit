@@ -80,19 +80,24 @@ class Retry(unittest.TestCase):
         return response
 
     def test_board_capacity_retries_only_the_original_read(self):
-        for cause in ('HttpCapacity', 'ControlCapacity'):
-            with self.subTest(cause=cause):
+        for cause, method, path, body in (
+            (cause, method, path, body)
+            for cause in ('HttpCapacity', 'ControlCapacity')
+            for method, path, body in [('GET', '/api/v1/storage', None),
+                ('POST', '/api/v1/catalog', b'{"action":{"tables":{"namespace":1,"cursor":null}}}')]
+        ):
+            with self.subTest(cause=cause, method=method):
                 board = object.__new__(server_board.Board)
                 board.board_url = 'http://localhost:1'
                 board.http = Mock()
                 board.http.open.side_effect = [self.board_response(503, cause), self.board_response(200)]
                 with patch.object(server_board.time, 'sleep'), patch.object(server_board.time, 'monotonic', return_value=0):
-                    self.assertEqual(board.request('/api/v1/storage'), b'{}')
+                    self.assertEqual(board.request(path, method=method, body=body), b'{}')
                 self.assertEqual(board.http.open.call_count, 2)
                 for call in board.http.open.call_args_list:
-                    self.assertEqual(call.args[0].full_url, 'http://localhost:1/api/v1/storage')
-                    self.assertEqual(call.args[0].method, 'GET')
-                    self.assertIsNone(call.args[0].data)
+                    self.assertEqual(call.args[0].full_url, 'http://localhost:1' + path)
+                    self.assertEqual(call.args[0].method, method)
+                    self.assertEqual(call.args[0].data, body)
 
     def test_board_capacity_does_not_retry_sql_or_other_refusals(self):
         for method, status, cause in [('POST', 503, 'ControlCapacity'), ('GET', 503, 'AccessDenied'), ('GET', 403, 'ControlCapacity')]:

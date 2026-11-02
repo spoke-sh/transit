@@ -52,7 +52,10 @@ class Board(Applications):
             with result:
                 status, data = result.status, result.read()
             capacity = False
-            if status == 503 and method == 'GET' and expected == 200:
+            # Catalog POSTs are typed read-only projections. Never extend this
+            # to SQL Run, publication or other control endpoints.
+            read_only = method == 'GET' or (method == 'POST' and path == '/api/v1/catalog')
+            if status == 503 and read_only and expected == 200:
                 failure = json.loads(data)
                 diagnostic = failure.get('diagnostic') or {}
                 capacity = (failure.get('err') == 'Unavailable'
