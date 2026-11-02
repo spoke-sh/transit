@@ -18,6 +18,37 @@ records preserve their original attribution. Delivery-sequence SQL examples
 below illustrate proposed scope; use the [SQL reference](../handbook/reference/sql/streaming.md)
 for the current executable declarations, workload operations and inspection forms.
 
+## Queue settlement SQL follow-up — 2026-11-02
+
+This review unit starts from merged `origin/main` at `ffbf2e9b12dc` (PR #333).
+It implements the NACK portion of Batches 3/4b through the existing workload
+intent, Catalog token and native Queue settlement owners. The SQL binder freezes
+the original binary lease and an optional absolute UTC visibility timestamp;
+the native owner retains retry backoff, FIFO, attempt limits and current lease
+and permission checks. Command completion reuses M4's typed result model.
+PostgreSQL emits `NACK`; MySQL and the console use their existing shared command
+completion. Current behavior belongs to the
+[SQL reference](../handbook/reference/sql/streaming.md#return-queue-work-for-retry)
+and [Queue contract](../../contracts/QUEUE_V1.md#opaque-lease-descriptor-codec).
+
+The current shared definition remains
+`c3cbdfe99cdb08a8a21cc2429783fd746b1311b096d9ca8371058e1abb037b64`,
+introduced on main with M12's owned staging. NACK's native request, outcome and
+saved-work encodings already exist; this additive SQL admission does not replace
+those definitions or reinterpret accepted work. M8's database runtime owns
+admission/recovery, and M9's SQL caller retains the original token. The operation
+is outside M5's attached SQL transaction profile; it does not implement a Station
+turn, M7 Document participation or M12 continuous activation.
+
+M6 remains **In Progress**. This supersedes the earlier checkpoint's statement
+that all NACK SQL is absent, without closing all of Batch 3 or 4b. Renewal still
+needs returned-handle semantics; predicates, waits, group progress/offset SQL,
+finite `STREAM_SLICE`, mixed SQL, Station services/effects and common-revision
+resource/fault/provider qualification retain their gates below. This NACK profile
+uses absolute visibility rather than relative-delay or reason operands. Broader
+NACK metadata needs an explicit native contract before admission. Batch 1's
+remaining baseline profiles and Batch 8's commit/latency work are also open.
+
 ## Progress checkpoint — 2026-11-01
 
 The current source assessment starts at `origin/main` commit `0c64c4b03`,
