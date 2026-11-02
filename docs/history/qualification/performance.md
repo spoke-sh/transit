@@ -164,18 +164,129 @@ records only an actual authority deadline refusal and proves the negative contro
 independently of that lossy log. `recovery-analysis.json` records this correction;
 the original process exit codes, output and raw record are unchanged.
 
+### Original captured work and clean qualification
+
+The earlier failed SQL installation `/var/tmp/transit-direct-sql-wire-fw0zomw9`
+was backed up before starting only its original frozen node. Every retained
+binary hash matches its failure manifest at `a7d659b85`, with definition
+`7c81d0916913d774febe2bec8f739f95a194f3ca88056c9f1214c0f77f22fa89`.
+The original gateway's public `control status 63` reports captured work 63 still
+`ready`, with summary `none`. No SQL or worker activation is replayed, original
+configuration files remain unchanged and the inspection node is joined.
+`original-captured-inspection.json` and `original-captured-status.json` retain
+the exact command and observation. This reports the original pending outcome;
+a new fixture does not settle that older accepted work.
+
+At committed SQL qualification source `528302f9a`, the complete clean SQL lane passes
+all eight tasks. Its session schedule verifies 41/12/41 exact KV/Document/Table
+values. The expired Table open records 58 exact attempts, one authoritative
+deadline refusal and complete results for the same operation across 32- and
+9-row batches. That fresh installation's operation 63 is distinct from the
+older retained failure whose local numeric ID is also 63.
+
+Earlier clean failures remain recorded:
+
+- The initial fast check at `8fa284fed` stops on diagnostic inventory drift from
+  integrated Board observation changes and the new recovery branch. After review,
+  `4dd9375e1` refreshes the canonical inventory without changing a protocol
+  definition or error mapping. `/var/tmp/transit-ci-u6fmmb9i` is retained.
+- The SQL lane at `4dd9375e1` passes TLS, allocations, gateway, sessions, integrity
+  and history, then exposes a Queue fixture error. A second ACK under a new SQL
+  token is correctly rejected as `lease_fenced`, but the helper asserts success
+  before returning that expected refusal. Commit `7a5dc15c1` lets this one call
+  select its expected terminal outcome; other callers keep their success
+  assertions and wait budgets. The failed fixture
+  `/var/tmp/transit-direct-sql-wire-4m9vduin` is retained.
+- The full `7a5dc15c1` SQL rerun again passes those six tasks and the fenced-ACK
+  assertion, then stops at MySQL ACK's no-row assertion. Pinned Connector/Python
+  9.4.0 retains a prepared cursor's prior column description after an OK packet.
+  A local diagnostic reproduces `rowcount=0, with_rows=true`; an unused cursor
+  gives `rowcount=0, with_rows=false` for the same response. Commit `528302f9a`
+  separates CLAIM and ACK cursors while preserving both ACK assertions. The
+  failed checkout `/var/tmp/transit-ci-0rvpsf1x` and fixture
+  `/var/tmp/transit-direct-sql-wire-omma5lxy` are retained. Transactions were
+  unreached in both failed lanes.
+
+Neither fixture correction changes Queue execution, lease duration, returned
+counts or retry semantics. A focused physical `sessions-log` run at driver
+`528302f9a` passes against the exact frozen `7a5dc15c1` binaries: native,
+PostgreSQL, MySQL and console CLAIM/ACK checks, original receipts after ALTER,
+DROP and replacement, MySQL zero affected rows/no row result, and joined cleanup.
+`mysql-ack-physical.json` records the executable hashes;
+`mysql-prepared-cursor-diagnostic.log` records the connector diagnostic.
+
+A separate clean clone at `4dd9375e1` installs only root and client compiler
+dependencies. Validator generation/check passes without Station dependencies or
+tracked drift. The SDK report validator accepts the complete Python async
+campaign and rejects all three failed campaigns. These checks do not turn the
+failed default-maintenance measurements into accepted scores.
+
+The installation/UI lane at `528302f9a` passes its first 16 tasks, then the
+declarative-browser fixture stops on `503 ControlCapacity` while observing an
+already accepted native authorization change. Original change 86, begin sequence
+74 and later advance sequences 75/76 remain in the retained installation
+`/var/tmp/transit-browser-p3l3gge8`; its terminal status was not observed. The
+failed clean checkout `/var/tmp/transit-ci-za8iwj84` and frozen executables remain
+available. This refusal is not a rejection of the accepted policy change.
+
+Commit `2fcede086` opts those observations into the existing bounded retry helper
+and admits `ControlCapacity` retries only for native identity/authorization
+queries. It retains the same signed query and original change, reports refusal
+counts, and leaves mutation retries, runtime capacity and the existing 15-second
+retry budget unchanged. Synthetic helper controls cover successful read retries
+and refusals to retry commands, Table actions, snapshot closure, malformed input,
+opted-out reads and unknown mutation outcomes. These helper controls are not
+runtime durability evidence; the physical and clean results are recorded separately.
+
+The focused browser schedule passes at driver `2fcede086` against frozen
+`528302f9a` executables, including watch revocation, 81 durable identities,
+restriction/expiry, authorization after buffering, multi-page ownership,
+source-definition replacement, origin/proxy checks and the documented example.
+`browser-capacity-physical.json` binds those binaries and the separately retained
+original policy identity; `read-capacity-controls.json` records the helper controls.
+
+| Committed source | Clean selection | Executed result | Evidence directory under `.cache/ci/clean/` |
+| --- | --- | --- | --- |
+| `2fcede086` | `fast` | 64 checks pass | `2fcede086b0b-transit-ci-06m44rsm` |
+| `4dd9375e1` | `contracts` | 20 checks pass | `4dd9375e1231-transit-ci-n7qe67t7` |
+| `4dd9375e1` | `sdks-scripting` | 3 tasks pass | `4dd9375e1231-transit-ci-pik0o9v3` |
+| `528302f9a` | `interfaces-sql` | 8 tasks pass | `528302f9a435-transit-ci-7q79ne9b` |
+| `2fcede086` | `installation-ui` | 17 tasks pass | `2fcede086b0b-transit-ci-asg4jsdl` |
+
+Each row is verified against the clean runner's original completion metadata:
+preparation succeeds, the source is clean, and every expected check/task completes
+with exit zero. Runtime, SDK and contract changes are unchanged after
+`4dd9375e1`; later commits repair the SQL/browser fixtures and clarify timing
+wording. SQL qualification at `528302f9a` includes both ACK fixture corrections;
+fast and installation/UI qualification at `2fcede086` includes the final browser
+observation fix. Final documentation changes do not relabel these executed sources.
+
+These are selected local checks, not full hosted CI, release or cross-platform
+qualification. The repository selector requests all 13 lanes for this shared
+change; unexecuted lanes remain the integration/release gate. Component controls,
+physical schedules and these clean lanes do not turn failed performance campaigns
+into accepted scores.
+
 ### Evidence and remaining gates
 
-Raw invocations, manifests, package/driver/binary identities, samples, failed
-fixtures and predeclared policies are retained under
-`.cache/performance/recovery-validators/`. `summary.json`,
+Raw invocations, manifests, package/driver/binary identities, samples and
+predeclared policies are retained under `.cache/performance/recovery-validators/`;
+failed installations remain at the private paths recorded above. `summary.json`,
 `first-result-summary.json`, `recovery-checks.json`, `recovery-analysis.json`,
-`original-inspection.json`, `original-release-settlement.json` and
-`sdk-diagnostic-invocations.json` attribute the separate experiments.
-The validator differential corpus passes all 3,008 cases and the installed Node
-check includes an import with string code generation disabled. Clean-checkout
-qualification on the integrated source including main `db0bb4a8f` is pending;
-these component and physical controls do not substitute for it.
+`original-inspection.json`, `original-release-settlement.json`,
+`original-captured-inspection.json` and `sdk-diagnostic-invocations.json`
+attribute the separate experiments. The validator differential corpus passes all
+3,008 cases; the Node SDK test task also imports source modules with string code
+generation disabled.
+
+`clean-checks-initial.json`, `clean-checks.json`, `clean-final-checks.json`,
+`clean-qualified-checks.json` and `clean-complete-checks.json` retain all clean
+attempts, including failures and unreached tasks. `verified-clean-index.json`
+indexes the passing original runner metadata and its hashes; it is a derived
+index, not a replacement proof record. The MySQL/browser physical controls and
+read-capacity helper controls retain their separate manifests and logs. Main
+`db0bb4a8f` is included in these clean qualification sources; the earlier timing
+experiments retain their explicitly frozen builds.
 
 R1a and V2 have implemented controls and measured evidence. R1b's original release
 outcome is settled but its failure cause is not; exact snapshot acquisition and

@@ -606,8 +606,11 @@ The [first implementation packet](../history/qualification/performance.md#sdk-va
 delivers R1a's explicit expired-open recovery and V2's generated SDK validators:
 50 samples per arm show 9.21× faster installed imports and 7.39× faster cold first
 metadata, with separate source-attributed controls. Main `db0bb4a8f` (Board
-observations, PR #326) is integrated for clean qualification and adds the Board
-measurement row under E7. F0's default diagnostics retain acquisition conflicts;
+observations, PR #326) is integrated. The recorded clean fast/contracts checks and
+SDK scripting, SQL and installation/UI lanes pass at their attributed sources;
+full CI and release qualification remain separate. E7 includes Board observation
+costs and published-watch admission/progress measurements. F0's default
+diagnostics retain acquisition conflicts;
 R1b's original Python pin is now released with public outcome evidence, but the
 initial failure cause remains open. R1c's earlier cancellation remains unexplained.
 These partial deliveries do not complete R1, F0, Q8 or the program's latency goals.
@@ -908,6 +911,7 @@ before accepting M3; the other profiles need not delay an independent V2 change.
 | Streams, queues and Station / M6 | Extend [log-runtime](../../tests/performance/storage/log_runtime.md) and [Station-turn](../../tests/performance/load/station_turn.md) owners: warm/sealed/cold reads, group settlement, key skew, delays, lease expiry, redelivery and offered load. Retain original accepted work and cold Queue recovery failures. Missing workload SQL/Station composition is a capability dependency. |
 | Catalogs and column semantics / M10 | Named capture/enumeration, historical metadata and release, schema projection, defaults/generated columns, composite/foreign-key integrity and collations. Vary object/column/history counts; distinguish metadata retention from data pins and accepted writes from pre-admission refusals. |
 | Board observations / M30, merged in #326 | Exact Table storage inspection through the catalog owner, including deployments without SQL; initial load, polling, stale/disconnected/reconnecting transitions, request/byte/CPU cost and interference with foreground SQL. Separate observation age from fetch latency; preserve current rights and binding checks, and prove inspection creates no query, retained pin or maintenance work. |
+| Published HTTP/WebSocket watches / serving and reactive owners | Reuse the [real-listener fixture](../../tests/interfaces/http/declarative_browser.py) for a separate measured profile: active-watch count, native admission refusals, policy-progress observation delay, grant/revoke latency, idle work and foreground fairness. Preserve original policy-change identities and authorization after buffering; a retried observation cannot restart accepted work. The qualification fixture's capacity refusal motivates this profile but supplies no accepted performance score. |
 | Encoded strings / M14 | Plain/dictionary/FSST controls through the real reader, with cardinality/selectivity/collation variation, verified raw values, page reads, materialized bytes and warmed allocations. Installed UTF-8 SDK coverage does not establish codec throughput. |
 | Incoming Document/parser/spatial work / M7, M16, M17 | Keep component paging/replay, parse-and-verify and spatial costs with their owners. Add installed profiles only when public adapters execute those contracts; do not manufacture private substitutes. |
 | Developer boot loop | Clean/incremental native compile/link, frontend build, package preparation and process startup separately, with exact cache identities. These do not contribute to a claimed runtime speedup. |
