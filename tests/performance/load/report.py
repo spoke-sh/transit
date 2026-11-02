@@ -76,6 +76,7 @@ def summarize(records):
         raise ValueError('missing measurement availability')
     expected = inventory(manifest)
     samples, resource_cases = {}, set()
+    previous_owner = None
     for record in records[1:-1]:
         phase = record.get('phase')
         if phase == 'manifest':
@@ -105,6 +106,12 @@ def summarize(records):
                     after[owner][field] - before[owner][field] != record['owner_counters'][owner][field]
                     for owner, fields in OWNER_COUNTERS.items() for field in fields):
                 raise ValueError('reset or inconsistent owner counters')
+            if previous_owner is not None:
+                instance, previous = previous_owner
+                if instance != before_instance or any(before[owner][field] < previous[owner][field]
+                        for owner, fields in OWNER_COUNTERS.items() for field in fields):
+                    raise ValueError('owner changed between samples')
+            previous_owner = after_instance, after
         elif any(field in record for field in ('owner_counters', 'owner_before', 'owner_after')):
             raise ValueError('unexpected instrumentation')
         if key[0] in ('activation', 'source_update'):
