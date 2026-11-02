@@ -123,7 +123,14 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         wire.parent_context = observation.context;
         defer wire.parent_context = null;
         const step = server.step(handler, now + 30000) catch |err| {
-            observation.finish(.{ .name = "query.worker.step", .operation = @tagName(config.role), .level = .warn, .outcome = if (server.pending != null) .uncertain else .failed, .error_type = @errorName(err) });
+            // A timed-out submission remains exact until authority rejects its
+            // expired read window. Only then may this same input open a new view.
+            const retry_open = server.retryExpiredOpen(err, @intCast(std.Io.Clock.real.now(init.io).toMilliseconds()));
+            observation.finish(.{ .name = "query.worker.step", .operation = @tagName(config.role), .level = .warn, .outcome = if (retry_open) .rejected else if (server.pending != null) .uncertain else .failed, .error_type = if (retry_open) "DeadlineExpired" else @errorName(err), .protocol_outcome = if (retry_open) .rejected else .none });
+            if (retry_open) {
+                try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
+                continue;
+            }
             // An ambiguous mutation retains exact bytes in server.pending. Never
             // discard/recompute it under this activation. A restarted OS worker
             // requires fresh fenced ownership, even if it exited while idle.

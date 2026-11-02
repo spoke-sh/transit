@@ -399,11 +399,20 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
     assert prior['identity'] in [entry['identity'] for entry in inventory['entries']]
     restored.close()
     for name, count, token, identity in captured:
+        if faults is not None and name == 'table':
+            faults.expire_view_principal = json.loads((root/'session-table-requester.json').read_text())['principal']
         select_source(name)
         selected = Client(root, port).open(name)
         original = selected.execute('SELECT value FROM items', token, captured=True)['operation']
         assert original['identity'] == identity
         selected.terminal(original)
+        if faults is not None and name == 'table':
+            assert faults.expired_view_attempts >= 2 and faults.expired_view_refusals >= 1
+            assert faults.reopened_view is not None
+            print(json.dumps(dict(profile='native_sql_expired_view_open_recovery',
+                                  exact_attempts=faults.expired_view_attempts,
+                                  deadline_refusals=faults.expired_view_refusals,
+                                  original_operation=identity)), flush=True)
         if faults is not None and name == 'kv':
             configured = next(source for source in json.loads((root / 'sql-gateway.json').read_text())['accounts'][0]['sources'] if source['name'] == name)
             result_fault = faults.failures

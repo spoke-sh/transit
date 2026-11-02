@@ -64,7 +64,12 @@ The host and courier preserve their activation through transient authority
 transport loss, including DNS failure and closed connections. They use the
 shared client availability classification, retain exact pending mutations, and
 discard only poisoned unsent proposals. Denial, invalid responses and fencing
-remain terminal. Initial ownership reads also retry transient transport failures,
+remain terminal. An explicit `DeadlineExpired` rejection of a pending view open
+is recoverable once that open's proposed read deadline has passed: the shared
+Station helper preserves the durable input and permits a fresh read window only
+after rejection proves the original open was not accepted. A timeout alone keeps
+the exact signed open pending. This does not restart a SQL result or replace its
+retained source cut. Initial ownership reads also retry transient transport failures,
 with retry admission bounded by `request_timeout_ms`; an attempt already in flight
 can take one further request timeout. The host creates its activation marker and
 reports readiness only after current ownership succeeds.
