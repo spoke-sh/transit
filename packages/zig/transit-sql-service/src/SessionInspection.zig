@@ -12,6 +12,7 @@ metadata: ?c.DirectTableBinding = null,
 log_metadata: ?struct { connection: c.DirectTableProtocol.Connection, definition: c.DirectLog.Definition } = null,
 statement: ?g.Statement = null,
 managed: ?g.direct.ManagedTable.Declaration = null,
+managed_revision: ?struct { revision: u64, root: c.DirectRecord.Reference } = null,
 source: bool = false,
 historical_list: ?c.protocol.DataLifecycle.Snapshot = null,
 historical_namespace: ?u64 = null,
@@ -118,12 +119,26 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
         if (try parser.takeWord("DATAFLOW")) {
             if (!host.native_profile or host.source != null or selection.snapshot != null) return error.UnsupportedManagedTable;
             const name = try c.TableMetadata.Name.init(try parser.name());
+            const revision: ?u64 = if (try parser.takeWord("REVISION")) blk: {
+                if (parser.token.tag != .integer) return error.InvalidDataflowRevision;
+                const value = std.fmt.parseInt(u64, parser.token.text, 10) catch return error.InvalidDataflowRevision;
+                if (value == 0) return error.InvalidDataflowRevision;
+                try parser.advance();
+                break :blk value;
+            } else null;
             try parser.finish();
             const manager: g.direct.ManagedTable = .{ .client = host.table };
             const parsed = try manager.find(host.namespace, try .init(name.slice())) orelse return error.CatalogNameNotFound;
             defer parsed.deinit();
             var declared = parsed.value;
             declared.sql = try a.dupe(u8, declared.sql);
+            if (revision) |number| {
+                var reader = try g.direct.ManagedRevision.open(manager, declared, number, .{});
+                defer reader.deinit();
+                const rows = try a.alloc([]const f.Types.Values.Cell, 1);
+                rows[0] = try a.dupe(f.Types.Values.Cell, &.{text(try c.protocol.Json.valueAlloc(a, .{ .revision = reader.manifest.value.metadata, .manifest = reader.root, .decision = reader.decision }))});
+                return .{ .arena = arena, .name = name, .managed = declared, .managed_revision = .{ .revision = number, .root = reader.root }, .rows = rows, .output = &.{.{ .name = "dataflow_revision", .type = .utf8 }} };
+            }
             const observed = try manager.inspect(declared);
             _ = try declared.source.require(host.table, .read);
             _ = try declared.output.require(host.table, .read);
@@ -250,7 +265,10 @@ pub fn validate(self: *Self, host: *g.Session) !void {
         _ = try declared.output.require(host.table, .read);
         if (self.kind != .plan) {
             const manager: g.direct.ManagedTable = .{ .client = host.table };
-            _ = try manager.inspect(declared);
+            if (self.managed_revision) |revision|
+                try revision.root.requireSame(try manager.revisionReference(declared, revision.revision))
+            else
+                _ = try manager.inspect(declared);
         }
     }
     if (self.node_storage) try validateNode(host);

@@ -116,7 +116,8 @@ authorizes expiry, silent cancellation or discarding accepted work.
 ## Installed finite Table profile
 
 `transit-query-direct.ManagedTable` owns `DFD1` declarations, `DFW1` work and
-`DFP1` immutable row pages. A named direct binary KV owns the current control,
+`DFP1` immutable row pages and `DFR1` completed revision manifests. A named direct
+binary KV owns the current control,
 pending original work reference and paged completed revision keys. The logical
 computation definition hashes the declaration; it is distinct from the KV
 storage definition. The catalog's `managed` dependency kind validates that
@@ -138,7 +139,11 @@ recorded before abort settlement can install participant barriers. Each recovery
 unit advances at most one transaction participant.
 
 The output Table, source read guard, head and completed revision key share one
-common transaction. Completion inspection reads its committed decision; neither
+common transaction. The revision key holds an immutable manifest reference. Its
+manifest retains the declaration, exact source/output definitions, encoded output
+schema, source position, common cut, original transaction, row count and row-page
+root. Later Table writes cannot change those retained pages. Completion inspection
+reads its committed decision; neither
 an individual participant LSN nor a work phase establishes completion. Private
 row staging and incomplete execution expose no output. A deterministic output
 constraint rejection blocks with `execution_failed` and preserves the last
@@ -148,7 +153,8 @@ No source LSN is compared with another partition's clock.
 
 The native cohosted SQL service accepts `CREATE DATAFLOW name INTO output AS
 SELECT ...`, AUTHORIZE/ACTIVATE/SUSPEND/RESUME/REFRESH/RETIRE DATAFLOW, SHOW
-DATAFLOW and metadata-only EXPLAIN CREATE DATAFLOW. SQL operation kind `dataflow`
+DATAFLOW, SHOW DATAFLOW name REVISION number and metadata-only EXPLAIN CREATE
+DATAFLOW. SQL operation kind `dataflow`
 and command kinds `create_dataflow`/`control_dataflow` preserve the original
 saved request and typed completion. Closing a session is not retirement.
 Cancellation of an accepted control is unsupported; use lifecycle controls and
@@ -161,6 +167,49 @@ implement the neutral contract's ordered/net-change consumers or history handoff
 SQL joins, incremental arrangements or sink effects. Immutable saved records
 remain outside the direct object collector's authority and retain indefinitely;
 common transaction cleanup releases its source pins and preparation barriers.
+
+## Retained finite revision reads
+
+Result pages and manifests set the DirectRecord guarded-format bit. Their
+immutable envelopes bind read requirements for the source Table, output Table
+and control KV. The catalog enforces those requirements on raw record reads as
+well as through the shared revision reader. Changing the format or stripping
+the envelope selects a different immutable object key and cannot bypass policy.
+
+`Dataflow.Revision` describes one completed finite relation. Its computation,
+source and output definitions, schema commitment, source position, common cut,
+revision number and row count belong to that immutable result. The owner verifies
+the manifest against the revision key and the original transaction's committed
+decision; a descriptor alone does not prove completion.
+
+`transit-query-direct.ManagedRevision.open` selects one positive revision number.
+It loads the retained schema and manifest without consulting the mutable output
+rows or acquiring a new source snapshot. `next` traverses the retained page chain
+and copies decoded rows into the caller's output arena. The reader reuses bounded
+scratch and retains no row backlog. Rows follow descending staging ordinal; this
+does not establish SQL ordering. Defaults allow 10,000 rows and 16 MiB of encoded
+manifest/page bytes per reader. Limits are consumption bounds, not completion.
+
+Every disclosure requires current read access to the exact source, output and
+control KV. `validateDisclosure` rechecks these rights and the published root
+after buffering, including schema, metadata and terminal counts. `next` performs
+that check before and after reading. Definition replacement or DROP can refuse
+access even when immutable bytes remain retained. Retirement alone does not
+invalidate a completed revision.
+
+An empty revision completes only after its authorized terminal read. A nonempty
+revision completes when the declared final page is verified. Missing, corrupt or
+inconsistent pages, denied access and budget exhaustion fail the reader; a prefix
+is never complete. Closing the reader releases only local memory. Opening the
+same revision explicitly starts another consumption of that fixed result.
+
+`SHOW DATAFLOW name REVISION number` returns one `dataflow_revision` JSON metadata
+column containing the revision descriptor, immutable manifest reference and
+verified common decision. The number is a positive u64 literal. Missing revisions
+fail; inspection does not schedule computation or traverse historical result rows.
+SQL historical row fetching is not exposed by this profile. Saved revision roots
+and pages retain indefinitely; this profile has no expiry, release or collection
+operation for them.
 
 Captured and host-driven maintained execution retain their
 [named relational contract](NAMED_RELATIONAL_V1.md). Existing helper modules are

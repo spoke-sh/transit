@@ -15,6 +15,7 @@ pub const ComputePool = @import("ComputePool.zig");
 pub const RelationalBridge = @import("RelationalBridge.zig");
 pub const TableChangeReader = @import("TableChangeReader.zig");
 pub const ManagedTable = @import("ManagedTable.zig");
+pub const ManagedRevision = @import("ManagedRevision.zig");
 test {
     _ = @import("direct_table_count_range_test.zig");
     @import("std").testing.refAllDecls(@This());

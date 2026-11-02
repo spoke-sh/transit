@@ -1,11 +1,44 @@
-//! Immutable caller-owned operation bodies. The catalog authenticates the
-//! principal/account scope; a format's owner validates its application meaning.
+//! Immutable operation bodies and guarded retained content. The catalog checks
+//! principal/account scope and immutable read guards; format owners validate
+//! payload meaning.
 const std = @import("std");
 const c = @import("root.zig");
 const p = c.protocol;
 const w = c.DirectTableProtocol;
 const Objects = c.storage.TransitObjectStore;
 pub const max_bytes = w.max_work_bytes;
+/// High-bit formats carry an authenticated, content-addressed read envelope.
+/// Its bounded conjunction is part of the immutable bytes, never caller-supplied
+/// read authority. Generic reads must enforce it before returning the envelope.
+pub const guarded_bit: u32 = 0x80000000;
+pub const Guarded = struct {
+    definition: p.Growth.Definition,
+    objects: [3]?p.DataLifecycle.Object,
+    payload: w.Binary,
+
+    pub fn validate(self: Guarded, connection: w.Connection) !void {
+        if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
+        if (self.objects[0] == null) return error.InvalidDirectRecord;
+        var ended = false;
+        for (self.objects, 0..) |slot, i| {
+            const object = slot orelse {
+                ended = true;
+                continue;
+            };
+            if (ended) return error.InvalidDirectRecord;
+            try connection.object(object);
+            for (self.objects[0..i]) |previous| if (std.meta.eql(previous.?, object)) return error.InvalidDirectRecord;
+        }
+    }
+};
+
+pub fn encodeGuarded(allocator: std.mem.Allocator, connection: w.Connection, objects: [3]?p.DataLifecycle.Object, payload: []const u8) ![]u8 {
+    const binary = try w.Binary.encode(allocator, payload);
+    defer allocator.free(binary.base64);
+    const value: Guarded = .{ .definition = p.Growth.current_definition, .objects = objects, .payload = binary };
+    try value.validate(connection);
+    return p.Json.valueAllocBounded(allocator, value, max_bytes);
+}
 pub const Scope = struct {
     definition: p.Growth.Definition,
     connection: w.Connection,
@@ -99,4 +132,28 @@ pub fn read(allocator: std.mem.Allocator, client: c.DirectTableClient, value: Re
     defer response.deinit();
     const bytes = try (response.value.result.record.bytes orelse return error.InvalidDirectRecord).decode(allocator, max_bytes);
     return @constCast(bytes);
+}
+
+test "guarded record policy is immutable content and requires a bounded nonempty same-scope conjunction" {
+    const t = std.testing;
+    const connection: w.Connection = .{ .scope = .{ .realm = 1, .resource = 2, .catalog = 3 }, .branch = 1, .principal = 0 };
+    const object: p.DataLifecycle.Object = .{ .scope = connection.scope, .branch = 1, .object = 7 };
+    const encoded = try encodeGuarded(t.allocator, connection, .{ object, null, null }, "retained bytes");
+    defer t.allocator.free(encoded);
+    const parsed = try p.Json.parseFromSlice(Guarded, t.allocator, encoded);
+    defer parsed.deinit();
+    try parsed.value.validate(connection);
+    var invalid = parsed.value;
+    invalid.objects = @splat(null);
+    try t.expectError(error.InvalidDirectRecord, invalid.validate(connection));
+    invalid.objects = .{ object, null, object };
+    try t.expectError(error.InvalidDirectRecord, invalid.validate(connection));
+    invalid.objects = .{ object, object, null };
+    try t.expectError(error.InvalidDirectRecord, invalid.validate(connection));
+    const scope: Scope = .{ .definition = p.Growth.current_definition, .connection = connection, .account = @splat(1) };
+    const protected = try reference(scope, guarded_bit | 7, encoded);
+    const raw = try reference(scope, 7, encoded);
+    var first: [96]u8 = undefined;
+    var second: [96]u8 = undefined;
+    try t.expect(!std.mem.eql(u8, try key(protected, &first), try key(raw, &second)));
 }

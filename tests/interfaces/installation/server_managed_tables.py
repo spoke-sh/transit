@@ -26,6 +26,16 @@ def observation(fixture, name="managed_projection"):
     return json.loads(result[0]['dataflow'])
 
 
+def revision(fixture, number):
+    result = records(fixture.console(f'SHOW DATAFLOW managed_projection REVISION {number};\n')[-1])
+    assert len(result) == 1, result
+    saved = json.loads(result[0]['dataflow_revision'])
+    assert saved['revision']['revision'] == number, saved
+    assert saved['decision']['outcome'] == 'committed', saved
+    assert saved['decision']['attempt']['transaction'] == saved['revision']['cut']['begin']['identity'], saved
+    return saved
+
+
 def observe(client, action, deadline):
     # Only pure observations and idempotent result closure use this helper.
     # A refused observation supplies neither completion nor a replacement ID.
@@ -160,19 +170,27 @@ def run(cli, node, host, board, gateway):
         assert rows(fixture) == []
         fixture.console('AUTHORIZE DATAFLOW managed_projection;\nACTIVATE DATAFLOW managed_projection;\n')
         first = await_revision(fixture, 1, [1, 2, 3])
+        retained_first = revision(fixture, 1)
+        assert retained_first['revision']['rows'] == 3
         fixture.console('INSERT INTO managed_input (id) VALUES (4);\n')
         second = await_revision(fixture, 2, [1, 2, 3, 4])
         assert second['observation']['head']['completed'] != first['observation']['head']['completed']
+        assert revision(fixture, 1) == retained_first
+        retained_second = revision(fixture, 2)
+        assert retained_second['revision']['rows'] == 4
         fixture.console('SUSPEND DATAFLOW managed_projection;\nINSERT INTO managed_input (id) VALUES (5);\n')
         assert rows(fixture) == [{'id': str(value)} for value in [1, 2, 3, 4]]
         fixture.stop(kill=True)
         fixture.start()
         fixture.ready(timeout=300)
         assert observation(fixture)['observation']['head']['control']['state'] == 'suspended'
+        assert revision(fixture, 1) == retained_first
+        assert revision(fixture, 2) == retained_second
         fixture.console('RESUME DATAFLOW managed_projection;\n')
         await_revision(fixture, 3, [1, 2, 3, 4, 5])
         fixture.console('DELETE FROM managed_input;\n')
         await_revision(fixture, 4, [])
+        assert revision(fixture, 4)['revision']['rows'] == 0
         fixture.console('REFRESH DATAFLOW managed_projection;\n')
         await_revision(fixture, 5, [])
         # Inspect local request counters while making no SQL requests. A settled
@@ -184,6 +202,20 @@ def run(cli, node, host, board, gateway):
         assert not any(probe.delta(before).values()), 'Idle managed computation polled storage'
         retire(fixture, 'managed_projection')
         assert observation(fixture)['observation']['head']['control']['state'] == 'retired'
+        fixture.console('INSERT INTO managed_output (id) VALUES (99);\n')
+        assert revision(fixture, 1) == retained_first
+        assert revision(fixture, 2) == retained_second
+        assert revision(fixture, 4)['revision']['rows'] == 0
+        print('Managed SQL: immutable revision attribution survives successors, replacement, retirement and output edits.', flush=True)
+        client = Client(fixture.console_config(), fixture.record()['definition']).open()
+        try:
+            for number in ('0', '-1', '18446744073709551616'):
+                failure = client.call(dict(execute=dict(sql=f'SHOW DATAFLOW managed_projection REVISION {number}', token=None)), error='InvalidDataflowRevision')
+                assert failure['err']['sqlstate'] == list(b'22023'), failure
+            failure = client.call(dict(execute=dict(sql='SHOW DATAFLOW managed_projection REVISION 6', token=None)), error='DataflowRevisionNotFound')
+            assert failure['err']['sqlstate'] == list(b'42704'), failure
+        finally:
+            client.close()
         fixture.console('CREATE TABLE failed_input (id BIGINT NOT NULL);\nCREATE TABLE failed_output (id BIGINT PRIMARY KEY);\nINSERT INTO failed_input (id) VALUES (1),(1);\nCREATE DATAFLOW failed_projection INTO failed_output AS SELECT id FROM failed_input;\nAUTHORIZE DATAFLOW failed_projection;\nACTIVATE DATAFLOW failed_projection;\n')
         failed = await_head(fixture, 'failed_projection', lambda head: head['blocked'] == 'execution_failed' and head['pending'] is None)['observation']['head']
         assert failed['revision'] == 0

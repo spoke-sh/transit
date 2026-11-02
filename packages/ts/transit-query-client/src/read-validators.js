@@ -4,7 +4,7 @@ const ucs2length = lengthModule.default ?? lengthModule;
 "use strict";
 export const ReadRequest = validate53;
 const schema20 = {"type":"object","additionalProperties":false,"properties":{"definition":{"$ref":"#/$defs/ReadRequest/$defs/T1"},"action":{"$ref":"#/$defs/ReadRequest/$defs/T2"}},"required":["definition","action"]};
-const schema21 = {"type":"string","enum":["7c81d0916913d774febe2bec8f739f95a194f3ca88056c9f1214c0f77f22fa89"]};
+const schema21 = {"type":"string","enum":["afac2bd84560136ca90c0683afdffb8f71d5f96568b05dd3de773ce3c5339b2a"]};
 
 function validate55(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -20,7 +20,7 @@ if(typeof data !== "string"){
 validate55.errors = [{}];
 return false;
 }
-if(!(data === "7c81d0916913d774febe2bec8f739f95a194f3ca88056c9f1214c0f77f22fa89")){
+if(!(data === "afac2bd84560136ca90c0683afdffb8f71d5f96568b05dd3de773ce3c5339b2a")){
 validate55.errors = [{}];
 return false;
 }
@@ -734,7 +734,7 @@ if(typeof data !== "string"){
 validate77.errors = [{}];
 return false;
 }
-if(!(data === "7c81d0916913d774febe2bec8f739f95a194f3ca88056c9f1214c0f77f22fa89")){
+if(!(data === "afac2bd84560136ca90c0683afdffb8f71d5f96568b05dd3de773ce3c5339b2a")){
 validate77.errors = [{}];
 return false;
 }

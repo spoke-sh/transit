@@ -47,7 +47,8 @@ requires a catalog name; it is not evidence that a named catalog is unsupported.
 
 Cohosted native sessions also support [managed Table computations](queries.md#managed-table-computations):
 `CREATE DATAFLOW ... INTO ... AS SELECT ...`, explicit lifecycle controls,
-`SHOW DATAFLOW` and metadata-only `EXPLAIN CREATE DATAFLOW`. Publication and
+`SHOW DATAFLOW`, `SHOW DATAFLOW name REVISION number` for retained revision metadata,
+and metadata-only `EXPLAIN CREATE DATAFLOW`. Publication and
 activation command completion are distinct from the first completed output.
 
 ```sql

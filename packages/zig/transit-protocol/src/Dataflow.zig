@@ -216,6 +216,41 @@ pub const Completion = struct {
     }
 };
 
+/// A retained finite revision's interpretation and original common source cut.
+/// The owner separately retains its manifest/pages and verifies the decision.
+pub const Revision = struct {
+    definition: p.Growth.Definition,
+    computation: d.Definition,
+    revision: u64,
+    source: d.Definition,
+    source_position: d.Position,
+    output: d.Definition,
+    schema: d.Content,
+    rows: u64,
+    cut: p.Transaction.Cut,
+
+    pub fn validate(self: Revision) !void {
+        if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
+        try self.computation.validate();
+        try self.source.validate();
+        try self.source_position.validate();
+        try self.output.validate();
+        try self.schema.validate();
+        try self.cut.validate();
+        for ([_]d.Object{ self.computation.object, self.source.object, self.output.object }) |object|
+            try self.cut.begin.identity.requireObject(object);
+        if (self.revision == 0 or std.meta.eql(self.source.object, self.output.object) or
+            std.meta.eql(self.computation.object, self.source.object) or std.meta.eql(self.computation.object, self.output.object))
+            return error.InvalidDataflowRevision;
+    }
+    pub fn requireDecision(self: Revision, decision: p.Transaction.Decision) !void {
+        try self.validate();
+        try decision.validate();
+        if (decision.outcome != .committed or !std.meta.eql(decision.attempt.transaction, self.cut.begin.identity))
+            return error.IncompleteDataflowCoverage;
+    }
+};
+
 pub const SchemaTypes = struct {
     declaration: Definition,
     control: ControlAttempt,
@@ -223,6 +258,7 @@ pub const SchemaTypes = struct {
     coverage: Coverage,
     candidate: Candidate,
     completion: Completion,
+    revision: Revision,
 };
 
 test {

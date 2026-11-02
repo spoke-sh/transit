@@ -21,6 +21,7 @@ if sys.argv[1:] == ["--data-lifecycle"]:
                  ("branch", "validation", "attempt"), ("branch", "decision", "attempt"),
                  ("dataflow", "declaration"), ("dataflow", "control"),
                  ("dataflow", "candidate"), ("dataflow", "completion", "candidate"),
+                 ("dataflow", "revision"), ("dataflow", "revision", "cut", "begin"),
                  ("stream_queue", "append", "append", "target"),
                  ("stream_queue", "declaration"),
                  ("stream_queue", "producer", "target"),

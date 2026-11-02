@@ -132,6 +132,18 @@ SQL database sessions use these same public operations. The intent is a tagged
 owner. External records fix their connection, namespace, operation and immutable
 `DirectRecord` content; the external owner establishes its domain outcome.
 
+Record formats with bit `0x80000000` set carry a `DirectRecord.Guarded` JSON
+envelope: mandatory current `definition`, `objects` (a compact array of up to
+three distinct Table/KV object identities, with null trailing slots) and binary
+`payload`. At least one object is required. The catalog resolves each object's
+current native read requirement and checks their conjunction before disclosing
+any envelope, including generic `record.read`. Staging only validates and saves
+caller-provided bytes; it grants no right to read the envelope. These are
+references to existing policy, not grants. Both format and complete envelope
+bytes participate in the immutable key; removing the guard selects another key.
+Payload interpretation remains with the format owner. This bounded request
+profile does not limit the number of retained records or authorize collection.
+
 `DirectIntent.Reference.log` fixes the connection, namespace, Stream/Queue kind,
 original `DataLifecycle.Binding` and account-scoped immutable `DirectRecord`.
 Its `DirectLogIntent.Saved` body requires the current definition and complete

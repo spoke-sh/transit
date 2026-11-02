@@ -815,6 +815,10 @@ pub fn main(init: std.process.Init) !void {
             try @import("fixture_managed_table").prepare(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.managed", .{args[3]}));
         } else if (std.mem.eql(u8, args[2], "managed-recover")) {
             try @import("fixture_managed_table").recover(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.managed", .{args[3]}));
+        } else if (std.mem.eql(u8, args[2], "managed-verify")) {
+            try @import("fixture_managed_table").verify(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.managed", .{args[3]}), &admin, profile.role);
+        } else if (std.mem.eql(u8, args[2], "managed-prefix")) {
+            try @import("fixture_managed_table").incomplete(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.managed", .{args[3]}));
         } else if (std.mem.eql(u8, args[2], "kv-prepare")) {
             try @import("fixture_direct_kv").prepare(init, client, profile.role, try std.fmt.allocPrint(init.arena.allocator(), "{s}.kv", .{args[3]}));
         } else if (std.mem.eql(u8, args[2], "state-transaction-prepare")) {

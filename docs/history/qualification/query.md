@@ -9,6 +9,102 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Retained managed Table revisions — 2026-11-01
+
+Production source `c02b40bdc000954ad38bac81c1ccd44ff5309032` integrates the
+R0/R1a retained-result profile with `origin/main` at `5cdb41ff5`, including M6's
+workload definitions. The [query reference](../../handbook/reference/queries.md#managed-table-computations)
+and [contract](../../../contracts/DATAFLOW_V1.md#retained-finite-revision-reads)
+own current semantics. The integrated current-v1 definition is
+`f3045bf0a5a901a74691d2cd7de06c220c4d8f57c9a8bca116dd913cb344729c`.
+Schemas, bindings, independent signing/binary fixtures and browser resources were
+regenerated from the combined owners. The configuration-probe crypto link fix
+from development is already supplied by the merged M6 source.
+
+The manifest and revision key share the original output/checkpoint decision;
+historical rows come from immutable pages independently of later output writes.
+The catalog enforces current source/output/control reads on the guarded manifest
+and page formats, including raw DirectRecord reads. Staging caller-provided bytes
+does not grant disclosure rights. Reader budgets, caller-owned row lifetimes,
+fixed original cuts and incomplete-prefix refusal remain distinct from retention.
+
+| Integrated-source check | Executed result |
+| --- | --- |
+| Protocol package, ReleaseSafe | 121/121 tests at `ea6f9f43d` |
+| Clean fast checks | 61/61 at `6d9062939` |
+| Clean contract checks | 20/20 at `c02b40bdc` |
+| Clean signed native managed fixture | Preparation, recovery, replacement verification and interrupted-prefix phases passed at `c02b40bdc` |
+| Clean installed managed SQL fixture | Retained attribution, lifecycle controls, empty revisions, restart and failure preservation passed at `c02b40bdc` |
+| Public SQL grammar | 148 documentation examples, 174 SELECT comparisons and 51 extensions; zero ANTLR diagnostics at `ea6f9f43d` |
+
+The native fixture uses a fresh clone without inherited workspace artifacts. It
+reads retained nonempty and empty revisions after successors, output edits,
+retirement and a second process replacement. It checks caller-owned rows across
+scratch resets, missing revisions, row/byte limits, early close and a refused
+second page after a delivered prefix. Source/output/control revocation denies
+buffered rows, empty/repeated terminal reads and raw manifest/page reads.
+
+The installed SQL fixture verifies fixed-revision metadata after successors,
+replacement, retirement and output edits; invalid and missing revision errors;
+empty successors; suspend/restart/resume, refresh and idle parking. Constraint
+failure and checked SUM overflow preserve the prior output. Both fixtures ran
+through `just test::managed-tables` in the fresh clone at
+`/var/tmp/transit-m12-integrated-ygkvx_hc/src`; its source/command/exit manifest is
+`.cache/m12-integrated-clean-managed.json`. The manifest records exit zero and
+complete execution. The later inventory and negative-test fixes do not change
+these runtime binaries.
+
+The initial integrated fast check failed because Zig formatting removed an
+unnecessary quoted identifier from the new definition, leaving the diagnostic
+inventory stale. Commit `6d9062939` regenerates that one inventory value. The
+initial protocol run passed 120/121 tests: an existing negative test replaced the
+first definition character with `f`, which no longer changed the new hash.
+Commit `ea6f9f43d` makes the replacement always differ; the full rerun above
+passes without leaks. These commits change only inventory/test data, not runtime
+behavior or wire definitions.
+
+Commands were `zig build test -Doptimize=ReleaseSafe --summary all -j2` in the
+protocol package, `just ci clean --check fast`, `just ci clean --check contracts`
+and `just test::sql-grammar`, inside the pinned Nix shell. Clean-check manifests
+are retained under `.cache/ci/clean/` in the implementation worktree.
+
+Before integration, clean `sdks-conformance` at `689627622` and clean
+`interfaces-sql` at `a155dc7b4` passed their complete lanes. The SDK lane includes
+the installed ten-language ring. The SQL lane's first build exposed the missing
+configuration-probe crypto linkage; its corrected rerun passed. These earlier
+lane results do not qualify the later M6 integration. A broader clean
+`installation-ui` run at `689627622` passed the managed fixtures but failed
+`server-sql` after TLS trust replacement with the existing generic PostgreSQL
+request failure, matching the previously recorded failure location. That lane
+is not passed; its unexecuted suffix is not evidence. The later clean
+`installation-ui` run at `0ba21fab3` passed the entire lane, including that SQL
+case, guarded managed reads, Board, Station recovery and the browser boundary.
+It does not erase the earlier failure or establish its cause; it also predates
+the M6 integration. Its complete manifest is retained under
+`.cache/ci/clean/0ba21fab3b0c-transit-ci-z8ab0ge9/`.
+
+Local raw logs are under
+`/home/alex/workspace/spoke-sh/transit-m12-completion-plan/.cache/`:
+
+| Log | SHA-256 |
+| --- | --- |
+| `m12-integrated-clean-managed.log` | `f1bec071fd06d846a85eaacc02bbf4ee7dbca86a5d5e04fc78ffc3d179601fc3` |
+| `m12-integrated-clean-managed.json` | `4c769d344e05104876b1f868fb45f618282004e22589ffdf9af9d7a142e39ec8` |
+| `m12-integrated-protocol-fixed.log` | `da34acc2a74623b396c872cb39cdf58a5cc8d5ecfd898c854d008d5a7bcebc85` |
+| `m12-integrated-clean-fast-fixed.log` | `9382ed0697fc9b60fb28b4ab8d706ee0b44f17770844e85e9a165242d9442ab3` |
+| `m12-integrated-clean-contracts.log` | `83bf0f41e5e81cc01de00af6e8e03b90c6a45910124b8ddd3c99f6f0fb1c048e` |
+| `m12-integrated-sql-grammar.log` | `71511a6e5df48d953e479617977b14425e3d1e99c907c16d4a1f7fb5bef4e370` |
+| `m12-clean-sdk-conformance.log` | `1c5ad58d5216dff1f4a4779db662c1325a870d94634ff342e4ed7613034ec893` |
+| `m12-clean-sql-fixed.log` | `9cf9caacae1606ef209bf0c1b4d7a83ecd80f56274118c6fcc64b5e2f75f1d20` |
+| `m12-clean-guarded-installation.log` | `50ad5eef09c27a9a19352a4723ea29ac4c31cde78742e8f20bc4e15e71f20f7a` |
+| `m12-clean-installation.log` | `9cbe3b7c4fac11ddc783911fff4c2cf490c7daaed3674cec268298b8e7e661a8` |
+
+This scope does not establish abandoned-record collection, expiry/release,
+historical SQL row fetching, ordered change consumers, multi-source execution,
+the full lifecycle crash/growth matrix, or a zero-allocation/performance guarantee.
+No complete core, storage or release qualification is claimed. R1b and the rest
+of Milestone 12 remain open.
+
 ## M6 progress integration — 2026-11-01
 
 Production code, contracts and generated consumers at

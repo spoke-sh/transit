@@ -541,6 +541,26 @@ completed revision, row count, source position and common transaction decision.
 `EXPLAIN CREATE DATAFLOW ...` validates metadata and budgets without publishing,
 pinning a snapshot or running the SELECT.
 
+Once a revision has completed, `SHOW DATAFLOW projection REVISION 1` inspects
+that fixed revision. Its `dataflow_revision` column contains the exact computation,
+source and output definitions, schema commitment, source position, row count,
+common cut, immutable manifest reference and verified committed decision. A missing
+revision fails instead of starting work or substituting the current output.
+
+The shared Zig `ManagedRevision` reader also streams that revision's retained
+rows with caller-owned output buffers and bounded reusable scratch. Its default
+consumption limits are 10,000 rows and 16 MiB of encoded manifest/page bytes.
+Later output Table writes, refreshes and retirement do not change these rows or
+their schema. Current read access to the exact source, output and control KV is
+required before disclosure, including buffered rows, empty results and repeated
+terminal reads. Definition replacement or DROP can refuse reads even when bytes
+remain retained. Closing a reader releases local memory; budget stops, missing
+pages and failures never establish complete coverage. SQL revision inspection
+returns metadata only; it does not fetch historical rows.
+
+The catalog also enforces these read grants on the retained manifests and pages
+themselves. Calling the lower-level immutable-record API cannot bypass them.
+
 This profile accepts one ordinary Table source in the same connection and
 namespace as the output. It uses the existing finite relational projection,
 filter and grouped COUNT/SUM compiler. Output column names, logical types and

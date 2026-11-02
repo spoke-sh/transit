@@ -12,7 +12,7 @@ projectionClause: PROJECTING TO (CURRENT | SNAPSHOT STRING);
 managedCommand
     : CREATE DATAFLOW identifier INTO identifier AS relationalSelect
     | (AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE) DATAFLOW identifier
-    | SHOW DATAFLOW identifier
+    | SHOW DATAFLOW identifier (REVISION INTEGER)?
     | EXPLAIN CREATE DATAFLOW identifier INTO identifier AS relationalSelect
     ;
 // Session controls lower to the Catalog-owned local Table transaction contract.
@@ -372,7 +372,7 @@ explainStatement
     : EXPLAIN selectStatement
     ;
 
-identifier: settingIdentifier | STREAMS | QUEUES | SNAPSHOT | CURRENT | PROJECTING | DATAFLOW | AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE;
+identifier: settingIdentifier | STREAMS | QUEUES | SNAPSHOT | CURRENT | PROJECTING | DATAFLOW | REVISION | AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE;
 settingIdentifier: legacyIdentifier | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER;
 legacyIdentifier
     : IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN
@@ -408,6 +408,7 @@ VECTOR_DISTANCE: 'VECTOR_DISTANCE';
 TIME_BUCKET: 'TIME_BUCKET';
 LOCAL_TO_UTC: 'LOCAL_TO_UTC';
 DATAFLOW: 'DATAFLOW';
+REVISION: 'REVISION';
 AUTHORIZE: 'AUTHORIZE';
 ACTIVATE: 'ACTIVATE';
 SUSPEND: 'SUSPEND';

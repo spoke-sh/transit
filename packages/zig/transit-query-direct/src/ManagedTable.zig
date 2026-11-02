@@ -13,7 +13,8 @@ const w = c.DirectTableProtocol;
 const Self = @This();
 pub const declaration_format: u32 = 0x44464431; // DFD1
 pub const work_format: u32 = 0x44465731; // DFW1
-pub const page_format: u32 = 0x44465031; // DFP1
+pub const page_format: u32 = c.DirectRecord.guarded_bit | 0x44465031; // guarded DFP1
+pub const revision_format: u32 = c.DirectRecord.guarded_bit | 0x44465231; // guarded DFR1
 pub const head_key = "\x00dataflow/head";
 pub const max_definition_bytes = 64 * 1024;
 pub const spec: c.storage.KVDeclaration.Spec = .{ .value_type = .binary, .nullable = false };
@@ -121,6 +122,61 @@ pub const Page = struct {
     previous: ?c.DirectRecord.Reference,
     row: w.Binary,
 };
+/// Immutable result root. The same transaction publishes this reference, the
+/// current checkpoint and output rows. DirectRecord retention protects the
+/// declaration, schema and entire content-addressed page chain indefinitely.
+pub const Revision = struct {
+    metadata: flow.Revision,
+    declaration: c.DirectRecord.Reference,
+    transaction: c.DirectClientToken.Key,
+    schema: w.Binary,
+    pages: ?c.DirectRecord.Reference,
+
+    pub fn validate(self: Revision) !void {
+        try self.metadata.validate();
+        try self.declaration.validate();
+        try self.transaction.validate();
+        if (self.declaration.format != declaration_format or
+            !std.meta.eql(self.declaration.scope.connection, self.transaction.connection) or
+            (self.pages == null) != (self.metadata.rows == 0)) return error.InvalidManagedTableRecord;
+        if (self.pages) |page| {
+            try page.validate();
+            if (page.format != page_format or !std.meta.eql(page.scope.connection, self.transaction.connection) or
+                !std.mem.eql(u8, &page.scope.account, &self.transaction.account)) return error.InvalidManagedTableRecord;
+        }
+    }
+};
+
+pub fn revisionKey(revision: u64) ![24]u8 {
+    if (revision == 0) return error.InvalidDataflowRevision;
+    var key: [24]u8 = undefined;
+    @memcpy(key[0..16], "\x00dataflow/rev/__");
+    std.mem.writeInt(u64, key[16..24], revision, .big);
+    return key;
+}
+
+/// Read authority is independent of execution ownership. This profile retains
+/// exact source/output bindings and requires their current read grants, plus
+/// read access to the control KV, even for an empty or retired revision.
+pub fn revisionReference(self: Self, value: Declaration, revision: u64) !c.DirectRecord.Reference {
+    var arena: std.heap.ArenaAllocator = .init(self.client.allocator);
+    defer arena.deinit();
+    return self.revisionReferenceInto(value, revision, &arena);
+}
+pub fn revisionReferenceInto(self: Self, value: Declaration, revision: u64, arena: *std.heap.ArenaAllocator) !c.DirectRecord.Reference {
+    try value.validate();
+    _ = try value.source.require(self.client, .read);
+    _ = try value.output.require(self.client, .read);
+    const key = try revisionKey(revision);
+    const read = (try KV.apply(arena, self.client, .{ .get = .{ .object = value.object, .key = &key } })).value;
+    const cell = read.value orelse return error.DataflowRevisionNotFound;
+    if (cell != .value or cell.value != .atom or cell.value.atom != .bytes) return error.InvalidManagedTableRecord;
+    const parsed = try p.Json.parseFromSlice(c.DirectRecord.Reference, arena.allocator(), cell.value.atom.bytes);
+    const reference = parsed.value;
+    try reference.validate();
+    if (reference.format != revision_format or !std.meta.eql(reference.scope.connection, self.client.connection)) return error.InvalidManagedTableRecord;
+    return reference;
+}
 client: c.DirectTableClient,
 
 pub fn account() [32]u8 {
@@ -216,10 +272,28 @@ fn store(self: Self, selected: [32]u8, format: u32, value: anytype) !c.DirectRec
     defer self.client.allocator.free(bytes);
     return c.DirectRecord.stage(self.client, selected, format, bytes);
 }
+fn readObjects(value: Declaration) [3]?d.Object {
+    return .{ value.source.interpretation.interpretation.object, value.output.interpretation.interpretation.object, value.object };
+}
+fn storeRevision(self: Self, declaration: Declaration, selected: [32]u8, value: Revision) !c.DirectRecord.Reference {
+    const bytes = try p.Json.valueAllocBounded(self.client.allocator, value, c.DirectRecord.max_bytes);
+    defer self.client.allocator.free(bytes);
+    const guarded = c.DirectRecord.encodeGuarded(self.client.allocator, self.client.connection, readObjects(declaration), bytes) catch |err| return if (err == error.WriteFailed) error.ManagedTableResultBudget else err;
+    defer self.client.allocator.free(guarded);
+    return c.DirectRecord.stage(self.client, selected, revision_format, guarded);
+}
 pub fn load(self: Self, comptime T: type, reference: c.DirectRecord.Reference, format: u32) !std.json.Parsed(T) {
     if (reference.format != format or !std.meta.eql(reference.scope.connection, self.client.connection)) return error.InvalidManagedTableRecord;
     const bytes = try c.DirectRecord.read(self.client.allocator, self.client, reference);
     defer self.client.allocator.free(bytes);
+    if (format & c.DirectRecord.guarded_bit != 0) {
+        const guarded = try p.Json.parseFromSlice(c.DirectRecord.Guarded, self.client.allocator, bytes);
+        defer guarded.deinit();
+        try guarded.value.validate(self.client.connection);
+        const payload = try guarded.value.payload.decode(self.client.allocator, c.DirectRecord.max_bytes);
+        defer self.client.allocator.free(payload);
+        return p.Json.parseFromSliceOwned(T, self.client.allocator, payload);
+    }
     return p.Json.parseFromSliceOwned(T, self.client.allocator, bytes);
 }
 pub fn find(self: Self, namespace: u64, name: c.TableAuthority.Name) !?std.json.Parsed(Declaration) {
@@ -637,12 +711,28 @@ fn stepInner(self: Self, token: c.DirectClientToken.Key, io: std.Io, directory: 
                 next.completed_refresh = next.control.refresh;
                 next.blocked = .none;
                 const checkpoint_bytes = try p.Json.valueAllocBounded(arena.allocator(), next, max_definition_bytes);
-                var revision_key: [24]u8 = undefined;
-                @memcpy(revision_key[0..16], "\x00dataflow/rev/__");
-                std.mem.writeInt(u64, revision_key[16..24], next.revision, .big);
+                const revision_key = try revisionKey(next.revision);
+                const output = try client.call(.{ .lookup = .{ .namespace = value.namespace, .name = value.output.name.slice() } });
+                defer output.deinit();
+                const output_metadata = output.value.result.lookup orelse return error.TableNotFound;
+                try value.output.check(client.connection, output_metadata);
+                const schema_bytes = try output_metadata.schema.decode(arena.allocator(), f.TableSchema.max_bytes);
+                var schema_digest: [32]u8 = undefined;
+                std.crypto.hash.sha2.Sha256.hash(schema_bytes, &schema_digest, .{});
+                const status = try tx.inspect(work.transaction);
+                const revision: Revision = .{
+                    .metadata = .{ .definition = p.Growth.current_definition, .computation = try value.interpretation(self.client.allocator), .revision = next.revision, .source = value.source.interpretation.interpretation, .source_position = work.source orelse return error.IncompleteDataflowCoverage, .output = value.output.interpretation.interpretation, .schema = .{ .bytes = schema_bytes.len, .sha256 = schema_digest }, .rows = work.rows, .cut = status.cut orelse return error.IncompleteDataflowCoverage },
+                    .declaration = work.declaration,
+                    .transaction = work.transaction,
+                    .schema = output_metadata.schema,
+                    .pages = work.pages,
+                };
+                try revision.validate();
+                const root = try self.storeRevision(value, work.transaction.account, revision);
+                const revision_bytes = try p.Json.valueAllocBounded(arena.allocator(), root, max_definition_bytes);
                 const mutation_ = try KV.prepareMutation(&arena, .{ .definition = p.Growth.current_definition, .identity = self.operation(value, "checkpoint", work.lease.epoch), .target = value.object, .action = .insert, .expected_definition = read.interpretation.interpretation, .expected_data = null, .intent = @splat(0) }, spec, &.{
                     .{ .put = .{ .key = head_key, .value = .{ .value = .{ .atom = .{ .bytes = checkpoint_bytes } } }, .expect = .present } },
-                    .{ .put = .{ .key = &revision_key, .value = .{ .value = .{ .atom = .{ .bytes = checkpoint_bytes } } }, .expect = .absent } },
+                    .{ .put = .{ .key = &revision_key, .value = .{ .value = .{ .atom = .{ .bytes = revision_bytes } } }, .expect = .absent } },
                 });
                 work.statement = try tx.stageKV(work.transaction, client.transaction.?.revision, work.sequence + 1, mutation_);
             }
@@ -698,9 +788,10 @@ fn evaluate(self: Self, value: Declaration, work: *Work, io: std.Io, directory: 
         const encoded = try (f.TableRow.Row{ .identity = .{ .origin = self.client.connection.principal + 1, .operation = work.lease.owner.operation, .ordinal = @intCast(rows) }, .cells = row.cells[0..row.len] }).encode(schema.schema, buffer);
         const page: Page = .{ .definition = p.Growth.current_definition, .transaction = work.transaction, .ordinal = rows, .previous = previous, .row = try w.Binary.encode(scratch.allocator(), encoded) };
         const page_bytes = try p.Json.valueAllocBounded(scratch.allocator(), page, c.DirectRecord.max_bytes);
-        retained_bytes = try std.math.add(u64, retained_bytes, page_bytes.len);
+        const guarded = c.DirectRecord.encodeGuarded(scratch.allocator(), self.client.connection, readObjects(value), page_bytes) catch |err| return if (err == error.WriteFailed) error.ManagedTableResultBudget else err;
+        retained_bytes = try std.math.add(u64, retained_bytes, guarded.len);
         if (retained_bytes > value.options.budgets.result_bytes) return error.ManagedTableResultBudget;
-        previous = try c.DirectRecord.stage(self.client, work.transaction.account, page_format, page_bytes);
+        previous = try c.DirectRecord.stage(self.client, work.transaction.account, page_format, guarded);
         rows += 1;
         _ = scratch.reset(.retain_capacity);
     }

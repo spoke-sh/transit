@@ -101,7 +101,7 @@
     "T2": {
       "type": "string",
       "enum": [
-        "7c81d0916913d774febe2bec8f739f95a194f3ca88056c9f1214c0f77f22fa89"
+        "afac2bd84560136ca90c0683afdffb8f71d5f96568b05dd3de773ce3c5339b2a"
       ]
     },
     "T3": {
@@ -4795,7 +4795,8 @@
         "source",
         "coverage",
         "candidate",
-        "completion"
+        "completion",
+        "revision"
       ],
       "properties": {
         "declaration": {
@@ -4815,6 +4816,9 @@
         },
         "completion": {
           "$ref": "#/$defs/T201"
+        },
+        "revision": {
+          "$ref": "#/$defs/T202"
         }
       },
       "required": [
@@ -4823,7 +4827,8 @@
         "source",
         "coverage",
         "candidate",
-        "completion"
+        "completion",
+        "revision"
       ],
       "x-transit-defaults": {}
     },
@@ -5192,6 +5197,62 @@
         "candidate",
         "transaction",
         "decision"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T202": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "definition",
+        "computation",
+        "revision",
+        "source",
+        "source_position",
+        "output",
+        "schema",
+        "rows",
+        "cut"
+      ],
+      "properties": {
+        "definition": {
+          "$ref": "#/$defs/T2"
+        },
+        "computation": {
+          "$ref": "#/$defs/T3"
+        },
+        "revision": {
+          "$ref": "#/$defs/T6"
+        },
+        "source": {
+          "$ref": "#/$defs/T3"
+        },
+        "source_position": {
+          "$ref": "#/$defs/T15"
+        },
+        "output": {
+          "$ref": "#/$defs/T3"
+        },
+        "schema": {
+          "$ref": "#/$defs/T31"
+        },
+        "rows": {
+          "$ref": "#/$defs/T6"
+        },
+        "cut": {
+          "$ref": "#/$defs/T48"
+        }
+      },
+      "required": [
+        "definition",
+        "computation",
+        "revision",
+        "source",
+        "source_position",
+        "output",
+        "schema",
+        "rows",
+        "cut"
       ],
       "x-transit-defaults": {}
     }
