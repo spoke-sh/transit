@@ -224,7 +224,7 @@ export function InterfaceShell({ scope, children }: { scope: Deployment; childre
         </aside>
         <div className="shell-content">
           <aside className="scope">
-            Realm {scope.realm} · Private workspace · Current scoped access
+            Realm {scope.realm} · Private workspace · Reads check current permissions
           </aside>
           {current || pathname.startsWith("/recovery/") ? (
             children
