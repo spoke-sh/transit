@@ -212,8 +212,11 @@ preserve native history and captures,
 reject old creators by accepted epoch, and resume physical object deletion from
 a durable intent. Direct Table and catalog guards also retain the epoch acquired
 before staging: an intervening storage fence rejects publication, while a fresh
-request can rebuild an unaccepted operation using the same identity. Receipt
-observation and reads continue to require current authorization. The local
+request can rebuild an unaccepted operation using the same identity. Paged
+transaction checks and buffered status reads classify a storage-only epoch
+change as a conflict, withholding the response until a fresh original request.
+Policy changes retain their authorization denial. Receipt observation and reads
+continue to require current authorization. The local
 native page/block collector has a separate graph from the
 [direct-data collector](../../../packages/zig/transit-backend-local/docs/maintenance.md#direct-table-and-catalog-collection).
 Direct collection retains catalog history, Table recovery, unexpired data history,
