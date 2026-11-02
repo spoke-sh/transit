@@ -982,8 +982,13 @@ tests alone. R9 migration work and R10 correspondence accompany every row.
 R0/R1a has merged. The implementation starts at `db0bb4a8f` and preserves the
 installed single-source finite operator profile. Candidate ownership reuses the
 original transaction; it introduces neither a second scheduler nor a general
-collection rule for `direct-records/`. Continue with work-record closure and the
-remaining finite qualification matrix before marking R1b/R3a complete.
+collection rule for `direct-records/`. The
+[executed ownership checks](../history/qualification/query.md#transaction-owned-managed-result-candidates--2026-11-02)
+cover original staging recovery, real collection, creation during collection
+grace, retained revisions and the installed lifecycle; the record also preserves
+two earlier installed failures and their subsequent recovery observations.
+Continue with work-record closure and the remaining finite qualification matrix
+before marking R1b/R3a complete.
 R3a starts its recovery/measurement work immediately; R5a can proceed after
 agreeing on source bindings, shared types and result contracts. Neither requires
 a new scheduler, a second historical catalog or all remaining Station work.
@@ -993,7 +998,8 @@ a new scheduler, a second historical catalog or all remaining Station work.
 The user-visible outcome is that Transit can reclaim explicitly abandoned private
 work while every accepted operation and retained completed revision remains
 recoverable. A retired computation still serves its retained revisions under
-current rights; it does not implicitly opt into expiry. The table records the complete target. Transaction-owned candidate registration
+current rights; it does not implicitly opt into expiry. The table records the
+complete target. Transaction-owned candidate registration
 and abort collection are implemented; declaration/work-record closure and the
 full installed matrix remain proposed work.
 
