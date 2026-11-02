@@ -13,7 +13,6 @@ navigation available and shows **Loading view…**. If the download fails, the v
 shows **View unavailable** and offers **Reload Board**; another view can still be
 opened from navigation. Loading a module starts no query or maintenance action.
 
-
 ## Activities and contextual inspection
 
 The horizontal activity bar opens **Data**, **Workbooks** and the declared

@@ -189,8 +189,47 @@ this focused pass does not turn the failed default schedule into a pass.
 Source, executable hashes, exact commands, log hashes and completed exit-zero
 outcome are retained in `.cache/r2-rebase-focused/`; the combined log is
 `/var/tmp/transit-ci-gx3lag7z/rebase-focused.log`. The successful disposable
-installation is cleaned up. The final documentation check passes 10,991 local
+installation is cleaned up. That documentation check passes 10,991 local
 links across 729 files; all 160 package versions and pins agree.
+
+Before PR submission, main advances again to `49df0fb9e` with automatic local
+Board data access. The branch rebases to `c88f2dcab`, preserving that implementation
+and its disabled-local-SQL, explicit-profile and revoked-restart checks. Conflict
+resolution combines the roadmap records and keeps `--workbench-only` limited to
+omitting the independent connection-profile matrix. Frontend modules, typed API
+changes and model machinery are unchanged from the first rebase's checks.
+
+The default installed attempt at `c88f2dcab` fails during
+`board_profiles.configure`, before its browser matrix. Applying the original saved
+`board-profile-discovery` authorization change returns `Conflict` with
+`StaleAuthorizationRevision`; the test does not infer that earlier work was
+rejected or create a replacement mutation. Private installation
+`/var/tmp/transit-server-proof-mrfa3jmi` retains the saved change. Automatic source,
+task and log-hash records are in `.cache/r2-local-rebase/`, and the combined log is
+`/var/tmp/transit-ci-gx3lag7z/local-rebase-checks.log`. This is a separate setup
+failure from the earlier retained-selection capacity refusal.
+
+The focused `c88f2dcab` run then **passes** with matching rebuilt executables:
+seven workbench browser cases (58.8 seconds), the independent placement browser
+case (10.9 seconds), and the complete API schedule. It additionally proves main's
+automatic local access, disabled-local-SQL behavior and revocation across restart
+without changing original credentials, grants or provisioning receipts. It omits
+the independent connection-profile matrix. Source, binary/log hashes and the
+verified exit-zero record are in `.cache/r2-local-rebase-focused/`; the combined
+log is `/var/tmp/transit-ci-gx3lag7z/local-rebase-focused.log`. The successful
+installation is cleaned up.
+
+Main subsequently adds Queue NACK and release-proof changes at `edeb8618c`.
+The branch rebases cleanly to `340fa6374`; Board frontend, browser clients, API
+changes and installed workbench fixture are unchanged from `c88f2dcab`. The
+installed pass remains attributed to `c88f2dcab`, not to the newer SQL runtime.
+At clean `340fa6374`, `just transit-board::check` passes all contract/validator
+drift, formatting/lint, strict types and component tests (132 Board, 67 query,
+13 application and seven diagnostics). Standalone Board API unit tests also
+pass. Verified source/task/log records are in `.cache/r2-final-checks/`, with
+combined log `/var/tmp/transit-ci-gx3lag7z/final-checks.log`. Full browser,
+installation and formal inventories are not rerun at this final base; their
+earlier outcomes retain their stated source and limits.
 
 R1's SQL-only timeout/native-capacity, managed-table replacement/resume and
 post-certificate-replacement SQL investigations remain distinct; later passes

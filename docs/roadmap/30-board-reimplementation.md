@@ -477,14 +477,17 @@ installed delayed/failed-download checks preserve the embedded host's limits
 and shell navigation. The [source-attributed account](../history/qualification/interfaces.md#board-readable-storage-and-deferred-features--2026-11-02)
 records the exact byte comparison, checks, failures and remaining gaps.
 
-The focused installed storage/API/browser schedule passes at rebased `5f9a4a332`,
-with all matching executables rebuilt from that source.
+The focused installed storage/API/browser schedule passes at `c88f2dcab`,
+with matching rebuilt executables, automatic local access and revoked-restart
+checks from main.
 [Real D4 figures](../design/board-data/D4.md#installed-figures) are ready for
-layout review. The default browser attempt at the same source passes all four
-independent connection profiles, then stops at a capacity refusal during
-retained-history selection; the focused pass does not qualify that full schedule
-or erase earlier failures. The branch includes `origin/main` at `30721c55f`
-and its saved-declaration recovery.
+layout review. The default attempt at that source stops during profile
+provisioning with `StaleAuthorizationRevision`. Earlier full attempts encounter
+retained-setup capacity refusals; their independent connection-profile passes
+remain separately attributed. The focused pass does not qualify the full schedule
+or erase those failures. The branch includes `origin/main` at `edeb8618c`, including
+automatic local access, saved-declaration recovery and the later Queue/release
+changes. The qualification account distinguishes each tested revision.
 This does not close R2's full acceptance matrix: metadata-only/SELECT-only
 subjects for the new placement fixture need a separate authority schedule,
 and manual screen-reader/native-browser-zoom review remains open. Broader
