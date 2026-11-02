@@ -137,6 +137,10 @@ inspection remains available; richer placement diagrams, M12 computation
 neighborhoods, durable/governed workbooks and P5–P7 closure remain future work.
 The milestone remains **In Progress**.
 
+Executed browser/API evidence, the clean browser preparation workaround and the
+incomplete installation lane are recorded in the
+[Operations proof account](../history/qualification/interfaces.md#board-operational-inspection-and-connection-states--2026-11-01).
+
 ## Remaining implementation plan — 2026-11-01
 
 **Source basis:** `origin/main` at `0c64c4b03` (2026-11-01), after the M6 workload,
