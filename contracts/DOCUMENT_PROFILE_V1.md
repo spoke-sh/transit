@@ -5,7 +5,9 @@ defines offline interpretation descriptors, bounded processing limits, part
 coverage and byte provenance. The reflected
 [schema](document-profile-v1.schema.json) is generated from these public Zig
 types. The [independent fixture](../packages/zig/transit-protocol/src/fixtures/document-profile-v1.json)
-binds exact commitment bytes and full-width identities.
+binds exact commitment bytes and full-width identities. The schema root
+`SchemaTypes` groups these types for reflection and fixture checking; it is not
+a stored revision or transmitted operation envelope.
 
 This vocabulary does not add a catalog operation, SQL syntax, direct Document
 publication, transport adapter or effect authority. Installed Document behavior

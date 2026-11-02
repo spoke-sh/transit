@@ -367,6 +367,10 @@ parts, validate graph reachability, unpack archives, seal a protocol exchange or
 publish storage. These additive types and pure APIs leave existing stored/wire
 semantics and the shared current-v1 definition unchanged.
 
+The [construction qualification account](../history/qualification/catalog.md#offline-document-construction-and-compound-commitments--2026-11-02)
+records the independent oracles, bounded-workspace checks and exact integration
+outcomes, including the failed service-wait assertion and separate passing retry.
+
 The next work is to finish the P0/P1 representation and staging contracts, then
 connect P2 to M7's evaluated, paged direct owner. M7 now supplies a causal-map
 storage slice, but its ordered-tree/raw-part, public-admission and transaction
@@ -876,8 +880,10 @@ profiles, AOT, branch/search dependencies or failed recovery proofs visible.
 ### First implementation changes
 
 Keep each change independently reviewable and preserve the P identifiers as the
-full scope. The first two changes can begin on this baseline. Incoming M7 and M6
-work is an explicit prerequisite for later exposure, not permission to route
+full scope. The first two changes are partially delivered by the compound
+commitments and semantic constructors described above; staging/publication,
+capability stages, schemas and namespaces remain open. Incoming M7 and M6 work
+is an explicit prerequisite for later exposure, not permission to route
 profile publication through Station or create a second transaction owner.
 
 | Order / package | Concrete change and owning files/packages | Required review result |
