@@ -76,6 +76,69 @@ redacted coverage. Complete byte coverage says nothing about grammar validity,
 application success or remote execution. Parent/child references and hashes grant
 no read permission or retention hold by themselves.
 
+## Compound representation commitments
+
+`DocumentProfile.Container` adds offline `Manifest`, `Relationship` and exact
+external `Reference` types. These do not replace direct Document revisions or
+add a stored publication operation. A manifest names its current definition,
+interpretation digest, root part ordinal, local part/relationship counts,
+retained byte total, separate complete/redacted/prefix counts and directory
+commitment. Parts are streamed in strictly increasing nonzero `Part.id` order;
+ordinals are zero-based positions in that directory. Relationship order is
+significant and follows all local parts. Counts use checked u64 arithmetic.
+
+A relationship binds `contains`, `references`, `derived_from`, `response_to` or
+`attachment`, a local source ordinal, a local destination ordinal or an external
+reference, and an optional immutable label content commitment. Local endpoints
+must exist in the finished part directory. Shared destinations and cycles are
+representable; a format validator separately decides their validity and bounds
+traversal. A complete directory does not prove root reachability or valid ZIP,
+MIME, PDF, XML or application grammar.
+
+An external reference binds a direct Document target (including exact catalog
+interpretation and partition), a positive accepted-revision number, a nonzero
+manifest digest, an ordinal and the complete expected `Part`. Resolving it must
+check the exact accepted revision/manifest and that ordinal's part under current
+rights. A name/latest-revision lookup cannot satisfy it. Shape validation does
+not establish that any referenced revision or bytes exist, and neither a label
+nor a reference acquires access, a retention pin or an effect permit. Provenance
+coordinates remain assertions until their named part/extent is resolved.
+
+The manifest digest uses SHA-256 over this canonical stream. Numbers below are
+big-endian u64, including partition ordinals whose public width is u32. Tags are
+single bytes; there is no implicit native struct encoding.
+
+1. `transit.document.container.v1` plus zero, current 32-byte definition,
+   32-byte profile digest and root ordinal.
+2. For each local part: tag `1`, then its canonical part bytes.
+3. For each relationship: tag `2`, kind (`contains=1`, `references=2`,
+   `derived_from=3`, `response_to=4`, `attachment=5`), source ordinal, then
+   destination. Local destination is tag `1` and ordinal. External destination
+   is tag `2`, target partition definition, realm/resource/catalog/branch/object
+   IDs, interpretation revision and digest, partition ordinal, 16-byte logical
+   Document ID, accepted revision, manifest digest, part ordinal and canonical
+   part bytes. Follow with label presence (`0`/`1`), then content when present.
+4. Tag `3`, part count, relationship count, retained bytes, complete part count,
+   redacted part count and prefix part count.
+
+Canonical part bytes are definition, profile digest, ID, retained byte count,
+SHA-256, coverage (`prefix=1`, `complete=2`, `redacted=3`) and source. Source is
+`0` for absent, `1` plus a span for exact, or `2` plus source span and transform
+content for derived. A span is part ID, space (`raw=1`, `decoded=2`, `derived=3`),
+start and end. Content is byte count followed by SHA-256. The independent
+[container fixture](../packages/zig/transit-protocol/src/fixtures/document-profile-container-v1.json)
+includes all coverage/source forms, full-width identities, a local cycle and an
+unresolved external reference.
+
+`Container.Commitment` computes metadata commitments without reading bytes.
+The profile library's `Container` builder additionally hashes every local part's
+permitted bytes in bounded calls and refuses incorrect length/hash before adding
+that part. `verify` requires the final manifest to match all frozen fields;
+intermediate parts never establish container completion. `requireExact` refuses
+redacted/prefix local parts. Even exact local coverage leaves external references,
+profile grammar, schema validity and durable acceptance unproved. Retain only
+permitted bytes: callers redact secrets before feeding this component.
+
 ## Independent observations
 
 `Capture` describes availability: preparing, ready, capturing, complete, unknown
@@ -93,7 +156,7 @@ Uncertain effects and incomplete frames must remain distinguishable.
 
 ## Compatibility and verification
 
-This is an additive offline contract; existing declarations, native requests,
+The compound representation types are additive offline contracts; existing declarations, native requests,
 stored Document revisions and Exchange records are unchanged. Missing or foreign
 definitions reject at strict JSON decoding. The independent Python fixture
 computes descriptor commitment bytes; Zig validates that fixture and exercises

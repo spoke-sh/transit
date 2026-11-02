@@ -106,6 +106,38 @@ prefix remains provisional even when it was emitted before a late grammar/hash
 failure. Applications staging projections must discard or explicitly mark such
 prefixes; these APIs never accept a stored revision or grant effect authority.
 
+## Compound representation construction
+
+`Container.init(profile_digest, root_ordinal, limits)` builds a manifest from
+local parts in increasing `Part.id` order. Call `beginPart`, repeatedly
+`append(bytes, work_budget)`, then `endPart`; each call consumes at most its byte
+work allowance and retains no input pointer. Only one part is active. After all
+parts, call `addRelationship` for each ordered relationship and `finish`.
+`Container.verify(expected_manifest, limits)` uses the same protocol and requires
+exact final metadata/commitment equality. `verifiedManifest` refuses before
+successful finish or after a sticky failure. Repeated finish is idempotent;
+additional input after finish is rejected.
+
+The builder owns constant-sized state and no allocator. Limits separately bound
+local part count, relationship count, retained bytes and work; only part count
+and work must be positive. Empty parts and a directory with no relationships are
+valid. Work charges each hashed input byte and one unit per successful begin,
+end, relationship and finish operation; it is a deterministic accounting unit,
+not CPU cycles. Metadata records have fixed bounded shape. `append` accepts only
+bytes inside the current part's declared remaining extent; its zero work budget
+is a non-sticky caller error. Other processing refusals poison the builder, so a
+partially verified container cannot later report success.
+
+The [contract](../../../contracts/DOCUMENT_PROFILE_V1.md#compound-representation-commitments)
+owns canonical metadata bytes and exact external references. Local endpoints
+use directory ordinals; cycles/shared references are preserved. This component
+verifies local byte commitments and endpoint membership, not graph reachability,
+external-reference resolution, grammar, decompression, authorization, retention
+or stored revision acceptance. `finish` preserves incomplete/redacted coverage;
+call `requireExact` separately when complete local replay is required. A caller
+must obtain current rights and redact resolved credentials before feeding bytes.
+Format-specific expansion/validation still belongs to the selected parser.
+
 ## Verification
 
 Inside the pinned `nix develop` shell:
@@ -126,5 +158,7 @@ resource limits, unsupported interpretation, late hash/length failure and
 100,000-field/element inputs with unchanged workspace. The probe owns its I/O;
 production parsing remains pure. The oracle runs under `test-fixtures`, package
 tests under `test-components`, and standalone manifests under
-`just test::packages-build`. These checks establish no disk durability, gateway
+`just test::packages-build`. Container tests additionally verify the independent manifest fixture, sticky
+failures, changed parts/references, quotas and 100,000 streamed parts/relationships
+without a resident directory. These checks establish no disk durability, gateway
 exchange or remote-effect result.

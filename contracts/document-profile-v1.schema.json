@@ -10,7 +10,10 @@
         "span",
         "provenance",
         "capture",
-        "validation"
+        "validation",
+        "container",
+        "reference",
+        "relationship"
       ],
       "properties": {
         "descriptor": {
@@ -30,6 +33,15 @@
         },
         "validation": {
           "$ref": "#/$defs/T22"
+        },
+        "container": {
+          "$ref": "#/$defs/T24"
+        },
+        "reference": {
+          "$ref": "#/$defs/T25"
+        },
+        "relationship": {
+          "$ref": "#/$defs/T33"
         }
       },
       "required": [
@@ -38,7 +50,10 @@
         "span",
         "provenance",
         "capture",
-        "validation"
+        "validation",
+        "container",
+        "reference",
+        "relationship"
       ],
       "x-transit-defaults": {}
     },
@@ -500,6 +515,321 @@
         "valid",
         "invalid",
         "incomplete"
+      ]
+    },
+    "T24": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "definition",
+        "profile",
+        "root",
+        "parts",
+        "relationships",
+        "retained_bytes",
+        "complete_parts",
+        "redacted_parts",
+        "prefix_parts",
+        "digest"
+      ],
+      "properties": {
+        "definition": {
+          "$ref": "#/$defs/T2"
+        },
+        "profile": {
+          "$ref": "#/$defs/T6"
+        },
+        "root": {
+          "$ref": "#/$defs/T4"
+        },
+        "parts": {
+          "$ref": "#/$defs/T4"
+        },
+        "relationships": {
+          "$ref": "#/$defs/T4"
+        },
+        "retained_bytes": {
+          "$ref": "#/$defs/T4"
+        },
+        "complete_parts": {
+          "$ref": "#/$defs/T4"
+        },
+        "redacted_parts": {
+          "$ref": "#/$defs/T4"
+        },
+        "prefix_parts": {
+          "$ref": "#/$defs/T4"
+        },
+        "digest": {
+          "$ref": "#/$defs/T6"
+        }
+      },
+      "required": [
+        "definition",
+        "profile",
+        "root",
+        "parts",
+        "relationships",
+        "retained_bytes",
+        "complete_parts",
+        "redacted_parts",
+        "prefix_parts",
+        "digest"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T25": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "revision",
+        "ordinal",
+        "part"
+      ],
+      "properties": {
+        "revision": {
+          "$ref": "#/$defs/T26"
+        },
+        "ordinal": {
+          "$ref": "#/$defs/T4"
+        },
+        "part": {
+          "$ref": "#/$defs/T14"
+        }
+      },
+      "required": [
+        "revision",
+        "ordinal",
+        "part"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T26": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "target",
+        "revision",
+        "manifest"
+      ],
+      "properties": {
+        "target": {
+          "$ref": "#/$defs/T27"
+        },
+        "revision": {
+          "$ref": "#/$defs/T4"
+        },
+        "manifest": {
+          "$ref": "#/$defs/T6"
+        }
+      },
+      "required": [
+        "target",
+        "revision",
+        "manifest"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T27": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "partition",
+        "document"
+      ],
+      "properties": {
+        "partition": {
+          "$ref": "#/$defs/T28"
+        },
+        "document": {
+          "$ref": "#/$defs/T32"
+        }
+      },
+      "required": [
+        "partition",
+        "document"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T28": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "definition",
+        "interpretation",
+        "partition"
+      ],
+      "properties": {
+        "definition": {
+          "$ref": "#/$defs/T2"
+        },
+        "interpretation": {
+          "$ref": "#/$defs/T29"
+        },
+        "partition": {
+          "$ref": "#/$defs/T13"
+        }
+      },
+      "required": [
+        "definition",
+        "interpretation",
+        "partition"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T29": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "object",
+        "revision",
+        "digest"
+      ],
+      "properties": {
+        "object": {
+          "$ref": "#/$defs/T30"
+        },
+        "revision": {
+          "$ref": "#/$defs/T4"
+        },
+        "digest": {
+          "$ref": "#/$defs/T6"
+        }
+      },
+      "required": [
+        "object",
+        "revision",
+        "digest"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T30": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "scope",
+        "branch",
+        "object"
+      ],
+      "properties": {
+        "scope": {
+          "$ref": "#/$defs/T31"
+        },
+        "branch": {
+          "$ref": "#/$defs/T4"
+        },
+        "object": {
+          "$ref": "#/$defs/T4"
+        }
+      },
+      "required": [
+        "scope",
+        "branch",
+        "object"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T31": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "realm",
+        "resource",
+        "catalog"
+      ],
+      "properties": {
+        "realm": {
+          "$ref": "#/$defs/T4"
+        },
+        "resource": {
+          "$ref": "#/$defs/T4"
+        },
+        "catalog": {
+          "$ref": "#/$defs/T4"
+        }
+      },
+      "required": [
+        "realm",
+        "resource",
+        "catalog"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T32": {
+      "type": "array",
+      "minItems": 16,
+      "maxItems": 16,
+      "items": {
+        "$ref": "#/$defs/T7"
+      }
+    },
+    "T33": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "kind",
+        "from",
+        "to",
+        "label"
+      ],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/T34"
+        },
+        "from": {
+          "$ref": "#/$defs/T4"
+        },
+        "to": {
+          "$ref": "#/$defs/T35"
+        },
+        "label": {
+          "$ref": "#/$defs/T8"
+        }
+      },
+      "required": [
+        "kind",
+        "from",
+        "to",
+        "label"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T34": {
+      "type": "string",
+      "enum": [
+        "contains",
+        "references",
+        "derived_from",
+        "response_to",
+        "attachment"
+      ]
+    },
+    "T35": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "local"
+          ],
+          "properties": {
+            "local": {
+              "$ref": "#/$defs/T4"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "external"
+          ],
+          "properties": {
+            "external": {
+              "$ref": "#/$defs/T25"
+            }
+          }
+        }
       ]
     }
   }
