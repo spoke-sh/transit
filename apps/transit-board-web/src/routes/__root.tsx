@@ -1,12 +1,9 @@
 import { createRootRoute, Outlet } from "@tanstack/react-router";
 import { Access } from "../state";
-import { FeatureBoundary } from "../feature-boundary";
 export const Route = createRootRoute({
   component: () => (
     <Access>
-      <FeatureBoundary>
-        <Outlet />
-      </FeatureBoundary>
+      <Outlet />
     </Access>
   ),
   notFoundComponent: () => (

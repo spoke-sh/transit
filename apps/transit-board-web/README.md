@@ -162,7 +162,7 @@ remain separate from drafts, and no result or credential enters browser storage.
 | [retained-placement.tsx](src/retained-placement.tsx), [retained-model.ts](src/retained-model.ts) | Stable-ID placement diagrams, equivalent grids and one current-page Inspector        |
 | [state.tsx](src/state.tsx)                                                                       | Deployment configuration context and feature scope                                   |
 | [inspection-state.ts](src/inspection-state.ts)                                                   | Process/state observation hooks and qualified retained evidence                      |
-| [features.tsx](src/features.tsx), [feature-boundary.tsx](src/feature-boundary.tsx)               | Deferred feature entries, loading and failure presentation                           |
+| [features.tsx](src/features.tsx), [feature-status.tsx](src/feature-status.tsx)                   | Deferred feature entries, loading and failure presentation                           |
 | [resources.tsx](src/resources.tsx)                                                               | Resource/association/entry reads and generic state presentation                      |
 | [components.tsx](src/components.tsx)                                                             | Evidence, status and process views                                                   |
 | [atlas.tsx](src/atlas.tsx)                                                                       | Growing catalog, emphasis, selection and explicit resource entry                     |
