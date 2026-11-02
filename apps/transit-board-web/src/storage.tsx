@@ -19,6 +19,7 @@ import { positionPercent, type StorageFact } from "./storage-model";
 import "./storage.css";
 import { bytes, byteAllowance, formatBytes } from "./quantities";
 import { ByteSize, ExactBytes } from "./quantity";
+import { maintenanceFacts } from "./maintenance-model";
 
 const quota = (used: number | null | undefined, limit: number | null | undefined) =>
   used != null && limit != null && limit > 0
@@ -40,10 +41,10 @@ function Evidence({ title, basis, facts }: { title: string; basis: string; facts
     <section className="storage-evidence" aria-label={title}>
       <h3>{title}</h3>
       <p className="storage-basis">{basis}</p>
-      {facts.some((item) => item.percent !== undefined) && (
+      {facts.some((item) => item.percent !== undefined || item.visual) && (
         <div className="storage-visual" role="group" aria-label={`${title} visualization`}>
           {facts
-            .filter((item) => item.percent !== undefined)
+            .filter((item) => item.percent !== undefined || item.visual)
             .map((item) => (
               <button
                 key={item.key}
@@ -63,10 +64,12 @@ function Evidence({ title, basis, facts }: { title: string; basis: string; facts
                 >
                   {item.value}
                 </strong>
-                <span className="storage-track" aria-hidden="true">
-                  <span style={{ width: `${item.percent}%` }} />
-                </span>
-                <small>{item.scale}</small>
+                {item.percent !== undefined && (
+                  <span className="storage-track" aria-hidden="true">
+                    <span style={{ width: `${item.percent}%` }} />
+                  </span>
+                )}
+                {item.scale && <small>{item.scale}</small>}
               </button>
             ))}
         </div>
@@ -96,7 +99,10 @@ function Evidence({ title, basis, facts }: { title: string; basis: string; facts
                     {item.label}
                   </button>
                 </th>
-                <td>{item.byteValue != null ? <ByteSize value={item.byteValue} /> : item.value}</td>
+                <td>
+                  {item.byteValue != null ? <ByteSize value={item.byteValue} /> : item.value}
+                  {item.qualifier && <span> · {item.qualifier}</span>}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -116,6 +122,9 @@ function Evidence({ title, basis, facts }: { title: string; basis: string; facts
             <p>
               <ExactBytes value={fact.byteLimit} label="Configured limit" />
             </p>
+          )}
+          {fact.milliseconds !== undefined && (
+            <p>Exact duration: {fact.milliseconds.toLocaleString()} milliseconds</p>
           )}
           <p>{fact.explanation}</p>
           {fact.scale && (
@@ -220,46 +229,7 @@ export function Storage() {
               },
             ]}
           />
-          <Evidence
-            title="Maintenance"
-            basis={basis}
-            facts={[
-              {
-                key: "state",
-                label: "Maintenance state",
-                value: page.maintenance?.state ?? "Unavailable",
-                explanation: "Observed worker state, not a promise of future progress.",
-              },
-              {
-                key: "complete",
-                label: "Completed maintenance steps",
-                value: String(page.maintenance?.completed_steps ?? "Unavailable"),
-                explanation: "Owner-local completed steps; resets on owner restart.",
-              },
-              {
-                key: "failed",
-                label: "Failed maintenance steps",
-                value: String(page.maintenance?.failed_steps ?? "Unavailable"),
-                explanation: "Owner-local failures; resets on owner restart.",
-              },
-              {
-                key: "failure",
-                label: "Last maintenance failure",
-                value: page.maintenance
-                  ? (page.maintenance.last_failure ?? "None observed")
-                  : "Unavailable",
-                explanation:
-                  "Bounded failure category reported by the owner. No application payloads or credentials are inspected.",
-              },
-              {
-                key: "budget",
-                label: "Maintenance allocation limit",
-                value: bytes(page.settings?.resident_bytes),
-                byteValue: page.settings?.resident_bytes,
-                explanation: "Configured resident budget for maintenance work.",
-              },
-            ]}
-          />
+          <Evidence title="Maintenance" basis={basis} facts={maintenanceFacts(page)} />
         </>
       )}
     </section>
@@ -340,6 +310,7 @@ export function TableStorageView({ page }: { page: CatalogStorage }) {
           label: "Pending data size",
           value: bytes(value.pending_bytes),
           byteValue: value.pending_bytes,
+          qualifier: value.pending_complete ? "complete backlog" : "bounded prefix (lower bound)",
           explanation: `${value.pending_complete ? "Complete backlog" : "Bounded prefix (lower bound)"}. At most 1,024 pending records are inspected. No total size or completion time is inferred.`,
         },
         {

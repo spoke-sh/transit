@@ -13,6 +13,9 @@ export type StorageFact = {
   byteValue?: ByteCount | null;
   byteLimit?: ByteCount;
   explanation: string;
+  milliseconds?: number;
+  qualifier?: string;
+  visual?: boolean;
   percent?: number;
   scale?: string;
 };
