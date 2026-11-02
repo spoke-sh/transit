@@ -150,7 +150,7 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
     ack_path.write_text(json.dumps(ack_saved))
     ack_bytes = ack_path.read_bytes()
     assert rows(acquired['identity']) == acquired_rows
-    duplicate = client.terminal(client.execute(ack_sql, list(os.urandom(16)), parameters=[encoded])['operation'])
+    duplicate = client.terminal(client.execute(ack_sql, list(os.urandom(16)), parameters=[encoded])['operation'], outcomes=('rejected',))
     assert duplicate['outcome'] == 'rejected' and duplicate['workload']['receipt']['closed']['reason'] == {'refused': 'lease_fenced'}
     authorize(False)
     try:
