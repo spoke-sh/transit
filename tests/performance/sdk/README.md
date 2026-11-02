@@ -134,3 +134,22 @@ the actual sample counts. Build each arm's packages and compiled SDK outputs in
 its own source checkout: the installer validates the tarball against those
 outputs. Missing packages, failed imports or incomplete experiments do not pass.
 This diagnostic has no frozen numerical regression budget.
+
+For a separate first-service-result profile, add
+`--first-metadata /private/client.json --table sdk_items --expected-rows 70 --expected-columns 2`.
+Use the same client configuration shape as the installed SDK workload and an
+existing matching service. Each fresh Node process opens the installed Catalog
+and Query clients, verifies the Table's row/column counts through the public
+metadata operation, then closes and joins its native hosts. No query or snapshot
+is opened. Record service/native binary identities with the experiment and keep
+the service, fixture, maintenance and caches fixed across alternating arms.
+The driver records the private configuration's digest, never its contents.
+
+`first_result_ns` covers process launch through the first independently verified
+metadata result. `import_ns` and `open_ns` come from the existing installed
+consumer; `close_ns` covers joined cleanup. `launch_ns` covers the whole sample,
+including metadata, observation and close. Peak RSS is the Node process high-water
+mark after metadata, excluding native hosts; import CPU is unavailable in this
+profile. Missing values, failed cleanup and incomplete campaigns still fail.
+These observations qualify cold SDK initialization through metadata, not server
+startup, SELECT consumption, snapshot settlement or the full SDK workload.
