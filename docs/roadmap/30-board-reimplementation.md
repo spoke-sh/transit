@@ -2,12 +2,14 @@
 
 [Roadmap](README.md) · **Status:** In Progress
 
-Start with the [R2 delivery and remaining gates](#readable-storage-delivery-r2--2026-11-02):
-readable binary quantities, retained storage placement, maintenance inspection
-and features loaded on demand. R1 and automatic local data access are merged;
-R2 is implemented for review. The [local connections and Document persistence plan](#local-connections-and-document-persistence-plan--2026-11-02)
-records the parallel persistence scope. R3 computation inspection, installed
-performance and the full workbench completion gates remain open.
+Start with the [R3 implementation plan for review](#r3--explain-completed-and-pending-computation):
+public read-only computation evidence, then linked source → computation → output
+inspection. R1, automatic local data access and [R2](#readable-storage-delivery-r2--2026-11-02)
+are merged, including readable binary quantities, retained storage placement,
+maintenance inspection and features loaded on demand. Their recorded qualification
+gaps remain open. The [local connections and Document persistence plan](#local-connections-and-document-persistence-plan--2026-11-02)
+records the parallel persistence scope. Installed performance and the full
+workbench completion gates remain open.
 
 Reimplement Board as the installed interface for discovering data, explaining
 computations and reviewing governed changes. Deliver the focused catalog,
@@ -21,10 +23,12 @@ permission authority.
 
 ## Local connections and Document persistence plan — 2026-11-02
 
-**Status: L1 approved for the first implementation PR; Document prerequisites
-and persistence remain follow-up work.** Planning source basis:
-`ffbf2e9b12dceca856000faf15eebbc252ae580c`. This is an implementation plan;
-it establishes no new runtime behavior or executed proof.
+**Status: L1 merged in [PR #335](https://github.com/spoke-sh/transit/pull/335);
+Document prerequisites and persistence remain follow-up work.** Original planning
+source basis: `ffbf2e9b12dceca856000faf15eebbc252ae580c`. The baseline table below
+describes that planning revision; current automatic local access is documented
+in the [workbench guide](../../apps/transit-board/docs/workbench.md). The remaining
+proposal establishes no new runtime behavior or executed proof.
 
 Make the Board started by `transit server` useful with the installation's local
 data account immediately. Store saved workbooks, preferences and explicit
@@ -36,8 +40,8 @@ This proposal changes the earlier explicit-only local connection policy. It
 also separates saving ordinary workbook drafts from publishing retained results
 and consistent investigations. The latter keeps its M28 dependency. The dated
 delivery records below remain evidence of their original profiles. The plan adds
-L0–L5 below to the implementation sequence; R2–R4 and the other full-milestone
-obligations remain open.
+L0–L5 below to the implementation sequence; R2's remaining acceptance checks,
+R3–R4 and the other full-milestone obligations remain open.
 
 ### Planning baseline and the missing integration
 
@@ -453,8 +457,9 @@ R4 resource/performance targets. Executed source-specific results, corrected
 regressions and remaining limits are recorded in the
 [R1 qualification account](../history/qualification/interfaces.md#board-reactive-ownership-and-independent-connection-profiles--2026-11-02).
 
-R2's retained-storage placement and maintenance inspection are now implemented
-for review, followed by R3's managed-computation projection and neighborhood.
+R2's retained-storage placement and maintenance inspection merged in
+[PR #338](https://github.com/spoke-sh/transit/pull/338), followed by the proposed
+R3 managed-computation projection and neighborhood.
 R4 retains the unresolved historical TLS-replacement cause, the newly observed
 managed-table authorization refusal after replacement/resume, installed capacity
 refusals and the SQL-only Run timeout, measured resource budgets and broader
@@ -463,7 +468,8 @@ remain required; this delivery does not complete M30.
 
 ## Readable storage delivery (R2) — 2026-11-02
 
-R2 implements binary byte quantities with exact detail/copy, shared retained
+Merged [PR #338](https://github.com/spoke-sh/transit/pull/338) implements binary
+byte quantities with exact detail/copy, shared retained
 catalog inspection in Data and Operations, linked physical-definition and
 row-placement diagrams/grids, and maintenance settings/state. It uses the
 existing public read operations and one selected page; inspection acquires no
@@ -498,7 +504,8 @@ separate computation and reliability/performance scopes; M30 remains In Progress
 
 **Review status:** The sequence was approved; R1 merged in
 [PR #332](https://github.com/spoke-sh/transit/pull/332). The expanded R2 plan below
-is **Approved; implemented for review with qualification gaps**. **Original source basis:** `origin/main` at `db0bb4a8f`, the
+is **Approved; merged in PR #338 with qualification gaps**. R3 is expanded below
+as a new plan for review. **Original source basis:** `origin/main` at `db0bb4a8f`, the
 merge of [PR #326](https://github.com/spoke-sh/transit/pull/326). R2 records its
 newer source separately. This sequence scopes separate implementation PRs; R5
 retains its service prerequisites. Executed evidence is attributed separately
@@ -901,50 +908,260 @@ services. R2 delivery does not complete M30.
 
 ### R3 — Explain completed and pending computation
 
-Start with the installed single-source/single-output managed Table profile from
-[M12](12-sql-and-dataflows.md#retained-completed-table-revisions--2026-11-01).
-Use [`ManagedTable`](../../packages/zig/transit-query-direct/src/ManagedTable.zig),
-its retained revision owner and [DATAFLOW_V1](../../contracts/DATAFLOW_V1.md).
-Publication, activation, progress, committed completion and retained result
-disclosure remain distinct. Output chaining, multi-source execution and historical
-SQL row fetching are outside this delivered profile.
+**Review status: Proposed — awaiting implementation-plan review.** Source basis:
+`origin/main` at `5f23092f258b774e545351d83cf76765a0af4451`, the merge of
+[PR #338](https://github.com/spoke-sh/transit/pull/338). This plan is based on a
+source audit, not a new runtime qualification. It selects R3 as the next feature
+and keeps R4 owner fixes independently reviewable.
 
-Before adding a graph, define a bounded typed public inspection composition for
-exact declaration lookup, current observation and selected completed revision.
-Board currently has no dedicated adapter for these facts. Put reusable read
-composition with the public query/catalog caller, then adapt it in Board's Zig
-service and generated browser client. Audit the current grants for each field,
-including source/output/control evidence and post-buffering disclosure; a
-control-head read alone must not grant access to a retained result. If discovery
-cannot use an existing bounded public directory, start with explicit scoped
-lookup and deliver the missing directory through its owner before enabling browse.
-Do not scan raw storage, guess catalog token layouts or issue hidden Workbook SQL.
+Make a managed Table's production understandable: show its declared source and
+output, the last result that actually committed, and evidence about any successor.
+A failed successor must not make the previous complete result appear failed;
+an Active control state must not imply that a result exists or is current.
+Keep the existing horizontal activities, paired diagram/grid and single
+contextual Inspector from [D3](../design/board-data/D3.md).
 
-The projection must identify declaration/object/definition, control epoch,
-observed lifecycle and failure, last completed revision/decision, exact source
-and output definitions/cut, and pending work only where supplied by the owner.
-Validate neutral responses at runtime. Contract additions or incompatible changes
-follow the current-v1 generation/cutover policy and migrate consumers together.
-Reading the projection must never initialize, activate, refresh, suspend or
-retire a computation, acquire retention or consume result payloads.
+#### Baseline and prerequisite findings
 
-Render a directed source → computation → output neighborhood with a shared exact
-grid and Inspector. Keep the last completed revision distinct from a pending,
-blocked or failed successor while current authorization permits its disclosure.
-Known denial clears affected evidence. Independent observations carry separate
-bases; only an owner-proved common decision is presented as atomic. Start with
-the actual three-node profile; cap any later explicit neighborhood expansion at
-32 nodes/64 edges and label truncation. Registered dependency edges do not imply
-that output chaining or incremental execution is supported.
+The scope is the installed single-source/single-output finite Table profile in
+[Queries](../handbook/reference/queries.md#managed-table-computations),
+[DATAFLOW_V1](../../contracts/DATAFLOW_V1.md) and
+[M12's retained revisions](12-sql-and-dataflows.md#retained-completed-table-revisions--2026-11-01).
+It does not depend on future incremental or multi-source execution.
 
-**R3 exit gate.** An independent typed/SQL caller agrees with the Board projection.
-A real managed fixture completes a revision, advances its source, then exposes
-pending and blocked/failed successor evidence without replacing the completed
-revision. Cover empty output, source-definition replacement, suspended restart,
-retirement, missing revision and revoked source/output/control access. Advance
-the fixture through its owning caller, never through graph rendering. Exact
-recorded observations replace timing guesses for transient states. Metadata-only
-inspection creates no work or result readers.
+| Owner at the planning revision | Available evidence | Required work |
+| --- | --- | --- |
+| [`ManagedTable`](../../packages/zig/transit-query-direct/src/ManagedTable.zig) | Exact declaration, control KV head/position, pending reference, blocked reason and verified last completion decision | A reusable bounded inspection composition with explicit disclosure rules |
+| [`ManagedRevision`](../../packages/zig/transit-query-direct/src/ManagedRevision.zig) | Fixed revision manifest, original definitions/schema/source cut and verified common transaction decision; current source/output/control checks | Factor reusable metadata verification without registering a row reader or traversing result pages |
+| [`SessionInspection`](../../packages/zig/transit-sql-service/src/SessionInspection.zig) | `SHOW DATAFLOW` and `SHOW DATAFLOW name REVISION number`; disclosure revalidation | Reuse the typed inspection owner so SQL and Board agree; preserve the statement result lifecycle |
+| [`DirectCatalogRead`](../../packages/zig/transit-catalog/src/DirectCatalogRead.zig) and [`Workbench`](../../apps/transit-board/Workbench.zig) | Configured read-only catalog transport, bounded metadata and exact Table reads | No managed-computation request or dedicated discovery API is exposed here |
+| [`features.tsx`](../../apps/transit-board-web/src/features.tsx), observation and workbench owners | Deferred modules, scoped read effects, paired views and shared Inspector | A computation feature that composes these owners and stays out of the bootstrap |
+
+**Independent-reader access is a prerequisite, not an assumed adapter detail.**
+`ManagedTable.find` looks up a publisher-scoped `DirectClientToken`;
+`ManagedTable.load` and `DirectTableBinding.require` compare full connections,
+which include principal and role. The current code is therefore not sufficient
+evidence that a separately provisioned Board reader can inspect another identity's
+computation. Keep the publisher's immutable attribution unchanged. Add the narrow
+owner operation needed to resolve and disclose a managed computation to a current
+authorized reader; do not substitute the publisher connection, give Board its
+credentials, or relax generic token/record/transaction ownership checks.
+
+Freeze that operation's lookup, authorization, provenance and work budgets in
+the owning contract before implementing the Board adapter. If discovery requires
+a durable declaration reference not currently reachable by the read owner,
+deliver its publication/recovery contract and current-v1 migration in the owner
+PR. A Board-only registry, guessed token or scan of every KV is not an alternative.
+Catalog must not import the query executor to implement this composition.
+
+#### Selected first experience
+
+1. Add **Inspect a computation** in Operations, using the configured catalog
+   scope and an explicit schema/name lookup. Typing edits the selector; **Inspect**
+   starts the bounded read. Resolve once to stable object and immutable definition
+   identities, then fence subsequent reads to them. A same-name replacement
+   requires a new explicit selection. Inspection-only and SQL-only deployments
+   retain their existing usable views and explain the missing catalog capability.
+2. Show a three-node **source Table → computation → output Table** diagram and
+   an equivalent grid over the same response. Edges mean declared input/output,
+   not measured traffic. Selection in either view opens the same Inspector.
+   Source/output links open ordinary current dataset metadata with their own
+   observation basis; they do not present the current output as a retained result.
+3. Keep **Last completed result** and **Current computation** visibly separate.
+   The first shows revision, row count and completion basis. The second shows
+   control state/epoch, pending work and the owner's blocked/failure reason.
+   Before the first completion, say **No completed result**; a verified zero-row
+   revision is **Completed · 0 rows**. No percentage or ETA is inferred.
+4. Offer explicit inspection of one positive revision number, initially the
+   latest observed completion. Selecting a revision pins only the UI selection,
+   not storage retention. A newer completion may update the current summary but
+   cannot replace an explicitly selected older revision. Use **Latest completed**
+   to choose again. Missing revisions remain missing; never fall back to current
+   rows. Do not fetch a revision directory or infer contiguous retained history.
+5. Use the existing exact-number presentation and B/KiB/MiB/GiB formatter for any
+   byte budgets exposed by the owner. Counts, epochs and partition positions keep
+   their own units; the Inspector preserves exact copyable values and provenance.
+
+Start with this explicit lookup rather than a new global computation directory.
+Dataset entry links are included only where a public owner supplies a verified
+computation binding; arbitrary dependency edges cannot be interpreted as executable
+lineage. No new standalone activity or restoration of the removed Relational
+worksheet/Declared dependencies panels is proposed. Broader discovery and graph
+expansion need a later bounded public directory; the existing future ceiling of
+32 nodes/64 edges does not enlarge this three-node delivery.
+
+#### Typed read contract and ownership
+
+Propose a shared `ManagedInspection` module in `transit-query-direct`, with neutral
+types and public catalog read primitives where required. Its exact exported names
+are implementation choices; these operations and guarantees are the review scope:
+
+| Read | Input and result | Binding and disclosure |
+| --- | --- | --- |
+| Resolve | One configured scope, schema and computation name → exact computation binding | Owner-proved publication; distinguish unsupported, missing, unpublished/incomplete and denied without exposing hidden objects |
+| Observe | Exact binding → current control observation and nullable last-completion identity | Preserve immutable declaration versus mutable head, control storage definition, observed position, epoch, original pending identity and typed blocked reason |
+| Inspect revision | Exact binding and positive revision → verified retained metadata | Exact source/output/computation definitions, schema commitment, source position, row count, manifest and original committed decision/cut |
+
+The first complete projection requires current read permission on source, output
+and control, consistent with the installed SQL inspection profile. Metadata-only
+access is not sufficient for retained result counts or completion evidence.
+The independent reader must need no write, activation or administrative grant.
+Recheck current authority after buffering and immediately before disclosure,
+including repeated observations, empty completions and cached intermediate
+metadata. Keep missing and denied behavior consistent with the catalog's existing
+non-disclosure policy. Do not expose private recovery envelopes or signing data.
+
+Extract the common metadata verifier from `ManagedRevision.open`; both the row
+reader and SQL inspection use it, with their existing lifetime and terminal checks
+preserved. Board never calls `next`, allocates a SQL result handle, acquires a pin
+or scans output rows. Inspection cannot invoke publication, initialization,
+authorization, activation, refresh, suspension, retirement or recovery execution.
+Service-owned reconciliation may proceed independently; the fixture must distinguish
+that work from work caused by the read.
+
+Verify a completed revision's manifest, revision key and common committed decision,
+not merely a descriptor or participant LSN. Keep independently read current heads
+and selected revisions separately attributed. If the head changes between reads,
+return clearly separated observations or a typed changed-observation refusal;
+never stitch them into an atomic snapshot. A prepared transaction can cause the
+current head to return `Conflict`; this is unavailable observation, not a failed
+computation. A separately authorized fixed revision may still be inspectable,
+but that independent read must not claim to recover the unavailable current head.
+
+Pending means only what the durable owner records. Absence of pending work does
+not establish freshness. Defer lag, catch-up rate and progress bars unless the
+owner supplies a qualified same-partition comparison. When exact source definitions
+change, preserve the refusal instead of rebinding the old revision or weakening
+authorization to keep a graph visible. Retirement alone does not erase retained
+completion evidence; current grants still decide whether it can be disclosed.
+
+Adapt this owner through a proposed same-origin **`POST /api/v1/computations`**
+read route, using the existing configured catalog identity and Host/Origin checks.
+A separate route keeps the query composition above Catalog and avoids expanding
+`DirectCatalogRead` into a query-engine dependency. Reuse public clients in Board's
+Zig host. Export the request/response through `transit-board-api`, generated OpenAPI
+and a narrow browser client/standalone-validator entry. Keep full-width identities,
+positions and counts in neutral decimal encodings and validate responses at runtime.
+No browser-supplied connection, principal, URL or arbitrary immutable-record handle
+can select a different authority or upstream destination.
+
+Proposed request/reply ceilings are **4 KiB / 256 KiB** for this metadata route,
+within the existing host's upstream-response limit. Freeze aggregate upstream
+read/work and allocation ceilings in the owner contract before adapter work;
+count declaration, schema and manifest verification as well as the final response.
+Retain one selected computation and revision with bounded scratch/output memory,
+no growing revision cache, no full directory scan and no result-page reads.
+Oversize or budget exhaustion is a typed incomplete observation, never truncation
+reported as success. Incompatible wire or stored changes require the current-v1
+cutover, generated fixtures and affected caller migration together.
+
+#### Reactive behavior and feature loading
+
+Reuse `observation.ts`, `use-observation.ts` and the shared request scheduler.
+The observation key includes deployment/configuration generation, catalog scope,
+exact computation definition, read kind and selected revision. Inspector selection
+also carries the owning response generation. A click in the diagram/grid changes
+selection without another network read; switching the target/revision replaces the
+relevant observation and invalidates late responses.
+
+| Event | Required presentation and effect |
+| --- | --- |
+| First lookup or visible refresh | Bounded loading/refreshing state; preserve selection only while its identity remains present |
+| New completed revision | Update current evidence; retain an explicitly selected older revision under its own current authorization |
+| Pending, blocked or failed successor | Keep successfully authorized last-completion metadata separate; a blocked reason is data, not a transport error |
+| Denial, changed binding, malformed response or lost connection | Clear the affected observation and its Inspector; propagate known source/output/control denial to every dependent current/revision view and invalidate their late responses; show the typed cause without reporting zero rows or computation failure |
+| Hide, collapse the computation view, navigate away or replace scope | Cancel queued/in-flight reads, invalidate generations and clear disclosed evidence; no background refresh for a closed computation view |
+| Close the contextual Inspector | Clear its selection and return focus; the still-visible primary computation view retains its normal observation lifecycle |
+| Return, explicit retry or availability check | Use R1's existing eligibility/backoff rules; never resubmit a computation command or loop on disabled/denied access |
+| Feature download failure | Keep shell navigation and the explicit reload action; no reads start before the feature loads |
+
+Load the computation renderer/client/validators as one logical deferred feature
+when selected. Keep it out of the bootstrap and unrelated Workbook/storage imports;
+add its entry to the eager-feature guard. Use the existing diagram primitives or
+small native SVG/HTML for three nodes. Preserve all current
+[build guards](../../apps/transit-board-web/vite.config.ts): scripts below
+900,000 bytes, bootstrap below 800,000 bytes across at most four scripts, at most
+four additional scripts per dynamic import, one stylesheet, and the 128-file/
+8-MiB embedded-asset ceiling. Record bootstrap and cold-feature totals separately;
+do not raise a budget to accommodate this feature.
+
+#### Implementation and review sequence
+
+Keep two feature PRs so the independent-reader prerequisite is reviewable before
+the UI depends on it. Known R4 reliability fixes remain separate focused PRs.
+
+| Unit / suggested logical commits | Concrete deliverable | Gate before dependent work |
+| --- | --- | --- |
+| **R3a — Public inspection owner:** contract and neutral types; native read/discovery authority; shared metadata verifier and SQL adoption; caller proofs/docs | Exact lookup/current/revision inspection usable by a principal other than the publisher, with bounded work and unchanged generic ownership protections | Real independent reader agrees with existing SQL/typed evidence; source/output/control revocation and post-buffering checks pass; current-v1 migration complete if needed |
+| **R3b — Board integration:** typed API and generated client; deferred renderer and reactive selection; installed API/browser proofs; public docs/evidence | Explicit lookup, three-node diagram/grid, one Inspector and separate current/completed states | R3a qualified; new route is read-only, existing feature/asset budgets pass and the acceptance matrix below is exercised |
+| **R4 reliability follow-up:** reproduce one failure; fix its owner/fixture; focused regression and evidence | Resolve attributable `ControlCapacity`, `StaleAuthorizationRevision` or replacement/read failures | Capture the original operation and owning cause; no blanket retries, raised quotas/timeouts or skipped assertions |
+| **R4 combined qualification:** baseline measurements; lifecycle/accessibility exercises; final clean lanes | Common-revision integration and measured budgets for R1–R3 | Completed implementation source; report any unexecuted or failed journey explicitly |
+
+Begin with a short baseline reproduction of failures that could prevent the managed
+fixture or Board read route from running. Fix an R3-blocking failure before accepting
+that journey; unrelated historical failures do not justify widening the feature PR.
+Later successful runs remain separately attributable and do not establish the cause
+of an earlier failure. Updating this plan is not itself evidence that a defect is fixed.
+
+#### Acceptance matrix and verification
+
+| Journey | Required executable evidence |
+| --- | --- |
+| Publication → first completion | A real caller creates/authorizes/activates the installed finite profile; Board distinguishes each observed state, then agrees on exact revision/source/output/cut/decision with typed and SQL callers |
+| Completed → pending → blocked/failed successor | Owner-controlled stepping or a deterministic test barrier exposes the accepted pending state; the old completion remains independently attributable; deterministic constraint/budget failure cannot relabel or replace it |
+| Empty and older revisions | Zero-row completion has verified decision/count; selecting an earlier revision survives later output writes and refresh; missing revision never substitutes another result |
+| Independent read authority | Publisher and Board reader are different principals; metadata-only, source-only, output-only, control-only and fully permitted subjects prove the conjunction; all inspection succeeds without writer rights |
+| Revocation after buffering | Independently revoke source, output and control before disclosure, including zero-row/repeated reads; neither API nor Inspector leaks the buffered evidence |
+| Definition/control changes | Source definition replacement, same-name replacement, suspended service restart, retirement and missing completion records produce exact evidence/refusals; no implicit rebinding or new computation |
+| Observation and module races | Delayed old scope/revision responses, hide/show, concurrent selections, timeout/capacity, malformed replies and failed imports cannot restore cleared evidence or strand navigation |
+| Read-only bounds | Instrument public calls to reject writes, pin acquisition, SQL execution and result-page reads; repeated inspect/select/close cycles do not accumulate handles, caches or background requests |
+| Real deployment profiles | Catalog-only and automatic-local configurations work with the new public read owner; SQL-only/unconfigured profiles remain usable; restart/revocation and same-origin forwarding use real provisioned subjects |
+| Accessible equivalent views | Keyboard-only diagram/grid selection, stable focus/return, screen-reader names and state announcements, reduced motion, narrow layout and native 200% zoom preserve all evidence; state is not color-only |
+
+Use the existing [managed owner fixture](../../tests/catalog/tables/managed_table.zig)
+and [installed SQL fixture](../../tests/interfaces/installation/server_managed_tables.py)
+for lifecycle/replacement evidence, extending the
+[Board workbench fixture](../../tests/interfaces/installation/board_workbench.py)
+for the new endpoint and browser journey. Record transient states through the
+actual owner; do not rely on sleeping long enough to catch a pending successor.
+Synthetic frontend cases supplement, rather than replace, independent caller tests.
+
+Run owning Zig unit/component and authority checks, `just test::managed-tables`,
+`just transit-board::generate`, `just transit-board::check`, the Board API unit
+target, and the extended `just transit-board::workbench-test` /
+`just transit-board::workbench-browser` fixtures. Add assertions to the existing
+finite observation/replay and negative-control checks where R3 adds transitions
+or identity rules; do not create a competing lifecycle reducer. Run affected
+`interfaces`/`core` lanes for native authority/contract changes. Final R4 acceptance
+requires clean committed-revision `installation-ui`, `browser` and applicable
+`formal` checks; focused passes cannot stand in for a failed full lane.
+
+Measure R4's proposed cold/warm first-observation, selection and retained-heap
+targets against this real feature, including one/two/four visible tabs and a
+hidden tab, and report tunnel latency separately. Freeze the fixture/thresholds
+before runs. Manual screen-reader/native-zoom outcomes remain separate from axe
+and synthetic CSS zoom checks. Save real installed review figures in the next
+applicable [Board design review](../design/board-data/README.md), labeling any
+synthetic studies; keep delivery and acceptance decisions here.
+
+Publish supported semantics and limits in Queries/DATAFLOW_V1, the query package,
+Board guide/API/workbench and frontend owner inventory. Put reactive-state reasoning
+in service-interface Internals and executed results in qualification history with
+source revision, commands, configuration and limits. Run the documentation checker
+and version-pin check when manifests change. **R3 is complete only when the public
+read owner, independent caller and real Board journey agree at the implementation
+revision; broader R4 and full-M30 completion remain separate.**
+
+#### Deferred work and dependency handoff
+
+R3 adds no administrative computation controls, result-row retrieval, global graph,
+output chaining, incremental scheduling or synthetic freshness metrics. M12 owns
+those computation extensions. Basic workbook Save/Open continues through L2–L4
+after [M7's public Document lifecycle](07-document-storage-and-station-decoupling.md#implementation-plan-for-remaining-work),
+conditional revisions and original-save recovery qualify without a browser; local
+browser/file persistence is not a substitute. Retained/shared results still depend
+on M28, and branch comparison/governed publication on M20/M27/M29. R3 neither
+implements those services nor closes their remaining milestone obligations.
 
 ### R4 — Qualify the installed sequence and its resource budgets
 
@@ -979,8 +1196,10 @@ selected display's resident pages or trigger a full scan.
 
 Check keyboard-only use, focus return, screen-reader descriptions, reduced motion,
 200% zoom, narrow layouts and the original desktop layouts. Retain the 128-file/
-8-MiB embedded-asset bounds and five-JavaScript-asset/900-kB checks. Record manual
-screen-reader evidence separately from automated accessibility scans.
+8-MiB embedded-asset bounds and R2's current guards: less than 900,000 bytes per
+script, less than 800,000 bytes across at most four bootstrap scripts, no eager
+feature implementations and at most four additional scripts per dynamic import.
+Record manual screen-reader evidence separately from automated accessibility scans.
 
 For each PR, run its owning component/API/browser checks. For final acceptance,
 run committed-HEAD clean `installation-ui` and `browser` lanes, plus `formal`
