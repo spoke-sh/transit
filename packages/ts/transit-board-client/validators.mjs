@@ -36,6 +36,7 @@ const groups = [
   ["query-validators", ["UnifiedQueryRequest", "UnifiedQueryResponse"]],
   ["relational-validators", relational],
   ["catalog-validators", catalog],
+  ["computation-validators", ["ComputationRequest", "ComputationResponse"]],
 ];
 if (
   names.length !== groups.flatMap(([, selected]) => selected).length ||

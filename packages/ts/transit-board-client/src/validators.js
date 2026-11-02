@@ -6,3 +6,4 @@ export { AtlasResponse, ParticipationResponse, RecordsResponse, HttpResponse, Gr
 export { UnifiedQueryRequest, UnifiedQueryResponse } from "./query-validators.js";
 export { RelationalRequest, RelationalResponse } from "./relational-validators.js";
 export { CatalogRequest, CatalogResponse } from "./catalog-validators.js";
+export { ComputationRequest, ComputationResponse } from "./computation-validators.js";

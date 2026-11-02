@@ -144,6 +144,8 @@ pub const Capabilities = struct {
 };
 pub const Error = struct { err: enum { Forbidden, NotFound, InvalidQuery, QueryExpired, HistoryReclaimed, Unavailable, RateLimited, InvalidOrigin, UnsafePrincipal, StateResourceExpired, QueryDisabled, QueryBusy, UnsupportedQuery, QueryRequestTooLarge, IncompleteResult, InvalidQueryOrdinal, QueryConflict, ReadOnlyStatementRequired, ReadWorkspaceExpired, ReadWorkspaceCapacity }, diagnostic: ?protocol.Diagnostic = null };
 
+pub const ComputationRequest = @import("transit_query").direct.ManagedInspection.Request;
+pub const ComputationResponse = @import("transit_query").direct.ManagedInspection.Response;
 pub const CatalogRequest = @import("transit_query").catalog.DirectCatalogRead.Request;
 pub const CatalogResponse = @import("transit_query").catalog.DirectCatalogRead.Response;
 pub const SqlReadRequest = @import("transit_sql_client").ReadWorkspace.Request;

@@ -107,6 +107,114 @@
         }
       }
     },
+    "/api/v1/computations": {
+      "post": {
+        "summary": "ComputationResponse",
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Must exactly match the configured public_origin. Query capability must be explicitly configured."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComputationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ComputationResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComputationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/catalog": {
       "post": {
         "summary": "CatalogResponse",
@@ -34083,6 +34191,728 @@
             "enum": [
               "dependent",
               "catalog_administrator"
+            ]
+          }
+        }
+      },
+      "ComputationRequest": {
+        "$ref": "#/components/schemas/ComputationRequest/$defs/T0",
+        "$defs": {
+          "T0": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "definition",
+              "namespace",
+              "name",
+              "expected",
+              "revision"
+            ],
+            "properties": {
+              "definition": {
+                "$ref": "#/components/schemas/ComputationRequest/$defs/T1"
+              },
+              "namespace": {
+                "$ref": "#/components/schemas/ComputationRequest/$defs/T2"
+              },
+              "name": {
+                "$ref": "#/components/schemas/ComputationRequest/$defs/T3"
+              },
+              "expected": {
+                "$ref": "#/components/schemas/ComputationRequest/$defs/T4"
+              },
+              "revision": {
+                "$ref": "#/components/schemas/ComputationRequest/$defs/T8"
+              }
+            },
+            "required": [
+              "definition",
+              "namespace",
+              "name",
+              "expected",
+              "revision"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T1": {
+            "type": "string",
+            "enum": [
+              "c3cbdfe99cdb08a8a21cc2429783fd746b1311b096d9ca8371058e1abb037b64"
+            ]
+          },
+          "T2": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "x-transit-bits": 64,
+            "x-transit-signed": false
+          },
+          "T3": {
+            "type": "string",
+            "maxLength": 262144
+          },
+          "T4": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ComputationRequest/$defs/T5"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "T5": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "object",
+              "revision",
+              "digest"
+            ],
+            "properties": {
+              "object": {
+                "$ref": "#/components/schemas/ComputationRequest/$defs/T6"
+              },
+              "revision": {
+                "$ref": "#/components/schemas/ComputationRequest/$defs/T3"
+              },
+              "digest": {
+                "$ref": "#/components/schemas/ComputationRequest/$defs/T3"
+              }
+            },
+            "required": [
+              "object",
+              "revision",
+              "digest"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T6": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "scope",
+              "branch",
+              "object"
+            ],
+            "properties": {
+              "scope": {
+                "$ref": "#/components/schemas/ComputationRequest/$defs/T7"
+              },
+              "branch": {
+                "$ref": "#/components/schemas/ComputationRequest/$defs/T3"
+              },
+              "object": {
+                "$ref": "#/components/schemas/ComputationRequest/$defs/T3"
+              }
+            },
+            "required": [
+              "scope",
+              "branch",
+              "object"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T7": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "realm",
+              "resource",
+              "catalog"
+            ],
+            "properties": {
+              "realm": {
+                "$ref": "#/components/schemas/ComputationRequest/$defs/T2"
+              },
+              "resource": {
+                "$ref": "#/components/schemas/ComputationRequest/$defs/T2"
+              },
+              "catalog": {
+                "$ref": "#/components/schemas/ComputationRequest/$defs/T3"
+              }
+            },
+            "required": [
+              "realm",
+              "resource",
+              "catalog"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T8": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ComputationRequest/$defs/T3"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "ComputationResponse": {
+        "$ref": "#/components/schemas/ComputationResponse/$defs/T0",
+        "$defs": {
+          "T0": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "definition",
+              "binding",
+              "source",
+              "output",
+              "sql",
+              "current",
+              "completed"
+            ],
+            "properties": {
+              "definition": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T1"
+              },
+              "binding": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T2"
+              },
+              "source": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T2"
+              },
+              "output": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T2"
+              },
+              "sql": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T4"
+              },
+              "current": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T8"
+              },
+              "completed": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T16"
+              }
+            },
+            "required": [
+              "definition",
+              "binding",
+              "source",
+              "output",
+              "sql",
+              "current",
+              "completed"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T1": {
+            "type": "string",
+            "enum": [
+              "c3cbdfe99cdb08a8a21cc2429783fd746b1311b096d9ca8371058e1abb037b64"
+            ]
+          },
+          "T2": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "namespace",
+              "name",
+              "interpretation"
+            ],
+            "properties": {
+              "namespace": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T3"
+              },
+              "name": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T4"
+              },
+              "interpretation": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T5"
+              }
+            },
+            "required": [
+              "namespace",
+              "name",
+              "interpretation"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T3": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "x-transit-bits": 64,
+            "x-transit-signed": false
+          },
+          "T4": {
+            "type": "string",
+            "maxLength": 262144
+          },
+          "T5": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "object",
+              "revision",
+              "digest"
+            ],
+            "properties": {
+              "object": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T6"
+              },
+              "revision": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T4"
+              },
+              "digest": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T4"
+              }
+            },
+            "required": [
+              "object",
+              "revision",
+              "digest"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T6": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "scope",
+              "branch",
+              "object"
+            ],
+            "properties": {
+              "scope": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T7"
+              },
+              "branch": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T4"
+              },
+              "object": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T4"
+              }
+            },
+            "required": [
+              "scope",
+              "branch",
+              "object"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T7": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "realm",
+              "resource",
+              "catalog"
+            ],
+            "properties": {
+              "realm": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T3"
+              },
+              "resource": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T3"
+              },
+              "catalog": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T4"
+              }
+            },
+            "required": [
+              "realm",
+              "resource",
+              "catalog"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T8": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T9"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "T9": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "state",
+              "epoch",
+              "refresh",
+              "attempt",
+              "pending",
+              "blocked",
+              "retirement_complete",
+              "storage",
+              "position"
+            ],
+            "properties": {
+              "state": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T10"
+              },
+              "epoch": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T4"
+              },
+              "refresh": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T4"
+              },
+              "attempt": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T4"
+              },
+              "pending": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T11"
+              },
+              "blocked": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T13"
+              },
+              "retirement_complete": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T14"
+              },
+              "storage": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T5"
+              },
+              "position": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T15"
+              }
+            },
+            "required": [
+              "state",
+              "epoch",
+              "refresh",
+              "attempt",
+              "pending",
+              "blocked",
+              "retirement_complete",
+              "storage",
+              "position"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T10": {
+            "type": "string",
+            "enum": [
+              "published",
+              "authorized",
+              "active",
+              "suspended",
+              "retired"
+            ]
+          },
+          "T11": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T12"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "T12": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "account",
+              "token"
+            ],
+            "properties": {
+              "account": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T4"
+              },
+              "token": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T4"
+              }
+            },
+            "required": [
+              "account",
+              "token"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T13": {
+            "type": "string",
+            "enum": [
+              "none",
+              "authorization",
+              "source_changed",
+              "history_expired",
+              "storage_unavailable",
+              "budget",
+              "execution_failed",
+              "lease_fenced",
+              "unresolved_transaction"
+            ]
+          },
+          "T14": {
+            "type": "boolean"
+          },
+          "T15": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "partition",
+              "next_lsn"
+            ],
+            "properties": {
+              "partition": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T4"
+              },
+              "next_lsn": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T4"
+              }
+            },
+            "required": [
+              "partition",
+              "next_lsn"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T16": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T17"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "T17": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "revision",
+              "rows",
+              "source",
+              "output",
+              "source_position",
+              "schema",
+              "manifest",
+              "decision"
+            ],
+            "properties": {
+              "revision": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T4"
+              },
+              "rows": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T4"
+              },
+              "source": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T5"
+              },
+              "output": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T5"
+              },
+              "source_position": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T15"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T18"
+              },
+              "manifest": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T18"
+              },
+              "decision": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T19"
+              }
+            },
+            "required": [
+              "revision",
+              "rows",
+              "source",
+              "output",
+              "source_position",
+              "schema",
+              "manifest",
+              "decision"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T18": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "bytes",
+              "sha256"
+            ],
+            "properties": {
+              "bytes": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T4"
+              },
+              "sha256": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T4"
+              }
+            },
+            "required": [
+              "bytes",
+              "sha256"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T19": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "attempt",
+              "outcome",
+              "prepared",
+              "position",
+              "coordinator_epoch",
+              "policy_epoch"
+            ],
+            "properties": {
+              "attempt": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T20"
+              },
+              "outcome": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T24"
+              },
+              "prepared": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T23"
+              },
+              "position": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T15"
+              },
+              "coordinator_epoch": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T4"
+              },
+              "policy_epoch": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T4"
+              }
+            },
+            "required": [
+              "attempt",
+              "outcome",
+              "prepared",
+              "position",
+              "coordinator_epoch",
+              "policy_epoch"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T20": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "definition",
+              "transaction",
+              "operation",
+              "cut",
+              "workspace",
+              "participants",
+              "writes",
+              "last_statement"
+            ],
+            "properties": {
+              "definition": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T1"
+              },
+              "transaction": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T21"
+              },
+              "operation": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T22"
+              },
+              "cut": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T18"
+              },
+              "workspace": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T18"
+              },
+              "participants": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T23"
+              },
+              "writes": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T4"
+              },
+              "last_statement": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T4"
+              }
+            },
+            "required": [
+              "definition",
+              "transaction",
+              "operation",
+              "cut",
+              "workspace",
+              "participants",
+              "writes",
+              "last_statement"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T21": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "begin",
+              "branch"
+            ],
+            "properties": {
+              "begin": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T22"
+              },
+              "branch": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T4"
+              }
+            },
+            "required": [
+              "begin",
+              "branch"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T22": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "scope",
+              "principal",
+              "operation"
+            ],
+            "properties": {
+              "scope": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T7"
+              },
+              "principal": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T3"
+              },
+              "operation": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T4"
+              }
+            },
+            "required": [
+              "scope",
+              "principal",
+              "operation"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T23": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "content",
+              "count"
+            ],
+            "properties": {
+              "content": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T18"
+              },
+              "count": {
+                "$ref": "#/components/schemas/ComputationResponse/$defs/T4"
+              }
+            },
+            "required": [
+              "content",
+              "count"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T24": {
+            "type": "string",
+            "enum": [
+              "committed",
+              "aborted"
             ]
           }
         }
