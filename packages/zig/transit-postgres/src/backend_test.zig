@@ -29,3 +29,8 @@ test "independent PostgreSQL backend frames cover metadata, binary NULL, uint64 
     try check(expected.failure, try backend.failure(false, "57014".*, "Request cancelled", null));
     try check(expected.negotiate, try backend.negotiate(&.{"_pq_.unsupported"}));
 }
+test "PostgreSQL NACK completion carries no relational row count" {
+    var backend: pg.Backend = .{ .allocator = std.testing.allocator };
+    defer backend.deinit();
+    try std.testing.expectEqualSlices(u8, "C\x00\x00\x00\x09NACK\x00", try backend.complete(.nack, 123));
+}

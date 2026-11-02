@@ -109,7 +109,7 @@ Other selection predicates and WAIT refuse before admission. The native owner
 still checks eligibility, FIFO, capacity, current rights and trusted time.
 SQL sessions reuse the same workload token and original-result runtime.
 
-`DirectLogPreparedSettlement` binds ACK to the named Queue's stable object,
+`DirectLogPreparedSettlement` binds ACK and NACK to the named Queue's stable object,
 partition and claimant, preserving the original lease. Control intents can pair
 an older exact receipt with current preparation metadata for that same object.
 This permits compatible ALTER without rebinding the lease. Data operations still
