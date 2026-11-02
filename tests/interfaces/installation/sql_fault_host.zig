@@ -7,6 +7,7 @@ const c = g.query.catalog;
 pub const Crypto = real.Crypto;
 pub const Deployment = struct {
     pub const Config = real.Deployment.Config;
+    pub const enablePerformance = real.Deployment.enablePerformance;
     pub fn serve(init: std.process.Init, config: Config, endpoint: real.LocalEndpoint, diagnostics: *g.wire.observability.telemetry.Runtime) !void {
         const directory = init.environ_map.get("TEST_TRANSIT_DIRECT_BOUNDARY") orelse return real.Deployment.serve(init, config, endpoint, diagnostics);
         var boundary: Boundary = .{ .io = init.io, .allocator = init.gpa, .directory = directory, .endpoint = endpoint };
