@@ -332,7 +332,8 @@ The R0/R1a implementation adds `DFR1` manifests published with the original
 output/checkpoint transaction. Each manifest retains its exact declaration,
 source/output definitions, common cut, output schema and immutable result pages.
 `ManagedRevision` consumes one fixed revision with explicit row/byte bounds,
-caller-owned rows and current source/output/control read checks. SQL exposes
+caller-owned rows and current source/output/control read checks. The catalog
+enforces those reads on raw manifest/page requests too. SQL exposes
 `SHOW DATAFLOW name REVISION number` metadata through the existing statement
 result lifecycle. Output edits and retirement do not rewrite saved results.
 
