@@ -793,23 +793,33 @@ own baseline; #211's historical SQL target is not a blanket SDK speedup claim.
 #### SDK performance implementation sequence — 2026-11-01
 
 **Status: In Progress within P0/P8.** Coordinate with the
-[M8 follow-up delivery plan](08-gateway-architecture-and-protocol-ingress.md#follow-up-performance-delivery--2026-11-01)
-at merged source `a000b8d18449fdee7901955d0c94417ceeab32eb`. Its startup probes
-and the existing SDK conformance results do not establish SDK performance.
+[M8 current-main delivery plan](08-gateway-architecture-and-protocol-ingress.md#current-main-performance-implementation--2026-11-01),
+integrated on `242499474`. Source-attributed measurements and clean conformance
+checks have distinct scope; neither completes the broader SDK performance gate.
 Start measurement on current installed APIs while P2–P6 continue; the following
 work neither requires the new data ABI first nor marks those packages complete.
 
-The installed Catalog/Query driver now covers public Zig, Python synchronous and
+The installed Catalog/Query driver covers public Zig, Python synchronous and
 asynchronous clients, and Node with one bounded independent oracle, native/package
 identity checks and explicit completion/close evidence. Its
 [first exploratory campaign](../history/qualification/performance.md#executable-hashing-and-installed-sdk-measurement--2026-11-01)
-uses the isolated maintenance-disabled profile. Default-maintenance and complete
-integrated campaign qualification, allocation/copy attribution, broader values
-and language coverage, future context/
-SQL adapters and numeric regression budgets remain open. Node module import is
-the leading measured cold-start cost; profile eager schema-validator compilation
-next and measure launch through the first verified response so deferred work
-cannot masquerade as a gain.
+retains its earlier source and isolated maintenance profile.
+
+The [integrated measurement packet](../history/qualification/performance.md#integrated-performance-measurement-packet--2026-11-01)
+at `a7d659b85` extends the same four consumers to 14 cases, including exact short
+and long UTF-8 values. All 224 operations pass in the isolated profile. The
+default-maintenance campaign stops at an uncertain Python snapshot release;
+complete integrated default-profile qualification remains open.
+
+Station now eagerly compiles one shared validator collection per module graph.
+Three alternating installed-package pairs (15 fresh processes per arm) measure
+Node import median 6.398 → 2.807 seconds, with 16.5% lower peak RSS. This is a
+2.28× cold module-import observation, not a whole-SDK or steady-state budget
+claim. Remaining compilation is a candidate for build-time generation after
+preserving validator behavior and diagnostics. Allocation/copy attribution,
+broader values/languages, future context/SQL adapters and numeric regression
+budgets remain open; import savings must still be distinguished from native
+startup and the first verified service result.
 
 The application journey is to open an installed client, inspect a declared Table,
 write/read typed values, consume a complete bounded result and close or recover

@@ -19,6 +19,8 @@ loopback SAN identities before a local placement advertises that trust.
 `localhost` and `127.0.0.1` through the pinned provider. The CA is valid for ten
 years and the server certificate for one year, with five minutes of clock skew
 allowance. It returns four owned PEM buffers, each bounded to 8 KiB; the caller
+receives CA/leaf subject key identifiers and a leaf authority key identifier for
+strict X.509 chain validation. The installation owner
 persists them privately before exposing a listener. `deinit` erases and releases
 those buffers. Issuance does not publish trust, renew a retained certificate, or
 grant database access.

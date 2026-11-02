@@ -443,6 +443,139 @@ queue and control-latency budgets before changing the scheduler. Keep startup's
 separate campaign and the existing absolute statement targets below open until
 their own measurements pass.
 
+#### Current-main performance implementation — 2026-11-01
+
+**Status: In Progress.** Initial source basis `f4abc3b18d9a621eb9fcb2f2c10ee72a48aa2ae1`
+includes performance PR #313 and the connection, string, managed computation,
+Document, profile-parser and spatial increments #314–#319. Track the installed
+10–100× journey in [#211](https://github.com/spoke-sh/transit/issues/211), with
+Table amplification in [#76](https://github.com/spoke-sh/transit/issues/76) and
+SDK ownership in [M9](09-client-foundation-and-language-apis.md#sdk-performance-implementation-sequence--2026-11-01).
+Earlier measurements retain their original source and definition; neither merged
+components nor their combined correctness checks establish a current-main speedup.
+
+The integration basis advances to `242499474` after #320–#323 land during
+qualification. M6 now supplies installed Stream/Queue and Station-turn measurement
+owners; reuse [log-runtime-baseline](../../tests/performance/storage/log_runtime.md)
+and [station-turn-baseline](../../tests/performance/load/station_turn.md), including
+their original-selection restart and deadline gates. Their recorded Queue cold
+recovery failures remain open. M10 adds retained catalogs, schema projection,
+column semantics and integrity work. Its shared-definition cutover requires new
+matching runtime/native/SDK artifacts; never open the earlier private failures
+with this build or transfer an old speed ratio to the replacement definition.
+
+The first measurement delivery keeps its finite workload scope and requalifies
+the integrated APIs. The next measurement packet adds:
+
+- M6 sealed/cold reads, consumer-group settlement, key-affinity skew, delayed
+  visibility, lease expiry and offered load through the existing owners; report
+  accepted original work and recovery debt alongside successful latency.
+- M10 named-catalog capture, metadata enumeration, retained reads, explicit schema
+  projection and release as object/column/history counts grow. Separate metadata
+  retention from data pins and include restart, current authorization and exact
+  source/target definition evidence.
+- M10 default/generated-column and composite-key/foreign-key write costs, plus
+  collation-aware reads. Separate successful writes, unchanged writes and typed
+  pre-admission refusals; preserve integrity and atomic commit gates.
+
+The new Datalog/hardware milestones and on-demand specialization workflow remain
+research plans. They do not add runnable performance profiles or establish a
+speedup. Future specialization measurements must include search, verification,
+compilation and activation cost before comparing steady execution.
+
+The outcome is faster verified startup, statements and SDK results while direct
+background computations, maintenance and connection pressure remain bounded.
+Keep the existing startup and SQL targets below. New workloads acquire budgets
+from matched baselines before optimization; they do not inherit the historical
+1,912 ms INSERT denominator or invent a blanket SDK latency target.
+
+| Order | Implementation packet | Exit and dependencies |
+| --- | --- | --- |
+| 1 | Refresh baseline and campaign integrity: freeze matching ReleaseSafe binaries, native packages, source/definition/driver identities and host/storage settings; retain every attempted sample and failed fixture. Run startup, persistent statements and SDKs with default maintenance, and separately label maintenance-disabled diagnostics. Recheck retained maintenance/TLS/SDK failures with unchanged deadlines. | Independently verified complete outcomes and joined cleanup; incomplete campaigns cannot produce accepted comparisons. A fresh pass does not explain an older uncertain operation. |
+| 2 | Extend installed SDK consumers with deterministic UTF-8 values, short/long payloads, exact raw-byte digests and bounded results; include empty, selective and full text reads. Keep Python sync/async, Node and Zig on the same manifest. | Text/value/completion oracle, malformed report controls and installed package runs; no implicit result ordering or unsupported SQL. Attribute import/open, first row, full completion and process resources separately. |
+| 3 | Add installed managed-computation measurements over ordinary Table inputs/outputs: initial activation, source mutation to verified successor, idle parking, foreground reads during refresh, and retained restart. Count typed owner attempts and sampled CPU/memory separately from exact commit evidence. | Verify source/output rows and completed revision, preserve original control/mutation identities on failure, and measure amplification as output size grows. Current finite recomputation is not incremental change processing. |
+| 4 | Add real connection-pressure measurements: verified cold login and warm reads through PostgreSQL/MySQL, held idle and partial-login peers, admission refusal, process/thread residency and foreground/control response. | Freeze connection counts, deadlines and TLS/authentication profile; retain refusals and failures, join all peers. Distinguish a finite pressure experiment from sustainable offered-load throughput. |
+| 5 | Profile and optimize the measured dominant cost in separate commits: SDK initialization/validation, managed output staging/batching or wake fanout, retained SQL setup, durable publication, then socket deadlines and runnable scheduling. | Paired before/after evidence with identical semantics; original-operation, revocation, buffer-lifetime and crash gates for the changed owner. Continuations are available; reducing a blocking pool without a progress proof remains prohibited. |
+| 6 | Extend aged/unclean startup, account/computation cardinality and default-maintenance campaigns; qualify integration and freeze regression budgets. | At least three alternating matched pairs and 50 steady samples per arm/case for SDK budgets; startup retains its separate 50 fresh/50 restart per-arm/profile schedule. Report tails only with their sample counts, errors, CPU, memory and recovery debt. |
+
+Packets 1–4 are the first reviewable measurement delivery. Reuse the existing
+installation, console, SDK and SQL-wire owners; do not create a second launcher
+or bypass ordinary SQL/caller authorization. Run disk-heavy checks and timings
+sequentially. Report setup, observation polling and diagnostic overhead; service
+readiness and first verified result remain separate. Extend bounded counters
+rather than increasing telemetry volume or allowing missing spans to imply zero
+work. Allocation/copy measurements that are unavailable remain explicit gaps.
+
+M14 additionally owns plain/dictionary/FSST selectivity, collation and cardinality
+controls through the real reader: CPU, page reads, streamed/materialized bytes,
+warmed allocations and verified raw output. M7 owns causal edit/value-page/replay
+amplification; M16 owns scalar JSON/XML parsing plus hash/grammar completion;
+M17 owns filtered versus exact spatial predicate costs. These component baselines
+remain separate from installed SDK scores until their public adapters exist.
+No new Document API, incremental engine, spatial SQL or search support is implied.
+
+Publish completed commands, source hashes, failures and sampling limits in the
+[performance account](../history/qualification/performance.md). Run the affected
+clean-source lanes at committed implementation HEAD before submission. Leave
+#211 open until its durable-write and user-visible latency acceptance gates pass.
+
+**First packet implemented:** the [integrated evidence](../history/qualification/performance.md#integrated-performance-measurement-packet--2026-11-01)
+records source `a7d659b85` on integration base `242499474`: all four SDKs exercise
+UTF-8 values; managed 3/16-row growth and wire connection pressure run; eager
+Station validator sharing reduces installed Node import median 6.398 → 2.807 s
+in 15 samples per arm. Strict MySQL verification also exposed and drove a local
+certificate key-identifier fix. These are bounded measurements, not completion
+of the 10–100× milestone or numeric budget qualification.
+
+The packet retains an uninstrumented SELECT-after-DELETE cancellation and an
+uncertain Python snapshot release under default maintenance, plus a clean
+`interfaces-sql` failure waiting for captured Table recovery after replacement.
+A traced fresh console pass and an isolated SDK pass do not resolve them.
+Next implementation work follows this order:
+
+1. Resolve original snapshot acquisition/release and console cancellation
+   evidence under default maintenance, and the captured Table recovery timeout,
+   adding phase-specific diagnostics and authoritative original-outcome checks
+   before accepting full SDK scores.
+2. Profile remaining Node import compilation and qualify generated SDK validators
+   at package build time, preserving validation failures and diagnostics.
+3. Attribute managed evaluation, per-row durable record staging, transaction
+   statement preparation and publication separately; batch bounded output through
+   the existing common transaction owner. Preserve complete revisions, revocation,
+   crash/recovery and foreground progress. Review persisted work/page changes as
+   a current-v1 cutover and qualify restart with matching original identities.
+   Keep finite recomputation distinct from incremental processing. The owner is
+   [`ManagedTable`](../../packages/zig/transit-query-direct/src/ManagedTable.zig).
+4. Replace blocking deadline races before reducing reserved I/O workers. Extend
+   startup across computation/history/account cardinality and unclean recovery;
+   the measured 19-row computation takes 9.621 s to retained readiness versus
+   about 0.9 s for the small baseline, without establishing a matched causal ratio.
+5. Extend the existing M6 owners and add the M10 lifecycle/integrity profiles
+   above. Separate clean/incremental native compile/link and package preparation
+   costs from process readiness and first verified results, with explicit cache
+   identities. Then collect matched sample counts before freezing budgets.
+
+**Subsequent main review:** `0c64c4b03` ([PR #324](https://github.com/spoke-sh/transit/pull/324))
+adds retained completed revision manifests and guarded immutable result pages
+under definition `afac2bd84560136ca90c0683afdffb8f71d5f96568b05dd3de773ce3c5339b2a`.
+The measured packet and selected checks remain on `a7d659b85`, definition `7c81…`;
+its timings do not qualify this later cutover. Refresh matching artifacts before
+measuring the new publication and recovery work. Extend the M12 profile with:
+
+- Fixed-revision inspection/open, first row, complete consumption and early close,
+  including authorization/root checks after buffering and at terminal disclosure.
+- Encoded manifest/page bytes, read attempts, checksum/decode/copy/allocator work,
+  and resident memory across revision count and output cardinality.
+- Original revision reads after successors, mutable output edits, retirement and
+  restart, with exact values/schema, revocation and incomplete-prefix controls.
+
+SQL revision inspection returns metadata; historical rows currently use the
+shared Zig reader. Saved result roots/pages retain indefinitely, reader close
+releases local memory, and this profile has no result expiry/release/collection
+operation. Measure retained storage growth without inventing cleanup semantics.
+The [retained-revision contract at that source](https://github.com/spoke-sh/transit/blob/0c64c4b0362e9fe54daa66388745430e9050eee0/contracts/DATAFLOW_V1.md#retained-finite-revision-reads)
+defines this separate workload.
+
 #### Follow-up performance delivery — 2026-11-01
 
 **Status: In Progress within M8.** The plan's source

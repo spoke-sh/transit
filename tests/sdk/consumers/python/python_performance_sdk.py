@@ -71,6 +71,7 @@ async def main(mode, config_file):
                 result.update(rows=value.row_count if value else None,
                               columns=len(value.schema.columns) if value else None, complete=True)
             elif operation == 'query':
+                is_text = request.get('representation') == 'text'
                 current = await resolved(client.lookup(request['name']))
                 acquisition = client.prepare_snapshot(current.basis, current.position, int(request['id']))
                 persist(root / 'pending.json', acquisition.save())
@@ -86,7 +87,9 @@ async def main(mode, config_file):
                         if page.row is not None:
                             if first is None:
                                 first = time.perf_counter_ns() - started
-                            assert len(page.row.cells) == 2 and all(type(value) is int for value in page.row.cells)
+                            assert len(page.row.cells) == 2
+                            assert type(page.row.cells[0]) is int
+                            assert type(page.row.cells[1]) is (str if is_text else int)
                             assert rows < 1000, 'Result row budget exhausted'
                             values.append(page.row.cells)
                             rows += 1
@@ -97,7 +100,12 @@ async def main(mode, config_file):
                         raise AssertionError('Result row budget exhausted')
                     digest = hashlib.sha256()
                     for value in sorted(values):
-                        digest.update(struct.pack('<qq', *value))
+                        if is_text:
+                            raw = value[1].encode('utf8')
+                            digest.update(struct.pack('<qQ', value[0], len(raw)))
+                            digest.update(raw)
+                        else:
+                            digest.update(struct.pack('<qq', *value))
                     result.update(rows=rows, digest=digest.hexdigest(), complete=True, first_row_ns=first)
                 finally:
                     try:

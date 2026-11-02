@@ -5,7 +5,7 @@
 This workload measures the shipped Catalog and finite Query APIs through the
 public Zig SDK, installed Python synchronous/asynchronous wheels and installed
 Node packages. It uses one private native-local installation, synchronous
-durability and the same two-column integer data and budgets in every language.
+durability and the same two-column integer and UTF-8 data and budgets in every language.
 It does not supply missing ordinary SQL/context or transaction adapters.
 
 Enter `nix develop .#bindings`. Prepare matching optimized native clients and
@@ -59,6 +59,15 @@ committed operation's matched/changed counts. Saved operations and snapshot
 acquisitions are file- and directory-synced before dispatch; reads close their
 query and release their retained snapshot before reporting success.
 
+Four additional text cases check empty, long-value point, eight-row range and
+full results. The fixture mixes empty, short, 12-byte, non-ASCII, quoted,
+trailing-space and 480-byte UTF-8 values. Text digests sort by signed ID and raw
+UTF-8 bytes, then hash each little-endian signed 64-bit ID, unsigned 64-bit byte
+length and exact bytes. Every language preserves raw spelling and copies any
+borrowed page data before its next fetch. The 1,000-row result bound still
+applies. These are installed relational reads; they do not select a particular
+physical dictionary/FSST codec or qualify encoded predicate throughput.
+
 Each JSONL attempt retains complete/failed status. A unique automatic copy lives
 under `.cache/performance/sdk/runs/`; its path is printed to stderr. Service and
 consumer cleanup precedes the final campaign outcome, including output failure. Consumer elapsed time covers
@@ -96,3 +105,21 @@ revocation, uncertain-operation and process-death schedules. Other languages,
 wide/nested values, concurrent facets, transactions, allocation/copy attribution
 and clean-lane qualification remain separate obligations in
 [Milestone 9](../../../docs/roadmap/09-client-foundation-and-language-apis.md#sdk-performance-implementation-sequence--2026-11-01).
+
+## Repeated Node module imports
+
+`just test::sdk-import-cost .cache/bindings/ReleaseSafe/node --repeat 5` installs
+the real packages outside the checkout, then imports them in independent Node
+processes. Package preparation stays outside timing. Each observation verifies
+installed package resolution and the public Client/Catalog/Query constructors,
+and records import CPU, import and launch latency, and process high-water RSS.
+It never opens a client or starts a native host. These module-only results do not
+replace launch-to-first-verified-result from the complete SDK workload.
+
+Automatic raw JSONL output retains package and driver hashes, source, Node/host
+identity, all attempts and a terminal campaign outcome. Alternate matched control
+and candidate installations; preserve runtime/driver/cache settings and report
+the actual sample counts. Build each arm's packages and compiled SDK outputs in
+its own source checkout: the installer validates the tarball against those
+outputs. Missing packages, failed imports or incomplete experiments do not pass.
+This diagnostic has no frozen numerical regression budget.

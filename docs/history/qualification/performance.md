@@ -9,6 +9,420 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Integrated performance measurement packet — 2026-11-01
+
+This packet implements the [current-main performance plan](../../roadmap/08-gateway-architecture-and-protocol-ingress.md#current-main-performance-implementation--2026-11-01).
+The initial base `f4abc3b18` was superseded during qualification by `origin/main
+242499474` (PRs #320–#323). Integrated measurement and implementation source is
+`a7d659b8587f98b934dc0c27079a00fefe5ea1c4`; matching artifacts use definition
+`7c81d0916913d774febe2bec8f739f95a194f3ca88056c9f1214c0f77f22fa89`.
+Earlier observations below retain their old source/definition. They do not qualify
+the replacement or settle original uncertain work.
+
+During these checks, main advanced again to `0c64c4b03` (PR #324), introducing
+retained completed-revision manifests/readers and definition
+`afac2bd84560136ca90c0683afdffb8f71d5f96568b05dd3de773ce3c5339b2a`.
+That later source was reviewed for the next measurement plan. It is outside this
+packet's executed timing and clean-check source; these results do not qualify
+its new publication, guarded-read or recovery costs.
+
+The reusable [installed profiles](../../../tests/performance/load/installed.md)
+measure finite managed activation/successors, foreground interference, idle and
+retained restart, plus verified PostgreSQL/MySQL connections under idle and
+partial-startup pressure. The [SDK workload](../../../tests/performance/sdk/README.md)
+adds independently verified UTF-8 values and fresh-process installed Node imports.
+Ordinary durability, authority, validation and server deadlines remain enabled;
+maintenance-disabled diagnostics are explicitly separate. Final managed output
+verification is inside the completion deadline, including a known late outcome
+in failed evidence without counting it as a pass.
+
+Station now compiles its schema validators once per module graph, eagerly,
+instead of independently in three modules. Generated local certificates now
+include subject/authority key identifiers required by strict clients; existing
+certificates are not silently replaced. Neither change alters the shared protocol.
+
+### Installed Node import comparison
+
+Three alternating pairs (AB, BA, AB), five fresh processes per arm/pair, pass all
+**30 imports**. Control `7e7b8ed4f` restores only the repeated Station compilation
+on the integrated source (`git revert c2dc01b0c` on `a7d659b85`); the public
+SDK modules match `242499474`. Client/native
+archives, installer, program and measurement-driver hashes match across arms.
+Only the Station archive differs. No native client is opened and no service is
+contacted; package installation is outside the measured interval.
+
+| Metric | Control median (n=15) | Candidate median (n=15) |
+| --- | ---: | ---: |
+| Module import | 6.398 s | 2.807 s |
+| Launch through verified import | 6.489 s | 2.890 s |
+| Import process CPU | 7.999 s | 3.843 s |
+| Process peak RSS | 410.531 MiB | 342.988 MiB |
+
+Import median improves **2.28×**, with 16.5% lower median peak RSS.
+This is module initialization evidence, not a whole-SDK/service speed ratio,
+allocation count or tail SLO. Fifteen samples per arm do not freeze numeric budgets.
+
+### Installed managed work and connection pressure
+
+Both managed profiles pass activation, three successor revisions, exact full
+output, settled idle observation and graceful retained restart. Their output
+sizes and history differ; this is a growth diagnostic, not an optimization ratio.
+
+| Initial rows | Activation | Successors to complete verified output | Foreground baseline median (n=3) | Foreground during successors median / empirical p95 |
+| ---: | ---: | --- | ---: | ---: |
+| 3 | 4.687 s | 6.327, 8.625, 10.795 s (4–6 rows) | 31.7 ms | 95.3 / 325.4 ms (n=44) |
+| 16 | 11.570 s | 19.033, 22.815, 27.484 s (17–19 rows) | 34.4 ms | 143.3 / 340.2 ms (n=109) |
+
+Table attempt totals are 1,000 at small activation and 990–1,279 per successor;
+the larger profile records 2,285 and 2,468–2,686 respectively. They include SHOW,
+foreground reads and concurrent background work, not unique commits or exclusive
+managed execution. Fixed 50 ms observation pauses and verification are included.
+Both one-second settled intervals record zero Table/native attempts; installation
+CPU is 40 and 30 ms. This short observation does not prove perpetual idle silence.
+
+The small fixture restarts ready in 2.737 s and verifies all six rows in 3.732 s.
+The larger fixture takes 9.621 s to readiness and 11.141 s to verified 19-row output.
+These are distinct from a small otherwise empty retained installation. Computation,
+retained history and recovery work must remain separate startup dimensions.
+
+The eight-peer connection profile passes three cold logins, warm/loaded SELECT 1
+operations and native control checks per protocol, plus partial-startup pressure
+and joined cleanup. PostgreSQL and MySQL each admit seven additional peers and
+return one observed refusal while the original session remains responsive. TLS
+CA/hostname verification stays enabled. Refusal diagnostics do not establish
+whether capacity or authorization caused the refusal.
+
+The installation has 739 threads before the profile and 741 afterward. Sampled
+RSS rises from 866.7 MiB to 1,982.6 MiB after both protocols; these snapshots do not
+prove a leak or peak bound. The unchanged SQL host reserves 528 I/O workers for
+wire capacity alone. Replacing blocking deadline races and proving progress must
+precede reducing those pools.
+
+### Startup, console and installed SDKs
+
+Both profiles pass one fresh startup and three retained restarts, including the
+first verified SQL result and retained identities. Default also passes Board gates.
+
+| Profile | Fresh ready / first verified result (n=1) | Retained median ready / first verified result (n=3) |
+| --- | ---: | ---: |
+| Default embedded UI | 3.388 / 3.639 s | 0.897 / 1.106 s |
+| Headless | 5.352 / 5.780 s | 0.910 / 1.256 s |
+
+These small, differently timed campaigns do not compare UI overhead or qualify
+startup budgets. They are not matched controls for the older source/host conditions.
+
+The ordinary persistent-console campaign completes 36 verified statements, then
+fails its first SELECT after DELETE with `Canceled (HY000): SqlServiceError`.
+The original fixture `/var/tmp/transit-server-proof-gzl8mxcm` is retained. The
+remaining statements are unreached; no complete console score or improvement is
+claimed. The captured default log does not establish the cancellation's cause.
+
+A separate fresh fixture with typed attempt counters and bounded debug tracing
+passes all 47 statements. Warm SELECT median is 39 ms (n=6), INSERT 104 ms,
+SELECT after INSERT 132 ms, changed UPDATE 151 ms, unchanged UPDATE 131 ms and
+DELETE 174 ms (n=5 each). Tracing retains 231 events but reports 48 dropped and
+32,561 suppressed events; it is not complete causal coverage. This instrumented
+pass neither explains nor replaces the earlier uninstrumented failure and is not
+a matched speedup over historical INSERT results. Server deadlines and automatic
+maintenance are unchanged.
+
+The default-maintenance SDK run completes all Zig cases, then Python sync's second
+recorded full integer read exits during `release_snapshot` with
+`catalog.Uncertain` / `UncertainOperation`. Even though row consumption preceded
+the release call, the operation and joined close are not complete. The original
+snapshot files remain at `/var/tmp/transit-server-proof-fc6c8_0s`. Other Python
+cases and the later languages are unreached in that campaign. This is distinct
+from the pre-integration acquisition `Conflict`; neither uncertain operation is
+settled by a new fixture or an isolated pass.
+
+The separately labelled maintenance-disabled campaign passes all **224 operations**:
+14 cases × four languages × (one warmup + three recorded samples), plus cold starts
+and joined closes. The 70-row text fixture checks empty, quoted, case/trailing-space,
+non-ASCII and 480-byte values using independent signed-ID/raw-UTF-8 digests.
+
+| SDK | Integer point / full median | UTF-8 point / full median |
+| --- | ---: | ---: |
+| Zig | 418.1 / 1,364.3 ms | 485.0 / 1,311.2 ms |
+| Python sync | 520.8 / 1,287.6 ms | 518.6 / 1,390.9 ms |
+| Python async | 554.1 / 1,417.6 ms | 572.9 / 1,461.0 ms |
+| Node | 566.3 / 1,528.1 ms | 606.5 / 1,476.4 ms |
+
+Each cell has three recorded samples. These operations include Catalog lookup,
+exact snapshot retention, durable caller files, Query consumption, independent
+verification and release. They are a different lifecycle from warm SQL console
+queries. They establish neither a language-overhead ratio against the console nor
+encoded FSST/dictionary throughput. Allocator/copy counters remain unavailable.
+The isolated campaign does not qualify concurrent maintenance or settle the
+original default-profile release.
+
+### Qualification and limits
+
+Matching ReleaseSafe runtime/native/consumer builds pass. At committed
+implementation source `a7d659b8587f98b934dc0c27079a00fefe5ea1c4`, the following
+checks run in independent clean-source checkouts:
+
+| Selection | Result | Retained record under `.cache/ci/clean/` |
+| --- | --- | --- |
+| `just ci clean --check fast` | 64 passed | `a7d659b8587f-transit-ci-wrcdj7fp/` |
+| `just ci clean --lane sdks-scripting` | Passed: installed Python, Node and Ruby schedules; Node package tests 51/51 | `a7d659b8587f-transit-ci-wbc9k56v/` |
+| `just ci clean --lane installation-ui` | Passed: installation, startup logging, managed recovery, SQL lifetime/trust, Board and browser schedules | `a7d659b8587f-transit-ci-9o0y97av/` |
+| `just ci clean --lane interfaces-sql` | Failed at captured Table recovery in `sql-sessions`; TLS, allocation and gateway tasks passed | Failed checkout `/var/tmp/transit-ci-a_pc2x6w/` |
+
+The TLS schedule verifies 100 connections per protocol alternating TLS 1.2/1.3.
+Warmed result allocation checks include the negative instrumentation control.
+The SDK reporter also rejects the actual incomplete default-maintenance campaign.
+
+In `sql-sessions`, the original captured Table SELECT (operation 63) remains
+`ready`, unblocked and without an outcome when its 270-second terminal wait ends.
+Logs record `AuthorityTimeout`, a rejected `open_view` with `DeadlineExpired`,
+and the Table requester exiting with `Rejected`. The earlier SQL log also records
+`sql.read.cleanup_blocked` / `Conflict`. These observations do not establish the
+root cause or settle the original operation. The private fixture is
+`/var/tmp/transit-direct-sql-wire-fw0zomw9`. SQL source/fixture files are unchanged
+from integration base `242499474`; this does not substitute for a controlled
+causal diagnosis. The failure is retained without replay or deadline changes.
+The later integrity, history, log-declaration and transaction tasks are unreached;
+the lane is not a pass. Its result/metadata copies and complete log are in this
+packet's artifact directory. This recovery failure is an open qualification gate.
+
+These are selected affected checks, not full repository qualification. Passing
+conformance schedules do not resolve the retained performance-campaign failures.
+The final documentation-only commit receives link/fence and whitespace checks;
+it changes no measured implementation source.
+
+M6's existing [Stream/Queue](../../../tests/performance/storage/log_runtime.md)
+and [Station-turn](../../../tests/performance/load/station_turn.md) owners remain
+the measurement entry points for those lifecycles. Their cold Queue recovery
+failure is not resolved by this packet. M10 catalog retention, schema projection,
+column/integrity costs and history/cardinality growth are planned measurements,
+not results of these Table/SDK experiments. The 10–100× target and numeric budget
+qualification remain open in [#211](https://github.com/spoke-sh/transit/issues/211).
+
+Raw results, commands, artifacts and SHA-256 indexes are retained under ignored
+`.cache/performance/integrated-main/` and `.cache/performance/current-main/`.
+Each automatic run also prints its evidence location. Failed private fixtures
+retain original request identities and are never reopened with a foreign definition.
+Runs use pinned ReleaseSafe artifacts and execute separately from owned heavy
+builds/proofs; external shared-host activity is uncontrolled. Sparse samples do
+not establish tail SLOs or infer allocation counts from RSS.
+
+Selected raw/summary artifacts under `.cache/performance/integrated-main/`:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `release/bin/transit` | `196dd4ad72de388462e73ee5d880797e1302dcb3127a09960a1f16e98629012d` |
+| `native-record.json` | `0bc984ab3b32359cb822b29e217f314b94e3fe3264d5cedc31e1d874466826de` |
+| `node-control-packages/transit-station-0.0.1.tgz` | `7157e6469e2308bf9ebc5c03f78b4fdb2455f86086746ef48078b233d9fcded6` |
+| `node-candidate-packages/transit-station-0.0.1.tgz` | `800cecda635ac4c127a5088b88d3b65182f39dfc7086063a7dccb3e01a291ae2` |
+| `import-report.json` | `1cc3e682c392159c951753f73260da38be9ab42c35044735a00b529bb6433a58` |
+| `managed-3-report.json` | `2b26bada25e2539ba0dbc0aebb03355ff5426e8d32bc71550abe4fd7777a8540` |
+| `managed-16-report.json` | `4675dae181012a0bf38ade4b08d2f13ff0aa1a8c83885085d31db4ea2ec466d6` |
+| `connections-8-report.json` | `99e7de4eaad14775131da931949a3d17cb508529f4f0826d091a79cbe2b58618` |
+| `startup-default.jsonl` | `d09e44f246754c68bc45831c20d38f2fccf6b0ffe1f587c62364f7fb74659a52` |
+| `startup-headless.jsonl` | `e44f8ba84ff58d903800b947df46e578b78a6ca68fb919ab4c7742e8c82d1c5a` |
+| `statements.jsonl` | `364f49eaa8bcd6705e4e7514fed6e1db23eb606deacd200d9b0e2153dedd3275` |
+| `statements-traced.jsonl` | `9745b8bfd08652a259361fcb489030f7e3898e673053d2a36e2360b1c5dbd165` |
+| `sdk-default.jsonl` | `61360bc2fd658fd968b7b62ec48b3fdd3df8d201024bcf53ba0f5921feae591c` |
+| `sdk-isolated-report.json` | `b1266eeeb46453d09c1069e85782030b967684529d9de5fbcfc70868885d499c` |
+| `clean-interfaces-sql.log` | `8709b912dbba8fc248f1966e87f9700de0984fb7a5eaf2a6bc882d8f5bf97209` |
+| `clean-interfaces-sql-result.json` | `a1b55a974b0389c220ad3cf6f2529a17ab49893d54a964f4731d23cf0d5e1769` |
+
+## Pre-integration workloads and SDK initialization — 2026-11-01
+
+These measurements precede the M6/M10 integration above and use a different shared
+definition. They remain historical observations, not qualification of the
+integrated source. The measurement packet follows the [current-main implementation plan](../../roadmap/08-gateway-architecture-and-protocol-ingress.md#current-main-performance-implementation--2026-11-01)
+on base `f4abc3b18d9a621eb9fcb2f2c10ee72a48aa2ae1`, including #313–#319.
+It adds installed UTF-8 SDK reads, managed-computation/foreground observations,
+and PostgreSQL/MySQL connection pressure. The reusable methods live with the
+[SDK measurements](../../../tests/performance/sdk/README.md) and
+[installed workload measurements](../../../tests/performance/load/installed.md).
+
+Clean measurement-driver revision is
+`ff96e17d85a4af7a3c2aae4274a12fb9dce120f0`. Frozen ReleaseSafe runtime and native
+client artifacts were built at `2867e1d98ad51ce540f4b4459ffaed8c0384c1b3`;
+the CLI SHA-256 is `60fe7700d4aef43d724e0f2bbdb091aef65f2180ae8fc0f5949f22c247ddd6b0`.
+The shared definition is
+`082c5ef4fcfe2d1daa385774f5843ecf933af68d68a91df4b7d1281faf55dca1`.
+Reports retain every executable, package and driver hash, including separate
+native-build provenance. The original pre-certificate-fix probe uses runtime
+`43606334a48643d1b00a8b6ab79d043cbd860577`; its measurements are not reassigned.
+
+Runs use pinned Zig `0.17.0-dev.2267+48abf1a34`, Linux 6.17.0-41 x86_64,
+48 logical CPUs and local ext4/NVMe. OS pages remain cached. Our builds, disk
+proofs and timing campaigns run sequentially; other host activity is uncontrolled
+and load is recorded. These observations do not establish tail SLOs or an overall
+10–100× improvement. Synchronous durability and ordinary server deadlines remain
+unchanged. Automatic maintenance is enabled except in the explicitly isolated
+SDK diagnostic below.
+
+### Installed Node import comparison
+
+Station previously compiled its complete schema collection independently in
+bridge, Catalog and Table modules. The implementation shares one eagerly compiled
+collection within the module graph. Validation remains enabled at import time;
+no work is deferred into the first caller operation.
+
+Three alternating pairs use order AB, BA, AB and five fresh Node processes per
+arm/pair. All **30 imports** pass constructor and installed-package resolution
+checks. The control SDK source is `43606334a48643d1b00a8b6ab79d043cbd860577`;
+its isolated worktree `043d0d23b` adds the identical measurement driver only.
+The candidate contains optimization `c2dc01b0c`. Native and client package bytes
+are identical across arms; only the Station archive differs. Each import loads
+both public SDKs, opens no native client and contacts no service. Package
+installation is outside the measured interval.
+
+| Fresh-process metric | Control median (n=15) | Candidate median (n=15) |
+| --- | ---: | ---: |
+| Module import | 5.144 s | 2.357 s |
+| Process launch through verified import | 5.235 s | 2.444 s |
+| Process CPU during import | 6.501 s | 3.229 s |
+| Process peak RSS | 365.9 MiB | 308.0 MiB |
+
+Import is **2.18× faster**; the three pair ratios are 2.168, 2.192 and 2.186.
+Median peak RSS decreases 15.8%. This is a module-initialization result, separate
+from native-host startup and first verified service results. Fifteen samples per
+arm do not meet the planned budget-freezing sample count. Allocation/copy counts
+remain unavailable, rather than inferred from RSS.
+
+### Installed outcomes and diagnostic costs
+
+The actual persistent console passes all **47 statements** with exact values,
+authoritative mutation counts and complete readback. Its warm SELECT median is
+32 ms (six samples); INSERT is 615 ms, SELECT after INSERT 533 ms, changed UPDATE
+787 ms, unchanged UPDATE 603 ms and DELETE 652 ms (five each). These are current
+observations, not matched improvements over the historical INSERT denominator.
+
+Both startup profiles pass fresh startup and three retained restarts, including
+verified SQL and retained installation identities. Default includes Board gates.
+
+| Startup profile | Fresh ready / first verified result (n=1) | Retained median ready / first verified result (n=3) |
+| --- | ---: | ---: |
+| Headless | 14.543 / 15.387 s | 1.877 / 2.450 s |
+| Default embedded UI | 16.922 / 17.700 s | 2.275 / 3.378 s |
+
+Fresh provisioning accounts for 8.422 and 9.650 seconds respectively. An additional
+headless run of the earlier `43606334a` runtime under the current host conditions
+also takes 17.213 seconds fresh (10.510 seconds provisioning) and 2.134 seconds
+median retained readiness. These sparse, differently timed runs do not isolate a
+certificate-change regression or qualify startup budgets; the earlier faster
+records retain their original conditions.
+
+The managed workload activates a 16-row projection and verifies all output rows,
+then inserts one source row per successor through completed revisions for 17, 18
+and 19 rows. Activation takes 53.125 seconds; successors take 57.181, 64.196 and
+73.214 seconds. The corresponding typed Table attempt totals are 3,595, 2,889,
+2,935 and 3,108. They include foreground reads, SHOW observations and background
+activity: they are neither unique commits nor exclusive managed execution costs.
+
+Foreground baseline median is 30.9 ms (three reads); during successors the median
+is 175.2 ms, empirical p95 1,478.3 ms and maximum 3,929.2 ms (141 reads). Observations
+include fixed 50 ms pauses and use the ordinary request deadlines. One settled
+second records zero Table/native attempts and 20 ms installation CPU. Retained
+restart verifies all 19 rows, with 10.601 seconds readiness and 12.183 seconds
+launch-to-verified-output. This makes computation/history-bearing startup a
+separate workload from an otherwise small retained installation.
+
+Both connection campaigns complete with required TLS and independent hostname/CA
+verification. Four additional peers are admitted for each protocol. Eight
+additional attempts produce seven admitted peers and one observed refusal per
+protocol, while the original session and native control remain responsive.
+Three cold logins, warm/loaded SELECT 1 operations and control reads per protocol
+complete; partial-startup peers are closed and all installation processes joined.
+Authentication SQLSTATE or the exact PostgreSQL fatal admission diagnostic is
+retained without claiming it proves the refusal's cause.
+
+The full installation already contains 736–737 threads before the connection
+workload, versus 738–739 afterward. Sampled RSS rises from 861–864 MiB before the
+workload to 1,712–1,884 MiB after both protocols. These samples do not establish a
+leak or a peak bound. Source inspection shows that enabling wire listeners adds
+`8 * (64 + 2) = 528` reserved I/O workers at ordinary capacity, and the I/O owner
+starts every worker during initialization. Progress proofs must precede reducing
+that pool while blocking deadline futures remain.
+
+### SDK text coverage and retained failures
+
+The isolated SDK campaign passes **224 operation samples**: 14 cases × four
+languages × (one warmup + three recorded samples), plus all four cold starts and
+joined closes. The four text cases verify empty, point, range and complete reads
+over 70 rows containing empty values, case/trailing spaces, quotes, non-ASCII
+text, the inline boundary and 480-byte UTF-8 values. An independent digest checks
+signed IDs, byte lengths and exact raw bytes; result order is not assumed.
+
+| SDK | Integer point / full median | UTF-8 point / full median |
+| --- | ---: | ---: |
+| Zig | 469.8 / 1,201.7 ms | 445.6 / 1,162.3 ms |
+| Python sync | 478.1 / 1,278.1 ms | 504.0 / 1,252.3 ms |
+| Python async | 487.6 / 1,207.9 ms | 652.9 / 1,522.3 ms |
+| Node | 737.8 / 1,543.7 ms | 749.1 / 1,532.3 ms |
+
+Each case has three recorded samples. This profile disables maintenance explicitly.
+It includes original Catalog/Query retention setup, durable caller files,
+consumption, independent verification and release; it is not the SQL console's
+warm-session lifecycle. It establishes neither a language-overhead comparison
+against console nor encoded FSST/dictionary performance. Ordinary SQL/context
+SDK adapters, allocator/copy counters and matched numeric budgets remain open.
+
+The complete attempt record also retains these failures:
+
+- The default-maintenance SDK campaign reaches Zig's full integer read and fails
+  with `Conflict`, before text or other languages run. Its pending acquisition
+  owner differs from the last saved snapshot owner, consistent with failure
+  during the new acquisition. The original files remain at
+  `/var/tmp/transit-server-proof-v4g4vupo`; the isolated pass does not resolve them.
+- An additional current-source three-row managed growth campaign passes activation
+  and two successors, then loses its observation transport (`BrokenPipeError`)
+  during the third successor. Cleanup also reports the broken connection state.
+  `/var/tmp/transit-server-proof-hkzzcek1` is retained. Later output, idle and
+  restart checks are unreached; no accepted three-versus-sixteen-row comparison
+  is published. The earlier three-row/one-successor probe passed at its own source.
+- The first connection boundary attempt fails because libpq omits the startup
+  SQLSTATE. The next reaches MySQL but strict Python certificate verification
+  rejects the generated leaf's missing Authority Key Identifier. The harness now
+  records the exact PostgreSQL diagnostic without inventing SQLSTATE, and local
+  certificate issuance adds subject/authority key identifiers. Strict-chain unit
+  verification and the subsequent real MySQL logins pass; retained certificates
+  are not silently replaced.
+- One initial invocation rejects a mistyped binary revision before fixture setup.
+  A control-package preparation fails on missing checkout-local dependencies;
+  installing locked dependencies and rebuilding completes preparation. Neither
+  attempt is a runtime performance sample. The first post-TLS fast check flags
+  the new helper boundaries; the reviewed diagnostic inventory is then regenerated.
+
+### Validation and evidence
+
+All 60 fast checks pass in the workspace and in a clean checkout at
+`ff96e17d85a4af7a3c2aae4274a12fb9dce120f0`. The clean record is
+`.cache/ci/clean/ff96e17d85a4-transit-ci-iyursos0/`. ReleaseSafe runtime/native and
+Zig consumer builds, the focused strict TLS chain test, Node package checks
+(40 tests plus type/format checks), SDK reporter controls and installed reporter
+controls pass at their recorded pre-integration revisions.
+
+The clean `sdks-scripting` lane was explicitly interrupted when the replacement
+main definition landed; its partial log and checkout
+`/var/tmp/transit-ci-9knrf2rs` remain retained. Individual completed schedules do
+not establish a lane pass. The old-source installation/interface lanes were
+not started. The integrated qualification above has a separate source and
+attempt record; neither this partial run nor selected checks claim full CI.
+
+Raw JSONL, invocation manifests, recomputed summaries, package archives and build
+records are retained under ignored `.cache/performance/current-main/`.
+`evidence-index.json` records their SHA-256 values and byte sizes. Automatic
+runner locations remain in each invocation log, including private failed
+installations. The native record copy has SHA-256
+`b6d0fb335b9a0febf3ee8fe512156ed63ae67b08be5efade6144d8b82b0fa7e1`.
+Reproduce from the public measurement guides with matching ReleaseSafe artifacts;
+keep default maintenance and isolated diagnostics distinct and run timings
+separately from heavy builds/proofs.
+
+The [tracking issue #211](https://github.com/spoke-sh/transit/issues/211) remains
+open. Its next priorities are acquisition under maintenance, managed publication
+and foreground progress, proof-backed deadline/worker reduction, and startup
+with retained computation/history. SDK build-time validator generation and shared
+statement/result lifecycles remain separate optimization candidates. Component
+string, Document/parser and spatial baselines retain their own owners and do not
+inherit these installed measurements.
+
 ## Final-response deadline control and installed driver check — 2026-11-01
 
 Clean revision `a43c275fe7ae72806764c958d431563416e63355`, current definition

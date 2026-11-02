@@ -1,5 +1,5 @@
 import { ResourceRef, HandlerError, Busy, IncompatibleNative } from "@transit/client";
-import { integer, validators } from "@transit/client/internal";
+import { integer } from "@transit/client/internal";
 import { context, operation, type Context } from "./context.ts";
 import { result } from "./bridge.ts";
 import { hex, unhex } from "./framing.ts";
@@ -16,7 +16,7 @@ import { encodeCell, decodeCell, type Cell } from "./logical-values.ts";
 import type { GrowingAction, GrowingResult } from "./wire.ts";
 import type { Turn } from "./turn.ts";
 import contract from "./contract.json" with { type: "json" };
-import schemas from "./schemas.json" with { type: "json" };
+import { validation } from "./validation.ts";
 
 export { Schema as TableSchema } from "./catalog.ts";
 export type { Cell } from "./logical-values.ts";
@@ -29,7 +29,7 @@ type NativeStatus = NonNullable<Extract<Result, { mutation: unknown }>["mutation
 type NativeDefinition = Extract<Result, { schema: unknown }>["schema"];
 type NativeRow = NonNullable<Extract<Result, { row: unknown }>["row"]["row"]>;
 type Tags<T> = T extends unknown ? keyof T : never;
-const validate = validators(schemas).GrowingAction!;
+const validate = validation.GrowingAction!;
 function tableResult<K extends Tags<Result>>(
   value: GrowingResult,
   tag: K,

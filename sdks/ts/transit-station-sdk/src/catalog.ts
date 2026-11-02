@@ -1,7 +1,7 @@
 import { Credential, ResourceRef, IncompatibleNative, UnknownOutcome } from "@transit/client";
 import { isDeepStrictEqual } from "node:util";
 import type { ClientConfig } from "@transit/client";
-import { configuration, integer, text, validators } from "@transit/client/internal";
+import { configuration, integer, text } from "@transit/client/internal";
 import { CatalogBridge } from "./bridge.ts";
 import { wide, nativeWide as decodeNativeWide } from "./values.ts";
 import { hex, unhex } from "./framing.ts";
@@ -9,7 +9,7 @@ import { encodeType, decodeType, encodeCell, decodeCell, encodeAtom } from "./lo
 import type { Descriptor, Cell, Atom } from "./logical-values.ts";
 import type { CatalogAction, CatalogResult, CatalogConfig } from "./wire.ts";
 import contract from "./contract.json" with { type: "json" };
-import catalogSchemas from "./schemas.json" with { type: "json" };
+import { validation } from "./validation.ts";
 
 type Action<K extends PropertyKey> = Extract<CatalogAction, Record<K, unknown>>[K];
 type Result<K extends PropertyKey> = Extract<CatalogResult, Record<K, unknown>>[K];
@@ -28,7 +28,7 @@ type NativeEvidence = Extract<
   { committed: unknown }
 >["committed"];
 const currentDefinition = contract.definition as NativeSchema["definition"];
-const validateAction = validators(catalogSchemas).CatalogAction!;
+const validateAction = validation.CatalogAction!;
 type Tags<T> = T extends unknown ? keyof T : never;
 function field<K extends Tags<CatalogResult>>(value: CatalogResult, key: K): Result<K> {
   if (!(key in value)) throw new IncompatibleNative("Unexpected catalog result");

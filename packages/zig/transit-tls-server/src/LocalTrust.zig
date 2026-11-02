@@ -25,6 +25,7 @@ pub fn issue(allocator: std.mem.Allocator, io: std.Io) !Self {
     try check(c.X509_set_issuer_name(ca, c.X509_get_subject_name(ca)));
     try extension(ca, "basicConstraints", "critical,CA:TRUE,pathlen:0");
     try extension(ca, "keyUsage", "critical,keyCertSign,cRLSign");
+    try identityExtension(ca, ca, "subjectKeyIdentifier", "hash");
     if (c.X509_sign(ca, ca_key, c.EVP_sha256()) <= 0) return error.TlsCertificateGenerationFailed;
     const leaf = try issueCertificate(io, key, "localhost", 365);
     defer c.X509_free(leaf);
@@ -33,6 +34,8 @@ pub fn issue(allocator: std.mem.Allocator, io: std.Io) !Self {
     try extension(leaf, "keyUsage", "critical,digitalSignature");
     try extension(leaf, "extendedKeyUsage", "serverAuth");
     try extension(leaf, "subjectAltName", "DNS:localhost,IP:127.0.0.1");
+    try identityExtension(leaf, ca, "subjectKeyIdentifier", "hash");
+    try identityExtension(leaf, ca, "authorityKeyIdentifier", "keyid:always");
     if (c.X509_sign(leaf, ca_key, c.EVP_sha256()) <= 0) return error.TlsCertificateGenerationFailed;
     const ca_pem = try pem(allocator, ca);
     errdefer allocator.free(ca_pem);
@@ -62,9 +65,17 @@ fn issueCertificate(io: std.Io, key: *c.EVP_PKEY, name: []const u8, days: c_long
     return result;
 }
 fn extension(cert: *c.X509, name: [:0]const u8, value: [:0]const u8) !void {
+    try contextualExtension(cert, null, name, value);
+}
+fn identityExtension(cert: *c.X509, issuer: *c.X509, name: [:0]const u8, value: [:0]const u8) !void {
+    var context: c.X509V3_CTX = std.mem.zeroes(c.X509V3_CTX);
+    c.X509V3_set_ctx(&context, issuer, cert, null, null, 0);
+    try contextualExtension(cert, &context, name, value);
+}
+fn contextualExtension(cert: *c.X509, context: ?*c.X509V3_CTX, name: [:0]const u8, value: [:0]const u8) !void {
     const nid = c.OBJ_txt2nid(name);
     if (nid == 0) return error.TlsCertificateGenerationFailed;
-    const ext = c.X509V3_EXT_nconf_nid(null, null, nid, value) orelse return error.TlsCertificateGenerationFailed;
+    const ext = c.X509V3_EXT_nconf_nid(null, context, nid, value) orelse return error.TlsCertificateGenerationFailed;
     defer c.X509_EXTENSION_free(ext);
     try check(c.X509_add_ext(cert, ext, -1));
 }
@@ -115,4 +126,15 @@ test "local trust verifies the full chain and loopback names and rejects a forei
     defer context.deinit();
     try context.verifyLocalTrust(ca);
     try t.expectError(error.InvalidTlsTrust, context.verifyLocalTrust(foreign_ca));
+    // Python's default client context also enables strict X.509 validation.
+    // Check issuance independently of the retained-installation verifier.
+    const store = c.X509_STORE_new() orelse return error.TlsAllocationFailed;
+    defer c.X509_STORE_free(store);
+    try check(c.X509_STORE_load_file(store, ca.ptr));
+    try check(c.X509_STORE_set_flags(store, c.X509_V_FLAG_X509_STRICT));
+    const verification = c.X509_STORE_CTX_new() orelse return error.TlsAllocationFailed;
+    defer c.X509_STORE_CTX_free(verification);
+    try check(c.X509_STORE_CTX_init(verification, store, c.SSL_CTX_get0_certificate(context.raw).?, null));
+    try check(c.X509_STORE_CTX_set_purpose(verification, c.X509_PURPOSE_SSL_SERVER));
+    try check(c.X509_verify_cert(verification));
 }
