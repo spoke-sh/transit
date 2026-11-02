@@ -1,3 +1,4 @@
+import { scheduleRequest } from "@transit/reactive-client";
 import { ownedDiagnostic } from "./diagnostics";
 import type { Diagnostic, Request, Response } from "./types";
 import { Request as validRequest } from "./validators.js";
@@ -54,81 +55,88 @@ export function httpTransport(endpoint: string, timeoutMs = 6000): Transport {
       "page",
       "prepare_control",
     ].some((operation) => operation in request);
-    for (let attempt = 0; ; attempt++) {
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body,
-        credentials: "same-origin",
-        cache: "no-store",
-        redirect: "error",
-        signal: signal
-          ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
-          : AbortSignal.timeout(timeoutMs),
-      });
-      if (response.status === 429 && attempt < 3 && !signal?.aborted) {
-        await response.body?.cancel();
-        await new Promise((resolve) => setTimeout(resolve, 250));
-        continue;
-      }
-      const reader = response.body?.getReader();
-      if (!reader) throw new QueryError(0, "InvalidResponse");
-      let length = 0;
-      const bytes = new Uint8Array(1048576);
-      try {
-        while (true) {
-          const chunk = await reader.read();
-          if (chunk.done) break;
-          if (chunk.value.length > bytes.length - length)
-            throw new QueryError(0, "ResponseTooLarge");
-          bytes.set(chunk.value, length);
-          length += chunk.value.length;
+    return scheduleRequest(
+      readOnly ? "read" : "control",
+      async () => {
+        for (let attempt = 0; ; attempt++) {
+          const response = await fetch(endpoint, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body,
+            credentials: "same-origin",
+            cache: "no-store",
+            redirect: "error",
+            signal: signal
+              ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
+              : AbortSignal.timeout(timeoutMs),
+          });
+          if (response.status === 429 && attempt < 3 && !signal?.aborted) {
+            await response.body?.cancel();
+            await new Promise((resolve) => setTimeout(resolve, 250));
+            continue;
+          }
+          const reader = response.body?.getReader();
+          if (!reader) throw new QueryError(0, "InvalidResponse");
+          let length = 0;
+          const bytes = new Uint8Array(1048576);
+          try {
+            while (true) {
+              const chunk = await reader.read();
+              if (chunk.done) break;
+              if (chunk.value.length > bytes.length - length)
+                throw new QueryError(0, "ResponseTooLarge");
+              bytes.set(chunk.value, length);
+              length += chunk.value.length;
+            }
+          } finally {
+            await reader.cancel();
+          }
+          let value: unknown;
+          try {
+            value = JSON.parse(
+              new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(0, length)),
+            );
+          } catch {
+            throw new QueryError(0, "InvalidResponse");
+          }
+          if (!response.ok) {
+            const code =
+              typeof value === "object" &&
+              value !== null &&
+              "err" in value &&
+              typeof value.err === "string" &&
+              /^[A-Za-z][A-Za-z0-9_]{0,127}$/.test(value.err)
+                ? value.err
+                : "InvalidResponse";
+            if (
+              ((response.status === 409 &&
+                (code === "QueryReadConflict" || code === "QueryExpired")) ||
+                (response.status === 503 &&
+                  (code === "AuthorityUnavailable" || code === "AuthorityTimeout"))) &&
+              readOnly &&
+              attempt < 3 &&
+              !signal?.aborted
+            ) {
+              // Let requests already occupying the authority's finite slots drain.
+              // A capacity response is immediate; fixed rapid retries can exhaust
+              // the entire budget before one native request deadline elapses.
+              const delay = response.status === 503 ? 500 * 2 ** attempt : 250;
+              await new Promise((resolve) => setTimeout(resolve, delay));
+              continue;
+            }
+            throw new QueryError(
+              response.status,
+              code,
+              typeof value === "object" && value !== null && "diagnostic" in value
+                ? value.diagnostic
+                : undefined,
+            );
+          }
+          if (!validateUnifiedQuery(value)) throw new QueryError(0, "InvalidResponse");
+          return value;
         }
-      } finally {
-        await reader.cancel();
-      }
-      let value: unknown;
-      try {
-        value = JSON.parse(
-          new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(0, length)),
-        );
-      } catch {
-        throw new QueryError(0, "InvalidResponse");
-      }
-      if (!response.ok) {
-        const code =
-          typeof value === "object" &&
-          value !== null &&
-          "err" in value &&
-          typeof value.err === "string" &&
-          /^[A-Za-z][A-Za-z0-9_]{0,127}$/.test(value.err)
-            ? value.err
-            : "InvalidResponse";
-        if (
-          ((response.status === 409 && (code === "QueryReadConflict" || code === "QueryExpired")) ||
-            (response.status === 503 &&
-              (code === "AuthorityUnavailable" || code === "AuthorityTimeout"))) &&
-          readOnly &&
-          attempt < 3 &&
-          !signal?.aborted
-        ) {
-          // Let requests already occupying the authority's finite slots drain.
-          // A capacity response is immediate; fixed rapid retries can exhaust
-          // the entire budget before one native request deadline elapses.
-          const delay = response.status === 503 ? 500 * 2 ** attempt : 250;
-          await new Promise((resolve) => setTimeout(resolve, delay));
-          continue;
-        }
-        throw new QueryError(
-          response.status,
-          code,
-          typeof value === "object" && value !== null && "diagnostic" in value
-            ? value.diagnostic
-            : undefined,
-        );
-      }
-      if (!validateUnifiedQuery(value)) throw new QueryError(0, "InvalidResponse");
-      return value;
-    }
+      },
+      signal,
+    );
   };
 }

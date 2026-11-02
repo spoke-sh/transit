@@ -1,5 +1,7 @@
 import { ownedDiagnostic } from "@transit/diagnostics";
 import { ReactiveError } from "./error";
+import { scheduleRequest, type RequestLane } from "./request-scheduling";
+export * from "./request-scheduling";
 export { ReactiveError } from "./error";
 import * as validate from "./validators.js";
 import type {
@@ -270,17 +272,28 @@ export class Transport {
       throw new ReactiveError(503, "unavailable");
     });
   }
-  private async json(path: string, body: unknown, signal?: AbortSignal): Promise<unknown> {
-    // The qualified host permits 30 seconds of joined work. Leave room for its
-    // terminal response; an early abort can retain the server control slot.
-    const timeout = AbortSignal.timeout(35000);
-    const result = await this.post(
-      path,
-      body,
-      signal ? AbortSignal.any([signal, timeout]) : timeout,
+  private async json(
+    path: string,
+    body: unknown,
+    signal?: AbortSignal,
+    lane: RequestLane = "read",
+  ): Promise<unknown> {
+    return scheduleRequest(
+      lane,
+      async () => {
+        // The qualified host permits 30 seconds of joined work. Leave room for its
+        // terminal response; an early abort can retain the server control slot.
+        const timeout = AbortSignal.timeout(35000);
+        const result = await this.post(
+          path,
+          body,
+          signal ? AbortSignal.any([signal, timeout]) : timeout,
+        );
+        if (!result.ok) return this.rejectResponse(result, signal);
+        return this.decodeJson(result, signal);
+      },
+      signal,
     );
-    if (!result.ok) return this.rejectResponse(result, signal);
-    return this.decodeJson(result, signal);
   }
   private async rejectResponse(result: Response, signal?: AbortSignal): Promise<never> {
     let value: unknown;
@@ -343,6 +356,7 @@ export class Transport {
           control ? "/reactive/v1/client/control" : "/reactive/v1/client",
           request,
           signal,
+          readOnly ? "read" : "control",
         );
         const rejected =
           value &&
@@ -439,14 +453,19 @@ export class Transport {
     const idle = new AbortController();
     let timer = setTimeout(() => idle.abort(new ReactiveError(0, "disconnected")), 35000);
     try {
-      await this.stream(
-        bootstrap,
-        (value, id) => {
-          clearTimeout(timer);
-          timer = setTimeout(() => idle.abort(new ReactiveError(0, "disconnected")), 35000);
-          consume(value, id);
-        },
-        AbortSignal.any([signal, idle.signal, AbortSignal.timeout(35000)]),
+      await scheduleRequest(
+        "read",
+        () =>
+          this.stream(
+            bootstrap,
+            (value, id) => {
+              clearTimeout(timer);
+              timer = setTimeout(() => idle.abort(new ReactiveError(0, "disconnected")), 35000);
+              consume(value, id);
+            },
+            AbortSignal.any([signal, idle.signal, AbortSignal.timeout(35000)]),
+          ),
+        signal,
       );
     } finally {
       clearTimeout(timer);

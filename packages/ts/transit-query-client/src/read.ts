@@ -1,3 +1,4 @@
+import { scheduleRequest } from "@transit/reactive-client";
 import { readDefinition, type ReadRequest, type ReadResponse } from "./read-types";
 import { ReadRequest as validRequest, ReadResponse as validResponse } from "./read-validators.js";
 import { boundedQueryJson, logicalCellValid, logicalColumnsValid, logicalInteger } from "./logical";
@@ -49,7 +50,11 @@ export const readTransport: ReadTransport = async (request, signal) => {
   for (let attempt = 0; ; attempt++) {
     deadline.throwIfAborted();
     try {
-      return await readAttempt(body, deadline);
+      return await scheduleRequest(
+        "run" in request.action || "close" in request.action ? "control" : "read",
+        () => readAttempt(body, deadline),
+        deadline,
+      );
     } catch (cause) {
       if (
         !(cause instanceof QueryError) ||

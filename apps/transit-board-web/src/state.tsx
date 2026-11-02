@@ -2,7 +2,7 @@ import { diagnosticLines } from "@transit/query-client";
 import { InterfaceShell } from "./interface";
 import { useRead } from "./use-observation";
 import { ReadStatus } from "./read-status";
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
 import {
   BoardError,
   deployment,
@@ -73,62 +73,28 @@ function usePagedRead<
     signal?: AbortSignal,
   ) => Promise<T>,
 ) {
-  const [data, setData] = useState<T | null>(null);
-  const [error, setError] = useState("");
-  const [observedAt, setObservedAt] = useState<string>("");
   const [continuation, setContinuation] = useState<{ cut: Cut; after: number }>();
-  const [refresh, setRefresh] = useState(0);
-  const failures = useRef(0);
-  useEffect(() => {
-    const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout>;
-    setData(null);
-    setError("");
-    setObservedAt("");
-    async function poll() {
-      if (document.hidden) {
-        timer = setTimeout(poll, 5000);
-        return;
-      }
-      try {
-        const next = await fetchPage(resource, pid, continuation, controller.signal);
-        if (controller.signal.aborted) return;
-        setData(next);
-        setError("");
-        setObservedAt(new Date().toLocaleTimeString());
-        failures.current = 0;
-      } catch (cause) {
-        if (controller.signal.aborted) return;
-        failures.current++;
-        setError(message(cause));
-        if (cause instanceof BoardError && cause.status === 403) {
-          setData(null);
-          return;
-        }
-        // A stale continuation needs an explicit restart, never automatic stitching.
-        if (cause instanceof BoardError && cause.status === 409) return;
-      }
-      if (!continuation)
-        timer = setTimeout(poll, Math.min(30000, 5000 * 2 ** Math.min(failures.current, 3)));
-    }
-    // One first request after the capability check; no parallel screen fan-out.
-    timer = setTimeout(poll, 150);
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [resource, pid, continuation, refresh, fetchPage]);
+  const key = JSON.stringify([resource, pid, continuation]);
+  const state = useRead(
+    key,
+    async (signal) => ({
+      data: await fetchPage(resource, pid, continuation, signal),
+      observedAt: new Date().toLocaleTimeString(),
+    }),
+    continuation ? 0 : 5000,
+  );
+  const data = state.value?.data ?? null;
   return {
     data,
-    error,
-    observedAt,
+    error: state.failure ? message(new BoardError(0, state.failure.code)) : "",
+    observedAt: state.value?.observedAt ?? "",
     next: () => {
       if (data?.observation.next != null)
         setContinuation({ cut: data.observation.cut, after: data.observation.next });
     },
     reset: () => {
-      setContinuation(undefined);
-      setRefresh((value) => value + 1);
+      if (continuation) setContinuation(undefined);
+      else state.retry();
     },
     paginated: continuation !== undefined,
   };

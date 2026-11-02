@@ -108,12 +108,12 @@ recognized exchange metadata and exact source revisions. It omits captured
 bodies and application values, uses explicit continuation, and clears on errors
 or tab hiding. Five-second refreshes recheck current authority. Automatic emphasis and animated entry are unsupported.
 
-Records and selected metadata reads retry an explicit rate-limit response at
-most three times, 250 ms apart, so they can recover between shared five-second
-polls. Retries keep the same resource and continuation, stop on hiding or disposal,
-clear displayed data before waiting, and do not retry denial, stale history or
-unclassified failures. They do not
-change the host's read limit or confer access to previously displayed data.
+Records and selected metadata reads use the shared observation owner. A rate-limit
+response clears the page and schedules bounded exponential backoff (500 ms through
+2 seconds); other transient failures back off through 30 seconds. A manual
+refresh coalesces with an active read. Denial, expired history and incompatible
+responses require explicit action. Hiding or disposal cancels queued work and
+invalidates late replies. These policies confer no access to earlier data.
 
 Recognized HTTP captures offer **Inspect HTTP metadata**. The selected view shows
 frozen policy revisions, budgets, trust digest, timing, omitted field counts and
@@ -130,7 +130,7 @@ for interaction, evidence and clearing behavior.
 
 ## Working in the frontend
 
-The Operations screen includes a [relational worksheet](../transit-board/docs/relational.md)
+The reserved `/recovery/relational` route contains the [relational worksheet](../transit-board/docs/relational.md)
 with explicit catalog routes, metadata-only Explain, Run and current/next-page
 controls. It shows proposed and active plans separately and holds one row with
 explicit prefix/completion status. Current-page reads repeat every five seconds;
@@ -202,3 +202,32 @@ Renderer routes build in one entry because separate route requests can exceed
 the host's bounded handler pool. Validator groups use the bounded asset layout
 described above. Source
 contract mismatch hides incompatible results while exact pending work survives.
+
+## Reactive ownership
+
+The composition root installs one request scheduler for the tab. Public client
+transports acquire a permit around their bounded request/body-consumption chain:
+two reads and one separate submission/control/cleanup request may be active.
+Read starts are staggered by 75 ms. The FIFO queue holds at most 64 requests;
+capacity refusal is typed and queued aborts remove work before dispatch. An active
+request keeps its permit until it settles, even when a transport ignores abort.
+A composite observation acquires permits only for its individual transport calls.
+The scheduler supplies neither authorization nor retries.
+
+| Owner / scope | Retained identity and disclosure | Timer, retry and cleanup |
+| --- | --- | --- |
+| `state`, atlas, records, participation | Realm/PID/resource plus exact cursor/revision; one authorized page | Observation owner: five-second current-page reads, explicit continuation, 15-second deadline, transient backoff; scope/hide/dispose invalidate replies |
+| HTTP/gRPC/Document metadata | Resource, record and Document cursor | Same owner; current denial or failure clears evidence |
+| Catalog, dataset, storage | Exact namespace/definition/selector and coverage cursor | Same owner; selection holds keys, views derive from the current page |
+| Published interface | Realm and source contract | Same owner; only the built-in interface survives hiding; failed published reads never disclose an earlier definition |
+| Workbook result | Original shared `StatementReader` identity and submitted SQL | Statement presentation owner; serial Run/observe/next, five-second current-window validation, bounded transient backoff; hide/config loss clears rows and cancels; restoration observes the original reader; close reports unconfirmed release |
+| Unified resource query | Retained query namespace, frozen pending request and source basis | Shared query/Live owners retain their recovery semantics; tab hide aborts reads and pauses finite Live; original controls may settle; no implicit Run |
+| Live Table metadata | Shared `Session` and exact pending control | `LiveView` owns finite events/renewal and pause cleanup; hiding/unmount pauses, showing does not implicitly Follow |
+| Relational recovery | Original query identity, retained pin and pending intent | Serialized owner; one five-second current-page timer, hidden reads aborted, controls recover the original identity |
+| Deployment configuration | Safe configuration flags only | Observation owner may remain visible when hidden; flags do not authorize any data read |
+
+All these transports use the tab scheduler. Statement completion and Live
+settlement remain in their shared clients. The independent finite models and
+complete reducer/effect replay run with `just test::board-model`; actual adapter
+races are also tested. Neither establishes arbitrary browser scheduling or
+server liveness. See [the model scope](../../tests/verification/models/README.md).

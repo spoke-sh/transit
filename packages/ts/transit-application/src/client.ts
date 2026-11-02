@@ -1,4 +1,4 @@
-import { acquireCaller, type AcquireCaller } from "@transit/reactive-client";
+import { acquireCaller, scheduleRequest, type AcquireCaller } from "@transit/reactive-client";
 import { ownedDiagnostic, type Diagnostic } from "@transit/diagnostics";
 import * as validate from "./validators.js";
 import type {
@@ -27,7 +27,11 @@ export class ApplicationTransportError extends Error {
   }
 }
 export type Transport = (request: HostRequest) => Promise<HostResponse>;
-export async function request(value: HostRequest): Promise<HostResponse> {
+export function request(value: HostRequest): Promise<HostResponse> {
+  const signal = AbortSignal.timeout(35000);
+  return scheduleRequest("control", () => applicationRequest(value, signal), signal);
+}
+async function applicationRequest(value: HostRequest, signal: AbortSignal): Promise<HostResponse> {
   if (!validate.HostRequest(value)) throw new Error("Invalid application request");
   for (let attempt = 0; ; attempt++) {
     const response = await fetch("/api/v1/application", {
@@ -37,6 +41,7 @@ export async function request(value: HostRequest): Promise<HostResponse> {
       cache: "no-store",
       redirect: "error",
       body: JSON.stringify(value),
+      signal,
     });
     // This endpoint rejects before native admission when throttled. Reuse the
     // entire request, including any frozen native signature.
@@ -379,7 +384,10 @@ async function advancePublication(
 }
 
 export type InterfaceView = Extract<HostResponse, { builtin: unknown } | { published: unknown }>;
-export async function readInterface(signal?: AbortSignal): Promise<InterfaceView> {
+export function readInterface(signal?: AbortSignal): Promise<InterfaceView> {
+  return scheduleRequest("read", () => interfaceRequest(signal), signal);
+}
+async function interfaceRequest(signal?: AbortSignal): Promise<InterfaceView> {
   for (let attempt = 0; ; attempt++) {
     const response = await fetch("/api/v1/interface", {
       cache: "no-store",

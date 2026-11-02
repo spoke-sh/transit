@@ -8,7 +8,7 @@ export function DocumentMetadata({ resource, document }: { resource: number; doc
     (id: number, doc: string, signal?: AbortSignal) => documentMetadata(id, doc, cursor, signal),
     [cursor],
   );
-  const { page, error } = useMetadata(resource, document, load);
+  const { page, error } = useMetadata(resource, document, load, JSON.stringify(cursor));
   return (
     <section aria-label={`Document ${document} metadata`} className="panel">
       <h3>Document {document} · accepted metadata</h3>

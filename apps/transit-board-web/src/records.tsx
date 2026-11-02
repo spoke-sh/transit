@@ -1,11 +1,11 @@
 import { CaptureFailure } from "./capture-failure";
-import { useEffect, useState } from "react";
-import { records, type RecordsResponse } from "@transit/board-client";
+import { useState } from "react";
+import { records, BoardError, type RecordsResponse } from "@transit/board-client";
 import { message } from "./state";
 import { GrpcMetadata } from "./grpc-metadata";
 import { DocumentMetadata } from "./document-metadata";
 import { HttpMetadata } from "./http-metadata";
-import { retryInspectionRead } from "./inspection-read";
+import { useRead } from "./use-observation";
 
 type QueryDeclaration = NonNullable<RecordsResponse["queries"][number]>["declaration"];
 function QueryEvidence({ detail }: { detail: QueryDeclaration }) {
@@ -152,61 +152,16 @@ function ExchangeEvidence({ detail }: { detail: Declaration }) {
 }
 
 export function Records({ resource }: { resource: number }) {
-  const [page, setPage] = useState<RecordsResponse | null>(null);
-  const [error, setError] = useState("");
   const [cursor, setCursor] = useState<{ revision: number; after: string }>();
   const [refresh, setRefresh] = useState(0);
   const [selectedDocument, setSelectedDocument] = useState<string>();
   const [selectedHttp, setSelectedHttp] = useState<string>();
   const [selectedGrpc, setSelectedGrpc] = useState<string>();
-  useEffect(() => {
-    const abort = new AbortController();
-    let disposed = false;
-    let busy = false;
-    let timer: ReturnType<typeof setTimeout>;
-    setPage(null);
-    setError("");
-    async function read() {
-      if (disposed || busy || document.hidden) return;
-      busy = true;
-      try {
-        const next = await retryInspectionRead(
-          () => records(resource, cursor, abort.signal),
-          abort.signal,
-          () => !document.hidden,
-          (cause) => {
-            setPage(null);
-            setError(message(cause));
-          },
-        );
-        if (!disposed && !document.hidden) {
-          setPage(next);
-          setError("");
-        }
-      } catch (cause) {
-        if (!disposed && !document.hidden) {
-          setPage(null);
-          setError(message(cause));
-        }
-      } finally {
-        busy = false;
-        if (!disposed) timer = setTimeout(() => void read(), 5000);
-      }
-    }
-    function visibility() {
-      clearTimeout(timer);
-      if (document.hidden) setPage(null);
-      else void read();
-    }
-    void read();
-    document.addEventListener("visibilitychange", visibility);
-    return () => {
-      disposed = true;
-      clearTimeout(timer);
-      abort.abort();
-      document.removeEventListener("visibilitychange", visibility);
-    };
-  }, [resource, cursor, refresh]);
+  const state = useRead(JSON.stringify(["records", resource, cursor, refresh]), (signal) =>
+    records(resource, cursor, signal),
+  );
+  const page = state.value;
+  const error = state.failure ? message(new BoardError(0, state.failure.code)) : "";
   return (
     <section aria-label={`Resource ${resource} records`} className="panel">
       <h2>Resource {resource} records</h2>

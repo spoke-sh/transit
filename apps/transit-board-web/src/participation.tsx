@@ -1,69 +1,16 @@
-import { useEffect, useState } from "react";
-import {
-  BoardError,
-  participation,
-  type ParticipationResponse,
-  type ParticipationCursor,
-} from "@transit/board-client";
+import { useState } from "react";
+import { BoardError, participation, type ParticipationCursor } from "@transit/board-client";
 import { message } from "./state";
+import { useRead } from "./use-observation";
 /** A bounded projection, never a second registry or an activity measurement. */
 export function Participation({ resource }: { resource: number }) {
   const [cursor, setCursor] = useState<ParticipationCursor>({});
   const [revision, refresh] = useState(0);
-  const [data, setData] = useState<ParticipationResponse | null>(null);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    const abort = new AbortController();
-    let reading = false;
-    let timer: ReturnType<typeof setTimeout>;
-    async function read() {
-      if (abort.signal.aborted || document.hidden || reading) return;
-      reading = true;
-      try {
-        let next: ParticipationResponse;
-        for (let attempt = 0; ; attempt++) {
-          try {
-            next = await participation(resource, cursor, abort.signal);
-            break;
-          } catch (cause) {
-            if (
-              !(cause instanceof BoardError) ||
-              cause.status !== 429 ||
-              attempt >= 3 ||
-              abort.signal.aborted
-            )
-              throw cause;
-            await new Promise((resolve) => setTimeout(resolve, 250));
-          }
-        }
-        if (!abort.signal.aborted && !document.hidden) {
-          setData(next);
-          setError("");
-        }
-      } catch (cause) {
-        if (!abort.signal.aborted) {
-          setData(null);
-          setError(message(cause));
-        }
-      } finally {
-        reading = false;
-        if (!abort.signal.aborted) timer = setTimeout(() => void read(), 5000);
-      }
-    }
-    const visibility = () => {
-      clearTimeout(timer);
-      if (document.hidden) setData(null);
-      else void read();
-    };
-    setData(null);
-    void read();
-    document.addEventListener("visibilitychange", visibility);
-    return () => {
-      clearTimeout(timer);
-      abort.abort();
-      document.removeEventListener("visibilitychange", visibility);
-    };
-  }, [resource, cursor, revision]);
+  const state = useRead(JSON.stringify(["participation", resource, cursor, revision]), (signal) =>
+    participation(resource, cursor, signal),
+  );
+  const data = state.value;
+  const error = state.failure ? message(new BoardError(0, state.failure.code)) : "";
   const members = data?.members.filter((member) => member !== null) ?? [];
   return (
     <section className="participation" aria-label="Resource participation">

@@ -669,8 +669,8 @@ caller still performs its own current authorization; one denied connection
 does not disable unrelated callers.
 
 The implemented [observation reducer](../../../apps/transit-board-web/src/observation.ts)
-owns Catalog, dataset metadata, Workbook connection metadata and Operations
-reads. Its state contains a phase, request generation, bounded failure count
+owns Catalog, dataset metadata, Workbook connection metadata, Operations,
+process/resource/record metadata and published-interface reads. Its state contains a phase, request generation, bounded failure count
 and either a qualified value or a typed failure. The
 [React adapter](../../../apps/transit-board-web/src/use-observation.ts) executes
 read, cancel and schedule effects outside the deterministic transition function.
@@ -699,15 +699,19 @@ not a claim that the in-flight authorization check has already succeeded.
 Each read has a 15-second deadline and at most one active request chain per owner.
 Visible successful reads normally refresh after five seconds. Transient failure
 backoff is capped at 30 seconds; configuration, denial, expiry and incompatible
-responses require explicit action. These are local scheduling bounds, not a
-global per-tab scheduler or a response-time guarantee. Progress depends on a
+responses require explicit action. A tab scheduler bounds transport chains to two reads plus one explicit
+submission/control/cleanup slot, with 75-ms read staggering and at most 64 queued
+requests. Queued cancellation prevents dispatch; active permits last through
+settlement. These bounds do not establish a response-time guarantee. Progress depends on a
 responsive event loop and a later successful upstream read.
 
 The [workbench guide](../../../apps/transit-board/docs/workbench.md#operations-and-observation-states)
 describes result composition: unavailable connection metadata hides rows while
 retaining the original shared `StatementReader`; reconnection observes that
-reader instead of submitting SQL again. Existing process, query, reactive and
-published-interface state owners are outside this reducer. Configuration
+reader instead of submitting SQL again. The statement presentation state machine guards explicit Run and observes the
+original reader after reconnection. Query, finite Live and publication settlement
+remain in their shared owners, with scheduled transports; they do not inherit
+metadata retry or clearing rules. Configuration
 discovery remains visible across tab hiding because it contains no protected
 resource observation.
 
