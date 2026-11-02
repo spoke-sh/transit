@@ -137,7 +137,7 @@ pub fn serve(init: std.process.Init, config: Config, endpoint: host.LocalEndpoin
     }
     var placement: Placement = .{ .base = endpoint };
     var instance: [16]u8 = undefined;
-    try init.io.randomSecure(&instance);
+    init.io.random(&instance);
     var running: ?*Running = null;
     defer if (running) |value| value.destroy();
     while (true) {
