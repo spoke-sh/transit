@@ -2,9 +2,10 @@
 
 [Roadmap](README.md) · **Status:** In Progress
 
-Start with the [remaining implementation plan](#remaining-implementation-plan--2026-11-01)
-for the next delivery slices. It prioritizes visual operational inspection and
-an explicit reactive UI state model, while retaining the full workbench gates.
+Start with the [Operations and observation delivery](#operations-and-observation-delivery--2026-11-01)
+and [remaining implementation plan](#remaining-implementation-plan--2026-11-01).
+They prioritize visual operational inspection and an explicit reactive UI state
+model, while retaining the full workbench gates.
 
 Reimplement Board as the installed interface for discovering data, explaining
 computations and reviewing governed changes. Deliver the focused catalog,
@@ -100,6 +101,41 @@ No synthetic study values or unsupported actions enter the installed interface.
 The milestone remains **In Progress**. Executed controls, clean-checkout outcomes
 and remaining qualification limits are recorded in the
 [Inspector proof account](../history/qualification/interfaces.md#board-contextual-inspector--2026-10-30).
+
+## Operations and observation delivery — 2026-11-01
+
+The implementation from `origin/main` at `0c64c4b03` delivers the first P0–P4
+journeys below. Safe deployment discovery distinguishes configured Catalog,
+SQL, relational, query, reactive and application connections from current read
+access. An inspection-only built-in deployment lands on Operations; direct
+Catalog/Workbook links explain their missing configuration without disabled-read
+polling. Published interfaces retain their declared entry and recovery paths.
+
+Operations pairs real node capacity/allocation and selected Table frontier
+visualizations with exact grids and one Inspector. Catalog Table storage now
+uses the same exact-binding public read composition as the relational caller,
+without Explain, SQL execution or new maintenance authority. Relational query
+controls and original-session cleanup move to `/recovery/relational`; interface
+bindings move to Definition. Both requested panels are absent from Operations.
+
+One deterministic observation reducer now owns Catalog, dataset metadata,
+Workbook connection metadata and Operations reads, with typed failures,
+generation fencing, visibility cleanup and bounded retry delay. Unavailable
+Workbook metadata clears rows and Inspector content while retaining the shared
+reader's original identity. Reconnection observes that result without rerunning
+SQL. Current behavior and the transition model live in the
+[workbench guide](../../apps/transit-board/docs/workbench.md#operations-and-observation-states)
+and [interface Internals](../handbook/internals/service-interfaces.md#board-observation-state).
+
+This is a focused delivery, not completion of P0–P4 or the milestone. Existing
+process, query, reactive and published-interface lifecycles still have separate
+owners; a global scheduling budget, independent temporal model with trace replay
+and negative controls, broader failure/layout coverage and measured performance
+budgets remain open. The reducer's bounded transition exploration is implemented,
+but does not establish those stronger gates. M10 retained-definition/placement
+inspection remains available; richer placement diagrams, M12 computation
+neighborhoods, durable/governed workbooks and P5–P7 closure remain future work.
+The milestone remains **In Progress**.
 
 ## Remaining implementation plan — 2026-11-01
 
