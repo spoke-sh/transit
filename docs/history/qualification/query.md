@@ -5519,3 +5519,24 @@ fast checks pass. The diagnostic semantic mappings remain unchanged; the
 compiler-inferred boundary proof passes **16 error sets**, **9 unknown-cause
 projections** and its mutation controls. Documentation links, formatting,
 strict types, all 10 site tests and the production documentation build pass.
+
+The first `just ci clean --lane storage-query` run at `a80fc6b67` passed through
+local-owner recovery and the signed payload-service proof, then stopped compiling
+`test::local-catalog`: the base branch's stream-offset fixture still supplied the
+removed `cursor` field. Its failed checkout and phase logs remain at
+`/var/tmp/transit-ci-a6ug6lte`. The separate fixture repair in `ba16e0af6` derives
+`StreamRead.Progress` from the issued cursors, verifies exhaustion and settles
+that proof's coverage. It changes no runtime contract or authorization check.
+The fresh-checkout fast run at `a54b2897c` passed all 64 checks; its artifacts are
+under `.cache/ci/clean/a54b2897c49d-transit-ci-ogr4wvzg` in the implementation
+worktree. This fast result does not turn the failed runtime lane into a pass.
+
+The focused `-Dlocal-catalog-filter='log privileges'` run then failed on another
+base-branch fixture: `local_queue_test.zig` expected an immediate
+`QueueLeaseFenced` error, while the current API returned its durable `closed`
+refusal. The clean run at `ba16e0af6` was stopped at `local-catalog` after that
+focused failure was known; its incomplete evidence remains at
+`/var/tmp/transit-ci-k3uw_orn`. A duplicate unfiltered local preflight was also
+stopped, not passed. The Queue fixture now checks `lease_fenced`, original
+identity, identical retries, unchanged acquired state and later original-outcome
+lookup, preserving the current refusal contract.
