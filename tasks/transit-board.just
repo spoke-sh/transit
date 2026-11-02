@@ -111,12 +111,12 @@ relational-test:
 
 # Installed catalog and shared read results, including completed-result revocation.
 workbench-test:
-    zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe
+    zig build transit transit-node transit-query-host transit-board transit-sql-gateway test-operation-fixture -Doptimize=ReleaseSafe
     python3 -B tests/runner/launch.py tests/interfaces/installation/board_workbench.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host zig-out/bin/transit-board zig-out/bin/transit-sql-gateway
 
 # The same real installation with keyboard, accessibility and embedded asset checks.
 workbench-browser:
-    zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe
+    zig build transit transit-node transit-query-host transit-board transit-sql-gateway test-operation-fixture -Doptimize=ReleaseSafe
     python3 -B tests/runner/launch.py tests/interfaces/installation/board_workbench.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host zig-out/bin/transit-board zig-out/bin/transit-sql-gateway --browser
 
 # Open a disposable counter realm for interactive inspection; Ctrl-C cleans it up.
