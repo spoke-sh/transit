@@ -2156,9 +2156,11 @@ fn streamPayloadDispatch(service: *@import("LocalTableService.zig"), declaration
     const group_read = (try c.DirectStreamClient.apply(&output, caller, .{ .mutate = .{ .work = .{ .consume = grouped } } })).operation.?.consume;
     const group_cursor = (try c.DirectStreamClient.apply(&output, caller, .{ .cursor = .{ .target = target, .read = group_read.handle() } })).cursor;
     const consumed = (try c.DirectStreamClient.apply(&output, caller, .{ .page = .{ .cursor = group_cursor, .limits = .{ .rows = 2, .encoded_bytes = 8192, .scanned_rows = 2 } } })).page;
+    const progress = try c.protocol.StreamRead.Progress.between(group_cursor, consumed.cursor);
+    try t.expect(progress == .exhausted);
     const commit: c.DirectStreamMutation.Request = .{ .offset = .{
-        .commit = .{ .operation = .{ .scope = identity.scope, .principal = 101, .operation = 305 }, .group = group, .coverage = consumed.cursor.coverage, .expected_next = 0, .next = 2 },
-        .cursor = consumed.cursor,
+        .commit = .{ .operation = .{ .scope = identity.scope, .principal = 101, .operation = 305 }, .group = group, .coverage = try progress.coverage(), .expected_next = 0, .next = 2 },
+        .progress = progress,
     } };
     try dispatchWithoutOutput(service, .{ .stream = .{ .mutate = .{ .work = commit, .payload = null } } });
     _ = (try c.DirectStreamClient.apply(&output, caller, .{ .operation = commit })).operation.?.offset;

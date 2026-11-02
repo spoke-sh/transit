@@ -404,6 +404,9 @@ const OutcomeRow = struct { columns: []const ?[]ColumnPredicate.Outcome, row: us
 const ProgramColumns = struct {
     allocator: std.mem.Allocator,
     columns: [ColumnPredicate.Program.max_instructions]?[]ColumnPredicate.Outcome = @splat(null),
+    // One allocation per distinct column (or constant atom); columns above
+    // borrow predicate-major slices without acquiring duplicate ownership.
+    owned: [ColumnPredicate.Program.max_instructions]?[]ColumnPredicate.Outcome = @splat(null),
     instructions: [ColumnPredicate.Program.max_instructions]PredicateMachine.Instruction(OutcomeAtom) = undefined,
     fn init(reader: *const Self, allocator: std.mem.Allocator, workspace: *Workspace, source: Source, schema: TableSchema.Schema, index: usize, program: ColumnPredicate.Program, page_budget: usize) !ProgramColumns {
         var result: ProgramColumns = .{ .allocator = workspace.bounded() };
@@ -411,11 +414,26 @@ const ProgramColumns = struct {
         for (program.instructions, 0..) |instruction, i| {
             result.instructions[i] = switch (instruction) {
                 .atom => |atom| blk: {
-                    if (atom.predicate == .all) {
-                        result.columns[i] = try result.allocator.alloc(ColumnPredicate.Outcome, reader.footer.row_groups[index].row_count);
-                        @memset(result.columns[i].?, .yes);
-                    } else {
-                        result.columns[i] = try reader.columnOutcomes(allocator, workspace, source, schema, index, atom, page_budget);
+                    if (result.columns[i] == null) {
+                        if (atom.predicate == .all) {
+                            const outcomes = try result.allocator.alloc(ColumnPredicate.Outcome, reader.footer.row_groups[index].row_count);
+                            result.owned[i] = outcomes;
+                            result.columns[i] = outcomes;
+                            @memset(outcomes, .yes);
+                        } else {
+                            var predicates: [ColumnPredicate.Program.max_instructions]ColumnPredicate.Predicate = undefined;
+                            var positions: [ColumnPredicate.Program.max_instructions]usize = undefined;
+                            var count: usize = 0;
+                            for (program.instructions[i..], i..) |candidate, position| {
+                                if (candidate != .atom or candidate.atom.column != atom.column or candidate.atom.predicate == .all) continue;
+                                predicates[count] = candidate.atom.predicate;
+                                positions[count] = position;
+                                count += 1;
+                            }
+                            const evaluated = try reader.columnOutcomes(allocator, workspace, source, schema, index, atom.column, predicates[0..count], page_budget);
+                            result.owned[i] = evaluated.outcomes;
+                            for (positions[0..count], 0..) |position, predicate| result.columns[position] = evaluated.predicate(predicate);
+                        }
                     }
                     break :blk .{ .atom = .{ .instruction = @intCast(i) } };
                 },
@@ -427,7 +445,7 @@ const ProgramColumns = struct {
         return result;
     }
     fn deinit(self: *ProgramColumns) void {
-        for (self.columns) |slot| if (slot) |outcomes| self.allocator.free(outcomes);
+        for (self.owned) |slot| if (slot) |outcomes| self.allocator.free(outcomes);
     }
     fn decision(self: *const ProgramColumns, program: ColumnPredicate.Program, row: usize) !Decision {
         var instruction: ?u8 = null;
@@ -475,18 +493,18 @@ fn programRows(self: *const Self, allocator: std.mem.Allocator, workspace: *Work
     return .{ .rows = rows, .examined = examined };
 }
 
-fn columnOutcomes(self: *const Self, allocator: std.mem.Allocator, workspace: *Workspace, source: Source, schema: TableSchema.Schema, index: usize, atom: ColumnPredicate.Atom, page_budget: usize) ![]ColumnPredicate.Outcome {
-    const coordinate = self.footer.row_groups[index].pages[atom.column];
+fn columnOutcomes(self: *const Self, allocator: std.mem.Allocator, workspace: *Workspace, source: Source, schema: TableSchema.Schema, index: usize, column_index: usize, predicates: []const ColumnPredicate.Predicate, page_budget: usize) !PhysicalCodecs.EvaluatedPredicates {
+    const coordinate = self.footer.row_groups[index].pages[column_index];
     if (coordinate.length > page_budget) return error.SegmentReadBudgetExceeded;
     const bytes = try allocator.alloc(u8, coordinate.length);
     defer allocator.free(bytes);
     try source.read(source.context, coordinate.offset, bytes);
-    try TSeg.verifyColumnRange(schema, &self.footer, bytes, index, atom.column);
+    try TSeg.verifyColumnRange(schema, &self.footer, bytes, index, column_index);
     const bounded = workspace.bounded();
-    const result = try PhysicalCodecs.evaluateColumnPage(bounded, bounded, schema.columns[atom.column], bytes, atom.predicate);
+    const result = try PhysicalCodecs.evaluateColumnPredicates(bounded, bounded, schema.columns[column_index], bytes, predicates);
     errdefer bounded.free(result.outcomes);
-    if (result.outcomes.len != self.footer.row_groups[index].row_count) return error.InvalidSegment;
-    return result.outcomes;
+    if (result.row_count != self.footer.row_groups[index].row_count) return error.InvalidSegment;
+    return result;
 }
 
 fn selectedColumn(self: *const Self, allocator: std.mem.Allocator, workspace: *Workspace, source: Source, schema: TableSchema.Schema, index: usize, column_index: usize, rows: []const u32, page_budget: usize) ![]Values.Cell {

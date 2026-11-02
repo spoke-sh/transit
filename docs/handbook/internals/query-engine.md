@@ -1154,18 +1154,23 @@ within their actual allocation; short SIMD inputs use initialized stack padding.
 None of these transient headers is a wire or stored value representation.
 
 The same production physical decoder serves encoded filtering and selected
-projection. Dictionary predicates cache one outcome per physical entry and
+projection. Within one row group, nonconstant predicate atoms sharing a column
+use one range read, integrity check and physical traversal. Each atom retains
+its own outcome vector under the shared decoded-memory budget; the Boolean
+machine consumes them in their original instruction order. Dictionary predicates
+cache each atom's outcome per physical entry without retaining decoded text and
 then consume codes; different spellings with equal collation keys remain valid
 entries. FSST comparisons and prefix predicates under binary/ASCII case-folding
-order stream decoded symbol bytes without retaining a decoded string. Validation
+order share a traversal of decoded symbol bytes without retaining a decoded string. Validation
 continues after a comparison decision, including UTF-8 scalars spanning symbols,
-token bounds and total decoded length. CP037 and complex patterns use bounded
-decoding. Selected projection still validates the complete page and detaches
+token bounds and total decoded length. If any atom needs bounded decoding,
+including EBCDIC collations and complex patterns, each value is decoded once for
+all atoms. Selected projection reads and validates its pages separately and detaches
 selected raw values; its memory budget includes unselected validation scratch.
 The decoder reports streamed/materialized predicate-value counts. These counters
 describe kernel work, not storage I/O or end-to-end speed. The independent
 [string execution oracle](../../../tests/query/logical/string_execution.py)
-compares real Batch/codec outcomes and projections against Python byte and CP037
+compares real Batch, single/batched codec outcomes and projections against Python byte and EBCDIC
 ordering; separate reader tests preserve page, budget and eager-failure gates.
 
 For valid text in an admitted collation, the implementation must establish

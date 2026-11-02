@@ -88,6 +88,11 @@ def main():
             wanted = expected(case)
             for path in ("batch", "physical"):
                 assert result[path] == wanted, (case, path, result[path], wanted)
+            for op, outcomes in zip(("eq", "ne", "lt", "le", "gt", "ge"), result["batched"], strict=True):
+                assert outcomes == expected(dict(case, op=op)), (case, op, "batched", outcomes)
+            assert result["batched_visits"] == result["single_visits"], (case["id"], "repeated physical visits")
+            assert result["batched_streamed"] == result["streamed"]
+            assert result["batched_materialized"] == result["materialized"]
             raw = [row.get("value") for row in case["rows"]]
             assert result["raw"] == raw, (case["id"], "lossy projection")
             selected = [row["value"] for row, outcome in zip(case["rows"], wanted, strict=True) if outcome == "yes"]
@@ -97,7 +102,7 @@ def main():
                 assert result["materialized"] == 0
         record["completed"] = True
         record["rows"] = sum(len(case["rows"]) for case in corpus)
-        print(f"String execution: {len(corpus)} cases / {record['rows']} rows passed Batch, physical outcomes and lossless projections; evidence {run_dir}")
+        print(f"String execution: {len(corpus)} cases / {record['rows']} rows passed Batch, single/batched physical outcomes and lossless projections; evidence {run_dir}")
     finally:
         record["execution"] = execution
         capture.write_json(run_dir / "oracle.json", record)
