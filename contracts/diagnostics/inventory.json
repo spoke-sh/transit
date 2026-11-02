@@ -120,6 +120,7 @@
         "InvalidReadPosition": 1,
         "InvalidReadStatement": 1,
         "InvalidSequence": 1,
+        "InvalidTableConnection": 1,
         "QueryAccessDenied": 1,
         "QueryBusy": 1,
         "QueryChanged": 1,
@@ -133,6 +134,7 @@
         "ReadWorkspaceCapacity": 1,
         "ReadWorkspaceExpired": 1,
         "Rejected": 1,
+        "RelationalCallerChanged": 1,
         "RemoteOriginRequiresTLS": 1,
         "ResourceUnavailable": 1,
         "SqlObservationDenied": 1,
@@ -3287,7 +3289,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 84,
+        "try": 87,
         "catch": 0
       },
       "imports": [
@@ -3307,6 +3309,9 @@
           "retained",
           "reclaimed",
           "current_state"
+        ],
+        "Deployment.profile": [
+          "native_v1"
         ],
         "Edge.relation": [
           "input_to_turn",
@@ -5349,9 +5354,10 @@
     },
     "packages/zig/transit-catalog/src/DirectCatalogRead.zig": {
       "errors": {
-        "CatalogDefinitionChanged": 1,
+        "CatalogDefinitionChanged": 4,
         "CatalogNameNotFound": 1,
-        "IncompatibleDefinition": 1
+        "IncompatibleDefinition": 1,
+        "RelationalCallerChanged": 1
       },
       "outcomes": {
         "Request.action": [
@@ -5362,6 +5368,7 @@
           "tables",
           "resources",
           "table",
+          "storage",
           "dependencies"
         ],
         "Response": [
@@ -5370,16 +5377,18 @@
           "definitions",
           "resources",
           "table",
+          "storage",
           "dependencies"
         ]
       },
       "error_sets": {},
       "error_returns": {
-        "apply()": "<inferred>"
+        "apply()": "<inferred>",
+        "storage()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 17,
+        "try": 24,
         "catch": 0
       },
       "imports": [
@@ -15531,9 +15540,10 @@
         "InvalidColumnSelection": 1,
         "InvalidComp3Length": 1,
         "InvalidComp4Length": 1,
-        "InvalidDictionaryCode": 2,
+        "InvalidDictionaryCode": 3,
         "InvalidFsstStream": 9,
         "InvalidFsstTable": 2,
+        "InvalidPredicateProgram": 1,
         "InvalidRlePage": 3,
         "InvalidUtf8": 3,
         "InvalidZonedLength": 1,
@@ -15553,6 +15563,7 @@
         "PlainSink.start()": "<inferred>",
         "PredicateSink.emit()": "<inferred>",
         "PredicateSink.emitCached()": "<inferred>",
+        "PredicateSink.emitOutcomes()": "<inferred>",
         "PredicateSink.nonValue()": "<inferred>",
         "PredicateSink.prepare()": "<inferred>",
         "PredicateSink.start()": "<inferred>",
@@ -15576,8 +15587,9 @@
         "encodeRleValues()": "<inferred>",
         "encodeZoned()": "<inferred>",
         "evaluateColumnPage()": "<inferred>",
+        "evaluateColumnPredicates()": "<inferred>",
         "readCanonicalValue()": "<inferred>",
-        "streamFsstPredicate()": "<inferred>",
+        "streamFsstPredicates()": "<inferred>",
         "u64ToScalarCell()": "<inferred>",
         "validatePhysicalCell()": "<inferred>",
         "validateValue()": "<inferred>",
@@ -15585,7 +15597,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 150,
+        "try": 157,
         "catch": 12
       },
       "imports": [
@@ -26044,7 +26056,6 @@
     },
     "packages/zig/transit-query/src/RelationalWorkspace.zig": {
       "errors": {
-        "CatalogDefinitionChanged": 3,
         "FileNotFound": 1,
         "IncompatibleDefinition": 1,
         "InvalidQueryCursor": 2,
@@ -26052,7 +26063,7 @@
         "InvalidRelationalRecovery": 15,
         "InvalidRelationalSources": 3,
         "QueryIdentityMismatch": 5,
-        "RelationalCallerChanged": 2,
+        "RelationalCallerChanged": 1,
         "RelationalRecoveryRequired": 1,
         "RelationalRecoverySyncFailed": 1,
         "RelationalSourceChanged": 1,
@@ -26108,7 +26119,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 71,
+        "try": 66,
         "catch": 6
       },
       "imports": [
