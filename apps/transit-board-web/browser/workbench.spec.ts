@@ -51,7 +51,7 @@ test("Table storage links visual, grid and inspector without executing SQL", asy
   await expect(table).toContainText("145");
   const grid = table.getByRole("table");
   const visual = table.getByLabel("Table storage · metrics visualization");
-  await visual.getByRole("button", { name: /Accepted next position/ }).click();
+  await visual.getByRole("button", { name: /^Accepted next position/ }).click();
   await expect(
     grid.getByRole("button", { name: "Accepted next position", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
