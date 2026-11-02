@@ -24,6 +24,9 @@ ACK and NACK run through native SQL, PostgreSQL, MySQL and the real console.
 NACK checks a typed absolute visibility request, a delayed FIFO head blocking
 its own key while another key progresses, stale-lease refusal, current rights,
 compatible ALTER and original token recovery after DROP and service replacement.
+It also discards the first NACK response body after HTTP headers, replaces the
+service, and recovers solely from the token saved before dispatch. This simulates
+caller observation loss; it does not inject a WAL failure or prove host power loss.
 Changing the saved visibility parameter under its token must conflict. Neither
 settlement closes the original claim's payload-read dependency. These SQL checks
 reuse native scheduling; they do not qualify renewal, predicate acquisition,

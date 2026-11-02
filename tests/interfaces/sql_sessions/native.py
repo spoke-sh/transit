@@ -33,7 +33,7 @@ class Client:
     def transport(self):
         self.http = http.client.HTTPSConnection('localhost', self.port, context=ssl.create_default_context(cafile=str(self.root / 'certificate.pem')), timeout=40)
 
-    def call(self, action, *, error=None, headers=None, lane=None, patch=None, unavailable=False, capacity=False):
+    def call(self, action, *, error=None, headers=None, lane=None, patch=None, unavailable=False, capacity=False, discard_response=False):
         started = time.perf_counter()
         if time.monotonic() - self.last >= .5:
             self.http.close()
@@ -48,6 +48,14 @@ class Client:
         reused = self.http.sock is not None
         self.http.request('POST', lane or ('/v1/sql/control' if control else '/v1/sql/session'), content, headers or {'Content-Type': 'application/json'})
         response = self.http.getresponse()
+        if discard_response:
+            # The service has begun its response, but the caller loses every
+            # semantic outcome byte. Recovery must use the already saved token.
+            assert response.status == 200, response.status
+            response.close()
+            self.http.close()
+            self.last = 0
+            return None
         raw = response.read()
         self.last = time.monotonic()
         self.sample = dict(milliseconds=round((time.perf_counter()-started)*1000, 3),

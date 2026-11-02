@@ -191,6 +191,10 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
     nack_saved = dict(definition=client.definition, sql=nack_sql, token=list(os.urandom(16)), parameters=[encoded, visibility])
     nack_path = root / 'sql-nack-original.json'
     nack_path.write_text(json.dumps(nack_saved))
+    client.call(dict(execute=dict(sql=nack_sql, token=nack_saved['token'], parameters=nack_saved['parameters'])), discard_response=True)
+    client.close()
+    restart()
+    client = Client(root, port).open()
     requeued = submit(nack_sql, nack_saved['token'], parameters=nack_saved['parameters'])
     assert requeued['command'] == 'nack' and requeued['result_kind'] == 'command'
     assert requeued['matched'] == requeued['changed'] == 0
@@ -218,7 +222,6 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
         client.call(dict(execute=dict(sql=nack_sql, token=nack_saved['token'], parameters=nack_saved['parameters'])), error='AccessDenied')
     finally:
         authorize(True)
-    client.call(dict(release=described_nack['statement']))
     submit('DROP QUEUE nack_work')
     client.close()
     restart()
@@ -292,4 +295,4 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
                           no_repeat_acquisition=True, binary_receipts=True, native_postgres_mysql_console_ack=True,
                           ack_after_alter_and_original_after_drop=True, original_ack_after_replacement=True, native_postgres_mysql_console_nack=True,
                           nack_fifo_delay_and_unrelated_key=True, nack_after_alter_and_original_after_drop=True,
-                          original_nack_after_replacement=True, nack_changed_token_refusal=True, passed=True)), flush=True)
+                          original_nack_after_replacement=True, nack_original_response_discarded=True, nack_changed_token_refusal=True, passed=True)), flush=True)
