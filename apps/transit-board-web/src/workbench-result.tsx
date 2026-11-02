@@ -9,7 +9,9 @@ import {
 import { InspectorPanel, useInspector } from "./workbench-layout";
 import { profileResult, states } from "./result-profile";
 
-export function useStatement(onDenied?: () => void) {
+export function useStatement(onDenied?: () => void, available = true) {
+  const availability = useRef(available);
+  availability.current = available;
   const reader = useRef<StatementReader | null>(null);
   const controller = useRef<AbortController | null>(null);
   const generation = useRef(0);
@@ -30,7 +32,7 @@ export function useStatement(onDenied?: () => void) {
   };
   async function load(kind: "refresh" | "next") {
     const current = reader.current;
-    if (!current || controller.current) return;
+    if (!current || controller.current || !availability.current) return;
     const abort = new AbortController();
     controller.current = abort;
     setBusy(true);
@@ -49,6 +51,15 @@ export function useStatement(onDenied?: () => void) {
       }
     }
   }
+  useEffect(() => {
+    if (available) void load("refresh");
+    else {
+      controller.current?.abort();
+      controller.current = null;
+      setView(null);
+      setBusy(false);
+    }
+  }, [available]);
   useEffect(() => {
     const timer = setInterval(() => {
       if (!document.hidden) void load("refresh");
@@ -73,6 +84,7 @@ export function useStatement(onDenied?: () => void) {
     };
   }, []);
   async function run(sql: string, expected: string | null = null) {
+    if (!availability.current) return;
     const ticket = ++generation.current;
     controller.current?.abort();
     controller.current = null;
@@ -83,7 +95,7 @@ export function useStatement(onDenied?: () => void) {
     setBusy(true);
     await previous?.close().catch(() => {});
     if (ticket !== generation.current) return;
-    if (document.hidden) {
+    if (document.hidden || !availability.current) {
       setBusy(false);
       return;
     }
@@ -115,7 +127,7 @@ export function useStatement(onDenied?: () => void) {
     setError("Result closed. Closing a view does not rerun its statement.");
   }
   return {
-    view,
+    view: available ? view : null,
     error,
     busy,
     submitted,

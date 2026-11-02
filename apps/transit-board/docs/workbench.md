@@ -45,7 +45,9 @@ been removed. Selecting, changing dimensions and expanding details never run SQL
 The inspector reads the current authorized view, without retaining a separate
 data copy. Closing or replacing a result, removing its cell, hiding the document
 or a failed observation clears its inspection. Unavailable workbook connection
-metadata also removes inspector content until access can be checked again.
+metadata also removes inspector content and displayed rows until access can be
+checked again. Reconnection refreshes the original result identity before showing
+rows; it never submits the SQL again.
 Whole-source statistics, storage sharing/reclaimability, measured operator
 metrics and branch-comparison workflows have no new presentation in this
 workbench. Existing operational evidence remains in Operations.

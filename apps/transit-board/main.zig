@@ -62,7 +62,7 @@ const Server = struct {
             const result = workbench.catalog(&arena, &wire, self.config.workbench.?, parsed.value) catch |err| switch (err) {
                 error.CatalogDefinitionChanged, error.CatalogObservationChanged, error.RelationalCallerChanged => return self.failure(req, .conflict, .QueryConflict),
                 error.CatalogNameNotFound => return self.failure(req, .not_found, .NotFound),
-                error.InvalidCatalogCursor, error.IncompatibleDefinition => return self.failure(req, .bad_request, .InvalidQuery),
+                error.InvalidCatalogCursor, error.InvalidTableConnection, error.IncompatibleDefinition => return self.failure(req, .bad_request, .InvalidQuery),
                 else => return self.queryFailure(req, &wire, err),
             };
             return self.json(req, .ok, result);

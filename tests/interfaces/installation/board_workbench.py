@@ -226,8 +226,11 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
         stale_binding['name'] = 'absent_table'
         request('catalog', dict(storage=stale_binding), 409)
         foreign_binding = json.loads(json.dumps(table['metadata']['binding']))
-        foreign_binding['connection']['branch'] = '999'
+        foreign_binding['connection']['principal'] += 1
         request('catalog', dict(storage=foreign_binding), 409)
+        invalid_binding = json.loads(json.dumps(table['metadata']['binding']))
+        invalid_binding['connection']['branch'] = '999'
+        request('catalog', dict(storage=invalid_binding), 400)
         native_connection = dict(scope=catalog['scope'], branch=catalog['branch'], audience=catalog['audience'],
                                  principal=account['principals']['table'], role=None)
         selector, _ = retained_metrics(fixture, definition, native_connection, account_dir / 'table.seed')

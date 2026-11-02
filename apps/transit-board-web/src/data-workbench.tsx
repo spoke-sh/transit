@@ -1029,6 +1029,7 @@ function WorkbookPageContent() {
                 key={id}
                 id={id}
                 index={index}
+                available={Boolean(connection.value)}
                 edited={() => setDirty(true)}
                 remove={() => {
                   setDirty(true);
@@ -1076,18 +1077,20 @@ function WorkbookCell({
   index,
   remove,
   edited,
+  available,
 }: {
   id: string;
   index: number;
   remove: () => void;
   edited: () => void;
+  available: boolean;
 }) {
   const [sql, setSql] = useState("SHOW TABLES");
   const [note, setNote] = useState("");
   const statement = useStatement(() => {
     setSql("");
     setNote("");
-  });
+  }, available);
   return (
     <section id={`cell-${id}`} className="workbook-cell" aria-label={`SQL cell ${index + 1}`}>
       <div className="workbench-toolbar">

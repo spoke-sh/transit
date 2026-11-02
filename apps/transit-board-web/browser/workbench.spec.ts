@@ -353,6 +353,7 @@ test("unavailable workbook metadata removes inspector disclosure without rerunni
   });
   await expect(inspector).toBeHidden();
   await expect(page.getByText(/Population:/)).toHaveCount(0);
+  await expect(page.getByRole("table", { includeHidden: true })).toHaveCount(0);
   unavailable = false;
   throttleRetry = true;
   await page.getByRole("button", { name: "Retry read", exact: true }).click();
