@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { useAtlasObservation, type AtlasCursor } from "./atlas-observation";
 import { useScope } from "./state";
 import { Storage, CatalogStorageExplorer } from "./storage";
+import { HistoricalCatalog } from "./retained-storage";
 import { Workbench, WorkbenchBody } from "./workbench-layout";
 import "./workbench.css";
 export function Activity() {
@@ -97,6 +98,7 @@ export function Operations() {
       <WorkbenchBody>
         <Storage />
         <CatalogStorageExplorer />
+        {scope?.features.catalog && <HistoricalCatalog key={JSON.stringify(scope)} />}
       </WorkbenchBody>
       <p>
         Independent observations retain their own basis. Inspection starts no query or maintenance.
