@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "c3cbdfe99cdb08a8a21cc2429783fd746b1311b096d9ca8371058e1abb037b64"
+definition = "fa88766ac95f2c156474b0c97eb9eaafcccc8c13a70009e574d09397d7ba3c72"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -806,8 +806,24 @@ for workload_kind, workload, fixture_value in (("stream", stream_work, stream_fi
         selection = {"claim": receipt}
         position = {"claim": {"receipt": receipt, "next": 1}}
     result_reference = {"intent": workload_reference, "selection": selection, "limits": result_limits}
-    for result_action in ({"open": {"intent": workload_reference, "limits": result_limits}},
-                          {"page": {"reference": result_reference, "position": position, "rows": 1}}):
+    result_actions = [{"open": {"intent": workload_reference, "limits": result_limits}},
+                      {"page": {"reference": result_reference, "position": position, "rows": 1}}]
+    if workload_kind == "queue":
+        original = receipt["claim"]
+        lease = dict(target=original["target"], claim=original["operation"], offset=0, epoch=1,
+                     attempt=1, expires_ms=receipt["expires_ms"])
+        settlement = dict(operation={**original["operation"], "operation": original["operation"]["operation"] - 1},
+                          lease=lease, action={"extend": {"expires_ms": lease["expires_ms"] + 1000}})
+        digest = hashlib.sha256(b"transit.catalog.queue.operation.v1\0" + bytes.fromhex(definition) + canonical({"settle": settlement})).digest()
+        renewal_intent = copy.deepcopy(workload_reference)
+        renewal_intent["binding"] = {"queue": dict(definition=definition, operation=settlement["operation"],
+                                                  target=lease["target"], kind="settle", intent=list(digest))}
+        renewal_reference = dict(intent=renewal_intent,
+                                 selection={"renewal": dict(settlement=settlement, accepted={"partition": 91, "next_lsn": 12})},
+                                 limits=result_limits)
+        for ordinal in (0, 1):
+            result_actions.append({"page": dict(reference=renewal_reference, position={"renewal": ordinal}, rows=1)})
+    for result_action in result_actions:
         result_input = {**request_input, "action": {"workload_result": result_action}}
         result_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(result_input)).digest())}
         with tempfile.TemporaryDirectory(prefix="transit-workload-result-contract-") as directory:

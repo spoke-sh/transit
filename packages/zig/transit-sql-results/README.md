@@ -14,9 +14,10 @@ values into a caller-owned bounded arena before iterator scratch can change.
 `Workload` binds an original native selection to its saved intent, schema and
 projection. Its terminal position is separate from output row count: Stream
 filtering can reduce output without reducing examined offset coverage. Claim and
-append completion cover every original row. `ResultSet.receive` validates this
-evidence atomically before publishing progress. These shared types do not yet
-enable workload SQL or SQL service reopening.
+append completion cover every original row. Renewal completion covers one
+descriptor derived from the accepted extension receipt, independently of current
+lease liveness. `ResultSet.receive` validates this evidence atomically before
+publishing progress. The SQL service uses these types for original-result reopening.
 
 `BatchBuilder` owns up to 32 rows and 1 MiB of canonical cells, with independent
 row/byte limits. A row that does not fit remains with its source; an oversized

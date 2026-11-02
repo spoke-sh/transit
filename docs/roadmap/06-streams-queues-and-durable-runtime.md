@@ -19,6 +19,34 @@ records preserve their original attribution. Delivery-sequence SQL examples
 below illustrate proposed scope; use the [SQL reference](../handbook/reference/sql/streaming.md)
 for the current executable declarations, workload operations and inspection forms.
 
+## Original renewal results and SQL admission — 2026-11-02
+
+The implementation following the `edeb8618c` completion plan supplies Batch
+4b.1's original-renewal result contract. A native `renewal` selection binds the
+accepted settlement and delivers one exact updated lease descriptor. SQL
+`EXTEND LEASE` freezes a descriptor-only projection and returns one binary
+`_receipt_handle` row through M4's result lifecycle, M8's database admission and
+M9's shared caller. ACK/NACK retain command completion. This uses the current-v1
+cutover definition
+`fa88766ac95f2c156474b0c97eb9eaafcccc8c13a70009e574d09397d7ba3c72`;
+all generated schemas, bindings and independent fixtures move together.
+The [SQL reference](../handbook/reference/sql/streaming.md#renew-a-queue-lease)
+and [result contract](../../contracts/SQL_RESULTS_V1.md#original-workload-evidence)
+own the executable semantics.
+
+Batch 0's preserved fixture now has a matching-binary, read-only recovery
+[observation](../history/qualification/storage.md#preserved-queue-fixture-read-only-recovery--2026-11-02)
+for the original enqueue, claim and payload, obtained from a private copy with
+maintenance disabled. The original fixture is unchanged. The maintenance-timeout
+cause and original terminal-retention gate remain open; this observation does
+not replace the failed maintenance profile with a pass.
+
+M6 remains **In Progress**. This implements the first feature review unit in the
+completion plan, not all of Batches 0–9. Group assignment/offset SQL, waits and
+claim predicates, retained `STREAM_SLICE`, mixed SQL transactions, Station
+services/effects, the M7 Document handoff, remaining baseline profiles and
+common-revision resource/fault/provider qualification retain their gates.
+
 ## Queue settlement SQL follow-up — 2026-11-02
 
 This review unit starts from merged `origin/main` at `ffbf2e9b12dc` (PR #333).

@@ -145,6 +145,7 @@ pub const Saved = struct {
         var declaration = try c.DirectLogProtocol.decodeMetadata(allocator, self.connection, self.source);
         defer declaration.deinit();
         if (self.projection) |projection| {
+            if (self.work == .queue and self.work.queue.work == .settle and self.work.queue.work.settle.action != .extend) return error.InvalidWorkloadProjection;
             var plan = try projection.restore(allocator, .{ .binding = try self.work.binding(allocator), .schema = declaration.definition.schema });
             defer plan.deinit();
         }
