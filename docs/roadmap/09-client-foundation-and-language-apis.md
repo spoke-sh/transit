@@ -819,10 +819,11 @@ The earlier shared eager validator collection reduced cold module import by
 generates standalone functions during packaging, retaining validation and complete
 Ajv diagnostics. Three alternating installed-package pairs with 50 fresh processes
 per arm measure 2.884 → 0.313 seconds for imports, with 64.57% lower peak RSS.
-A separate 50-per-arm cold-open comparison verifies metadata in 2.932 → 0.397
-seconds, including native clients and joined cleanup. Larger archives are the
-measured tradeoff. These are import/first-metadata results, not full-query or
-all-language qualification. The original Python pin was inspected and released;
+A separate 50-per-arm comparison measures cold process launch through verified
+metadata at 2.932 → 0.397 seconds. It includes native client open; each sample
+subsequently closes and joins those clients. Larger archives are the measured
+tradeoff. These are import/first-metadata results, not full-query or all-language
+performance qualification. The original Python pin was inspected and released;
 the cause of its earlier release failure and current exact-acquisition conflicts
 remain open. Allocation/copy attribution, broader values/languages, future
 context/SQL adapters and numeric operation regression budgets remain open.
