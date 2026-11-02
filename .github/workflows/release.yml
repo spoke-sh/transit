@@ -18,6 +18,7 @@ on:
       - 'bindings/**'
       - 'tasks/*release*'
       - 'tasks/bindings.just'
+      - 'tasks/test.just'
       - 'tasks/package_sdks.py'
       - 'tasks/package_handbook.py'
       - 'docs/handbook/**'
@@ -30,6 +31,10 @@ on:
       - 'tests/interfaces/installation/published.py'
       - 'tests/interfaces/installation/server_applications.py'
       - 'tests/interfaces/installation/board_workbench.py'
+      - 'tests/interfaces/installation/board_profiles.py'
+      - 'tests/interfaces/installation/server_sql.py'
+      - 'tests/interfaces/cli/operations/**'
+      - 'tests/harness/operation_helpers.py'
       - 'tests/interfaces/cli/console_terminal.py'
       - 'tests/interfaces/cli/console_edit.py'
       - 'apps/transit-board-web/browser/workbench.spec.ts'
@@ -586,6 +591,9 @@ jobs:
           name: assembled-release-artifacts
           path: dist/release
       - uses: Homebrew/actions/setup-homebrew@ae72030040bc05e2d65c41c577092cb98bc0a27e
+      - uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
+      - name: Build the private host operation driver for Board profile provisioning
+        run: nix develop .#ci-experience --command zig build test-operation-fixture -Doptimize=ReleaseSafe -Dsdk-examples=false -j2
       - name: Install the exact formula with its checksummed candidate archive
         env:
           HOMEBREW_NO_AUTO_UPDATE: '1'

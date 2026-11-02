@@ -262,10 +262,17 @@ These disk/process tests do not establish host power-loss behavior.
 
 The same installed-runtime schedule runs the existing
 [workbench API proof](../interfaces/installation/board_workbench.py) using only
-the copied release executable's embedded roles. A separate `test::release-board`
+the copied release executable's embedded roles. The release recipes build the
+private host operation driver for provisioning the independent Board profiles;
+it stays outside the release prefix and is never packaged. Homebrew verification
+also builds this helper with the pinned Nix tools, then runs the installed static
+runtime from the checksummed formula archive. The separate fresh-runner
+`test::release-install` proof continues to run without Nix.
+A separate `test::release-board`
 job runs its Chromium scenarios against downloaded runtime artifacts on both
 Linux architectures. It checks paginated Catalog, exact previews, column
 profiles, explicit Workbook submission and original-result recovery without
-external assets. The fixture explicitly configures its own data connections;
-runtime startup does not grant the inspection identity data access. Private
+external assets. The fixture qualifies explicit independent profiles and the
+managed local data connection; the inspection identity retains read-only inspection
+authority without data access. Private
 failed installations remain local; only synthetic browser evidence is uploaded.
