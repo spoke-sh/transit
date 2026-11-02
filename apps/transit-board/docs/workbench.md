@@ -106,14 +106,25 @@ bindings appear in Definition; neither section is embedded in Operations.
 
 ## Configure data access
 
-Inspection remains read-only and uses its original principal. Data exploration
-requires explicit connections; startup never copies a local owner's credentials
-or grants data access. Every viewer admitted by Board's private deployment
-boundary shares these configured connections. Keep keys and password files on
-the service host.
+`transit server` connects Catalog and read-only SQL to its managed local account
+by default. Catalog reads use that account's native binding; SQL uses the private
+local Unix socket with peer authentication and the installation identity. No
+connection file, password or additional Board grant is needed. The inspection
+principal keeps its existing read-only scope. Board rejects mutating statements
+even when the local account can write, and every read requires current permission.
+Restart never repairs revoked grants or substitutes a different account.
 
-For `transit server`, set `board.workbench_file` to a JSON file. The server resolves
-the file path relative to its configuration directory. Standalone Board accepts
+Every viewer admitted by Board's private deployment boundary shares this local
+data scope. Keys remain on the service host. Set `board.local_data: false` for
+inspection-only defaults. Setting `sql.native.local: false` also disables automatic
+data connections. Operations remains available while the local account initializes;
+the supervisor activates data access once its binding is initialized. Subsequent
+connection failures and permission denials remain visible in the data workspace.
+
+To choose another scope, set `board.workbench_file` to a JSON file. This is a
+complete explicit override: missing or failing connections never inherit the local
+account. The server resolves the path relative to its configuration directory.
+Standalone Board requires explicit connections and accepts
 the same `workbench_file` or an inline `workbench` object, but not both. The file
 is read at startup, is limited to 16 KiB, and has this shape:
 

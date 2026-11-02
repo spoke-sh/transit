@@ -270,21 +270,10 @@ fn cycle(self: *Self) !void {
     self.startup.next(.sql_setup);
     const sql = try Sql.create(installation, allocator, self.executable, self.diagnostics);
     defer if (sql) |manager| manager.destroy();
+    var board_awaiting_local = false;
     if (self.ui) {
         self.startup.next(.board);
-        const board_path = try Board.configuration(installation, allocator);
-        try self.start(allocator, .board, try config.command(allocator, self.executable, .board, &.{board_path}), &.{}, false);
-        const board_started = std.Io.Clock.awake.now(self.init.io);
-        while (true) {
-            if (Signals.interrupted()) return error.ServerStopped;
-            if (!self.allAlive()) return error.ChildExited;
-            Board.ready(installation) catch |err| {
-                if (err == error.AccessDenied or err == error.UnsafeBoardPrincipal or err == error.InvalidBoardResponse or board_started.durationTo(std.Io.Clock.awake.now(self.init.io)).toMilliseconds() >= 30000) return err;
-                try self.init.io.sleep(.fromMilliseconds(100), .awake);
-                continue;
-            };
-            break;
-        }
+        board_awaiting_local = try self.startBoard(allocator, sql);
     }
     const report = try std.json.Stringify.valueAlloc(allocator, .{
         .ready = true,
@@ -315,6 +304,13 @@ fn cycle(self: *Self) !void {
         if (sql) |manager| {
             self.active_role = .sql;
             try manager.tick();
+            if (board_awaiting_local and manager.localAccount() != null) {
+                // Account initialization is a one-time lifecycle transition.
+                // Operations was available while SQL enrolled; activate its
+                // data binding once, without watching files or restarting on
+                // subsequent transport failures or authorization changes.
+                board_awaiting_local = try self.startBoard(allocator, manager);
+            }
             if (!announced_ready and manager.localReady()) {
                 self.announceReady();
                 announced_ready = true;
@@ -352,6 +348,24 @@ fn cycle(self: *Self) !void {
             last = now;
         }
         try self.init.io.sleep(.fromMilliseconds(100), .awake);
+    }
+}
+fn startBoard(self: *Self, allocator: std.mem.Allocator, sql: ?*const Sql) !bool {
+    self.active_role = .board;
+    const installation = self.installation;
+    const config = try Board.configuration(installation, allocator, sql);
+    self.processes[@backingInt(Role.board)].stop(self.init.io);
+    try self.start(allocator, .board, try installation.config.command(allocator, self.executable, .board, &.{config.path}), &.{}, false);
+    const started = std.Io.Clock.awake.now(self.init.io);
+    while (true) {
+        if (Signals.interrupted()) return error.ServerStopped;
+        if (!self.allAlive()) return error.ChildExited;
+        Board.ready(installation) catch |err| {
+            if (err == error.AccessDenied or err == error.UnsafeBoardPrincipal or err == error.InvalidBoardResponse or started.durationTo(std.Io.Clock.awake.now(self.init.io)).toMilliseconds() >= 30000) return err;
+            try self.init.io.sleep(.fromMilliseconds(100), .awake);
+            continue;
+        };
+        return config.awaiting_local;
     }
 }
 fn announceReady(self: *Self) void {

@@ -4,6 +4,7 @@ import base64
 import hashlib
 import json
 import os
+import select
 from pathlib import Path
 import shutil
 import subprocess
@@ -248,8 +249,8 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
         fixture.ready()
         unconfigured = json.loads(fixture.request('/api/v1/deployment'))
         assert not unconfigured['features']['catalog'] and not unconfigured['features']['sql']
-        # Explicit proof-only configuration of a strong SQL account. The Board
-        # read gate must refuse writes even though this account can perform them.
+        # The managed local account can write; Board must still enforce its
+        # read-only admission. Explicit profiles below must never inherit it.
         sql = fixture.console_config()
         sql['request_timeout_ms'] = 2000
         account_dir = fixture.installation / 'sql/accounts' / sql['account']
@@ -259,8 +260,6 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
         connection = dict(scope=dict(catalog['scope'], catalog=str(catalog['scope']['catalog'])),
                           branch=str(catalog['branch']), audience=catalog['audience'],
                           principal=account['principals']['table'], role=None)
-        config_file.write_text(json.dumps(dict(sql=sql, catalog=dict(
-            seed_file=str(account_dir / 'table.seed'), connection=connection))))
         fixture.console('CREATE TABLE metrics (id BIGINT PRIMARY KEY, label UTF8);\n')
         for start in range(0, 145, 16):
             values = ','.join(f"({i},'row {i}')" for i in range(start, min(145, start + 16)))
@@ -268,13 +267,35 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
         fixture.console('CREATE TABLE empty_metrics (id BIGINT);\n')
         for index in range(8):
             fixture.console(f'CREATE TABLE zz_catalog_{index} (id BIGINT);\n')
-        strong_connections = json.loads(config_file.read_text())
         limited_connections = board_profiles.configure(fixture)
         board_profiles.qualify(fixture, config_file, limited_connections, browser)
         fixture.stop()
-        config_file.write_text(json.dumps(strong_connections))
+        del fixture.config['board']['workbench_file']
+        # Automatic local access needs no external SQL listener or account.
+        fixture.config['sql']['native']['http'] = None
+        fixture.config['sql']['accounts'] = []
+        fixture.path.write_text(json.dumps(fixture.config))
+        config_file.unlink()
+        # Disabling local SQL must not create a replacement data identity.
+        fixture.config['sql']['native']['local'] = False
+        fixture.path.write_text(json.dumps(fixture.config))
         fixture.start()
         fixture.ready()
+        disabled = json.loads(fixture.request('/api/v1/deployment'))
+        assert not disabled['features']['catalog'] and not disabled['features']['sql']
+        assert fixture.atlas()['identity']['permissions'] == 16
+        assert json.loads((fixture.installation / 'board.json').read_text())['workbench'] is None
+        fixture.stop()
+        fixture.config['sql']['native']['local'] = True
+        fixture.path.write_text(json.dumps(fixture.config))
+        fixture.start()
+        fixture.ready()
+        bootstrap = json.loads((fixture.installation / 'board.json').read_text())
+        assert bootstrap['workbench_file'] is None
+        assert bootstrap['workbench']['catalog']['connection'] == connection
+        assert bootstrap['workbench']['sql']['authentication'] == 'peer'
+        assert bootstrap['workbench']['sql']['endpoint'] == sql['endpoint']
+        assert bootstrap['workbench']['catalog']['connection']['principal'] != bootstrap['principal']
         configured = json.loads(fixture.request('/api/v1/deployment'))
         assert configured['features']['catalog'] and configured['features']['sql']
         definition = fixture.record()['definition']
@@ -408,8 +429,30 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
         history(dict(locations=coverage_request), 403)
         close(20)
         fixture.stop()
+        receipts = fixture.record()['board_receipts']
+        retained_account = json.loads((account_dir / 'account.json').read_text())
+        retained_key = hashlib.sha256((account_dir / 'table.seed').read_bytes()).digest()
+        fixture.start()
+        # Only core/inspection readiness is expected: the local data principal
+        # is deliberately revoked, so SQL acceptance must not be awaited.
+        deadline = time.monotonic() + 120
+        while not select.select([fixture.process.stdout], [], [], .1)[0]:
+            assert fixture.process.poll() is None and time.monotonic() < deadline
+        assert json.loads(fixture.process.stdout.readline())['ui'] == 'ready'
+        assert fixture.atlas()['identity']['permissions'] == 16
+        restored = json.loads(fixture.request('/api/v1/deployment'))
+        assert restored['features']['catalog'] and restored['features']['sql']
+        request('catalog', dict(tables=dict(namespace=1, cursor=None)), 403)
+        restored_account = json.loads((account_dir / 'account.json').read_text())
+        # Restart may advance the SQL recovery fence; it must not change the
+        # original authority, provisioning receipts or credentials.
+        assert restored_account.pop('generation') >= retained_account.pop('generation')
+        assert restored_account == retained_account
+        assert hashlib.sha256((account_dir / 'table.seed').read_bytes()).digest() == retained_key
+        assert fixture.record()['board_receipts'] == receipts
+        fixture.stop()
         success = True
-        print('Board workbench: exact 145-row traversal, empty/metadata results, definition guards, read-only admission, capacity, retained definitions/placement and terminal revocation passed.', flush=True)
+        print('Board workbench: exact 145-row traversal, empty/metadata results, definition guards, read-only admission, capacity, retained definitions/placement automatic local access, disabled local SQL and revocation across restart passed.', flush=True)
     finally:
         fixture.cleanup()
         if success:

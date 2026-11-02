@@ -307,6 +307,16 @@ pub fn localReady(self: *const Self) bool {
     if (self.status != .accepting or self.local == null) return false;
     return self.localAccountReady();
 }
+/// The supervisor may share this configured account with its local Board.
+/// Retain the original binding after revocation; current public reads must deny
+/// rather than selecting another account or repairing its authority.
+pub fn localAccount(self: *const Self) ?E.Account {
+    if (!self.installation.config.sql.native.local) return null;
+    for (self.entries.items) |entry| {
+        if (std.mem.eql(u8, entry.record.name, Settings.local_account.name) and entry.record.initialized) return entry.record;
+    }
+    return null;
+}
 fn localAccountReady(self: *const Self) bool {
     for (self.entries.items) |entry| {
         if (std.mem.eql(u8, entry.record.name, Settings.local_account.name)) return entry.record.initialized and entry.state == .bound;

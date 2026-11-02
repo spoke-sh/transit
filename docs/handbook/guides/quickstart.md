@@ -51,8 +51,11 @@ quotas, required free disk space and configuration compatibility.
 
 Add `--no-ui` to run headlessly. This stops Board for that invocation while
 preserving its identity and grants; restart without the flag to enable it again.
-Board provides shared inspection only. Application resource access requires an
-explicit [inspection declaration](../../../apps/transit-cli/docs/applications.md#board-inspection).
+Board automatically opens the local Catalog and supports explicit read-only SQL
+through the managed local account. Viewers share its data scope and current
+permissions; set `board.local_data: false` for inspection-only defaults.
+Operational access to application resources still requires an explicit
+[inspection declaration](../../../apps/transit-cli/docs/applications.md#board-inspection).
 
 ## Read and write from a second terminal
 

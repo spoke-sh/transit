@@ -83,6 +83,10 @@
 #   # null derives http://127.0.0.1:<board.port>; an explicit origin must match it.
 #   # http://localhost:<board.port> is also accepted without extra configuration.
 #   public_origin: null
+#   # Automatic catalog and read-only SQL through the managed local account.
+#   local_data: true
+#   # Optional complete override; omitted connections stay disabled.
+#   workbench_file: null
 
 # New sessions capture these settings after reload. Zero adds no statement
 # deadline; other request/work limits still apply. Maximum: 24h.

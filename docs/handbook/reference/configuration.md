@@ -78,6 +78,12 @@ and `off`. `TRANSIT_LOGGING__FORMAT=json` selects JSON through the same override
 rules. Both settings require restart, including for supervised Transit children.
 See [observability](observability.md) for stderr, terminal and machine output.
 
+`board.local_data` defaults to `true`: with local SQL enabled, Catalog and read-only
+SQL use the managed local account. Set it to `false` for inspection-only defaults.
+An explicit `board.workbench_file` selects a complete connection override, with no
+fallback to local authority. These settings require restart; see the
+[Board workbench guide](../../../apps/transit-board/docs/workbench.md#configure-data-access).
+
 The `sql.postgres` and `sql.mysql` objects are independently nullable and default
 to null. A configured object selects its loopback listener; its `port` defaults
 to 15432 or 13306 respectively. `TRANSIT_SQL__POSTGRES__PORT=15432` selects the

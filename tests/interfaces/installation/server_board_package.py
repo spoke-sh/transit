@@ -11,6 +11,8 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.error
+import urllib.request
 
 from harness import phases, processes
 from interfaces.cli.table_console import results as table_results, atom, records
@@ -27,6 +29,44 @@ def console(root, env, cli, label, *args, input=None):
                                 cwd=root, env=env, stdout=output, stderr=errors, timeout=90)
     result.stdout, result.stderr = stdout.read_text(), stderr.read_text()
     return result
+
+
+def board_data(url, enabled):
+    """Read the actual default bootstrap; never inject a connection or identity."""
+    def request(path, action=None, expected=200):
+        body = None if action is None else json.dumps(dict(definition=deployment['definition'], action=action)).encode()
+        deadline = time.monotonic() + 10
+        while True:
+            try:
+                response = urllib.request.urlopen(urllib.request.Request(url + '/api/v1/' + path,
+                    data=body, headers={'Origin': url, 'Content-Type': 'application/json'}), timeout=5)
+            except urllib.error.HTTPError as error:
+                response = error
+            with response:
+                status, result = response.status, json.load(response)
+            if status == 429 and time.monotonic() < deadline:
+                time.sleep(.1)
+                continue
+            assert status == expected, (status, result)
+            return result
+    deployment = request('deployment')
+    assert deployment['features']['catalog'] == enabled
+    assert deployment['features']['sql'] == enabled
+    assert request('atlas')['identity']['permissions'] == 16
+    if not enabled:
+        assert request('catalog', dict(describe={}), 404)['err'] == 'QueryDisabled'
+        assert request('sql-read', dict(describe={}), 404)['err'] == 'QueryDisabled'
+        return
+    page = request('catalog', dict(tables=dict(namespace=1, cursor=None)))['catalog']['tables']
+    assert 'packaging_probe' in [item['name'] for item in page['entries'] if item]
+    identity = '000000000000000000000000000000a1'
+    result = request('sql-read', dict(run=dict(id=identity,
+        sql='SELECT id, title, score FROM packaging_probe', expected_definition=None)))['result']['view']
+    assert result['complete_rows'] == '1' and result['stopped'] == 'complete', result
+    assert result['rows'][0][1]['value']['atom']['utf8'] == 'retained', result['rows']
+    request('sql-read', dict(close=identity))
+    assert request('sql-read', dict(run=dict(id=identity,
+        sql='DELETE FROM packaging_probe', expected_definition=None)), 400)['err'] == 'ReadOnlyStatementRequired'
 
 
 def defaults(binary):
@@ -52,7 +92,11 @@ def defaults(binary):
         assert list(tools.iterdir()) == [cli]
         assert not (root/'share/transit/local-executables.json').exists()
         prior = None
-        for variant in ('first-start', 'defaults', 'yaml', 'environment'):
+        for variant in ('first-start', 'disabled', 'defaults', 'yaml', 'environment'):
+            if variant == 'disabled':
+                env['TRANSIT_BOARD__LOCAL_DATA'] = 'false'
+            else:
+                env.pop('TRANSIT_BOARD__LOCAL_DATA', None)
             if variant == 'yaml':
                 (root/'transit.yaml').write_text('realm: 1\nports:\n'+''.join(f'  {key}: {value}\n' for key, value in ports.items()))
                 for key in ports: env.pop(f'TRANSIT_PORTS__{key.upper()}')
@@ -111,6 +155,7 @@ def defaults(binary):
                     assert persisted.returncode == 0, persisted
                     assert records(table_results(json.loads(line) for line in persisted.stdout.splitlines())[0]) == [
                         dict(id='9001', title='retained', score='7')]
+                    board_data(report['board_url'], variant != 'disabled')
                 finally:
                     owned = processes.children(process.pid)
                     process.terminate()

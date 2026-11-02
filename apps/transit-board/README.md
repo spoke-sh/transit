@@ -9,8 +9,8 @@ and [OpenAPI v1](../../contracts/transit-board-v1.openapi.json). Its runtime lib
 
 The built-in data workspace opens at Catalog, with exact Table definitions,
 explicit finite previews, column profiles and temporary SQL workbooks. See the
-[data workbench guide](docs/workbench.md) for its separate catalog/SQL connections,
-read-only admission and bounded result lifecycle.
+[data workbench guide](docs/workbench.md) for automatic local catalog/SQL access,
+explicit connection overrides, read-only admission and bounded result lifecycle.
 
 [Configuration and deployment](docs/configuration.md) covers identity provisioning,
 private access and origin/listener settings. Board has no viewer authentication layer; its upstream Transit

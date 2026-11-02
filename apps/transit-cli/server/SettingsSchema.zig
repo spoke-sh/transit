@@ -104,6 +104,7 @@ pub const descriptors = [_]D{
     .{ .name = "board", .default_json = "{}", .description = "Board listener configuration", .owner = "board", .kind = .object, .change = .restart, .nullable = true },
     port("board.port", "board"),
     .{ .name = "board.public_origin", .default_json = "null", .description = "Exact Board browser origin", .owner = "board", .kind = .string, .change = .restart, .nullable = true },
+    .{ .name = "board.local_data", .default_json = "true", .description = "Use the managed local account for catalog and read-only SQL when no explicit workbench file is selected", .owner = "board", .kind = .boolean, .change = .restart },
     .{ .name = "board.workbench_file", .default_json = "null", .description = "Explicit public catalog and SQL connection configuration for Board", .owner = "board", .kind = .string, .change = .restart, .nullable = true, .sensitive = true },
 };
 fn sqlNumber(comptime name: []const u8, comptime description: []const u8, comptime default: []const u8, comptime kind: R.Kind, comptime minimum: u64, comptime maximum: u64) D {
