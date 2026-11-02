@@ -1,11 +1,12 @@
 # Data workbench
 
 Board presents catalog definitions, typed data and observed query results through
-public Transit callers. Its built-in home opens Catalog. Published interfaces
-keep their declared entry screen; Catalog and Workbook also have fixed routes.
-Operations retains the atlas, resource/connector inspectors, finite Live,
-relational recovery and application-definition controls with their existing
-separate capabilities.
+public Transit callers. Its built-in home selects Catalog when configured,
+Workbook when only SQL is configured, or Operations when neither is configured.
+Published interfaces keep their declared entry screen. Catalog and Workbook
+also have fixed routes. Operations focuses on storage and maintenance evidence,
+with links to the atlas, activity and separately configured relational recovery.
+Interface bindings belong to Definition.
 
 ## Activities and contextual inspection
 
@@ -13,7 +14,13 @@ The horizontal activity bar opens **Data**, **Workbooks** and the declared
 **Operations** screen. Published interfaces retain their application entry and
 navigation. **Definition recovery** remains directly available. Missing catalog
 or SQL configuration is explained inside its workspace; navigation grants no
-additional access.
+additional access. The deployment-discovery route reports safe configuration
+flags independently of upstream authorization and health. Unconfigured pages
+issue no data reads and offer **Check availability** after configuring and
+restarting Board. Catalog-only and SQL-only configurations are supported.
+Without SQL configuration, dataset definitions and relationships remain readable
+and **Preview rows** is disabled. Forwarding the HTTP listener through SSH does
+not create either connection.
 
 Dataset and workbook pages share one **Inspector**. **Dataset details** shows
 the selected definition and metadata basis. Selecting a schema column shows its
@@ -40,10 +47,49 @@ been removed. Selecting, changing dimensions and expanding details never run SQL
 The inspector reads the current authorized view, without retaining a separate
 data copy. Closing or replacing a result, removing its cell, hiding the document
 or a failed observation clears its inspection. Unavailable workbook connection
-metadata also removes inspector content until access can be checked again.
+metadata also removes inspector content and displayed rows until access can be
+checked again. Reconnection refreshes the original result identity before showing
+rows; it never submits the SQL again.
 Whole-source statistics, storage sharing/reclaimability, measured operator
 metrics and branch-comparison workflows have no new presentation in this
 workbench. Existing operational evidence remains in Operations.
+
+## Operations and observation states
+
+Operations pairs capacity/allocation bars and Table frontier diagrams with exact
+data grids and the shared Inspector. Both views use the same returned facts;
+selection retains a measure identity rather than another payload copy. Table
+selection uses bounded catalog pages and an exact prepared binding. It needs
+neither Explain nor a relational connection. Native realm-wide inspection and
+catalog Table reads retain their independent identities and permissions.
+
+Every diagram labels its scale and basis. Full-width Table positions stay decimal
+strings; only drawing coordinates are rounded. Pending counts identify complete
+backlog versus a prefix of at most 1,024 records. Null is unavailable, never zero.
+These are independent current observations, not a global snapshot or time series.
+No view infers shared/reclaimable bytes, elapsed age or permission to delete.
+
+Catalog, dataset metadata, Workbook connection metadata and Operations reads use
+one deterministic observation reducer. Its phases are idle, loading, ready,
+refreshing, failed, hidden and disposed. A generation identifies each in-flight
+read. Navigation, scope replacement, hiding and disposal abort it and fence late
+responses. Hiding or a failed read removes protected observations and inspectors;
+refreshing retains the last qualified observation until replacement or failure.
+Only one request chain per owner is active. Reads have a 15-second deadline;
+transient failures back off to at most 30 seconds. Capacity refusals retry sooner
+with bounded backoff. Configuration, denial, expired observations and incompatible
+responses require explicit action instead of automatic retries.
+
+This reducer does not restart SQL. Statement submission, terminal verification,
+original result identity, paging and cleanup remain owned by the shared
+`StatementReader`. Existing process, query, reactive and published-interface
+lifecycles retain their separate owners. Workbook drafts stay local to the page;
+this change adds no durable workbook storage or automatic Run.
+
+The separately configured relational UI is at `/recovery/relational`, including
+its existing query controls and interrupted-query cleanup. Moving the view does
+not alter or forget its service journal or start a replacement query. Interface
+bindings appear in Definition; neither section is embedded in Operations.
 
 ## Configure data access
 

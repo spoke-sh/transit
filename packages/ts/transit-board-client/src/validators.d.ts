@@ -14,4 +14,5 @@ export function RelationalRequest(value: unknown): boolean;
 export function RelationalResponse(value: unknown): boolean;
 export function CatalogRequest(value: unknown): boolean;
 export function CatalogResponse(value: unknown): boolean;
+export function Deployment(value: unknown): boolean;
 export function StorageResponse(value: unknown): boolean;

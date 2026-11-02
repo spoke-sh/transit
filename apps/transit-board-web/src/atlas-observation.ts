@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
 import { atlas, BoardError, type AtlasResponse } from "@transit/board-client";
-import { message, useScope } from "./state";
+import { message } from "./state";
 export type AtlasCursor = { position: number; process_after?: number; resource_after?: number };
 /** One authorized page and one in-flight acquisition. No global catalog cache. */
 export function useAtlasObservation(cursor?: AtlasCursor, revision = 0) {
-  const { denied } = useScope();
   const [data, setData] = useState<AtlasResponse | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {
@@ -41,7 +40,6 @@ export function useAtlasObservation(cursor?: AtlasCursor, revision = 0) {
         if (!abort.signal.aborted) {
           setData(null);
           setError(message(cause));
-          if (cause instanceof BoardError && cause.status === 403) denied();
         }
       } finally {
         inFlight = false;
@@ -61,6 +59,6 @@ export function useAtlasObservation(cursor?: AtlasCursor, revision = 0) {
       abort.abort();
       document.removeEventListener("visibilitychange", visibility);
     };
-  }, [cursor, revision, denied]);
+  }, [cursor, revision]);
   return { data, error };
 }

@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useAtlasObservation, type AtlasCursor } from "./atlas-observation";
-import { useInterface } from "./interface";
 import { useScope } from "./state";
-import { RelationalWorkspace } from "./relational-workspace";
-import { Storage } from "./storage";
+import { Storage, CatalogStorageExplorer } from "./storage";
+import { Workbench, WorkbenchBody } from "./workbench-layout";
+import "./workbench.css";
 export function Activity() {
   const [cursor, setCursor] = useState<AtlasCursor>();
   const [revision, refresh] = useState(0);
@@ -76,99 +76,31 @@ export function Activity() {
 }
 export function Operations() {
   const { scope } = useScope();
-  const current = useInterface();
-  const { data, error } = useAtlasObservation();
   return (
-    <main>
-      <p className="eyebrow">OPERATIONS / FOUNDATIONS</p>
-      <h1>Operations</h1>
-      <p>Current inspection identity and the installed interface's declared dependencies.</p>
-      <p role="status">
-        {error ||
-          (data
-            ? `Identity observed at authority position ${data.position}`
-            : "Reading current authority…")}
-      </p>
-      {data && (
-        <dl className="facts">
-          <div>
-            <dt>Inspection principal</dt>
-            <dd>{data.identity.principal}</dd>
-          </div>
-          <div>
-            <dt>Policy revision</dt>
-            <dd>{data.identity.policy_revision}</dd>
-          </div>
-          <div>
-            <dt>Native permissions</dt>
-            <dd>Inspect only ({data.identity.permissions})</dd>
-          </div>
-        </dl>
-      )}
-      <h2>Installed surfaces</h2>
-      <Storage />
-      <RelationalWorkspace />
-      <dl>
-        <dt>Inspection profile</dt>
-        <dd>{scope?.profile}</dd>
-        <dt>Query endpoint</dt>
-        <dd>
-          {scope?.query_enabled ? "Configured; source rights checked on each read" : "Disabled"}
-        </dd>
-        <dt>Table follow endpoint</dt>
-        <dd>
-          {scope?.reactive_table ? "Configured; finite session admission required" : "Disabled"}
-        </dd>
-      </dl>
-      {current && (
-        <>
-          <h2>Declared dependencies</h2>
-          <p>
-            Declarations identify intended sources and targets. They do not grant access or confirm
-            resource liveness.
-          </p>
-          <div className="table-scroll">
-            <table>
-              <caption>
-                Bindings in {current.compiled.definition.name} revision{" "}
-                {current.compiled.definition.revision}
-              </caption>
-              <thead>
-                <tr>
-                  <th>Binding</th>
-                  <th>Kind</th>
-                  <th>Reference</th>
-                </tr>
-              </thead>
-              <tbody>
-                {current.compiled.definition.bindings.map((binding) => (
-                  <tr key={binding.name}>
-                    <td>{binding.name}</td>
-                    <td>{Object.keys(binding.source)[0]}</td>
-                    <td>
-                      {"inspection" in binding.source
-                        ? binding.source.inspection.projection
-                        : "query" in binding.source
-                          ? `Resource ${binding.source.query.resource} · ${binding.source.query.source_kind} · ${binding.source.query.profile}`
-                          : `Service ${binding.source.command.service} · target ${binding.source.command.target} · revision ${binding.source.command.revision}`}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
+    <Workbench className="operations-workbench">
+      <div className="page-heading">
+        <div>
+          <p className="eyebrow">OPERATIONS / SYSTEM EVIDENCE</p>
+          <h1>Operations</h1>
+          <p>Storage, maintenance and the evidence behind current progress.</p>
+        </div>
+      </div>
+      <div className="workbench-scope">
+        <strong>Realm {scope?.realm}</strong>
+        <span>Read-only inspection</span>
+        <Link to="/atlas">Processes and resources</Link>
+        <Link to="/activity">Activity</Link>
+        {scope?.features.relational && (
+          <Link to="/recovery/relational">Relational queries and recovery</Link>
+        )}
+      </div>
+      <WorkbenchBody>
+        <Storage />
+        <CatalogStorageExplorer />
+      </WorkbenchBody>
       <p>
-        Connector trust and secret-reference evidence is available through authorized resource
-        records. Credentials and captured payloads are excluded.
+        Independent observations retain their own basis. Inspection starts no query or maintenance.
       </p>
-      <Link to="/resources" search={{}}>
-        Inspect resource records
-      </Link>
-      <p>
-        <Link to="/definition">Review an interface publication</Link>
-      </p>
-    </main>
+    </Workbench>
   );
 }

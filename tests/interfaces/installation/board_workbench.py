@@ -15,8 +15,12 @@ from runner.paths import ROOT
 from interfaces.installation.server_board import Board
 from harness.local_installation import freeze_executables
 from interfaces.http.serving import compact
-from interfaces.installation.server_application_faults import ExistingKey, native, post
+from interfaces.installation.server_application_faults import ExistingKey, native, post, exchange
 from query.logical.fuze_types import descriptor
+
+
+class HistoricalConflict(Exception):
+    """A conflict requires observing the saved operation, never a new selection."""
 
 UNCERTAIN_TRANSPORT = (ConnectionError, TimeoutError, IncompleteRead, RemoteDisconnected)
 
@@ -38,7 +42,12 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030):
                      credential_epoch=identity['credential_epoch'], role=None,
                      audience=connection['audience'], context=list(context))
         signature = key.sign(hashlib.sha256(b'transit.authorization.subject.v1\0' + compact(claim)).digest())
-        return post(port, '/table/v1', dict(body, proof=dict(claim=claim, signature=signature)))['result']
+        status, data = exchange(port, '/table/v1', dict(body, proof=dict(claim=claim, signature=signature)), None)
+        response = json.loads(data)
+        if status == 409 and response == {'err': 'Conflict'} and 'historical_catalog' in action:
+            raise HistoricalConflict()
+        assert status == 200, (status, data)
+        return response['result']
 
     def call(action):
         return direct(dict(historical_catalog=action))['historical_catalog']
@@ -101,14 +110,27 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030):
         budget=dict(limits=dict(operations=1000000, bytes=4294967296, pending=1024), bytes=4608)))
 
     def settle(initial, terminal, pending):
-        action, status, uncertain = initial, None, 0
+        action, status, uncertain, conflicts, injected = initial, None, 0, 0, 0
         for _ in range(32):
             try:
                 status = call(action)['status']
+                if operation == 900030 and terminal == 'published' and 'advance' in action and not injected:
+                    # Deterministic lost-progress schedule: hide one successful
+                    # step and require an inspection of its original identity.
+                    # This is injected evidence, not an observed storage refusal.
+                    injected = 1
+                    raise HistoricalConflict()
             except UNCERTAIN_TRANSPORT:
                 # Inspect the saved operation after an incomplete reply. Never
                 # select a new frontier or assign a replacement acquisition.
                 uncertain += 1
+                action = dict(inspect=token)
+                continue
+            except HistoricalConflict:
+                # A physical storage epoch can change between bounded steps.
+                # Inspect the original accepted identity after a conflict. The
+                # same 32-step bound still applies; a persistent conflict fails.
+                conflicts += 1
                 action = dict(inspect=token)
                 continue
             except AssertionError:
@@ -121,11 +143,18 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030):
             if status is None:
                 action = initial
                 continue
+            # A conflicting token may belong to a different intent. Its result
+            # cannot satisfy this fixture even if it has already published.
+            binding = status['receipt']['binding']
+            assert binding['key'] == token, 'Historical recovery changed the saved token'
+            assert binding['intent'] == dict(history=intent), 'Historical recovery changed the saved intent'
+            assert binding['budget'] == acquisition['acquire']['budget'], 'Historical recovery changed the saved budget'
             phase = status['state']['phase']
             if phase == terminal:
-                if uncertain:
+                if uncertain or conflicts:
                     print(json.dumps(dict(profile='board_history_original_recovery', operation=operation,
-                        phase=phase, uncertain_replies=uncertain)), flush=True)
+                        phase=phase, uncertain_replies=uncertain,
+                        conflict_observations=conflicts-injected, injected_conflicts=injected)), flush=True)
                 return status
             assert phase in pending, status
             action = initial if terminal == 'released' and phase == 'published' else dict(advance=token)
@@ -166,6 +195,8 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
     try:
         fixture.start()
         fixture.ready()
+        unconfigured = json.loads(fixture.request('/api/v1/deployment'))
+        assert not unconfigured['features']['catalog'] and not unconfigured['features']['sql']
         # Explicit proof-only configuration of a strong SQL account. The Board
         # read gate must refuse writes even though this account can perform them.
         sql = fixture.console_config()
@@ -189,6 +220,8 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
         fixture.stop()
         fixture.start()
         fixture.ready()
+        configured = json.loads(fixture.request('/api/v1/deployment'))
+        assert configured['features']['catalog'] and configured['features']['sql']
         definition = fixture.record()['definition']
         def request(route, action, expected=200):
             return json.loads(fixture.request('/api/v1/' + route,
@@ -215,6 +248,18 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
         entry = next(item for item in entries if item['name'] == 'metrics')
         table = request('catalog', dict(table=dict(namespace=1, name='metrics', expected=entry['interpretation'])))['table']
         assert table['metadata']['row_count'] == '145'
+        storage = request('catalog', dict(storage=table['metadata']['binding']))['storage']
+        assert storage['observed']['live_rows'] == '145'
+        assert storage['binding'] == table['metadata']['binding']
+        stale_binding = json.loads(json.dumps(table['metadata']['binding']))
+        stale_binding['name'] = 'absent_table'
+        request('catalog', dict(storage=stale_binding), 409)
+        foreign_binding = json.loads(json.dumps(table['metadata']['binding']))
+        foreign_binding['connection']['principal'] += 1
+        request('catalog', dict(storage=foreign_binding), 409)
+        invalid_binding = json.loads(json.dumps(table['metadata']['binding']))
+        invalid_binding['connection']['branch'] = '999'
+        request('catalog', dict(storage=invalid_binding), 400)
         native_connection = dict(scope=catalog['scope'], branch=catalog['branch'], audience=catalog['audience'],
                                  principal=account['principals']['table'], role=None)
         selector, _ = retained_metrics(fixture, definition, native_connection, account_dir / 'table.seed')
@@ -299,6 +344,7 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
         fixture.revoke({'revoke': account['principals']['table']})
         assert request('sql-read', dict(observe=f'{20:032x}'), 403)['err'] == 'Forbidden'
         request('catalog', dict(tables=dict(namespace=1, cursor=None)), 403)
+        request('catalog', dict(storage=table['metadata']['binding']), 403)
         history(dict(source=dict(selector=selector, object=historical_object)), 403)
         history(dict(locations=coverage_request), 403)
         close(20)

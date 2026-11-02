@@ -115,6 +115,11 @@ def run(node, cli, board, browser=False):
         # Declarative custom paths receive the static shell; current interface reads resolve them.
         assert b"<!doctype" in request("/unknown")[0]
         request("/api/v1/capabilities")
+        deployment = api("deployment")
+        assert deployment['realm'] == 72 and not any(deployment['features'].values())
+        assert set(deployment) == {'definition', 'profile', 'realm', 'features'}
+        request("/api/v1/deployment", headers={"Host": "evil.example"}, status=403)
+        request("/api/v1/deployment", headers={"Origin": "https://evil.example"}, status=403)
         request("/api/v1/capabilities", headers={"Host": "evil.example"}, status=403)
         request("/health", headers={"Host": f"localhost:{port}"}, status=403)
         request("/api/v1/capabilities", headers={"Origin": "https://evil.example"}, status=403)
@@ -207,6 +212,7 @@ def run(node, cli, board, browser=False):
         assert not any(api(f"processes/{pids[0]}/outbox")["observation"]["outbox"])
         api(f"processes/{pids[1]}", status=403)
         s.command({"revoke": 1})
+        assert api("deployment") == deployment  # Configuration is not an inspection grant.
         api("processes", status=403)
         failure(f"processes/{pids[0]}/effects", 403, "inspection.denied", "inspect_scope")
         api("processes", headers=ignored, status=403)
@@ -216,6 +222,7 @@ def run(node, cli, board, browser=False):
         # No stale response is served during an authority/storage outage.
         s.authority.kill()
         s.authority.wait(timeout=10)
+        assert api("deployment") == deployment  # Discovery survives upstream loss.
         failure("processes", 503, "inspection.authority_unavailable", "retry_read")
         s.store.stop()
         s.store.start()

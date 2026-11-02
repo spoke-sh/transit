@@ -1,9 +1,8 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { attention, Evidence, present } from "../components";
 import { DeclaredView } from "../declared";
 import { useScope, useObservation } from "../state";
 import { useInterface } from "../interface";
-import { CatalogPage } from "../data-workbench";
 export const Route = createFileRoute("/")({
   validateSearch: (search: Record<string, unknown>) => ({
     status:
@@ -16,8 +15,19 @@ export const Route = createFileRoute("/")({
 });
 function Landing() {
   const current = useInterface();
-  const native = useScope().scope?.profile === "native_v1";
-  return native ? current?.published ? <DeclaredView /> : <CatalogPage /> : <Overview />;
+  const scope = useScope().scope;
+  return scope?.profile === "native_v1" ? (
+    current?.published ? (
+      <DeclaredView />
+    ) : (
+      <Navigate
+        to={scope.features.catalog ? "/catalog" : scope.features.sql ? "/workbook" : "/operations"}
+        replace
+      />
+    )
+  ) : (
+    <Overview />
+  );
 }
 function Overview() {
   const view = useObservation("processes");

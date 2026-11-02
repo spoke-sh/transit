@@ -1,92 +1,503 @@
-import { useCallback, useState } from "react";
-import { relationalQuery, type RelationalDescription } from "@transit/board-client";
-import { storage } from "@transit/board-client";
-import { useMetadata } from "./use-metadata";
+import { useEffect, useId, useState } from "react";
+import { Link } from "@tanstack/react-router";
+import {
+  DataCatalog,
+  relationalQuery,
+  storage,
+  type CatalogEntry,
+  type CatalogNamespaces,
+  type CatalogStorage,
+  type CatalogTables,
+  type RelationalDescription,
+} from "@transit/board-client";
+import { QueryError } from "@transit/query-client";
+import { useRead } from "./use-observation";
+import { useScope } from "./state";
+import { ReadStatus } from "./read-status";
+import { InspectorPanel, useInspector } from "./workbench-layout";
+import { positionPercent, type StorageFact } from "./storage-model";
+import "./storage.css";
 
-const load = (_resource: number, _selection: string, signal?: AbortSignal) => storage(signal);
 const bytes = (value: number | null | undefined) =>
   value == null ? "Unavailable" : `${value.toLocaleString()} bytes`;
+const quota = (used: number | null | undefined, limit: number | null | undefined) =>
+  used != null && limit != null && limit > 0
+    ? {
+        percent: positionPercent(String(used), String(limit)),
+        scale: `${bytes(limit)} configured limit`,
+      }
+    : {};
+
+/** Both views and the inspector project one observation; selection retains only a key. */
+function Evidence({ title, basis, facts }: { title: string; basis: string; facts: StorageFact[] }) {
+  const owner = useId();
+  const { selection, select, release } = useInspector();
+  useEffect(() => () => release(owner), [owner, release]);
+  const selected = selection?.owner === owner ? selection.metric : undefined;
+  const fact = facts.find((item) => item.key === selected);
+  return (
+    <section className="storage-evidence" aria-label={title}>
+      <h3>{title}</h3>
+      <p className="storage-basis">{basis}</p>
+      {facts.some((item) => item.percent !== undefined) && (
+        <div className="storage-visual" role="group" aria-label={`${title} visualization`}>
+          {facts
+            .filter((item) => item.percent !== undefined)
+            .map((item) => (
+              <button
+                key={item.key}
+                aria-pressed={selected === item.key}
+                onClick={(event) =>
+                  select(
+                    { owner, kind: "storage", dimension: "evidence", metric: item.key },
+                    event.currentTarget,
+                  )
+                }
+              >
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+                <span className="storage-track" aria-hidden="true">
+                  <span style={{ width: `${item.percent}%` }} />
+                </span>
+                <small>{item.scale}</small>
+              </button>
+            ))}
+        </div>
+      )}
+      <div className="workbench-grid">
+        <table>
+          <caption>{title} · exact values</caption>
+          <thead>
+            <tr>
+              <th>Measure</th>
+              <th>Observed value</th>
+            </tr>
+          </thead>
+          <tbody>
+            {facts.map((item) => (
+              <tr key={item.key} data-selected={selected === item.key}>
+                <th scope="row">
+                  <button
+                    aria-pressed={selected === item.key}
+                    onClick={(event) =>
+                      select(
+                        { owner, kind: "storage", dimension: "evidence", metric: item.key },
+                        event.currentTarget,
+                      )
+                    }
+                  >
+                    {item.label}
+                  </button>
+                </th>
+                <td>{item.value}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {fact && (
+        <InspectorPanel
+          owner={owner}
+          title={fact.label}
+          subtitle={title}
+          summary={basis}
+          dimensions={[{ id: "evidence", label: "Evidence" }]}
+        >
+          <p className="storage-exact">{fact.value}</p>
+          <p>{fact.explanation}</p>
+          {fact.scale && (
+            <p>
+              Visual scale: {fact.scale}. The drawing is rounded and capped at the scale; the value
+              above is exact.
+            </p>
+          )}
+        </InspectorPanel>
+      )}
+    </section>
+  );
+}
 
 export function Storage() {
-  const { page, error } = useMetadata(0, "storage", load);
+  const { scope } = useScope();
+  const state = useRead(`storage/${scope?.realm}`, storage);
+  const page = state.value;
+  const basis = `Realm ${page?.realm} · authority position ${page?.position}. Live counters have independent observation times.`;
   return (
     <section aria-label="Storage observation">
-      <h2>Storage</h2>
-      <p role="status">
-        {error || (page ? `Observed at authority position ${page.position}` : "Reading storage…")}
-      </p>
-      {page && (
+      <div className="workbench-toolbar">
+        <h2>Storage</h2>
+        <button onClick={state.retry}>Refresh storage</button>
+      </div>
+      {!page ? (
+        <ReadStatus failure={state.failure} retry={state.retry} subject="Storage" />
+      ) : (
         <>
-          <dl className="facts">
-            <div>
-              <dt>Backend</dt>
-              <dd>{page.backend}</dd>
-            </div>
-            <div>
-              <dt>Data root</dt>
-              <dd>{page.root ?? "Unavailable"}</dd>
-            </div>
-            <div>
-              <dt>Accounted storage</dt>
-              <dd>{bytes(page.allocated_bytes)}</dd>
-            </div>
-            <div>
-              <dt>Ordinary storage limit</dt>
-              <dd>{bytes(page.limits?.bytes)}</dd>
-            </div>
-            <div>
-              <dt>Storage control reserve</dt>
-              <dd>{bytes(page.limits?.control_bytes)}</dd>
-            </div>
-            <div>
-              <dt>Direct request allocation</dt>
-              <dd>
-                {bytes(page.data_requests?.used)} / {bytes(page.data_requests?.limit)}
-              </dd>
-            </div>
-            <div>
-              <dt>Direct request peak</dt>
-              <dd>{bytes(page.data_requests?.peak)}</dd>
-            </div>
-            <div>
-              <dt>Recovery request allocation</dt>
-              <dd>
-                {bytes(page.control_requests?.used)} / {bytes(page.control_requests?.limit)}
-              </dd>
-            </div>
-            <div>
-              <dt>Maintenance</dt>
-              <dd>{page.maintenance?.state ?? "Unavailable"}</dd>
-            </div>
-            <div>
-              <dt>Completed maintenance steps</dt>
-              <dd>{page.maintenance?.completed_steps ?? "Unavailable"}</dd>
-            </div>
-            <div>
-              <dt>Failed maintenance steps</dt>
-              <dd>{page.maintenance?.failed_steps ?? "Unavailable"}</dd>
-            </div>
-            <div>
-              <dt>Last maintenance failure</dt>
-              <dd>
-                {page.maintenance
+          <Evidence
+            title="Capacity and allocation"
+            basis={basis}
+            facts={[
+              {
+                key: "backend",
+                label: "Backend",
+                value: page.backend,
+                explanation: "Storage backend reported by the authorized node inspection.",
+              },
+              {
+                key: "root",
+                label: "Data root",
+                value: page.root ?? "Unavailable",
+                explanation: "Reported data root; Board does not access provider files.",
+              },
+              {
+                key: "allocated",
+                label: "Accounted storage",
+                value: bytes(page.allocated_bytes),
+                explanation:
+                  "Backend accounting, not total disk usage. An unavailable counter is not zero.",
+                ...quota(page.allocated_bytes, page.limits?.bytes),
+              },
+              {
+                key: "limit",
+                label: "Ordinary storage limit",
+                value: bytes(page.limits?.bytes),
+                explanation:
+                  "Configured ordinary storage allowance. Capacity pressure does not authorize expiry.",
+              },
+              {
+                key: "reserve",
+                label: "Storage control reserve",
+                value: bytes(page.limits?.control_bytes),
+                explanation:
+                  "Separate allowance for control and recovery progress; not ordinary free capacity.",
+              },
+              {
+                key: "data",
+                label: "Direct request allocation",
+                value: bytes(page.data_requests?.used),
+                explanation:
+                  "Current accounted direct request allocations. Excludes process stacks, sockets and filesystem caches.",
+                ...quota(page.data_requests?.used, page.data_requests?.limit),
+              },
+              {
+                key: "data-peak",
+                label: "Direct request peak",
+                value: bytes(page.data_requests?.peak),
+                explanation: "Peak request allocation since the owner started; not a time series.",
+              },
+              {
+                key: "control",
+                label: "Recovery request allocation",
+                value: bytes(page.control_requests?.used),
+                explanation:
+                  "Current accounted recovery request allocations, independent of direct requests.",
+                ...quota(page.control_requests?.used, page.control_requests?.limit),
+              },
+              {
+                key: "control-peak",
+                label: "Recovery request peak",
+                value: bytes(page.control_requests?.peak),
+                explanation: "Peak recovery request allocation since the owner started.",
+              },
+            ]}
+          />
+          <Evidence
+            title="Maintenance"
+            basis={basis}
+            facts={[
+              {
+                key: "state",
+                label: "Maintenance state",
+                value: page.maintenance?.state ?? "Unavailable",
+                explanation: "Observed worker state, not a promise of future progress.",
+              },
+              {
+                key: "complete",
+                label: "Completed maintenance steps",
+                value: String(page.maintenance?.completed_steps ?? "Unavailable"),
+                explanation: "Owner-local completed steps; resets on owner restart.",
+              },
+              {
+                key: "failed",
+                label: "Failed maintenance steps",
+                value: String(page.maintenance?.failed_steps ?? "Unavailable"),
+                explanation: "Owner-local failures; resets on owner restart.",
+              },
+              {
+                key: "failure",
+                label: "Last maintenance failure",
+                value: page.maintenance
                   ? (page.maintenance.last_failure ?? "None observed")
-                  : "Unavailable"}
-              </dd>
-            </div>
-            <div>
-              <dt>Maintenance allocation limit</dt>
-              <dd>{bytes(page.settings?.resident_bytes)}</dd>
-            </div>
-          </dl>
-          <p>
-            Live counters have independent observation times. Allocation counters exclude process
-            stacks, sockets and filesystem caches. Maintenance counters reset when the storage owner
-            restarts.
-          </p>
+                  : "Unavailable",
+                explanation:
+                  "Bounded failure category reported by the owner. No application payloads or credentials are inspected.",
+              },
+              {
+                key: "budget",
+                label: "Maintenance allocation limit",
+                value: bytes(page.settings?.resident_bytes),
+                explanation: "Configured resident budget for maintenance work.",
+              },
+            ]}
+          />
         </>
       )}
     </section>
+  );
+}
+
+export function TableStorageView({ page }: { page: CatalogStorage }) {
+  const value = page.observed;
+  const identity = page.binding.interpretation.interpretation;
+  const position = (
+    key: string,
+    label: string,
+    current: string | null,
+    explanation: string,
+  ): StorageFact => ({
+    key,
+    label,
+    value: current ?? "Unavailable",
+    explanation,
+    ...(current !== null
+      ? {
+          percent: positionPercent(current, value.position.next_lsn),
+          scale: `Accepted next position ${value.position.next_lsn} · partition ${value.position.partition}`,
+        }
+      : {}),
+  });
+  return (
+    <Evidence
+      title={`Table storage · ${page.binding.name}`}
+      basis={`Branch ${identity.object.branch} · object ${identity.object.object} · definition ${identity.revision} · partition ${value.position.partition}. Independent current facts; no query or snapshot pin is created.`}
+      facts={[
+        position(
+          "accepted",
+          "Accepted next position",
+          value.position.next_lsn,
+          "Next accepted log position. This is a partition-local coordinate, not a row count or a wall-clock time.",
+        ),
+        position(
+          "changed",
+          "Logical change position",
+          value.changed_lsn,
+          "Last logical change reported for this Table. Storage maintenance can advance independently.",
+        ),
+        position(
+          "archive",
+          "Archived through",
+          value.archive_through,
+          "Reported archive frontier. It does not imply that old segments or retained history can be deleted.",
+        ),
+        position(
+          "recovery",
+          "Recovery checkpoint",
+          value.recovery_through,
+          "Reported recovery frontier. Unavailable means no checkpoint was reported, not position zero.",
+        ),
+        position(
+          "history",
+          "History floor",
+          value.history_floor,
+          "Reported retained history floor. This observation does not pin history.",
+        ),
+        {
+          key: "live",
+          label: "Live rows",
+          value: value.live_rows,
+          explanation:
+            "Current logical row count at this storage observation, independent of any SQL result.",
+        },
+        {
+          key: "pending",
+          label: "Pending rows / bytes",
+          value: `${value.pending_rows} / ${value.pending_bytes} · ${value.pending_complete ? "complete backlog" : "bounded prefix"}`,
+          explanation:
+            "At most 1,024 pending records are inspected. A bounded prefix is not a total backlog or a completion estimate.",
+        },
+        {
+          key: "oldest",
+          label: "Oldest pending position",
+          value: value.oldest_pending_lsn ?? "None observed",
+          explanation:
+            "Oldest pending position returned by this bounded read. It establishes no elapsed age.",
+        },
+        {
+          key: "segment",
+          label: "Next segment",
+          value: value.next_segment,
+          explanation: "Next segment identity; not a count of live segments.",
+        },
+        {
+          key: "archive-work",
+          label: "Archive activity / completed",
+          value: `${value.archive_source_lsn} / ${value.archived_source_lsn}`,
+          explanation: "Independent archive work coordinates; not comparable row counts.",
+        },
+        {
+          key: "archive-target",
+          label: "Archive target",
+          value: value.archive_target_through_lsn ?? "None",
+          explanation: "Current archive target, if reported. A target is not completed work.",
+        },
+        {
+          key: "compact-work",
+          label: "Compaction activity / completed",
+          value: `${value.compaction_source_lsn} / ${value.compacted_source_lsn}`,
+          explanation: "Independent compaction work coordinates; not percentages of the Table.",
+        },
+        {
+          key: "compact-target",
+          label: "Compaction target source",
+          value: value.compaction_target_source_lsn ?? "None",
+          explanation:
+            "Current compaction target, if reported. Compaction does not itself authorize history expiry.",
+        },
+      ]}
+    />
+  );
+}
+
+const catalog = new DataCatalog();
+export function CatalogStorageExplorer() {
+  const { scope } = useScope();
+  return (
+    <section aria-label="Table storage explorer">
+      <h2>Table storage</h2>
+      {scope?.features.catalog ? (
+        <CatalogStorageSelection />
+      ) : (
+        <p>
+          A catalog connection is not configured. <Link to="/catalog">View setup guidance</Link> to
+          inspect individual Tables.
+        </p>
+      )}
+    </section>
+  );
+}
+function CatalogStorageSelection() {
+  const { scope } = useScope();
+  const [namespace, setNamespace] = useState<number | null>(null);
+  const [namespaceCursor, setNamespaceCursor] = useState<CatalogNamespaces["next"]>(null);
+  const [cursor, setCursor] = useState<CatalogTables["next"]>(null);
+  const [selection, setSelection] = useState<CatalogEntry | null>(null);
+  const state = useRead(
+    JSON.stringify(["storage-tables", scope?.realm, namespace, namespaceCursor, cursor]),
+    async (signal) => {
+      const description = await catalog.describe(signal);
+      const namespaces = await catalog.namespaces(namespaceCursor, signal);
+      const selected = namespace ?? description.configuration.authority.initial_schema;
+      return { namespaces, selected, tables: await catalog.tables(selected, cursor, signal) };
+    },
+  );
+  const page = state.value;
+  if (!page) return <ReadStatus failure={state.failure} retry={state.retry} subject="Catalog" />;
+  return (
+    <>
+      <div className="workbench-toolbar">
+        <label>
+          Storage namespace{" "}
+          <select
+            value={page.selected}
+            onChange={(event) => {
+              setNamespace(Number(event.target.value));
+              setCursor(null);
+              setSelection(null);
+            }}
+          >
+            {!page.namespaces.entries.some((entry) => entry?.id === page.selected) && (
+              <option value={page.selected}>Namespace {page.selected}</option>
+            )}
+            {page.namespaces.entries
+              .filter((entry) => entry !== null)
+              .map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {entry.name}
+                </option>
+              ))}
+          </select>
+        </label>
+        <button
+          disabled={!namespaceCursor}
+          onClick={() => {
+            setNamespaceCursor(null);
+            setSelection(null);
+          }}
+        >
+          First namespaces
+        </button>
+        <button
+          disabled={!page.namespaces.next}
+          onClick={() => {
+            setNamespaceCursor(page.namespaces.next);
+            setSelection(null);
+          }}
+        >
+          More namespaces
+        </button>
+      </div>
+      <div className="workbench-grid">
+        <table>
+          <caption>Choose one Table · up to 8 authorized definitions per page</caption>
+          <thead>
+            <tr>
+              <th>Table</th>
+              <th>Object</th>
+              <th>Definition</th>
+            </tr>
+          </thead>
+          <tbody>
+            {page.tables.entries
+              .filter((entry) => entry !== null)
+              .map((entry) => (
+                <tr key={entry.interpretation.object.object}>
+                  <th scope="row">
+                    <button onClick={() => setSelection(entry)}>{entry.name}</button>
+                  </th>
+                  <td>{entry.interpretation.object.object}</td>
+                  <td>{entry.interpretation.revision}</td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+      </div>
+      {!page.tables.entries.some((entry) => entry !== null) && (
+        <p>No Tables in this authorized page.</p>
+      )}
+      <div className="workbench-toolbar">
+        <button
+          disabled={!cursor}
+          onClick={() => {
+            setCursor(null);
+            setSelection(null);
+          }}
+        >
+          First Tables
+        </button>
+        <button
+          disabled={!page.tables.next}
+          onClick={() => {
+            setCursor(page.tables.next);
+            setSelection(null);
+          }}
+        >
+          More Tables
+        </button>
+      </div>
+      {selection && (
+        <CatalogTableStorage key={JSON.stringify(selection.interpretation)} entry={selection} />
+      )}
+    </>
+  );
+}
+function CatalogTableStorage({ entry }: { entry: CatalogEntry }) {
+  const state = useRead(JSON.stringify(["table-storage", entry]), async (signal) => {
+    const table = await catalog.table(entry.namespace, entry.name, entry.interpretation, signal);
+    return catalog.storage(table.metadata.binding, signal);
+  });
+  return state.value ? (
+    <TableStorageView page={state.value} />
+  ) : (
+    <ReadStatus failure={state.failure} retry={state.retry} subject="Table storage" />
   );
 }
 
@@ -103,91 +514,17 @@ export function TableStorage({ source, route }: { source: Source; route: number 
   );
 }
 function TableStorageRead({ source, route }: { source: Source; route: number }) {
-  const load = useCallback(
-    async (_resource: number, _selection: string, signal?: AbortSignal) => {
+  const state = useRead(
+    JSON.stringify(["relational-storage", route, source.binding]),
+    async (signal) => {
       const result = await relationalQuery({ storage: { route, binding: source.binding } }, signal);
-      if (!("storage" in result)) throw new Error("Invalid storage observation");
+      if (!("storage" in result)) throw new QueryError(0, "InvalidResponse");
       return result.storage;
     },
-    [route, source.binding],
   );
-  const { page, error } = useMetadata(0, "table-storage", load);
-  const value = page?.observed;
-  return (
-    <>
-      <p role="status">
-        {error || (page ? "Current storage observation" : "Reading Table storage…")}
-      </p>
-      {value && (
-        <>
-          <p>
-            Object {page.binding.interpretation.interpretation.object.object}, definition{" "}
-            {page.binding.interpretation.interpretation.revision}. These are independent current
-            facts; reading them creates no query or snapshot.
-          </p>
-          <dl className="facts">
-            <div>
-              <dt>Accepted position</dt>
-              <dd>{value.position.next_lsn}</dd>
-            </div>
-            <div>
-              <dt>Logical change position</dt>
-              <dd>{value.changed_lsn}</dd>
-            </div>
-            <div>
-              <dt>Live rows</dt>
-              <dd>{value.live_rows}</dd>
-            </div>
-            <div>
-              <dt>Pending rows / bytes</dt>
-              <dd>
-                {value.pending_rows} / {value.pending_bytes} ·{" "}
-                {value.pending_complete ? "complete backlog" : "bounded prefix"}
-              </dd>
-            </div>
-            <div>
-              <dt>Oldest pending position</dt>
-              <dd>{value.oldest_pending_lsn ?? "None observed"}</dd>
-            </div>
-            <div>
-              <dt>Archived through</dt>
-              <dd>{value.archive_through}</dd>
-            </div>
-            <div>
-              <dt>Recovery checkpoint</dt>
-              <dd>{value.recovery_through ?? "Unavailable"}</dd>
-            </div>
-            <div>
-              <dt>History floor</dt>
-              <dd>{value.history_floor}</dd>
-            </div>
-            <div>
-              <dt>Next segment</dt>
-              <dd>{value.next_segment}</dd>
-            </div>
-            <div>
-              <dt>Archive activity / completed</dt>
-              <dd>
-                {value.archive_source_lsn} / {value.archived_source_lsn}
-              </dd>
-            </div>
-            <div>
-              <dt>Archive target</dt>
-              <dd>{value.archive_target_through_lsn ?? "None"}</dd>
-            </div>
-            <div>
-              <dt>Compaction activity / completed</dt>
-              <dd>
-                {value.compaction_source_lsn} / {value.compacted_source_lsn}
-              </dd>
-            </div>
-            <div>
-              <dt>Compaction target source</dt>
-              <dd>{value.compaction_target_source_lsn ?? "None"}</dd>
-            </div>
-          </dl>
-        </>
-      )}
-    </>
+  return state.value ? (
+    <TableStorageView page={state.value} />
+  ) : (
+    <ReadStatus failure={state.failure} retry={state.retry} subject="Table storage" />
   );
 }

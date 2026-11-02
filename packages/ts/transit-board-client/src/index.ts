@@ -1,4 +1,10 @@
-import type { StateResponse, Capabilities, StorageResponse, Error as ErrorBody } from "./types";
+import type {
+  StateResponse,
+  Capabilities,
+  Deployment,
+  StorageResponse,
+  Error as ErrorBody,
+} from "./types";
 import { inspectionResponse, type Response } from "./effects";
 export { inspectionResponse, type Response } from "./effects";
 export { DataCatalog } from "./catalog";
@@ -13,11 +19,12 @@ export type {
   CatalogTables,
   CatalogNamespaces,
   CatalogTable,
+  CatalogStorage,
   CatalogEntry,
   CatalogDependencies,
   CatalogRequest,
 } from "./catalog";
-export type { StateResponse, Capabilities, StorageResponse } from "./types";
+export type { StateResponse, Capabilities, Deployment, StorageResponse } from "./types";
 export { relationalQuery, validateRelational } from "./relational";
 export type {
   RelationalRequest,
@@ -40,11 +47,12 @@ import {
   Response as responseValidator,
   StateResponse as stateResponseValidator,
   Capabilities as capabilitiesValidator,
+  Deployment as deploymentValidator,
   StorageResponse as storageValidator,
   Error as errorValidator,
 } from "./validators.js";
 
-import { QueryError as BoardError, httpTransport } from "@transit/query-client";
+import { QueryError as BoardError, httpTransport, readDefinition } from "@transit/query-client";
 export { QueryError as BoardError } from "@transit/query-client";
 export const validateResponse = (value: unknown): value is Response => {
   if (!responseValidator(value)) return false;
@@ -56,6 +64,10 @@ export const validateResponse = (value: unknown): value is Response => {
 };
 export const validateCapabilities = (value: unknown): value is Capabilities =>
   capabilitiesValidator(value);
+export const validateDeployment = (value: unknown): value is Deployment =>
+  deploymentValidator(value) && (value as Deployment).definition === readDefinition;
+export const deployment = (signal?: AbortSignal): Promise<Deployment> =>
+  request("/api/v1/deployment", validateDeployment, { signal });
 export function validateStorage(value: unknown): value is StorageResponse {
   if (!storageValidator(value)) return false;
   const observed = value as StorageResponse;

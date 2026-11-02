@@ -21,6 +21,7 @@ import { Route as WorkbookRouteImport } from './routes/workbook'
 import { Route as DatasetsObjectRouteImport } from './routes/datasets.$object'
 import { Route as ProcessesPidRouteImport } from './routes/processes.$pid'
 import { Route as RecoveryDefinitionRouteImport } from './routes/recovery.definition'
+import { Route as RecoveryRelationalRouteImport } from './routes/recovery.relational'
 import { Route as ProcessesPidJourneyRouteImport } from './routes/processes.$pid.journey'
 
 const IndexRoute = IndexRouteImport.update({
@@ -83,6 +84,11 @@ const RecoveryDefinitionRoute = RecoveryDefinitionRouteImport.update({
   path: '/recovery/definition',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RecoveryRelationalRoute = RecoveryRelationalRouteImport.update({
+  id: '/recovery/relational',
+  path: '/recovery/relational',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProcessesPidJourneyRoute = ProcessesPidJourneyRouteImport.update({
   id: '/journey',
   path: '/journey',
@@ -102,6 +108,7 @@ export interface FileRoutesByFullPath {
   '/datasets/$object': typeof DatasetsObjectRoute
   '/processes/$pid': typeof ProcessesPidRouteWithChildren
   '/recovery/definition': typeof RecoveryDefinitionRoute
+  '/recovery/relational': typeof RecoveryRelationalRoute
   '/processes/$pid/journey': typeof ProcessesPidJourneyRoute
 }
 export interface FileRoutesByTo {
@@ -117,6 +124,7 @@ export interface FileRoutesByTo {
   '/datasets/$object': typeof DatasetsObjectRoute
   '/processes/$pid': typeof ProcessesPidRouteWithChildren
   '/recovery/definition': typeof RecoveryDefinitionRoute
+  '/recovery/relational': typeof RecoveryRelationalRoute
   '/processes/$pid/journey': typeof ProcessesPidJourneyRoute
 }
 export interface FileRoutesById {
@@ -133,6 +141,7 @@ export interface FileRoutesById {
   '/datasets/$object': typeof DatasetsObjectRoute
   '/processes/$pid': typeof ProcessesPidRouteWithChildren
   '/recovery/definition': typeof RecoveryDefinitionRoute
+  '/recovery/relational': typeof RecoveryRelationalRoute
   '/processes/$pid/journey': typeof ProcessesPidJourneyRoute
 }
 export interface FileRouteTypes {
@@ -150,6 +159,7 @@ export interface FileRouteTypes {
     | '/datasets/$object'
     | '/processes/$pid'
     | '/recovery/definition'
+    | '/recovery/relational'
     | '/processes/$pid/journey'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -165,6 +175,7 @@ export interface FileRouteTypes {
     | '/datasets/$object'
     | '/processes/$pid'
     | '/recovery/definition'
+    | '/recovery/relational'
     | '/processes/$pid/journey'
   id:
     | '__root__'
@@ -180,6 +191,7 @@ export interface FileRouteTypes {
     | '/datasets/$object'
     | '/processes/$pid'
     | '/recovery/definition'
+    | '/recovery/relational'
     | '/processes/$pid/journey'
   fileRoutesById: FileRoutesById
 }
@@ -196,6 +208,7 @@ export interface RootRouteChildren {
   DatasetsObjectRoute: typeof DatasetsObjectRoute
   ProcessesPidRoute: typeof ProcessesPidRouteWithChildren
   RecoveryDefinitionRoute: typeof RecoveryDefinitionRoute
+  RecoveryRelationalRoute: typeof RecoveryRelationalRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -284,6 +297,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RecoveryDefinitionRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/recovery/relational': {
+      id: '/recovery/relational'
+      path: '/recovery/relational'
+      fullPath: '/recovery/relational'
+      preLoaderRoute: typeof RecoveryRelationalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/processes/$pid/journey': {
       id: '/processes/$pid/journey'
       path: '/journey'
@@ -319,6 +339,7 @@ const rootRouteChildren: RootRouteChildren = {
   DatasetsObjectRoute: DatasetsObjectRoute,
   ProcessesPidRoute: ProcessesPidRouteWithChildren,
   RecoveryDefinitionRoute: RecoveryDefinitionRoute,
+  RecoveryRelationalRoute: RecoveryRelationalRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

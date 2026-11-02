@@ -5,11 +5,27 @@ workspaces. Its [OpenAPI specification](../../../contracts/transit-board-v1.open
 is generated from the Board public types; the operation and schema reference
 below is rendered from those exact bytes.
 
+## Deployment discovery
+
+`GET /api/v1/deployment` returns the current definition, native profile, realm
+and independent configured-feature flags for catalog, SQL, relational, query,
+reactive and application access. It requires the same private deployment and
+Host/Origin boundary as other Board routes. It reads local configuration without
+contacting upstream or disclosing credentials, account names or endpoints.
+Configuration is not authorization or health: each feature still checks its own
+current upstream permissions. `/api/v1/capabilities` remains an authorized native
+inspection read. Failure of that read does not disable an independent SQL or
+catalog connection.
+
 ## Catalog and logical statement results
 
 `POST /api/v1/catalog` exposes read-only public catalog operations: description,
 bounded namespace/Table/resource discovery, an exact Table definition and
-registered dependency pages. Its `history` action inspects a supplied retained
+registered dependency pages. Its `storage` action takes an exact prepared Table
+binding and reads current storage facts using the configured catalog identity,
+without a relational workspace or SQL query. It checks the current connection,
+name and interpretation before disclosure; revoked reads and changed bindings
+fail. Its `history` action inspects a supplied retained
 catalog: namespace/name lookup, bounded Table listings, exact source schemas and
 physical-definition or row-placement coverage. Row placement requires SELECT;
 definition coverage requires metadata rights. It cannot acquire, release or
@@ -206,7 +222,8 @@ operation's responsibility. The Operations view polls this read and clears its
 observation on failure or lost visibility. It starts no maintenance or data work.
 
 
-The configured relational workspace also accepts the read-only `storage`
+The catalog storage action and configured relational workspace share the same
+Table read composition. The relational workspace also accepts the read-only `storage`
 request with a configured catalog route and exact prepared Table binding. It
 uses the signed direct Table storage operation, checks the current name and
 definition, and applies the workspace identity's current object permissions.

@@ -1,111 +1,38 @@
 import { diagnosticLines } from "@transit/query-client";
 import { InterfaceShell } from "./interface";
-import { Link } from "@tanstack/react-router";
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useRead } from "./use-observation";
+import { ReadStatus } from "./read-status";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   BoardError,
-  capabilities,
+  deployment,
   read,
   readState,
   type StateResponse,
   type StateResource,
-  type Capabilities,
+  type Deployment,
   type Response,
   type Resource,
   type Cut,
 } from "@transit/board-client";
-const Context = createContext<{ scope: Capabilities | null; denied: () => void }>({
+const Context = createContext<{ scope: Deployment | null; refresh: () => void }>({
   scope: null,
-  denied: () => {},
+  refresh: () => {},
 });
 export const useScope = () => useContext(Context);
 export function Access({ children }: { children: ReactNode }) {
-  const [scope, setScope] = useState<Capabilities | null>(null);
-  const [error, setError] = useState("");
-  const [checking, setChecking] = useState(true);
-  const [retry, setRetry] = useState(0);
-  const denied = useCallback(() => {
-    setScope(null);
-    setError("Transit denied inspection. Check Board’s configured read grant, then retry.");
-  }, []);
-  const check = useCallback(async (signal?: AbortSignal) => {
-    setChecking(true);
-    try {
-      for (let attempt = 0; ; attempt++) {
-        try {
-          const next = await capabilities(signal);
-          if (signal?.aborted) return;
-          setScope(next);
-          setError("");
-          break;
-        } catch (cause) {
-          if (
-            !(cause instanceof BoardError) ||
-            cause.status !== 429 ||
-            attempt >= 3 ||
-            signal?.aborted
-          )
-            throw cause;
-          await new Promise((resolve) => setTimeout(resolve, 250));
-        }
-      }
-    } catch (cause) {
-      if (!signal?.aborted) setError(message(cause));
-    } finally {
-      if (!signal?.aborted) setChecking(false);
-    }
-  }, []);
-  useEffect(() => {
-    const controller = new AbortController();
-    void check(controller.signal);
-    return () => controller.abort();
-  }, [check, retry]);
+  const connection = useRead("deployment", deployment, 0, false);
+  // Configuration is not an authorized resource observation. Upstream denial
+  // stays with the affected view and never disables an unrelated connection.
   return (
-    <Context.Provider value={{ scope, denied }}>
-      {scope?.profile !== "native_v1" && (
-        <header>
-          <a href="/" className="brand">
-            <span aria-hidden="true">▥</span> Transit <small>BOARD</small>
-          </a>
-          <Link to="/definition">Definition</Link>
-          <span className="profile">
-            {scope?.query_enabled ? "INSPECTION · SQL QUERIES" : "INSPECTION ONLY"}
-          </span>
-        </header>
-      )}
-      {!scope ? (
-        <main className="access">
-          <p className="eyebrow">SYSTEM INSPECTION</p>
-          <h1>See the sequence.</h1>
-          <p>Arrivals, departures, and the evidence between them.</p>
-          <p role="status">{checking ? "Connecting to Board…" : error}</p>
-          {!checking && (
-            <button onClick={() => setRetry((value) => value + 1)}>Retry connection</button>
-          )}
-          <p className="muted">
-            Viewers share this installation’s configured inspection scope. Operator actions require
-            a separately enabled endpoint and signing identity.
-          </p>
-        </main>
-      ) : scope.profile === "native_v1" ? (
-        <InterfaceShell scope={scope}>{children}</InterfaceShell>
+    <Context.Provider value={{ scope: connection.value, refresh: connection.retry }}>
+      {connection.value ? (
+        <InterfaceShell scope={connection.value}>{children}</InterfaceShell>
       ) : (
-        <>
-          <aside className="scope">
-            Realm {scope.realm} ·{" "}
-            {scope.scope_pid === null ? "All authorized processes" : `PID ${scope.scope_pid}`} ·
-            shared read principal
-          </aside>
-          {children}
-        </>
+        <main className="access">
+          <h1>Transit Board</h1>
+          <ReadStatus failure={connection.failure} retry={connection.retry} subject="Board" />
+        </main>
       )}
     </Context.Provider>
   );
@@ -128,10 +55,10 @@ export function message(cause: unknown): string {
   return "Connection unavailable. No new observation was received.";
 }
 export function useObservation(resource: Resource, pid?: number) {
-  return usePagedRead<Response, Resource>(resource, pid, read, true);
+  return usePagedRead<Response, Resource>(resource, pid, read);
 }
 export function useStateObservation(resource: StateResource, id?: number) {
-  return usePagedRead<StateResponse, StateResource>(resource, id, readState, false);
+  return usePagedRead<StateResponse, StateResource>(resource, id, readState);
 }
 function usePagedRead<
   T extends { observation: { cut: Cut; next: number | null } },
@@ -145,9 +72,7 @@ function usePagedRead<
     continuation?: { cut: Cut; after: number },
     signal?: AbortSignal,
   ) => Promise<T>,
-  clearScope: boolean,
 ) {
-  const { denied } = useScope();
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState("");
   const [observedAt, setObservedAt] = useState<string>("");
@@ -178,7 +103,6 @@ function usePagedRead<
         setError(message(cause));
         if (cause instanceof BoardError && cause.status === 403) {
           setData(null);
-          if (clearScope) denied();
           return;
         }
         // A stale continuation needs an explicit restart, never automatic stitching.
@@ -193,7 +117,7 @@ function usePagedRead<
       clearTimeout(timer);
       controller.abort();
     };
-  }, [resource, pid, continuation, refresh, denied, fetchPage, clearScope]);
+  }, [resource, pid, continuation, refresh, fetchPage]);
   return {
     data,
     error,
