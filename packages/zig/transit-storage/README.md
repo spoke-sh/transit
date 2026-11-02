@@ -324,8 +324,13 @@ The Queue owner caches an earliest eligibility prefix in that wheel, with 64
 entries by default (`Options.queue_visibility_rows`, 1–4,096). Each selection pass
 loads at most the smaller of capacity and declared `timer_steps`, then advances
 at most `timer_steps` wheel units. Deterministic publication validation may repeat
-selection. The cache binds its immutable item directory and scheduled count; changed
-roots or a backward speculative observation discard it. Incomplete advancement
+selection. The cache binds its immutable item directory and scheduled count.
+Deterministic claims remove their acquired events from the verified prefix;
+renewals and unordered ACKs preserve its remaining entries because they add no
+eligible work. These transitions rebind the hint to their exact resulting item
+root. An unpublished candidate therefore cannot supply a hint for the accepted
+root. Other changed roots or a backward speculative observation discard it.
+Exhausting a partial prefix requires a bounded durable refill. Incomplete advancement
 or a cursor beyond a partial prefix uses the durable directory. A full cache
 cannot establish an empty claim. Each selected event still validates its current
 durable item and `.tack` state; current authority and time remain separate checks.
