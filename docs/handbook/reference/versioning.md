@@ -108,7 +108,13 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`afac2bd84560136ca90c0683afdffb8f71d5f96568b05dd3de773ce3c5339b2a`.
+`c3cbdfe99cdb08a8a21cc2429783fd746b1311b096d9ca8371058e1abb037b64`.
+It requires the catalog's paged transaction-record inventory and the `TXR1`
+owned result envelope. Managed pages/manifests bind their original transaction;
+earlier catalog roots and saved result formats reject without inferred ownership
+or a compatibility fallback. Closed aborts retain their identity evidence while
+physical candidate cleanup becomes eligible.
+
 It adds canonical range/multirange and unboxed vector values, their logical
 Arrow layouts, and mandatory neutral column semantics. Schema/layout identities
 bind decimal rounding, vector metrics, actual pinned TZif artifacts and reserved

@@ -164,6 +164,7 @@ pub const testing = if (@import("builtin").is_test) struct {
 } else struct {};
 pub const DirectIntent = @import("DirectIntent.zig");
 pub const DirectRecord = @import("DirectRecord.zig");
+pub const DirectTransactionRecord = @import("DirectTransactionRecord.zig");
 pub const DirectClientToken = @import("DirectClientToken.zig");
 pub const DirectMigration = @import("DirectMigration.zig");
 pub const BrowserRecordStore = @import("BrowserRecordStore.zig");

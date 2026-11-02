@@ -144,6 +144,42 @@ bytes participate in the immutable key; removing the guard selects another key.
 Payload interpretation remains with the format owner. This bounded request
 profile does not limit the number of retained records or authorize collection.
 
+`record.stage_transaction` stages guarded immutable bytes under an acquired,
+read-write original transaction. Its mandatory fields are `transaction`
+(`DirectClientToken.Key`), guarded inner `format` and binary `bytes`. The owner
+creates a `TXR1` (`0x54585231`) envelope with mandatory current `definition`,
+original `transaction`, inner `format` and binary `payload`. Its complete content
+and scope determine its key in `transaction-records/`. Generic `record.stage`
+rejects `TXR1`; generic `record.read` verifies its registered owner and the inner
+read requirements before disclosure. This operation does not execute the payload
+or assert that it computes an honest result.
+
+A mandatory paged `transaction_records` catalog directory records each content
+identity before its physical put, then records readiness. These publications do
+not advance the transaction's retained read revision. Exact retries resume the
+same reservation after lost registration, put or readiness replies. Commit
+refuses pending reservations. A frozen transaction cannot create records; an
+exact ready retry may only verify existing bytes and return the original
+reference. Missing accepted bytes are an error, never silently reconstructed.
+Savepoint rollback does not release these transaction-wide reservations.
+
+Each record charges its encoded envelope bytes plus 32 KiB of metadata allowance
+against the original transaction's workspace quota, alongside its ordinary
+workspace. Inventory and scans are paged; quotas bound accepted bytes without
+making durable record count a resident array limit. Request bytes retain the
+existing DirectRecord bound. Quota refusal cannot discard accepted reservations.
+
+Active, uncertain and preparing transactions retain their candidate payloads.
+Committed transactions retain all registered result records indefinitely,
+independently of mutable output rows or computation retirement. Only an
+authoritative abort with complete transaction cleanup removes their payload
+reachability. The original token and catalog inventory remain recovery evidence
+and permanently refuse late staging. Collection still requires the backend's
+accepted epoch/time fences and reader grace. A reservation whose bytes do not
+yet exist is valid: a later physical put receives a newer allocation epoch.
+Ordinary `direct-records/` records remain outside collection authority. This is
+private candidate cleanup, not logical expiry or completed-result release.
+
 `DirectIntent.Reference.log` fixes the connection, namespace, Stream/Queue kind,
 original `DataLifecycle.Binding` and account-scoped immutable `DirectRecord`.
 Its `DirectLogIntent.Saved` body requires the current definition and complete

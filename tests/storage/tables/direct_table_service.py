@@ -95,7 +95,8 @@ def run(node, caller, mode="tables", *artifacts):
         pressure_scan = []
         capture_pressure_scan = False
         board_fault = {"next": None, "accepted": []}
-        managed_fault = {"pages_before_failure": None, "failed": False}
+        managed_fault = {"pages_before_failure": None, "failed": False, "staging_reply_lost": False}
+        managed_pages = set()
         growth_attempts = root / "growth-attempts" if mode == "growth" else None
         if growth_attempts is not None:
             growth_attempts.mkdir(mode=0o700)
@@ -115,7 +116,7 @@ def run(node, caller, mode="tables", *artifacts):
                 envelope = json.loads(body)
                 record = envelope.get("action", {}).get("record") if isinstance(envelope.get("action"), dict) else None
                 if (mode == "managed" and record and "read" in record
-                        and record["read"]["format"] == 0xC4465031
+                        and tuple(record["read"]["content"]["sha256"]) in managed_pages
                         and managed_fault["pages_before_failure"] is not None):
                     if managed_fault["pages_before_failure"] == 0:
                         managed_fault.update(pages_before_failure=None, failed=True)
@@ -178,6 +179,23 @@ def run(node, caller, mode="tables", *artifacts):
                     connection.request("POST", self.path, body, headers)
                     response = connection.getresponse()
                     data = response.read()
+                    owned = record.get("stage_transaction") if record else None
+                    if mode == "managed" and owned and response.status == 200:
+                        reference = json.loads(data)["result"]["record"]["reference"]
+                        assert reference["format"] == 0x54585231
+                        if owned["format"] == 0xC4465031:
+                            managed_pages.add(tuple(reference["content"]["sha256"]))
+                        if not managed_fault["staging_reply_lost"]:
+                            # Durable registration and bytes have been accepted;
+                            # the caller must resume this original transaction.
+                            managed_fault["staging_reply_lost"] = True
+                            data = b'{"err":"AuthorityUnavailable"}'
+                            self.send_response(503)
+                            self.send_header("Content-Type", "application/json")
+                            self.send_header("Content-Length", str(len(data)))
+                            self.end_headers()
+                            self.wfile.write(data)
+                            return
                     if attempt is not None:
                         metrics = response.getheader("x-transit-work")
                         attempt.with_suffix(".response.json").write_text(json.dumps({
@@ -723,6 +741,7 @@ def run(node, caller, mode="tables", *artifacts):
                 return
             if mode == "managed":
                 subprocess.run([caller, endpoint, "managed-prepare", str(profile)], check=True, timeout=600)
+                assert managed_fault["staging_reply_lost"], managed_fault
                 authority.kill()
                 authority.wait(timeout=15)
                 authority = start()

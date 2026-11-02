@@ -2499,3 +2499,70 @@ test "automatic Queue maintenance requires its database signer and resumes the o
     second = .{};
     try t.expectEqual(@as(usize, 0), memory.used);
 }
+
+test "transaction owned records survive local collection and closed abort payloads are reclaimed" {
+    typed_dispatch = false;
+    try dataSchedule(ownedRecordsDispatch);
+}
+
+fn ownedRecordsDispatch(service: *@import("LocalTableService.zig"), owner_role: u64) !void {
+    const w = c.DirectTableProtocol;
+    const scope = service.configuration.scope;
+    const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
+    const schema: c.fuze.TableSchema.Schema = .{ .object = 100000, .revision = 1, .next_column = 2, .columns = &columns };
+    const intent: D.Intent = .{ .kind = .table, .namespace = 1, .name = try .init("record_source"), .action = .{ .create = .{ .schema = schema, .owner = owner_role } } };
+    const binding: p.DataLifecycle.Binding = .{ .definition = g.current_definition, .identity = .{ .scope = scope, .principal = 101, .operation = 100000 }, .target = .{ .scope = scope, .branch = 1, .object = 100000 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(t.allocator) };
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    var encoded: [65536]u8 = undefined;
+    (try dispatch(service, .{ .admit_ddl = .{ .binding = binding, .namespace = 1, .name = "record_source", .action = .{ .create = .{ .owner = owner_role, .schema = try w.Binary.encode(allocator, try schema.encode(&encoded)) } } } })).deinit();
+    (try dispatch(service, .{ .operation = .{ .binding = binding, .command = .execute, .steps = 4 } })).deinit();
+    const connection: w.Connection = .{ .scope = scope, .branch = 1, .audience = service.configuration.audience, .principal = 101, .role = null };
+    const digest: [32]u8 = @splat(17);
+    var policy = try Policy.init(service.engine, service.configuration, try proof(service.engine, digest), digest, null);
+    var control: backend.DataStore = .{ .backend = service.engine.journal.backend, .control = true };
+    var data: backend.DataStore = .{ .backend = service.engine.journal.backend };
+    var catalog = try D.init(t.allocator, service.configuration, control.log(), control.objects(), data.log(), data.objects(), .{ .resident_pages = 1 });
+    defer catalog.deinit();
+    var requests: [4]c.DirectRecord.Request = undefined;
+    var references: [4]c.DirectRecord.Reference = undefined;
+    for (&requests, &references, 0..) |*request, *reference, i| {
+        const token: c.DirectClientToken.Key = .{ .definition = g.current_definition, .connection = connection, .account = @splat(80), .token = @splat(@as(u8, @intCast(81 + i))) };
+        (try dispatch(service, .{ .transaction = .{ .begin = .{ .key = token, .fingerprint = @splat(82), .operation = .{ .scope = scope, .principal = 101, .operation = 110000 + i }, .namespace = 1, .mode = .serializable, .selection = .authorized_catalog_tables, .limits = c.DirectTransaction.default_limits, .budget = .{} } } })).deinit();
+        (try dispatch(service, .{ .transaction = .{ .acquire = token } })).deinit();
+        const guarded = try c.DirectRecord.encodeGuarded(allocator, connection, .{ binding.target, null, null }, "candidate");
+        request.* = .{ .stage_transaction = .{ .transaction = token, .format = c.DirectRecord.guarded_bit | 17, .bytes = try w.Binary.encode(allocator, guarded) } };
+        reference.* = try c.DirectRecord.reference(token.scope(), c.DirectTransactionRecord.format, try c.DirectTransactionRecord.encode(allocator, token, request.stage_transaction.format, guarded));
+        if (i == 3) {
+            // Durable inventory can exist before any physical object creation.
+            try catalog.recover();
+            catalog.store.lose_reply = true;
+            try t.expectError(error.LostAcknowledgement, catalog.directRecord(allocator, request.*, policy.policy()));
+            catalog.store.lose_reply = false;
+        } else {
+            const staged = try dispatch(service, .{ .record = request.* });
+            defer staged.deinit();
+            try reference.requireSame(staged.value.result.record.reference);
+            if (i == 0) continue;
+            for (0..8) |_| {
+                const status = try dispatch(service, .{ .transaction = .{ .settle = .{ .key = token, .operation = .{ .scope = scope, .principal = 101, .operation = 120000 + i }, .command = if (i == 1) .commit else .abort, .steps = 32 } } });
+                defer status.deinit();
+                if (status.value.result.transaction.status.cleanup_complete) break;
+            } else return error.FixtureBudget;
+        }
+    }
+    try catalog.recover();
+    try collectDirect(service.engine, &catalog);
+    var name: [96]u8 = undefined;
+    for (references, 0..) |reference, i| {
+        try t.expectEqual(i < 2, try data.objects().head(try c.DirectRecord.key(reference, &name)) != null);
+        if (i < 2) (try dispatch(service, .{ .record = .{ .read = reference } })).deinit();
+    }
+    try t.expectError(error.TransactionRecordClosed, catalog.directRecord(allocator, requests[2], policy.policy()));
+    // Creation after the earlier collection cut retains the same reservation.
+    try references[3].requireSame((try catalog.directRecord(allocator, requests[3], policy.policy())).reference);
+    try collectDirect(service.engine, &catalog);
+    (try dispatch(service, .{ .record = .{ .read = references[3] } })).deinit();
+    try t.expect(try data.objects().head(try c.DirectRecord.key(references[2], &name)) == null);
+}

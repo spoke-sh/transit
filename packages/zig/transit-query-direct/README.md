@@ -76,7 +76,10 @@ and before exposing schema, metadata or rows. Reads recheck current source, outp
 and control access, including empty and terminal results. Defaults bound consumption
 to 10,000 rows and 16 MiB of encoded manifest/page bytes. Budget stops and failures
 do not establish completion. `deinit` frees local memory without releasing the
-retained revision or retiring the computation.
+retained revision or retiring the computation. Result pages and manifests use
+transaction-owned immutable records. Their original transaction retains them
+through uncertainty; completed abort cleanup permits physical candidate
+collection. Committed records retain indefinitely.
 
 See [managed Table computations](../../../docs/handbook/reference/queries.md#managed-table-computations)
 for supported SQL, current-policy checks and retention limits.

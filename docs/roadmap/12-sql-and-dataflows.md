@@ -349,9 +349,15 @@ result lifecycle. Output edits and retirement do not rewrite saved results.
 This is the first review unit below, not completion of R0 or R1 as a whole.
 The current-v1 cutover replaces the old checkpoint-only revision value and
 migrates schemas, signatures and binding resources together. Existing
-`DirectRecord.Reference` roots retain indefinitely outside collection authority.
-R1b still owns creation/closure fences, graph registration and abandoned-work
-collection. Historical SQL row fetching, history consumers, multi-source
+ordinary `DirectRecord.Reference` roots retain indefinitely outside collection
+authority. The next implemented R1b unit adds transaction-owned `TXR1` result
+pages/manifests: paged registration precedes creation, commit refuses unfinished
+registration, and frozen owners cannot create or resurrect bytes. The storage
+graph preserves uncertain and committed candidates and releases aborted payloads
+only after authoritative transaction cleanup. Original declaration/work records
+and ownership metadata remain retained recovery evidence. Broader work-record
+closure and the full combined collection/crash matrix remain R1b/R3a work.
+Historical SQL row fetching, history consumers, multi-source
 execution, the full fault/growth matrix and T5/T8 correspondence remain open.
 The [qualification record](../history/qualification/query.md#retained-managed-table-revisions--2026-11-01)
 records executed checks and their source-specific limits.
@@ -366,7 +372,7 @@ complete R1b collection or introduce incremental execution.
 
 | Boundary | Present at the plan baseline | Work identified by the plan |
 | --- | --- | --- |
-| Installed managed Tables | [`ManagedTable`](../../packages/zig/transit-query-direct/src/ManagedTable.zig), [`ManagedRevision`](../../packages/zig/transit-query-direct/src/ManagedRevision.zig), [`DatabaseRuntime`](../../packages/zig/transit-sql/src/DatabaseRuntime.zig), [`ManagedSql`](../../packages/zig/transit-sql/src/ManagedSql.zig) and [`ManagedOperations`](../../packages/zig/transit-sql-service/src/ManagedOperations.zig) implement durable declarations, original work, control fencing, atomic output/checkpoint/immutable revision publication, bounded retained reads and publication-driven recovery | Add owned staging cleanup, historical SQL row consumption, full recovery/resource qualification and history-driven consumers. Preserve the delivered DFR1 manifest and raw-record disclosure guards |
+| Installed managed Tables | [`ManagedTable`](../../packages/zig/transit-query-direct/src/ManagedTable.zig), [`ManagedRevision`](../../packages/zig/transit-query-direct/src/ManagedRevision.zig), [`DatabaseRuntime`](../../packages/zig/transit-sql/src/DatabaseRuntime.zig), [`ManagedSql`](../../packages/zig/transit-sql/src/ManagedSql.zig) and [`ManagedOperations`](../../packages/zig/transit-sql-service/src/ManagedOperations.zig) implement durable declarations, original work, control fencing, atomic output/checkpoint/immutable revision publication, bounded retained reads and publication-driven recovery | Complete declaration/work-record cleanup, historical SQL row consumption, full recovery/resource qualification and history-driven consumers. Transaction-owned result candidates now join the retained graph. Preserve the delivered DFR1 manifest and raw-record disclosure guards |
 | Saved-record lifetime | [`DirectRecord`](../../packages/zig/transit-catalog/src/DirectRecord.zig) provides immutable stage/read operations; [`DirectStorageGraph`](../../packages/zig/transit-catalog/src/DirectStorageGraph.zig) excludes `direct-records/` from collection | Add durable creation/closure and reference ownership before admitting managed records to collection. A guarded record's read envelope is not a retention/collection authority; never enable collection for the entire shared prefix |
 | Historical interpretation | [`DirectHistory`](../../packages/zig/transit-catalog/src/DirectHistory.zig), historical SQL and versioned catalog definitions now retain selected names, Table definitions and independent or transferred common cuts | Compose the actual M10 owner in R2/R6. A catalog snapshot is not a protected ordered change interval; temporal periods and AS OF joins still need their own semantics |
 | Earlier captured/maintained queries | [`RelationalMaintenance`](../../packages/zig/transit-query/src/RelationalMaintenance.zig), [`RelationalHistory`](../../packages/zig/transit-query/src/RelationalHistory.zig) and [`NamedRelational`](../../packages/zig/transit-station-app/src/NamedRelational.zig) preserve their [supported host-driven profile](../handbook/reference/queries.md#maintained-table-revisions) | Migrate only after the direct owner preserves captured definitions, retained revisions/deltas, ordered failures, original attribution and cleanup. Their independent Table vectors do not establish common-cut semantics |
@@ -972,10 +978,12 @@ tests alone. R9 migration work and R10 correspondence accompany every row.
 | **R9 — Complete migration and caller matrix** | Finish captured/maintained migration, shared data client/SDKs, applicable gateways/Flight and read-only Board | Per-feature migration starts immediately; closure after R4–R8 | Real caller journeys, foreign-definition rejection, retained old attribution, no captured API loss and removal of superseded paths |
 | **R10 — Common-revision qualification** | Final T5/T8/A3 correspondence, fault/resource/performance evidence and public profile | All prior exits | Full required clean qualification at one committed revision; unresolved failures closed, omissions explicit and all milestone acceptance criteria met |
 
-**Next implementation PR: R1b, owned staging and retained-graph registration.**
-R0/R1a has merged. Rebase the implementation onto current main, record the exact
-source/definition, and refresh the combined-source baseline before changing
-persisted semantics. Keep the installed single-source finite operator profile.
+**Current implementation unit: R1b transaction-owned result candidates.**
+R0/R1a has merged. The implementation starts at `db0bb4a8f` and preserves the
+installed single-source finite operator profile. Candidate ownership reuses the
+original transaction; it introduces neither a second scheduler nor a general
+collection rule for `direct-records/`. Continue with work-record closure and the
+remaining finite qualification matrix before marking R1b/R3a complete.
 R3a starts its recovery/measurement work immediately; R5a can proceed after
 agreeing on source bindings, shared types and result contracts. Neither requires
 a new scheduler, a second historical catalog or all remaining Station work.
@@ -985,8 +993,9 @@ a new scheduler, a second historical catalog or all remaining Station work.
 The user-visible outcome is that Transit can reclaim explicitly abandoned private
 work while every accepted operation and retained completed revision remains
 recoverable. A retired computation still serves its retained revisions under
-current rights; it does not implicitly opt into expiry. The following steps are
-proposed implementation work, not existing APIs.
+current rights; it does not implicitly opt into expiry. The table records the complete target. Transaction-owned candidate registration
+and abort collection are implemented; declaration/work-record closure and the
+full installed matrix remain proposed work.
 
 | Step | Owning code/contracts | Reviewable change and exit |
 | --- | --- | --- |

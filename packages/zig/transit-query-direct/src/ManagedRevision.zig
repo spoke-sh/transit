@@ -88,7 +88,7 @@ fn nextInner(self: *Self, output: *std.heap.ArenaAllocator) !?f.TableRow.Row {
     }
     const reference = self.next_page orelse return error.IncompleteDataflowCoverage;
     if (self.read_rows == self.limits.rows or reference.content.bytes > self.limits.bytes - self.read_bytes) return error.ManagedTableResultBudget;
-    if (reference.format != M.page_format or !std.meta.eql(reference.scope, self.root.scope)) return error.InvalidManagedTableRecord;
+    if (reference.format != c.DirectTransactionRecord.format or !std.meta.eql(reference.scope, self.root.scope)) return error.InvalidManagedTableRecord;
     var client = self.manager.client;
     client.allocator = self.scratch.allocator();
     const manager: M = .{ .client = client };

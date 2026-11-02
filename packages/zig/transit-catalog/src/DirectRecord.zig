@@ -65,11 +65,13 @@ pub const Reference = struct {
     }
 };
 pub const Request = union(enum) {
+    stage_transaction: c.DirectTransactionRecord.Request,
     stage: struct { scope: Scope, format: u32, bytes: w.Binary },
     read: Reference,
     pub fn scope(self: Request) Scope {
         return switch (self) {
             .stage => |value| value.scope,
+            .stage_transaction => |value| value.transaction.scope(),
             .read => |value| value.scope,
         };
     }
@@ -77,6 +79,7 @@ pub const Request = union(enum) {
         try self.scope().validate();
         switch (self) {
             .read => |value| try value.validate(),
+            .stage_transaction => |value| try value.validate(),
             .stage => |value| if (value.format == 0) return error.InvalidDirectRecord,
         }
     }
@@ -97,7 +100,7 @@ pub fn key(value: Reference, output: *[96]u8) ![]const u8 {
     try p.Json.write(value, &encoder);
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(writer.buffered(), &digest, .{});
-    return std.fmt.bufPrint(output, "direct-records/{x}.data", .{&digest});
+    return std.fmt.bufPrint(output, "{s}/{x}.data", .{ if (value.format == c.DirectTransactionRecord.format) "transaction-records" else "direct-records", &digest });
 }
 pub fn store(objects: Objects.ObjectStore, scope: Scope, format: u32, bytes: []const u8) !Reference {
     const value = try reference(scope, format, bytes);

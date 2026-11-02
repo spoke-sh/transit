@@ -250,6 +250,14 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
             const input = request.action.record;
             if (!std.meta.eql(value.reference.scope, input.scope())) return error.DataIdentityConflict;
             switch (input) {
+                .stage_transaction => |staged| {
+                    if (value.bytes != null) return error.InvalidTableResponse;
+                    const payload = try staged.bytes.decode(allocator, c.DirectRecord.max_bytes);
+                    defer allocator.free(payload);
+                    const bytes = try c.DirectTransactionRecord.encode(allocator, staged.transaction, staged.format, payload);
+                    defer allocator.free(bytes);
+                    try value.reference.requireSame(try c.DirectRecord.reference(staged.transaction.scope(), c.DirectTransactionRecord.format, bytes));
+                },
                 .stage => |staged| {
                     if (value.bytes != null) return error.InvalidTableResponse;
                     const bytes = try staged.bytes.decode(allocator, c.DirectRecord.max_bytes);
