@@ -110,10 +110,16 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030):
         budget=dict(limits=dict(operations=1000000, bytes=4294967296, pending=1024), bytes=4608)))
 
     def settle(initial, terminal, pending):
-        action, status, uncertain, conflicts = initial, None, 0, 0
+        action, status, uncertain, conflicts, injected = initial, None, 0, 0, 0
         for _ in range(32):
             try:
                 status = call(action)['status']
+                if operation == 900030 and terminal == 'published' and 'advance' in action and not injected:
+                    # Deterministic lost-progress schedule: hide one successful
+                    # step and require an inspection of its original identity.
+                    # This is injected evidence, not an observed storage refusal.
+                    injected = 1
+                    raise HistoricalConflict()
             except UNCERTAIN_TRANSPORT:
                 # Inspect the saved operation after an incomplete reply. Never
                 # select a new frontier or assign a replacement acquisition.
@@ -147,7 +153,8 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030):
             if phase == terminal:
                 if uncertain or conflicts:
                     print(json.dumps(dict(profile='board_history_original_recovery', operation=operation,
-                        phase=phase, uncertain_replies=uncertain, conflict_observations=conflicts)), flush=True)
+                        phase=phase, uncertain_replies=uncertain,
+                        conflict_observations=conflicts-injected, injected_conflicts=injected)), flush=True)
                 return status
             assert phase in pending, status
             action = initial if terminal == 'released' and phase == 'published' else dict(advance=token)
