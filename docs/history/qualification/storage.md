@@ -550,6 +550,48 @@ fixture; definition/data-frontier checks and retained original row values remain
 required. The change does not implement a rewrite runtime or reinterpret the
 failed installation's accepted operations.
 
+The subsequent working-tree `just test::direct-table-service` check passes both
+installed profiles with this fixture correction. Table executes **2,208 typed
+calls**, preserving original rows and refusals across three restarts, metadata
+changes, DROP/name reuse, delegated read closure and current authorization.
+The separate Queue profile passes FIFO heads, wait admission/timeout, original
+empty claims, four lost replies, ACK, automatic retired-lease expiry, tiered
+payload reads, explicit read closure and terminal retention across SIGKILL and
+restart. The summary names metadata changes rather than claiming synchronous
+rewrites. `/var/tmp/transit-m6-direct-table-rewrite.log` has SHA-256
+`43aac476b9c8cbb6cec34340ff1fc6a68d1de1a447d713380720d0a440a6bfd9`.
+This working-tree result does not qualify the earlier failed clean lane.
+
+The fourth invocation of `nix develop --option eval-cache false --command just
+ci clean --lane storage-query` **passes all 33/33 tasks** at clean commit
+`655067be1bb82597cd97adb1098aa6e8c41c6f49`. The owner metadata records
+`completed: true`, `dirty: false`, the complete expected task inventory and zero
+exit codes throughout. This includes full native catalog checks, both installed
+Table/Queue profiles, mixed state/log transactions, automatic Queue transfers,
+original workload tokens/results, maintenance, storage collection, local
+Documents, public queries, publication and catalog growth. The final growth
+case verifies **139 initialized KV/Document objects**, eight-entry directory
+pages and the original first receipt before and after node SIGKILL/restart,
+using **1,437 typed catalog calls**.
+
+Evidence is retained under
+`.cache/ci/clean/655067be1bb8-transit-ci-vah4yczk/`:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `storage-query.meta.json` | `e9dc22352579415acb330f44f6fd0bbd54c8667aa12b79ad9aa27c8a2a27894d` |
+| `storage-query.json` | `b52be6102ec7f6ebee663eedbe692ad5653064ca0ddbae11aebe9af85b8f6fec` |
+| `preparation.json` | `2d7bf1975c0dadbc1d11af99de194c117be11c2d2758ea82e8acd0da0a2d31a8` |
+
+The transcript `/var/tmp/transit-m6-clean-storage-query-4.log` has SHA-256
+`20571ec8c29278fab87b12514bd157a36c6225c3dc447c7a0d4f4f2ed5453c07`.
+The lane reports **9,293.21 s**; these functional-check durations are not
+isolated performance measurements. Earlier failed or interrupted invocations
+retain their outcomes. This closes the selected storage/query integration gate
+for the initial M6 recovery batch, not complete repository, provider or milestone
+qualification. Core, SQL-interface, model and performance evidence retain the
+separate revisions recorded in their owning accounts.
+
 ## Verified Queue eligibility prefixes across transitions — 2026-11-01
 
 Commit `41b371ff6` carries a bounded eligibility prefix across deterministic
