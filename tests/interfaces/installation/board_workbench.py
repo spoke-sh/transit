@@ -19,7 +19,7 @@ from interfaces.installation.server_application_faults import ExistingKey, nativ
 from query.logical.fuze_types import descriptor
 
 
-class HistoricalConflict(Exception):
+class CatalogConflict(Exception):
     """A conflict requires observing the saved operation, never a new selection."""
 
 UNCERTAIN_TRANSPORT = (ConnectionError, TimeoutError, IncompleteRead, RemoteDisconnected)
@@ -44,8 +44,9 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030):
         signature = key.sign(hashlib.sha256(b'transit.authorization.subject.v1\0' + compact(claim)).digest())
         status, data = exchange(port, '/table/v1', dict(body, proof=dict(claim=claim, signature=signature)), None)
         response = json.loads(data)
-        if status == 409 and response == {'err': 'Conflict'} and 'historical_catalog' in action:
-            raise HistoricalConflict()
+        if status == 409 and response == {'err': 'Conflict'} and (
+                'historical_catalog' in action or 'declaration' in action.get('descriptor', {})):
+            raise CatalogConflict()
         assert status == 200, (status, data)
         return response['result']
 
@@ -79,17 +80,32 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030):
                 intent=list(hashlib.sha256(b'transit.catalog.interpretation.intent.v1\0'+compact(intent)).digest()), prerequisite=None)
             saved = dict(binding=binding, intent=intent)
             (fixture.root / f'definition-intent-{object_id}.json').write_text(json.dumps(saved))
+            conflicts, injected = 0, 0
             for _ in range(32):
                 # Exercise bounded registration progress under the installed
                 # request deadline, retaining the same saved declaration.
                 try:
                     result = direct(dict(descriptor=dict(declaration=dict(request=saved, command='accept', steps=1))))['descriptor']['observation']
+                    if index == 0 and not injected:
+                        # Hide one completed step: recovery must use the saved
+                        # declaration even if publication already succeeded.
+                        injected = 1
+                        raise CatalogConflict()
                 except UNCERTAIN_TRANSPORT:
                     # Acceptance may already be durable. The next bounded
                     # attempt addresses this exact binding and intent.
                     continue
+                except CatalogConflict:
+                    # Resume this saved declaration after a publication CAS
+                    # conflict, within the original 32-step progress bound.
+                    conflicts += 1
+                    continue
                 if 'operation' in result:
+                    assert result['operation']['binding'] == binding, 'Declaration recovery changed the saved binding'
                     assert result['operation']['phase'] == 'applied', result
+                    if conflicts:
+                        print(json.dumps(dict(profile='board_definition_original_recovery', operation=object_id,
+                            conflict_observations=conflicts-injected, injected_conflicts=injected)), flush=True)
                     break
                 assert result == {'registration_pending': {}}, result
             else:
@@ -119,14 +135,14 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030):
                     # step and require an inspection of its original identity.
                     # This is injected evidence, not an observed storage refusal.
                     injected = 1
-                    raise HistoricalConflict()
+                    raise CatalogConflict()
             except UNCERTAIN_TRANSPORT:
                 # Inspect the saved operation after an incomplete reply. Never
                 # select a new frontier or assign a replacement acquisition.
                 uncertain += 1
                 action = dict(inspect=token)
                 continue
-            except HistoricalConflict:
+            except CatalogConflict:
                 # A physical storage epoch can change between bounded steps.
                 # Inspect the original accepted identity after a conflict. The
                 # same 32-step bound still applies; a persistent conflict fails.
@@ -317,6 +333,10 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
         for index, statement in enumerate(('INSERT INTO metrics VALUES (999, NULL)', 'DROP TABLE metrics', 'SET sql.idle_ms = 1', 'SELECT transit_reload_conf()'), 6):
             response = run_sql(index, statement, 400)
             assert response['err'] in ('ReadOnlyStatementRequired', 'UnsupportedQuery'), response
+            if statement == 'SET sql.idle_ms = 1':
+                # Native rejection evidence must survive the failed reader's
+                # cleanup instead of collapsing to a generic unsupported query.
+                assert response['diagnostic']['cause'] == 'SettingNotSessionMutable', response
             count = fixture.console('SELECT COUNT(*) FROM metrics;\n')[0]
             assert count['rows'][0][0]['value']['atom']['unsigned'] == '145', count
         assert run_sql(15, table['preview_sql'], 409, '{}')['err'] == 'QueryConflict'

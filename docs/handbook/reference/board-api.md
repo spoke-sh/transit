@@ -51,6 +51,9 @@ to 64 KiB, value allocations to 2 MiB per window and SQL-read replies to 4 MiB.
 Current authority is rechecked before every disclosure, including repeated and
 empty terminal windows. Limits, failures or closed readers cannot establish
 complete coverage. Reader IDs do not create per-viewer sessions.
+Native SQL rejection replies preserve their original cause and structured
+diagnostic; when no structured diagnostic exists, Board includes the SQLSTATE.
+This evidence does not authorize retrying or restarting the statement.
 
 See [data workbench configuration and lifecycle](../../../apps/transit-board/docs/workbench.md)
 for source-definition checks, expiry and cleanup. Existing query, Live and

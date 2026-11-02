@@ -175,6 +175,9 @@ expected Table definition. Repeated next requests bind the last delivered positi
 an uncertain advance cannot create another SELECT. Expiry is checked on each
 request; deinitialization releases all readers. Native session leases independently
 bound abandoned remote resources.
+When admission fails, `rejection` retains the native code, SQLSTATE and optional
+structured diagnostic after reader cleanup. This owned evidence is cleared by
+the next `apply`; it never authorizes resubmission.
 
 Each view owns at most 100 rows in a 2 MiB allocation budget and has a 4 MiB JSON
 response ceiling. Exceeding a byte budget fails closed; it cannot imply completion.
