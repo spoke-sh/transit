@@ -5544,3 +5544,29 @@ lookup, preserving the current refusal contract.
 After the Queue fixture repair in `85ec3cf56`, the focused log-privilege target
 passes **2/2 tests**, including its Stream/Queue maintenance schedules and current
 disclosure checks, in 26 minutes. All **64** fast checks also pass on that source.
+
+The final clean `storage-query` attempt at
+`85ec3cf56871ef83deeeebc4d2225e3b3f73b6e7` finished on **2026-11-02**. It passed
+through the complete `test::local-catalog` target, including both repaired
+fixtures, then **failed** `test::direct-table-service` during recovery:
+`physicalColumns` expected `constraint` and received `rewrite_required`.
+The checkout and phase evidence remain at `/var/tmp/transit-ci-2t1luk8w`; the
+service proof retained its state at `/var/tmp/transit-table-tables-w78k5lsv`.
+
+Source inspection identifies an unchanged baseline mismatch:
+[`direct_table_lifecycle.zig`](../../../tests/catalog/tables/direct_table_lifecycle.zig)
+expects a populated Table's physical alteration to validate existing rows and a
+later collation rewrite to succeed. M10 commit `9d7a15fd6` instead makes
+[`TablePartition`](../../../packages/zig/transit-storage/src/TablePartition.zig)
+refuse that rewrite before predicate execution, as documented in the
+[Tables reference](../../handbook/reference/tables.md). Both the fixture and
+that refusal path are identical to base `db0bb4a8f`; this is source attribution,
+not a separately executed base-branch reproduction. Their migration is outside
+this encoded-predicate increment.
+
+The lane is failed, not qualified. Its later direct transaction/log, concurrency,
+collection, Document, public-query, publication, Table-query-writer and catalog
+targets did not run. The separately passed focused query, diagnostic, fast and
+documentation checks above retain only their stated coverage. Subsequent
+commits change documentation and one allocation-ownership comment, not the
+executable source tested by this clean attempt.
