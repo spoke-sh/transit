@@ -23,6 +23,11 @@ import {
   useInspector,
 } from "./workbench-layout";
 import "./workbench.css";
+import { useRead } from "./use-observation";
+import { useScope } from "./state";
+import { ReadStatus } from "./read-status";
+import type { ReadFailure } from "./observation";
+import { FeatureAccess } from "./feature-access";
 
 const catalog = new DataCatalog();
 
@@ -36,74 +41,17 @@ export function DataRoute({ path, children }: { path: string; children: ReactNod
   );
 }
 
-/** Replace each observation; hidden, failed or superseded reads disclose no cache. */
 function useMetadata<T>(key: string, read: (signal: AbortSignal) => Promise<T>) {
-  const [value, setValue] = useState<T | null>(null);
-  const [error, setError] = useState("");
-  const [retry, setRetry] = useState(0);
-  useEffect(() => {
-    let disposed = false;
-    let controller: AbortController | null = null;
-    let timer: ReturnType<typeof setTimeout>;
-    setValue(null);
-    setError("");
-    async function refresh() {
-      if (disposed || document.hidden || controller) return;
-      const abort = new AbortController();
-      controller = abort;
-      try {
-        const next = await read(abort.signal);
-        if (!disposed && !abort.signal.aborted && !document.hidden) {
-          setValue(next);
-          setError("");
-        }
-      } catch (cause) {
-        if (!disposed && !abort.signal.aborted) {
-          setValue(null);
-          setError(cause instanceof Error ? cause.message : "Metadata unavailable");
-        }
-      } finally {
-        if (controller === abort) controller = null;
-        if (!disposed) timer = setTimeout(() => void refresh(), 5000);
-      }
-    }
-    const visibility = () => {
-      clearTimeout(timer);
-      if (document.hidden) {
-        controller?.abort();
-        controller = null;
-        setValue(null);
-      } else void refresh();
-    };
-    void refresh();
-    document.addEventListener("visibilitychange", visibility);
-    return () => {
-      disposed = true;
-      clearTimeout(timer);
-      controller?.abort();
-      document.removeEventListener("visibilitychange", visibility);
-    };
-    // The key explicitly includes every scope and selection captured by read.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, retry]);
-  return { value, error, retry: () => setRetry((v) => v + 1) };
+  const scope = useScope().scope;
+  const state = useRead(`${scope?.realm}/${key}`, read);
+  return { value: state.value, error: state.failure, retry: state.retry };
 }
-
-function Unavailable({ error, retry }: { error: string; retry: () => void }) {
+function Unavailable({ error, retry }: { error: ReadFailure | null; retry: () => void }) {
   return (
-    <div className="workbench-empty" role="status">
-      <h2>{error ? "Data connection unavailable" : "Reading catalog…"}</h2>
-      <p>{error || "Reading the current authorized metadata."}</p>
-      {error && (
-        <>
-          <p>
-            Board needs an explicitly configured catalog or SQL connection with permission to read
-            this scope.
-          </p>
-          <button onClick={retry}>Retry read</button> <Link to="/operations">Open Operations</Link>
-        </>
-      )}
-    </div>
+    <>
+      <ReadStatus failure={error} retry={retry} subject="Data" />
+      {error && <Link to="/operations">Open Operations</Link>}
+    </>
   );
 }
 
@@ -503,6 +451,13 @@ function HistoricalObject({ selector, object }: { selector: string; object: stri
 }
 
 export function CatalogPage() {
+  return (
+    <FeatureAccess feature="catalog">
+      <CatalogPageContent />
+    </FeatureAccess>
+  );
+}
+function CatalogPageContent() {
   const [namespace, setNamespace] = useState<number | null>(null);
   const [namespaceCursor, setNamespaceCursor] = useState<CatalogNamespaces["next"]>(null);
   const [cursor, setCursor] = useState<CatalogTables["next"]>(null);
@@ -652,6 +607,13 @@ export function CatalogPage() {
 }
 
 export function DatasetPage({ object, search }: { object: string; search: DatasetSearch }) {
+  return (
+    <FeatureAccess feature="catalog">
+      <DatasetPageContent object={object} search={search} />
+    </FeatureAccess>
+  );
+}
+function DatasetPageContent({ object, search }: { object: string; search: DatasetSearch }) {
   const [tab, setTab] = useState<"preview" | "schema" | "dependencies">("preview");
   const owner = useId();
   const [relationshipCursors, setRelationshipCursors] = useState<
@@ -993,6 +955,13 @@ function Schema({ table, owner }: { table: CatalogTable; owner: string }) {
 }
 
 export function WorkbookPage() {
+  return (
+    <FeatureAccess feature="sql">
+      <WorkbookPageContent />
+    </FeatureAccess>
+  );
+}
+function WorkbookPageContent() {
   const [cells, setCells] = useState([crypto.randomUUID()]);
   const [title, setTitle] = useState("Untitled investigation");
   const [connected, setConnected] = useState(false);

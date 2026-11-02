@@ -13,8 +13,10 @@ own scheme, hostname and port. Other hostnames and forwarded headers reject.
 
 ## Explore data
 
-The built-in home opens Catalog. With a configured data connection, select a
-namespace and Table, inspect its schema, then choose **Preview rows**. Catalog
+The built-in home opens Catalog when its connection is configured, Workbook
+when only SQL is configured, and Operations when neither is configured.
+Published interfaces keep their declared entry. With a configured catalog,
+select a namespace and Table, inspect its schema, then choose **Preview rows**. Catalog
 filtering covers the current page. Dataset previews and column profiles are
 bounded windows with explicit coverage and source evidence.
 
@@ -29,8 +31,21 @@ read; editing only changes its draft. SHOW, DESCRIBE, EXPLAIN and SELECT share t
 same typed result surface. Each result has its own observation basis and terminal
 count. Leaving the workbook discards its cells. The
 [workbench guide](../../../apps/transit-board/docs/workbench.md) explains connection
-setup and limits. Operations retains the process/resource atlas and existing
-diagnostic and recovery views.
+setup and limits. An unconfigured workspace explains which service connection
+is missing and offers **Check availability** after setup/restart. It does not
+continually retry a disabled read. SSH forwarding changes how you reach Board;
+it does not provision a catalog/SQL identity or bypass Host/Origin checks.
+
+Operations pairs current capacity/allocation diagrams with exact-value grids.
+Select a measure in either view to inspect its meaning and observation basis.
+Choose one Table in **Table storage** for partition-local accepted, archive,
+recovery and history positions alongside bounded backlog facts. Unknown values
+are distinct from zero; these observations establish neither query snapshots
+nor elapsed age, throughput or deletion eligibility. Storage inspection runs no
+SQL and starts no maintenance. **Processes and resources**, **Activity** and,
+when configured, **Relational queries and recovery** lead to the existing
+inspection and original-query recovery tools. Interface bindings are inspected
+in **Definition**, outside Operations.
 
 ## Start from an identity and an observed cut
 

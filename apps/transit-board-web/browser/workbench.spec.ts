@@ -1,5 +1,87 @@
 import { expect, test, type Response } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+test("home and feature access follow catalog and SQL configuration independently", async ({
+  page,
+}) => {
+  let catalog = false,
+    sql = true;
+  await page.route("**/api/v1/deployment", async (route) => {
+    const response = await route.fetch();
+    const value = await response.json();
+    await route.fulfill({
+      response,
+      json: { ...value, features: { ...value.features, catalog, sql } },
+    });
+  });
+  // Injection isolates the browser's discovery behavior; real read permissions
+  // remain enforced by the installed service and its separate API proof.
+  await page.route("**/api/v1/capabilities", (route) =>
+    route.fulfill({ status: 403, json: { err: "Forbidden" } }),
+  );
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/workbook$/);
+  await expect(page.getByRole("button", { name: "Run cell 1" })).toBeEnabled();
+  await page.goto("/catalog");
+  await expect(
+    page.getByRole("heading", { name: "Catalog connection is not configured" }),
+  ).toBeVisible();
+  catalog = true;
+  sql = false;
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/catalog$/);
+  await expect(page.getByRole("link", { name: "items", exact: true })).toBeVisible();
+  await page.goto("/workbook");
+  await expect(
+    page.getByRole("heading", { name: "Workbook SQL connection is not configured" }),
+  ).toBeVisible();
+});
+
+test("Table storage links visual, grid and inspector without executing SQL", async ({ page }) => {
+  let runs = 0;
+  page.on("request", (request) => {
+    if (request.url().endsWith("/api/v1/sql-read") && request.postDataJSON()?.action.run) runs++;
+  });
+  await page.goto("/operations");
+  const explorer = page.getByRole("region", { name: "Table storage explorer", exact: true });
+  await expect(explorer.getByRole("table")).toBeVisible();
+  if (!(await explorer.getByRole("button", { name: "metrics", exact: true }).count()))
+    await explorer.getByRole("button", { name: "More Tables" }).click();
+  await explorer.getByRole("button", { name: "metrics", exact: true }).click();
+  const table = page.getByRole("region", { name: "Table storage · metrics", exact: true });
+  await expect(table).toContainText("145");
+  const grid = table.getByRole("table");
+  const visual = table.getByLabel("Table storage · metrics visualization");
+  await visual.getByRole("button", { name: /Accepted next position/ }).click();
+  await expect(
+    grid.getByRole("button", { name: "Accepted next position", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  const inspector = page.getByRole("complementary", { name: "Inspector" });
+  await expect(inspector).toContainText("partition-local coordinate");
+  await grid.getByRole("button", { name: "Pending rows / bytes", exact: true }).click();
+  await expect(inspector).toContainText("1,024");
+  await page.keyboard.press("Escape");
+  await expect(
+    grid.getByRole("button", { name: "Pending rows / bytes", exact: true }),
+  ).toBeFocused();
+  expect(
+    (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze())
+      .violations,
+  ).toEqual([]);
+  if (process.env.BOARD_SCREENSHOT)
+    await page.screenshot({
+      path: process.env.BOARD_SCREENSHOT.replace(/\.png$/, "-operations.png"),
+      fullPage: true,
+    });
+  await page.route("**/api/v1/catalog", (route) =>
+    route.fulfill({ status: 403, json: { err: "Forbidden", diagnostic: null } }),
+  );
+  await expect(page.getByRole("heading", { name: "Access to Catalog denied" })).toBeVisible({
+    timeout: 10000,
+  });
+  await expect(table).toHaveCount(0);
+  await expect(inspector).toBeHidden();
+  expect(runs).toBe(0);
+});
 
 test("installed catalog, exact preview, profiles and session workbook", async ({ page }) => {
   const errors: string[] = [];
@@ -348,9 +430,7 @@ test("retained catalog inspection is bounded and clears revoked coverage", async
     page.getByRole("region", { name: "Accepted interpretation", exact: true }),
   ).toHaveCount(0);
   denied = true;
-  await expect(
-    page.getByRole("heading", { name: "Data connection unavailable" }).first(),
-  ).toBeVisible({
+  await expect(page.getByRole("heading", { name: "Access to Data denied" }).first()).toBeVisible({
     timeout: 12000,
   });
   await expect(page.getByText(/145 retained rows/)).toHaveCount(0);

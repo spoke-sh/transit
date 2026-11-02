@@ -1,5 +1,15 @@
 import { expect, test } from "vite-plus/test";
 import { validateStorage, type StorageResponse } from "@transit/board-client";
+import { positionPercent } from "./storage-model";
+
+test("storage diagrams preserve u64 decimal coordinates until scaling", () => {
+  expect(positionPercent("0", "100")).toBe(0);
+  expect(positionPercent("0", "0")).toBe(0);
+  expect(positionPercent("1", "3")).toBe(33.33);
+  expect(positionPercent("18446744073709551614", "18446744073709551615")).toBe(99.99);
+  expect(positionPercent("18446744073709551615", "18446744073709551615")).toBe(100);
+  expect(positionPercent("101", "100")).toBe(100);
+});
 
 const unavailable: StorageResponse = {
   realm: 1,

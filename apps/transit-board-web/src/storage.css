@@ -1,0 +1,51 @@
+.storage-evidence {
+  margin-block: 1.5rem 2rem;
+}
+.storage-basis {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.storage-visual {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.75rem;
+  margin-block: 1rem;
+}
+.storage-visual button {
+  display: grid;
+  gap: 0.5rem;
+  text-align: left;
+  padding: 1rem;
+  min-width: 0;
+}
+.storage-visual strong,
+.storage-exact {
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.storage-track {
+  display: block;
+  height: 0.5rem;
+  background: var(--line, #dce2e8);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.storage-track > span {
+  display: block;
+  height: 100%;
+  background: var(--accent, #176d79);
+}
+.storage-evidence [aria-pressed="true"] {
+  outline: 2px solid var(--accent, #176d79);
+  outline-offset: 2px;
+}
+.storage-evidence tr[data-selected="true"] {
+  background: var(--surface-raised, #f0f5f6);
+}
+.storage-evidence td {
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.storage-visual small {
+  color: var(--muted);
+}

@@ -1,3 +1,4 @@
+import { InterfaceBindings } from "./interface-bindings";
 import { useInterface } from "./interface";
 import { useScope } from "./state";
 import "./definition.css";
@@ -132,6 +133,7 @@ export function DefinitionEditor() {
           <p>One complete program across SQL, Form and Canvas.</p>
         </div>
       </div>
+      {canInspect && <InterfaceBindings />}
       <p>{available}. Compilation and visual edits do not publish changes.</p>
       {!canInspect && (
         <p>

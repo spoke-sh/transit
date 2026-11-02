@@ -7,12 +7,12 @@ import {
   type Compiled,
   type Definition,
 } from "@transit/application";
-import type { Capabilities } from "@transit/board-client";
+import type { Deployment } from "@transit/board-client";
 import "./shell.css";
 type Current = { compiled: Compiled; identity: string; published: boolean };
 const Interface = createContext<Current | null>(null);
 export const useInterface = () => useContext(Interface);
-export function InterfaceShell({ scope, children }: { scope: Capabilities; children: ReactNode }) {
+export function InterfaceShell({ scope, children }: { scope: Deployment; children: ReactNode }) {
   const [current, setCurrent] = useState<Current | null>(null);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
@@ -57,8 +57,9 @@ export function InterfaceShell({ scope, children }: { scope: Capabilities; child
     }
     const visibility = () => {
       clearTimeout(timer);
-      if (document.hidden) setCurrent(null);
-      else void refresh();
+      if (document.hidden) {
+        setCurrent((value) => (value?.published ? null : value));
+      } else void refresh();
     };
     void refresh();
     document.addEventListener("visibilitychange", visibility);
@@ -75,7 +76,10 @@ export function InterfaceShell({ scope, children }: { scope: Capabilities; child
     (pathname === "/" && !current?.published);
   const workbookPage = pathname === "/workbook";
   const workbenchPage =
-    (dataPage || workbookPage) &&
+    (dataPage ||
+      workbookPage ||
+      pathname === "/operations" ||
+      pathname === "/recovery/relational") &&
     !(current?.published && definition?.screens.some((screen) => screen.path === pathname));
   const application = current?.published
     ? definition?.screens.find((screen) => screen.name === definition.entry)
@@ -113,10 +117,10 @@ export function InterfaceShell({ scope, children }: { scope: Capabilities; child
           </Link>
           <nav className="shell-areas" aria-label="Activities">
             <Link to="/catalog" aria-current={dataPage ? "page" : undefined}>
-              Data
+              Data{!scope.features.catalog && <small> · Not configured</small>}
             </Link>
             <Link to="/workbook" aria-current={workbookPage ? "page" : undefined}>
-              Workbooks
+              Workbooks{!scope.features.sql && <small> · Not configured</small>}
             </Link>
             {operations && (
               <Link
@@ -222,7 +226,7 @@ export function InterfaceShell({ scope, children }: { scope: Capabilities; child
           <aside className="scope">
             Realm {scope.realm} · Private workspace · Current scoped access
           </aside>
-          {current || pathname === "/recovery/definition" ? (
+          {current || pathname.startsWith("/recovery/") ? (
             children
           ) : (
             <main>

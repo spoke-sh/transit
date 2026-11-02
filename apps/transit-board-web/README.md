@@ -141,6 +141,9 @@ remain separate from drafts, and no result or credential enters browser storage.
 | Source                                           | Owns                                                                              |
 | ------------------------------------------------ | --------------------------------------------------------------------------------- |
 | [routes/](src/routes/)                           | Overview, resource and PID/journey routes; stable URLs and route validation       |
+| [observation.ts](src/observation.ts)             | Deterministic scoped read transitions, generation fencing and typed failures      |
+| [use-observation.ts](src/use-observation.ts)     | Bounded read effects, deadlines, visibility and cleanup                           |
+| [storage.tsx](src/storage.tsx)                   | Paired storage visualizations/grids and selection-based evidence inspection       |
 | [state.tsx](src/state.tsx)                       | Shared process inspection state and polling lifecycle                             |
 | [resources.tsx](src/resources.tsx)               | Resource/association/entry reads and generic state presentation                   |
 | [components.tsx](src/components.tsx)             | Evidence, status and process views                                                |
