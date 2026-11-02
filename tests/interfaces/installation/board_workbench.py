@@ -438,7 +438,6 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
         while not select.select([fixture.process.stdout], [], [], .1)[0]:
             assert fixture.process.poll() is None and time.monotonic() < deadline
         assert json.loads(fixture.process.stdout.readline())['ui'] == 'ready'
-        fixture.ready_board(fixture.board_url, deadline)
         assert fixture.atlas()['identity']['permissions'] == 16
         restored = json.loads(fixture.request('/api/v1/deployment'))
         assert restored['features']['catalog'] and restored['features']['sql']
