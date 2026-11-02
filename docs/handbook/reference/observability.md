@@ -77,9 +77,10 @@ they do not establish durable completion. Default info logging omits this local
 attribution. The existing bounded telemetry sink can drop or suppress records.
 
 For a native-local node with `request_metrics: true`, the private SQL deployment
-status also exposes fixed-cardinality managed-work and transaction-owned-record
+inspection request `performance` exposes fixed-cardinality managed-work and transaction-owned-record
 counters. They use process-lifetime atomic counters without allocating or writing
-logs. The default is disabled (`performance: null`). Snapshots carry a deployment
+logs. The default is disabled (`performance: null` in the inspection reply).
+Ordinary lifecycle status retains its existing response shape. Snapshots carry a deployment
 instance; replacement, counter wrap or missing data invalidates a measurement.
 Individual counters are loaded independently, so a snapshot is not an atomic cut.
 

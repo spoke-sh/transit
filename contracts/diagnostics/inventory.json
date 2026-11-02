@@ -30114,7 +30114,7 @@
     },
     "packages/zig/transit-sql-host/src/Deployment.zig": {
       "errors": {
-        "Canceled": 4,
+        "Canceled": 5,
         "IncompatibleDefinition": 1,
         "InvalidGatewayConfiguration": 1,
         "InvalidSqlDeploymentFrame": 1,
@@ -30134,13 +30134,21 @@
           "stopped",
           "running",
           "failed"
+        ],
+        "WireAction": [
+          "start",
+          "stop",
+          "status",
+          "performance"
         ]
       },
       "error_sets": {},
       "error_returns": {
         "apply()": "<inferred>",
         "call()": "<inferred>",
+        "callResponse()": "<inferred>",
         "fingerprint()": "<inferred>",
+        "inspectPerformance()": "<inferred>",
         "peer()": "<inferred>",
         "receive()": "<inferred>",
         "send()": "<inferred>",
@@ -30149,8 +30157,8 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 29,
-        "catch": 11
+        "try": 30,
+        "catch": 12
       },
       "imports": [
         "Placement.zig",
