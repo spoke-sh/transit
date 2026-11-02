@@ -328,8 +328,9 @@ pub fn verify(init: std.process.Init, client: c.DirectTableClient, path: []const
         defer revision.deinit();
         try t.expect(revision.value.result.managed_inspection.observation == null);
         try t.expectEqual(rows, revision.value.result.managed_inspection.completed.?.revision.metadata.rows);
-        try t.expectError(error.AccessDenied, c.DirectRecord.read(init.gpa, viewer, revision.value.result.managed_inspection.completed.?.manifest));
+        try t.expectError(error.CatalogIdentityConflict, c.DirectRecord.read(init.gpa, viewer, revision.value.result.managed_inspection.completed.?.manifest));
     }
+    try t.expectError(error.CatalogIdentityConflict, c.DirectClientToken.lookup(viewer, manager.nameKey(request.namespace, request.name)));
     request.revision = 6;
     try t.expectError(error.NotFound, viewer.call(.{ .managed_inspection = request }));
     request.revision = null;
