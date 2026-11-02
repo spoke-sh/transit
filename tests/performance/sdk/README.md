@@ -34,8 +34,11 @@ and build metadata must match `--native-prefix`; the report records that build's
 revision, dirty state and source hash separately from the driver checkout.
 Comparison refuses missing native source provenance.
 When reusing Node packages from another checkout of the same source, first run
+`vp exec node bindings/node_validators.mjs --check`, then
 `vp exec --filter @transit/client tsc` and
-`vp exec --filter @transit/station tsc` in the driver checkout. The shared installer
+`vp exec --filter @transit/station tsc` in the driver checkout. Copy each package's
+`src/validators.js` and `src/validators.d.ts` into its `dist/` directory, as the
+Node package builder does. The shared installer
 compares the packaged Catalog/Query code and contract with these compiled outputs
 before installing the isolated consumer.
 

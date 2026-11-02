@@ -4,11 +4,17 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { createHash } from "node:crypto";
 
+// Contract checks install the client compiler only. Both packages must pin the
+// same compiler before sharing this build dependency.
+const require = createRequire(new URL("../sdks/ts/transit-client/package.json", import.meta.url));
+const { Ajv } = require("ajv");
+const standalone = require("ajv/dist/standalone").default;
+const version = require("ajv/package.json").version;
 for (const directory of ["transit-client", "transit-station-sdk"]) {
   const source = new URL(`../sdks/ts/${directory}/src/`, import.meta.url);
-  const require = createRequire(new URL("../package.json", source));
-  const { Ajv } = require("ajv");
-  const standalone = require("ajv/dist/standalone").default;
+  const manifest = JSON.parse(readFileSync(new URL("../package.json", source), "utf8"));
+  if (manifest.dependencies.ajv !== version)
+    throw new Error(`Unpinned SDK validator compiler: ${directory}`);
   const schemas = JSON.parse(readFileSync(new URL("schemas.json", source), "utf8"));
   const ajv = new Ajv({ strict: true, code: { source: true, esm: true } });
   const names = Object.keys(schemas);
