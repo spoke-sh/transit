@@ -15,8 +15,12 @@ from runner.paths import ROOT
 from interfaces.installation.server_board import Board
 from harness.local_installation import freeze_executables
 from interfaces.http.serving import compact
-from interfaces.installation.server_application_faults import ExistingKey, native, post
+from interfaces.installation.server_application_faults import ExistingKey, native, post, exchange
 from query.logical.fuze_types import descriptor
+
+
+class HistoricalConflict(Exception):
+    """A conflict requires observing the saved operation, never a new selection."""
 
 UNCERTAIN_TRANSPORT = (ConnectionError, TimeoutError, IncompleteRead, RemoteDisconnected)
 
@@ -38,7 +42,12 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030):
                      credential_epoch=identity['credential_epoch'], role=None,
                      audience=connection['audience'], context=list(context))
         signature = key.sign(hashlib.sha256(b'transit.authorization.subject.v1\0' + compact(claim)).digest())
-        return post(port, '/table/v1', dict(body, proof=dict(claim=claim, signature=signature)))['result']
+        status, data = exchange(port, '/table/v1', dict(body, proof=dict(claim=claim, signature=signature)), None)
+        response = json.loads(data)
+        if status == 409 and response == {'err': 'Conflict'} and 'historical_catalog' in action:
+            raise HistoricalConflict()
+        assert status == 200, (status, data)
+        return response['result']
 
     def call(action):
         return direct(dict(historical_catalog=action))['historical_catalog']
@@ -101,7 +110,7 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030):
         budget=dict(limits=dict(operations=1000000, bytes=4294967296, pending=1024), bytes=4608)))
 
     def settle(initial, terminal, pending):
-        action, status, uncertain = initial, None, 0
+        action, status, uncertain, conflicts = initial, None, 0, 0
         for _ in range(32):
             try:
                 status = call(action)['status']
@@ -109,6 +118,13 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030):
                 # Inspect the saved operation after an incomplete reply. Never
                 # select a new frontier or assign a replacement acquisition.
                 uncertain += 1
+                action = dict(inspect=token)
+                continue
+            except HistoricalConflict:
+                # A physical storage epoch can change between bounded steps.
+                # Inspect the original accepted identity after a conflict. The
+                # same 32-step bound still applies; a persistent conflict fails.
+                conflicts += 1
                 action = dict(inspect=token)
                 continue
             except AssertionError:
@@ -121,11 +137,17 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030):
             if status is None:
                 action = initial
                 continue
+            # A conflicting token may belong to a different intent. Its result
+            # cannot satisfy this fixture even if it has already published.
+            binding = status['receipt']['binding']
+            assert binding['key'] == token, 'Historical recovery changed the saved token'
+            assert binding['intent'] == dict(history=intent), 'Historical recovery changed the saved intent'
+            assert binding['budget'] == acquisition['acquire']['budget'], 'Historical recovery changed the saved budget'
             phase = status['state']['phase']
             if phase == terminal:
-                if uncertain:
+                if uncertain or conflicts:
                     print(json.dumps(dict(profile='board_history_original_recovery', operation=operation,
-                        phase=phase, uncertain_replies=uncertain)), flush=True)
+                        phase=phase, uncertain_replies=uncertain, conflict_observations=conflicts)), flush=True)
                 return status
             assert phase in pending, status
             action = initial if terminal == 'released' and phase == 'published' else dict(advance=token)
