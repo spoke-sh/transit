@@ -8,6 +8,12 @@ also have fixed routes. Operations focuses on storage and maintenance evidence,
 with links to the atlas, activity and separately configured relational recovery.
 Interface bindings belong to Definition.
 
+Board loads a view when it is opened. While its module loads, the shell keeps
+navigation available and shows **Loading view…**. If the download fails, the view
+shows **View unavailable** and offers **Reload Board**; another view can still be
+opened from navigation. Loading a module starts no query or maintenance action.
+
+
 ## Activities and contextual inspection
 
 The horizontal activity bar opens **Data**, **Workbooks** and the declared

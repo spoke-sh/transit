@@ -28,7 +28,6 @@ implemented behavior and public contracts.
 | [D1](D1.md) | Entity-relationship canvas, five-state profiles, SQL workbooks, data-gravity lineage and branch/DDL comparison | Reviewed | Data-first direction retained; reviewer requested a different theme, greater fidelity and larger screens. D2 develops that feedback. |
 | [D2](D2.md) | Focused catalog, dataset, relationship, workbook, lineage and change views; monochrome styling and eight browser-rendered screenshots | In review | Selected monochrome direction is reflected in the artifacts; review the catalog-first default, contextual detail and separate change workflows. |
 | [D3](D3.md) | Horizontal activities, optional object navigation, one Inspector and persistent branch/time context across three workflows | Accepted in part | Reviewer endorsed the topology direction; six new browser figures, exact dimensions and responsive behavior remain under review. Theme retained; the existing metadata/result workbench now uses the shared topology. Synthetic storage/execution/comparison dimensions remain proposed. |
-
 | [D4](D4.md) | Readable binary quantities, retained definition/row placement and maintenance evidence | Accepted in part | Quantity and R2 implementation direction approved; precise layouts and installed evidence remain separately reviewable. |
 
 Review status tracks the design conversation. The studies and local prototype
