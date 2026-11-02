@@ -11,7 +11,7 @@ const E = c.storage.TablePartition.Evidence;
 const t = std.testing;
 pub const State = struct { updated: E, deleted: E, altered: E, renamed: E, dropped: E, recreated: E, original: w.Snapshot, rewritten: w.Snapshot, statements: [4]E, intents: [4]w.Binary, unsubmitted: w.Binary, staged: c.DirectTableIntent.Reference, prepared: c.DirectTableBinding, codecs: CodecState, namespaces: NamespaceState };
 const NamespaceState = struct { created: c.DirectNamespace.Operation, renamed: c.DirectNamespace.Operation, dropped: c.DirectNamespace.Operation, retained: w.Snapshot, statements: [5]c.DirectNamespace.Operation };
-const CodecState = struct { snapshots: [2]w.Snapshot, rejected: d.Binding };
+const CodecState = struct { snapshots: [2]w.Snapshot, rejected: [2]d.Binding };
 pub const OwnedState = struct {
     arena: std.heap.ArenaAllocator,
     value: State,
@@ -179,7 +179,7 @@ fn key(allocator: std.mem.Allocator, schema: f.TableSchema.Schema, id: i64) !w.B
 fn physicalColumns(allocator: std.mem.Allocator, client: c.DirectTableClient, role: u64) !CodecState {
     const schema: f.TableSchema.Schema = .{ .object = 700, .revision = 1, .next_column = 4, .columns = &.{
         .{ .id = 1, .name = "id", .type = .int64, .nullable = false, .encoding = .bitpacked },
-        .{ .id = 2, .name = "body", .type = .utf8, .encoding = .ebcdic },
+        .{ .id = 2, .name = "body", .type = .utf8, .encoding = .ebcdic, .collation = .ascii_ci },
         .{ .id = 3, .name = "outside", .type = .utf8 },
     }, .primary_key = &.{1} };
     const scratch = try allocator.alloc(u8, f.TableRow.max_bytes);
@@ -204,22 +204,25 @@ fn physicalColumns(allocator: std.mem.Allocator, client: c.DirectTableClient, ro
     }
     const before = try lookup(client, "physical");
     defer before.deinit();
-    var invalid: w.Ddl = .{ .binding = binding(client, 7003, .alter, before.value.result.lookup.?), .namespace = 1, .name = "physical", .action = .{ .alter = .{ .physical = .{ .column = 3, .encoding = .ebcdic, .collation = .none, .semantics = null } } } };
-    invalid.binding.intent = try invalid.digest(allocator);
-    const admission = try client.call(.{ .admit_ddl = invalid });
-    defer admission.deinit();
-    try t.expect(admission.value.result.ddl == .admitted);
-    const rejected = (try execute(client, invalid.binding)).ddl;
-    try t.expect(rejected == .rejected);
-    try t.expectEqual(.constraint, rejected.rejected.reason);
+    // Neither a codec conversion nor a collation change rewrites populated
+    // data synchronously. The refusal precedes any per-row conversion check.
+    var rejected_bindings: [2]d.Binding = undefined;
+    for ([_]u64{ 3, 2 }, 0..) |column, i| {
+        var rewrite: w.Ddl = .{ .binding = binding(client, 7003 + i, .alter, before.value.result.lookup.?), .namespace = 1, .name = "physical", .action = .{ .alter = .{ .physical = .{ .column = column, .encoding = .ebcdic, .collation = .none, .semantics = null } } } };
+        rewrite.binding.intent = try rewrite.digest(allocator);
+        const admission = try client.call(.{ .admit_ddl = rewrite });
+        defer admission.deinit();
+        try t.expect(admission.value.result.ddl == .admitted);
+        const rejected = (try execute(client, rewrite.binding)).ddl;
+        try t.expect(rejected == .rejected);
+        try t.expectEqual(.rewrite_required, rejected.rejected.reason);
+        rejected_bindings[i] = rewrite.binding;
+    }
     const after = try lookup(client, "physical");
     defer after.deinit();
     try t.expectEqualDeep(before.value.result.lookup.?.interpretation, after.value.result.lookup.?.interpretation);
     try t.expectEqual(before.value.result.lookup.?.changed_lsn, after.value.result.lookup.?.changed_lsn);
-    _ = try ddl(allocator, client, .{ .binding = binding(client, 7004, .alter, after.value.result.lookup.?), .namespace = 1, .name = "physical", .action = .{ .alter = .{ .physical = .{ .column = 2, .encoding = .ebcdic, .collation = .ascii_ci, .semantics = null } } } });
-    const changed = try lookup(client, "physical");
-    defer changed.deinit();
-    const nonbinary = try pin(client, 7102, changed.value.result.lookup.?);
+    const nonbinary = try pin(client, 7102, after.value.result.lookup.?);
     var collated = try q.direct.DirectTableQuery.openRetained(allocator, client, nonbinary, "physical", "SELECT COUNT(*) FROM physical", .{ .requests = 100, .rows = 10, .result_bytes = 4096 }, null, null, .{});
     defer collated.deinit();
     var counted = try collated.nextBatch(8);
@@ -228,13 +231,15 @@ fn physicalColumns(allocator: std.mem.Allocator, client: c.DirectTableClient, ro
     try t.expectEqual(@as(u128, 2), counted.rows[0].?.cells[0].value.atom.unsigned);
     const released = try client.call(.{ .release = nonbinary });
     released.deinit();
-    return .{ .snapshots = snapshots, .rejected = invalid.binding };
+    return .{ .snapshots = snapshots, .rejected = rejected_bindings };
 }
 fn verifyPhysical(allocator: std.mem.Allocator, client: c.DirectTableClient, state: CodecState, release: bool) !void {
-    const terminal = try client.call(.{ .operation = .{ .binding = state.rejected, .command = .inspect, .steps = 1 } });
-    defer terminal.deinit();
-    try t.expect(terminal.value.result.ddl == .rejected);
-    try t.expectEqual(.constraint, terminal.value.result.ddl.rejected.reason);
+    for (state.rejected) |original| {
+        const terminal = try client.call(.{ .operation = .{ .binding = original, .command = .inspect, .steps = 1 } });
+        defer terminal.deinit();
+        try t.expect(terminal.value.result.ddl == .rejected);
+        try t.expectEqual(.rewrite_required, terminal.value.result.ddl.rejected.reason);
+    }
     for (state.snapshots, 0..) |snapshot, i| {
         var query = try q.direct.DirectTableQuery.openRetained(allocator, client, snapshot, "physical", "SELECT id, body, outside FROM physical WHERE id >= 1", .{ .requests = 100, .rows = 10, .result_bytes = 4096 }, null, null, .{});
         defer query.deinit();
