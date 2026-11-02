@@ -61,7 +61,7 @@ const Server = struct {
         const result = workbench.computation(&arena, &wire, config, parsed.value) catch |err| switch (err) {
             error.NotFound => return self.failure(req, .not_found, .NotFound),
             error.Conflict, error.TableDefinitionChanged => return self.failure(req, .conflict, .QueryConflict),
-            error.InvalidRequest, error.InvalidDataflowRevision, error.InvalidTableName, error.InvalidTableConnection, error.IncompatibleDefinition => return self.failure(req, .bad_request, .InvalidQuery),
+            error.InvalidRequest, error.InvalidDataflowRevision, error.InvalidCatalogName, error.InvalidCatalogInteger, error.InvalidCatalogIdentity, error.CatalogIdentityConflict, error.InvalidTableConnection, error.IncompatibleDefinition => return self.failure(req, .bad_request, .InvalidQuery),
             else => return self.queryFailure(req, &wire, err),
         };
         const encoded = client.protocol.Json.valueAllocBounded(arena.allocator(), result, 256 * 1024) catch return self.failure(req, .service_unavailable, .IncompleteResult);

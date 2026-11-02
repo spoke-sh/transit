@@ -275,3 +275,22 @@ but cannot splice another snapshot. Closing stops local consumption and requests
 cleanup; aborting an HTTP wait does not itself prove remote cancellation. Native
 leases independently bound abandoned resources. Each result reports its own
 canonical observation and verified completion; neither is a retention promise.
+
+## Computation inspection
+
+Operations loads its computation module when **Inspect a computation** opens.
+Select a schema and published finite Table computation name, then Inspect.
+The source/computation/output diagram, grid and shared Inspector use the same
+observation. Current control is distinct from the last verified completed result;
+no progress percentage, freshness or completion is inferred from control state.
+A selected positive retained revision stays selected across current refreshes.
+Use **Latest completed** to follow the latest observed completion again.
+
+The configured catalog reader needs database connect, schema usage, source/output
+SELECT and control KV inspect/read rights. Publisher credentials are unnecessary.
+There is no SQL Run, result-page scan, pin or lifecycle command in this feature.
+Each read is bounded to one computation and, at most, one completed revision.
+All observations clear on known denial, hidden-page teardown or definition change.
+The [Board API](../../../docs/handbook/reference/board-api.md#computation-inspection)
+and [computation contract](../../../contracts/DATAFLOW_V1.md#independent-reader-metadata-inspection)
+own the exact disclosure and work bounds.

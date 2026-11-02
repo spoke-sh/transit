@@ -1,6 +1,6 @@
 import { afterEach, expect, test, vi } from "vite-plus/test";
 import { QueryError } from "@transit/query-client/error";
-import type { ComputationResponse } from "@transit/board-client/computations";
+import { positiveRevision, type ComputationResponse } from "@transit/board-client/computations";
 import { ComputationOwner } from "./computation-owner";
 // State-machine tests inject already validated owner responses. Contract tests
 // independently exercise wire shape and identity checks.
@@ -144,4 +144,11 @@ test("hide, selection replacement and disposal cancel reads without resurrecting
   owner.dispose();
   await vi.advanceTimersByTimeAsync(60000);
   expect(vi.getTimerCount()).toBe(0);
+});
+
+test("revision selection preserves the full unsigned range and rejects ambiguous input", () => {
+  for (const value of ["1", "9007199254740993", "18446744073709551615"])
+    expect(positiveRevision(value)).toBe(true);
+  for (const value of ["", "0", "01", "-1", "1.0", "1e3", " 1", "18446744073709551616"])
+    expect(positiveRevision(value)).toBe(false);
 });

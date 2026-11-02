@@ -20,9 +20,9 @@ from storage.tables import direct_table_maintenance
 
 
 def run(node, caller, mode="tables", *artifacts):
-    if mode not in ("log-baseline", "tables", "managed", "queues", "kv", "state-transaction", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "log-token", "workload-token", "workload-result", "maintenance", "stream-maintenance", "growth", "resource-growth", "dependency-growth", "prepared", "count-ranges", "collations", "projection", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
+    if mode not in ("log-baseline", "tables", "managed", "managed-board", "managed-board-browser", "queues", "kv", "state-transaction", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "log-token", "workload-token", "workload-result", "maintenance", "stream-maintenance", "growth", "resource-growth", "dependency-growth", "prepared", "count-ranges", "collations", "projection", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
         raise ValueError("Unknown direct service proof mode")
-    assert len(artifacts) == (2 if mode in ("abi", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode in ("sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode == "log-baseline" else 0)
+    assert len(artifacts) == (2 if mode in ("abi", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode in ("sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode in ("log-baseline", "managed-board", "managed-board-browser") else 0)
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
     with direct_table_maintenance.directory(mode) as directory:
         root = Path(directory)
@@ -97,6 +97,8 @@ def run(node, caller, mode="tables", *artifacts):
         board_fault = {"next": None, "accepted": []}
         managed_fault = {"pages_before_failure": None, "failed": False, "staging_reply_lost": False}
         managed_pages = set()
+        computation_reads = []
+        computation_inspecting = False
         growth_attempts = root / "growth-attempts" if mode == "growth" else None
         if growth_attempts is not None:
             growth_attempts.mkdir(mode=0o700)
@@ -114,8 +116,11 @@ def run(node, caller, mode="tables", *artifacts):
                 nonlocal growth_sequence
                 body = self.rfile.read(int(self.headers["Content-Length"]))
                 envelope = json.loads(body)
+                if computation_inspecting and self.path == "/table/v1":
+                    assert len(computation_reads) < 1024
+                    computation_reads.extend(envelope["action"])
                 record = envelope.get("action", {}).get("record") if isinstance(envelope.get("action"), dict) else None
-                if (mode == "managed" and record and "read" in record
+                if (mode in ("managed", "managed-board", "managed-board-browser") and record and "read" in record
                         and tuple(record["read"]["content"]["sha256"]) in managed_pages
                         and managed_fault["pages_before_failure"] is not None):
                     if managed_fault["pages_before_failure"] == 0:
@@ -180,7 +185,7 @@ def run(node, caller, mode="tables", *artifacts):
                     response = connection.getresponse()
                     data = response.read()
                     owned = record.get("stage_transaction") if record else None
-                    if mode == "managed" and owned and response.status == 200:
+                    if mode in ("managed", "managed-board", "managed-board-browser") and owned and response.status == 200:
                         reference = json.loads(data)["result"]["record"]["reference"]
                         assert reference["format"] == 0x54585231
                         if owned["format"] == 0xC4465031:
@@ -739,7 +744,7 @@ def run(node, caller, mode="tables", *artifacts):
                                       passed=True)), flush=True)
                 print("Direct KV HTTP: pre-send store refusal, caller SIGKILL before accepted reply, store-only original mutation and receipt recovery, pin recovery after lost reply and node SIGKILL/restarts, retained reads after replacement and DROP, current read denial, rename and explicit pin release passed.", flush=True)
                 return
-            if mode == "managed":
+            if mode in ("managed", "managed-board", "managed-board-browser"):
                 subprocess.run([caller, endpoint, "managed-prepare", str(profile)], check=True, timeout=600)
                 assert managed_fault["staging_reply_lost"], managed_fault
                 authority.kill()
@@ -750,6 +755,14 @@ def run(node, caller, mode="tables", *artifacts):
                 authority.wait(timeout=15)
                 authority = start()
                 subprocess.run([caller, endpoint, "managed-verify", str(profile)], check=True, timeout=600)
+                if mode != "managed":
+                    subprocess.run([caller, endpoint, "board-inspector", str(profile)], check=True, timeout=60)
+                    from interfaces.board.computations import exercise
+                    computation_inspecting = True
+                    try:
+                        exercise(artifacts[0], root, endpoint, json.loads(profile.read_text()), computation_reads, browser=mode == "managed-board-browser")
+                    finally:
+                        computation_inspecting = False
                 managed_fault["pages_before_failure"] = 1
                 subprocess.run([caller, endpoint, "managed-prefix", str(profile)], check=True, timeout=180)
                 assert managed_fault["failed"], managed_fault

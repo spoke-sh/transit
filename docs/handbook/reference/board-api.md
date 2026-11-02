@@ -17,6 +17,32 @@ current upstream permissions. `/api/v1/capabilities` remains an authorized nativ
 inspection read. Failure of that read does not disable an independent SQL or
 catalog connection.
 
+## Computation inspection
+
+`POST /api/v1/computations` adapts the shared managed-computation inspection owner.
+It uses the configured catalog identity and accepts a definition identifier,
+namespace ID, computation name, nullable expected computation definition and
+nullable positive revision decimal string. Its request ceiling is 4 KiB and its
+response ceiling is 256 KiB. Counts, epochs, positions and content sizes use
+lossless decimal strings.
+
+A current read returns exact source/computation/output definitions, declared SQL,
+current control observation and nullable last verified completion. A revision
+read returns that exact retained completion with a null current observation.
+Completion includes row count, original source position, schema/manifest content
+commitments and verified common transaction decision. The current output Table
+is a separate dataset; it is never substituted for a missing retained revision.
+Missing selections return 404, changed definitions return 409 and denied reads
+return 403. Unsupported/unconfigured catalog access remains `QueryDisabled`.
+
+The signed upstream owner requires current source/output SELECT and control KV
+inspect/read rights in addition to database/schema access. It verifies the
+original publisher's declaration and actual transaction decision independently
+of the reader's principal. Inspection opens no SQL result, fetches no result rows,
+acquires no retention pin and starts no publication, control or recovery work.
+The [managed computation contract](../../../contracts/DATAFLOW_V1.md#independent-reader-metadata-inspection)
+owns authorization, provenance and native work bounds.
+
 ## Catalog and logical statement results
 
 `POST /api/v1/catalog` exposes read-only public catalog operations: description,
@@ -119,7 +145,7 @@ pin requests before dispatch. `recover` explicitly closes the matching original
 query's pins after interruption. Inspection advances no execution and reruns
 no lost work.
 
-The Operations screen's [relational worksheet](../../../apps/transit-board/docs/relational.md)
+The dedicated recovery screen's [relational worksheet](../../../apps/transit-board/docs/relational.md)
 distinguishes draft, proposed plan, captured source vector and incomplete/complete
 output. Run is explicit; editing creates no query. The route admits 16 KiB JSON
 requests and returns at most one 128-column row, with a 256 KiB browser response
