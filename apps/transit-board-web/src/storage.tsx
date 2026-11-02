@@ -39,29 +39,31 @@ function Evidence({ title, basis, facts }: { title: string; basis: string; facts
     <section className="storage-evidence" aria-label={title}>
       <h3>{title}</h3>
       <p className="storage-basis">{basis}</p>
-      <div className="storage-visual" aria-label={`${title} visualization`}>
-        {facts
-          .filter((item) => item.percent !== undefined)
-          .map((item) => (
-            <button
-              key={item.key}
-              aria-pressed={selected === item.key}
-              onClick={(event) =>
-                select(
-                  { owner, kind: "storage", dimension: "evidence", metric: item.key },
-                  event.currentTarget,
-                )
-              }
-            >
-              <span>{item.label}</span>
-              <strong>{item.value}</strong>
-              <span className="storage-track" aria-hidden="true">
-                <span style={{ width: `${item.percent}%` }} />
-              </span>
-              <small>{item.scale}</small>
-            </button>
-          ))}
-      </div>
+      {facts.some((item) => item.percent !== undefined) && (
+        <div className="storage-visual" role="group" aria-label={`${title} visualization`}>
+          {facts
+            .filter((item) => item.percent !== undefined)
+            .map((item) => (
+              <button
+                key={item.key}
+                aria-pressed={selected === item.key}
+                onClick={(event) =>
+                  select(
+                    { owner, kind: "storage", dimension: "evidence", metric: item.key },
+                    event.currentTarget,
+                  )
+                }
+              >
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+                <span className="storage-track" aria-hidden="true">
+                  <span style={{ width: `${item.percent}%` }} />
+                </span>
+                <small>{item.scale}</small>
+              </button>
+            ))}
+        </div>
+      )}
       <div className="workbench-grid">
         <table>
           <caption>{title} · exact values</caption>
