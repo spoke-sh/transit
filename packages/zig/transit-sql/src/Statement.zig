@@ -13,7 +13,7 @@ dialect: f.Sql.Dialect,
 inspection: bool = false,
 plan: union(enum) { select: g.direct.DirectTablePrepared, dml: c.DirectTablePreparedDml, ddl: c.DirectTablePreparedDdl, log_ddl: c.DirectLogPreparedDdl, log_append: c.DirectLogPreparedAppend, log_consume: c.DirectLogPreparedConsume, log_claim: c.DirectLogPreparedClaim, log_settlement: c.DirectLogPreparedSettlement, relational: *g.direct.DirectRelationalCompilation, namespace_change: c.DirectAuthorizationSql.NamespacePlan },
 output: ?f.Types.Decoded,
-pub const Kind = enum { select, insert, update, delete, create, alter, drop, produce, enqueue, consume, claim, ack };
+pub const Kind = enum { select, insert, update, delete, create, alter, drop, produce, enqueue, consume, claim, ack, nack };
 pub fn isWorkload(self: *const Self) bool {
     return self.plan == .log_append or self.plan == .log_consume or self.plan == .log_claim or self.plan == .log_settlement;
 }
@@ -23,7 +23,11 @@ pub fn kind(self: *const Self) Kind {
         .log_append => |value| if (value.definition.kind() == .stream) .produce else .enqueue,
         .log_consume => .consume,
         .log_claim => .claim,
-        .log_settlement => .ack,
+        .log_settlement => |value| switch (value.compiled.target.kind) {
+            .ack => .ack,
+            .nack => .nack,
+            .extend => unreachable, // Rejected before a statement is prepared.
+        },
         .log_ddl => |value| switch (value.compiled.statement.action) {
             .create => .create,
             .alter, .rename => .alter,
@@ -144,7 +148,7 @@ fn prepareInner(allocator: std.mem.Allocator, client: *c.DirectTableClient, name
         plan = .{ .log_consume = try c.DirectLogPreparedConsume.prepare(allocator, client.*, namespace, text, dialect, location) };
     } else if (tokenIs(first, "CLAIM")) {
         plan = .{ .log_claim = try c.DirectLogPreparedClaim.prepare(allocator, client.*, namespace, text, dialect, location) };
-    } else if (tokenIs(first, "ACK")) {
+    } else if (tokenIs(first, "ACK") or tokenIs(first, "NACK")) {
         plan = .{ .log_settlement = try c.DirectLogPreparedSettlement.prepare(allocator, client.*, namespace, text, dialect, location) };
     } else if (std.ascii.eqlIgnoreCase(first.text, "SELECT")) {
         // Parameterized relational syntax is outside this profile. Parameter
@@ -217,7 +221,7 @@ pub fn validate(self: *const Self, client: *c.DirectTableClient) !void {
         .create => .create_table,
         .alter => .alter,
         .drop => .drop,
-        .produce, .enqueue, .consume, .claim, .ack => unreachable,
+        .produce, .enqueue, .consume, .claim, .ack, .nack => unreachable,
     };
     switch (self.plan) {
         .select => |value| _ = try value.binding.require(client.*, right),

@@ -133,7 +133,7 @@ operation in the same account, selects its original authorized database route,
 and opens its frozen projection against the original append/consume/claim.
 Post-buffer disclosure, repeat fetch and empty/terminal responses recheck current
 rights. A new result cursor starts a new consumption of that same selection;
-it cannot renew a lease, ACK, commit an offset or release native retention.
+it cannot renew a lease, ACK, NACK, commit an offset or release native retention.
 Result/recovery messages never admit another workload operation. `execute`
 separately supports single-partition `PRODUCE INTO` and `ENQUEUE INTO`, with a
 required client token. Preparation binds the exact declared schema; admission
@@ -151,12 +151,16 @@ delivery has no filtering or limit. The frozen duration must satisfy the declare
 lease policy before admission; native time, FIFO and capacity checks remain.
 A multi-partition Queue requires one exact `_partition` equality. CLAIM may
 project the exact original binary `_receipt_handle`. `ACK ON QUEUE ... RECEIPT`
-requires a new client token, freezes that lease and completes as a command with
+and `NACK ON QUEUE ... RECEIPT` each require a new client token, freezes that lease and completes as a command with
 verified native settlement evidence and no relational counts. Its current
 preparation metadata may follow a compatible declaration change while its lease
-retains the original interpretation. Data appends, consumption and acquisition
+retains the original interpretation. NACK optionally binds an absolute UTC
+`WITH (visible_at = ...)` timestamp at whole-millisecond precision; omission
+freezes zero. Native retry/backoff, FIFO and exhaustion policy remain authoritative.
+Original recovery never recalculates that visibility request or releases the
+claim payload pin. Data appends, consumption and acquisition
 still require their exact preparation interpretation. GROUP, WAIT, Queue payload
-predicates, NACK, EXTEND LEASE and attached-transaction workloads remain outside
+predicates, EXTEND LEASE and attached-transaction workloads remain outside
 the SQL execution profile.
 
 Prepared descriptions always include `schema`. It is null when the statement

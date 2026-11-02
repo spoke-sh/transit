@@ -13,9 +13,9 @@ SQL supports [ENQUEUE](../docs/handbook/reference/sql/streaming.md#append-events
 SQL also admits [partition-routed CLAIM](../docs/handbook/reference/sql/streaming.md#acquire-queue-work)
 with a required lease duration, bounded acquisition maximum and complete original
 result delivery and binary `_receipt_handle` projection. SQL
-[`ACK ON QUEUE ... RECEIPT`](../docs/handbook/reference/sql/streaming.md#acknowledge-queue-work)
+[`ACK ON QUEUE ... RECEIPT` and `NACK ON QUEUE ... RECEIPT`](../docs/handbook/reference/sql/streaming.md#acknowledge-queue-work)
 freezes that exact lease in an independently identified native settlement.
-Other acquisition predicates, WAIT, NACK and EXTEND LEASE remain outside the SQL
+Other acquisition predicates, WAIT and EXTEND LEASE remain outside the SQL
 execution profile.
 Native [transactional log work](DIRECT_TABLE_V1.md#transactional-stream-and-queue-work)
 composes enqueue, fenced ACK and paired dead-letter transfer with Table/KV state.
@@ -125,9 +125,18 @@ trailing or structurally invalid data refuse. Encoding uses a caller-owned fixed
 buffer and decoding allocates nothing. SQL `_receipt_handle` projects these
 bytes from each original claim row. Fuze's projection buffer is reused per row;
 result encoders must copy retained values before requesting the next row. The
-Catalog ACK adapter freezes the complete lease by value, independently of the
+Catalog settlement adapter freezes the complete lease by value, independently of the
 caller and parser buffers. Current native authorization and exact live-lease
 validation remain mandatory.
+
+SQL NACK optionally accepts `WITH (visible_at = TIMESTAMP '...')` or a typed UTC
+timestamp parameter. The request is an absolute Unix millisecond value, at or
+after the epoch; sub-millisecond values reject. Omission freezes zero. The
+native owner still applies its accepted-time retry backoff and attempt/FIFO
+policy. The SQL token retains that exact visibility request through uncertainty.
+NACK returns command completion without relational counts, retains the claim's
+original payload-read dependency and is outside attached interactive transactions.
+Reasons and relative delay operands are not supported.
 
 `LogSettlementSql` also prepares EXTEND LEASE syntax and computes a proposed
 deadline from the original receipt's expiry plus the positive BY duration. This

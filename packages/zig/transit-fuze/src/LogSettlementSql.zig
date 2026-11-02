@@ -6,11 +6,11 @@ const p = @import("transit_protocol");
 const Parser = f.SqlTyped;
 const Reference = @import("SqlReference.zig");
 const Atom = f.Types.Values.Atom;
-pub const Kind = enum { ack, extend };
+pub const Kind = enum { ack, nack, extend };
 pub const Target = struct { kind: Kind, source: Reference };
 
 fn header(parser: *Parser) !Target {
-    const kind: Kind = if (try parser.takeWord("ACK")) .ack else if (try parser.takeWord("EXTEND")) blk: {
+    const kind: Kind = if (try parser.takeWord("ACK")) .ack else if (try parser.takeWord("NACK")) .nack else if (try parser.takeWord("EXTEND")) blk: {
         try parser.requireWord("LEASE");
         break :blk .extend;
     } else return error.UnsupportedStatement;
@@ -25,7 +25,7 @@ pub fn target(allocator: std.mem.Allocator, text: []const u8, dialect: f.Sql.Dia
 
 const Operand = struct {
     kind: f.Types.Type,
-    value: union(enum) { literal: struct { bytes: []const u8, offset: usize }, parameter: f.Sql.Parameter },
+    value: union(enum) { literal: struct { atom: Atom, offset: usize }, parameter: f.Sql.Parameter },
     fn parse(parser: *Parser, kind: f.Types.Type) !Operand {
         if (try parser.parameter()) |site| return .{ .kind = kind, .value = .{ .parameter = site } };
         const literal = try parser.literal(kind);
@@ -34,8 +34,8 @@ const Operand = struct {
             if (parser.location) |where| where.* = .{ .offset = (failure orelse literal.span).start };
             return err;
         };
-        if (cell != .value or cell.value != .atom or cell.value.atom != .bytes) return error.InvalidLogSettlementOperand;
-        return .{ .kind = kind, .value = .{ .literal = .{ .bytes = cell.value.atom.bytes, .offset = literal.span.start } } };
+        if (cell != .value or cell.value != .atom) return error.InvalidLogSettlementOperand;
+        return .{ .kind = kind, .value = .{ .literal = .{ .atom = cell.value.atom, .offset = literal.span.start } } };
     }
     fn at(self: Operand, diagnostic: ?*f.Sql.Binding) void {
         const detail = diagnostic orelse return;
@@ -49,17 +49,17 @@ const Operand = struct {
             },
         }
     }
-    fn bind(self: Operand, values: []const ?Atom, diagnostic: ?*f.Sql.Binding) ![]const u8 {
+    fn bind(self: Operand, values: []const ?Atom, diagnostic: ?*f.Sql.Binding) !Atom {
         errdefer self.at(diagnostic);
         return switch (self.value) {
-            .literal => |value| value.bytes,
+            .literal => |value| value.atom,
             .parameter => |site| blk: {
                 const value = values[site.index - 1] orelse return error.NullWorkloadParameter;
                 f.LogicalPrepared.validate(value, self.kind) catch |err| {
                     if (diagnostic) |detail| detail.actual = @tagName(value);
                     return err;
                 };
-                break :blk value.bytes;
+                break :blk value;
             },
         };
     }
@@ -71,7 +71,8 @@ pub const Prepared = struct {
     target: Target,
     receipt: Operand,
     extension: ?Operand,
-    // Exactly two syntax sites: receipt and optional extension. This is a
+    visible: ?Operand,
+    // Exactly two syntax sites: receipt and optional extension/visibility. This is a
     // statement-shape bound, independent of durable Queue cardinality.
     types: [2]f.Types.Type = undefined,
     count: u8 = 0,
@@ -94,10 +95,18 @@ pub const Prepared = struct {
             try parser.requireWord("BY");
             break :blk try Operand.parse(&parser, .utf8);
         } else null;
+        const visible: ?Operand = if (selected.kind == .nack and try parser.takeWord("WITH")) blk: {
+            try parser.require(.left);
+            try parser.requireWord("VISIBLE_AT");
+            try parser.require(.eq);
+            const operand = try Operand.parse(&parser, .{ .timestamp = .utc });
+            try parser.require(.right);
+            break :blk operand;
+        } else null;
         try parser.finish();
-        var result: Prepared = .{ .arena = undefined, .target = selected, .receipt = receipt, .extension = extension };
+        var result: Prepared = .{ .arena = undefined, .target = selected, .receipt = receipt, .extension = extension, .visible = visible };
         var sites: [2]?f.Sql.Parameter = @splat(null);
-        for ([_]?Operand{ receipt, extension }) |optional| if (optional) |operand| {
+        for ([_]?Operand{ receipt, extension, visible }) |optional| if (optional) |operand| {
             if (operand.value != .parameter) continue;
             const site = operand.value.parameter;
             operand.at(diagnostic);
@@ -135,15 +144,20 @@ pub const Prepared = struct {
             }
             return error.ParameterCountMismatch;
         }
-        const lease = p.QueueLeaseHandle.decode(try self.receipt.bind(values, diagnostic)) catch |err| {
+        const lease = p.QueueLeaseHandle.decode((try self.receipt.bind(values, diagnostic)).bytes) catch |err| {
             self.receipt.at(diagnostic);
             return if (err == error.IncompatibleDefinition) err else error.InvalidQueueLeaseHandle;
         };
         const action: @FieldType(p.StreamQueue.Settlement, "action") = if (self.extension) |operand| blk: {
             errdefer operand.at(diagnostic);
-            const duration = try @import("LogReadSql.zig").leaseDuration(try operand.bind(values, diagnostic));
+            const duration = try @import("LogReadSql.zig").leaseDuration((try operand.bind(values, diagnostic)).bytes);
             break :blk .{ .extend = .{ .expires_ms = std.math.add(u64, lease.expires_ms, duration) catch return error.InvalidLogLeaseDuration } };
-        } else .ack;
+        } else if (self.target.kind == .nack) .{ .nack = .{ .visible_ms = if (self.visible) |operand| blk: {
+            errdefer operand.at(diagnostic);
+            const micros = (try operand.bind(values, diagnostic)).timestamp;
+            if (micros < 0 or @mod(micros, 1000) != 0) return error.InvalidLogVisibilityTime;
+            break :blk std.math.cast(u64, @divExact(micros, 1000)) orelse return error.InvalidLogVisibilityTime;
+        } else 0 } } else .ack;
         return .{ .lease = lease, .action = action };
     }
 };
@@ -210,4 +224,29 @@ test "log settlement SQL enforces typed complete operands without acquiring auth
     maximal.expires_ms = std.math.maxInt(u64);
     try p.QueueLeaseHandle.encode(maximal, &handle);
     try t.expectError(error.InvalidLogLeaseDuration, mysql.bind(&.{ .{ .bytes = &handle }, .{ .bytes = "1ms" } }, null));
+}
+
+test "NACK SQL binds absolute visibility and preserves typed diagnostic locations" {
+    const t = std.testing;
+    var handle: [p.QueueLeaseHandle.encoded_bytes]u8 = undefined;
+    try p.QueueLeaseHandle.encode(test_lease, &handle);
+    var plain = try Prepared.init(t.allocator, "NACK ON QUEUE jobs RECEIPT $1", .transit, null);
+    defer plain.deinit();
+    try t.expectEqual(@as(u64, 0), (try plain.bind(&.{.{ .bytes = &handle }}, null)).action.nack.visible_ms);
+    var timed = try Prepared.init(t.allocator, "NACK ON QUEUE `jobs` RECEIPT ? WITH (visible_at = ?)", .mysql, null);
+    defer timed.deinit();
+    try t.expectEqualDeep(&[_]f.Types.Type{ .binary, .{ .timestamp = .utc } }, timed.parameterTypes());
+    const bound = try timed.bind(&.{ .{ .bytes = &handle }, .{ .timestamp = 1234000 } }, null);
+    try t.expectEqualDeep(test_lease, bound.lease);
+    try t.expectEqual(@as(u64, 1234), bound.action.nack.visible_ms);
+    var diagnostic: f.Sql.Binding = .{};
+    for ([_]i64{ -1000, 1, 1001 }) |micros| {
+        try t.expectError(error.InvalidLogVisibilityTime, timed.bind(&.{ .{ .bytes = &handle }, .{ .timestamp = micros } }, &diagnostic));
+        try t.expectEqual(@as(?u32, 2), diagnostic.parameter);
+        try t.expectEqualStrings("timestamp", diagnostic.expected.?);
+    }
+    try t.expectError(error.NullWorkloadParameter, timed.bind(&.{ .{ .bytes = &handle }, null }, &diagnostic));
+    try t.expectEqual(@as(?u32, 2), diagnostic.parameter);
+    try t.expectError(error.ParameterTypeConflict, Prepared.init(t.allocator, "NACK ON QUEUE jobs RECEIPT $1 WITH (visible_at = $1)", .transit, null));
+    try t.expectError(error.ParameterGap, Prepared.init(t.allocator, "NACK ON QUEUE jobs RECEIPT $3", .transit, null));
 }

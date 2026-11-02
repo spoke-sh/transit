@@ -70,7 +70,9 @@ different [recovery behavior](../queries.md).
 | `UPDATE ... SET ... [WHERE ...]` | **Implemented — execution** | Multiple constant/default assignments and typed Boolean/state predicates; frozen selection and one atomic publication |
 | `DELETE FROM ... [WHERE ...]` | **Implemented — execution** | Point or selected finite predicates; committed matched/changed counts |
 | `PRODUCE INTO`, `ENQUEUE INTO` | **Implemented — single-partition execution** | [Typed VALUES, metadata and original-operation RETURNING](streaming.md#append-events-and-work) through native SQL, console, PostgreSQL and MySQL; cross-partition and attached-transaction appends are excluded |
-| `CONSUME ... FROM` | **Compiler only** | Typed projection, predicate, logical LIMIT and group/wait preparation; no SQL-service admission, group assignment, waiting or offset settlement |
+| `CONSUME ... FROM` | **Implemented — positional execution** | [Finite retained consumption](streaming.md#consume-a-finite-stream-cut) with typed projection/predicate and logical LIMIT; groups, waits and offset settlement remain native-only |
+| `CLAIM ... WITH LEASE` | **Implemented — partition-routed execution** | [Bounded original selection](streaming.md#acquire-queue-work); payload predicates and WAIT are refused |
+| `ACK`, `NACK ON QUEUE ... RECEIPT` | **Implemented — execution** | [Exact native settlements](streaming.md#acknowledge-queue-work), optional absolute NACK visibility, original token recovery; no attached transaction |
 | `CREATE TABLE` | **Implemented — execution** | 1–128 columns, all logical families, explicit single/composite/no primary key, nullable defaults and deterministic typed defaults; authorized catalog routing |
 | `ALTER TABLE` | **Implemented — execution** | Add/drop/rename columns, rename Table, defaults, nullability and constraints; lazy projection and bounded validation; populated physical rewrites reject pending the phased runtime |
 | Table-level `CHECK` | **Implemented — execution** | Bounded deterministic comparisons and NULL tests, new-write enforcement with optional NOT VALID, explicit bounded validation |

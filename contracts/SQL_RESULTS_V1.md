@@ -147,7 +147,8 @@ retained rows. A successful row operation cannot be converted to a command
 completion; rejected/cancelled outcomes have command shape. The shared client
 checks the returned intent and selection against settlement evidence. SQL text
 admission supports `PRODUCE INTO` and `ENQUEUE INTO`, including optional
-`RETURNING`. Other workload verbs remain unavailable through SQL admission.
+`RETURNING`, positional `CONSUME`, partition-routed `CLAIM` and receipt-bound
+`ACK`/`NACK`. Group progress, waits and renewal remain native-only.
 
 ## Ownership and consumers
 

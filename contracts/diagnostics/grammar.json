@@ -8584,6 +8584,65 @@
         "code": "sql.invalid_sql_syntax",
         "category": "syntax"
       }
+    },
+    {
+      "id": "nack-statement",
+      "sql": "NACK ON QUEUE nack RECEIPT $1",
+      "profile": "log_settlement",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "nack-visible",
+      "sql": "NACK ON QUEUE jobs RECEIPT $1 WITH (visible_at = $2)",
+      "profile": "log_settlement",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "nack-null",
+      "sql": "NACK ON QUEUE jobs RECEIPT NULL",
+      "profile": "log_settlement",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_settlement_operand",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "nack-visible-null",
+      "sql": "NACK ON QUEUE jobs RECEIPT $1 WITH (visible_at = NULL)",
+      "profile": "log_settlement",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_log_settlement_operand",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "nack-visible-literal",
+      "sql": "NACK ON QUEUE jobs RECEIPT $1 WITH (visible_at = TIMESTAMP '1970-01-01T00:00:01Z')",
+      "profile": "log_settlement",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
     }
   ]
 }

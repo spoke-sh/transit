@@ -213,16 +213,18 @@ test "log claim Catalog defaults the acquisition maximum to the declaration" {
     try t.expectEqual(fixture.metadata.declaration.stored.declaration.limits.claim_rows, claim.maximum);
 }
 
-fn settlementOwned(allocator: std.mem.Allocator, metadata: c.DirectLogProtocol.Definition, lease: p.StreamQueue.Lease) !void {
+fn settlementOwned(allocator: std.mem.Allocator, metadata: c.DirectLogProtocol.Definition, lease: p.StreamQueue.Lease, nack: bool) !void {
     const t = std.testing;
-    var text = "ACK ON QUEUE tasks RECEIPT $1".*;
-    var prepared = try c.DirectLogPreparedSettlement.init(allocator, TestFixture.connection, 1, &text, metadata, .transit, null);
+    const text = try allocator.dupe(u8, if (nack) "NACK ON QUEUE tasks RECEIPT $1 WITH (visible_at = $2)" else "ACK ON QUEUE tasks RECEIPT $1");
+    defer allocator.free(text);
+    var prepared = try c.DirectLogPreparedSettlement.init(allocator, TestFixture.connection, 1, text, metadata, .transit, null);
     var live = true;
     defer if (live) prepared.deinit();
-    @memset(&text, 0);
+    @memset(text, 0);
     var handle: [p.QueueLeaseHandle.encoded_bytes]u8 = undefined;
     try p.QueueLeaseHandle.encode(lease, &handle);
-    var intent = try prepared.freeze(allocator, 99, &.{.{ .bytes = &handle }}, null);
+    const values = [_]?f.Types.Values.Atom{ .{ .bytes = &handle }, .{ .timestamp = 1234000 } };
+    var intent = try prepared.freeze(allocator, 99, values[0..@as(usize, if (nack) 2 else 1)], null);
     defer intent.deinit();
     prepared.deinit();
     live = false;
@@ -230,7 +232,10 @@ fn settlementOwned(allocator: std.mem.Allocator, metadata: c.DirectLogProtocol.D
     var restored = try c.DirectWorkloadIntent.restore(allocator, intent.bytes);
     defer restored.deinit();
     const saved = restored.parsed.value;
-    try t.expect(saved.projection == null and saved.work.queue.work.settle.action == .ack);
+    try t.expect(saved.projection == null);
+    if (nack) {
+        try t.expectEqual(@as(u64, 1234), saved.work.queue.work.settle.action.nack.visible_ms);
+    } else try t.expect(saved.work.queue.work.settle.action == .ack);
     try t.expectEqualDeep(lease, saved.work.queue.work.settle.lease);
     try t.expectEqualDeep(metadata.declaration.stored, saved.source.declaration.stored);
     const reference = try restored.reference(@splat(7));
@@ -269,9 +274,11 @@ test "log settlement Catalog binding preserves an older lease and current prepar
     defer declared.deinit();
     var metadata = fixture.metadata;
     metadata.declaration.stored = try declared.stored();
-    try settlementOwned(t.allocator, metadata, lease);
-    var no_resize = std.testing.FailingAllocator.init(t.allocator, .{ .resize_fail_index = 0 });
-    try t.checkAllAllocationFailures(no_resize.allocator(), settlementOwned, .{ metadata, lease });
+    for ([_]bool{ false, true }) |nack| {
+        try settlementOwned(t.allocator, metadata, lease, nack);
+        var no_resize = std.testing.FailingAllocator.init(t.allocator, .{ .resize_fail_index = 0 });
+        try t.checkAllAllocationFailures(no_resize.allocator(), settlementOwned, .{ metadata, lease, nack });
+    }
     var prepared = try c.DirectLogPreparedSettlement.init(t.allocator, TestFixture.connection, 1, "ACK ON QUEUE tasks RECEIPT $1", metadata, .transit, null);
     defer prepared.deinit();
     var handle: [p.QueueLeaseHandle.encoded_bytes]u8 = undefined;

@@ -165,8 +165,10 @@ logClaimCommand: CLAIM projection FROM identifier sourceAlias?
     (WAIT workloadTextOperand)?;
 logSettlementStatement: logSettlementCommand SEMI? EOF;
 logSettlementCommand: ACK ON QUEUE identifier RECEIPT workloadReceiptOperand
+    | NACK ON QUEUE identifier RECEIPT workloadReceiptOperand (WITH LPAREN VISIBLE_AT EQ workloadTimestampOperand RPAREN)?
     | EXTEND LEASE ON QUEUE identifier RECEIPT workloadReceiptOperand BY workloadTextOperand;
 workloadReceiptOperand: X STRING | PARAMETER | NULL_;
+workloadTimestampOperand: TIMESTAMP STRING | PARAMETER | NULL_;
 workloadTextOperand: STRING | PARAMETER | NULL_;
 workloadWhereClause: WHERE workloadDisjunction;
 workloadDisjunction: workloadConjunction (OR workloadConjunction)*;
@@ -390,7 +392,7 @@ legacyIdentifier
     | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE
     | STREAM | QUEUE | PARTITION | PARTITIONS | HASH
     | PRODUCE | ENQUEUE | PRODUCER | ID | EPOCH | SEQUENCE | VISIBLE_AT | RETURNING
-    | CONSUME | CLAIM | LEASE | WAIT | ACK | EXTEND | RECEIPT
+    | CONSUME | CLAIM | LEASE | WAIT | ACK | NACK | EXTEND | RECEIPT
     | CONSTRAINT | CHECK | FOREIGN | REFERENCES | ENFORCED | VALID | VALIDATE | NO | ACTION
     ;
 
@@ -439,6 +441,7 @@ ENQUEUE: 'ENQUEUE';
 CONSUME: 'CONSUME';
 CLAIM: 'CLAIM';
 ACK: 'ACK';
+NACK: 'NACK';
 EXTEND: 'EXTEND';
 RECEIPT: 'RECEIPT';
 LEASE: 'LEASE';

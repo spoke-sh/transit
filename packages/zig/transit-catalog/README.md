@@ -109,13 +109,14 @@ Other selection predicates and WAIT refuse before admission. The native owner
 still checks eligibility, FIFO, capacity, current rights and trusted time.
 SQL sessions reuse the same workload token and original-result runtime.
 
-`DirectLogPreparedSettlement` binds ACK to the named Queue's stable object,
+`DirectLogPreparedSettlement` binds ACK and NACK to the named Queue's stable object,
 partition and claimant, preserving the original lease. Control intents can pair
 an older exact receipt with current preparation metadata for that same object.
 This permits compatible ALTER without rebinding the lease. Data operations still
 require the exact interpretation. Native current policy, time, live-lease and
 original-outcome checks remain authoritative. No result projection is attached
-to ACK; renewal and NACK SQL remain outside this adapter.
+to ACK and NACK; renewal SQL remains outside this adapter. NACK freezes the
+optional absolute visibility request and leaves retry backoff to the native owner.
 
 `createProjected` additionally freezes a Fuze projection and ordered input layout
 in that body. Validation binds the encoded plan to the exact operation and schema;
