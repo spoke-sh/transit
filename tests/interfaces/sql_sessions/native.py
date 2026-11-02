@@ -139,7 +139,7 @@ class Client:
             assert time.monotonic() < deadline, 'concurrent read capacity did not recover'
             time.sleep(.02)
 
-    def terminal(self, operation):
+    def terminal(self, operation, *, outcomes=('applied', 'unchanged')):
         deadline = time.monotonic() + (270 if operation['identity']['kind'] == 'captured' else 90)
         while operation['phase'] != 'terminal':
             assert not operation['blocked'] and time.monotonic() < deadline, operation
@@ -149,7 +149,7 @@ class Client:
             observed = self.call(dict(status=dict(operation=operation['identity'])), unavailable=True)
             if observed is not None:
                 operation = observed['operation']
-        assert operation['outcome'] in ('applied', 'unchanged'), operation
+        assert operation['outcome'] in outcomes, operation
         return operation
 
     def close(self):
