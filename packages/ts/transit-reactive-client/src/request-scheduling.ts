@@ -1,4 +1,4 @@
-/** Optional host scheduling around a complete transport attempt, including body
+/** Optional host scheduling around a complete transport operation, including body
  * consumption. This changes neither authorization nor retry/operation identity. */
 export type RequestLane = "read" | "control";
 export type RequestScheduler = <T>(

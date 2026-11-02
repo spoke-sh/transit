@@ -69,21 +69,29 @@ backlog versus a prefix of at most 1,024 records. Null is unavailable, never zer
 These are independent current observations, not a global snapshot or time series.
 No view infers shared/reclaimable bytes, elapsed age or permission to delete.
 
-Catalog, dataset metadata, Workbook connection metadata and Operations reads use
-one deterministic observation reducer. Its phases are idle, loading, ready,
+Catalog, dataset metadata, Workbook connection metadata, Operations, process and
+resource inspection, record metadata and interface observations use one
+deterministic observation reducer. Its phases are idle, loading, ready,
 refreshing, failed, hidden and disposed. A generation identifies each in-flight
 read. Navigation, scope replacement, hiding and disposal abort it and fence late
 responses. Hiding or a failed read removes protected observations and inspectors;
 refreshing retains the last qualified observation until replacement or failure.
-Only one request chain per owner is active. Reads have a 15-second deadline;
+Only one request chain per owner is active; manual refresh coalesces with it.
+Per-tab transport scheduling admits two reads plus one explicit submission,
+control or cleanup, with 75-ms read staggering and separate bounded queues
+(60 reads and four controls). Queued scope changes cancel before dispatch; an
+active request retains its permit until settlement. Reads have a 15-second deadline;
 transient failures back off to at most 30 seconds. Capacity refusals retry sooner
 with bounded backoff. Configuration, denial, expired observations and incompatible
 responses require explicit action instead of automatic retries.
 
 This reducer does not restart SQL. Statement submission, terminal verification,
 original result identity, paging and cleanup remain owned by the shared
-`StatementReader`. Existing process, query, reactive and published-interface
-lifecycles retain their separate owners. Workbook drafts stay local to the page;
+`StatementReader`. Its presentation owner rejects duplicate Run while busy,
+clears rows on hiding/unavailable connection and observes the original identity
+on return. An unconfirmed close is labeled; bounded server lifetime still applies.
+Query, finite Live and definition publication retain their shared settlement
+owners and use the same scheduled transports. Workbook drafts stay local to the page;
 this change adds no durable workbook storage or automatic Run.
 
 The separately configured relational UI is at `/recovery/relational`, including

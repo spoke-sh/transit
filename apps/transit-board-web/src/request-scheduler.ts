@@ -30,7 +30,7 @@ export class RequestScheduler {
     signal?: AbortSignal,
   ): Promise<T> => {
     if (signal?.aborted) return Promise.reject(signal.reason);
-    if (this.pending.read.length + this.pending.control.length >= 64)
+    if (this.pending[lane].length >= (lane === "read" ? 60 : 4))
       return Promise.reject(new QueryError(429, "ReadQueueCapacity"));
     return new Promise<T>((resolve, reject) => {
       const job: Job = {

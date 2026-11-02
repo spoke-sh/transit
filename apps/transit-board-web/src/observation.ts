@@ -33,7 +33,10 @@ export function readFailure(cause: unknown): ReadFailure {
   if (
     code === "InvalidResponse" ||
     code === "IncompatibleDefinition" ||
-    code === "ResponseTooLarge"
+    code === "ResponseTooLarge" ||
+    code === "invalid_response" ||
+    code === "response_too_large" ||
+    code === "incompatible_definition"
   )
     return { kind: "incompatible", code, retryable: false };
   if (cause.status === 409 || cause.status === 410)

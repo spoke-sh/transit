@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
+  ApplicationTransportError,
   generation,
   presentation,
   readInterface,
@@ -21,7 +22,8 @@ export function InterfaceShell({ scope, children }: { scope: Deployment; childre
   const observed = useRead<Current>(`interface/${scope.realm}`, async (signal) => {
     const value = await readInterface(signal);
     const compiled = "builtin" in value ? value.builtin : value.published.compiled;
-    if (compiled.definition.realm !== scope.realm) throw new Error("Interface realm changed");
+    if (compiled.definition.realm !== scope.realm)
+      throw new ApplicationTransportError(0, "InvalidResponse");
     return {
       compiled,
       published: "published" in value,

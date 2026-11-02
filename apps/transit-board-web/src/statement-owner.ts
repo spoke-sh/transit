@@ -52,7 +52,7 @@ export class StatementOwner {
         if (previous?.id === effect.reader)
           closing = previous.close().then(
             () => {
-              this.cleanup = "";
+              // A different successful close cannot confirm an earlier lost reply.
               this.notify();
             },
             () => {

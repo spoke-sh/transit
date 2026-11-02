@@ -3,7 +3,7 @@ import ReactDOM from "react-dom/client";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
 import "./style.css";
-import { setRequestScheduler } from "@transit/reactive-client";
+import { setRequestScheduler } from "@transit/reactive-client/request-scheduling";
 import { RequestScheduler } from "./request-scheduler";
 setRequestScheduler(new RequestScheduler().run);
 const router = createRouter({ routeTree, defaultPreload: false });

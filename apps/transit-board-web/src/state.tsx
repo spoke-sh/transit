@@ -73,7 +73,11 @@ function usePagedRead<
     signal?: AbortSignal,
   ) => Promise<T>,
 ) {
-  const [continuation, setContinuation] = useState<{ cut: Cut; after: number }>();
+  const scopeKey = JSON.stringify([resource, pid]);
+  const [cursor, setCursor] = useState<{ scope: string; value: { cut: Cut; after: number } }>();
+  const continuation = cursor?.scope === scopeKey ? cursor.value : undefined;
+  const setContinuation = (value?: { cut: Cut; after: number }) =>
+    setCursor(value ? { scope: scopeKey, value } : undefined);
   const key = JSON.stringify([resource, pid, continuation]);
   const state = useRead(
     key,

@@ -1,4 +1,5 @@
-import { acquireCaller, scheduleRequest, type AcquireCaller } from "@transit/reactive-client";
+import { acquireCaller, type AcquireCaller } from "@transit/reactive-client/caller-gate";
+import { scheduleRequest } from "@transit/reactive-client/request-scheduling";
 import { ownedDiagnostic, type Diagnostic } from "@transit/diagnostics";
 import * as validate from "./validators.js";
 import type {
@@ -29,7 +30,20 @@ export class ApplicationTransportError extends Error {
 export type Transport = (request: HostRequest) => Promise<HostResponse>;
 export function request(value: HostRequest): Promise<HostResponse> {
   const signal = AbortSignal.timeout(35000);
-  return scheduleRequest("control", () => applicationRequest(value, signal), signal);
+  const readOnly = [
+    "info",
+    "compile",
+    "format",
+    "next_upload",
+    "prepare",
+    "prepare_read",
+    "read",
+  ].some((key) => key in value);
+  return scheduleRequest(
+    readOnly ? "read" : "control",
+    () => applicationRequest(value, signal),
+    signal,
+  );
 }
 async function applicationRequest(value: HostRequest, signal: AbortSignal): Promise<HostResponse> {
   if (!validate.HostRequest(value)) throw new Error("Invalid application request");
@@ -420,14 +434,20 @@ async function interfaceRequest(signal?: AbortSignal): Promise<InterfaceView> {
       }
       throw new ApplicationTransportError(response.status, code, diagnosticOf(failure));
     }
-    const result: unknown = await response.json();
+    let result: unknown;
+    try {
+      result = await response.json();
+    } catch (cause) {
+      if (signal?.aborted) throw cause;
+      throw new ApplicationTransportError(0, "InvalidResponse");
+    }
     if (
       !validate.HostResponse(result) ||
       typeof result !== "object" ||
       result === null ||
       !("builtin" in result || "published" in result)
     )
-      throw new Error("Invalid interface observation");
+      throw new ApplicationTransportError(0, "InvalidResponse");
     return result as InterfaceView;
   }
 }

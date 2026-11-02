@@ -79,3 +79,34 @@ test("lost Run reply reconnects to the same shared reader without resubmitting S
   await vi.advanceTimersByTimeAsync(0);
   expect(calls.at(-1)).toEqual({ close: id });
 });
+
+test("malformed results require action and lost close replies remain visibly unconfirmed", async () => {
+  vi.useFakeTimers();
+  const calls: Record<string, unknown>[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_path, options) => {
+      const action = JSON.parse(options.body).action;
+      calls.push(action);
+      if (action.close) throw new Error("lost cleanup reply");
+      return new Response("{malformed", { headers: { "content-type": "application/json" } });
+    }),
+  );
+  const owner = new StatementOwner(
+    () => {},
+    () => {},
+  );
+  owner.run("SHOW TABLES", null);
+  await vi.advanceTimersByTimeAsync(0);
+  expect(owner.state.failure?.kind).toBe("incompatible");
+  expect(owner.view).toBeNull();
+  await vi.advanceTimersByTimeAsync(60000);
+  expect(calls).toHaveLength(1);
+  owner.send({ type: "close" });
+  await vi.advanceTimersByTimeAsync(0);
+  expect(owner.cleanup).toContain("unconfirmed");
+  expect(owner.state.reader).toBeNull();
+  await vi.advanceTimersByTimeAsync(60000);
+  expect(calls).toHaveLength(2);
+  owner.send({ type: "dispose" });
+});

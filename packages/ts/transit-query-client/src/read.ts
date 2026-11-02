@@ -1,4 +1,4 @@
-import { scheduleRequest } from "@transit/reactive-client";
+import { scheduleRequest } from "@transit/reactive-client/request-scheduling";
 import { readDefinition, type ReadRequest, type ReadResponse } from "./read-types";
 import { ReadRequest as validRequest, ReadResponse as validResponse } from "./read-validators.js";
 import { boundedQueryJson, logicalCellValid, logicalColumnsValid, logicalInteger } from "./logical";
@@ -95,9 +95,12 @@ async function readAttempt(body: string, signal: AbortSignal): Promise<ReadRespo
   } finally {
     await reader.cancel();
   }
-  const value: unknown = JSON.parse(
-    new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(0, size)),
-  );
+  let value: unknown;
+  try {
+    value = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(0, size)));
+  } catch {
+    throw new QueryError(response.ok ? 0 : response.status, "InvalidResponse");
+  }
   if (!response.ok) {
     const code =
       typeof value === "object" &&

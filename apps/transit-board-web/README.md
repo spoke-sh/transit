@@ -208,23 +208,23 @@ contract mismatch hides incompatible results while exact pending work survives.
 The composition root installs one request scheduler for the tab. Public client
 transports acquire a permit around their bounded request/body-consumption chain:
 two reads and one separate submission/control/cleanup request may be active.
-Read starts are staggered by 75 ms. The FIFO queue holds at most 64 requests;
+Read starts are staggered by 75 ms. Separate FIFO queues hold at most 60 reads and four controls;
 capacity refusal is typed and queued aborts remove work before dispatch. An active
 request keeps its permit until it settles, even when a transport ignores abort.
 A composite observation acquires permits only for its individual transport calls.
 The scheduler supplies neither authorization nor retries.
 
-| Owner / scope | Retained identity and disclosure | Timer, retry and cleanup |
-| --- | --- | --- |
-| `state`, atlas, records, participation | Realm/PID/resource plus exact cursor/revision; one authorized page | Observation owner: five-second current-page reads, explicit continuation, 15-second deadline, transient backoff; scope/hide/dispose invalidate replies |
-| HTTP/gRPC/Document metadata | Resource, record and Document cursor | Same owner; current denial or failure clears evidence |
-| Catalog, dataset, storage | Exact namespace/definition/selector and coverage cursor | Same owner; selection holds keys, views derive from the current page |
-| Published interface | Realm and source contract | Same owner; only the built-in interface survives hiding; failed published reads never disclose an earlier definition |
-| Workbook result | Original shared `StatementReader` identity and submitted SQL | Statement presentation owner; serial Run/observe/next, five-second current-window validation, bounded transient backoff; hide/config loss clears rows and cancels; restoration observes the original reader; close reports unconfirmed release |
-| Unified resource query | Retained query namespace, frozen pending request and source basis | Shared query/Live owners retain their recovery semantics; tab hide aborts reads and pauses finite Live; original controls may settle; no implicit Run |
-| Live Table metadata | Shared `Session` and exact pending control | `LiveView` owns finite events/renewal and pause cleanup; hiding/unmount pauses, showing does not implicitly Follow |
-| Relational recovery | Original query identity, retained pin and pending intent | Serialized owner; one five-second current-page timer, hidden reads aborted, controls recover the original identity |
-| Deployment configuration | Safe configuration flags only | Observation owner may remain visible when hidden; flags do not authorize any data read |
+| Owner / scope                          | Retained identity and disclosure                                   | Timer, retry and cleanup                                                                                                                                                                                                                       |
+| -------------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `state`, atlas, records, participation | Realm/PID/resource plus exact cursor/revision; one authorized page | Observation owner: five-second current-page reads, explicit continuation, 15-second deadline, transient backoff; scope/hide/dispose invalidate replies                                                                                         |
+| HTTP/gRPC/Document metadata            | Resource, record and Document cursor                               | Same owner; current denial or failure clears evidence                                                                                                                                                                                          |
+| Catalog, dataset, storage              | Exact namespace/definition/selector and coverage cursor            | Same owner; selection holds keys, views derive from the current page                                                                                                                                                                           |
+| Published interface                    | Realm and source contract                                          | Same owner; only the built-in interface survives hiding; failed published reads never disclose an earlier definition                                                                                                                           |
+| Workbook result                        | Original shared `StatementReader` identity and submitted SQL       | Statement presentation owner; serial Run/observe/next, five-second current-window validation, bounded transient backoff; hide/config loss clears rows and cancels; restoration observes the original reader; close reports unconfirmed release |
+| Unified resource query                 | Retained query namespace, frozen pending request and source basis  | Shared query/Live owners retain their recovery semantics; tab hide aborts reads and pauses finite Live; original controls may settle; no implicit Run                                                                                          |
+| Live Table metadata                    | Shared `Session` and exact pending control                         | `LiveView` owns finite events/renewal and pause cleanup; hiding/unmount pauses, showing does not implicitly Follow                                                                                                                             |
+| Relational recovery                    | Original query identity, retained pin and pending intent           | Serialized owner; one five-second current-page timer, hidden reads aborted, controls recover the original identity                                                                                                                             |
+| Deployment configuration               | Safe configuration flags only                                      | Observation owner may remain visible when hidden; flags do not authorize any data read                                                                                                                                                         |
 
 All these transports use the tab scheduler. Statement completion and Live
 settlement remain in their shared clients. The independent finite models and

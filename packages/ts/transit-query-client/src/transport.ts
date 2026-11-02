@@ -1,4 +1,4 @@
-import { scheduleRequest } from "@transit/reactive-client";
+import { scheduleRequest } from "@transit/reactive-client/request-scheduling";
 import { ownedDiagnostic } from "./diagnostics";
 import type { Diagnostic, Request, Response } from "./types";
 import { Request as validRequest } from "./validators.js";

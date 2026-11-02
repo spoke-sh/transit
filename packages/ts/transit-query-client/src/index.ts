@@ -1,5 +1,5 @@
 export type * from "./types";
-export { scheduleRequest } from "@transit/reactive-client";
+export { scheduleRequest } from "@transit/reactive-client/request-scheduling";
 export * from "./transport";
 export * from "./values";
 export * from "./result";

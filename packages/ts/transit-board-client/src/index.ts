@@ -159,7 +159,9 @@ export async function request<T>(
   if (!path.startsWith("/api/v1/")) throw new BoardError(0, "InvalidPath");
   const query = options?.body && "query" in options.body ? options.body.query : null;
   const lane =
-    (options?.body && "recover" in options.body) || (query && ("open" in query || "close" in query)) ? "control" : "read";
+    (options?.body && "recover" in options.body) || (query && ("open" in query || "close" in query))
+      ? "control"
+      : "read";
   return scheduleRequest(
     lane,
     async () => {
@@ -206,7 +208,7 @@ export async function request<T>(
       try {
         value = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
       } catch {
-        throw new BoardError(0, "InvalidResponse");
+        throw new BoardError(response.ok ? 0 : response.status, "InvalidResponse");
       }
       if (!response.ok) {
         const primary =
