@@ -175,7 +175,7 @@ expected Table definition. Repeated next requests bind the last delivered positi
 an uncertain advance cannot create another SELECT. Expiry is checked on each
 request; deinitialization releases all readers. Native session leases independently
 bound abandoned remote resources.
-When admission fails, `rejection` retains the native code, SQLSTATE and optional
+When a read is rejected, `rejection` retains the native code, SQLSTATE and optional
 structured diagnostic after reader cleanup. This owned evidence is cleared by
 the next `apply`; it never authorizes resubmission.
 
