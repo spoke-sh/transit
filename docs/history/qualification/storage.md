@@ -418,6 +418,305 @@ The raw log `/var/tmp/transit-m6-schedule-membership-test1.log` has SHA-256
 This is component evidence. The [cold Queue baseline](performance.md) remains
 failed until a separately attributed installed run completes.
 
+## M6 recovery integration fixture repairs — 2026-11-01
+
+The first clean core attempt at `0b53d8b5e` stops in the diagnostic inventory:
+`QueueVisibilityCache.remove` adds one defensive `catch` which invalidates a
+fenced in-memory hint and leaves eligibility to durable lookup. Commit
+`ff004970c` regenerates the reviewed inventory; its mapping check adds no public
+cause or outcome. The retained attempt is `/var/tmp/transit-ci-1odsdw9p`, with
+transcript `/var/tmp/transit-m6-clean-core.log`.
+
+The next clean core attempt at `ff004970c` passes **63 fast checks**, **20 contract
+checks** and **1,959 of 1,960 executed native tests**, but the lane **fails**. The
+application signing fixture has stale command/read digests, causing its independent
+Python check and native signing test to fail. Separately, an inline `DirectRecord`
+test omits the current connection's required `audience` and `role` fields and does
+not compile. Both fixture defects are present in this branch's `origin/main`
+baseline. Passing siblings do not qualify the failed native aggregate or core lane.
+The retained checkout is `/var/tmp/transit-ci-c9td2gm5`; the transcript is
+`/var/tmp/transit-m6-clean-core-2.log`.
+
+Commit `f7e000ed4` supplies explicit synthetic audience and role values in that
+test. The standalone catalog selection (`guarded record policy`, `browser record
+storage`) passes **8/8** in ReleaseSafe. Commit `f590f1bd0` regenerates the signing
+vector from the existing independent Python generator for definition
+`afac2bd84560136ca90c0683afdffb8f71d5f96568b05dd3de773ce3c5339b2a`.
+Only the two 32-byte digests change; request scope, identities and payloads remain
+identical. The independent fixture check and **2/2** selected native application
+signing tests pass. These repairs change test data only, not runtime interpretation,
+permissions or the Queue implementation measured at `41b371ff6`.
+
+The third clean core attempt at `f590f1bd0` passes the repaired native aggregate
+and 14 complete lane tasks, including package builds and the Zig binding tests.
+It receives `SIGTERM` during the packaged runtime-boundary build; the origin of
+the signal is undetermined. The foreground command exits 143 and the owner report
+remains incomplete. This is **not a completed core lane**. Preserve its report at
+`/var/tmp/transit-ci-8_5t_hrv/src/.cache/ci/core.meta.json` and transcript
+`/var/tmp/transit-m6-clean-core-3.log`; a subsequent full clean invocation uses
+the same source and inventory in a dedicated process group.
+
+That fourth invocation **passes the complete selected core lane**, all **28/28
+tasks**, at clean `f590f1bd0`. It includes the repaired native aggregate, 45/45
+package builds, the public Zig SDK, packaged runtime/SQL gateway isolation,
+Station, storage, service, authorization, upgrade, caller, inspection and state
+checks. The owner report records `completed: true` and all task exit codes zero.
+Evidence is retained under
+`.cache/ci/clean/f590f1bd0b91-transit-ci-zlv4g2xf/`; `core.meta.json` has SHA-256
+`0593264a9f561dd7111604eefdef676cb84f21be993bfb2048f78bdb2544537a`,
+and `core.json` has SHA-256
+`05bc9a655e57a14e47e24920889492ae9bd7c9bd89715a47801799a09e7344d1`.
+The transcript is `/var/tmp/transit-m6-clean-core-4.log`. Other functional lanes
+overlap this run; their timings are not isolated performance measurements.
+This selected lane is not complete repository, provider or milestone qualification.
+
+Separately, `nix develop --option eval-cache false --command just
+test::transaction-workspace-model` passes at clean `f590f1bd0`: **304 distinct
+states** (1,084 generated), **eight negative controls** detected and replayed
+against Zig, and **12 concrete mixed Table/Stream schedules**. TLC is pinned to
+1.7.4. The owner evidence is
+`.cache/verification/transaction-workspace-model/20261101T203914-423491/evidence.json`,
+SHA-256 `27144cc4a11208cf25b24b4f85a09f40e341de456b3e449d503a054446c1cebc`;
+the transcript is `/var/tmp/transit-m6-transaction-workspace-model.log`.
+This restores the existing workspace regression gate with its already-integrated
+adapter. It does not establish exhaustive mixed Queue correspondence, liveness,
+physical-disk faults or a transactional Station runtime.
+
+The first clean `storage-query` attempt at `f590f1bd0` passes its first **12
+tasks**, including installed owner recovery and payload-service disclosure, then
+fails to compile `local_catalog_policy_test.zig`: the Stream settlement fixture
+still initializes the removed `offset.cursor` field. The current contract requires
+`offset.progress`; this fixture traverses the entire original read, so its issued
+complete cursor belongs in the canonical `exhausted` variant. This stale fixture
+also exists at the original main baseline. The failed lane's checkout and owner
+metadata remain at `/var/tmp/transit-ci-w49insf0`; its transcript is
+`/var/tmp/transit-m6-clean-storage-query.log`. Later lane tasks did not execute.
+Commit `1bf2ef7d2` supplies that exhausted progress proof in the fixture without
+changing runtime behavior, accepted identities, coverage or authorization checks.
+The standalone `just test::local-catalog` compiles that correction and advances
+through disk work, but is deliberately stopped to remove a duplicate workload
+while the full clean storage/query lane runs. Its transcript
+`/var/tmp/transit-m6-local-catalog-progress.log` is **incomplete**, not a test pass.
+
+The second clean storage/query attempt at `1bf2ef7d2` again passes the first 12
+tasks, then **fails** `local-catalog` after **19/20 tests** pass. The Queue
+fixture expects the direct `QueueLeaseFenced` error for an obsolete lease after
+renewal, while the current catalog adapter returns the contracted durable
+`closed` refusal. This assertion also predates this branch. The retained checkout
+is `/var/tmp/transit-ci-3g1fdmst`, and the transcript is
+`/var/tmp/transit-m6-clean-storage-query-2.log` (SHA-256
+`238a2efb5a5d7ba9a1c179e6f4b786c4108d2c2a6c52e9662b576e61bd2cc443`).
+Later tasks do not execute in this attempt. The corrected fixture verifies the
+closure's exact original request, `lease_fenced` reason and equality on original
+operation lookup; it preserves the original lease checks and subsequent corrected
+settlement under a separate identity.
+
+Commit `6ce4e3ec2` makes that fixture correction. The focused
+`zig build test-local-catalog -Doptimize=ReleaseSafe
+-Dlocal-catalog-filter="log privileges enforce separate native domains and current disclosure rights"`
+invocation passes, including Stream and Queue maintenance under native policy.
+Its transcript is `/var/tmp/transit-m6-local-queue-closure.log` (SHA-256
+`917bb09ccca7803e6fc7721db9d6df1831903f9015cab423909ca0493728f0f3`).
+This focused schedule does not qualify the previously failed complete lane.
+
+## M6 clean storage/query continuation — 2026-11-02
+
+The third clean storage/query invocation, at `6ce4e3ec2`, passes its first **13
+tasks**, including the complete `local-catalog` task in **4,075.24 s**. The latter
+now reaches the Queue maintenance, retention and wait/revocation schedules after
+the repaired refusal assertion. It preserves the native Stream settlement proof,
+original Queue outcomes, retained reads and current disclosure checks. This
+closes both native fixture regressions from the preceding attempts.
+
+The lane then **fails** `direct-table-service` in **381.62 s**. Provisioning,
+writes, request/response pressure, reserved recovery, history, SQL pins and
+original Table read/receipt recovery pass before the lifecycle fixture expects
+`constraint` for a populated codec change and receives `rewrite_required`.
+The [current ALTER contract](../../handbook/reference/sql/alter-table.md) refuses
+populated codec and collation rewrites before attempting row conversion. The
+fixture's older expectation, and its later assumption that a populated collation
+change succeeds synchronously, are also present in the branch's main baseline.
+
+The failed installation remains at `/var/tmp/transit-table-tables-_73d4c_j` and
+the clean checkout at `/var/tmp/transit-ci-01zlpq57`. Owner metadata records
+`completed: false`, 14 attempted tasks and 19 unexecuted tasks; the lane is not a
+pass. The transcript `/var/tmp/transit-m6-clean-storage-query-3.log` has SHA-256
+`132d4a83148890fd335753a57fd33d33fce1a3ef9bd6a71dd522ab818eb1a3fd`.
+
+Commit `57e936404` creates the synthetic Table with its intended nonbinary
+collation, then checks exact `rewrite_required` refusals for both populated codec
+and collation edits. Both original refusal bindings remain in the restart
+fixture; definition/data-frontier checks and retained original row values remain
+required. The change does not implement a rewrite runtime or reinterpret the
+failed installation's accepted operations.
+
+The subsequent working-tree `just test::direct-table-service` check passes both
+installed profiles with this fixture correction. Table executes **2,208 typed
+calls**, preserving original rows and refusals across three restarts, metadata
+changes, DROP/name reuse, delegated read closure and current authorization.
+The separate Queue profile passes FIFO heads, wait admission/timeout, original
+empty claims, four lost replies, ACK, automatic retired-lease expiry, tiered
+payload reads, explicit read closure and terminal retention across SIGKILL and
+restart. The summary names metadata changes rather than claiming synchronous
+rewrites. `/var/tmp/transit-m6-direct-table-rewrite.log` has SHA-256
+`43aac476b9c8cbb6cec34340ff1fc6a68d1de1a447d713380720d0a440a6bfd9`.
+This working-tree result does not qualify the earlier failed clean lane.
+
+The fourth invocation of `nix develop --option eval-cache false --command just
+ci clean --lane storage-query` **passes all 33/33 tasks** at clean commit
+`655067be1bb82597cd97adb1098aa6e8c41c6f49`. The owner metadata records
+`completed: true`, `dirty: false`, the complete expected task inventory and zero
+exit codes throughout. This includes full native catalog checks, both installed
+Table/Queue profiles, mixed state/log transactions, automatic Queue transfers,
+original workload tokens/results, maintenance, storage collection, local
+Documents, public queries, publication and catalog growth. The final growth
+case verifies **139 initialized KV/Document objects**, eight-entry directory
+pages and the original first receipt before and after node SIGKILL/restart,
+using **1,437 typed catalog calls**.
+
+Evidence is retained under
+`.cache/ci/clean/655067be1bb8-transit-ci-vah4yczk/`:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `storage-query.meta.json` | `e9dc22352579415acb330f44f6fd0bbd54c8667aa12b79ad9aa27c8a2a27894d` |
+| `storage-query.json` | `b52be6102ec7f6ebee663eedbe692ad5653064ca0ddbae11aebe9af85b8f6fec` |
+| `preparation.json` | `2d7bf1975c0dadbc1d11af99de194c117be11c2d2758ea82e8acd0da0a2d31a8` |
+
+The transcript `/var/tmp/transit-m6-clean-storage-query-4.log` has SHA-256
+`20571ec8c29278fab87b12514bd157a36c6225c3dc447c7a0d4f4f2ed5453c07`.
+The lane reports **9,293.21 s**; these functional-check durations are not
+isolated performance measurements. Earlier failed or interrupted invocations
+retain their outcomes. This closes the selected storage/query integration gate
+for the initial M6 recovery batch, not complete repository, provider or milestone
+qualification. Core, SQL-interface, model and performance evidence retain the
+separate revisions recorded in their owning accounts.
+
+After equivalent native fixture repairs land on main, commit `8c0657436`
+adopts their canonical progress construction and stronger Queue refusal checks.
+The fifth invocation of the same clean storage/query lane **passes all 33/33
+tasks** at `8c06574365dbe43cbbb8df8356fd77620e4bd152`, with clean source,
+complete expected inventory and zero task exit codes. It includes the complete
+native catalog task, installed Table/Queue profiles and the 139-object
+growth/restart proof. The owner reports **8,744.60 s**. Evidence is retained in
+`.cache/ci/clean/8c06574365db-transit-ci-9fzrh0rt/`:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `storage-query.meta.json` | `cf961303dfc8428e8083ecf55f39c3c63e58dd54385868c264ffc36e3f13bd5b` |
+| `storage-query.json` | `e1ff410848508f31f8daeaa0cd997be6ebb949855840f476e75a072c92bd8e2f` |
+| `preparation.json` | `5307c7fb7bd0487699c0d9ec43eb3465195ad6a73fd6ad04ed626897485739ae` |
+
+The transcript `/var/tmp/transit-m6-clean-storage-query-5.log` has SHA-256
+`a4113fd621d8a9672df9148030451096ec8f20fe06af4d425743b71115e06b6a`.
+
+Commit `e8f5cf5c6` subsequently aligns overlapping SQL and Table fixture repairs
+with main. The SQL fixtures' executable AST is unchanged after excluding
+assertion diagnostic messages. The Table fixture now verifies the unchanged
+definition and data frontier after each refused rewrite. Runtime code is
+unchanged. A separate clean clone at
+`e8f5cf5c626cb2580d41d36439c0162ebffde6e7`, with the same pinned dependency
+preparation, runs `just test::direct-table-service`. Its Table profile **passes
+2,209 typed calls**, including both original rewrite refusals and retained rows
+across replacement/restart. Its subsequent Queue profile **fails** during the
+read-only terminal observation: native `tail` reports `WalRecoveryRequired`,
+then the observation returns `AuthorityUnavailable`, following two
+`MaintenanceTimeout` warnings. No terminal ACK or successful terminal-retention
+completion is established for this installation.
+
+That combined focused command is **not a pass**. Preserve the installation at
+`/var/tmp/transit-table-queues-qrund_41`, its clean source checkout at
+`/var/tmp/transit-m6-final-fixtures-xluw1ijw/src`, and the transcript
+`/var/tmp/transit-m6-final-fixture-check.log` (SHA-256
+`0d6c470e419b3bb0965b63c06a298d7baa76bb431ac127fd338d269d1ec92256`).
+The launcher state `/var/tmp/transit-m6-final-fixture-check.state.json` has
+SHA-256 `aee81acfb86aaa0b103cd7e3c5ff804c7d624fdf0496d11b1b141279a1b9a3e2`.
+The broad lane and this focused run overlap; their timing is not an isolated
+performance measurement or a demonstrated explanation of the failure.
+
+An unchanged `just test::direct-table-service queues` rerun in that same clean
+checkout **passes** on a fresh installation, after the broad lane completes.
+It verifies **883 typed requests**, all four withheld replies, 76 expiry probes,
+terminal ACK/retention and original payload/receipt recovery across restarts.
+Its emitted provenance records clean `e8f5cf5c6`, the pinned toolchain and both
+binary hashes. The transcript `/var/tmp/transit-m6-final-queue-rerun.log` has
+SHA-256 `a4b40586b37e40295ed5dd28bf1824764f44bac7be61ab25f4c560a1ee90a3f4`.
+No deadline, lease, maintenance budget or assertion changes between these runs.
+The fresh pass does not resolve the earlier installation's maintenance-timeout
+failure. The final fixture convergence has this focused evidence; the complete
+selected clean-lane evidence remains attributed to `8c0657436`.
+
+## Verified Queue eligibility prefixes across transitions — 2026-11-01
+
+Commit `41b371ff6` carries a bounded eligibility prefix across deterministic
+claims, lease renewal and unordered ACK. Claims remove their exact scheduled
+event; renewal and unordered ACK add no eligible work. The hint binds the exact
+resulting item root and scheduled count. Other root changes, incomplete time
+advancement and exhausted partial prefixes still use durable lookup. Every
+selected event still validates the current item and `.tack` state. There is no
+wire, stored-format, definition, cache-capacity or deadline change.
+
+The focused ReleaseSafe selection (`queue visibility`, `queue index backlog`)
+passes **6/6**. A complete-population oracle checks all 120 removal orders for
+five events at four clock observations with only three resident entries. It
+covers cached and uncached removals, time/offset order differences, exclusive
+cursors, exact root/count/clock matching and absent known events. A disk index
+case retains four of eight prefix entries after four claims, renewal and
+unordered ACK, checks the original root after discarding a candidate and forces
+a refill after NACK. These checks establish semantic reuse, not a throughput
+or cold-recovery result.
+
+The broader `queue`, `Queue`, `index page` selection passes **67/67**, including
+the existing physical-disk recovery, corruption, lost-reply, retention and
+transaction cases. It reports 44 seconds of execution and 31 MiB peak test-process
+RSS. The transcript is `/var/tmp/transit-m6-visibility-tests.log`. These are
+component checks; clean-lane and installed measurements remain separate.
+
+## Bounded Queue cache reuse — 2026-11-01
+
+Implementation `777550e0606df5bfdcfe702e8a4bec741e7ac78c` preserves verified
+provider pages against private replay-cache eviction and packs up to four small
+bitmap containers into the existing 8,252-byte payload slab. It changes no stored
+format, definition, page-count budget, recovery-step limit or lease check. The
+[storage owner](../../../packages/zig/transit-storage/README.md) describes the
+borrow and provenance boundaries.
+
+Two regression cases fail against the preceding implementation: interleaving
+four disjoint Queue states performs 128 whole-object reads instead of four, and
+private reconstruction evicts a verified page, causing a second provider read.
+With the implementation, the focused bitmap, `.tack` and derived-page selection
+passes **13/13**, and the Queue/index selection passes **65/65** in ReleaseSafe.
+The latter reports 42 seconds of execution and 33 MiB peak test-process RSS.
+Both selections ran in the separate checkout used to produce the identical
+implementation commit; they are component evidence, not clean-lane results.
+
+```sh
+cd packages/zig/transit-storage
+zig build test -Doptimize=ReleaseSafe -j1 --summary all \
+  -Dtest-filter='paged bitmap' -Dtest-filter='derived page eviction' \
+  -Dtest-filter='tack'
+zig build test -Doptimize=ReleaseSafe -j1 --summary all \
+  -Dtest-filter='queue' -Dtest-filter='Queue' -Dtest-filter='index page'
+```
+
+The read-count oracle uses the memory provider's whole-object counter, not device
+IOPS. It checks every state against independent offset membership, exercises a
+full-size dense container followed by small-container reloads, rejects a wrong
+prefix and forbids owner heap growth after initialization. The replay case
+reconstructs more private pages than the cache holds while requiring an absent
+accepted provider page to remain missing. Existing disk Queue, lost-reply,
+corruption, retention and transaction tests run in the second selection.
+
+A separate uncommitted diagnostic uses a disk Queue with 65 rows, one resident
+page and a fixed test clock. One claim takes 113 ms before and 111 ms after the
+change, with 1,495 whole-object reads and 24 puts in each run. These single samples
+do not establish a latency improvement or real-clock deadline guarantee. They
+specifically do not attribute the earlier installed claim failure to these cache
+changes. The retained diagnostic patch is
+`/var/tmp/transit-m6-claim-diagnostic.patch`; installed and cold-recovery evidence
+remain separate. All these builds use definition
+`afac2bd84560136ca90c0683afdffb8f71d5f96568b05dd3de773ce3c5339b2a`.
+
 ## Queue replay cache provenance — 2026-11-01
 
 Implementation `16484c8136d5f804fd7f5e303a7999b14c7817e0` retains only

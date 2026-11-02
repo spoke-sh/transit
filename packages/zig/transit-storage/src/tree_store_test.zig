@@ -157,6 +157,12 @@ test "derived page eviction retains provider reads without masking absent accept
     // other can recreate an absent accepted page byte-for-byte.
     try t.expectEqualDeep(retained, try store.stage(try retained_page.reference(), &retained_page));
     try t.expectEqualDeep(missing, try store.stage(try missing_page.reference(), &missing_page));
+    // A Queue replay may reconstruct far more pages than the provider cache
+    // holds. Private staging and reads must not evict the verified working set.
+    for (100..112) |id| {
+        const private = try tree.put(null, try key(@intCast(id)), try pages.Value.init("private"));
+        _ = try store.load(private);
+    }
     store.end();
     store.clearDerived();
     try t.expectEqualDeep(missing_page, try store.load(missing)); // Overlay read, not provider evidence.

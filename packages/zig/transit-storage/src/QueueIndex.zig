@@ -224,6 +224,7 @@ pub fn acquire(self: Self, before: Root, offset: u64, claim: q.Claim, policy: p.
     try self.addDeadline(&next, next_item);
     next.active = try std.math.add(u64, next.active, 1);
     try next.validate();
+    if (self.visibility) |cache| cache.remove(before.items, next.items, before.scheduled, .{ .at_ms = previous.visible_ms, .offset = previous.offset });
     return next;
 }
 
@@ -262,6 +263,11 @@ pub fn settle(self: Self, before: Root, request: q.Settlement, policy: p.StreamQ
     } else try self.addDeadline(&next, change.item);
     try self.putItem(&next, change.item);
     try next.validate();
+    // Renewal keeps the head acquired. An unordered ACK exposes no successor.
+    // Other settlements can add eligibility and must use the durable refill.
+    if (change.state == .acquired or (change.state == .acked and policy.ordering == .unordered)) {
+        if (self.visibility) |cache| cache.retain(before.items, next.items, before.scheduled);
+    }
     return next;
 }
 

@@ -245,6 +245,105 @@ No installed claim/receipt/ACK, complete Stream/Queue performance profile,
 transactional Station runtime or Table performance gate is newly qualified by
 these checks. M6 remains in progress.
 
+## Installed SQL Queue claim and ACK fixture closure — 2026-11-01
+
+The `sessions-log` run against clean `36559b839` (runtime source from
+`0c64c4b0362e9fe54daa66388745430e9050eee0`) passes the 65-row one-second claim,
+original result reopening, lease-expiry observation and first ACK. It then stops
+because the shared fixture's terminal helper accepts only successful outcomes
+before a duplicate-ACK case can assert its expected `lease_fenced` refusal.
+The accepted work and exact binaries remain private at
+`/var/tmp/transit-direct-sql-wire-v8ywpepp`. This run does not reproduce the
+earlier claim deadline failure and does not retroactively close that earlier
+installation's original operation.
+
+Commit `a3722e153` lets refusal cases explicitly name their expected terminal
+outcome while retaining the helper's success-only default and original-identity
+polling. The next run reaches MySQL ACK, where Connector/Python 9.4.0's pure-Python
+prepared cursor reports zero affected rows but retains the preceding claim's
+column description (`with_rows == True`). Inspection of its installed
+`execute`, `_handle_result` and `_handle_noresultset` implementations confirms
+that the OK-packet path does not clear that description. The Transit adapter
+already emits a command OK with zero affected rows. Failed installations remain
+private; the diagnostic transcript is `/var/tmp/transit-m6-sql-log-fixture.log`.
+
+Commit `9dda42ffd` closes the claim cursor and acknowledges its owned receipt
+handles through a separate prepared cursor. It preserves the zero-row/no-result
+assertion and checks that closing a result does not invalidate lease authority.
+With these fixture changes and the exact frozen `36559b839` binaries, all four
+installed profiles pass: declarations, append/RETURNING, positional consumption,
+and Queue claim/ACK. Native, PostgreSQL, MySQL and console consumers pass, as do
+32/32/1 delivery, original results after append/expiry/service replacement,
+empty claims, current disclosure denial, typed parameters, binary receipts,
+ACK after ALTER, duplicate refusal and original ACK after DROP/replacement.
+
+The successful command uses the registered `tests/interfaces/sql_wire/gateway.py`
+driver with `sessions-log` and the seven binaries in that retained installation's
+`executables` directory. Its transcript is
+`/var/tmp/transit-m6-sql-log-cursors.log`. The runtime and fixture revisions are
+deliberately distinct: this is fixture closure against frozen baseline binaries,
+not installed qualification of the later cache change or a complete clean lane.
+Definition remains
+`afac2bd84560136ca90c0683afdffb8f71d5f96568b05dd3de773ce3c5339b2a`.
+
+## M6 clean SQL session attempt — 2026-11-01
+
+At clean `f590f1bd0`, `just ci clean --lane interfaces-sql` passes TLS,
+SQL-result allocation checks and the installed wire gateway task, then **fails**
+in `sql-sessions`. The real console reports `Completion unavailable; Tab retries`
+for `SET query.statement_t`, rather than inserting the expected setting name.
+The editor retains its one-second assistance budget; the fixture's ten-second
+display wait does not extend that request. Later lane tasks, including
+`sql-log-declarations`, do not execute in this attempt. The source checkout is
+`/var/tmp/transit-ci-dzf9snjn`, the installation and exact binaries remain at
+`/var/tmp/transit-direct-sql-wire-z0b8g7da`, and the transcript is
+`/var/tmp/transit-m6-clean-interfaces-sql.log` (SHA-256
+`d9dce399beb8a5fb653c9153f63253b4d17b6d01281e82c93b648fb202da3e70`).
+
+A diagnostic restart with the retained coordinator generation correctly refuses
+`StaleGatewayCoordinator`. A subsequent diagnostic copy uses the next generation
+and bypasses the disposed fixture fault proxy; startup records a new coordinator
+activation, with no SQL statement resubmission. Against the retained data,
+three settings assistance reads return the expected name in **573.599**, **592.831**
+and **589.022 ms**, and the real console completes it within the unchanged
+one-second budget. This is a narrower post-restart observation, not reproduction
+of the failed sequence or a passing lane. It does not identify the original
+unavailability's cause. The installation's `m6-settings-inspect-fenced.json` has
+SHA-256 `475ad7c8d48304216bc1fd36b6bb3efc6186d1269dbaf010a016125a6621d2c4`;
+the diagnostic transcript is `/var/tmp/transit-m6-settings-inspect-fenced.log`.
+
+A second full clean-lane invocation at the same `f590f1bd0` source passes
+`sql-sessions` in **1,046.41 s**, including the unchanged real-console completion
+assertion. There is no runtime, fixture, assistance-budget or display-wait change
+between these two lane attempts. The transcript is
+`/var/tmp/transit-m6-clean-interfaces-sql-2.log`. This is a fresh installation's
+passing session profile, not retroactive success for the retained failed attempt
+or an explanation of that attempt's unavailability.
+
+The same clean invocation also **passes `sql-log-declarations` in 303.71 s**
+with runtime and fixtures both at `f590f1bd0`. All four installed profiles
+(declarations, append/RETURNING, positional consumption and Queue claim/ACK)
+pass across native SQL, PostgreSQL, MySQL and the real console. The 65-row claim
+retains its one-second lease and original 32/32/1 result selection through append,
+expiry and replacement. Empty claims, current disclosure denial, binary receipts,
+ACK after ALTER, duplicate refusal and original ACK after DROP/replacement pass.
+This qualifies the current claim/ACK regression with the Queue cache changes;
+it does not settle the older `29fa45dcc` installation's original unknown attempt
+or qualify the unfinished SQL workload verbs and Station migration.
+
+The second invocation **completes the entire selected `interfaces-sql` lane**,
+**8/8 tasks**, at clean `f590f1bd0`, including the final transaction schedules.
+The owner report records `completed: true` and all task exit codes zero. Evidence
+is copied to `.cache/ci/clean/f590f1bd0b91-transit-ci-h71v4n0u/`:
+`interfaces-sql.meta.json` has SHA-256
+`a6a8972774259f9f020d2d85d5b4f0ac5203d244f87f51376950bcfcc0f970a1`,
+and `interfaces-sql.json` has SHA-256
+`7305c526bccc5a4aedb9958e122f09aec91cafcfa7bbf0c54b81a458f967a201`.
+Other functional checks overlap this run; the reported timings are not an
+isolated performance comparison. No console retry, budget change or relaxed
+assertion is introduced to obtain this pass. The earlier failed lane remains
+failed evidence, with its cause unresolved by this finite successful rerun.
+
 ## Installed SQL Queue claim deadline failure — 2026-11-01
 
 The `sessions-log` installed profile **failed** on clean source

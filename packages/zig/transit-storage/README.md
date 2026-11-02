@@ -78,6 +78,15 @@ stage private roots; lease metadata, receipts and publication remain the owning
 partition's responsibility. Terminal cardinality is a reclamation eligibility
 hint and supplies no authority to delete retained payloads.
 
+`BitmapDirectory` packs up to four verified immutable containers into its existing
+8,252-byte aligned slab. Small Queue state sets can therefore share that byte
+budget during repeated disjointness checks; a dense container occupies it alone.
+Each entry binds the full reference and offset prefix. A miss may evict all
+entries, and borrowed views remain valid only until the next miss. Changing the
+object namespace or abandoning an overlay requires `clearCache()`. The Queue
+owner creates a fresh directory at each operation/derivation boundary, so private
+container reads cannot become evidence that accepted provider objects exist.
+
 `QueueItem` computes lease, renewal, retry and exhaustion candidates using
 trusted time intervals. `QueueIndex` stages paged per-offset metadata, `.tack`
 roots, canonical full-key FIFO heads, eligibility and fenced deadline indexes.
@@ -171,6 +180,14 @@ Replay can reconstruct and compare roots without writing or requiring old
 intermediate staging objects. Persistence alone publishes no root and supplies no
 WAL acceptance. The enclosing owner must clear derived page caches when abandoning
 or resetting a candidate and must preserve original identity after uncertainty.
+
+During replay, `TreeStore` lets privately reconstructed pages use empty or private
+cache slots but prevents them from evicting independently verified provider pages.
+This preserves the provider working set within the configured page count across
+derivation boundaries. Private bytes remain available in the bounded candidate
+overlay when every cache slot is verified; they acquire no provider provenance
+by being staged, decoded or found in the cache. Changing the underlying physical
+namespace still requires clearing the complete page cache.
 
 Queue publication follows the proposed root's private index dependencies before
 staging. It includes `.tack` bitmap containers, full-key child directories and
@@ -307,8 +324,13 @@ The Queue owner caches an earliest eligibility prefix in that wheel, with 64
 entries by default (`Options.queue_visibility_rows`, 1–4,096). Each selection pass
 loads at most the smaller of capacity and declared `timer_steps`, then advances
 at most `timer_steps` wheel units. Deterministic publication validation may repeat
-selection. The cache binds its immutable item directory and scheduled count; changed
-roots or a backward speculative observation discard it. Incomplete advancement
+selection. The cache binds its immutable item directory and scheduled count.
+Deterministic claims remove their acquired events from the verified prefix;
+renewals and unordered ACKs preserve its remaining entries because they add no
+eligible work. These transitions rebind the hint to their exact resulting item
+root. An unpublished candidate therefore cannot supply a hint for the accepted
+root. Other changed roots or a backward speculative observation discard it.
+Exhausting a partial prefix requires a bounded durable refill. Incomplete advancement
 or a cursor beyond a partial prefix uses the durable directory. A full cache
 cannot establish an empty claim. Each selected event still validates its current
 durable item and `.tack` state; current authority and time remain separate checks.
@@ -519,8 +541,9 @@ and the catalog's retained dependency graph.
 ## Modules
 
 - `BitmapDirectory.zig`: Immutable paged directories of shared Roaring containers
-  spanning unsigned 64-bit offsets. One cached container and caller-owned 8 KiB
-  mutation scratch remain independent of durable cardinality. Container objects
+  spanning unsigned 64-bit offsets. Up to four small containers share one bounded
+  cache slab; caller-owned 8 KiB mutation scratch and cache capacity remain
+  independent of durable cardinality. Container objects
   bind their high offset prefix and current definition; reads verify content
   before cache admission. Borrowed views last until the owner's next cache miss.
   A bounded edit stages its container and directory path under the caller's
