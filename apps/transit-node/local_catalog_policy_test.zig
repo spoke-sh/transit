@@ -1805,6 +1805,45 @@ fn transactionDispatch(service: *@import("LocalTableService.zig"), owner_role: u
     try t.expect(settled.value.result.transaction.status.cleanup_complete);
     try t.expect(settled.value.result.transaction.status.observation.decided.outcome == .committed);
     try t.expectError(error.TransactionReadChanged, dispatchContext(service, .{ .snapshot = snapshot }, null, null, 29, context));
+
+    // Physical collection advances storage authority without revoking grants.
+    // Withhold the buffered status, but preserve the original transaction for
+    // a fresh observation instead of reporting a permanent permission denial.
+    const Fence = struct {
+        fn read(raw: *anyopaque) !@import("transit_core").Time.Sample {
+            return .{ .unix_ms = @as(*u64, @ptrCast(@alignCast(raw))).* };
+        }
+        fn run(raw: *anyopaque, engine: *Engine) !void {
+            const previous = engine.clock;
+            defer engine.clock = previous;
+            engine.clock = .{ .context = raw, .read = read };
+            _ = try command(engine, .{ .storage_fence = {} });
+        }
+    };
+    var fence_context = service.engine.head.time_floor_ms + 100;
+    const policy_revision = service.engine.head.authorization.revision;
+    service.before_reply = .{ .context = &fence_context, .run = Fence.run };
+    try t.expectError(error.StaleStorageEpoch, dispatch(service, .{ .transaction = .{ .inspect = token } }));
+    service.before_reply = null;
+    try t.expectEqual(policy_revision, service.engine.head.authorization.revision);
+    const after_fence = try dispatch(service, .{ .transaction = .{ .inspect = token } });
+    defer after_fence.deinit();
+    try t.expectEqualDeep(settled.value.result.transaction.status, after_fence.value.result.transaction.status);
+
+    // A fence between separate scoped checks has the same classification as
+    // one after buffering. Each guard still authenticates the current caller.
+    const digest: [32]u8 = @splat(83);
+    var policy = try Policy.init(service.engine, service.configuration, try proof(service.engine, digest), digest, null);
+    policy.paged = true;
+    const api = policy.policy();
+    const requirement = try c.TableAuthority.guard(api.subject, service.configuration.authority, null, null, .database);
+    const first_guard = try api.make_guard(api.context, allocator, requirement, null);
+    _ = try first_guard.acquire(first_guard.context);
+    first_guard.release(first_guard.context);
+    fence_context += 100;
+    try Fence.run(&fence_context, service.engine);
+    const next_guard = try api.make_guard(api.context, allocator, requirement, null);
+    try t.expectError(error.StaleStorageEpoch, next_guard.acquire(next_guard.context));
 }
 
 test "signed transaction controls preserve paged policy and private atomic work" {

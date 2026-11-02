@@ -147,7 +147,7 @@ const ObservedGuard = struct {
         const fence = try guard.acquire(guard.context);
         errdefer guard.release(guard.context);
         if (self.policy.paged) {
-            if (self.policy.checked_epoch) |previous| if (!std.meta.eql(previous, fence)) return error.AuthorizationChanged;
+            if (self.policy.checked_epoch) |previous| try requireSameEpoch(previous, fence);
             self.policy.checked_epoch = fence;
             return fence;
         }
@@ -161,6 +161,13 @@ const ObservedGuard = struct {
     }
 };
 
+/// Both changes fence the request. Physical collection does not revoke policy;
+/// preserve its existing conflict classification for a fresh original attempt.
+fn requireSameEpoch(previous: c.storage.TablePartition.Guard.Fence, current: c.storage.TablePartition.Guard.Fence) !void {
+    if (previous.policy_epoch != current.policy_epoch) return error.AuthorizationChanged;
+    if (previous.writer_epoch != current.writer_epoch) return error.StaleStorageEpoch;
+}
+
 /// Recheck all disclosed inputs after response buffering, including empty pages
 /// and the caller credential/resource lifetime. This does not execute any work.
 pub fn check(self: *Self) !u64 {
@@ -172,7 +179,7 @@ pub fn observation(self: *Self) !struct { revision: u64, subject: p.Authorizatio
     const guard = value.guard();
     const fence = try guard.acquire(guard.context);
     defer guard.release(guard.context);
-    if (self.paged) if (self.checked_epoch) |previous| if (!std.meta.eql(previous, fence)) return error.AuthorizationChanged;
+    if (self.paged) if (self.checked_epoch) |previous| try requireSameEpoch(previous, fence);
     return .{ .revision = fence.policy_epoch - 1, .subject = value.verified.? };
 }
 

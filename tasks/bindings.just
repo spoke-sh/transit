@@ -27,7 +27,9 @@ release-test packages runtime *args:
 # Build the archived SDK's actual application, then exercise install and replacement.
 [positional-arguments]
 release-zig archive runtime:
-    zig build test-operation-fixture -Dtarget="$(uname -m)-linux-musl" -Dcpu=baseline -Doptimize=ReleaseSafe -Dsdk-examples=false -j2
+    # This private driver runs on the build host with its pinned OpenSSL loader.
+    # release_zig.py still builds the archived application for the musl target.
+    zig build test-operation-fixture -Doptimize=ReleaseSafe -Dsdk-examples=false -j2
     python3 -B tests/runner/launch.py tests/sdk/release_zig.py "$@"
 
 # Regenerate declarations and shared schemas from the reviewed Zig ABI exports.

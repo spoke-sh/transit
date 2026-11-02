@@ -3,6 +3,7 @@
 const std = @import("std");
 const s = @import("root.zig");
 const p = s.protocol;
+const Diagnostic = s.results.protocol.Diagnostic;
 const Self = @This();
 pub const capacity = 4;
 pub const lifetime_ms = 300000;
@@ -26,6 +27,9 @@ allocator: std.mem.Allocator,
 io: std.Io,
 config: s.Client.Config,
 slots: [capacity]?*Reader = @splat(null),
+/// Owned evidence for the last apply call, surviving the failed reader's arena.
+/// This is an observation, never permission to resubmit the statement.
+rejection: ?struct { code: Diagnostic.Code, sqlstate: [5]u8, diagnostic: ?Diagnostic } = null,
 pub fn deinit(self: *Self) void {
     for (&self.slots) |*slot| if (slot.*) |reader| {
         reader.destroy();
@@ -52,6 +56,7 @@ fn validId(id: []const u8) !void {
     for (id) |char| if (!std.ascii.isDigit(char) and !(char >= 'a' and char <= 'f')) return error.InvalidReadIdentity;
 }
 pub fn apply(self: *Self, allocator: std.mem.Allocator, request: Request) !Response {
+    self.rejection = null;
     if (request.definition != p.native.current_definition) return error.IncompatibleSqlDefinition;
     self.expire();
     if (request.action == .describe) return .{ .description = .{ .database = self.config.database, .source = self.config.source } };
@@ -131,7 +136,12 @@ const Reader = struct {
         self.executor = .{ .client = &self.client, .control = &self.control, .config = host.config };
         const outcome = try self.executor.read(sql, .{});
         errdefer outcome.deinit();
-        if (outcome.value == .failure) return if (outcome.value.failure.denied()) error.SqlObservationDenied else error.SqlReadRejected;
+        if (outcome.value == .failure) {
+            const failure = outcome.value.failure;
+            const code: ?Diagnostic.Code = Diagnostic.Code.init(failure.code) catch null;
+            if (code) |value| host.rejection = .{ .code = value, .sqlstate = failure.sqlstate, .diagnostic = failure.diagnostic };
+            return if (failure.denied()) error.SqlObservationDenied else error.SqlReadRejected;
+        }
         if (expected) |definition| {
             if (outcome.value != .rows or outcome.value.rows.observation != .data or outcome.value.rows.observation.data != .table) return error.ReadSourceChanged;
             const actual = try p.Json.valueAlloc(host.allocator, outcome.value.rows.observation.data.table.interpretation);

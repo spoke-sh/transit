@@ -79,7 +79,13 @@ const Server = struct {
                 error.ReadWorkspaceCapacity => self.failure(req, .too_many_requests, .ReadWorkspaceCapacity),
                 error.ReadIdentityConflict, error.InvalidReadPosition, error.ReadSourceChanged => self.failure(req, .conflict, .QueryConflict),
                 error.InvalidReadStatement, error.InvalidReadIdentity, error.IncompatibleSqlDefinition => self.failure(req, .bad_request, .InvalidQuery),
-                error.SqlReadRejected => self.failure(req, .bad_request, .UnsupportedQuery),
+                error.SqlReadRejected => blk: {
+                    const rejected = reader.rejection orelse break :blk self.failure(req, .bad_request, .UnsupportedQuery);
+                    var detail = rejected.diagnostic orelse try api.InspectionDiagnostic.project(err, null);
+                    detail.cause = rejected.code;
+                    if (rejected.diagnostic == null) try detail.text(.protocol_status, .execution, &rejected.sqlstate);
+                    break :blk self.failureDiagnostic(req, .bad_request, .UnsupportedQuery, detail);
+                },
                 else => self.failureDiagnostic(req, .service_unavailable, .IncompleteResult, api.InspectionDiagnostic.project(err, null) catch null),
             };
         };
