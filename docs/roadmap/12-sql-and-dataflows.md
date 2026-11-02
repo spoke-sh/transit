@@ -261,24 +261,30 @@ latency under load separately from correctness.
 
 ## Implementation plan for remaining work — 2026-11-01
 
-Complete the installed finite Table lifecycle, then connect it to retained
-logical history and durable incremental operators. Develop the analytical SQL
-track alongside that work once its shared contracts are fixed. Each increment
+Complete owned staging and the installed finite Table recovery/resource gates,
+then connect the retained-result owner to logical history and durable incremental
+operators. Develop the analytical SQL track alongside that work once its shared
+contracts are fixed. Each increment
 must expose a complete caller journey: declare, authorize, activate, inspect the
 original definition and source basis, and recover the same accepted work after
 disconnect or replacement.
 
-**Review proposal, based on fetched `origin/main` at
-`f4abc3b18d9a621eb9fcb2f2c10ee72a48aa2ae1`.** This includes the managed Table
-implementation in [PR #318](https://github.com/spoke-sh/transit/pull/318), the
-production string increment in PR #316, gateway ingress in PR #315 and the
-Document storage increment in PR #319. Unmerged milestone branches are not
-prerequisites already satisfied. The earlier
+**Implementation proposal, based on local `main` at
+`db0bb4a8f129bed36e6df6eb30e2f606957798f3` (2026-11-01).** This includes the
+managed Table lifecycle in [PR #318](https://github.com/spoke-sh/transit/pull/318)
+and retained completed revisions in [PR #324](https://github.com/spoke-sh/transit/pull/324),
+M6 workload/transaction progress in PR #321, M10 historical catalogs and types
+in PR #320, the integrated performance packet in PR #325 and Board Operations
+in PR #326. Earlier M7/M8/M14/M16/M17 increments are also on this base.
+Other worktrees and unmerged milestone branches are context, not satisfied
+prerequisites. The earlier
 [plan at this source revision](https://github.com/spoke-sh/transit/blob/f4abc3b18d9a621eb9fcb2f2c10ee72a48aa2ae1/docs/roadmap/12-sql-and-dataflows.md#implementation-plan-for-remaining-work--2026-11-01)
 preserves the pre-implementation assessment; the October 30 `P0`–`P9` record below
 preserves original scope and component evidence. Keep the stable `R0`–`R10`
 packages, with the [PR sequence](#proposed-pr-sequence) defining their remaining
-review boundaries. Milestone 12 remains **In Progress**. This plan establishes
+review boundaries and [next implementation slice](#next-implementation-slice-owned-staging-and-finite-qualification)
+making the immediate work concrete. R0/R1a is delivered; do not rebuild it.
+Milestone 12 remains **In Progress**. This plan establishes
 no additional runtime support or executed proof.
 
 ### Installed Table implementation slice — 2026-11-01
@@ -302,11 +308,12 @@ ordinary Table; service-only write grants are needed for exclusive managed write
 Source definition replacement blocks and requires a new declaration. PostgreSQL,
 MySQL and standalone remote gateways reject these declarations.
 
-This slice does **not** close every R1/R2/R3 exit gate below. It does not add
+PR #318 alone does **not** close every R1/R2/R3 exit gate below. It does not add
 ordered/net change consumers, snapshot-to-tail history handoff, historical output
-retention, collectible abandoned immutable request records, the full crash-point
-matrix or a growth proof beyond the former helper capacities. Those remain
-explicit follow-up gates, alongside T5/T8 implementation correspondence. The
+retention (subsequently delivered by PR #324), collectible abandoned immutable
+request records, the full crash-point matrix or a growth proof beyond the former
+helper capacities. Apart from delivered retention, those remain explicit
+follow-up gates, alongside T5/T8 implementation correspondence. The
 finite consumer recomputes at a retained common cut and may coalesce intervening
 source changes. Incremental algebra and later SQL/connector packages remain
 separate work.
@@ -322,13 +329,15 @@ suspended and idle parking. The
 also records constraint and ordered SUM failures preserving the old output.
 Its evidence belongs to its named revisions, not automatically to this plan's
 newer base. Full crash, growth, installed revocation and T5/T8 correspondence
-remain open. The unresolved server-SQL failure after TLS trust replacement,
-SDK storage-full failure and interrupted clean lanes must be resolved and rerun;
-diagnostic passes do not clear them.
+remain open. The later retained-revision record includes a complete
+pre-M6-integration installation lane passing the previously failing TLS case;
+it neither explains that earlier failure nor qualifies this combined source.
+Use the source-specific recovery failures and rerun requirements in the
+[current qualification baseline](#qualification-and-measurement-baseline) below.
 
 ### Retained completed Table revisions — 2026-11-01
 
-The R0/R1a implementation adds `DFR1` manifests published with the original
+Merged PR #324 delivers R0/R1a: `DFR1` manifests published with the original
 output/checkpoint transaction. Each manifest retains its exact declaration,
 source/output definitions, common cut, output schema and immutable result pages.
 `ManagedRevision` consumes one fixed revision with explicit row/byte bounds,
@@ -357,14 +366,16 @@ complete R1b collection or introduce incremental execution.
 
 | Boundary | Present at the plan baseline | Work identified by the plan |
 | --- | --- | --- |
-| Installed managed Tables | [`ManagedTable`](../../packages/zig/transit-query-direct/src/ManagedTable.zig), [`DatabaseRuntime`](../../packages/zig/transit-sql/src/DatabaseRuntime.zig), [`ManagedSql`](../../packages/zig/transit-sql/src/ManagedSql.zig) and [`ManagedOperations`](../../packages/zig/transit-sql-service/src/ManagedOperations.zig) implement durable declarations, original work, control fencing, finite output/checkpoint transactions and publication-driven recovery | Add retained historical result roots, owned staging cleanup, full recovery/resource qualification and history-driven consumers. Completed revision keys alone do not retain historical output snapshots |
+| Installed managed Tables | [`ManagedTable`](../../packages/zig/transit-query-direct/src/ManagedTable.zig), [`ManagedRevision`](../../packages/zig/transit-query-direct/src/ManagedRevision.zig), [`DatabaseRuntime`](../../packages/zig/transit-sql/src/DatabaseRuntime.zig), [`ManagedSql`](../../packages/zig/transit-sql/src/ManagedSql.zig) and [`ManagedOperations`](../../packages/zig/transit-sql-service/src/ManagedOperations.zig) implement durable declarations, original work, control fencing, atomic output/checkpoint/immutable revision publication, bounded retained reads and publication-driven recovery | Add owned staging cleanup, historical SQL row consumption, full recovery/resource qualification and history-driven consumers. Preserve the delivered DFR1 manifest and raw-record disclosure guards |
+| Saved-record lifetime | [`DirectRecord`](../../packages/zig/transit-catalog/src/DirectRecord.zig) provides immutable stage/read operations; [`DirectStorageGraph`](../../packages/zig/transit-catalog/src/DirectStorageGraph.zig) excludes `direct-records/` from collection | Add durable creation/closure and reference ownership before admitting managed records to collection. A guarded record's read envelope is not a retention/collection authority; never enable collection for the entire shared prefix |
+| Historical interpretation | [`DirectHistory`](../../packages/zig/transit-catalog/src/DirectHistory.zig), historical SQL and versioned catalog definitions now retain selected names, Table definitions and independent or transferred common cuts | Compose the actual M10 owner in R2/R6. A catalog snapshot is not a protected ordered change interval; temporal periods and AS OF joins still need their own semantics |
 | Earlier captured/maintained queries | [`RelationalMaintenance`](../../packages/zig/transit-query/src/RelationalMaintenance.zig), [`RelationalHistory`](../../packages/zig/transit-query/src/RelationalHistory.zig) and [`NamedRelational`](../../packages/zig/transit-station-app/src/NamedRelational.zig) preserve their [supported host-driven profile](../handbook/reference/queries.md#maintained-table-revisions) | Migrate only after the direct owner preserves captured definitions, retained revisions/deltas, ordered failures, original attribution and cleanup. Their independent Table vectors do not establish common-cut semantics |
 | Prototype lifecycle | [`ManagedDataflow`](../../packages/zig/transit-catalog/src/ManagedDataflow.zig) has five-state helpers, 32 endpoint slots, 64 pending/outbox slots and caller-supplied decision labels | This remains separate from the installed owner. Reuse qualified semantics, not its fixed capacities or one maximum LSN for all sources; remove superseded helpers/claims when their production replacements are qualified |
 | Incremental algebra | [`FuzeDelta`](../../packages/zig/transit-fuze/src/FuzeDelta.zig) supplies weighted bags, join cross terms, group helpers and watermark cases | Z-sets have 256 resident entries. Arrangement run counts do not write `.tseg` objects. The finite join helper shares the join implementation; the widened aggregate total does not establish equivalence with canonical ordered checked SUM. Supply durable arrangements and independent semantic oracles |
 | Analytical operators and spill | [`AnalyticalSql`](../../packages/zig/transit-fuze/src/AnalyticalSql.zig) and [`PerfectHashIn`](../../packages/zig/transit-fuze/src/PerfectHashIn.zig) provide bounded typed-array cases | These are not wired into the production SQL planner. `SpillTracker` counts bytes/runs without disk I/O. Extend the actual plan/executor and reuse [`RelationalSpill`](../../packages/zig/transit-query-direct/src/RelationalSpill.zig); component counters cannot qualify larger-than-RAM execution |
 | Temporal, changes and MERGE | [`BitemporalAndTvf`](../../packages/zig/transit-fuze/src/BitemporalAndTvf.zig) evaluates caller-provided history/Stream/target arrays | No retained catalog binding or transaction publication follows from these helpers. The AS OF helper scans right history for each left probe; it does not establish the proposed merge-sweep complexity. Build real source adapters, SQL lowering and atomic mutations |
 | Functions | [`VectorUdf`](../../packages/zig/transit-fuze/src/VectorUdf.zig) validates macro trees and a small caller-built `WasmInstr` stack machine with fuel/memory counters | This is not a general Wasm binary loader, persisted function catalog or SQL function service. Validate the actual admitted module format, memory isolation and vector ABI before exposing Wasm UDFs |
-| Neutral contract, SQL and callers | [`Dataflow.zig`](../../packages/zig/transit-protocol/src/Dataflow.zig), [DATAFLOW_V1](../../contracts/DATAFLOW_V1.md), reflected schema and actual native SQL lifecycle are delivered; [result](../../contracts/SQL_RESULTS_V1.md) and [named relational](../../contracts/NAMED_RELATIONAL_V1.md) contracts remain separate owners | Extend consumer/result-retention contracts before enabling new modes. Shared data-client/SDK lifecycle, broader gateway/Flight exposure and captured/maintained migration remain open; unsupported syntax/profile tests must accompany each exposure |
+| Neutral contract, SQL and callers | [`Dataflow.zig`](../../packages/zig/transit-protocol/src/Dataflow.zig), [DATAFLOW_V1](../../contracts/DATAFLOW_V1.md), reflected schema, native SQL lifecycle and fixed-revision metadata are delivered; [result](../../contracts/SQL_RESULTS_V1.md) and [named relational](../../contracts/NAMED_RELATIONAL_V1.md) contracts remain separate owners | Extend owned cleanup and consumer contracts before enabling new modes. Shared data-client/SDK lifecycle, SQL historical rows, broader gateway/Flight exposure and captured/maintained migration remain open; unsupported syntax/profile tests must accompany each exposure |
 | Verification | Real typed and installed managed fixtures now supplement component tests and [`managed_dataflows.py`](../../tests/catalog/tables/managed_dataflows.py) | The latter is still a fixture/source check. Complete faults, growth, revocation, T5/T8 production correspondence, A3 mechanization and common-revision qualification remain open |
 
 The [query qualification ledger](../history/qualification/query.md) and
@@ -380,15 +391,62 @@ drift check expands the public profile.
 | [M1–M2](02-storage-and-query-performance.md), Completed; [M3](03-live-storage-and-sql-cutover.md), In Progress | Stable object/definition identities, direct catalog dependencies, WAL-inclusive Table pins, retained logical history, local flushing/archival/checkpoint/collection and installed direct callers | Register every new dataflow, arrangement, preparation and cleanup root with the existing storage graph. M3's remaining installed/performance qualification is not completed by M12 |
 | [M4](04-statement-results-and-consumption.md), Completed | Command outcomes, `ResultSet`, terminal coverage, current disclosure checks and original-attempt settlement | Use the existing result protocol for finite result/revision reads and metadata; a continuous interest has its own durable progress, not an indefinitely incomplete finite SELECT |
 | [M5](05-transactions-and-atomic-composition.md), Completed for local Tables | Serializable Table decisions, common cuts, private workspaces, savepoints and original decision recovery; the managed finite slice already consumes the shared decision owner | Extend through M6's participant owner. A transaction cut descriptor is not a retained change-feed lease or a global ordering of unrelated partition LSNs |
-| [M6 R5/R6](06-streams-queues-and-durable-runtime.md#r5-extend-the-transaction-owner-and-deliver-direct-kv), In Progress; PR #303 merged | Named direct KV, native Table/KV plus Stream/Queue append/settlement transactions, explicit log read dependencies, Queue waits and declaration/inspection SQL. The [installed mixed proof](../history/qualification/transactions.md#installed-mixed-state-output-and-input-settlement--2026-10-31) records lost-response and node-replacement recovery | Full preparation/finalization faults and clean qualification remain open; workload SQL, finite `STREAM_SLICE`, automatic DLQ and Station/effect migration are unfinished. Consume qualified native transactions now; do not wait for all of Station or implement a second coordinator |
+| [M6 R5/R6](06-streams-queues-and-durable-runtime.md#progress-checkpoint--2026-11-01), In Progress; PR #321 merged after #303 | Direct KV and native mixed Table/KV/Stream/Queue decisions; authenticated Stream intervals; SQL append/original RETURNING, positional CONSUME, routed CLAIM and receipt ACK; protected automatic terminal transfers. Reuse the original workload/result owner when composing Stream inputs or outboxes | Installed coverage differs by operation: claim/ACK qualification, cold Queue recovery, remaining SQL settlements/groups/waits, finite `STREAM_SLICE`, full mixed fault matrix and Station/effect migration remain open. No duplicate SQL bridge or transaction coordinator; no requirement to finish all Station work first |
 | [M7](07-document-storage-and-station-decoupling.md#first-integrated-storage-slice--2026-11-01), In Progress; PR #319 merged | Canonical causal map changes now drive paged `DocumentIndex` evaluation, `.tseg` storage and fenced WAL acceptance; owned path reads enforce authentication and cumulative budgets | This is a private storage-library API. BP/subcolumns, lists/spans, versioned merges, logical checkpoints, public catalog/client/SQL, collection routing/scans, transactions and consumer migration remain gates. It does not admit managed Document sources |
-| [M8](08-gateway-architecture-and-protocol-ingress.md), In Progress; PR #315 merged | Node-cohosted SQL/direct dispatch, event-driven recovery and pure startup/command ingress continuations | Reuse the installed runtime. Deadline integration, CPU-bounded scheduling, configuration handoff, coarse remote execution and broader Flight/Serving/performance remain owner work. Preserve idle parking; add no per-dataflow polling service |
-| [M9](09-client-foundation-and-language-apis.md#remaining-implementation-plan--2026-10-31), In Progress; PR #298 merged | Independent `transit-data-client.Catalog`, neutral values/direct readers, bounded contexts, frozen SQL submission and local recovery storage | Principal coordination, ordinary settlement, result/transaction handles and independent data bindings remain active work. M12 supplies its minimal typed operations and migrates affected callers without waiting for every language redesign |
-| [M10](10-standards-and-catalogs.md#delivered-implementation-evidence--2026-10-30), In Progress | Generated standards ledger, operator traits, EXPLAIN integration, collation/timezone/range helpers and historical-cut components | Stored companion types, constraints and durable historical catalog/SQL binding are not delivered by helpers. Gate period types and bitemporal knowledge cuts on their actual owners; do not adopt a private manifest namespace |
+| [M8](08-gateway-architecture-and-protocol-ingress.md), In Progress; PRs #315/#325 merged | Node-cohosted SQL/direct dispatch, event-driven recovery, pure ingress continuations and installed managed/connection measurement drivers | Deadline integration, CPU-bounded scheduling, configuration handoff, coarse remote execution and broader Flight/Serving remain owner work. Record managed foreground interference before adding concurrency; preserve idle parking and avoid per-dataflow polling/thread pools |
+| [M9](09-client-foundation-and-language-apis.md#implemented-context-and-kv-recovery-increment--2026-11-01), In Progress; PR #307 merged | Independent data/value/query packages, bounded contexts with separate data/control admission, frozen SQL recovery and direct KV recovery through the shared local store | Aggregate byte accounting, native principal coordination, ordinary Catalog/log settlement, result/transaction handles and independent data bindings remain open. M12 supplies its minimal typed operations and migrates affected callers without waiting for every language redesign |
+| [M10](10-standards-and-catalogs.md#progress-pr-scope--2026-11-01), In Progress; PR #320 merged | Stored RANGE/MULTIRANGE/VECTOR and semantic descriptors, explicit decimal/timezone expressions, CP037/CP1047 rules, CHECK/staged-FK definitions, lazy projection, retained catalogs/common-cut transfer, `AS OF SNAPSHOT` and versioned view/graph/foreign descriptors | Use these production owners, not the obsolete helper-only assessment. Full FK enforcement/phased rewrites still depend on M11; application-time periods, temporal `FOR SYSTEM_TIME AS OF`, managed-view composition and final M10 qualification remain separate gates. Stored RANGE support alone does not implement bitemporal SQL |
 | [M11](11-indexing-and-access-paths.md), Planned | Index lifecycle contracts and existing bounded ordered storage primitives | Full secondary indexes, phased rewrites and finer conflict tracking remain M11. Start on bounded scans/paged arrangements; consume index coverage when qualified. M11 builds must not depend on M12 scheduling, avoiding a circular prerequisite |
 | [M14](14-vectorized-strings-and-search.md#first-production-strings-increment), In Progress; PR #316 merged | Bounds-safe SIMD, lossless 16-byte Batch strings, owned/borrowed lifetimes, five-state sidecars and production dictionary/FSST predicates | M12 still owns expression admission for constant `IN`/`NOT IN`. Compact retained keys, spill integration and broader search remain open. Reuse the real Batch/reader path and its correctness controls; do not infer an end-to-end speedup |
 | [M16 profiles](16-document-profiles-and-gateway-exchange-lifecycle.md), [M17 spatial](17-geospatial-and-spatio-temporal-computing.md), In Progress | Offline JSON/XML profile processing and exact-predicate/bounded planar geometry foundations respectively | Neither supplies installed managed Document/spatial execution. Bind later qualified sources/operators to this lifecycle; do not duplicate their storage or semantic authority |
 | [M20](20-branches-merges-and-restore.md#local-table-branch-increment), In Progress; PR #301 merged | Durable immutable single-Table branches with exact retained interpretation and protected pins | This does not supply writable branches, whole-catalog cuts or live branch dataflows. Begin M12 in the qualified local branch-one domain and preserve explicit branch identity for later extension |
+| [M30](30-board-reimplementation.md#operations-and-observation-delivery--2026-11-01), In Progress; PR #326 merged | Deployment capability discovery, public exact Table storage reads and fenced observation states; retained-definition inspection from M10 | M12 supplies typed computation/revision/progress reads for future computation neighborhoods. Reuse Board's observation ownership; read-only inspection does not acquire history, schedule work or authorize controls. Broader Board model/browser/performance gates remain there |
+
+### Qualification and measurement baseline
+
+The [retained-revision proof](../history/qualification/query.md#retained-managed-table-revisions--2026-11-01)
+records clean focused managed fixtures, contracts and fast checks at their named
+sources, with guarded buffered/empty/terminal disclosure and retained reads after
+output edits, retirement and replacement. It does not close the full crash,
+growth, collection or performance matrix. Its earlier complete SQL, SDK and
+installation lanes precede later integrations; their union is not qualification
+of `db0bb4a8f`.
+
+The [integrated performance packet](../history/qualification/performance.md#integrated-performance-measurement-packet--2026-11-01)
+at `a7d659b85` supplies a reproducible starting workload, not a measurement of
+PR #324's retained publication/read cost. Both managed profiles passed. Initial
+activation took 4.687 s for three rows and 11.570 s for sixteen; three successors
+took 6.327–10.795 s and 19.033–27.484 s respectively. Foreground medians rose
+from 31.7/34.4 ms to 95.3/143.3 ms during successors. These are different-size
+diagnostics with observation/verification costs, not an incremental speed ratio,
+tail SLO or proof of a cause. Short settled intervals recorded zero attempts;
+graceful retained restart is separate from SIGKILL recovery.
+
+Before optimizing R3, rerun the
+[installed managed profile](../../tests/performance/load/installed.md) on the
+combined retained-revision source with normal maintenance and deadlines. Measure
+result bytes/pages and retained revision count as independent dimensions from
+input row count, plus cold recovery and foreground/control interference. The
+current one-row-per-page staging loop in `ManagedTable.evaluate` is a measurement target;
+do not infer its exclusive cost from aggregate Table attempt counts. Integrate
+bounded batching while preserving its reusable scratch, original identities,
+complete publication and disclosure semantics. Any persisted page-format change
+requires the current-v1 cutover and regenerated consumers.
+
+Keep these failures visible as owner-specific qualification gates:
+
+| Recorded failure or limitation | Required follow-through |
+| --- | --- |
+| PR #325 ordinary console campaign failed after DELETE; a traced run passed | M8/SQL owns diagnosis and original outcome. Preserve the failed case and require the ordinary profile when qualifying shared M12 SQL changes; the traced pass does not settle it |
+| Default-maintenance SDK campaign stopped on uncertain snapshot release | M9/catalog owns original release recovery. Retained managed readers must not add hidden reacquisition or treat close failure as completed cleanup; maintenance-disabled measurements do not qualify the ordinary path |
+| Clean `interfaces-sql` stopped at captured Table operation 63 without a terminal outcome | Preserve captured functionality during R9 migration; reproduce/resolve with its exact source and run the complete affected lane at the combined implementation revision |
+| M6 cold Queue recovery and installed claim/ACK schedules remain open | Gate the particular R8 connector/Queue path on its owning proof. They do not block independent Table staging/history work, nor become passed because a Table-only managed profile passes |
+
+Use the recorded original builds to inspect incompatible retained fixtures;
+never reopen them under a newer shared definition or resubmit uncertain work as
+a new operation. New baselines use fresh private fixtures and keep failures in
+their reports. Set resource/regression budgets from those measurements before
+optimization; M13's later scorecard does not defer M12's boundedness gates.
 
 ### Delivery profile and decisions
 
@@ -399,8 +457,9 @@ qualified. Cross-domain vectors remain explicitly independent; requests for
 unsupported atomicity reject before admission. Add Stream inputs using M6's
 retained readers and native transaction participants. Add KV/Document projections
 only after their direct query/change adapters establish the same contracts.
-Retained historical results are a new explicit contract, not an interpretation of
-today's checkpoint keys. These increments preserve all analytical, temporal,
+Retained historical results use the delivered immutable manifest contract;
+explicit release/expiry and physical collection require additional contracts.
+These increments preserve all analytical, temporal,
 UDF, connector and interface completion requirements.
 
 1. **Preserve ownership and dependency direction.** `transit-protocol` owns neutral bindings;
@@ -461,7 +520,7 @@ UDF, connector and interface completion requirements.
 | Package | Reviewable outcome | Start gate | Exit evidence |
 | --- | --- | --- | --- |
 | R0 | Extend delivered contract/capability work for retention, modes and migration | Merged finite profile | Reflected types/fixtures, negative compiler cases, owner and cutover inventory agreed before each extension |
-| R1 | Complete retained historical results, staging ownership and cleanup around delivered declarations/work | R0 retention contract | Disk reopen, exact operation retry, paged growth and storage-graph reachability |
+| R1 | Preserve delivered R1a immutable revisions; add staging ownership and cleanup | Delivered retention contract; R0 closure extension | Disk reopen, exact operation retry, paged growth and storage-graph reachability |
 | R2 | Connect verified source cuts to durable snapshot-to-history handoff | R0; R1 for durable cursors/roots | No gap/duplicate application across writes, archive/trim and delayed transaction participants |
 | R3 | Complete installed finite faults/resources, then integrate history scheduling and multi-source execution | Delivered finite owner; R1; R2 for history modes | Fair bounded work, current authorization, full crash matrix and atomic complete successors through actual callers |
 | R4 | Durable incremental execution and event-time semantics | R2/R3; qualified finite operator oracle | Independent finite equivalence, persistent arrangements, bounded spill/recovery |
@@ -472,8 +531,10 @@ UDF, connector and interface completion requirements.
 | R9 | Complete caller migration, inspection and current-v1 cutover | Starts with R0/R3; finishes after exposed R4–R8 slices | Shared SQL/native/SDK/Flight/Board contracts, installed caller proofs and removed superseded paths |
 | R10 | Formal correspondence, integrated faults and qualification | Begins with R0; closes after R1–R9 | One committed revision with required evidence, public documentation and explicit limits |
 
-The next path is **R0/R1 retained results → owned cleanup → R3 finite
-qualification → R2/R3 history consumption → R4 incremental execution**. R5 can
+The next path is **R1b owned staging/cleanup → R3a finite qualification → R2/R3
+history consumption → R4 incremental execution**. Start R3a's combined-source
+regression and measurement baseline immediately, alongside R1b; finish its
+collection/crash/resource matrix after R1b lands. R5 can
 proceed alongside it after contract review; each operator enters R4 only after
 its finite semantics are qualified. R6 splits by feature, and R8 can consume the
 finite profile before every incremental operator is ready. R9 and R10 accompany
@@ -519,12 +580,12 @@ artifact. T5/T8/A3 assertions are assigned to production owners now.
 #### R1 — Persist the control lifecycle and retained graph
 
 Keep the delivered paged declarations, dependency edges, original operations,
-control epochs, pending directory and completed checkpoint keys. Extend their
-retained graph rather than adding another catalog or scheduler. Add a complete
-immutable result manifest, exact definition/source attribution and a bounded
-reader for each retained revision. Attach its durable roots to the same
-output/checkpoint decision. Never acquire the current output Table after commit
-and label that potentially newer snapshot as the historical revision.
+control epochs, pending directory, DFR1 manifests and `ManagedRevision` reader.
+R1a already attaches exact definition/source attribution and immutable result
+pages to the output/checkpoint decision. R1b extends their retained graph rather
+than adding another catalog, scheduler or historical result implementation.
+Never acquire the current output Table after commit and label that potentially
+newer snapshot as the historical revision.
 
 The [DirectRecord](../../packages/zig/transit-catalog/src/DirectRecord.zig) namespace
 is currently excluded from collection. Define explicit ownership, creation
@@ -577,6 +638,15 @@ Stream adapters consume M6's retained partition/offset bounds without advancing
 consumer groups for finite reads. Direct KV/Document require their own qualified
 change/projection adapters. Do not route the new database executor through a
 Station source merely to make those kinds appear supported.
+
+Reuse M10's historical catalog for retained interpretation and verified
+common-cut transfer. It does not replace the source history lease. The current
+guarded DirectRecord envelope names three objects (source/output/control);
+multi-source publication must first replace that fixed disclosure conjunction
+with a bounded, completely checked policy/dependency representation. Specify
+policy-epoch fencing across paged checks and recheck before buffered/terminal
+disclosure. Raising the array size or checking only contributing inputs does
+not qualify a general source vector.
 
 **Exit:** disk-backed snapshot-to-tail tests cover writes during backfill,
 duplicate delivery, archived history after trim, true history gaps, independent
@@ -704,9 +774,13 @@ adapter rather than build another bridge. M12 composes that reader in joins,
 bitemporal queries and managed plans. Timestamp selection must state its index,
 scan budget and exact offset coverage; it never commits consumer progress.
 
-Deliver period descriptors only with M10's stored type/schema contract. Bind
-system-time selection to the actual durable historical catalog and data owner,
-then implement ordered AS OF execution with defined ties, nulls, tolerance,
+Reuse M10's delivered RANGE/MULTIRANGE, semantic descriptors and retained catalog
+operations. Define application-time period constraints and temporal knowledge
+cuts before admitting bitemporal syntax. Today's `AS OF SNAPSHOT` selects an
+explicit retained catalog; it is not `FOR SYSTEM_TIME AS OF`, which remains
+reserved for temporal semantics. Do not restore the removed ambiguous integer
+selector or invent a second manifest identity. Compose actual durable historical
+selection with ordered AS OF execution with defined ties, nulls, tolerance,
 period endpoints and unmatched rows. Include sorting/spill cost in measurements.
 Backfilled corrections must remain invisible at earlier knowledge cuts.
 M17 supplies trajectory interpolation later; a callback does not qualify it.
@@ -779,6 +853,13 @@ heads, pending successor, blocked reason, retained-history availability and
 budget usage. Counts/lag need units and coverage; unrelated LSNs cannot be
 subtracted into a global freshness claim. Recheck current rights for cached
 metadata, repeated/empty batches and terminal counts.
+
+Specify SQL historical-row selection as a separate finite reader adapter over
+the exact saved revision. `SHOW DATAFLOW ... REVISION` remains metadata-only
+until that contract is implemented. Preserve one schema, bounded batches and
+verified terminal coverage; a closed session neither releases the revision nor
+retires the computation. Coordinate the syntax/capability entry with M43 before
+exposing it, without waiting for the full dialect audit.
 
 Migrate existing captured and maintained naming consumers, ABI/ports, generated
 resources, SDKs, fixtures and examples together. Build ordinary data operations
@@ -858,6 +939,7 @@ when every scope and qualification gate is met.
 | [M20 branches](20-branches-merges-and-restore.md) | Branch-scoped computation identities and retained source/result roots | Writable branch computation, merge/restore decisions and execution discontinuities; SQL MERGE stays with M12 |
 | [M22 formal semantics](22-formal-semantics-and-correspondence.md) | T5/T8/A3 models, production correspondence and explicit proof limits | Broader composition/refinement. M12's selected proofs remain its own completion gate |
 | [M27 policy](27-control-and-policy-plane.md), [M30 Board](30-board-reimplementation.md), [M32 reactive context](32-reactive-context-and-agent-activation.md), [M41 Datalog](41-deductive-rules-datalog-and-equivalence-graphs.md), [M42 EDA](42-hardware-design-rtl-and-eda-verification.md), [M43 SQL ergonomics](43-sql-grammar-and-dialect-ergonomics.md) | Current-policy execution/disclosure, inspectable complete revisions, exact change modes, blocked reasons, bounded recursive CTE evaluation and shared lifecycle verbs | Enterprise policy/authentication workflows, broader workbench editing, durable application interests/business triggers, multi-relation Tarjan-SCC Datalog stratification/lattices/witnesses, RTL/EDA verification suites and dialect audits. Notifications do not prove an agent or external action completed |
+| [M35–M40 workload owners](35-scientific-arrays-and-measurements.md), [M46 synthesis research](46-declarative-language-context-and-synthesis.md) and [specialization research](on-demand-specialization-research.md) | Definition-bound operator traits, admitted update/retraction versus bounded rebuild, exact result/error evidence and reproducible finite/incremental comparisons | Domain schemas, scientific/numerical fidelity, model/solver evaluation, candidate synthesis and hardware experiments remain later work. Research adds no prerequisite to this milestone or its release gates; reasoning and delegation remain application policy |
 
 ### Proposed PR sequence
 
@@ -869,9 +951,9 @@ tests alone. R9 migration work and R10 correspondence accompany every row.
 
 | Review unit | Concrete deliverable | Depends on | Required acceptance before merge |
 | --- | --- | --- | --- |
-| **R0/R1a — Retained completed results** | Immutable revision manifests and bounded reads bound to the output/checkpoint decision; neutral retention/root descriptors | Merged finite profile | Read revision A after B publishes, output changes and node replacement; preserve exact attribution, current grants and empty-result coverage |
+| **R0/R1a — Delivered by PR #324** | Immutable DFR1 manifests, guarded bounded revision reads and SQL revision metadata bound to the output/checkpoint decision | Merged finite profile | [Recorded focused proofs](../history/qualification/query.md#retained-managed-table-revisions--2026-11-01); preserve them in later integrations. Owned staging/collection and full fault/resource qualification remain below |
 | **R1b — Owned staging and collection** | Managed-record creation/closure fences, complete graph registration and paged abandoned-work cleanup | R1a; storage owner contract | Real collection preserves every recoverable/referenced object; interrupted cleanup resumes; closed identities cannot be accepted late; unrelated record formats remain protected |
-| **R3a — Finite lifecycle qualification** | Bounded fair runtime work, reserved control capacity and complete finite crash/revocation/growth proof | R1a/R1b | Old/new complete output at every staging/prepare/decision/finalize kill; original recovery, stale-worker refusal, growth beyond helper capacities and idle parking |
+| **R3a — Finite lifecycle qualification** | Combined-source baseline, bounded fair runtime work, reserved control capacity and complete finite crash/revocation/growth proof | Begin baseline now; finish collection matrix after R1b | Old/new complete output at every staging/prepare/decision/finalize kill; original recovery, stale-worker refusal, growth beyond helper capacities, idle parking and attributed retained-revision costs |
 | **R2a/R3b — Table history consumer** | Persisted history protection, snapshot backfill and exact ordered/net modes in the installed service; explicit resume policy | R3a | Concurrent backfill writes, no-ops, oscillations, archive/trim, true gaps, lost wakes and restart; no checkpoint through an incomplete acceptance |
 | **R2b/R3c — Multiple inputs and managed dependencies** | Paged source vector, real common-decision barrier, alias deduplication and bounded acyclic scheduling | R2a/R3b; R5a for joins | Delayed/aborted mixed participants never publish a partial cut; durable waiting and cycle rejection; admit output chaining only with qualified dependency coverage |
 | **R4a — Persistent delta execution** | Typed batches, durable arrangements and real spill for projection/filter and admitted UNION ALL | R2a/R3b; finite operator semantics | Independent finite equality at every completed basis; reopen arrangements, checked multiplicities, allocation and disk-budget controls |
@@ -881,7 +963,7 @@ tests alone. R9 migration work and R10 correspondence accompany every row.
 | **R5b — Subqueries, CTEs and sets** | Dependent-join lowering, scalar/quantified/LATERAL queries, shared and recursive CTEs, bag set operations | R5a | Correlation/scalar-cardinality oracles, cycle/work limits and duplicate multiplicities; no claim of universal decorrelation from an equijoin case |
 | **R5c — Windows, aggregates and strings** | Ordering/limits/HAVING, frames/QUALIFY, rich aggregates, M14-backed IN/NOT IN and external sort/group/window spill | R5a/R5b; M10 for admitted temporal types | Frame peers/exclusions, empty/all-null/overflow cases, collation/five-state truth, actual spill I/O and scratch lifetime |
 | **R6a — Change and Stream relations** | CHANGES over retained Table history; compose M6's finite STREAM_SLICE reader in relational and managed plans | R2; M6 executable finite bridge; needed R5 operators | Exact lower/upper coverage and definitions, current rights, trim/restart, offset/timestamp limits; no consumer-group progress mutation |
-| **R6b — Bitemporal execution** | Durable historical interpretation, application-time periods and ordered AS OF joins | M10 stored types/history; R5 sort/join path | Backfill stays invisible to earlier knowledge cuts; ties/endpoints/tolerance/NULLs and charged sorting/spill match independent results |
+| **R6b — Bitemporal execution** | Compose delivered historical catalogs/stored types with new application-time periods, temporal knowledge cuts and ordered AS OF joins | M10 owners and their qualified profile; R5 sort/join path | Backfill stays invisible to earlier knowledge cuts; ties/endpoints/tolerance/NULLs and charged sorting/spill match independent results |
 | **R6c — Transactional MERGE** | SQL lowering into the existing workspace and original-operation settlement | R5; M5/M6 transactions; admitted M10/M11 constraints | Duplicate matches, constraint failure, savepoints, schema drift, revocation and lost-reply/restart all preserve one decision |
 | **R7a — Catalog functions and SQL macros** | Immutable typed function bindings, hygienic expansion and bounded table-function output | R0/R5; M10 descriptors | Stored SQL invocation, replacement attribution, expansion/output budgets and retired dependency protection |
 | **R7b — Sandboxed Wasm execution** | Real admitted binary decoder/validator/runtime and five-state vector ABI | R7a; reviewed binary subset | Invalid imports/modules, loops, traps, memory growth, borrowed-buffer lifetime and persisted invocation/recovery |
@@ -890,21 +972,88 @@ tests alone. R9 migration work and R10 correspondence accompany every row.
 | **R9 — Complete migration and caller matrix** | Finish captured/maintained migration, shared data client/SDKs, applicable gateways/Flight and read-only Board | Per-feature migration starts immediately; closure after R4–R8 | Real caller journeys, foreign-definition rejection, retained old attribution, no captured API loss and removal of superseded paths |
 | **R10 — Common-revision qualification** | Final T5/T8/A3 correspondence, fault/resource/performance evidence and public profile | All prior exits | Full required clean qualification at one committed revision; unresolved failures closed, omissions explicit and all milestone acceptance criteria met |
 
-**Recommended first implementation PR: R0/R1a.** Start from a freshly fetched
-main and keep the existing single-source finite SQL/operator profile. Define the
-revision manifest, current source/output disclosure rules and retained-root
-ownership before changing `ManagedTable` publication. Add a shared bounded reader
-and SQL revision inspection using existing result semantics, with schema/fixture
-regeneration if the stored contract changes. Test two nonempty revisions and an
-empty successor, same-identity recovery after a lost commit reply, later output
-mutation, process replacement, and revocation after buffering. Do not claim
-historical retention by saving a checkpoint number or reopening today's output.
+**Next implementation PR: R1b, owned staging and retained-graph registration.**
+R0/R1a has merged. Rebase the implementation onto current main, record the exact
+source/definition, and refresh the combined-source baseline before changing
+persisted semantics. Keep the installed single-source finite operator profile.
+R3a starts its recovery/measurement work immediately; R5a can proceed after
+agreeing on source bindings, shared types and result contracts. Neither requires
+a new scheduler, a second historical catalog or all remaining Station work.
 
-Keep reclamation in R1b because `direct-records/` serves other owners and needs
-its own complete creation/closure argument. R3a then qualifies the retained finite
-lifecycle before history modes add another recovery obligation. R5a can proceed
-independently after agreeing on source binding and result contracts; use its
-qualified finite execution as R4's oracle.
+### Next implementation slice: owned staging and finite qualification
+
+The user-visible outcome is that Transit can reclaim explicitly abandoned private
+work while every accepted operation and retained completed revision remains
+recoverable. A retired computation still serves its retained revisions under
+current rights; it does not implicitly opt into expiry. The following steps are
+proposed implementation work, not existing APIs.
+
+| Step | Owning code/contracts | Reviewable change and exit |
+| --- | --- | --- |
+| 1. Freeze the lifetime contract | [DATAFLOW_V1](../../contracts/DATAFLOW_V1.md), [DIRECT_TABLE_V1](../../contracts/DIRECT_TABLE_V1.md), protocol/catalog record types | Define managed staging identity, original-operation binding, exact root dependencies, creation fence, attachment and explicit closure. Enumerate uncertainty/races before enabling collection; regenerate schemas and rejection fixtures for an incompatible current-v1 change |
+| 2. Persist ownership before staging | `DirectRecord`, catalog/token owner and `ManagedTable` | Record the owning operation and bounded root directory before an object can become collectible. Exact stage/attach retries recover the original content; closed ownership cannot attach late. Unknown or unregistered record families remain protected |
+| 3. Extend retained-graph traversal | `DirectStorageGraph` and [local DataCollection](../../packages/zig/transit-backend-local/src/DataCollection.zig) | Traverse neutral owned references in bounded steps from declarations, pending heads/tokens, prepared transactions and completed revision keys. Preserve creation/storage epochs, active-read grace and shared references; the collector never imports `transit-query-direct` to interpret results |
+| 4. Close and reclaim private work | Catalog ownership reducer, existing maintenance admission, managed recovery | Close an abandoned operation only after original admission/decision uncertainty is resolved or durably fenced. Persist cleanup continuation and authorization failures. Enable deletion only for the proven managed-owned inventory; an unmarked object in the generic namespace is insufficient evidence |
+| 5. Qualify the installed finite profile | [managed owner fixture](../../tests/catalog/tables/managed_table.zig), [installed SQL fixture](../../tests/interfaces/installation/server_managed_tables.py), existing collection/fault owners | Exercise real collection, node death and current-policy races around each transition. Run retained reads and original recovery after collection, not just an object-count assertion. Then close R3a's growth/fairness matrix |
+
+Preserve these reachability obligations explicitly:
+
+| Durable reference | Required protection | When private ownership may close |
+| --- | --- | --- |
+| Declaration and original publication token | Exact definition, source/output bindings and operation retry evidence | Only after publication/retirement obligations and every retained revision reference are accounted for; retirement alone cannot delete the bundle |
+| Staged DFW1 work and pending head/token | Original work even if the head reply or token creation reply was lost | Resolve or fence the original attachment; do not infer abandonment from a missing token or elapsed time |
+| Candidate DFP1 pages and prepared transaction | Every page/root needed to finish or recover the common decision | Commit transfers reachability to the completed revision; abort closes only after decision/finalization obligations settle |
+| DFR1 manifest, declaration and page chain | Every completed revision, including empty results, independently of mutable output | Keep indefinitely in this slice. Any later explicit release/expiry contract must preserve receipts and reader/recovery fences |
+| Replaced work versions, shared content and cleanup receipts | References from recovery history, saved requests and any other live owner | Delete private bytes only after complete reachability and closure checks; retain sufficient fencing/identity evidence to reject late reuse |
+
+The creation-versus-collection race is part of the contract: protect a proposed
+root before exposing it to a collector cut, verify its ownership epoch on attach,
+and prevent closed ownership from re-entering accepted work. A content digest,
+read-guard envelope or terminal work phase alone proves none of these facts.
+Choose the exact neutral record layout with the catalog/storage owners in step 1;
+do not turn the entire `direct-records/` prefix into collectible storage.
+
+The minimum disk/installed fault matrix for this slice is:
+
+| Interruption or race | Required observation after restart and collection |
+| --- | --- |
+| Stage succeeds, response is lost, admission has not resolved | Original staging remains attributable and protected; retry neither changes identity nor duplicates accepted work |
+| Head accepts pending work before its token exists | Independent recovery discovery recreates that exact token and cannot lose the staged record |
+| Process dies during pages, participant prepare, decision or finalization | Readers see the old or new complete revision; original transaction recovery settles once, including a prepared control-KV barrier |
+| Suspend/retire/revoke races with candidate publication | Actual decision ordering determines the winner; stale work cannot publish, and existing guarded buffered/empty/terminal checks still deny disclosure |
+| Collector dies during mark, grace, unlink or progress publication | Retry resumes bounded cleanup; live/shared roots survive and closed private objects eventually reclaim under current authority |
+| Source/output change or retirement follows revision A and B | Both saved results retain exact schema/basis; later output rows cannot replace them, and DROP/definition denial remains explicit |
+| Quota, allocation, missing-object or I/O failure | Accepted work remains pending or explicitly blocked; no expiry, silent successful cleanup or complete result from a prefix |
+
+Grow definitions, pending operations, revision chains and private staged pages
+separately past the old helper capacities under a one-page cache and a fixed
+active-work budget. Grow output bytes and foreground pressure separately too;
+increasing row limits is not a resident-memory proof. Record peak owned memory,
+backing allocations after warmup, storage amplification, recovery work,
+source-to-verified-revision lag and suspend/retire latency. Derive numeric
+regression thresholds before the corresponding optimization, preserving normal
+durability and maintenance. Do not use the old 3/16-row samples as thresholds.
+
+Use these existing commands inside the pinned shell as the starting validation
+inventory; extend the real tasks with the new cases before claiming their gates:
+
+```sh
+nix develop --command python3 -B tests/runner/docs.py
+nix develop --command just check contracts
+nix develop --command just check fast
+nix develop --command just test::managed-tables
+nix develop --command just test::installed-performance managed --rows 3 --repeat 3
+nix develop --command just test::installed-performance managed --rows 16 --repeat 3
+```
+
+The performance tasks require clean committed implementation source and run
+separately from heavy builds/proofs. Add catalog/storage/collection owner checks
+and committed-source clean lanes from R10 for the actual changed boundary.
+Retain failed measurements and original fixtures. Completion of R1b/R3a requires
+their real collection, process-death, authority and growth cases as well as the
+existing commands; neither docs validation nor a graceful restart supplies them.
+Promote new lifetime rules into the public storage/retention/query owners when
+implemented, and record executed evidence in qualification history.
 
 ### Decisions proposed for review
 
