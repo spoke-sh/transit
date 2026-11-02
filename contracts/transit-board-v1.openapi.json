@@ -661,6 +661,94 @@
         }
       }
     },
+    "/api/v1/deployment": {
+      "get": {
+        "summary": "Deployment",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Deployment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Deployment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/capabilities": {
       "get": {
         "summary": "Capabilities",
@@ -25736,11 +25824,23 @@
                 "type": "object",
                 "additionalProperties": false,
                 "required": [
+                  "storage"
+                ],
+                "properties": {
+                  "storage": {
+                    "$ref": "#/components/schemas/CatalogRequest/$defs/T38"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
                   "dependencies"
                 ],
                 "properties": {
                   "dependencies": {
-                    "$ref": "#/components/schemas/CatalogRequest/$defs/T38"
+                    "$ref": "#/components/schemas/CatalogRequest/$defs/T41"
                   }
                 }
               }
@@ -26582,19 +26682,89 @@
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
+              "definition",
+              "connection",
+              "namespace",
+              "name",
+              "interpretation"
+            ],
+            "properties": {
+              "definition": {
+                "$ref": "#/components/schemas/CatalogRequest/$defs/T1"
+              },
+              "connection": {
+                "$ref": "#/components/schemas/CatalogRequest/$defs/T29"
+              },
+              "namespace": {
+                "$ref": "#/components/schemas/CatalogRequest/$defs/T7"
+              },
+              "name": {
+                "$ref": "#/components/schemas/CatalogRequest/$defs/T6"
+              },
+              "interpretation": {
+                "$ref": "#/components/schemas/CatalogRequest/$defs/T39"
+              }
+            },
+            "required": [
+              "definition",
+              "connection",
+              "namespace",
+              "name",
+              "interpretation"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T39": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "interpretation",
+              "content",
+              "schema_fingerprint",
+              "retired"
+            ],
+            "properties": {
+              "interpretation": {
+                "$ref": "#/components/schemas/CatalogRequest/$defs/T21"
+              },
+              "content": {
+                "$ref": "#/components/schemas/CatalogRequest/$defs/T13"
+              },
+              "schema_fingerprint": {
+                "$ref": "#/components/schemas/CatalogRequest/$defs/T6"
+              },
+              "retired": {
+                "$ref": "#/components/schemas/CatalogRequest/$defs/T40"
+              }
+            },
+            "required": [
+              "interpretation",
+              "content",
+              "schema_fingerprint",
+              "retired"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T40": {
+            "type": "boolean"
+          },
+          "T41": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
               "selection",
               "authority",
               "cursor"
             ],
             "properties": {
               "selection": {
-                "$ref": "#/components/schemas/CatalogRequest/$defs/T39"
+                "$ref": "#/components/schemas/CatalogRequest/$defs/T42"
               },
               "authority": {
-                "$ref": "#/components/schemas/CatalogRequest/$defs/T40"
+                "$ref": "#/components/schemas/CatalogRequest/$defs/T43"
               },
               "cursor": {
-                "$ref": "#/components/schemas/CatalogRequest/$defs/T41"
+                "$ref": "#/components/schemas/CatalogRequest/$defs/T44"
               }
             },
             "required": [
@@ -26604,7 +26774,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T39": {
+          "T42": {
             "oneOf": [
               {
                 "type": "object",
@@ -26632,24 +26802,24 @@
               }
             ]
           },
-          "T40": {
+          "T43": {
             "type": "string",
             "enum": [
               "dependent",
               "catalog_administrator"
             ]
           },
-          "T41": {
+          "T44": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/CatalogRequest/$defs/T42"
+                "$ref": "#/components/schemas/CatalogRequest/$defs/T45"
               },
               {
                 "type": "null"
               }
             ]
           },
-          "T42": {
+          "T45": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -26668,10 +26838,10 @@
                 "$ref": "#/components/schemas/CatalogRequest/$defs/T29"
               },
               "selection": {
-                "$ref": "#/components/schemas/CatalogRequest/$defs/T39"
+                "$ref": "#/components/schemas/CatalogRequest/$defs/T42"
               },
               "authority": {
-                "$ref": "#/components/schemas/CatalogRequest/$defs/T40"
+                "$ref": "#/components/schemas/CatalogRequest/$defs/T43"
               },
               "position": {
                 "$ref": "#/components/schemas/CatalogRequest/$defs/T34"
@@ -26761,11 +26931,23 @@
                 "type": "object",
                 "additionalProperties": false,
                 "required": [
+                  "storage"
+                ],
+                "properties": {
+                  "storage": {
+                    "$ref": "#/components/schemas/CatalogResponse/$defs/T260"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
                   "dependencies"
                 ],
                 "properties": {
                   "dependencies": {
-                    "$ref": "#/components/schemas/CatalogResponse/$defs/T260"
+                    "$ref": "#/components/schemas/CatalogResponse/$defs/T262"
                   }
                 }
               }
@@ -33544,16 +33726,148 @@
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
+              "binding",
+              "observed"
+            ],
+            "properties": {
+              "binding": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T259"
+              },
+              "observed": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T261"
+              }
+            },
+            "required": [
+              "binding",
+              "observed"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T261": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "position",
+              "changed_lsn",
+              "live_rows",
+              "pending_rows",
+              "pending_bytes",
+              "pending_complete",
+              "oldest_pending_lsn",
+              "archive_through",
+              "recovery_through",
+              "history_floor",
+              "next_segment",
+              "archive_source_lsn",
+              "archived_source_lsn",
+              "archive_target_source_lsn",
+              "archive_target_through_lsn",
+              "compaction_source_lsn",
+              "compacted_source_lsn",
+              "compaction_target_source_lsn",
+              "compaction_target_before_segment",
+              "compaction_target_after_segment"
+            ],
+            "properties": {
+              "position": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T26"
+              },
+              "changed_lsn": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T11"
+              },
+              "live_rows": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T11"
+              },
+              "pending_rows": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T11"
+              },
+              "pending_bytes": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T11"
+              },
+              "pending_complete": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T17"
+              },
+              "oldest_pending_lsn": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T72"
+              },
+              "archive_through": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T11"
+              },
+              "recovery_through": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T72"
+              },
+              "history_floor": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T11"
+              },
+              "next_segment": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T11"
+              },
+              "archive_source_lsn": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T11"
+              },
+              "archived_source_lsn": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T11"
+              },
+              "archive_target_source_lsn": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T72"
+              },
+              "archive_target_through_lsn": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T72"
+              },
+              "compaction_source_lsn": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T11"
+              },
+              "compacted_source_lsn": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T11"
+              },
+              "compaction_target_source_lsn": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T72"
+              },
+              "compaction_target_before_segment": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T72"
+              },
+              "compaction_target_after_segment": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T72"
+              }
+            },
+            "required": [
+              "position",
+              "changed_lsn",
+              "live_rows",
+              "pending_rows",
+              "pending_bytes",
+              "pending_complete",
+              "oldest_pending_lsn",
+              "archive_through",
+              "recovery_through",
+              "history_floor",
+              "next_segment",
+              "archive_source_lsn",
+              "archived_source_lsn",
+              "archive_target_source_lsn",
+              "archive_target_through_lsn",
+              "compaction_source_lsn",
+              "compacted_source_lsn",
+              "compaction_target_source_lsn",
+              "compaction_target_before_segment",
+              "compaction_target_after_segment"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T262": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
               "entries",
               "next",
               "position"
             ],
             "properties": {
               "entries": {
-                "$ref": "#/components/schemas/CatalogResponse/$defs/T261"
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T263"
               },
               "next": {
-                "$ref": "#/components/schemas/CatalogResponse/$defs/T268"
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T270"
               },
               "position": {
                 "$ref": "#/components/schemas/CatalogResponse/$defs/T26"
@@ -33566,25 +33880,25 @@
             ],
             "x-transit-defaults": {}
           },
-          "T261": {
+          "T263": {
             "type": "array",
             "minItems": 4,
             "maxItems": 4,
             "items": {
-              "$ref": "#/components/schemas/CatalogResponse/$defs/T262"
+              "$ref": "#/components/schemas/CatalogResponse/$defs/T264"
             }
           },
-          "T262": {
+          "T264": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/CatalogResponse/$defs/T263"
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T265"
               },
               {
                 "type": "null"
               }
             ]
           },
-          "T263": {
+          "T265": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -33598,13 +33912,13 @@
                 "$ref": "#/components/schemas/CatalogResponse/$defs/T31"
               },
               "dependent": {
-                "$ref": "#/components/schemas/CatalogResponse/$defs/T264"
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T266"
               },
               "privileges": {
                 "$ref": "#/components/schemas/CatalogResponse/$defs/T10"
               },
               "foreign_key": {
-                "$ref": "#/components/schemas/CatalogResponse/$defs/T266"
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T268"
               }
             },
             "required": [
@@ -33617,7 +33931,7 @@
               "foreign_key": null
             }
           },
-          "T264": {
+          "T266": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -33626,7 +33940,7 @@
             ],
             "properties": {
               "kind": {
-                "$ref": "#/components/schemas/CatalogResponse/$defs/T265"
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T267"
               },
               "interpretation": {
                 "$ref": "#/components/schemas/CatalogResponse/$defs/T31"
@@ -33638,7 +33952,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T265": {
+          "T267": {
             "type": "string",
             "enum": [
               "kv",
@@ -33654,17 +33968,17 @@
               "managed"
             ]
           },
-          "T266": {
+          "T268": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/CatalogResponse/$defs/T267"
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T269"
               },
               {
                 "type": "null"
               }
             ]
           },
-          "T267": {
+          "T269": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -33685,17 +33999,17 @@
             ],
             "x-transit-defaults": {}
           },
-          "T268": {
+          "T270": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/CatalogResponse/$defs/T269"
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T271"
               },
               {
                 "type": "null"
               }
             ]
           },
-          "T269": {
+          "T271": {
             "type": "object",
             "additionalProperties": false,
             "x-transit-field-order": [
@@ -33714,10 +34028,10 @@
                 "$ref": "#/components/schemas/CatalogResponse/$defs/T22"
               },
               "selection": {
-                "$ref": "#/components/schemas/CatalogResponse/$defs/T270"
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T272"
               },
               "authority": {
-                "$ref": "#/components/schemas/CatalogResponse/$defs/T271"
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T273"
               },
               "position": {
                 "$ref": "#/components/schemas/CatalogResponse/$defs/T26"
@@ -33736,7 +34050,7 @@
             ],
             "x-transit-defaults": {}
           },
-          "T270": {
+          "T272": {
             "oneOf": [
               {
                 "type": "object",
@@ -33764,7 +34078,7 @@
               }
             ]
           },
-          "T271": {
+          "T273": {
             "type": "string",
             "enum": [
               "dependent",
@@ -35839,6 +36153,88 @@
               "metadata_window"
             ]
           }
+        }
+      },
+      "Deployment": {
+        "type": "object",
+        "additionalProperties": false,
+        "x-transit-field-order": [
+          "definition",
+          "profile",
+          "realm",
+          "features"
+        ],
+        "properties": {
+          "definition": {
+            "type": "string",
+            "enum": [
+              "afac2bd84560136ca90c0683afdffb8f71d5f96568b05dd3de773ce3c5339b2a"
+            ]
+          },
+          "profile": {
+            "type": "string",
+            "enum": [
+              "native_v1"
+            ]
+          },
+          "realm": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "x-transit-bits": 64,
+            "x-transit-signed": false
+          },
+          "features": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "catalog",
+              "sql",
+              "relational",
+              "query",
+              "reactive",
+              "application"
+            ],
+            "properties": {
+              "catalog": {
+                "type": "boolean"
+              },
+              "sql": {
+                "type": "boolean"
+              },
+              "relational": {
+                "type": "boolean"
+              },
+              "query": {
+                "type": "boolean"
+              },
+              "reactive": {
+                "type": "boolean"
+              },
+              "application": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "catalog",
+              "sql",
+              "relational",
+              "query",
+              "reactive",
+              "application"
+            ],
+            "x-transit-defaults": {}
+          }
+        },
+        "required": [
+          "definition",
+          "profile",
+          "realm",
+          "features"
+        ],
+        "x-transit-defaults": {
+          "definition": "afac2bd84560136ca90c0683afdffb8f71d5f96568b05dd3de773ce3c5339b2a",
+          "profile": "native_v1"
         }
       },
       "StorageResponse": {

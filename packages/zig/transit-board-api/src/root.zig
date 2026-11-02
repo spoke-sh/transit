@@ -106,6 +106,21 @@ test "growing metadata projection never returns captured or application values" 
     const hex = try std.fmt.allocPrint(arena.allocator(), "{x}", .{body.slice()});
     try t.expect(std.mem.indexOf(u8, json, hex) == null);
 }
+/// Safe deployment facts, independent of upstream readiness and authorization.
+/// Configuration never establishes permission to inspect or execute.
+pub const Deployment = struct {
+    definition: protocol.Growth.Definition = protocol.Growth.current_definition,
+    profile: enum { native_v1 } = .native_v1,
+    realm: u64,
+    features: struct {
+        catalog: bool,
+        sql: bool,
+        relational: bool,
+        query: bool,
+        reactive: bool,
+        application: bool,
+    },
+};
 pub const Capabilities = struct {
     version: u32 = 1,
     profile: enum { native_v1 } = .native_v1,

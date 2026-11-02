@@ -166,6 +166,8 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
     try:
         fixture.start()
         fixture.ready()
+        unconfigured = json.loads(fixture.request('/api/v1/deployment'))
+        assert not unconfigured['features']['catalog'] and not unconfigured['features']['sql']
         # Explicit proof-only configuration of a strong SQL account. The Board
         # read gate must refuse writes even though this account can perform them.
         sql = fixture.console_config()
@@ -189,6 +191,8 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
         fixture.stop()
         fixture.start()
         fixture.ready()
+        configured = json.loads(fixture.request('/api/v1/deployment'))
+        assert configured['features']['catalog'] and configured['features']['sql']
         definition = fixture.record()['definition']
         def request(route, action, expected=200):
             return json.loads(fixture.request('/api/v1/' + route,
@@ -215,6 +219,15 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
         entry = next(item for item in entries if item['name'] == 'metrics')
         table = request('catalog', dict(table=dict(namespace=1, name='metrics', expected=entry['interpretation'])))['table']
         assert table['metadata']['row_count'] == '145'
+        storage = request('catalog', dict(storage=table['metadata']['binding']))['storage']
+        assert storage['observed']['live_rows'] == '145'
+        assert storage['binding'] == table['metadata']['binding']
+        stale_binding = json.loads(json.dumps(table['metadata']['binding']))
+        stale_binding['name'] = 'absent_table'
+        request('catalog', dict(storage=stale_binding), 409)
+        foreign_binding = json.loads(json.dumps(table['metadata']['binding']))
+        foreign_binding['connection']['branch'] = '999'
+        request('catalog', dict(storage=foreign_binding), 409)
         native_connection = dict(scope=catalog['scope'], branch=catalog['branch'], audience=catalog['audience'],
                                  principal=account['principals']['table'], role=None)
         selector, _ = retained_metrics(fixture, definition, native_connection, account_dir / 'table.seed')
@@ -299,6 +312,7 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
         fixture.revoke({'revoke': account['principals']['table']})
         assert request('sql-read', dict(observe=f'{20:032x}'), 403)['err'] == 'Forbidden'
         request('catalog', dict(tables=dict(namespace=1, cursor=None)), 403)
+        request('catalog', dict(storage=table['metadata']['binding']), 403)
         history(dict(source=dict(selector=selector, object=historical_object)), 403)
         history(dict(locations=coverage_request), 403)
         close(20)

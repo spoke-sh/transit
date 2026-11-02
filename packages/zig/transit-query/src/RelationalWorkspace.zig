@@ -27,7 +27,7 @@ pub const Action = union(enum) {
     close: b.Reference,
 };
 pub const StorageRequest = struct { route: u16, binding: h.PreparedBinding };
-pub const Storage = struct { binding: h.PreparedBinding, observed: h.StorageObservation };
+pub const Storage = c.DirectCatalogRead.Storage;
 pub const Request = union(enum) { describe, storage: StorageRequest, query: Action, recover: struct { id: []const u8 } };
 pub const Recovery = struct { id: []const u8, state: enum { acquiring, active, closing }, remaining_pins: u8 };
 pub const Profile = struct {
@@ -273,18 +273,7 @@ fn apply(self: *Self, allocator: std.mem.Allocator, request: Request, location: 
     switch (request) {
         .storage => |input| {
             if (input.route >= self.caller.count) return error.InvalidRelationalSources;
-            const client = self.caller.catalogs[input.route];
-            const binding = try input.binding.native();
-            if (!std.meta.eql(binding.connection, client.connection)) return error.RelationalCallerChanged;
-            const response = try client.call(.{ .storage = .{ .object = binding.interpretation.interpretation.object, .pending_limit = 1024 } });
-            defer response.deinit();
-            const observed = response.value.result.storage;
-            if (!std.meta.eql(binding.interpretation, observed.interpretation)) return error.CatalogDefinitionChanged;
-            const current = try client.call(.{ .lookup = .{ .namespace = binding.namespace, .name = binding.name.slice() } });
-            defer current.deinit();
-            const current_binding = try c.DirectTableBinding.init(client.connection, current.value.result.lookup orelse return error.CatalogDefinitionChanged);
-            if (!std.meta.eql(binding, current_binding)) return error.CatalogDefinitionChanged;
-            return .{ .storage = .{ .binding = try h.PreparedBinding.foreign(allocator, binding), .observed = try h.StorageObservation.foreign(allocator, observed) } };
+            return .{ .storage = try c.DirectCatalogRead.storage(allocator, self.caller.catalogs[input.route], input.binding) };
         },
         .describe => {
             const profile = try self.caller.describe(allocator);

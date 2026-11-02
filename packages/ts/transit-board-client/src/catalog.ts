@@ -11,6 +11,7 @@ export type CatalogDescription = Extract<Catalog, { description: unknown }>["des
 export type CatalogTables = Extract<Catalog, { tables: unknown }>["tables"];
 export type CatalogNamespaces = Extract<Catalog, { namespaces: unknown }>["namespaces"];
 export type CatalogTable = Extract<CatalogResponse, { table: unknown }>["table"];
+export type CatalogStorage = Extract<CatalogResponse, { storage: unknown }>["storage"];
 export type CatalogEntry = NonNullable<CatalogTables["entries"][number]>;
 export type CatalogDependencies = Extract<
   CatalogResponse,
@@ -32,6 +33,14 @@ export type HistoricalDefinition = Extract<
 
 /** Authorized, bounded metadata. None of these operations starts a data query. */
 export class DataCatalog {
+  async storage(
+    binding: CatalogTable["metadata"]["binding"],
+    signal?: AbortSignal,
+  ): Promise<CatalogStorage> {
+    const value = await this.call({ storage: binding }, signal);
+    if (!("storage" in value)) throw new QueryError(0, "InvalidResponse");
+    return value.storage;
+  }
   private async call(
     action: CatalogRequest["action"],
     signal?: AbortSignal,
