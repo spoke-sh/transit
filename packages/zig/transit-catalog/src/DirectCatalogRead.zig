@@ -12,6 +12,7 @@ pub const Request = struct {
         tables: @FieldType(c.DirectCatalogInspection.Action, "tables"),
         resources: @FieldType(c.DirectCatalogResources.Action, "list"),
         table: struct { namespace: u64, name: []const u8, expected: h.Interpretation },
+        storage: h.PreparedBinding,
         dependencies: @FieldType(c.DirectCatalogDependencies.Action, "page"),
     },
 };
@@ -21,6 +22,7 @@ pub const Response = union(enum) {
     definitions: c.DirectCatalogDefinitions.Result,
     resources: @FieldType(c.DirectCatalogResources.Result, "list"),
     table: struct { metadata: h.Metadata, preview_sql: []const u8, expected_definition: []const u8 },
+    storage: Storage,
     dependencies: @FieldType(c.DirectCatalogDependencies.Result, "page"),
 };
 pub fn apply(arena: *std.heap.ArenaAllocator, client: c.DirectTableClient, request: Request) !Response {
@@ -34,6 +36,7 @@ pub fn apply(arena: *std.heap.ArenaAllocator, client: c.DirectTableClient, reque
         .tables => |input| .{ .catalog = try c.DirectCatalogInspection.apply(a, client, .{ .tables = input }) },
         .resources => |input| .{ .resources = (try c.DirectCatalogResources.apply(a, client, .{ .list = input })).list },
         .dependencies => |input| .{ .dependencies = (try c.DirectCatalogDependencies.apply(a, client, .{ .page = input })).page },
+        .storage => |input| .{ .storage = try storage(a, client, input) },
         .table => |input| blk: {
             var session: c.DirectTableBridge.Session = .{ .allocator = a };
             defer session.deinit();
@@ -50,4 +53,21 @@ pub fn apply(arena: *std.heap.ArenaAllocator, client: c.DirectTableClient, reque
             break :blk .{ .table = .{ .metadata = metadata, .preview_sql = sql.written(), .expected_definition = try c.protocol.Json.valueAlloc(a, try input.expected.native()) } };
         },
     };
+}
+
+pub const Storage = struct { binding: h.PreparedBinding, observed: h.StorageObservation };
+
+/// Exact current Table evidence. No query, retained cut or maintenance is created.
+pub fn storage(allocator: std.mem.Allocator, client: c.DirectTableClient, input: h.PreparedBinding) !Storage {
+    const binding = try input.native();
+    if (!std.meta.eql(binding.connection, client.connection)) return error.RelationalCallerChanged;
+    const response = try client.call(.{ .storage = .{ .object = binding.interpretation.interpretation.object, .pending_limit = 1024 } });
+    defer response.deinit();
+    const observed = response.value.result.storage;
+    if (!std.meta.eql(binding.interpretation, observed.interpretation)) return error.CatalogDefinitionChanged;
+    const current = try client.call(.{ .lookup = .{ .namespace = binding.namespace, .name = binding.name.slice() } });
+    defer current.deinit();
+    const current_binding = try c.DirectTableBinding.init(client.connection, current.value.result.lookup orelse return error.CatalogDefinitionChanged);
+    if (!std.meta.eql(binding, current_binding)) return error.CatalogDefinitionChanged;
+    return .{ .binding = try h.PreparedBinding.foreign(allocator, binding), .observed = try h.StorageObservation.foreign(allocator, observed) };
 }

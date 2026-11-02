@@ -3,6 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 import { text } from "./components";
 import {
   validateCapabilities,
+  validateDeployment,
   validateRecords,
   validateHttp,
   validateGrpc,
@@ -13,7 +14,30 @@ import {
   BoardError,
 } from "@transit/board-client";
 import { message } from "./state";
+import { readDefinition } from "@transit/query-client";
 describe("inspection semantics", () => {
+  it("deployment discovery validates independent flags without trusting configuration as authorization", () => {
+    const value = {
+      definition: readDefinition,
+      profile: "native_v1",
+      realm: 7,
+      features: {
+        catalog: false,
+        sql: true,
+        relational: false,
+        query: false,
+        reactive: false,
+        application: false,
+      },
+    };
+    expect(validateDeployment(value)).toBe(true);
+    expect(validateDeployment({ ...value, definition: "0".repeat(64) })).toBe(false);
+    expect(validateDeployment({ ...value, seed_file: "/private/key" })).toBe(false);
+    expect(
+      validateDeployment({ ...value, features: { ...value.features, catalog: "false" } }),
+    ).toBe(false);
+    expect(validateDeployment({ ...value, features: { sql: true } })).toBe(false);
+  });
   it("preserves bytes as text and refuses invalid UTF-8 previews", () => {
     expect(text("3c7363726970743e")).toBe("<script>");
     expect(text("ff")).toContain("binary");

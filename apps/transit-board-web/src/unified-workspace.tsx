@@ -661,7 +661,7 @@ export function UnifiedWorkspace({
         </div>
       )}
       {(!binding || binding.refresh === "follow") &&
-        scope?.reactive_table &&
+        scope?.features.reactive &&
         source &&
         "table" in source.source.source.source && (
           <div aria-label="Query follow controls">

@@ -128,7 +128,7 @@ export function Atlas({
           onBack={() => setEntered(false)}
         />
       )}
-      {!entered && scope?.reactive_table && <LiveTable />}
+      {!entered && scope?.features.reactive && <LiveTable />}
       {!entered && (
         <>
           <div className="atlas-toolbar">
@@ -315,7 +315,7 @@ export function Atlas({
                     <button onClick={() => setRecordResource(selectedResource.id)}>
                       Inspect records
                     </button>
-                    {scope?.query_enabled && selectedResource.id === data.query_resource ? (
+                    {scope?.features.query && selectedResource.id === data.query_resource ? (
                       <button
                         className="primary"
                         onClick={() => {

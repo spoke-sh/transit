@@ -659,6 +659,72 @@ This makes freshness explicit rather than equating the latest arriving packet
 with truth. On denial, protected displayed and candidate state are cleared.
 Temporary unavailability cannot be rendered as a successful empty result.
 
+## Board observation state
+
+Board separates safe deployment configuration from authorized data observations.
+The [deployment projection](../reference/board-api.md) can explain missing Catalog
+or Workbook configuration even when the inspection upstream is unavailable.
+Its feature flags establish neither read access nor health. Each configured
+caller still performs its own current authorization; one denied connection
+does not disable unrelated callers.
+
+The implemented [observation reducer](../../../apps/transit-board-web/src/observation.ts)
+owns Catalog, dataset metadata, Workbook connection metadata and Operations
+reads. Its state contains a phase, request generation, bounded failure count
+and either a qualified value or a typed failure. The
+[React adapter](../../../apps/transit-board-web/src/use-observation.ts) executes
+read, cancel and schedule effects outside the deterministic transition function.
+The scope key owns the adapter's lifetime; replacement disposes that owner before
+its old callbacks can affect the new scope.
+
+| Event and guard | Next state and effect |
+| --- | --- |
+| Read from idle/failed, or show from hidden | Loading; increment generation and start one read |
+| Refresh from ready | Refreshing; retain the qualified value while starting one replacement read |
+| Matching success while loading/refreshing | Ready; replace the value and schedule the next eligible read |
+| Matching failure while loading/refreshing | Failed; clear the value, classify the failure and schedule only eligible transient retries |
+| Hide | Hidden; clear the value, increment generation and cancel timers/request |
+| Dispose | Disposed; clear and cancel, then ignore every event |
+| Wrong-generation or unsolicited completion | No transition or effects |
+
+This ordering assumes JavaScript callbacks execute serially within one owner.
+Cancellation alone is insufficient: a response can already be queued, or a
+transport can ignore an abort. Both generation and phase guards reject that
+completion. A failed read cannot become a successful empty observation; an empty
+value is accepted only through the success transition. Storage charts, grids and
+Inspector details derive from that same value, so failure or hiding removes all
+three projections together. A refreshing value is the last qualified observation,
+not a claim that the in-flight authorization check has already succeeded.
+
+Each read has a 15-second deadline and at most one active request chain per owner.
+Visible successful reads normally refresh after five seconds. Transient failure
+backoff is capped at 30 seconds; configuration, denial, expiry and incompatible
+responses require explicit action. These are local scheduling bounds, not a
+global per-tab scheduler or a response-time guarantee. Progress depends on a
+responsive event loop and a later successful upstream read.
+
+The [workbench guide](../../../apps/transit-board/docs/workbench.md#operations-and-observation-states)
+describes result composition: unavailable connection metadata hides rows while
+retaining the original shared `StatementReader`; reconnection observes that
+reader instead of submitting SQL again. Existing process, query, reactive and
+published-interface state owners are outside this reducer. Configuration
+discovery remains visible across tab hiding because it contains no protected
+resource observation.
+
+The [reducer tests](../../../apps/transit-board-web/src/observation.test.ts)
+exercise the production function, including 870 explored transitions through
+depth six, late completions, denial, backoff and empty success. This is bounded
+implementation testing, not an independent temporal proof or a test of every
+browser interleaving. The installed
+[Board](../../../apps/transit-board-web/browser/board.spec.ts) and
+[workbench](../../../apps/transit-board-web/browser/workbench.spec.ts) scenarios
+exercise the effect boundary. Reproduce through the
+[Board checks](../../../tasks/transit-board.just); source-attributed outcomes
+belong in [qualification history](../../history/qualification/interfaces.md).
+One typed owner makes refusal and cleanup rules reviewable without introducing
+another result protocol. Extending it to the remaining UI lifecycles still
+requires preserving each owner's paging, recovery and disclosure semantics.
+
 ## Declarations and controls
 
 SQL declarations, visual editors and generated modules use the same typed model

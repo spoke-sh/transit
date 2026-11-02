@@ -70,6 +70,7 @@ pub fn main(init: std.process.Init) !void {
     try route(&out, "/api/v1/atlas", "get", "AtlasResponse", false, false);
     try route(&out, "/api/v1/query", "post", "UnifiedQueryResponse", false, false);
     try route(&out, "/api/v1/relational", "post", "RelationalResponse", false, false);
+    try route(&out, "/api/v1/deployment", "get", "Deployment", false, false);
     try route(&out, "/api/v1/capabilities", "get", "Capabilities", false, false);
     try route(&out, "/api/v1/storage", "get", "StorageResponse", false, false);
     try route(&out, "/api/v1/processes", "get", "Response", false, true);
@@ -102,6 +103,8 @@ pub fn main(init: std.process.Init) !void {
         else
             try s.write(T, &out, .{ .output = true, .safe_integers = true, .text_max_length = 256 });
     }
+    try out.objectField("Deployment");
+    try s.write(api.Deployment, &out, .{ .output = true, .safe_integers = true });
     try out.objectField("StorageResponse");
     try s.write(api.StorageResponse, &out, .{ .output = true, .safe_integers = true, .text_max_length = 4096 });
     try out.endObject();

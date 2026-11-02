@@ -12,7 +12,8 @@ import { createPortal } from "react-dom";
 
 export type Inspection = {
   owner: string;
-  kind: "dataset" | "column" | "result";
+  kind: "dataset" | "column" | "result" | "storage";
+  metric?: string;
   dimension: "definition" | "profile" | "evidence";
   result?: string;
   column?: number;

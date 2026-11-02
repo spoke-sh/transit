@@ -5,6 +5,9 @@ test("complete definition editing and exact operator recovery", async ({ page, c
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/definition");
+  await expect(
+    page.getByRole("heading", { name: "Interface bindings", exact: true }),
+  ).toBeVisible();
   await expect(page.getByRole("heading", { name: "Definition", exact: true })).toBeVisible();
   await expect(page.getByText("Operator endpoint enabled", { exact: false })).toBeVisible();
   const oldClient = await context.newPage();
@@ -173,9 +176,7 @@ test("complete definition editing and exact operator recovery", async ({ page, c
     .getByRole("navigation", { name: "Activities" })
     .getByRole("link", { name: "Operations", exact: true })
     .click();
-  await expect(
-    oldClient.getByRole("heading", { name: "Declared dependencies", exact: true }),
-  ).toBeVisible();
+  await expect(oldClient.getByRole("heading", { name: "Storage", exact: true })).toBeVisible();
   await oldClient.close();
   await page.bringToFront();
   await expect(page.locator(".transit-shell")).toHaveAttribute("data-density", "compact", {

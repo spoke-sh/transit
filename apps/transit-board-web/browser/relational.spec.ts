@@ -23,10 +23,13 @@ test("explicit relational pages recover the same host and clear on current denia
   });
   await page.goto("/operations");
   const nodeStorage = page.getByRole("region", { name: "Storage observation", exact: true });
-  await expect(nodeStorage).toContainText("Observed at authority position");
+  await expect(nodeStorage).toContainText("authority position");
   await expect(nodeStorage).toContainText("local");
   await expect(nodeStorage).toContainText("/native");
   await expect(nodeStorage).toContainText("disabled");
+  await expect(page.getByRole("region", { name: "Relational worksheet" })).toHaveCount(0);
+  await page.getByRole("link", { name: "Relational queries and recovery", exact: true }).click();
+  await page.reload();
   const worksheet = page.getByRole("region", { name: "Relational worksheet" });
   await expect(worksheet).toBeVisible();
   await page.getByLabel("Relational SQL", { exact: true }).fill(process.env.BOARD_RELATIONAL_SQL!);
@@ -52,8 +55,8 @@ test("explicit relational pages recover the same host and clear on current denia
   expect(opens).toBe(0);
   const storage = page.getByRole("region", { name: "Storage for l", exact: true });
   await storage.getByRole("button", { name: "Inspect storage for l", exact: true }).click();
-  await expect(storage).toContainText("Current storage observation");
-  await expect(storage).toContainText("Accepted position");
+  await expect(storage).toContainText("Independent current facts");
+  await expect(storage).toContainText("Accepted next position");
   await expect(storage).toContainText("History floor");
   expect(opens).toBe(0);
   await page.route("**/api/v1/relational", async (route) => {

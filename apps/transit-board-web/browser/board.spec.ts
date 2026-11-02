@@ -2,6 +2,87 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Response } from "@playwright/test";
 const pid = process.env.BOARD_TEST_PID!;
 const sink = process.env.BOARD_TEST_SINK!;
+test("late storage responses cannot restore a hidden observation", async ({ page }) => {
+  let release: (() => void) | undefined;
+  let entered: (() => void) | undefined;
+  const waiting = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  let first = true;
+  await page.route("**/api/v1/storage", async (route) => {
+    if (!first) return route.continue();
+    first = false;
+    const response = await route.fetch();
+    await new Promise<void>((resolve) => {
+      release = resolve;
+      entered!();
+    });
+    await route.fulfill({ response });
+  });
+  await page.goto("/operations");
+  await waiting;
+  await page.evaluate(() => {
+    Object.defineProperty(document, "hidden", { configurable: true, value: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  release!();
+  const capacity = page.getByRole("region", { name: "Capacity and allocation", exact: true });
+  await expect(capacity).toHaveCount(0);
+  await page.waitForTimeout(300);
+  await expect(capacity).toHaveCount(0);
+  await page.evaluate(() => {
+    Object.defineProperty(document, "hidden", { configurable: true, value: false });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await expect(capacity).toBeVisible();
+});
+test("inspection-only deployment lands in Operations and explains missing connections", async ({
+  page,
+}) => {
+  const dataRequests: string[] = [];
+  page.on("request", (request) => {
+    if (/\/api\/v1\/(catalog|sql-read|relational)$/.test(request.url()))
+      dataRequests.push(request.url());
+  });
+  await page.goto("/?status=all&sort=pid");
+  await expect(page).toHaveURL(/\/operations$/);
+  await expect(page.getByRole("heading", { name: "Storage", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Declared dependencies" })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Relational worksheet" })).toHaveCount(0);
+  const capacity = page.getByRole("region", { name: "Capacity and allocation", exact: true });
+  await expect(capacity).toContainText("authority position");
+  await capacity
+    .getByRole("table")
+    .getByRole("button", { name: "Direct request allocation", exact: true })
+    .click();
+  await expect(page.getByRole("complementary", { name: "Inspector" })).toContainText(
+    "Excludes process stacks",
+  );
+  await page.keyboard.press("Escape");
+  await expect(
+    capacity
+      .getByRole("table")
+      .getByRole("button", { name: "Direct request allocation", exact: true }),
+  ).toBeFocused();
+  expect(
+    (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze())
+      .violations,
+  ).toEqual([]);
+  await page.goto("/workbook");
+  await expect(
+    page.getByRole("heading", { name: "Workbook SQL connection is not configured" }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Retry read" })).toHaveCount(0);
+  await expect(page.getByText(/Temporary session/)).toHaveCount(0);
+  await page.waitForTimeout(5500);
+  await page.getByRole("button", { name: "Check availability" }).click();
+  await expect(page.getByRole("link", { name: "Open Operations" })).toBeVisible();
+  await page.goto("/catalog");
+  await expect(
+    page.getByRole("heading", { name: "Catalog connection is not configured" }),
+  ).toBeVisible();
+  expect(dataRequests).toEqual([]);
+});
 test("real embedded UI explains kernel evidence and retains focus while polling", async ({
   page,
 }) => {
@@ -121,7 +202,7 @@ test("opaque hostile payloads remain text, denial clears observations", async ({
   );
   await expect(page.getByRole("table")).toHaveCount(0);
   await page.unroute("**/api/v1/processes/**");
-  await page.getByRole("button", { name: "Retry connection" }).click();
+  await page.getByRole("button", { name: "Refresh from start" }).click();
   await expect(
     page.getByRole("table", { name: "Retained events in durable sequence order" }),
   ).toBeVisible();
@@ -149,14 +230,14 @@ test("disconnection preserves an explicitly stale observation instead of an empt
 });
 
 test("an unavailable initial connection can be retried without signing in", async ({ page }) => {
-  await page.route("**/api/v1/capabilities", (route) =>
+  await page.route("**/api/v1/deployment", (route) =>
     route.fulfill({ status: 503, contentType: "application/json", body: '{"err":"Unavailable"}' }),
   );
   await page.goto("/atlas");
-  await expect(page.getByText("Observation unavailable (Unavailable).")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Board connection unavailable" })).toBeVisible();
   await expect(page.getByLabel("Board access key")).toHaveCount(0);
-  await page.unroute("**/api/v1/capabilities");
-  await page.getByRole("button", { name: "Retry connection" }).click();
+  await page.unroute("**/api/v1/deployment");
+  await page.getByRole("button", { name: "Retry read" }).click();
   await expect(page.getByRole("heading", { name: "Relief atlas" })).toBeVisible();
   await expect(
     page.getByRole("button", { name: `Select process ${pid}`, exact: true }),

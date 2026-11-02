@@ -60,9 +60,9 @@ const Server = struct {
             defer wire.deinit();
             wire.timeout_ms = self.config.upstream_timeout_ms;
             const result = workbench.catalog(&arena, &wire, self.config.workbench.?, parsed.value) catch |err| switch (err) {
-                error.CatalogDefinitionChanged, error.CatalogObservationChanged => return self.failure(req, .conflict, .QueryConflict),
+                error.CatalogDefinitionChanged, error.CatalogObservationChanged, error.RelationalCallerChanged => return self.failure(req, .conflict, .QueryConflict),
                 error.CatalogNameNotFound => return self.failure(req, .not_found, .NotFound),
-                error.InvalidCatalogCursor, error.IncompatibleDefinition => return self.failure(req, .bad_request, .InvalidQuery),
+                error.InvalidCatalogCursor, error.InvalidTableConnection, error.IncompatibleDefinition => return self.failure(req, .bad_request, .InvalidQuery),
                 else => return self.queryFailure(req, &wire, err),
             };
             return self.json(req, .ok, result);
@@ -351,6 +351,10 @@ const Server = struct {
         if (relational_route) return self.relationalRequest(&req, body);
         if (catalog_route or sql_read_route) return self.workbenchRequest(&req, body, catalog_route);
         if (body.len != 0) return self.failure(&req, .bad_request, .InvalidQuery);
+        // Host/origin and bounded HTTP admission above still apply. This read
+        // contains configuration only: no key loading, upstream call or grant.
+        if (std.mem.eql(u8, target, "/api/v1/deployment") and req.head.method == .GET)
+            return self.json(&req, .ok, deployment(self.config));
         if (std.mem.eql(u8, target, "/api/v1/interface") and req.head.method == .GET) return self.interfaceRequest(&req);
         if (std.mem.eql(u8, target, "/health") and req.head.method == .GET) return self.json(&req, .ok, .{ .ready = true });
         if (std.mem.eql(u8, target, "/openapi/v1.json") and req.head.method == .GET) return self.respond(&req, .ok, assets.openapi, "application/json");
@@ -371,8 +375,32 @@ const Server = struct {
         return self.growingRequest(&req, target);
     }
 };
+fn deployment(config: Config) api.Deployment {
+    const selected = config.workbench orelse workbench.Config{};
+    return .{ .realm = config.realm, .features = .{
+        .catalog = selected.catalog != null,
+        .sql = selected.sql != null,
+        .relational = config.relational != null,
+        .query = config.query != null,
+        .reactive = config.reactive != null,
+        .application = config.application != null,
+    } };
+}
+
+test "deployment discovery reports independent connections without upstream access" {
+    const config: Config = .{ .upstream = "http://unreachable.invalid", .realm = 7, .principal = 8, .seed_file = "/private/not-loaded.seed", .public_origin = "http://localhost:8090" };
+    const value = deployment(config);
+    try std.testing.expectEqual(7, value.realm);
+    try std.testing.expect(!value.features.catalog and !value.features.sql and !value.features.query);
+    var storage = config;
+    storage.workbench = .{ .sql = .{ .endpoint = "http://unreachable.invalid", .account = "reader", .database = "db", .authentication = .trust } };
+    const sql_only = deployment(storage);
+    try std.testing.expect(sql_only.features.sql and !sql_only.features.catalog);
+}
+
 // Route vocabulary is finite; never log a raw path, query or user-provided PID.
 fn logRoute(target: []const u8) []const u8 {
+    if (std.mem.eql(u8, target, "/api/v1/deployment")) return "/api/v1/deployment";
     if (std.mem.eql(u8, target, "/api/v1/interface")) return "/api/v1/interface";
     if (std.mem.eql(u8, target, "/api/v1/application")) return "/api/v1/application";
     if (std.mem.eql(u8, target, "/api/v1/query")) return "/api/v1/query";
@@ -382,7 +410,7 @@ fn logRoute(target: []const u8) []const u8 {
     if (std.mem.eql(u8, target, "/api/v1/storage")) return "/api/v1/storage";
     if (std.mem.startsWith(u8, target, "/api/v1/atlas")) return "/api/v1/atlas";
     const path = target[0 .. std.mem.indexOfScalar(u8, target, '?') orelse target.len];
-    inline for (.{ "/", "/health", "/openapi/v1.json", "/api/v1/capabilities", "/api/v1/processes", "/atlas", "/activity", "/definition", "/operations", "/recovery/definition", "/catalog", "/workbook" }) |known| if (std.mem.eql(u8, path, known)) return known;
+    inline for (.{ "/", "/health", "/openapi/v1.json", "/api/v1/capabilities", "/api/v1/processes", "/atlas", "/activity", "/definition", "/operations", "/recovery/definition", "/recovery/relational", "/catalog", "/workbook" }) |known| if (std.mem.eql(u8, path, known)) return known;
     if (std.mem.startsWith(u8, path, "/datasets/") and browserRoute(path)) return "/datasets/{object}";
     if (assets.get(path) != null) return "/assets/{asset}";
     if ((parseParticipation(path) catch null) != null) return "/api/v1/resources/{resource}/participation";
@@ -663,7 +691,7 @@ fn browserRoute(path: []const u8) bool {
         }
         return parts.next() == null;
     }
-    if (std.mem.eql(u8, path, "/recovery/definition")) return true;
+    if (std.mem.eql(u8, path, "/recovery/definition") or std.mem.eql(u8, path, "/recovery/relational")) return true;
     if (std.mem.eql(u8, path, "/definition") or std.mem.eql(u8, path, "/operations") or std.mem.eql(u8, path, "/activity") or std.mem.eql(u8, path, "/atlas") or std.mem.eql(u8, path, "/") or std.mem.eql(u8, path, "/resources")) return true;
     if (!std.mem.startsWith(u8, path, "/processes/")) return false;
     var parts = std.mem.splitScalar(u8, path[11..], '/');
@@ -675,7 +703,7 @@ fn browserRoute(path: []const u8) bool {
 
 test "data workbench deep links serve the embedded shell with bounded object identities" {
     const t = std.testing;
-    inline for (.{ "/catalog", "/workbook", "/datasets/73.3.1.1.18446744073709551615" }) |path| try t.expect(browserRoute(path));
+    inline for (.{ "/catalog", "/workbook", "/recovery/relational", "/datasets/73.3.1.1.18446744073709551615" }) |path| try t.expect(browserRoute(path));
     inline for (.{ "/datasets/", "/datasets/73.3.1.1", "/datasets/73.3.1.1.01", "/datasets/73.3.1.1.2/extra", "/datasets/73.3.1.1.18446744073709551616" }) |path| try t.expect(!browserRoute(path));
 }
 const Shared = struct {

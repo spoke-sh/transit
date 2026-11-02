@@ -9,6 +9,113 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Board operational inspection and connection states — 2026-11-01
+
+The question is whether Operations can explain actual storage evidence without
+a SQL worksheet, and whether an inspection-only deployment can distinguish
+missing data configuration from a failed or denied read. Implementation starts
+from `0c64c4b03`; final runtime and browser source is `cec00df4f`. Current behavior
+belongs in the [Board guide](../../handbook/guides/inspect-board.md),
+[workbench guide](../../../apps/transit-board/docs/workbench.md) and
+[observation account](../../handbook/internals/service-interfaces.md#board-observation-state).
+
+Safe deployment discovery exposes configuration independently of upstream read
+authorization. Table storage uses the public catalog caller's exact-binding
+composition, extracted from the existing relational reader without changing its
+native operation or permission checks. Operations charts, grids and Inspector
+details share one observation. Relational query controls and original-session
+cleanup move to `/recovery/relational`; interface bindings move to Definition.
+
+The final installed workbench run uses all five ordinary ReleaseSafe binaries
+built from committed `cec00df4f`, with disk-backed fixture storage under
+`/var/tmp`. The driver runs through `tests/runner/launch.py` with `--browser` after
+`zig build transit transit-node transit-query-host transit-board transit-sql-gateway
+-Doptimize=ReleaseSafe`. All six Chromium scenarios pass in 31.4 seconds, and the
+complete installed API schedule passes. The independently built
+`nix develop --command just test::application-browser` also passes at that source:
+one Chromium scenario in 51.7 seconds plus its publication/recovery schedule.
+Binary hashes, logs, the Operations screenshot and CI records are retained in
+ignored `.cache/board-workbench/m30/binaries.json`, `artifacts.json` and sibling
+files. The implemented Operations screenshot was visually inspected.
+
+The [workbench scenarios](../../../apps/transit-board-web/browser/workbench.spec.ts)
+cover independent Catalog/SQL navigation; a disabled preview with readable schema
+and no SQL requests when SQL is unconfigured; shared chart/grid selection;
+keyboard focus return; access denial clearing Table evidence and its Inspector
+while preserving node inspection; unchanged drafts and result identity; lost Run
+replies; unavailable connection metadata clearing rows, including hidden DOM;
+and bounded retained-catalog inspection. Browser-only configuration combinations
+are deliberately injected discovery flags over a fully configured real service.
+They do not establish separately provisioned catalog-only and SQL-only
+installations. Service unit tests check independent flags; the installed API
+fixture checks actually unconfigured and fully configured deployments.
+
+API evidence includes exact 145-row traversal, verified empty and metadata
+results, read-only admission with a stronger configured SQL account, reader
+capacity and terminal-result revocation. The new storage request preserves the
+exact prepared binding and row count, rejects changed names and foreign callers
+with conflict, rejects malformed connection identity with a typed refusal, and
+returns denial after actual Table-principal revocation. Deployment discovery
+continues after inspection revocation and upstream loss, while wrong Host/Origin
+requests remain refused. The
+[published-interface scenario](../../../apps/transit-board-web/browser/application.spec.ts)
+checks bindings in Definition, SQL/Form/Canvas editing, frozen signed publication,
+lost-reply recovery, disk/worker replacement and current read denial.
+
+The full eight-task browser lane passes from clean committed checkout
+`6682ee151` at `/var/tmp/transit-ci-t76jpu7l/src`. This includes seven inspection
+browser scenarios, relational recovery, query, HTTP and gRPC capture inspection,
+reactive sessions, Live views, reactive lifecycle and the six workbench scenarios,
+alongside their owning API/fault schedules. The first `just ci clean --lane browser`
+attempt stops during Playwright's `--with-deps` preparation because `sudo` cannot
+authenticate on this host. No browser task runs in that wrapper attempt. Installing
+the pinned Chromium without OS package installation succeeds; the unchanged
+`tests/runner/ci.py browser` inventory then completes in that same clean checkout
+using its pinned `ci-experience` shell and already available host libraries.
+`browser.meta.json` records all eight tasks complete. This fallback is distinct
+from a passing clean-wrapper preparation. The later `cec00df4f` preview gate is
+qualified by the final workbench run above, not retrospectively by this lane.
+
+Clean `installation-ui` at `6f721175d` passes ten tasks: Board contract/format/type/
+unit checks, handbook checks/build, Node checks, observability, server logging,
+single-executable installation, direct Tables, managed Tables, direct fault
+schedules and SQL lifetimes. It then fails `test::server-sql` at its final read
+after explicit TLS replacement: `Request failed; inspect admitted work before
+retrying SQL`, without a more specific recorded SQL diagnostic. The lane is
+incomplete; SQL-local, Board, query, Station-launcher, workbench and declarative-
+browser tasks later in that inventory do not run. The clean checkout remains at
+`/var/tmp/transit-ci-wc34ancb`, and the SQL fixture at
+`/var/tmp/transit-server-proof-jwj30l5s`. An
+[earlier account](performance.md#installed-startup-publication-reduction--2026-10-31)
+records the same assertion boundary at `9ce0bc22e`; neither observation establishes
+the cause. Later focused/browser passes do not turn this lane into a pass.
+
+Earlier workbench attempts also exposed historical acquisition conflicts before
+browser execution. A temporary diagnostic executable reported `StaleStorageEpoch`;
+inspection of the original saved acquisition could still advance it. No native
+fence or runtime implementation was changed. The installed fixture now handles a
+conflict by inspecting the original token and verifies the receipt's exact token,
+intent and budget before accepting progress. Its existing 32-step bound is
+unchanged; persistent conflicts still fail. A deterministic lost-progress-reply
+schedule exercises this recovery without selecting a new acquisition. Both the
+clean browser run and final workbench run report one observed conflict and one
+separately labeled injected conflict before publication. Other earlier failures
+corrected an ambiguous chart locator, empty visual-wrapper ARIA semantics and
+invalid-binding error classification; no accessibility rule or assertion was
+disabled to obtain the passes.
+
+Final formatting/lint, strict TypeScript and all 114 frontend tests pass, as does
+`zig build test-transit-board-unit`. The production observation reducer's tests
+explore 870 transitions through depth six and separately check typed failures,
+backoff, empty success and stale completions. This is bounded implementation
+testing, not independent temporal-model conformance or exhaustive browser
+scheduling proof. Browser accessibility, embedded-asset bounds and the existing
+read/window limits pass in the named scenarios. They do not establish a manual
+screen-reader review, a global tab scheduler, concurrent-tab resource benchmarks,
+or measured first-observation/render/residency budgets. Wider core/formal/SDK
+qualification is not claimed. The focused delivery and remaining full-milestone
+gates remain in the [Board roadmap](../../roadmap/30-board-reimplementation.md).
+
 ## Board contextual Inspector — 2026-10-30
 
 The question is whether one contextual Inspector can replace nested detail panels
