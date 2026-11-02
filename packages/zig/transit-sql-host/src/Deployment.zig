@@ -14,7 +14,16 @@ pub const Action = union(enum) {
     stop: [32]u8,
     status: void,
 };
-const Request = struct { definition: p.Growth.Definition, action: Action };
+// Performance inspection is additive: ordinary lifecycle requests and replies
+// retain their exact shape, including when counters are enabled. No old caller
+// receives a new response field it cannot decode.
+const WireAction = union(enum) {
+    start: @FieldType(Action, "start"),
+    stop: @FieldType(Action, "stop"),
+    status: void,
+    performance: void,
+};
+const Request = struct { definition: p.Growth.Definition, action: WireAction };
 pub const Performance = struct {
     instance: [16]u8,
     managed: g.direct.ManagedTable.Diagnostics.Snapshot,
@@ -29,7 +38,8 @@ pub fn enablePerformance(enabled: bool) void {
 fn performance(instance: [16]u8) ?Performance {
     return .{ .instance = instance, .managed = g.direct.ManagedTable.diagnostics.snapshot() orelse return null, .owned_records = g.catalog.DirectTransactionRecord.diagnostics.snapshot() orelse return null };
 }
-pub const Status = struct { definition: p.Growth.Definition, fingerprint: ?[32]u8, state: enum { stopped, running, failed }, failure: ?[]const u8 = null, refusal: ?[]const u8 = null, local_requests: Placement.Snapshot = .{}, performance: ?Performance = null };
+pub const Status = struct { definition: p.Growth.Definition, fingerprint: ?[32]u8, state: enum { stopped, running, failed }, failure: ?[]const u8 = null, refusal: ?[]const u8 = null, local_requests: Placement.Snapshot = .{} };
+pub const PerformanceStatus = struct { definition: p.Growth.Definition, running: bool, performance: ?Performance };
 
 pub fn socketPath(allocator: std.mem.Allocator, io: std.Io, runtime: ?[]const u8, installation: []const u8) ![]const u8 {
     const location = try Discovery.locate(allocator, io, runtime, installation, true);
@@ -77,6 +87,15 @@ fn send(allocator: std.mem.Allocator, transport: *tls.Transport, value: anytype)
 /// No retry. A lost start reply is resolved by status or repeating that exact
 /// configuration/expected fingerprint, never by minting another generation.
 pub fn call(allocator: std.mem.Allocator, io: std.Io, socket: []const u8, action: Action, timeout_ms: u32) !std.json.Parsed(Status) {
+    const wire_action: WireAction = switch (action) {
+        inline else => |value, tag| @unionInit(WireAction, @tagName(tag), value),
+    };
+    return callResponse(Status, allocator, io, socket, wire_action, timeout_ms);
+}
+pub fn inspectPerformance(allocator: std.mem.Allocator, io: std.Io, socket: []const u8, timeout_ms: u32) !std.json.Parsed(PerformanceStatus) {
+    return callResponse(PerformanceStatus, allocator, io, socket, .{ .performance = {} }, timeout_ms);
+}
+fn callResponse(comptime Response: type, allocator: std.mem.Allocator, io: std.Io, socket: []const u8, action: WireAction, timeout_ms: u32) !std.json.Parsed(Response) {
     try Discovery.verify(io, std.fs.path.dirname(socket) orelse return error.UnsafeSqlRuntimeDirectory);
     const stream = try (try std.Io.net.UnixAddress.init(socket)).connect(io);
     defer stream.close(io);
@@ -86,7 +105,7 @@ pub fn call(allocator: std.mem.Allocator, io: std.Io, socket: []const u8, action
     try send(allocator, &transport, Request{ .definition = p.Growth.current_definition, .action = action });
     const bytes = try receive(allocator, &transport);
     defer allocator.free(bytes);
-    const result = try p.Json.parseFromSliceOwned(Status, allocator, bytes);
+    const result = try p.Json.parseFromSliceOwned(Response, allocator, bytes);
     errdefer result.deinit();
     if (result.value.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
     return result;
@@ -154,23 +173,34 @@ pub fn serve(init: std.process.Init, config: Config, endpoint: host.LocalEndpoin
         const request = p.Json.parseFromSlice(Request, init.gpa, bytes) catch continue;
         defer request.deinit();
         if (request.value.definition != p.Growth.current_definition) continue;
-        apply(init, config, placement.endpoint(), diagnostics, &running, request.value.action) catch |err| {
+        if (request.value.action == .performance) {
+            try transport.resetDeadline(5000);
+            send(init.gpa, &transport, PerformanceStatus{ .definition = p.Growth.current_definition, .running = if (running) |value| !value.done.load(.acquire) else false, .performance = performance(instance) }) catch |err| {
+                if (err == error.Canceled) return err;
+            };
+            continue;
+        }
+        const action: Action = switch (request.value.action) {
+            .performance => unreachable,
+            inline else => |value, tag| @unionInit(Action, @tagName(tag), value),
+        };
+        apply(init, config, placement.endpoint(), diagnostics, &running, action) catch |err| {
             if (err == error.Canceled) return err;
             try transport.resetDeadline(5000);
-            send(init.gpa, &transport, observe(running, &placement, instance, @errorName(err))) catch |failure| {
+            send(init.gpa, &transport, observe(running, &placement, @errorName(err))) catch |failure| {
                 if (failure == error.Canceled) return failure;
             };
             continue;
         };
         try transport.resetDeadline(5000);
-        send(init.gpa, &transport, observe(running, &placement, instance, null)) catch |failure| {
+        send(init.gpa, &transport, observe(running, &placement, null)) catch |failure| {
             if (failure == error.Canceled) return failure;
         };
     }
 }
-fn observe(running: ?*Running, placement: *const Placement, instance: [16]u8, refusal: ?[]const u8) Status {
+fn observe(running: ?*Running, placement: *const Placement, refusal: ?[]const u8) Status {
     const done = if (running) |value| value.done.load(.acquire) else false;
-    return .{ .definition = p.Growth.current_definition, .local_requests = placement.snapshot(), .performance = performance(instance), .fingerprint = if (running) |value| value.fingerprint else null, .state = if (running == null) .stopped else if (done) .failed else .running, .failure = if (done and running.?.failure != null) @errorName(running.?.failure.?) else null, .refusal = refusal };
+    return .{ .definition = p.Growth.current_definition, .local_requests = placement.snapshot(), .fingerprint = if (running) |value| value.fingerprint else null, .state = if (running == null) .stopped else if (done) .failed else .running, .failure = if (done and running.?.failure != null) @errorName(running.?.failure.?) else null, .refusal = refusal };
 }
 fn apply(init: std.process.Init, config: Config, endpoint: host.LocalEndpoint, diagnostics: *g.wire.observability.telemetry.Runtime, running: *?*Running, action: Action) !void {
     switch (action) {
