@@ -191,6 +191,9 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
             cursor.execute('CLAIM value, _receipt_handle FROM claim_mysql LIMIT %s WITH LEASE %s', (2, '30s'))
             acquired = cursor.fetchall()
             assert [row[0] for row in acquired] == [7, 8]
+        # Connector/Python 9.4 retains a prepared cursor's prior description
+        # after an OK packet. Check ACK's no-row completion on its own cursor.
+        with wire.cursor(prepared=True) as cursor:
             for row in acquired:
                 assert len(row[1]) == 168
                 cursor.execute('ACK ON QUEUE claim_mysql RECEIPT %s', (bytes(row[1]),))
