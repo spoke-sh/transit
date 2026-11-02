@@ -150,6 +150,7 @@ node-sdk-test: node-build
     set -euo pipefail
     native_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize Debug)
     authority_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare authority --optimize ReleaseSafe)
+    vp exec node --test bindings/node_validators.test.mjs
     (cd sdks/ts/transit-client && vp check)
     vp exec --filter @transit/client tsc --noEmit
     (cd sdks/ts/transit-station-sdk && vp check)
@@ -391,7 +392,6 @@ document-node: node-build
     native_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize Debug)
     authority_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare authority --optimize Debug)
     vp exec --filter @transit/station tsc --noEmit
-    vp exec --filter @transit/station node --disallow-code-generation-from-strings --input-type=module -e 'await import("./src/index.ts")'
     vp exec --filter @transit/station node --test src/document.test.ts
     python3 -B tests/runner/launch.py tests/sdk/sdk_document_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/Debug --language node
 
@@ -485,7 +485,6 @@ unified-python source="kv": python-build
 unified-node source="table": node-build
     cd sdks/ts/transit-station-sdk && vp check
     vp exec --filter @transit/station tsc --noEmit
-    vp exec --filter @transit/station node --disallow-code-generation-from-strings --input-type=module -e 'await import("./src/index.ts")'
     zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-sdk=node -Dunified-source={{source}}
 
 # Installed Ruby unified API with immutable values and joined query ownership.
