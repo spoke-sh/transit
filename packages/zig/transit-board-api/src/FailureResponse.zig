@@ -40,3 +40,12 @@ test "Board status follows semantic categories and preserves uncertain sends" {
     try t.expectEqual(.bad_request, response.status);
     try t.expectEqual(.UnsupportedQuery, response.code);
 }
+
+test "historical cursor mismatch remains invalid input with its original cause" {
+    const detail = try root.InspectionDiagnostic.project(error.InvalidHistoricalCursor, null);
+    try std.testing.expectEqualStrings("inspection.invalid_cursor", detail.code.slice());
+    try std.testing.expectEqualStrings("InvalidHistoricalCursor", detail.cause.?.slice());
+    const response = project(detail);
+    try std.testing.expectEqual(.bad_request, response.status);
+    try std.testing.expectEqual(.InvalidQuery, response.code);
+}

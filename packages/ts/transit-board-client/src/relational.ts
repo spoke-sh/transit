@@ -2,8 +2,9 @@ import type { RelationalRequest, RelationalResponse } from "./types";
 import {
   RelationalRequest as requestSchema,
   RelationalResponse as responseSchema,
-} from "./validators.js";
-import { request, BoardError } from "./index";
+} from "./relational-validators.js";
+import { request } from "./request";
+import { QueryError as BoardError } from "@transit/query-client/error";
 export type { RelationalRequest, RelationalResponse } from "./types";
 type Result = Extract<RelationalResponse, { query: unknown }>["query"];
 type Description = Extract<Result, { explained: unknown }>["explained"];

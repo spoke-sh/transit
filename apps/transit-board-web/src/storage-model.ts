@@ -1,3 +1,4 @@
+import type { ByteCount } from "./quantities";
 /** Scale only the picture. Exact decimal positions remain the displayed truth. */
 export function positionPercent(value: string, ceiling: string): number {
   const current = BigInt(value),
@@ -9,7 +10,12 @@ export type StorageFact = {
   key: string;
   label: string;
   value: string;
+  byteValue?: ByteCount | null;
+  byteLimit?: ByteCount;
   explanation: string;
+  milliseconds?: number;
+  qualifier?: string;
+  visual?: boolean;
   percent?: number;
   scale?: string;
 };

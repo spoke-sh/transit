@@ -1,0 +1,21 @@
+.quantity {
+  font-variant-numeric: tabular-nums;
+}
+.quantity .quantity-value {
+  padding: 0.1em 0.25em;
+  font: inherit;
+  color: inherit;
+}
+.quantity-detail {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  overflow-wrap: anywhere;
+}
+.quantity-detail [role="status"] {
+  font-size: 0.85em;
+}
+.quantity > [hidden] {
+  display: none;
+}

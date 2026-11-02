@@ -24,10 +24,13 @@ cover generation drift and accepted/rejected values before and after sharing.
 References into nested definitions retain every ancestor along their original
 JSON Pointer path; their closed targets and siblings can still share validators.
 Nested schema resources with their own identifiers remain unchanged.
-Relational request/response validators are generated in a separate module and
-re-exported from the main validator entry. This lets Board include them in its
-query asset while keeping the inspection asset within its existing size bound.
-Generation and drift checks cover both modules and their declarations.
+Validators are generated in host/configuration, process inspection, storage,
+resource/capture evidence, finite query, relational and catalog groups. The main
+validator entry re-exports every contract; generation checks assign each contract
+to exactly one group and detect output drift. Public client subpaths
+(`@transit/board-client/deployment`, `/inspection`, `/storage`, `/evidence`,
+`/catalog`, `/relational`, `/query`, `/request`) let a lazy feature load only its
+client and validators. The package root retains the same typed operations.
 
 The small transport wrapper exposes `capabilities` and
 `read(resource, pid?, continuation?, signal?)`. Inspection fetches are GET-only and manage
@@ -59,7 +62,7 @@ views. Follow `next` with its original cut; never combine pages after a cut
 expires. Recognized framework enrichment preserves source evidence and does not
 decode application values.
 
-[src/index.ts](src/index.ts) owns transport and error handling. Generated types,
+[src/index.ts](src/index.ts) exports the domain clients; [src/request.ts](src/request.ts) owns the shared transport and error handling. Generated types,
 schemas and validators live beside it; edit the Zig owner and generator rather
 than patching their output.
 

@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { RelationalWorkspace } from "../relational-workspace";
+import { RelationalWorkspace } from "../features";
 import { Workbench, WorkbenchBody } from "../workbench-layout";
 import { FeatureAccess } from "../feature-access";
 

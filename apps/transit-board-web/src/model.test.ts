@@ -13,7 +13,7 @@ import {
   type HttpResponse,
   BoardError,
 } from "@transit/board-client";
-import { message } from "./state";
+import { message } from "./inspection-state";
 import { readDefinition } from "@transit/query-client";
 describe("inspection semantics", () => {
   it("deployment discovery validates independent flags without trusting configuration as authorization", () => {

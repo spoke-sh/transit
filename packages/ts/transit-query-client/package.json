@@ -3,7 +3,21 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "exports": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./error": "./src/error.ts",
+    "./definition": "./src/read-types.ts",
+    "./read": "./src/read.ts",
+    "./logical": "./src/logical.ts",
+    "./diagnostics": "./src/diagnostics.ts",
+    "./transport": "./src/transport.ts",
+    "./draft": "./src/draft.ts",
+    "./refresh": "./src/refresh.ts",
+    "./profile": "./src/profile.ts",
+    "./capture": "./src/capture.ts",
+    "./assistance": "./src/assistance.ts",
+    "./result": "./src/result.ts"
+  },
   "dependencies": {
     "@transit/diagnostics": "workspace:*",
     "@transit/reactive-client": "workspace:*",

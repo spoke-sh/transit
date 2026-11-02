@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { logicalTypeText, unifiedCellText, type ResultView } from "@transit/query-client";
+import { logicalTypeText, logicalCellText as unifiedCellText } from "@transit/query-client/logical";
+import type { ResultView } from "@transit/query-client";
 import { InspectorPanel, useInspector } from "./workbench-layout";
 import { profileResult, states } from "./result-profile";
 import { StatementOwner } from "./statement-owner";

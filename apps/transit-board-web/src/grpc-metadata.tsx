@@ -1,5 +1,6 @@
+import { ByteSize } from "./quantity";
 import { CaptureFailure } from "./capture-failure";
-import { grpcMetadata } from "@transit/board-client";
+import { grpcMetadata } from "@transit/board-client/evidence";
 import { useMetadata } from "./use-metadata";
 const hex = (bytes: readonly number[]) =>
   bytes.map((byte) => byte.toString(16).padStart(2, "0")).join("");
@@ -43,7 +44,8 @@ export function GrpcMetadata({ resource, exchange }: { resource: number; exchang
               </dd>
               <dt>Outgoing / incoming framed byte limits</dt>
               <dd>
-                {policy.limits.request_bytes} / {policy.limits.response_bytes}
+                <ByteSize value={policy.limits.request_bytes} /> /{" "}
+                <ByteSize value={policy.limits.response_bytes} />
               </dd>
               <dt>Trust bundle digest</dt>
               <dd>
@@ -60,13 +62,19 @@ export function GrpcMetadata({ resource, exchange }: { resource: number; exchang
           <dl>
             <dt>Outgoing half-close</dt>
             <dd>
-              {page.half_close
-                ? `${page.half_close.messages} messages / ${page.half_close.wire_bytes} framed bytes`
-                : "Not captured"}
+              {page.half_close ? (
+                <>
+                  {page.half_close.messages} messages /{" "}
+                  <ByteSize value={page.half_close.wire_bytes} /> framed
+                </>
+              ) : (
+                "Not captured"
+              )}
             </dd>
             <dt>Incoming indexed message records / body bytes</dt>
             <dd>
-              {page.response_message_records} / {page.response_body_bytes}
+              {page.response_message_records} records /{" "}
+              <ByteSize value={page.response_body_bytes} />
             </dd>
             <dt>Coverage commitment</dt>
             <dd>
@@ -83,7 +91,8 @@ export function GrpcMetadata({ resource, exchange }: { resource: number; exchang
               </dd>
               <dt>Sent / received framed bytes</dt>
               <dd>
-                {terminal.completion.sent_bytes} / {terminal.completion.received_bytes}
+                <ByteSize value={terminal.completion.sent_bytes} /> /{" "}
+                <ByteSize value={terminal.completion.received_bytes} />
               </dd>
               <dt>Attempt started (Unix ms) / elapsed (ns)</dt>
               <dd>

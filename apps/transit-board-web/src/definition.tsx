@@ -1,3 +1,5 @@
+import { diagram, type Definition } from "@transit/application/definition";
+import type { Compiled, Scope } from "@transit/application";
 import { InterfaceBindings } from "./interface-bindings";
 import { useInterface } from "./interface";
 import { useScope } from "./state";
@@ -9,21 +11,17 @@ import { useEffect, useReducer, useState } from "react";
 import {
   compile,
   abandonPublication,
-  diagram,
   importOperatorKey,
   keySigner,
   OperatorSession,
-  ApplicationTransportError,
   publish,
-  readInterface,
   request,
   reviewPublication,
   restoreReview,
-  type Compiled,
-  type Definition,
   type Review,
-  type Scope,
-} from "@transit/application";
+} from "@transit/application/client";
+import { ApplicationTransportError } from "@transit/application/error";
+import { readInterface } from "@transit/application/interface";
 
 // One editor workspace per mounted installation. Route/definition replacement
 // never discards an uncertain native submission or reimports a private key.

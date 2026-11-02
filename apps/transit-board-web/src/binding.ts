@@ -1,5 +1,6 @@
 import type { Definition } from "@transit/application";
-import { BoardError, type UnifiedQueryResponse } from "@transit/board-client";
+import { BoardError } from "@transit/board-client/request";
+import { type UnifiedQueryResponse } from "@transit/board-client";
 export type QueryBinding = Extract<
   Definition["bindings"][number]["source"],
   { query: unknown }

@@ -3,7 +3,13 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "exports": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./interface": "./src/interface.ts",
+    "./error": "./src/error.ts",
+    "./definition": "./src/definition.ts",
+    "./client": "./src/client.ts"
+  },
   "dependencies": {
     "@transit/diagnostics": "workspace:*",
     "@transit/reactive-client": "workspace:*",

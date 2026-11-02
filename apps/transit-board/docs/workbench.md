@@ -8,6 +8,11 @@ also have fixed routes. Operations focuses on storage and maintenance evidence,
 with links to the atlas, activity and separately configured relational recovery.
 Interface bindings belong to Definition.
 
+Board loads a view when it is opened. While its module loads, the shell keeps
+navigation available and shows **Loading view…**. If the download fails, the view
+shows **View unavailable** and offers **Reload Board**; another view can still be
+opened from navigation. Loading a module starts no query or maintenance action.
+
 ## Activities and contextual inspection
 
 The horizontal activity bar opens **Data**, **Workbooks** and the declared
@@ -56,16 +61,37 @@ workbench. Existing operational evidence remains in Operations.
 
 ## Operations and observation states
 
-Operations pairs capacity/allocation bars and Table frontier diagrams with exact
+Operations pairs capacity/allocation bars and Table frontier diagrams with
 data grids and the shared Inspector. Both views use the same returned facts;
 selection retains a measure identity rather than another payload copy. Table
 selection uses bounded catalog pages and an exact prepared binding. It needs
 neither Explain nor a relational connection. Native realm-wide inspection and
 catalog Table reads retain their independent identities and permissions.
 
+Byte measures use powers of 1,024 (B, KiB, MiB, GiB, TiB, PiB and EiB),
+approximately three significant digits and at most two decimal places. Rounded
+labels carry ≈; a positive quantity below a shared scale's precision uses `< 0.01`.
+Click or keyboard-activate a size to reveal exact decimal bytes and **Copy exact
+bytes**. Copy uses the ungrouped integer and reports failure when clipboard access
+is unavailable. Byte measures retain their original integers for ratios and
+ordering. Counts, offsets, positions, identities and arbitrary SQL cells keep
+their own units. Used/limit bars share units, cap only the drawing and explicitly
+label above-limit values. They describe their reported allowance, not disk free
+space; overlapping pools are not summed.
+
+Maintenance pairs a compact state/settings view with its grid and Inspector.
+It shows aggregate worker state/enablement, completed/failed steps, last failure,
+resident memory, interval/timeout, flush row/size/age thresholds and work rows,
+archive work frames, compaction work rows and collection record cadence.
+Eligibility thresholds and configured work bounds are not progress observations.
+Durations retain exact milliseconds in details. Disabled and unavailable are
+separate; counters reset on owner restart, and a last failure can remain while
+the worker is waiting or running. These node observations do not identify a
+per-Table maintenance phase or queue.
+
 Every diagram labels its scale and basis. Full-width Table positions stay decimal
-strings; only drawing coordinates are rounded. Pending counts identify complete
-backlog versus a prefix of at most 1,024 records. Null is unavailable, never zero.
+strings; only drawing coordinates are rounded. Pending rows and data size separately identify complete
+backlog versus a prefix/lower bound of at most 1,024 records. Null is unavailable, never zero.
 These are independent current observations, not a global snapshot or time series.
 No view infers shared/reclaimable bytes, elapsed age or permission to delete.
 
@@ -186,7 +212,7 @@ definition comparison refuses that result.
 
 ## Retained catalog inspection
 
-Open **Inspect a retained catalog**, enter its saved snapshot selector and the
+From Catalog or Operations, open **Inspect a retained catalog**, enter its saved snapshot selector and the
 schema name recorded in that catalog, then choose **Inspect snapshot**. Board
 resolves that schema inside the retained selection and displays eight Tables per
 page. Selecting a Table shows its original schema, codecs, collations, constraints,
@@ -195,10 +221,23 @@ semantic descriptors and exact catalog/source digests.
 **Physical definitions** reads one generation and its stable-column or ADD-time
 mapping per page using metadata rights. **Row placement** requires SELECT and
 shows at most eight original row identities with WAL or segment references.
+Both modes pair a bounded diagram with an equivalent grid. Select a column or
+original row in either view to highlight the same identity and inspect full
+physical interpretation, digests and exact locations. Shared destinations group
+only the returned page; segment IDs are not sizes or counts. ADD origins identify
+the initial state and definition without decoding application values. Type,
+codec and collation remain distinct in the logical schema.
+
 Continuation controls replace the displayed page; partial traversal stays visible.
+Changing mode resets its continuation and Inspector. Scope/selector/object/page
+replacement, denial and expiry remove old disclosure before a new observation
+can appear. The saved selector identifies the retained cut independently of
+current Table storage. Renamed objects retain their historical name and stable
+identity; current-name lookup is not a fallback.
 Directory exhaustion does not establish payload verification or query completion.
 Failed reads and document hiding clear displayed evidence. Visible pages recheck
-current permissions every five seconds. Inspection neither acquires nor releases
+current permissions every five seconds. Collapsing the retained catalog removes
+its observations and stops its reads; reopening revalidates the supplied selector. Inspection neither acquires nor releases
 retention and never runs SQL.
 
 ## Workbook and results

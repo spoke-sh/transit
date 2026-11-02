@@ -1,6 +1,7 @@
-import { ownedDiagnostic, QueryError } from "@transit/query-client";
+import { ownedDiagnostic } from "@transit/query-client/diagnostics";
+import { QueryError } from "@transit/query-client/error";
 import type { Response as WireResponse } from "./types";
-import { Response as validate } from "./validators.js";
+import { Response as validate } from "./inspection-validators.js";
 
 export type Response = WireResponse & { effectDiagnosticsInvalid?: boolean };
 

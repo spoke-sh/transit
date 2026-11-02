@@ -1,5 +1,6 @@
-import { currentDefinition, LiveView, ReactiveError, Session } from "@transit/reactive-client";
-import { RefreshPreparation } from "@transit/query-client";
+import { currentDefinition, LiveView, Session } from "@transit/reactive-client";
+import { ReactiveError } from "@transit/reactive-client/error";
+import { RefreshPreparation } from "@transit/query-client/refresh";
 import type { Transport as QueryTransport } from "@transit/query-client";
 
 type Saved = {

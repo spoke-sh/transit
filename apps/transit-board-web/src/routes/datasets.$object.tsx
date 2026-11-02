@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { DatasetPage } from "../data-workbench";
+import { DatasetPage } from "../features";
 export const Route = createFileRoute("/datasets/$object")({
   validateSearch: (search: Record<string, unknown>) => ({
     namespace: Number(search.namespace),

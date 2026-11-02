@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
-import { documentMetadata, type DocumentCursor } from "@transit/board-client";
+import { documentMetadata } from "@transit/board-client/evidence";
+import { type DocumentCursor } from "@transit/board-client";
 import { useMetadata } from "./use-metadata";
 
 export function DocumentMetadata({ resource, document }: { resource: number; document: string }) {

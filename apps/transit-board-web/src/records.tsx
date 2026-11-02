@@ -1,7 +1,10 @@
+import { ByteSize } from "./quantity";
 import { CaptureFailure } from "./capture-failure";
 import { useState } from "react";
-import { records, BoardError, type RecordsResponse } from "@transit/board-client";
-import { message } from "./state";
+import { records } from "@transit/board-client/evidence";
+import { BoardError } from "@transit/board-client/request";
+import { type RecordsResponse } from "@transit/board-client";
+import { message } from "./inspection-state";
 import { GrpcMetadata } from "./grpc-metadata";
 import { DocumentMetadata } from "./document-metadata";
 import { HttpMetadata } from "./http-metadata";
@@ -73,7 +76,7 @@ function ExchangeEvidence({ detail }: { detail: Declaration }) {
           </dd>
           <dt>Captured bytes</dt>
           <dd>
-            {d.bytes} of {d.capture_bytes} allowed
+            <ByteSize value={d.bytes} /> of <ByteSize value={d.capture_bytes} /> allowed
           </dd>
           <dt>Pending segment kind / reclaimed members</dt>
           <dd>

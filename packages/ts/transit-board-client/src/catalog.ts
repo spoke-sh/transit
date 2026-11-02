@@ -3,8 +3,10 @@ import {
   CatalogRequest as validRequest,
   CatalogResponse as validResponse,
 } from "./catalog-validators.js";
-import { readDefinition, QueryError, boundedQueryJson } from "@transit/query-client";
-import { request } from "./index";
+import { readDefinition } from "@transit/query-client/definition";
+import { QueryError } from "@transit/query-client/error";
+import { boundedQueryJson } from "@transit/query-client/logical";
+import { request } from "./request";
 export type { CatalogRequest } from "./types";
 type Catalog = Extract<CatalogResponse, { catalog: unknown }>["catalog"];
 export type CatalogDescription = Extract<Catalog, { description: unknown }>["description"];

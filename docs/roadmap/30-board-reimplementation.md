@@ -2,11 +2,12 @@
 
 [Roadmap](README.md) · **Status:** In Progress
 
-Review the proposed [local connections and Document persistence plan](#local-connections-and-document-persistence-plan--2026-11-02)
-alongside the [R1 reactive ownership delivery](#reactive-ownership-delivery-r1--2026-11-02)
-and the [approved implementation sequence after PR 326](#next-implementation-sequence-after-pr-326--2026-11-01).
-Storage placement and computation inspection retain their existing scope;
-installed performance and the full workbench completion gates remain open.
+Start with the [R2 delivery and remaining gates](#readable-storage-delivery-r2--2026-11-02):
+readable binary quantities, retained storage placement, maintenance inspection
+and features loaded on demand. R1 and automatic local data access are merged;
+R2 is implemented for review. The [local connections and Document persistence plan](#local-connections-and-document-persistence-plan--2026-11-02)
+records the parallel persistence scope. R3 computation inspection, installed
+performance and the full workbench completion gates remain open.
 
 Reimplement Board as the installed interface for discovering data, explaining
 computations and reviewing governed changes. Deliver the focused catalog,
@@ -452,20 +453,55 @@ R4 resource/performance targets. Executed source-specific results, corrected
 regressions and remaining limits are recorded in the
 [R1 qualification account](../history/qualification/interfaces.md#board-reactive-ownership-and-independent-connection-profiles--2026-11-02).
 
-The next implementation PR is R2's retained-storage placement and maintenance
-inspection, followed by R3's managed-computation projection and neighborhood.
+R2's retained-storage placement and maintenance inspection are now implemented
+for review, followed by R3's managed-computation projection and neighborhood.
 R4 retains the unresolved historical TLS-replacement cause, the newly observed
 managed-table authorization refusal after replacement/resume, installed capacity
 refusals and the SQL-only Run timeout, measured resource budgets and broader
 accessibility checks. R5 and the original milestone gates
 remain required; this delivery does not complete M30.
 
+## Readable storage delivery (R2) — 2026-11-02
+
+R2 implements binary byte quantities with exact detail/copy, shared retained
+catalog inspection in Data and Operations, linked physical-definition and
+row-placement diagrams/grids, and maintenance settings/state. It uses the
+existing public read operations and one selected page; inspection acquires no
+retention and starts no query or maintenance. A mismatched historical cursor
+now retains its binding diagnosis instead of becoming an internal failure.
+
+The user's bundle refinement is implemented as dynamic feature boundaries and
+narrow public client/validator entries. The measured bootstrap is about 689 KiB
+across four scripts; the largest script is about 468 KiB. Build guards and
+installed delayed/failed-download checks preserve the embedded host's limits
+and shell navigation. The [source-attributed account](../history/qualification/interfaces.md#board-readable-storage-and-deferred-features--2026-11-02)
+records the exact byte comparison, checks, failures and remaining gaps.
+
+The focused installed storage/API/browser schedule passes at `c88f2dcab`,
+with matching rebuilt executables, automatic local access and revoked-restart
+checks from main.
+[Real D4 figures](../design/board-data/D4.md#installed-figures) are ready for
+layout review. The default attempt at that source stops during profile
+provisioning with `StaleAuthorizationRevision`. Earlier full attempts encounter
+retained-setup capacity refusals; their independent connection-profile passes
+remain separately attributed. The focused pass does not qualify the full schedule
+or erase those failures. The branch includes `origin/main` at `edeb8618c`, including
+automatic local access, saved-declaration recovery and the later Queue/release
+changes. The qualification account distinguishes each tested revision.
+This does not close R2's full acceptance matrix: metadata-only/SELECT-only
+subjects for the new placement fixture need a separate authority schedule,
+and manual screen-reader/native-browser-zoom review remains open. Broader
+clean-lane outcomes belong in the qualification account. R3 and R4 retain their
+separate computation and reliability/performance scopes; M30 remains In Progress.
+
 ## Next implementation sequence after PR 326 — 2026-11-01
 
-**Review status:** Approved for implementation; R1 is the current delivery. **Source basis:** `origin/main` at
-`db0bb4a8f`, the merge of [PR #326](https://github.com/spoke-sh/transit/pull/326).
-This sequence scopes separate implementation PRs. R2–R4 follow the R1 delivery;
-R5 retains its service prerequisites. Executed evidence is attributed separately
+**Review status:** The sequence was approved; R1 merged in
+[PR #332](https://github.com/spoke-sh/transit/pull/332). The expanded R2 plan below
+is **Approved; implemented for review with qualification gaps**. **Original source basis:** `origin/main` at `db0bb4a8f`, the
+merge of [PR #326](https://github.com/spoke-sh/transit/pull/326). R2 records its
+newer source separately. This sequence scopes separate implementation PRs; R5
+retains its service prerequisites. Executed evidence is attributed separately
 below. M30 remains **In Progress**.
 
 The next outcome is a Board whose visible state and background work have explicit
@@ -497,7 +533,7 @@ qualifies a later source automatically.
 | Review unit | Concrete result | Dependency and existing plan coverage |
 | --- | --- | --- |
 | **R1 — Reactive ownership and executable state evidence** | Shared read scheduling, composed lifecycle adapters, independent finite model/replay and real independent-configuration fixtures | First implementation PR; completes the remaining P0/P1/P4 obligations within the supported profiles and preserves P2 |
-| **R2 — Storage placement and maintenance inspection** | Selected retained-definition/row-placement diagram and maintenance budget/state view, each linked to its exact grid and Inspector | R1 plus existing M10 historical callers; completes remaining P3 visual work and the storage part of P5 |
+| **R2 — Readable quantities, storage placement and maintenance inspection** | Consistent binary-unit quantities, selected retained-definition/row-placement diagrams and maintenance budget/state views, linked to their grids and exact Inspector evidence | R1 plus existing M10 historical callers; completes remaining P3 visual work and the storage part of P5 |
 | **R3 — Computation evidence** | Read-only public projection and bounded source → computation → output inspection with last-complete and pending evidence | R1 plus M12 managed lifecycle/revision owners; follows R2 for delivery, without depending on its storage renderer |
 | **R4 — Installed and measured acceptance** | Common-revision installation/browser/model results, performance budgets and accessibility evidence for R1–R3 | Measure and investigate from R1 onward; final run follows R3. Closes this delivery sequence, not all of P7 or M30 |
 | **R5 — Durable workbooks and governed changes** | Shared persistent investigations, transaction presentation, comparisons and Changes workflows | Separate later implementation plans after the owning M20/M27/M28/M29 services meet the prerequisites below; retains P6 and full P7 closure |
@@ -597,40 +633,271 @@ source-attributed limits. R1 does not depend on adding new storage/computation U
 
 ### R2 — Explain retained storage placement and maintenance
 
-Reuse the existing `HistoricalObject` reads in
-[`data-workbench.tsx`](../../apps/transit-board-web/src/data-workbench.tsx),
-[`DataCatalog`](../../packages/ts/transit-board-client/src/catalog.ts) and the
-[historical catalog contract](../../contracts/HISTORICAL_CATALOG_V1.md#historical-interpretation-coverage).
-Extract a selected-object inspection component usable from the dataset and
-Operations contexts. A supplied retained selector plus stable object and coverage
-kind identifies the observation; selection does not acquire a snapshot or pin.
+**Implementation plan — 2026-11-02. Status: Approved; implemented for review with qualification gaps.** Source basis:
+`origin/main` at `ffbf2e9b1`, including Board R1 in PR #332 and the subsequent
+Stream/Queue integration in PR #333. Planning starts in a separate worktree on
+`docs/m30-storage-inspection-plan`. The original implementation scope is preserved below; the
+[delivery account](#readable-storage-delivery-r2--2026-11-02) and linked evidence
+record what was executed. The plan itself establishes no runtime qualification.
 
-Show logical definition → physical definition and returned row → WAL/segment
-placement relationships using only the selected page. Physical-definition
-inspection remains available with metadata rights; row placement requires
-SELECT. Keep their continuations separate. The current owner returns one physical
-schema generation or at most eight row locations per page. Label partial traversal
-and distinguish directory exhaustion from payload verification or query completion.
-Do not infer segment sizes, live row counts, reclaimability or complete inventory.
+#### Outcome and review scope
 
-Add the node maintenance diagram using existing configured budgets, state,
-activity counters and failure fields. Preserve independent units and reset
-semantics. Match Table frontier lanes to their exact partition and boundary
-conventions; retain full-width integer labels, unknown versus zero and bounded
-backlog coverage. All visuals share selection and evidence with their exact grids.
+Board is the human interface to the database. A person should be able to judge
+how much data or memory a value represents, understand the allowance it relates
+to, and inspect where selected data resides and what maintenance has observed.
+Readable summaries and exact evidence are two presentations of the same typed
+observation. Preserve the horizontal activities, paired visualization/grid and
+one contextual Inspector.
 
-Register the next review in the
-[board-data sequence](../design/board-data/README.md) for monochrome placement,
-maintenance and computation wireframes, including narrow layout, keyboard focus,
-empty/denied/partial states and Inspector behavior. Design fixtures remain labeled
-synthetic; installed screenshots and acceptance use real public evidence.
+The next PR delivers these three journeys:
 
-**R2 exit gate.** Traverse more than one retained page after schema evolution and
-rename, then test changed selection, expired retention, revoked metadata and
-revoked SELECT independently. Compare diagram/grid identities with an independent
-public caller. Inspect accepted WAL data, observed maintenance and a reopened
-disk-backed fixture without browser writes. Selection, expansion and paging
-neither execute SQL nor start maintenance. Keyboard and pointer selection agree.
+| Journey | Visible outcome | Exact evidence available on selection |
+| --- | --- | --- |
+| Judge magnitude and capacity | `128 MiB of 512 MiB · 25%`, with an explicit allocation or budget label | Original byte counts, metric meaning, scope and observation basis |
+| Locate selected retained data | Logical columns mapped to physical definitions; up to eight returned row identities linked to their WAL or segment locations | Retained selector, stable object/definition, source cut and the selected mapping or location |
+| Understand maintenance | Reported state, last failure, completed/failed steps and configured work limits, alongside separate Table progress | Raw settings and counters, reset semantics, partition identity and exact progress boundaries |
+
+The quantity example is illustrative, not a measured installation result.
+R3 computation neighborhoods, durable workbook persistence, new administrative
+controls and the full R4 performance programme remain separate deliveries.
+
+#### Source assessment and dependencies
+
+| Existing owner at this source | Implementation consequence |
+| --- | --- |
+| [`storage.tsx`](../../apps/transit-board-web/src/storage.tsx) formats every capacity value as raw bytes. [`StorageFact`](../../apps/transit-board-web/src/storage-model.ts) stores only a rendered string; its grid and Inspector claim exact values. | Retain typed/raw quantities separately from display labels. Update exactness wording when the primary value is rounded. |
+| Payload/capture, HTTP/gRPC, query-budget and schema-record views also display byte quantities. | Audit and migrate known byte measures through one app-owned formatter. Arbitrary SQL cells, message contents and identifiers keep their own semantics. |
+| [`HistoricalObject`](../../apps/transit-board-web/src/retained-storage.tsx) already reads retained source/coverage and renders text and lists. [`DataCatalog`](../../packages/ts/transit-board-client/src/catalog.ts) already exposes bounded definitions and locations. | Extract a reusable selected-object view and build diagrams over the returned evidence. No new discovery scan, query or retention operation is needed. |
+| [`Storage.Response`](../../packages/zig/transit-board-api/src/Storage.zig) exposes allocation, request pools, activity and settings from the [shared storage types](../../packages/zig/transit-protocol/src/Storage.zig). The current UI shows only part of that evidence. | Present the existing fields with accurate units and explanations before proposing new metrics. Node counters are independently sampled and are not attributed to one Table. |
+| R1 supplies the observation owner, bounded transport scheduler and scoped Inspector. | New views use those owners. Selection stores identities; late replies cannot repopulate a replaced, hidden or denied scope. |
+| [M10 historical coverage](10-standards-and-catalogs.md) and the [historical contract](../../contracts/HISTORICAL_CATALOG_V1.md#historical-interpretation-coverage) distinguish metadata rights from SELECT. | Physical-definition inspection must remain usable without row-placement rights. Validate helper composition so a stronger auxiliary read cannot accidentally gate the metadata-only view. |
+| [M3 storage](03-live-storage-and-sql-cutover.md) and [M12 computation](12-sql-and-dataflows.md) retain their own progress/recovery owners. [M6](06-streams-queues-and-durable-runtime.md) has newer merged integration evidence. | Rebase implementation and reproduce relevant failures at its actual source. Neither newer runtime work nor a successful Board observation establishes that earlier failures are resolved. Stream/Queue inspection needs its own public projection and later scope. |
+
+Use the [Board guide](../handbook/guides/inspect-board.md),
+[Board API](../handbook/reference/board-api.md),
+[storage reference](../handbook/reference/storage.md) and existing public clients.
+The expected R2 implementation changes presentation and tests, using current
+contracts. If a required fact is absent, propose and qualify it with its domain
+owner before adding its Board adapter; never infer it from a filename, ID or
+unread storage object.
+
+#### 1. Shared quantity presentation
+
+Add one small pure formatter in the existing Board web app, with a presentation
+component where exact details/copy behavior are shared. No new package or
+formatting dependency is needed. Proposed behavior:
+
+- Use powers of 1,024: B, KiB, MiB, GiB and TiB, continuing through PiB/EiB when
+  full-width inputs require it. Byte values below 1,024 remain integer B.
+- Show approximately three significant digits, at most two decimal places, and
+  strip trailing zeros. Promote a rounded boundary such as `1024 KiB` to the
+  next unit. Mark a rounded value as approximate; never label it exact.
+- Accept validated nonnegative safe-integer numbers and exact decimal-string or
+  bigint quantities. Normalize without converting full-width strings to Number.
+  Compute unit choice and rounding with integer arithmetic; reject invalid,
+  fractional, negative or unsafe numeric inputs. Keep wire validators intact.
+- Preserve `0 B`, unavailable evidence and an absent setting as distinct states.
+  A zero denominator is not a percentage or an invented unlimited allowance;
+  current storage contracts require positive limits.
+- Retain exact decimal bytes for an Inspector detail and **Copy exact bytes**.
+  Make the detail accessible by keyboard and touch, not only a hover tooltip.
+  Copy returns the ungrouped decimal integer; user-visible exact details may use
+  locale grouping. Copy status reports success or failure without changing data.
+- Use original values for ordering, ratios and state decisions. Formatting cannot
+  turn a below-limit allocation into an exceeded limit or establish completion.
+  Where sorting exists, differently scaled labels still sort numerically.
+
+| Input bytes | Primary presentation | Exact detail |
+| --- | --- | --- |
+| `0` | `0 B` | `0 bytes` |
+| `1023` | `1023 B` | `1,023 bytes` |
+| `1024` | `1 KiB` | `1,024 bytes` |
+| `1536` | `1.5 KiB` | `1,536 bytes` |
+| `134217728` | `128 MiB` | `134,217,728 bytes` |
+| `1610612736` | `1.5 GiB` | `1,610,612,736 bytes` |
+
+Apply this to Storage allocation/limits/peaks, Table pending bytes, request and
+result budgets, captured/payload sizes, HTTP/gRPC body and framed-byte measures,
+and schema-record size labels. Explicitly label both quantities in mixed
+rows/bytes or messages/bytes displays. Keep row counts, log positions, offsets,
+revisions, identities, hashes and raw hex contents exact in their own units.
+Do not infer that an arbitrary numeric SQL column represents bytes.
+
+Update the storage grid caption from its current blanket “exact values” claim.
+The grid, visual and Inspector summary use the same formatter; exact byte detail
+remains available without restoring raw-byte dominance in the main view.
+For comparable bars, choose a common unit for the scale/axis; show the value and
+unit in every accessible label. Used/limit pairs share a unit and use a percentage
+only when both values refer to the same owner and allowance. Calculate the ratio
+before rounding, label over-limit values truthfully even if the drawing is capped,
+and use a less-than label when a fixed scale would round a positive value to zero.
+Accessible names spell out binary units where abbreviated labels are unclear.
+Preserve the distinction between storage accounting, request allocations,
+control reserve and configured maintenance memory. Do not sum overlapping pools
+or call accounting “disk used” or “free space.”
+
+#### 2. Selected retained placement
+
+Extract the historical selector/list and selected-object inspection from
+`data-workbench.tsx` into focused reusable components. Keep the existing Catalog
+entry and expose the same inspection from Operations, beside Table storage.
+Entering a retained selector and historical schema is explicit; choose an object
+from its bounded directory. A current Table may preselect only a matching stable
+object actually present in that retained selection. Do not resolve renamed objects
+through current-name fallback or automatically acquire a snapshot.
+
+Provide two labeled modes with separate continuations:
+
+- **Physical definitions:** connect logical columns to the returned physical
+  schema generation or ADD-time origin using stable column IDs. The current
+  owner returns one generation per page. Show type, codec and collation distinctly;
+  explain initial-value origin without inventing or decoding application values.
+- **Row placement:** connect each returned original row identity to its recorded
+  WAL location or immutable segment identity. Group shared destinations within
+  the selected page. At most eight row locations are retained/displayed; there
+  is no recursive expansion or accumulated segment inventory.
+
+Use a bounded DOM/SVG diagram with an equivalent table, avoiding a graph library.
+The physical-definition view follows the existing validated schema bound and
+scrolls within its region; row placement is bounded by the eight-row API page.
+One selected identity drives highlighting and the existing Inspector in both
+views. Show complete digests and exact locations in details, with descriptive
+short labels in the diagram. Segment IDs are identities, not counts or sizes.
+
+The owner key includes deployment/scope, retained selector, stable object,
+coverage kind and continuation. Replacement resets continuation and selection.
+Changing mode or page releases old Inspector evidence before another response
+can appear. Hidden/denied/expired/incompatible states clear the affected view;
+retry revalidates the same supplied selector. An authorized empty page is distinct
+from failure. Unrelated node inspection remains usable when SELECT is refused.
+
+Each diagram and grid carries its source basis and explicit selected-page
+coverage. “More pages” and “End of directory” concern traversal only: neither
+verifies payloads, completes a query, proves a global snapshot, measures segment
+size, nor establishes that data is eligible for deletion. Do not mix this retained
+cut with the current Table-storage observation or draw a chronological movement
+between independent observations.
+
+#### 3. Maintenance and current Table progress
+
+Extend the existing Maintenance section using returned fields:
+
+- Reported enabled/state, completed and failed steps, and last failure.
+- Configured resident memory, worker interval and operation timeout.
+- Flush enabled, row/byte/age eligibility thresholds and per-step work rows;
+  archive enabled and work frames; compaction enabled and work rows; collection
+  record cadence. Keep eligibility thresholds distinct from progress and budgets.
+
+Use a compact labeled state/settings view paired with a precise grid and
+Inspector explanations. Format configured milliseconds as readable durations
+while retaining exact milliseconds in details. A disabled feature is distinct
+from missing evidence. The public node activity has one aggregate worker state;
+do not invent per-Table active phases, a maintenance queue or a time series.
+Completed/failed step counters reset when their owner restarts; a retained last
+failure is not proof that the current worker state is failed.
+
+Keep current Table acceptance, archive, recovery and history lanes partition-local
+with their original boundary conventions. Display pending rows and human-readable
+pending bytes separately. When `pending_complete` is false, label both as a
+bounded observed prefix/lower bound; do not compute a total, ETA or progress
+percentage from it. A numeric log-position bar shows position relative to its
+stated boundary, not elapsed time or percentage of maintenance completed.
+Node settings and Table observations retain separate bases and ownership labels.
+Opening or refreshing any view never runs flush, compaction, collection, SQL or
+other controls.
+
+#### Feature loading (implementation refinement)
+
+The implementation also addresses the requested bundle decomposition. Split the
+shared renderer and Catalog/Dataset/Workbook composition into dynamic feature
+imports. Keep public client errors, configuration, interface acquisition and
+pure value display separate from optional query, Live and operator clients.
+Generate Board validators by contract group; preserve every runtime check and
+public operation. Group shared feature dependencies so dynamic imports add at
+most four scripts to the bootstrap graph, with one CSS file and no module
+preload burst. Retain the 900 kB per-script bound and enforce fewer than 800 kB
+across at most four bootstrap scripts at build time. Fail a build that makes a
+feature implementation eager. Check cold entry, navigation, deep-link reload,
+loading state, a failed import and explicit reload against the embedded host.
+
+#### Implementation and review order
+
+Keep one R2 implementation PR, with scoped logical commits:
+
+| Commit | Deliverable | Review/validation focus |
+| --- | --- | --- |
+| `feat(board): present byte quantities in binary units` | Shared typed formatting, readable metrics and exact-value detail/copy across the audited byte labels | Boundary/full-width/rounding cases, unchanged units for counts and identities, meaningful capacity ratios |
+| `refactor(board): share retained storage inspection` | Reusable bounded selector/object owner for Catalog and Operations | Scope/continuation fencing, current rights, no duplicated poller or implicit retention |
+| `feat(board): visualize retained storage placement` | Physical-definition and row-placement diagrams, shared grid selection and Inspector | Exact identity correspondence, page bounds, independent metadata/SELECT access and keyboard use |
+| `feat(board): explain maintenance budgets and progress` | Node state/settings and clearer current Table evidence | Correct units, independent observations, reset/partial semantics and no invented progress |
+| `test(board): qualify readable storage inspection` | Installed public-caller/browser schedules and access/replacement regressions | Real disk-backed source evidence; prior recovery and original-work guarantees preserved |
+| `docs(board): document storage inspection and evidence` | Public behavior, owner inventory, design outcomes and source-attributed checks | Proposal versus implementation, exact commands/results and remaining R4 failures |
+
+Alongside the quantity commit, register `board-data/D4.md` as the next review in
+[the design sequence](../design/board-data/README.md), following its template.
+Use monochrome wireframes for capacity, placement and maintenance with narrow,
+empty, denied, expired and partial states. Include unit/precision and exact-detail
+interaction. Design fixtures remain labeled synthetic; acceptance screenshots
+come from the real installed service. The design record owns layout rationale;
+this roadmap owns implementation scope. R3 can extend the review later with its
+actual computation projection.
+
+#### Acceptance and verification
+
+This is the original acceptance matrix. Executed outcomes and outstanding gates
+are recorded in the [delivery account](#readable-storage-delivery-r2--2026-11-02).
+
+| Layer | Required evidence |
+| --- | --- |
+| Quantity/unit checks | Zero/null, each 1,024 boundary and rounding carry, exact powers/fractions, full-width decimal strings including u64 maximum, invalid/unsafe inputs, exact copy content and numeric ordering. Check a near-limit rounded label cannot change the underlying status. |
+| Component/owner checks | One observation supplies diagram/grid/Inspector; mode, page, scope, hide and denial invalidate old disclosure. Late success cannot revive it. Independent node inspection survives a denied Table or row-placement read. |
+| Installed storage fixture | Use explicit owning callers to provision WAL-backed and segment-backed rows, evolve/rename a Table and retain a selection spanning more than one coverage page. Compare selected identities and exact quantities with an independent public caller; reopen disk-backed storage and verify the same retained basis. Observe maintenance without claiming a forced intermediate state. |
+| Authorization/lifetime | Separate metadata-only and SELECT subjects; revoke each right independently and release/expire retention through its owner. Check empty and terminal pages, Inspector/hidden DOM clearing, stale continuations and unavailable transport. Board performs none of the fixture's setup/control operations. |
+| Browser/UI | All four existing connection profiles; Operations useful without SQL; no SQL, retention or maintenance requests from selection, paging or refresh. Keyboard and pointer share selection, Escape restores focus, exact detail/copy works without hover. Check narrow layout, 200% zoom, reduced motion, automated accessibility and a recorded manual screen-reader pass. |
+| Bounds/integration | One selected coverage page, existing schema bound and two-read/one-control scheduler limits; no full scan or repeated hidden reads. Preserve embedded asset limits and existing workbench/inspection/recovery assertions. |
+
+Iterate with `just transit-board::check`, the affected browser suites and
+`just transit-board::workbench-browser` in the pinned environment. The quantity
+migration also affects HTTP/gRPC/capture and query-budget surfaces: run their
+owning browser checks, including Document inspection if its rendering changes.
+Before submitting implementation, run committed-HEAD clean `browser` and
+`installation-ui` lanes. Run `test::board-model` to retain R1's existing safety
+check; use the clean formal lane if transition/effect owners or model machinery
+change. Add dependent core/interface checks only if a public contract or backend
+owner actually changes. Publish exact source and preparation outcomes; an
+interrupted lane or passing repetition cannot erase a failed attempt.
+
+Update current behavior in the [Board guide](../handbook/guides/inspect-board.md),
+[workbench guide](../../apps/transit-board/docs/workbench.md) and frontend owner
+inventory. Change the API reference only if its exposed semantics change.
+Record executed results in the existing
+[qualification owner](../history/qualification/interfaces.md), with real
+screenshots and source/tool/fixture attribution. Do not claim R4 latency or heap
+budgets from component tests or screenshots.
+
+**R2 exit gate:** the three journeys work through current public read operations;
+primary byte quantities are consistently readable; exact values and independent
+units remain inspectable; diagram/grid selections agree with public evidence;
+page, authorization, lifetime and disclosure bounds hold. No missing backend fact
+is fabricated, and no new work is initiated by inspection.
+
+#### Reliability follow-up and subsequent delivery
+
+Carry the [R1 recorded failures](../history/qualification/interfaces.md#board-reactive-ownership-and-independent-connection-profiles--2026-11-02)
+into a separately attributable R4 investigation: SQL-only Run timeout/native
+capacity, managed-table replacement/resume authorization, and SQL reads after
+certificate/CA replacement. Reproduce on the implementation baseline, capture
+the owning typed cause and original operation evidence, and fix the responsible
+owner with a focused regression. Keep owner fixes independently reviewable; do
+not increase timeouts, broaden mutation retries or weaken assertions to obtain
+a green Board run. A reproduced failure affecting an R2 journey blocks that
+journey's acceptance; unrelated failures remain explicit gaps in the broader lane.
+
+R3 follows with read-only source → computation → output inspection over M12's
+completed/pending revision evidence. R4 retains common-revision integration,
+performance/multi-tab memory measurements and remaining accessibility work.
+R5's durable investigations and governed changes still depend on their public
+services. R2 delivery does not complete M30.
 
 ### R3 — Explain completed and pending computation
 
@@ -786,9 +1053,9 @@ or M32 subscriptions. Existing finite Live/Follow retain their qualified owners.
 
 | Evidence at the source basis | Consequence for this plan |
 | --- | --- |
-| [`foundations.tsx`](../../apps/transit-board-web/src/foundations.tsx) renders Storage, `RelationalWorkspace` and interface bindings together. [`storage.tsx`](../../apps/transit-board-web/src/storage.tsx) obtains Table storage through the relational description's prepared source binding. | Extract the useful Table inspection and recovery paths before removing the worksheet; deleting the component alone would strand both. |
+| [`foundations.tsx`](../../apps/transit-board-web/src/operations.tsx) renders Storage, `RelationalWorkspace` and interface bindings together. [`storage.tsx`](../../apps/transit-board-web/src/storage.tsx) obtains Table storage through the relational description's prepared source binding. | Extract the useful Table inspection and recovery paths before removing the worksheet; deleting the component alone would strand both. |
 | [`Capabilities`](../../packages/zig/transit-board-api/src/root.zig) reports the older `query_enabled` and `reactive_table` capabilities, but no separate catalog/SQL-workbench configuration. [`main.zig`](../../apps/transit-board/main.zig) returns `404 QueryDisabled` when the corresponding workbench configuration is absent. | Add explicit per-feature configuration discovery. The older query flag cannot decide whether Catalog or Workbook works. Configuration evidence is not authorization. |
-| [`data-workbench.tsx`](../../apps/transit-board-web/src/data-workbench.tsx) collapses metadata errors to strings, retries every five seconds and uses the same unavailable panel for Catalog and Workbook. [`state.tsx`](../../apps/transit-board-web/src/state.tsx), [`use-metadata.ts`](../../apps/transit-board-web/src/use-metadata.ts) and [`workbench-result.tsx`](../../apps/transit-board-web/src/workbench-result.tsx) separately own request and visibility transitions. | Replace these overlapping transitions with typed state/effect owners and feature-specific diagnostics; preserve each client's existing disclosure and recovery semantics. |
+| [`data-workbench.tsx`](../../apps/transit-board-web/src/dataset.tsx) collapses metadata errors to strings, retries every five seconds and uses the same unavailable panel for Catalog and Workbook. [`state.tsx`](../../apps/transit-board-web/src/state.tsx), [`use-metadata.ts`](../../apps/transit-board-web/src/use-metadata.ts) and [`workbench-result.tsx`](../../apps/transit-board-web/src/workbench-result.tsx) separately own request and visibility transitions. | Replace these overlapping transitions with typed state/effect owners and feature-specific diagnostics; preserve each client's existing disclosure and recovery semantics. |
 | [M4](04-statement-results-and-consumption.md) supplies `Executor`, `ResultSet`, `ReadView`, `ReadWorkspace` and the browser `StatementReader`. [M8](08-gateway-architecture-and-protocol-ingress.md) supplies co-hosted execution and event-driven recovery; [M9](09-client-foundation-and-language-apis.md) is integrating shared contexts and recovery. | Consume logical results and original-operation recovery. The UI machine owns presentation and request lifetimes, not SQL parsing, native fetch sequencing, accepted-work settlement or service recovery polling. |
 | [M6's current checkpoint](06-streams-queues-and-durable-runtime.md#progress-checkpoint--2026-11-01) adds SQL workload outcomes, Stream intervals and Queue receipts/ACK, with installed and performance gates still open. [M7](07-document-storage-and-station-decoupling.md) is integrating direct Documents and replacing Station consumers. | Extend kind-specific inspection only through their public callers. Queue claim/ACK and Stream offset settlement are mutations even when they return rows; Workbook's read-only admission must continue to refuse them. Do not infer a completed Station cutover or enable a workload from parser support. |
 | [M10's progress scope](10-standards-and-catalogs.md#progress-pr-scope--2026-11-01), merged in `9d7a15fd6`, includes historical catalogs/SQL, physical definitions, row placement, constraints, collations and versioned interpretation descriptors; Board already contains read-only historical inspection. | Reuse these real projections for storage drilldown and exact definitions. Separate metadata rights from SELECT for row placement, directory coverage from payload verification, and current permissions from historical data. Final installed/browser qualification remains required. |

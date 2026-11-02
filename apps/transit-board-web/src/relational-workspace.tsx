@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { BoardError } from "@transit/board-client/request";
+import { relationalQuery } from "@transit/board-client/relational";
 import {
-  BoardError,
-  relationalQuery,
   type RelationalProfile,
   type RelationalDescription,
   type RelationalOpened,
@@ -9,7 +9,7 @@ import {
   type RelationalReference,
   type RelationalRequest,
 } from "@transit/board-client";
-import { TableStorage } from "./storage";
+import { TableStorage } from "./relational-storage";
 import { QueryDiagnostic } from "./query-diagnostic";
 import type { Diagnostic } from "@transit/query-client";
 

@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./caller-gate": "./src/caller-gate.ts",
-    "./request-scheduling": "./src/request-scheduling.ts"
+    "./request-scheduling": "./src/request-scheduling.ts",
+    "./error": "./src/error.ts"
   },
   "dependencies": {
     "@transit/diagnostics": "workspace:*",

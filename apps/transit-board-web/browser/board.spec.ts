@@ -95,6 +95,18 @@ test("real embedded UI explains kernel evidence and retains focus while polling"
   });
   await page.goto("/atlas");
   await expect(page.getByRole("heading", { name: "Relief atlas" })).toBeVisible();
+  for (const group of [
+    "operations",
+    "catalog",
+    "statements",
+    "query-workspace",
+    "live",
+    "recovery",
+  ])
+    expect(
+      [...scripts.keys()].some((url) => url.includes(`/assets/${group}-`)),
+      `${group} should remain deferred`,
+    ).toBe(false);
   const selection = page.getByRole("button", { name: `Select process ${pid}`, exact: true });
   await expect(selection).toBeVisible();
   await selection.focus();
@@ -140,7 +152,7 @@ test("real embedded UI explains kernel evidence and retains focus while polling"
   // Exercise the embedded module graph on cold entry, navigation and deep-link
   // reload. Chunking must not regress to a monolith or exhaust static handlers.
   expect(scripts.size).toBeGreaterThan(1);
-  expect(scripts.size).toBeLessThanOrEqual(5);
+  expect(scripts.size).toBeLessThanOrEqual(6);
   for (const response of scripts.values()) {
     expect(response.status(), response.url()).toBe(200);
     expect(response.headers()["content-type"]).toContain("javascript");

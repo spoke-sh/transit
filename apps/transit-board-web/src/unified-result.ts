@@ -1,5 +1,7 @@
-import { BoardError, unifiedQuery } from "@transit/board-client";
-import { verifiedPage as verify, type ReadPage } from "@transit/query-client";
+import { BoardError } from "@transit/board-client/request";
+import { unifiedQuery } from "@transit/board-client/query";
+import { verifiedPage as verify } from "@transit/query-client/result";
+import { type ReadPage } from "@transit/query-client";
 export type { ResultPage, ReadPage } from "@transit/query-client";
 export const readPage: ReadPage = async (namespace, cursor, signal) => {
   const response = await unifiedQuery({ page: { namespace, cursor } }, signal);

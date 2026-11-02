@@ -1,6 +1,6 @@
+import { ownedDiagnostic } from "@transit/diagnostics";
 import { acquireCaller, type AcquireCaller } from "@transit/reactive-client/caller-gate";
 import { scheduleRequest } from "@transit/reactive-client/request-scheduling";
-import { ownedDiagnostic, type Diagnostic } from "@transit/diagnostics";
 import * as validate from "./validators.js";
 import type {
   Command,
@@ -13,20 +13,8 @@ import type {
   Signed,
 } from "./types";
 
-export class ApplicationTransportError extends Error {
-  readonly diagnostic: Diagnostic | undefined;
-  readonly diagnosticInvalid: boolean;
-  constructor(
-    readonly status: number,
-    readonly code: string,
-    detail?: unknown,
-  ) {
-    super(code);
-    const owned = ownedDiagnostic(detail);
-    this.diagnostic = owned.diagnostic;
-    this.diagnosticInvalid = owned.invalid;
-  }
-}
+import { ApplicationTransportError, diagnosticOf } from "./error";
+export { ApplicationTransportError } from "./error";
 export type Transport = (request: HostRequest) => Promise<HostResponse>;
 export function request(value: HostRequest): Promise<HostResponse> {
   const signal = AbortSignal.timeout(35000);
@@ -395,67 +383,6 @@ async function advancePublication(
     previous = current;
   }
   throw new Error("Upload step budget reached; inspect this operation before resuming");
-}
-
-export type InterfaceView = Extract<HostResponse, { builtin: unknown } | { published: unknown }>;
-export function readInterface(signal?: AbortSignal): Promise<InterfaceView> {
-  return scheduleRequest("read", () => interfaceRequest(signal), signal);
-}
-async function interfaceRequest(signal?: AbortSignal): Promise<InterfaceView> {
-  for (let attempt = 0; ; attempt++) {
-    const response = await fetch("/api/v1/interface", {
-      cache: "no-store",
-      redirect: "error",
-      signal,
-    });
-    if (response.status === 429 && attempt < 4 && !signal?.aborted) {
-      await response.body?.cancel();
-      await new Promise((resolve) => setTimeout(resolve, 250));
-      continue;
-    }
-    if (!response.ok) {
-      const failure: unknown = await response.json().catch(() => null);
-      const code =
-        typeof failure === "object" &&
-        failure !== null &&
-        "err" in failure &&
-        typeof failure.err === "string" &&
-        /^[A-Za-z][A-Za-z0-9_]{0,127}$/.test(failure.err)
-          ? failure.err
-          : "InterfaceUnavailable";
-      if (
-        response.status === 503 &&
-        (code === "AuthorityUnavailable" || code === "AuthorityTimeout") &&
-        attempt < 4 &&
-        !signal?.aborted
-      ) {
-        await new Promise((resolve) => setTimeout(resolve, 250));
-        continue;
-      }
-      throw new ApplicationTransportError(response.status, code, diagnosticOf(failure));
-    }
-    let result: unknown;
-    try {
-      result = await response.json();
-    } catch (cause) {
-      if (signal?.aborted) throw cause;
-      throw new ApplicationTransportError(0, "InvalidResponse");
-    }
-    if (
-      !validate.HostResponse(result) ||
-      typeof result !== "object" ||
-      result === null ||
-      !("builtin" in result || "published" in result)
-    )
-      throw new ApplicationTransportError(0, "InvalidResponse");
-    return result as InterfaceView;
-  }
-}
-
-function diagnosticOf(value: unknown): unknown {
-  return typeof value === "object" && value !== null && "diagnostic" in value
-    ? value.diagnostic
-    : undefined;
 }
 
 export function restoreReview(source: string, session: OperatorSession): Review {

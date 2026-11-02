@@ -1,26 +1,14 @@
 import { defineConfig } from "vite-plus";
 export default defineConfig({
   lint: {
-    ignorePatterns: [
-      "src/types.ts",
-      "src/validators.js",
-      "src/validators.d.ts",
-      "src/relational-validators.js",
-      "src/relational-validators.d.ts",
-      "src/catalog-validators.js",
-      "src/catalog-validators.d.ts",
-    ],
+    ignorePatterns: ["src/types.ts", "src/*validators.js", "src/*validators.d.ts"],
   },
   fmt: {
     ignorePatterns: [
       "src/types.ts",
       "src/schemas.json",
-      "src/validators.js",
-      "src/validators.d.ts",
-      "src/relational-validators.js",
-      "src/relational-validators.d.ts",
-      "src/catalog-validators.js",
-      "src/catalog-validators.d.ts",
+      "src/*validators.js",
+      "src/*validators.d.ts",
     ],
   },
 });

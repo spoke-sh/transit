@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { unifiedQuery as query } from "@transit/board-client";
+import { unifiedQuery as query } from "@transit/board-client/query";
 import type { Response } from "@transit/query-client";
 type Suggestions = Extract<Response, { suggestions: unknown }>["suggestions"];
 

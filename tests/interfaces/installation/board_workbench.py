@@ -33,8 +33,8 @@ class CatalogCapacity(Exception):
 UNCERTAIN_TRANSPORT = (ConnectionError, TimeoutError, IncompleteRead, RemoteDisconnected)
 
 
-def retained_metrics(fixture, definition, connection, seed, operation=900030):
-    """Provision through the signed owner, outside Board's read-only boundary."""
+def direct_client(fixture, definition, connection, seed):
+    """Signed fixture caller; never shared with Board or the browser."""
     key = ExistingKey(fixture.root, seed)
     port = fixture.config['ports']['node']
     realm, principal = connection['scope']['realm'], connection['principal']
@@ -62,11 +62,19 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030):
         assert status == 200, (status, data)
         return response['result']
 
+    return direct, identity
+
+
+def retained_metrics(fixture, definition, connection, seed, operation=900030, name='metrics', native_snapshot=None):
+    """Provision through the signed owner, outside Board's read-only boundary."""
+    direct, identity = direct_client(fixture, definition, connection, seed)
+    principal = connection['principal']
     def call(action):
         return direct(dict(historical_catalog=action))['historical_catalog']
 
     owner = dict(scope=connection['scope'], principal=principal, operation=operation)
-    selected_names = [dict(len=7, bytes=list(b'metrics')+[0]*56)]
+    encoded_name = name.encode()
+    selected_names = [dict(len=len(encoded_name), bytes=list(encoded_name)+[0]*(63-len(encoded_name)))]
     if operation == 900030:
         # Real signed declarations populate two metadata pages. Board only
         # receives the public read projection, never this provisioning identity.
@@ -210,6 +218,8 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030):
 
     status = settle(acquisition, 'published', ('acquiring', 'verifying'))
     snapshot = status['state']['snapshot']
+    if native_snapshot is not None:
+        native_snapshot.update(snapshot)
     content, sources = snapshot['catalog_root'], snapshot['sources_root']
     position = snapshot['consistency']['single_partition']
     scope = owner['scope']
@@ -224,7 +234,7 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030):
     return selector, release
 
 
-def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
+def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False, profiles=True):
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
     fixture = Board(cli, node, host, board)
     if embedded:
@@ -267,8 +277,11 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
         fixture.console('CREATE TABLE empty_metrics (id BIGINT);\n')
         for index in range(8):
             fixture.console(f'CREATE TABLE zz_catalog_{index} (id BIGINT);\n')
-        limited_connections = board_profiles.configure(fixture)
-        board_profiles.qualify(fixture, config_file, limited_connections, browser)
+        if profiles:
+            limited_connections = board_profiles.configure(fixture)
+            board_profiles.qualify(fixture, config_file, limited_connections, browser)
+        else:
+            print('Focused workbench schedule: independent connection-profile matrix not executed.', flush=True)
         fixture.stop()
         del fixture.config['board']['workbench_file']
         # Automatic local access needs no external SQL listener or account.
@@ -414,6 +427,110 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
                 BOARD_SCREENSHOT=str(screenshots / 'workbench.png'), BOARD_HISTORY_SELECTOR=selector)
             subprocess.run(['vp', 'exec', '--filter', '@transit/board-web', 'playwright', 'test',
                 'workbench.spec.ts'], cwd=ROOT, env=env, check=True)
+        # A second retained source deliberately combines a sealed generation
+        # and a WAL tail. Setup uses the signed public owner, never Board.
+        fixture.stop()
+        fixture.config['storage'] = dict(maintenance=dict(flush=dict(enabled=False)))
+        fixture.path.write_text(json.dumps(fixture.config))
+        fixture.start()
+        fixture.ready()
+        fixture.console('CREATE TABLE placement_probe (id BIGINT PRIMARY KEY, label UTF8);\n')
+        fixture.console("INSERT INTO placement_probe VALUES " + ','.join(f"({i},'before')" for i in range(10)) + ';\n')
+        direct, _ = direct_client(fixture, definition, native_connection, account_dir / 'table.seed')
+        metadata = direct(dict(lookup=dict(namespace=1, name='placement_probe')))['lookup']
+        target = dict(object=metadata['interpretation']['interpretation']['object'], through=metadata['position'])
+        (fixture.root / 'placement-flush-target.json').write_text(json.dumps(target))
+        for _ in range(32):
+            # Repeating this exact physical target is the owning flush contract.
+            if direct(dict(flush=target))['flush']['complete']:
+                break
+        else:
+            raise AssertionError('Placement flush did not complete its bounded target')
+        fixture.console('ALTER TABLE placement_probe ADD COLUMN score BIGINT DEFAULT 7;\n')
+        fixture.console("INSERT INTO placement_probe (id,label) VALUES " + ','.join(f"({i},'after')" for i in range(10,20)) + ';\n')
+        native_snapshot = {}
+        placement_selector, release_placement = retained_metrics(fixture, definition, native_connection,
+            account_dir / 'table.seed', operation=900032, name='placement_probe', native_snapshot=native_snapshot)
+        placement_object = str(target['object']['object'])
+        placement_input = dict(selector=placement_selector, object=placement_object, after=None)
+        def placement_coverage(kind, after=None):
+            return history({kind: dict(placement_input, after=after)})['history']['coverage']
+        first_definition = placement_coverage('definitions')
+        assert first_definition['next'] is not None
+        second_definition = placement_coverage('definitions', first_definition['next'])
+        assert second_definition['next'] is None
+        definitions_by_revision = {v['definitions']['schema_revision']: v['definitions'] for v in (first_definition, second_definition)}
+        assert len(definitions_by_revision) == 2
+        assert any('initial' in column['source'] for generation in definitions_by_revision.values() for column in generation['columns'])
+        locations, next_page = [], None
+        for _ in range(4):
+            coverage = placement_coverage('locations', next_page)
+            assert len(coverage['locations']) <= 8
+            locations.extend(coverage['locations'])
+            next_page = coverage['next']
+            if next_page is None:
+                break
+        assert next_page is None and len(locations) == 20
+        assert {next(iter(row['location'])) for row in locations} == {'wal', 'segment'}
+        assert len({json.dumps(row['identity'], sort_keys=True) for row in locations}) == 20
+        # An independent signed public caller checks the Board projection's
+        # stable identities, exact placement and sizes without using its adapter.
+        native_after, at = None, 0
+        for _ in range(4):
+            raw = direct(dict(historical_catalog=dict(locations=dict(
+                snapshot=native_snapshot, object=int(placement_object), after=native_after))))['historical_catalog']['locations']['evidence']
+            for row in raw['entries'][:raw['count']]:
+                expected = locations[at]
+                assert expected['identity'] == dict(origin=str(row['identity']['origin']),
+                    operation=str(row['identity']['operation']), ordinal=row['identity']['ordinal'])
+                assert expected['schema_revision'] == str(row['schema_revision'])
+                if 'wal' in row['location']:
+                    wal = row['location']['wal']
+                    assert expected['location']['wal'] == dict(lsn=str(wal['lsn']), offset=wal['offset'],
+                        bytes=wal['bytes'], row_digest=bytes(wal['row_digest']).hex())
+                else:
+                    segment = row['location']['segment']
+                    assert expected['location']['segment'] == dict(id=str(segment['id']), row=segment['row'],
+                        content=dict(bytes=str(segment['content']['bytes']), sha256=bytes(segment['content']['sha256']).hex()))
+                at += 1
+            native_after = raw['next']
+            if native_after is None:
+                break
+        assert at == 20 and native_after is None
+        empty_selector, release_empty = retained_metrics(fixture, definition, native_connection,
+            account_dir / 'table.seed', operation=900033, name='empty_metrics')
+        empty_entries = history(dict(list=dict(selector=empty_selector, namespace=1, after=None)))['history']['listing']['entries']
+        empty_input = dict(selector=empty_selector,
+            object=empty_entries[0]['declaration']['interpretation']['object']['object'], after=None)
+        for kind in ('definitions', 'locations'):
+            empty_page = history({kind: empty_input})['history']['coverage']
+            assert empty_page['total_rows'] == '0' and empty_page['definitions'] is None
+            assert empty_page['locations'] == [] and empty_page['next'] is None
+        evidence = dict(selector=placement_selector, object=placement_object,
+            definitions=[first_definition, second_definition], locations=locations, empty_selector=empty_selector)
+        # Rename after retaining the source. Historical discovery keeps its name
+        # and stable identity rather than falling back to the current namespace.
+        fixture.console('ALTER TABLE placement_probe RENAME TO placement_renamed;\n')
+        fixture.stop()
+        fixture.start()
+        fixture.ready()
+        assert placement_coverage('definitions') == first_definition
+        assert placement_coverage('definitions', first_definition['next']) == second_definition
+        assert history(dict(source=dict(selector=placement_selector, object=placement_object)))['history']['source']['binding']['name'] == 'placement_probe'
+        # A stale continuation cannot be spliced into another kind of coverage.
+        assert history(dict(locations=dict(placement_input, after=first_definition['next'])), 400)['err'] == 'InvalidQuery'
+        if browser:
+            evidence_file = fixture.root / 'placement-evidence.json'
+            evidence_file.write_text(json.dumps(evidence))
+            subprocess.run(['vp', 'exec', '--filter', '@transit/board-web', 'playwright', 'test', 'storage.spec.ts'],
+                cwd=ROOT, env=dict(os.environ, BOARD_TEST_URL=fixture.board_url,
+                    BOARD_PLACEMENT_EVIDENCE=str(evidence_file), BOARD_SCREENSHOT=str(screenshots / 'storage.png')), check=True)
+        release_placement()
+        release_empty()
+        for kind in ('definitions', 'locations'):
+            assert history({kind: placement_input}, 409)['err'] == 'QueryExpired'
+            assert history({kind: empty_input}, 409)['err'] == 'QueryExpired'
+        print('Retained placement: two physical generations, ADD origin, 20 WAL/segment locations, rename, disk reopen and release passed.', flush=True)
         released_selector, release_history = retained_metrics(fixture, definition, native_connection,
                                                               account_dir / 'table.seed', operation=900031)
         release_history()
@@ -470,4 +587,4 @@ if __name__ == '__main__':
     if sys.argv[1] == '--installed':
         installed(sys.argv[2], browser='--browser' in sys.argv[3:])
     else:
-        run(*sys.argv[1:6], browser='--browser' in sys.argv[6:])
+        run(*sys.argv[1:6], browser='--browser' in sys.argv[6:], profiles='--workbench-only' not in sys.argv[6:])

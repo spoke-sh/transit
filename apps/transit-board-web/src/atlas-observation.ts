@@ -1,5 +1,6 @@
-import { atlas, BoardError } from "@transit/board-client";
-import { message } from "./state";
+import { atlas } from "@transit/board-client/evidence";
+import { BoardError } from "@transit/board-client/request";
+import { message } from "./inspection-state";
 import { useRead } from "./use-observation";
 export type AtlasCursor = { position: number; process_after?: number; resource_after?: number };
 /** One authorized page; continuation never becomes an automatically restarted scan. */

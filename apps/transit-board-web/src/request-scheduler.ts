@@ -1,4 +1,4 @@
-import { QueryError } from "@transit/query-client";
+import { QueryError } from "@transit/query-client/error";
 import type { RequestLane } from "@transit/reactive-client";
 
 type Job = { run: () => Promise<void>; cancel: () => void; signal?: AbortSignal };

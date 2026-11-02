@@ -4,7 +4,7 @@ const ucs2length = lengthModule.default ?? lengthModule;
 "use strict";
 export const CatalogRequest = validate2160;
 const schema587 = {"type":"object","additionalProperties":false,"properties":{"definition":{"$ref":"#/$defs/CatalogRequest/$defs/T1"},"action":{"$ref":"#/$defs/CatalogRequest/$defs/T2"}},"required":["definition","action"]};
-const schema55 = {"type":"string","enum":["c3cbdfe99cdb08a8a21cc2429783fd746b1311b096d9ca8371058e1abb037b64"]};
+const schema21 = {"type":"string","enum":["c3cbdfe99cdb08a8a21cc2429783fd746b1311b096d9ca8371058e1abb037b64"]};
 
 function validate2161(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -62,7 +62,7 @@ validate2164.evaluated = {"dynamicProps":false,"dynamicItems":false};
 const schema591 = {"oneOf":[{"type":"object","additionalProperties":false,"required":["lookup"],"properties":{"lookup":{"$ref":"#/$defs/CatalogRequest/$defs/T5"}}},{"type":"object","additionalProperties":false,"required":["namespace"],"properties":{"namespace":{"$ref":"#/$defs/CatalogRequest/$defs/T8"}}},{"type":"object","additionalProperties":false,"required":["list"],"properties":{"list":{"$ref":"#/$defs/CatalogRequest/$defs/T9"}}},{"type":"object","additionalProperties":false,"required":["source"],"properties":{"source":{"$ref":"#/$defs/CatalogRequest/$defs/T14"}}},{"type":"object","additionalProperties":false,"required":["definitions"],"properties":{"definitions":{"$ref":"#/$defs/CatalogRequest/$defs/T15"}}},{"type":"object","additionalProperties":false,"required":["locations"],"properties":{"locations":{"$ref":"#/$defs/CatalogRequest/$defs/T15"}}}]};
 const schema592 = {"type":"object","additionalProperties":false,"properties":{"selector":{"$ref":"#/$defs/CatalogRequest/$defs/T6"},"namespace":{"$ref":"#/$defs/CatalogRequest/$defs/T7"},"name":{"$ref":"#/$defs/CatalogRequest/$defs/T6"}},"required":["selector","namespace","name"]};
 const schema593 = {"type":"string","maxLength":262144};
-const func4 = ucs2length;
+const func3 = ucs2length;
 
 function validate2168(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -76,7 +76,7 @@ evaluated0.items = undefined;
 }
 if(errors === 0){
 if(typeof data === "string"){
-if(func4(data) > 262144){
+if(func3(data) > 262144){
 validate2168.errors = [{}];
 return false;
 }
@@ -4592,7 +4592,7 @@ const schema635 = {"oneOf":[{"type":"object","additionalProperties":false,"requi
 const schema636 = {"oneOf":[{"type":"object","additionalProperties":false,"required":["capabilities"],"properties":{"capabilities":{"$ref":"#/$defs/CatalogResponse/$defs/T2"}}},{"type":"object","additionalProperties":false,"required":["description"],"properties":{"description":{"$ref":"#/$defs/CatalogResponse/$defs/T7"}}},{"type":"object","additionalProperties":false,"required":["namespace"],"properties":{"namespace":{"$ref":"#/$defs/CatalogResponse/$defs/T15"}}},{"type":"object","additionalProperties":false,"required":["namespaces"],"properties":{"namespaces":{"$ref":"#/$defs/CatalogResponse/$defs/T18"}}},{"type":"object","additionalProperties":false,"required":["tables"],"properties":{"tables":{"$ref":"#/$defs/CatalogResponse/$defs/T27"}}}]};
 const schema637 = {"type":"object","additionalProperties":false,"properties":{"version":{"$ref":"#/$defs/CatalogResponse/$defs/T3"},"definition":{"$ref":"#/$defs/CatalogResponse/$defs/T4"},"max_columns":{"$ref":"#/$defs/CatalogResponse/$defs/T5"},"max_rows":{"$ref":"#/$defs/CatalogResponse/$defs/T5"},"max_sql_bytes":{"$ref":"#/$defs/CatalogResponse/$defs/T5"},"max_intent_bytes":{"$ref":"#/$defs/CatalogResponse/$defs/T6"},"max_action_bytes":{"$ref":"#/$defs/CatalogResponse/$defs/T6"},"metadata_page_entries":{"$ref":"#/$defs/CatalogResponse/$defs/T3"},"resident_intents":{"$ref":"#/$defs/CatalogResponse/$defs/T3"}},"required":["version","definition","max_columns","max_rows","max_sql_bytes","max_intent_bytes","max_action_bytes","metadata_page_entries","resident_intents"]};
 const func1 = Object.prototype.hasOwnProperty;
-const schema36 = {"type":"integer","minimum":0,"maximum":255};
+const schema58 = {"type":"integer","minimum":0,"maximum":255};
 
 function validate2330(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -4651,7 +4651,7 @@ return errors === 0;
 }
 validate2332.evaluated = {"dynamicProps":false,"dynamicItems":false};
 
-const schema26 = {"type":"integer","minimum":0,"maximum":65535};
+const schema67 = {"type":"integer","minimum":0,"maximum":65535};
 
 function validate2334(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -4686,7 +4686,7 @@ return errors === 0;
 }
 validate2334.evaluated = {"dynamicProps":false,"dynamicItems":false};
 
-const schema21 = {"type":"integer","minimum":0,"maximum":4294967295};
+const schema24 = {"type":"integer","minimum":0,"maximum":4294967295};
 
 function validate2338(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -4928,7 +4928,7 @@ evaluated0.items = undefined;
 }
 if(errors === 0){
 if(typeof data === "string"){
-if(func4(data) > 262144){
+if(func3(data) > 262144){
 validate2350.errors = [{}];
 return false;
 }
@@ -8121,7 +8121,7 @@ evaluated0.items = undefined;
 }
 if(errors === 0){
 if(typeof data === "string"){
-if(func4(data) > 262144){
+if(func3(data) > 262144){
 validate2493.errors = [{}];
 return false;
 }
@@ -8409,7 +8409,7 @@ return errors === 0;
 }
 validate2498.evaluated = {"props":true,"dynamicProps":false,"dynamicItems":false};
 
-const schema277 = {"type":"string","enum":["missing","null","type_error","value","conflict"]};
+const schema281 = {"type":"string","enum":["missing","null","type_error","value","conflict"]};
 
 function validate2512(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -8943,7 +8943,7 @@ evaluated0.items = undefined;
 }
 if(errors === 0){
 if(typeof data === "string"){
-if(func4(data) > 262144){
+if(func3(data) > 262144){
 validate2523.errors = [{}];
 return false;
 }
@@ -11435,7 +11435,7 @@ return errors === 0;
 }
 validate2660.evaluated = {"props":true,"dynamicProps":false,"dynamicItems":false};
 
-const schema177 = {"type":"string","enum":["civil","utc"]};
+const schema181 = {"type":"string","enum":["civil","utc"]};
 
 function validate2667(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -11753,7 +11753,7 @@ return errors === 0;
 validate2707.evaluated = {"props":true,"dynamicProps":false,"dynamicItems":false};
 
 const schema736 = {"type":"object","additionalProperties":false,"properties":{"dimensions":{"$ref":"#/$defs/CatalogResponse/$defs/T6"},"element":{"$ref":"#/$defs/CatalogResponse/$defs/T103"}},"required":["dimensions","element"]};
-const schema193 = {"type":"string","enum":["float32","float16","bfloat16","int8","binary"]};
+const schema197 = {"type":"string","enum":["float32","float16","bfloat16","int8","binary"]};
 
 function validate2713(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -16234,7 +16234,7 @@ validate2643.evaluated = {"dynamicProps":true,"dynamicItems":false};
 
 const schema745 = {"anyOf":[{"$ref":"#/$defs/CatalogResponse/$defs/T113"},{"type":"null"}]};
 const schema746 = {"oneOf":[{"type":"object","additionalProperties":false,"required":["missing"],"properties":{"missing":{"$ref":"#/$defs/CatalogResponse/$defs/T89"}}},{"type":"object","additionalProperties":false,"required":["null"],"properties":{"null":{"$ref":"#/$defs/CatalogResponse/$defs/T89"}}},{"type":"object","additionalProperties":false,"required":["type_error"],"properties":{"type_error":{"$ref":"#/$defs/CatalogResponse/$defs/T114"}}},{"type":"object","additionalProperties":false,"required":["value"],"properties":{"value":{"$ref":"#/$defs/CatalogResponse/$defs/T115"}}},{"type":"object","additionalProperties":false,"required":["conflict"],"properties":{"conflict":{"$ref":"#/$defs/CatalogResponse/$defs/T136"}}}]};
-const schema392 = {"type":"string","enum":["unknown","int64","uint64","float64","boolean","utf8","binary","int8","int16","int32","int128","uint8","uint16","uint32","uint128","float32","decimal","date","time","timestamp","interval","uuid","structure","list","array","map","tagged_union","json","range","multirange","vector","null_value","text","character"]};
+const schema396 = {"type":"string","enum":["unknown","int64","uint64","float64","boolean","utf8","binary","int8","int16","int32","int128","uint8","uint16","uint32","uint128","float32","decimal","date","time","timestamp","interval","uuid","structure","list","array","map","tagged_union","json","range","multirange","vector","null_value","text","character"]};
 
 function validate2746(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -17214,7 +17214,7 @@ evaluated0.items = undefined;
 }
 if(errors === 0){
 if(typeof data === "string"){
-if(func4(data) > 262144){
+if(func3(data) > 262144){
 validate2776.errors = [{}];
 return false;
 }
@@ -21483,7 +21483,7 @@ return errors === 0;
 }
 validate2859.evaluated = {"dynamicProps":false,"dynamicItems":false};
 
-const schema201 = {"type":"string","enum":["none","utf8_binary","ascii_ci","ebcdic_cp037","icu_root","ebcdic_037_pad","ebcdic_1047_nopad"]};
+const schema205 = {"type":"string","enum":["none","utf8_binary","ascii_ci","ebcdic_cp037","icu_root","ebcdic_037_pad","ebcdic_1047_nopad"]};
 
 function validate2861(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -21510,7 +21510,7 @@ validate2861.evaluated = {"dynamicProps":false,"dynamicItems":false};
 
 const schema778 = {"type":"object","additionalProperties":false,"properties":{"rounding":{"$ref":"#/$defs/CatalogResponse/$defs/T148"},"metric":{"$ref":"#/$defs/CatalogResponse/$defs/T150"},"timezone":{"$ref":"#/$defs/CatalogResponse/$defs/T152"},"spatial":{"$ref":"#/$defs/CatalogResponse/$defs/T156"}},"required":["rounding","metric","timezone","spatial"]};
 const schema779 = {"anyOf":[{"$ref":"#/$defs/CatalogResponse/$defs/T149"},{"type":"null"}]};
-const schema206 = {"type":"string","enum":["reject","half_even","toward_zero"]};
+const schema210 = {"type":"string","enum":["reject","half_even","toward_zero"]};
 
 function validate2865(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -21597,7 +21597,7 @@ return errors === 0;
 validate2864.evaluated = {"dynamicProps":false,"dynamicItems":false};
 
 const schema781 = {"anyOf":[{"$ref":"#/$defs/CatalogResponse/$defs/T151"},{"type":"null"}]};
-const schema209 = {"type":"string","enum":["l2_squared","cosine","dot_product","hamming"]};
+const schema213 = {"type":"string","enum":["l2_squared","cosine","dot_product","hamming"]};
 
 function validate2869(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -22020,7 +22020,7 @@ return errors === 0;
 }
 validate2889.evaluated = {"items":true,"dynamicProps":false,"dynamicItems":false};
 
-const schema218 = {"type":"string","enum":["xy","xyz","longitude_latitude","longitude_latitude_height"]};
+const schema222 = {"type":"string","enum":["xy","xyz","longitude_latitude","longitude_latitude_height"]};
 
 function validate2892(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -22045,7 +22045,7 @@ return errors === 0;
 }
 validate2892.evaluated = {"dynamicProps":false,"dynamicItems":false};
 
-const schema220 = {"type":"string","enum":["planar","wgs84_ellipsoid"]};
+const schema224 = {"type":"string","enum":["planar","wgs84_ellipsoid"]};
 
 function validate2894(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -22070,7 +22070,7 @@ return errors === 0;
 }
 validate2894.evaluated = {"dynamicProps":false,"dynamicItems":false};
 
-const schema222 = {"type":"string","enum":["none","local","wgs84_ellipsoid"]};
+const schema226 = {"type":"string","enum":["none","local","wgs84_ellipsoid"]};
 
 function validate2897(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -22096,7 +22096,7 @@ return errors === 0;
 validate2897.evaluated = {"dynamicProps":false,"dynamicItems":false};
 
 const schema794 = {"oneOf":[{"type":"object","additionalProperties":false,"required":["exact"],"properties":{"exact":{"$ref":"#/$defs/CatalogResponse/$defs/T89"}}},{"type":"object","additionalProperties":false,"required":["binary_grid"],"properties":{"binary_grid":{"$ref":"#/$defs/CatalogResponse/$defs/T164"}}}]};
-const schema225 = {"type":"integer","minimum":-32768,"maximum":32767};
+const schema229 = {"type":"integer","minimum":-32768,"maximum":32767};
 
 function validate2901(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -22887,7 +22887,7 @@ evaluated0.items = undefined;
 }
 if(errors === 0){
 if(typeof data === "string"){
-if(func4(data) > 262144){
+if(func3(data) > 262144){
 validate2918.errors = [{}];
 return false;
 }
@@ -22919,7 +22919,7 @@ evaluated0.items = undefined;
 }
 if(errors === 0){
 if(typeof data === "string"){
-if(func4(data) > 262144){
+if(func3(data) > 262144){
 validate2923.errors = [{}];
 return false;
 }
@@ -27352,7 +27352,7 @@ evaluated0.items = undefined;
 }
 if(errors === 0){
 if(typeof data === "string"){
-if(func4(data) > 262144){
+if(func3(data) > 262144){
 validate3053.errors = [{}];
 return false;
 }
@@ -28264,7 +28264,7 @@ evaluated0.items = undefined;
 }
 if(errors === 0){
 if(typeof data === "string"){
-if(func4(data) > 5592408){
+if(func3(data) > 5592408){
 validate3095.errors = [{}];
 return false;
 }
@@ -28408,7 +28408,7 @@ evaluated0.items = undefined;
 }
 if(errors === 0){
 if(typeof data === "string"){
-if(func4(data) > 262144){
+if(func3(data) > 262144){
 validate3104.errors = [{}];
 return false;
 }

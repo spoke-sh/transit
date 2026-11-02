@@ -1,11 +1,6 @@
+import { readInterface } from "./interface";
 import { afterEach, expect, test, vi } from "vite-plus/test";
-import {
-  ApplicationTransportError,
-  request,
-  readInterface,
-  OperatorSession,
-  type Transport,
-} from "./client";
+import { ApplicationTransportError, request, OperatorSession, type Transport } from "./client";
 import publicationFixture from "../../../zig/transit-station-app/src/fixtures/publication-v1.json" with { type: "json" };
 import fixture from "../../../zig/transit-protocol/src/fixtures/diagnostic-v1.json" with { type: "json" };
 import type { Diagnostic } from "@transit/diagnostics";

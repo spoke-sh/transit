@@ -1,4 +1,5 @@
-import { diagnosticLines, type Diagnostic } from "@transit/query-client";
+import { diagnosticLines } from "@transit/query-client/diagnostics";
+import { type Diagnostic } from "@transit/query-client";
 
 /** Guidance is text, never an automatic action or authorization source. */
 export function QueryDiagnostic({

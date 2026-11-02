@@ -2,7 +2,7 @@ import { scheduleRequest } from "@transit/reactive-client/request-scheduling";
 import { readDefinition, type ReadRequest, type ReadResponse } from "./read-types";
 import { ReadRequest as validRequest, ReadResponse as validResponse } from "./read-validators.js";
 import { boundedQueryJson, logicalCellValid, logicalColumnsValid, logicalInteger } from "./logical";
-import { QueryError } from "./transport";
+import { QueryError } from "./error";
 export { readDefinition } from "./read-types";
 export type ResultView = Extract<ReadResponse, { result: unknown }>["result"]["view"];
 export type ReadDescription = Extract<ReadResponse, { description: unknown }>["description"];

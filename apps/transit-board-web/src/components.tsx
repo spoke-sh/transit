@@ -1,13 +1,15 @@
+import { bytes as byteLabel } from "./quantities";
+import { ExactBytes } from "./quantity";
 import { Link } from "@tanstack/react-router";
 import type { Event, Process, Response } from "@transit/board-client";
-import type { useObservation } from "./state";
+import type { useObservation } from "./inspection-state";
 export const present = <T,>(value: T | null): value is T => value !== null;
 export function text(hex: string): string {
   const bytes = new Uint8Array(hex.match(/../g)?.map((value) => parseInt(value, 16)) ?? []);
   try {
     return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   } catch {
-    return `[binary: ${bytes.length} bytes]`;
+    return `[binary: ${byteLabel(bytes.length)}]`;
   }
 }
 export function attention(p: Process): string {
@@ -169,7 +171,8 @@ export function EventTable({ events }: { events: Event[] }) {
                   "—"
                 ) : (
                   <details>
-                    <summary>{event.value.length / 2} bytes</summary>
+                    <summary>{byteLabel(event.value.length / 2)}</summary>
+                    <ExactBytes value={event.value.length / 2} />
                     <pre>{text(event.value)}</pre>
                   </details>
                 )}

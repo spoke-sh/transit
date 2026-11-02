@@ -1,9 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { selectedScreen, useInterface } from "./interface";
-import { Atlas } from "./atlas";
-import { Activity, Operations } from "./foundations";
-import { DefinitionEditor } from "./definition";
-import { UnifiedWorkspace } from "./unified-workspace";
+import { Atlas, Activity, Operations, DefinitionEditor, UnifiedWorkspace } from "./features";
 /** Component artifacts interpret one whole validated declaration generation. */
 export function DeclaredView() {
   const current = useInterface();
