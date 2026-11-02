@@ -4525,11 +4525,11 @@
         "BranchOperationRequired": 4,
         "BranchRetentionOwned": 1,
         "BranchSourceChanged": 2,
-        "CatalogDenied": 79,
+        "CatalogDenied": 81,
         "CatalogDependencyOwned": 1,
         "CatalogHistoryMissing": 1,
         "CatalogIdentityConflict": 9,
-        "CatalogKindMismatch": 15,
+        "CatalogKindMismatch": 16,
         "CatalogNameHashCollision": 2,
         "CatalogNameNotFound": 1,
         "CatalogNamespaceMissing": 4,
@@ -4903,6 +4903,7 @@
         "recordDescriptor()": "<inferred>",
         "recordLog()": "<inferred>",
         "recordNamespace()": "<inferred>",
+        "recordReadGuard()": "<inferred>",
         "recordResource()": "<inferred>",
         "recover()": "<inferred>",
         "recoverSince()": "<inferred>",
@@ -4992,7 +4993,7 @@
       },
       "open_error_set_uses": 11,
       "propagation": {
-        "try": 2133,
+        "try": 2145,
         "catch": 28
       },
       "imports": [
@@ -7080,9 +7081,9 @@
       "errors": {
         "DataIdentityConflict": 1,
         "DirectRecordMissing": 1,
-        "IncompatibleDefinition": 1,
+        "IncompatibleDefinition": 2,
         "InvalidClientToken": 1,
-        "InvalidDirectRecord": 6
+        "InvalidDirectRecord": 9
       },
       "outcomes": {
         "Request": [
@@ -7092,10 +7093,12 @@
       },
       "error_sets": {},
       "error_returns": {
+        "Guarded.validate()": "<inferred>",
         "Reference.requireSame()": "<inferred>",
         "Reference.validate()": "<inferred>",
         "Request.validate()": "<inferred>",
         "Scope.validate()": "<inferred>",
+        "encodeGuarded()": "<inferred>",
         "key()": "<inferred>",
         "load()": "<inferred>",
         "read()": "<inferred>",
@@ -7105,7 +7108,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 25,
+        "try": 28,
         "catch": 0
       },
       "imports": [
@@ -21749,8 +21752,8 @@
         "DataflowLeaseFenced": 1,
         "DataflowRetired": 1,
         "DataflowSourceChanged": 1,
-        "IncompatibleDefinition": 3,
-        "IncompleteDataflowCoverage": 1,
+        "IncompatibleDefinition": 4,
+        "IncompleteDataflowCoverage": 2,
         "InvalidDataflowCandidate": 1,
         "InvalidDataflowCompletion": 2,
         "InvalidDataflowConsumer": 1,
@@ -21758,6 +21761,7 @@
         "InvalidDataflowDefinition": 1,
         "InvalidDataflowLease": 1,
         "InvalidDataflowLimits": 1,
+        "InvalidDataflowRevision": 1,
         "InvalidDataflowTransition": 5
       },
       "outcomes": {
@@ -21824,12 +21828,14 @@
         "Lease.requireCurrent()": "<inferred>",
         "Lease.validate()": "<inferred>",
         "Limits.validate()": "<inferred>",
+        "Revision.requireDecision()": "<inferred>",
+        "Revision.validate()": "<inferred>",
         "Source.requireSuccessor()": "<inferred>",
         "Source.validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 37,
+        "try": 46,
         "catch": 0
       },
       "imports": [
@@ -22446,7 +22452,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"7c81d0916913d774febe2bec8f739f95a194f3ca88056c9f1214c0f77f22fa89\""
+          "afac2bd84560136ca90c0683afdffb8f71d5f96568b05dd3de773ce3c5339b2a"
         ],
         "Effect.phase": [
           "pending",
@@ -24058,6 +24064,33 @@
         "std"
       ]
     },
+    "packages/zig/transit-query-direct/src/ManagedRevision.zig": {
+      "errors": {
+        "DataflowIdentityConflict": 3,
+        "FailedManagedRevision": 1,
+        "IncompleteDataflowCoverage": 5,
+        "InvalidManagedTableRecord": 2,
+        "InvalidQueryBudget": 1,
+        "ManagedTableResultBudget": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "next()": "<inferred>",
+        "nextInner()": "<inferred>",
+        "open()": "<inferred>",
+        "validateDisclosure()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 18,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-query-direct/src/ManagedTable.zig": {
       "errors": {
         "AccessDenied": 2,
@@ -24065,12 +24098,14 @@
         "ClientOperationMissing": 1,
         "DataflowIdentityConflict": 5,
         "DataflowLeaseFenced": 1,
+        "DataflowRevisionNotFound": 1,
         "DataflowSourceChanged": 6,
         "FailedRelationalQuery": 1,
         "IncompatibleDefinition": 3,
-        "IncompleteDataflowCoverage": 3,
+        "IncompleteDataflowCoverage": 5,
+        "InvalidDataflowRevision": 1,
         "InvalidManagedTableHead": 2,
-        "InvalidManagedTableRecord": 11,
+        "InvalidManagedTableRecord": 15,
         "InvalidQueryBudget": 1,
         "InvalidTransactionRead": 1,
         "KVBuildBudget": 1,
@@ -24078,7 +24113,7 @@
         "ManagedTableConflict": 3,
         "ManagedTableInitializationPending": 2,
         "ManagedTableNameConflict": 1,
-        "ManagedTableResultBudget": 3,
+        "ManagedTableResultBudget": 5,
         "ManagedTableSchemaMismatch": 2,
         "Overflow": 1,
         "QueryPageBudget": 1,
@@ -24090,10 +24125,11 @@
         "RelationalSpillWorkBudget": 1,
         "RelationalWorkBudget": 1,
         "TableDefinitionChanged": 2,
-        "TableNotFound": 7,
+        "TableNotFound": 8,
         "TransactionMemoryLimit": 1,
         "TransactionWorkspaceLimit": 1,
-        "UnsupportedManagedTable": 1
+        "UnsupportedManagedTable": 1,
+        "WriteFailed": 2
       },
       "outcomes": {
         "Work.phase": [
@@ -24112,6 +24148,7 @@
         "Declaration.interpretation()": "<inferred>",
         "Declaration.validate()": "<inferred>",
         "Head.validate()": "<inferred>",
+        "Revision.validate()": "<inferred>",
         "abort()": "<inferred>",
         "applyControl()": "<inferred>",
         "evaluate()": "<inferred>",
@@ -24126,16 +24163,20 @@
         "progressWork()": "<inferred>",
         "publish()": "<inferred>",
         "put()": "<inferred>",
+        "revisionKey()": "<inferred>",
+        "revisionReference()": "<inferred>",
+        "revisionReferenceInto()": "<inferred>",
         "start()": "<inferred>",
         "startInner()": "<inferred>",
         "step()": "<inferred>",
         "stepInner()": "<inferred>",
-        "store()": "<inferred>"
+        "store()": "<inferred>",
+        "storeRevision()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 153,
-        "catch": 5
+        "try": 177,
+        "catch": 7
       },
       "imports": [
         "root.zig",
@@ -24312,6 +24353,7 @@
         "DirectRelationalTables.zig",
         "DirectTablePrepared.zig",
         "DirectTableQuery.zig",
+        "ManagedRevision.zig",
         "ManagedTable.zig",
         "RelationalBridge.zig",
         "RelationalSpill.zig",
@@ -31455,6 +31497,7 @@
         "ConfigurationSortRequiresBoundedLimit": 1,
         "Conflict": 5,
         "CrossPartitionLogAppend": 1,
+        "DataflowRevisionNotFound": 1,
         "DecimalOverflow": 1,
         "DivisionByZero": 1,
         "DuplicateLogOption": 1,
@@ -31481,6 +31524,7 @@
         "InexactDecimalRounding": 1,
         "InvalidAuthentication": 3,
         "InvalidColumnSemantics": 1,
+        "InvalidDataflowRevision": 1,
         "InvalidHistoricalObservation": 1,
         "InvalidHistoricalSelector": 1,
         "InvalidLogAppendOperand": 1,
@@ -31515,6 +31559,7 @@
         "LogPartitionKeyMismatch": 1,
         "LogPartitionRequired": 1,
         "ManagedTableRequiresNativeSession": 1,
+        "ManagedTableResultBudget": 1,
         "MissingColumnSemantics": 1,
         "MissingGatewayTerminal": 2,
         "MissingResultObservation": 2,
@@ -31659,6 +31704,7 @@
         "CatalogNameNotFound": 3,
         "Forbidden": 1,
         "HistoricalObjectNotSelected": 1,
+        "InvalidDataflowRevision": 3,
         "QueryPageBudget": 1,
         "TableDefinitionChanged": 1,
         "UnknownSqlSource": 1,
@@ -31682,8 +31728,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 109,
-        "catch": 1
+        "try": 117,
+        "catch": 2
       },
       "imports": [
         "SessionStorage.zig",
@@ -41645,7 +41691,7 @@
       "historicalStatement": "( selectStatement | DESCRIBE identifier | EXPLAIN selectStatement ) snapshotClause projectionClause ? | SHOW TABLES snapshotClause",
       "snapshotClause": "AS OF SNAPSHOT STRING ( IN SCHEMA identifier ) ?",
       "projectionClause": "PROJECTING TO ( CURRENT | SNAPSHOT STRING )",
-      "managedCommand": "CREATE DATAFLOW identifier INTO identifier AS relationalSelect | ( AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE ) DATAFLOW identifier | SHOW DATAFLOW identifier | EXPLAIN CREATE DATAFLOW identifier INTO identifier AS relationalSelect",
+      "managedCommand": "CREATE DATAFLOW identifier INTO identifier AS relationalSelect | ( AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE ) DATAFLOW identifier | SHOW DATAFLOW identifier ( REVISION INTEGER ) ? | EXPLAIN CREATE DATAFLOW identifier INTO identifier AS relationalSelect",
       "transactionStatement": "( BEGIN ( WORK | TRANSACTION ) ? | START TRANSACTION ) transactionOptions ? | COMMIT ( WORK | TRANSACTION ) ? | ROLLBACK ( WORK | TRANSACTION ) ? ( TO SAVEPOINT ? identifier ) ? | SAVEPOINT identifier | RELEASE SAVEPOINT ? identifier",
       "transactionOptions": "ISOLATION LEVEL SERIALIZABLE transactionAccess ? | transactionAccess ( ISOLATION LEVEL SERIALIZABLE ) ?",
       "transactionAccess": "READ ( ONLY | WRITE )",
@@ -41763,7 +41809,7 @@
       "catalogKind": "TABLES | STREAMS | QUEUES | DATABASES | SCHEMAS | SOURCES | SINKS | CONNECTIONS",
       "describeStatement": "DESCRIBE logKind ? identifier",
       "explainStatement": "EXPLAIN selectStatement",
-      "identifier": "settingIdentifier | STREAMS | QUEUES | SNAPSHOT | CURRENT | PROJECTING | DATAFLOW | AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE",
+      "identifier": "settingIdentifier | STREAMS | QUEUES | SNAPSHOT | CURRENT | PROJECTING | DATAFLOW | REVISION | AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE",
       "settingIdentifier": "legacyIdentifier | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER",
       "legacyIdentifier": "IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | INSERT | UPDATE | DELETE | SET | VALUES | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS | COLLATE | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | EBCDIC_037_PAD | EBCDIC_1047_NOPAD | AT | DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_MULTIPLY | DECIMAL_DIVIDE | DECIMAL_RESCALE | RANGE_OVERLAPS | RANGE_CONTAINS | RANGE_ADJACENT | RANGE_COMPARE | VECTOR_DISTANCE | TIME_BUCKET | LOCAL_TO_UTC | RANGE | MULTIRANGE | VECTOR | ROUNDING | METRIC | TIMEZONE | TZDB | TZIF | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | ROLLBACK | SAVEPOINT | RELEASE | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE | STREAM | QUEUE | PARTITION | PARTITIONS | HASH | PRODUCE | ENQUEUE | PRODUCER | ID | EPOCH | SEQUENCE | VISIBLE_AT | RETURNING | CONSUME | CLAIM | LEASE | WAIT | ACK | EXTEND | RECEIPT | CONSTRAINT | CHECK | FOREIGN | REFERENCES | ENFORCED | VALID | VALIDATE | NO | ACTION",
       "AT": "'AT'",
@@ -41780,6 +41826,7 @@
       "TIME_BUCKET": "'TIME_BUCKET'",
       "LOCAL_TO_UTC": "'LOCAL_TO_UTC'",
       "DATAFLOW": "'DATAFLOW'",
+      "REVISION": "'REVISION'",
       "AUTHORIZE": "'AUTHORIZE'",
       "ACTIVATE": "'ACTIVATE'",
       "SUSPEND": "'SUSPEND'",

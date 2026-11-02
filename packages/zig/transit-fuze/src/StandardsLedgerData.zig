@@ -480,7 +480,7 @@ pub const features = [_]l.FeatureDescriptor{
         .title = "Five-state computation lifecycle (Published, Authorized, Active, Suspended, Retired), ACTIVATE/SUSPEND/RESUME/REFRESH/RETIRE DDL, and WAL-activated scheduling (T5, T8)",
         .owner = "packages/zig/transit-query-direct/src/ManagedTable.zig",
         .dependencies = &.{ "F111", "T181-X003" },
-        .deviations = "Cohosted native SQL supports finite one-Table recomputation into an existing schema-matched Table, durable lifecycle controls, publication wakeups and common Table/KV output/checkpoint decisions. Incremental or ordered change consumers, multi-source plans, dependent computation chains, PostgreSQL/MySQL and standalone gateways are rejected.",
+        .deviations = "Cohosted native SQL supports finite one-Table recomputation into an existing schema-matched Table, durable lifecycle controls, publication wakeups, common Table/KV output/checkpoint decisions and SHOW DATAFLOW name REVISION number metadata. The shared Zig reader streams immutable completed rows under current grants; SQL historical row fetching is not exposed. Incremental or ordered change consumers, multi-source plans, dependent computation chains, PostgreSQL/MySQL and standalone gateways are rejected.",
         .corpus_sources = &.{ "contracts/sql/corpus/statements.json", "contracts/diagnostics/grammar.json" },
         .states = .{ .parse = .implemented, .lower = .implemented, .execute = .implemented, .recover = .implemented, .transport = .implemented },
         .reference_verified = false,

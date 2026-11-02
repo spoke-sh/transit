@@ -108,7 +108,7 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`7c81d0916913d774febe2bec8f739f95a194f3ca88056c9f1214c0f77f22fa89`.
+`afac2bd84560136ca90c0683afdffb8f71d5f96568b05dd3de773ce3c5339b2a`.
 It adds canonical range/multirange and unboxed vector values, their logical
 Arrow layouts, and mandatory neutral column semantics. Schema/layout identities
 bind decimal rounding, vector metrics, actual pinned TZif artifacts and reserved
@@ -147,6 +147,13 @@ This definition also integrates managed-computation operation identities, logica
 Document storage, and compact string results. Managed computations and database
 workloads have distinct SQL operation tags; a saved identifier from an earlier
 build cannot be reinterpreted as the other operation kind.
+
+Completed managed Table revisions retain a manifest, original transaction cut,
+schema and immutable result pages. Guarded result records enforce current source,
+output and control reads in the catalog, including direct raw reads. Earlier
+revision-key contents and unguarded result formats reject under this definition;
+no historical manifest or read authority is inferred. These formats use the same
+current definition as retained catalogs and the current column semantics.
 
 Frozen workload projections include binary Queue lease receipts. Queue ACK
 retains the original exact lease, while its preparation metadata can describe a

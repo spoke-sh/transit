@@ -5,9 +5,9 @@ pub const version = 1;
 /// Contract-set fingerprint, independent of the public version label. Replace
 /// this identifier on an incompatible pre-1.0 cutover, including changed stored
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
-/// SHA-256 of transit.v1.m6-workloads.m10-historical-interpretations.integrated-main.2026-11-01.
+/// SHA-256 of transit.v1.managed-table-retained-revisions.integrated-m10.2026-11-01.
 pub const Definition = enum {
-    @"7c81d0916913d774febe2bec8f739f95a194f3ca88056c9f1214c0f77f22fa89",
+    afac2bd84560136ca90c0683afdffb8f71d5f96568b05dd3de773ce3c5339b2a,
 
     fn spelling(bytes: []const u8) !Definition {
         if (!std.mem.eql(u8, bytes, @tagName(current_definition))) return error.InvalidEnumTag;
@@ -915,6 +915,10 @@ test "native responses require the current contract definition even with a v1 la
         "ccd596113a3719c6d38afdffe907f04e90f4703472c91aaaffa7875364b5b31e",
         // Output-name callers before local combined-writer integration.
         "00177e103bcb1a8208abd6958d79c9f3f471caf62d4a0c87957072356fd28214",
+        // Before retained revisions with M10 catalog and column semantics.
+        "7c81d0916913d774febe2bec8f739f95a194f3ca88056c9f1214c0f77f22fa89",
+        "f3045bf0a5a901a74691d2cd7de06c220c4d8f57c9a8bca116dd913cb344729c",
+        "06608a32002ec9b1e28472ff806328920e5f89e233c1ef9131c733f7fdcc952a",
         // Integrated plans before the neutral caller layout cutover.
         "67e9b3edcd3502e692285c9a3d093bd6b9a958dc6edde4c7057504067d505ff0",
         // Coupled native credential/permission records before declarative roles.
