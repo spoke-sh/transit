@@ -1,5 +1,54 @@
 import { expect, test, type Response } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+
+test("deferred view loading and failed downloads preserve shell navigation", async ({ page }) => {
+  let release!: () => void;
+  const blocked = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let requested!: () => void;
+  const entered = new Promise<void>((resolve) => {
+    requested = resolve;
+  });
+  let storageReads = 0;
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("request", (request) => {
+    if (request.url().endsWith("/api/v1/storage")) storageReads++;
+  });
+  await page.route("**/assets/operations-*.js", async (route) => {
+    requested();
+    await blocked;
+    await route.abort("failed");
+  });
+  await page.goto("/catalog");
+  await expect(page.getByRole("heading", { name: "Catalog", exact: true })).toBeVisible();
+  const navigation = page.getByRole("navigation", { name: "Activities" });
+  await navigation.getByRole("link", { name: "Operations", exact: true }).click();
+  await entered;
+  await expect(page.getByRole("status")).toHaveText("Loading view…");
+  await expect(navigation).toBeVisible();
+  expect(storageReads).toBe(0);
+  release();
+  await expect(page.getByRole("heading", { name: "View unavailable", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Reload Board", exact: true })).toBeVisible();
+  expect(
+    (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze())
+      .violations,
+  ).toEqual([]);
+  await navigation.getByRole("link", { name: "Data", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Catalog", exact: true })).toBeVisible();
+  await navigation.getByRole("link", { name: "Operations", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "View unavailable", exact: true })).toBeVisible();
+  await page.unroute("**/assets/operations-*.js");
+  await page.getByRole("button", { name: "Reload Board", exact: true }).click();
+  await expect(
+    page.getByRole("region", { name: "Capacity and allocation", exact: true }),
+  ).toBeVisible();
+  expect(storageReads).toBeGreaterThan(0);
+  expect(errors).toEqual([]);
+});
+
 test("home and feature access follow catalog and SQL configuration independently", async ({
   page,
 }) => {
@@ -160,6 +209,21 @@ test("installed catalog, exact preview, profiles and session workbook", async ({
   await expect(page.getByRole("navigation", { name: "Activities" })).toContainText("Workbooks");
   await expect(page.getByRole("heading", { name: "Catalog", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "items", exact: true })).toBeVisible();
+  const loaded = (group: string) =>
+    [...scripts.keys()].some((url) => url.includes(`/assets/${group}-`));
+  expect(loaded("catalog")).toBe(true);
+  for (const group of [
+    "operations",
+    "dataset",
+    "workbook",
+    "statements",
+    "inspection",
+    "query-workspace",
+    "live",
+    "recovery",
+  ])
+    expect(loaded(group), `${group} should remain deferred on Catalog`).toBe(false);
+  expect(scripts.size).toBeLessThanOrEqual(5);
   const firstNames = await page.getByRole("table").getByRole("link").allTextContents();
   expect(
     (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze())
@@ -188,6 +252,7 @@ test("installed catalog, exact preview, profiles and session workbook", async ({
   }
   await page.getByRole("link", { name: "metrics", exact: true }).click();
   await expect(page.getByRole("heading", { name: "metrics", exact: true })).toBeVisible();
+  expect(loaded("statements")).toBe(true);
   await page.reload();
   await expect(page.getByRole("heading", { name: "metrics", exact: true })).toBeVisible();
   expect(runs).toBe(0);
@@ -315,7 +380,9 @@ test("installed catalog, exact preview, profiles and session workbook", async ({
   expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
   expect(errors).toEqual([]);
   expect(externalRequests).toEqual([]);
-  expect(scripts.size).toBeLessThanOrEqual(5);
+  expect(scripts.size).toBeLessThanOrEqual(8);
+  for (const group of ["operations", "inspection", "query-workspace", "live", "recovery"])
+    expect(loaded(group), `${group} should remain deferred after Dataset and Workbook`).toBe(false);
   for (const response of scripts.values()) {
     expect(response.status()).toBe(200);
     expect((await response.body()).length).toBeLessThan(900_000);
