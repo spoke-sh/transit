@@ -47,6 +47,8 @@ changed instances and deltas inconsistent with those snapshots. Failed operation
 retain their available counters and original error; an inspection failure cannot
 replace that error or convert the sample to success. Snapshot loads are not an
 atomic cut and can include unrelated background work.
+If final inspection fails, the initial snapshot remains available without an
+invented final snapshot or delta.
 
 `managed` reports phase calls and inclusive nanoseconds, evaluation rows, pages
 and encoded result-record bytes. Preparation and execution are separate from the
