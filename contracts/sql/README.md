@@ -145,8 +145,8 @@ post-filter for original claim results. The shared SQL service admits a narrower
 partition-routed profile: no predicate for one partition, or a single exact
 `_partition` equality. Catalog discharges that routing into the native target and
 freezes an unfiltered original-result projection. Other predicates and WAIT
-refuse before admission. Receipt handles and ACK/NACK use the Catalog settlement
-adapter; lease extension execution remains outside SQL. The
+refuse before admission. Receipt handles, ACK/NACK and lease extension use the
+Catalog settlement adapter and shared original-result lifecycle. The
 [claim corpus](corpus/log-claims.json) independently checks
 five-row predicates, projections, lease metadata and acquisition budgets through
 `just test::table-dml-sql` without asserting acquisition or settlement.
@@ -171,8 +171,9 @@ request and its policy deadline at acceptance. A retry keeps that same request;
 changing a relative wall-clock delay during recovery is forbidden. Reasons and
 relative delay syntax are outside this profile. The
 [settlement corpus](corpus/log-settlements.json) independently constructs QLH1 bytes and checks these results. None of these pure checks grants
-a live lease or establishes native completion. ACK and NACK are bound by the SQL
-Catalog adapter; renewal needs an updated-receipt result contract before execution.
+a live lease or establishes native completion. The SQL Catalog adapter binds
+these statements; renewal returns the original accepted extension's binary
+handle as a one-row result, while ACK and NACK complete as commands.
 
 Table schemas and projections admit up to 128 columns. Logical types, parameter
 bounds, row budgets and operator/transport capabilities are checked by their

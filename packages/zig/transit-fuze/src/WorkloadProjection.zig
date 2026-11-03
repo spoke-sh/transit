@@ -23,7 +23,7 @@ pub const Source = struct {
         if (self.schema.object != self.binding.target().interpretation.object.object) return error.WorkloadProjectionSourceChanged;
         switch (self.binding) {
             .stream => |value| if (value.kind != .append and value.kind != .consume) return error.WorkloadProjectionUnavailable,
-            .queue => |value| if (value.kind != .enqueue and value.kind != .claim) return error.WorkloadProjectionUnavailable,
+            .queue => |value| if (value.kind != .enqueue and value.kind != .claim and value.kind != .settle) return error.WorkloadProjectionUnavailable,
         }
     }
 };
@@ -41,6 +41,12 @@ pub const Layout = struct {
 /// A star expansion can select application columns without inventing metadata.
 pub fn layout(source: Source, fields: []const Field) !Layout {
     try source.validate();
+    if (source.binding == .queue and source.binding.queue.kind == .settle) {
+        // Settlement results expose only an original renewed handle. Payload
+        // columns and arbitrary projections would require separate authority.
+        if (fields.len != 1 or fields[0] != .receipt_handle) return error.WorkloadProjectionUnavailable;
+        return schemaLayout(source.schema, fields, .claim);
+    }
     return schemaLayout(source.schema, fields, if (source.binding == .queue and source.binding.queue.kind == .claim) .claim else .rows);
 }
 
@@ -103,6 +109,12 @@ fn requireProjection(source: Source, plan: f.LogicalQuery.Plan, expected: Layout
     // projection may not claim unrelated messages and then hide their leases.
     // RETURNING likewise describes every accepted append row.
     if (plan.predicate != .all and !(source.binding == .stream and source.binding.stream.kind == .consume)) return error.InvalidWorkloadProjection;
+    if (source.binding == .queue and source.binding.queue.kind == .settle) {
+        if (plan.projection.len != 1 or plan.projection[0] != 0) return error.InvalidWorkloadProjection;
+        if (plan.output_names.len != 0) if (plan.output_names[0]) |name| {
+            if (!std.mem.eql(u8, name, "_receipt_handle")) return error.InvalidWorkloadProjection;
+        };
+    }
 }
 
 pub fn compile(allocator: std.mem.Allocator, source: Source, fields: []const Field, name: []const u8, sql: []const u8, location: ?*f.Sql.Location) !f.TableSelect.Owned {
@@ -165,12 +177,18 @@ pub const Projector = struct {
     /// This pure evaluator allocates nothing and never alters delivery coverage.
     pub fn row(self: *Projector, cells: []const f.Types.Values.Cell, metadata: Metadata) !?[]const f.Types.Values.Cell {
         self.failure = null;
-        if (cells.len != self.source.schema.columns.len) return error.InvalidWorkloadProjectionRow;
+        const renewal = self.source.binding == .queue and self.source.binding.queue.kind == .settle;
+        if (cells.len != (if (renewal) @as(usize, 0) else self.source.schema.columns.len)) return error.InvalidWorkloadProjectionRow;
         if (self.source.binding == .queue and self.source.binding.queue.kind == .claim) {
             const lease = metadata.lease orelse return error.InvalidWorkloadProjectionRow;
             try lease.validate();
             if (!std.meta.eql(lease.target, self.source.binding.target()) or
                 !std.meta.eql(lease.claim, self.source.binding.operation()) or lease.offset != metadata.offset) return error.WorkloadProjectionSourceChanged;
+        } else if (renewal) {
+            const lease = metadata.lease orelse return error.InvalidWorkloadProjectionRow;
+            try lease.validate();
+            if (!std.meta.eql(lease.target, self.source.binding.target()) or
+                lease.claim.principal != self.source.binding.operation().principal or lease.offset != metadata.offset) return error.WorkloadProjectionSourceChanged;
         } else if (metadata.lease != null) return error.InvalidWorkloadProjectionRow;
         if (self.needs_lease_handle) try p.QueueLeaseHandle.encode(metadata.lease.?, &self.lease_handle);
         for (self.fields, 0..) |field, i| self.input[i] = switch (field) {

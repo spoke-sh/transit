@@ -139,7 +139,12 @@ pub const Read = struct {
             }
             const value = self.page().?;
             var metadata: f.WorkloadProjection.Projector.Metadata = undefined;
-            const encoded: w.Binary = switch (value) {
+            const encoded: ?w.Binary = switch (value) {
+                .renewal => |body| blk: {
+                    const lease = body.rows[self.index];
+                    metadata = .{ .offset = lease.offset, .lease = lease };
+                    break :blk null;
+                },
                 .append => |body| blk: {
                     const row = body.rows[self.index];
                     metadata = .{ .offset = row.offset };
@@ -157,9 +162,12 @@ pub const Read = struct {
                 },
             };
             _ = self.scratch.reset(.retain_capacity);
-            const bytes = try encoded.decode(self.scratch.allocator(), f.TableRow.max_bytes);
-            const decoded = try f.TableRow.decodeInto(self.scratch.allocator(), self.prepared.declaration.definition.schema, bytes);
-            const row = try self.projector.row(decoded.row().cells, metadata);
+            const cells: []const f.Types.Values.Cell = if (encoded) |binary| blk: {
+                const bytes = try binary.decode(self.scratch.allocator(), f.TableRow.max_bytes);
+                const decoded = try f.TableRow.decodeInto(self.scratch.allocator(), self.prepared.declaration.definition.schema, bytes);
+                break :blk decoded.row().cells;
+            } else &.{};
+            const row = try self.projector.row(cells, metadata);
             self.index += 1;
             if (row) |selected| {
                 self.emitted = std.math.add(u64, self.emitted, 1) catch return error.InvalidWorkloadResultCount;

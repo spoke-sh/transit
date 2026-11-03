@@ -98,6 +98,7 @@ pub const Prepared = union(enum) {
                 .enqueue => .enqueue,
                 .consume => .consume,
                 .claim => .claim,
+                .extend_lease => .extend_lease,
                 else => .select,
             },
             .workload => |value| g.database.WorkloadOperations.command(value.intent.parsed.value.work),

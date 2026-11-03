@@ -4,7 +4,7 @@ const ucs2length = lengthModule.default ?? lengthModule;
 "use strict";
 export const CatalogRequest = validate2160;
 const schema587 = {"type":"object","additionalProperties":false,"properties":{"definition":{"$ref":"#/$defs/CatalogRequest/$defs/T1"},"action":{"$ref":"#/$defs/CatalogRequest/$defs/T2"}},"required":["definition","action"]};
-const schema21 = {"type":"string","enum":["c3cbdfe99cdb08a8a21cc2429783fd746b1311b096d9ca8371058e1abb037b64"]};
+const schema21 = {"type":"string","enum":["fa88766ac95f2c156474b0c97eb9eaafcccc8c13a70009e574d09397d7ba3c72"]};
 
 function validate2161(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -20,7 +20,7 @@ if(typeof data !== "string"){
 validate2161.errors = [{}];
 return false;
 }
-if(!(data === "c3cbdfe99cdb08a8a21cc2429783fd746b1311b096d9ca8371058e1abb037b64")){
+if(!(data === "fa88766ac95f2c156474b0c97eb9eaafcccc8c13a70009e574d09397d7ba3c72")){
 validate2161.errors = [{}];
 return false;
 }
@@ -4642,7 +4642,7 @@ if(typeof data !== "string"){
 validate2332.errors = [{}];
 return false;
 }
-if(!(data === "c3cbdfe99cdb08a8a21cc2429783fd746b1311b096d9ca8371058e1abb037b64")){
+if(!(data === "fa88766ac95f2c156474b0c97eb9eaafcccc8c13a70009e574d09397d7ba3c72")){
 validate2332.errors = [{}];
 return false;
 }
@@ -21961,7 +21961,7 @@ if(typeof data !== "string"){
 validate2886.errors = [{}];
 return false;
 }
-if(!(data === "c3cbdfe99cdb08a8a21cc2429783fd746b1311b096d9ca8371058e1abb037b64")){
+if(!(data === "fa88766ac95f2c156474b0c97eb9eaafcccc8c13a70009e574d09397d7ba3c72")){
 validate2886.errors = [{}];
 return false;
 }
@@ -27874,7 +27874,7 @@ if(typeof data !== "string"){
 validate3076.errors = [{}];
 return false;
 }
-if(!(data === "c3cbdfe99cdb08a8a21cc2429783fd746b1311b096d9ca8371058e1abb037b64")){
+if(!(data === "fa88766ac95f2c156474b0c97eb9eaafcccc8c13a70009e574d09397d7ba3c72")){
 validate3076.errors = [{}];
 return false;
 }

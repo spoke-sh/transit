@@ -9,6 +9,78 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## SQL Queue renewal original results — 2026-11-02
+
+This review unit implements receipt-returning `EXTEND LEASE`. Current semantics
+belong to the [SQL reference](../../handbook/reference/sql/streaming.md#renew-a-queue-lease),
+[Queue contract](../../../contracts/QUEUE_V1.md#opaque-lease-descriptor-codec)
+and [workload result contract](../../../contracts/SQL_RESULTS_V1.md#original-workload-evidence).
+The current-v1 cutover replaces the shared definition with
+`fa88766ac95f2c156474b0c97eb9eaafcccc8c13a70009e574d09397d7ba3c72`.
+Generated schemas, bindings and independent signing/frame fixtures use that
+definition together; this record establishes no compatibility with older stores.
+
+The question is whether a caller can recover the exact renewed lease from the
+original accepted settlement after losing execution or delivery responses,
+without another renewal or sampling today's lease. Native result selection
+returns one descriptor and a verified terminal position. Current claimant and
+settlement authority gate disclosure, including buffered, repeated and empty
+terminal delivery; this descriptor does not disclose payload or establish that
+the lease is still live.
+
+Executed with the pinned Nix Zig 0.17 toolchain:
+
+| Check and source | Outcome and boundary |
+| --- | --- |
+| `just ci clean --lane interfaces-sql` at `04f994a8f7c277a89f084d8a0c4b59a37b88aef9` | All eight tasks passed: TLS, result allocations, wire gateway, sessions, integrity, history, installed Stream/Queue workloads and transactions |
+| `just ci clean --lane sdks-conformance` at `4c88edb48e9039082c517756af73cace5dadde50` | All seven tasks passed: generated bindings, native boundary, logical types, installed language interoperability, SQL, gRPC faults and connector preparation |
+| `check::core` within the clean core attempt at `4c88edb48e9039082c517756af73cace5dadde50` | Passed 65 fast checks, 20 contract checks and all 2,267 native tests; this completed task is not a completed core lane |
+| `just ci clean --lane installation-ui` at `4c88edb48e9039082c517756af73cace5dadde50` | First seven tasks passed; `test::managed-tables` failed to compile the shared payload-result fixture because its switch omitted the new `renewal` variant. Later tasks did not run |
+
+Raw successful lane records, command logs, metadata and preparation provenance
+are retained under `.cache/ci/clean/04f994a8f7c2-transit-ci-rflfu3an` and
+`.cache/ci/clean/4c88edb48e90-transit-ci-iemsk6pd` in the implementation worktree.
+The completed core task and its native checkpoint are retained in
+`/var/tmp/transit-ci-dbfqdbhw/src/.cache/checks`; the failed installation lane
+is retained at `/var/tmp/transit-ci-68pz7nuh`. These are local evidence paths,
+not portable public artifacts. The SDK preparation's first dependency fetch
+timed out; the existing bounded preparation retry succeeded before checks ran.
+
+The installed SQL workload test destroys prepared parameter/receipt buffers,
+discards the first execution and fetch responses, replaces the service and
+recovers the original token. Compatible ALTER, later renewal, ACK, DROP and
+another replacement do not rewrite the original returned handle. Fresh
+ACK/NACK/renewal with the superseded handle is fenced; changed parameters
+conflict with the original token. Revocation denies buffered result and status
+disclosure. Native SQL, PostgreSQL, MySQL and the installed console all consume
+the one-row result; PostgreSQL emits the typed `EXTEND LEASE` completion tag.
+
+Native tests cover the original descriptor across disk-WAL restart and an
+unavailable clock, exact receipt binding, the 168-byte descriptor budget,
+unchanged log tail during result delivery, and revocation after buffering
+without cursor advancement. Catalog ownership/allocation-failure checks include
+the frozen renewal projection. Shared result tests reject incomplete coverage,
+wrong terminal counts and foreign or non-extension evidence. Independent signed
+request and result-frame fixtures cover the new selection.
+
+Earlier clean core attempts failed at reviewed Board diagnostic mappings
+(`04f994a8f7c2`, `/var/tmp/transit-ci-2efp3bxh`), its matching outcome entry
+(`95232fcf7`, `/var/tmp/transit-ci-zniz6zb1`), and the stale Station signing
+fixture (`d35070623`, `/var/tmp/transit-ci-biivw0kr`). The last attempt passed
+2,266 of 2,267 native tests; the independent signing oracle also rejected the
+same fixture. Updating the reviewed mapping/outcome and regenerating the fixture
+resolved those checks in the later completed core task. No assertion, deadline,
+lease or resource budget was weakened. The payload-only fixture's omitted
+variant is corrected in `218490476`; an unexpected renewal page now fails
+explicitly rather than being interpreted as a payload row.
+
+These completed checks predate the rebase onto `5e00b53bf` (Board computation
+inspection and presentation) and do not qualify the combined branch. Active
+follow-up validation belongs in the PR. This is selected component/caller
+evidence, not whole-suite, provider, performance or milestone completion. The
+[preserved maintenance failure](storage.md#preserved-queue-fixture-read-only-recovery--2026-11-02)
+retains its original outcome and unresolved cause.
+
 ## SQL Queue NACK settlement and recovery — 2026-11-02
 
 This review unit starts from `ffbf2e9b12dceca856000faf15eebbc252ae580c`.
