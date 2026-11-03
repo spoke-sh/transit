@@ -2138,3 +2138,41 @@ is checked before replay, before installing each record and before readiness;
 completion requires the recovered position to match a fresh WAL tail. Failures
 and incomplete steps leave the owner fenced with `DocumentRecoveryRequired`.
 The same signing key must be supplied after reopen to resume retained cursors.
+
+
+### Canonical ordered Document changes
+
+`transit-document.OrderedChange` defines the allocation-free `DORDER01` input
+for conditional versioned tree replacement. It is an internal storage format,
+not a new native route or SQL execution capability. Integers are little-endian.
+The header is magic (8 bytes), mandatory definition (32), Document ID (16),
+merge epoch (`u64`), expected revision (`u64`), path length (`u16`) and that many
+child ordinals (`u32`), node count (`u32`, nonzero), and raw-part count (`u32`).
+An empty path replaces the root; revision zero denotes creation. Ordinals
+preserve duplicate names and ordered children without a map-key uniqueness rule.
+
+Parts precede nodes in strictly increasing, nonzero `u64` part-ID order. Each
+part has a `u32` byte length, SHA-256 (32 bytes), and exact bytes. Nodes follow
+in preorder: depth (`u32`), kind (`u8`), name length/UTF-8 bytes (`u32` plus bytes),
+value length/bytes (`u32` plus bytes), and span-present flag (`u8`, zero or one).
+A present span contains part ID, inclusive start, and exclusive end (`u64`
+each). No trailing bytes are permitted. The tree has exactly one depth-zero
+root; only containers have children, and depth cannot skip a level. The caller
+provides a bounded depth stack to validate the complete tree.
+
+Kind discriminants, starting at zero, are `map`, `list`, `element`, `attribute`,
+`string`, `binary`, `number`, `boolean`, `signed`, `unsigned`, `float`,
+`null_value`, `missing`, `type_error`, `conflict`, `text`, `comment`, and
+`processing_instruction`. Containers are map, list, element, and conflict.
+Containers, null and missing carry no value bytes. Conflict containers have at
+least two ordered alternatives; each alternative beyond the first contributes
+to the conflict limit. Textual values are UTF-8. Numbers preserve the exact
+JSON numeric lexeme, without floating-point conversion; booleans are one byte
+(zero or one); signed/unsigned integers and finite IEEE binary64 values are eight
+bytes. Binary values are uninterpreted. This preserves five-state provenance
+without assigning a JSON/XML grammar or a collation to a generic tree.
+
+Part hashes and span bounds are storage obligations. A span asserts coordinates,
+not successful parsing or semantic agreement between the raw bytes and a node.
+Profile readers must establish grammar completion separately before submitting
+a parsed document. Constructed values may omit spans; storage never invents one.
