@@ -192,7 +192,7 @@ test "MIME enforces line field node token byte expansion and work bounds" {
     try t.expect(parser.failure_offset == null);
     const caps = try Profile.capabilities(descriptor);
     try caps.require(descriptor, .parse);
-    try t.expectError(error.UnsupportedDocumentProfileCapability, caps.require(descriptor, .construct));
+    try caps.require(descriptor, .construct);
     var changed = descriptor;
     changed.encoding = .utf8;
     changed = try changed.sealed();

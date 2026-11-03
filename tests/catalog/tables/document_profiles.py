@@ -1,4 +1,4 @@
-"""Independent JSON/Expat construction and MIME field/framing oracles."""
+"""Independent JSON/Expat/MIME interpretation and construction oracles."""
 from email.parser import BytesHeaderParser
 from email.policy import compat32
 import hashlib
@@ -155,6 +155,14 @@ def mime_oracle(binary):
         body = bytes(rng.randrange(256) for _ in range(rng.randrange(129)))
         corpus.append((fields, body))
     schedules = 0
+    constructed = 0
+
+    def reference_fields(source):
+        parsed = BytesHeaderParser(policy=compat32).parsebytes(source)
+        assert not parsed.defects, parsed.defects
+        return [(name.encode("ascii"), value.replace("\r\n", "").lstrip(" \t").encode("ascii"))
+                for name, value in parsed.raw_items()]
+
     for fields, body in corpus:
         header = bytearray()
         expected = []
@@ -169,11 +177,18 @@ def mime_oracle(binary):
         # Python owns independent header splitting, case/order and duplicate
         # preservation. Exact whitespace and raw spans additionally use the
         # generated field inputs above; no expected value comes from Zig.
-        parsed = BytesHeaderParser(policy=compat32).parsebytes(source)
-        assert not parsed.defects, parsed.defects
-        reference = [(name.encode("ascii"), value.replace("\r\n", "").lstrip(" \t").encode("ascii"))
-                     for name, value in parsed.raw_items()]
+        reference = reference_fields(source)
         assert reference == [(name, value.replace(b"\r\n", b"").lstrip(b" \t")) for name, value in fields]
+        for chunk in (1, 23):
+            generated = serialize(binary, source, chunk, "mime")
+            # Every generated field in this corpus fits one physical line.
+            # Expected exact bytes preserve whitespace and binary bodies, not
+            # the source's fold locations; commitments are checked by serialize.
+            canonical = b"".join(name + b":" + value.replace(b"\r\n", b"") + b"\r\n"
+                                 for name, value in fields) + b"\r\n" + body
+            assert generated == canonical, (source, generated, canonical)
+            assert reference_fields(generated) == reference
+            constructed += 1
         for chunk in (1, 3, 17, 8192):
             for mode in ("mime", "mime-candidate"):
                 status, events = invoke(binary, mode, source, chunk, binary_values=True)
@@ -207,7 +222,26 @@ def mime_oracle(binary):
                 status, _ = invoke(binary, mode, source, chunk, binary_values=True)
                 assert status.startswith("error\t"), (source, status)
                 schedules += 1
+        for chunk in (1, 23):
+            assert serialize(binary, source, chunk, "mime") is None
+    # Normative line-boundary vectors: folding before existing whitespace must
+    # leave unfolded values unchanged, including whitespace-only fields.
+    folding = [
+        (b"X:" + b"a" * 996 + b"\r\n bb", b"X:" + b"a" * 996 + b"\r\n bb"),
+        (b"N" * 997 + b":\r\n\tx", b"N" * 997 + b":\r\n\tx"),
+        (b"X:" + b" " * 500 + b"\r\n" + b" " * 500,
+         b"X:" + b" " * 996 + b"\r\n" + b" " * 4),
+    ]
+    for original, canonical in folding:
+        source = original + b"\r\n\r\n\xff\x00"
+        for chunk in (1, 23):
+            generated = serialize(binary, source, chunk, "mime")
+            assert generated == canonical + b"\r\n\r\n\xff\x00"
+            assert reference_fields(generated) == reference_fields(source)
+            assert all(len(line) <= 998 for line in generated.split(b"\r\n\r\n", 1)[0].split(b"\r\n"))
+            constructed += 1
     print(f"MIME entity framing: {schedules} independent field/order, binary-body, span and refusal schedules passed")
+    print(f"MIME construction: {constructed} independent round trips/commitments and {len(negatives) * 2} malformed-source refusals passed")
 
 
 def main():

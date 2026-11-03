@@ -1,8 +1,8 @@
 # transit-document-profiles
 
 Pure, incremental interpretation and construction of bounded Document parts.
-Applications can parse or construct JSON and the XML subset below, or parse
-MIME entity frames, using caller-owned buffers. They can inspect ordered events
+Applications can parse or construct JSON, the XML subset below and MIME entity
+frames using caller-owned buffers. They can inspect ordered events
 and raw source coordinates, verify retained bytes, and build compound
 representation commitments. The package
 imports only `transit-protocol`; it has no allocator,
@@ -30,7 +30,7 @@ formats return `UnsupportedDocumentProfile`.
 | --- | --- | --- |
 | JSON | [RFC 8259](https://www.rfc-editor.org/rfc/rfc8259) UTF-8 values; ordered object keys including duplicates; exact number lexemes; decoded Unicode scalars and surrogate pairs | BOM, lone surrogate escapes, nonfinite numbers, schema validation, numeric coercion and duplicate-key selection |
 | XML | [XML 1.0 fifth edition](https://www.w3.org/TR/2008/REC-xml-20081126/) UTF-8 subset; one root; ASCII element/attribute/PI names; ordered unique attributes; mixed content, comments, CDATA and processing instructions; optional version 1.0 declaration with UTF-8 encoding and yes/no standalone; predefined/numeric entities; line-ending and attribute whitespace normalization | BOM, non-ASCII names, namespaces/`xmlns`, DTDs, custom/external entities, external resolution, non-UTF-8 encodings and application schema validation |
-| MIME entity frame | Ordered duplicate-preserving ASCII fields, CRLF unfolding, a required empty CRLF line and an opaque binary body; [exact framing contract](../../../contracts/DOCUMENT_PROFILE_V1.md#mime-entity-frame-interpretation) | Non-ASCII headers, bare CR/LF, field/media-type validation, multipart interpretation, transfer decoding, encoded-word decoding, construction and transport |
+| MIME entity frame | Ordered duplicate-preserving ASCII fields, CRLF unfolding, a required empty CRLF line and an opaque binary body; [exact framing contract](../../../contracts/DOCUMENT_PROFILE_V1.md#mime-entity-frame-interpretation) | Non-ASCII headers, bare CR/LF, field/media-type validation, multipart interpretation, transfer decoding, encoded-word decoding and transport |
 
 These are scalar reference parsers. No SIMD throughput, full XML conformance,
 namespace processing, archive unpacking or installed runtime claim follows from
@@ -38,7 +38,7 @@ these component checks. Raw bytes remain the caller's responsibility; decoded
 values do not replace the source representation.
 
 `Profile.capabilities(descriptor)` reports parse/construct support for the exact
-JSON/XML interpretations and parse-only support for MIME framing. Schema
+JSON/XML and MIME framing interpretations. Schema
 validation, editing, persistence, query,
 search, branching and live transport are separately false. Use the returned
 `require(descriptor, capability)` check when selecting a local implementation;
@@ -178,8 +178,9 @@ verified candidate, drops its pending event and is idempotent; existing failures
 keep their original cause. Zero work and trailing input after verification remain
 caller errors with the same non-poisoning behavior as `Reader`.
 
-For semantic serialization, pass a pending event to `JsonWriter.beginEvent` or
-`XmlWriter.beginEvent`, drain bounded output windows, then consume its ticket.
+For semantic serialization, pass a pending event to `JsonWriter.beginEvent`,
+`XmlWriter.beginEvent` or `MimeWriter.beginEvent`, drain bounded output windows,
+then consume its ticket.
 Generated output gets a new part ID and commitment. A completed writer or
 compound verifier cannot establish that the original source finished: require
 the source candidate's verified binding separately before using derived output.
@@ -261,6 +262,44 @@ partial output cannot establish complete coverage. Repeated successful finish is
 idempotent. As with JSON construction, publication, revision acceptance and
 effect authority belong to other owners.
 
+## MIME construction and semantic serialization
+
+`MimeWriter.init(descriptor, new_part_id, header)` constructs the same entity
+framing as `Mime`. Provide one exclusive `token_bytes` header buffer. Submit
+ordered `field` tokens with a name and unfolded value, exactly one `headers_end`,
+then zero or more binary `body` tokens. Each field is copied into header workspace
+during `begin`; body tokens borrow their source until `needsDrain()` is false.
+Token input, header workspace and output must not overlap. Drain each pending
+token before submitting another or advancing its source candidate.
+
+Construction preserves field spelling, duplicate order, every unfolded space/tab
+and every body byte. It adds a colon and CRLF to each field and a CRLF separator,
+without inserting a space after the colon or a newline after the body. Values
+must be unfolded ASCII; CR/LF, other controls and non-ASCII refuse. Encoded words,
+media types, transfer encodings and multipart boundaries remain uninterpreted.
+
+A field longer than 998 physical bytes folds before the last existing space/tab
+that fits the current line; the whitespace starts the continuation. Names cannot
+fold, and an unbroken value that has no legal fold point refuses. The generated
+field including all CRLFs must fit `token_bytes`. Folding preserves the profile's
+unfolded value, but does not reproduce the source's original fold locations or
+validate structured field semantics. Generated bytes receive a new commitment.
+
+Limits bound generated bytes (`input_bytes`), name/value/body bytes
+(`expanded_bytes`), field count (`attributes`) and nodes (one per field plus one
+body, regardless of chunk count). Body tokens are at most `token_bytes`; empty
+body tokens are allowed and need no drain. Work charges one per submitted token,
+each field-validation/fold-search byte inspection and each emitted byte. `begin`
+performs bounded field work; `drain(output, work)` emits at most the smaller of
+the output window and work allowance. The writer has no allocator or body queue.
+
+`finish` requires the separator and all pending bytes drained; it returns the
+generated complete `Part` and SHA-256 and is idempotent. Busy/zero-window/zero-work
+errors are recoverable. Invalid tokens/events, budget refusal and premature
+finish are sticky. `beginEvent` accepts only depth-zero MIME events and checks
+their value/detail shape. A finished output part does not establish source
+verification: require the original candidate's verified binding separately.
+
 ## Compound representation construction
 
 `Container.init(profile_digest, root_ordinal, limits)` builds a manifest from
@@ -327,6 +366,11 @@ body bytes across reader/candidate schedules. Explicit strict-framing refusals
 are checked separately from that parser's permissive recovery. Package tests
 cover every split, header quotas, late hash failure and cancellation; a
 400,000-byte body streams through two three-byte buffers with one logical node.
+Construction checks compare exact generated bytes, independently parsed fields
+and SHA-256 across tiny output windows, including 998-byte fold boundaries and
+binary bodies. Writer tests reject header injection, malformed event shapes,
+budget exhaustion and invalid sequencing, preserve source verification after
+late hash failure, and generate 400,000 body bytes with four bytes of workspace.
 
 Candidate checks cover every input split with overwritten caller input, delayed
 event consumption, stale/foreign tickets, cancellation, sink errors, resource

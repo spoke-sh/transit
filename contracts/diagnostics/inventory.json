@@ -12034,6 +12034,63 @@
         "Profile.zig"
       ]
     },
+    "packages/zig/transit-document-profiles/src/MimeWriter.zig": {
+      "errors": {
+        "DocumentAttributeLimitExceeded": 1,
+        "DocumentExpansionLimitExceeded": 1,
+        "DocumentInputLimitExceeded": 1,
+        "DocumentNodeLimitExceeded": 1,
+        "DocumentTokenLimitExceeded": 4,
+        "DocumentWorkLimitExceeded": 1,
+        "DocumentWorkspaceTooSmall": 1,
+        "DocumentWriterBusy": 3,
+        "DocumentWriterComplete": 1,
+        "DocumentWriterFailed": 2,
+        "DocumentWriterNoToken": 1,
+        "IncompleteDocumentFrame": 1,
+        "InvalidDocumentEvent": 4,
+        "InvalidDocumentWorkBudget": 1,
+        "InvalidMimeField": 3,
+        "InvalidMimeFraming": 3,
+        "MimeLineLimitExceeded": 2
+      },
+      "outcomes": {
+        "Token": [
+          "field",
+          "headers_end",
+          "body"
+        ],
+        "phase": [
+          "headers",
+          "body"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "append()": "<inferred>",
+        "begin()": "<inferred>",
+        "beginEvent()": "<inferred>",
+        "charge()": "<inferred>",
+        "drain()": "<inferred>",
+        "finish()": "<inferred>",
+        "init()": "<inferred>",
+        "node()": "<inferred>",
+        "prepare()": "<inferred>",
+        "requireActive()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 17,
+        "catch": 3
+      },
+      "imports": [
+        "Event.zig",
+        "Mime.zig",
+        "Profile.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-document-profiles/src/Profile.zig": {
       "errors": {
         "DocumentExpansionLimitExceeded": 1,
@@ -12289,6 +12346,7 @@
         "Json.zig",
         "JsonWriter.zig",
         "Mime.zig",
+        "MimeWriter.zig",
         "Profile.zig",
         "Reader.zig",
         "Xml.zig",

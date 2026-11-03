@@ -42,11 +42,12 @@ pub fn main(init: std.process.Init) !void {
     var token: [1024]u8 = undefined;
     const write_xml = std.mem.eql(u8, args[1], "xml-write");
     const write_json = std.mem.eql(u8, args[1], "json-write");
+    const write_mime = std.mem.eql(u8, args[1], "mime-write");
     const candidate_json = std.mem.eql(u8, args[1], "json-candidate");
     const candidate_xml = std.mem.eql(u8, args[1], "xml-candidate");
     const candidate_mime = std.mem.eql(u8, args[1], "mime-candidate");
-    const use_candidate = candidate_json or candidate_xml or candidate_mime or write_json or write_xml;
-    const format: profiles.Profile.contract.Format = if (write_json or candidate_json or std.mem.eql(u8, args[1], "json")) .json else if (write_xml or candidate_xml or std.mem.eql(u8, args[1], "xml")) .xml else if (candidate_mime or std.mem.eql(u8, args[1], "mime")) .mime else return error.InvalidArguments;
+    const use_candidate = candidate_json or candidate_xml or candidate_mime or write_json or write_xml or write_mime;
+    const format: profiles.Profile.contract.Format = if (write_json or candidate_json or std.mem.eql(u8, args[1], "json")) .json else if (write_xml or candidate_xml or std.mem.eql(u8, args[1], "xml")) .xml else if (write_mime or candidate_mime or std.mem.eql(u8, args[1], "mime")) .mime else return error.InvalidArguments;
     const descriptor = try profiles.Profile.descriptor(format, limits);
     var json_frames: [32]profiles.Json.Frame = undefined;
     var xml_frames: [32]profiles.Xml.Frame = undefined;
@@ -89,6 +90,9 @@ pub fn main(init: std.process.Init) !void {
         .attribute_names = &xml_writer_attribute_names,
         .encoded = &xml_writer_encoded,
     });
+    var mime_header: [1024]u8 = undefined;
+    var mime_writer: profiles.MimeWriter = undefined;
+    if (write_mime) mime_writer = try profiles.MimeWriter.init(descriptor, 2, &mime_header);
     var encoded: [23]u8 = undefined;
     var offset: usize = 0;
     var turns: usize = 0;
@@ -119,10 +123,10 @@ pub fn main(init: std.process.Init) !void {
         offset += step.consumed;
         switch (step.result) {
             .event => |event| {
-                if (write_json or write_xml) {
-                    if (write_json) try writer.beginEvent(event) else try xml_writer.beginEvent(event);
-                    while (if (write_json) writer.needsDrain() else xml_writer.needsDrain()) {
-                        const count = if (write_json) try writer.drain(encoded[0..@min(encoded.len, chunk)], 5) else try xml_writer.drain(encoded[0..@min(encoded.len, chunk)], 5);
+                if (write_json or write_xml or write_mime) {
+                    if (write_json) try writer.beginEvent(event) else if (write_xml) try xml_writer.beginEvent(event) else try mime_writer.beginEvent(event);
+                    while (if (write_json) writer.needsDrain() else if (write_xml) xml_writer.needsDrain() else mime_writer.needsDrain()) {
+                        const count = if (write_json) try writer.drain(encoded[0..@min(encoded.len, chunk)], 5) else if (write_xml) try xml_writer.drain(encoded[0..@min(encoded.len, chunk)], 5) else try mime_writer.drain(encoded[0..@min(encoded.len, chunk)], 5);
                         try out.writeAll("bytes\t");
                         for (encoded[0..count]) |byte| try out.print("{x:0>2}", .{byte});
                         try out.writeByte('\n');
@@ -139,8 +143,8 @@ pub fn main(init: std.process.Init) !void {
             },
             .complete => {
                 if (use_candidate) _ = try candidate.verifiedBinding() else _ = try reader.verifiedPart();
-                if (write_json or write_xml) {
-                    const part = if (write_json) try writer.finish() else try xml_writer.finish();
+                if (write_json or write_xml or write_mime) {
+                    const part = if (write_json) try writer.finish() else if (write_xml) try xml_writer.finish() else try mime_writer.finish();
                     try out.print("complete\t{d}\t", .{part.bytes});
                     for (part.sha256) |byte| try out.print("{x:0>2}", .{byte});
                     try out.writeByte('\n');

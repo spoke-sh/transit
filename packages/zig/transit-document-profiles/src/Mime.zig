@@ -76,7 +76,7 @@ fn advance(self: *Self, input: []const u8, eof: bool, work: u32) !Step {
                 if (c == '\r') {
                     self.state = .separator_lf;
                 } else {
-                    if (!nameByte(c)) return error.InvalidMimeField;
+                    if (!fieldNameByte(c)) return error.InvalidMimeField;
                     if (self.fields == self.budget.limits.attributes) return error.DocumentAttributeLimitExceeded;
                     try self.budget.node();
                     self.fields += 1;
@@ -88,13 +88,13 @@ fn advance(self: *Self, input: []const u8, eof: bool, work: u32) !Step {
                 if (c == ':') {
                     self.name_end = self.used;
                     self.state = .value;
-                } else if (!nameByte(c)) return error.InvalidMimeField;
+                } else if (!fieldNameByte(c)) return error.InvalidMimeField;
                 try self.append(c);
             },
             .value => {
                 if (c == '\r') {
                     self.state = .line_lf;
-                } else if (c != '\t' and (c < 32 or c > 126)) return error.InvalidMimeField;
+                } else if (!fieldValueByte(c)) return error.InvalidMimeField;
                 try self.append(c);
             },
             .line_lf => {
@@ -155,6 +155,11 @@ fn event(self: *const Self, kind: @FieldType(Event, "kind"), start: u64, end: u6
     return .{ .kind = kind, .span = .{ .part_id = self.part_id, .space = .raw, .byte_start = start, .byte_end = end }, .depth = 0, .value = value, .detail = detail };
 }
 
-fn nameByte(c: u8) bool {
+/// Exact byte predicates shared by framing interpretation and construction.
+pub fn fieldNameByte(c: u8) bool {
     return c >= 33 and c <= 126 and c != ':';
+}
+
+pub fn fieldValueByte(c: u8) bool {
+    return c == '\t' or (c >= 32 and c <= 126);
 }
