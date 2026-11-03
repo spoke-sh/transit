@@ -197,6 +197,9 @@ pub fn main(init: std.process.Init) !void {
     }
     if (std.mem.eql(u8, mode, "stream-assign")) {
         if (args.len != 7) return error.Usage;
+        // SQL-created logs belong to the explicit gateway role. The native
+        // administrator has SET membership, not implicit log-owner privileges.
+        client.connection.role = (try admin.query(.{ .authorization = .{ .kind = .{ .resolve = try .init("gateway-caller") } } })).body.authorization.body.resolve.id;
         const id = try std.fmt.parseInt(u64, args[5], 10);
         const operation = try std.fmt.parseInt(u64, args[6], 10);
         const filename = try std.fmt.allocPrint(init.arena.allocator(), "stream-assignment-{d}.json", .{operation});
