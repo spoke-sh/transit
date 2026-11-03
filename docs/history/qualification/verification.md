@@ -9,6 +9,77 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Portable release proof helper — 2026-11-02
+
+This check asks whether Board's private authorization-provisioning driver can
+execute after transfer to a runner without the builder's loader or libraries.
+The current workflow belongs to the [build guide](../../../build/README.md)
+and [pinned toolchain](../../../nix/README.md); the driver is a separate CI
+artifact, outside the public runtime archives.
+
+The [release run after PR #350](https://github.com/spoke-sh/transit/actions/runs/41569595235)
+failed on both Linux architectures when the existing helper could not start.
+A local build at `9d417462cff68cadb10301a5aaa7ed0eaca366a3` reproduced an
+`INTERP` entry for `/lib/ld-musl-x86_64.so.1` and shared `libcrypto.so.3` and
+`libc.so` dependencies. Selecting a musl target had not prevented shared-library
+selection. The earlier interrupted local builds did not establish a pass.
+
+At clean source `5370f232d0580f4d974cbdb1ba20a1169a566005`, the helper requires
+static linkage and builds in `release-checks` against pinned static inputs.
+Executed x86-64 Linux evidence is:
+
+| Check | Result and scope |
+| --- | --- |
+| Toolchain and fast checks | `just doctor` and all 66 `just check fast` checks pass |
+| Helper ELF inspection | No `INTERP` or `NEEDED`; SHA-256 `f8f4c42c25750441c7294bafcf2f9282098921e560ee6aa294558e5055335124` |
+| Negative control | The installed proof's new ELF preflight rejects the previous dynamically linked helper before runtime startup |
+| Static runtime | The source-bound Nix release builds and passes its install checks |
+| Actual parent schedule | `nix develop .#release-checks --command just test::release .cache/m6-static-release-runtime` passes |
+| Release packaging | Checksummed runtime archive, manifest, installer and Helm chart are produced with the same source identity |
+
+The parent schedule executes the terminal/editor, SQL, retained restart and
+supervisor-death recovery checks, followed by real Board catalog/SQL role
+enrollment, four connection profiles, original definition/history/flush recovery,
+retained placement and exact 145-row traversal with read-only and revocation
+checks. This is installed execution, not just helper compilation.
+
+The first separate archive-installation schedule, using only `/usr/bin:/bin`
+and an explicitly copied helper, passes package identity, startup, terminal,
+SQL and restart checks but fails during Board catalog setup with
+`SqlOutcomeUnknown`. Its original token remains unresolved: observation through
+the same binary after retained restart returns `MissingGatewayOperation`.
+Neither observation establishes rejection or completion, and the SQL is not
+resubmitted. The private failed installation remains at
+`/var/tmp/transit-server-proof-o5470wvt`. This failure does not negate the completed
+parent schedule or establish a cause for the uncertain submission.
+
+A second independent archive run uses the identical runtime/helper bytes and
+unchanged budgets in a fresh installation. It passes Board role enrollment and
+all four connection profiles, then exhausts the existing 32-attempt metadata
+declaration schedule. The original `definition-intent-900100.json` remains in
+`/var/tmp/transit-server-proof-4_stckum`; an `inspect` of that saved request after
+retained restart returns `not_observed`, not completion. The whole archive
+schedule remains failed. Its log `m6-static-downloaded-proof-2.log` has SHA-256
+`6270f173b51d0b12bdd22061ae175016b64566a8069b4eba024304b3d4062037`.
+Neither archive failure establishes a cause or qualifies release publication.
+
+Local raw evidence remains in the worktree's ignored `.cache/`: the successful
+parent log `m6-static-release-proof.log` has SHA-256
+`72f0bb4ba9299922f72b6e1ae26c0c9b9d6d14db0e22fde8342b6df78e578239`;
+the failed archive log `m6-static-downloaded-proof.log` has SHA-256
+`47544a6f9ce8be735a1f06d80e40152a8bc230fdc7df6e2203661f20f09feb9e`.
+The companion `m6-static-release-runtime-build.log`,
+`m6-static-release-package.log`, `m6-static-guard-negative.log`,
+`m6-release-fast.log`, `m6-original-observation.log` and
+`m6-declaration-observation.log` retain the other observations. These local paths
+are not portable artifact links.
+
+ARM64's static shell evaluates successfully but is not executed locally.
+The subsequent Homebrew workflow correction selects each matrix architecture;
+Homebrew and hosted release qualification remain separate checks. No dependency
+pin, runtime policy, test deadline or existing assertion is relaxed. This record
+does not qualify every release platform or close Milestone 6's remaining gates.
+
 ## Stream and Queue contract and bitmap foundations — 2026-10-29
 
 This slice asks whether neutral append/settlement identities can distinguish
