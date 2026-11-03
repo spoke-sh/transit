@@ -41,7 +41,7 @@ def direct_client(fixture, definition, connection, seed):
     identity = post(port, '/v1/query', native(key, realm, principal,
         dict(authorization=dict(role=None, kind=dict(identity={})))))['body']['authorization']['body']['identity']
 
-    def direct(action):
+    def direct(action, expected=200):
         body = dict(definition=definition, connection=connection, nonce=[91]*16,
                     action=action, delegation=None, closure=None,
                     borrow=None, lease=None, transaction=None)
@@ -59,8 +59,8 @@ def direct_client(fixture, definition, connection, seed):
                 'declaration' in action.get('descriptor', {}) or any(
                     step in action.get('historical_catalog', {}) for step in ('acquire', 'inspect', 'advance', 'release'))):
             raise CatalogCapacity()
-        assert status == 200, (status, data)
-        return response['result']
+        assert status == expected, (status, data)
+        return response['result'] if expected == 200 else response
 
     return direct, identity
 
@@ -277,8 +277,8 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False, 
         fixture.console('CREATE TABLE empty_metrics (id BIGINT);\n')
         for index in range(8):
             fixture.console(f'CREATE TABLE zz_catalog_{index} (id BIGINT);\n')
+        limited_connections = board_profiles.configure(fixture)
         if profiles:
-            limited_connections = board_profiles.configure(fixture)
             board_profiles.qualify(fixture, config_file, limited_connections, browser)
         else:
             print('Focused workbench schedule: independent connection-profile matrix not executed.', flush=True)
@@ -453,6 +453,31 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False, 
             account_dir / 'table.seed', operation=900032, name='placement_probe', native_snapshot=native_snapshot)
         placement_object = str(target['object']['object'])
         placement_input = dict(selector=placement_selector, object=placement_object, after=None)
+        # The retained selector confers no rights. Board uses a separately
+        # enrolled SELECT-only subject; the second native reader can see
+        # metadata through UPDATE but cannot read rows or their placement.
+        # There is no separate metadata-only Table grant in the current model.
+        for name in ('placement_probe', 'empty_metrics'):
+            board_profiles.policy(fixture, f'GRANT SELECT ON TABLE public.{name} TO board_catalog;', f'{name}-reader-select')
+            board_profiles.policy(fixture, f'GRANT UPDATE ON TABLE public.{name} TO board_sql;', f'{name}-metadata-update')
+        metadata_dir = fixture.installation / 'sql/accounts/board_sql'
+        metadata_account = json.loads((metadata_dir / 'account.json').read_text())
+        metadata_connection = dict(native_connection, principal=metadata_account['principals']['table'])
+        assert len({native_connection['principal'], metadata_connection['principal'],
+                    limited_connections['catalog']['connection']['principal']}) == 3
+        metadata_reader, _ = direct_client(fixture, definition, metadata_connection, metadata_dir / 'table.seed')
+        native_input = dict(snapshot=native_snapshot, object=int(placement_object), after=None)
+        native_definitions = metadata_reader(dict(historical_catalog=dict(definitions=native_input)))['historical_catalog']['definitions']['evidence']
+        assert native_definitions['next'] is not None
+        assert metadata_reader(dict(historical_catalog=dict(locations=native_input)), 403)['err'] == 'AccessDenied'
+        fixture.stop()
+        config_file.write_text(json.dumps(dict(catalog=limited_connections['catalog'])))
+        fixture.config['board']['workbench_file'] = str(config_file)
+        fixture.path.write_text(json.dumps(fixture.config))
+        fixture.start()
+        fixture.ready()
+        features = json.loads(fixture.request('/api/v1/deployment'))['features']
+        assert features['catalog'] and not features['sql']
         def placement_coverage(kind, after=None):
             return history({kind: dict(placement_input, after=after)})['history']['coverage']
         first_definition = placement_coverage('definitions')
@@ -465,6 +490,8 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False, 
         locations, next_page = [], None
         for _ in range(4):
             coverage = placement_coverage('locations', next_page)
+            if next_page is None:
+                first_locations_next = coverage['next']
             assert len(coverage['locations']) <= 8
             locations.extend(coverage['locations'])
             next_page = coverage['next']
@@ -497,8 +524,9 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False, 
             if native_after is None:
                 break
         assert at == 20 and native_after is None
+        empty_snapshot = {}
         empty_selector, release_empty = retained_metrics(fixture, definition, native_connection,
-            account_dir / 'table.seed', operation=900033, name='empty_metrics')
+            account_dir / 'table.seed', operation=900033, name='empty_metrics', native_snapshot=empty_snapshot)
         empty_entries = history(dict(list=dict(selector=empty_selector, namespace=1, after=None)))['history']['listing']['entries']
         empty_input = dict(selector=empty_selector,
             object=empty_entries[0]['declaration']['interpretation']['object']['object'], after=None)
@@ -506,6 +534,26 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False, 
             empty_page = history({kind: empty_input})['history']['coverage']
             assert empty_page['total_rows'] == '0' and empty_page['definitions'] is None
             assert empty_page['locations'] == [] and empty_page['next'] is None
+        native_empty = dict(snapshot=empty_snapshot, object=int(empty_input['object']), after=None)
+        empty_metadata = metadata_reader(dict(historical_catalog=dict(definitions=native_empty)))['historical_catalog']['definitions']['evidence']
+        assert empty_metadata['total_rows'] == 0 and empty_metadata['next'] is None
+        assert metadata_reader(dict(historical_catalog=dict(locations=native_empty)), 403)['err'] == 'AccessDenied'
+        # Recheck authorization for repeated, continued and empty disclosures.
+        # Restore only the same SELECT grant, then read the original selectors.
+        for name in ('placement_probe', 'empty_metrics'):
+            board_profiles.policy(fixture, f'REVOKE UPDATE ON TABLE public.{name} FROM board_sql;', f'{name}-metadata-revoke')
+            board_profiles.policy(fixture, f'REVOKE SELECT ON TABLE public.{name} FROM board_catalog;', f'{name}-reader-revoke')
+        for value in (native_input, dict(native_input, after=native_definitions['next']), native_empty):
+            assert metadata_reader(dict(historical_catalog=dict(definitions=value)), 403)['err'] == 'AccessDenied'
+        for kind, value in (('definitions', placement_input),
+                            ('definitions', dict(placement_input, after=first_definition['next'])),
+                            ('locations', placement_input),
+                            ('locations', dict(placement_input, after=first_locations_next)),
+                            ('definitions', empty_input), ('locations', empty_input)):
+            assert history({kind: value}, 403)['err'] == 'Forbidden'
+        for name in ('placement_probe', 'empty_metrics'):
+            board_profiles.policy(fixture, f'GRANT SELECT ON TABLE public.{name} TO board_catalog;', f'{name}-reader-restore')
+        assert placement_coverage('definitions') == first_definition
         evidence = dict(selector=placement_selector, object=placement_object,
             definitions=[first_definition, second_definition], locations=locations, empty_selector=empty_selector)
         # Rename after retaining the source. Historical discovery keeps its name
@@ -530,7 +578,13 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False, 
         for kind in ('definitions', 'locations'):
             assert history({kind: placement_input}, 409)['err'] == 'QueryExpired'
             assert history({kind: empty_input}, 409)['err'] == 'QueryExpired'
-        print('Retained placement: two physical generations, ADD origin, 20 WAL/segment locations, rename, disk reopen and release passed.', flush=True)
+        print('Retained placement: two physical generations, ADD origin, 20 WAL/segment locations, independent SELECT and non-SELECT readers, revoked continuations/empty coverage, rename, disk reopen and release passed.', flush=True)
+        fixture.stop()
+        del fixture.config['board']['workbench_file']
+        fixture.path.write_text(json.dumps(fixture.config))
+        config_file.unlink()
+        fixture.start()
+        fixture.ready()
         released_selector, release_history = retained_metrics(fixture, definition, native_connection,
                                                               account_dir / 'table.seed', operation=900031)
         release_history()

@@ -407,8 +407,10 @@ selector-bound continuations, cancellation/join, early close, host/node/gateway
 replacement and recovery from saved original acquisition/release identities.
 Closing a local handle must not release separately retained history.
 
-Use independent authority subjects for metadata-only, row-capable and denied
-readers. Revoke after buffering rows, schema, metadata, repeated/empty pages and
+Use independent authority subjects for metadata-visible non-SELECT, SELECT-only
+and denied readers. The current Table model has no separate metadata-only grant;
+exercise non-SELECT visibility through a native caller with an existing Table
+write privilege, while keeping Board's subject read-only. Revoke after buffering rows, schema, metadata, repeated/empty pages and
 terminal counts. Exercise live/retired/recreated objects and released selectors;
 a wrong-kind/connection/selector continuation must fail. Preserve validated
 missing-selection diagnostics versus authority unavailability through the client.
@@ -416,7 +418,7 @@ The recent computation reader is a useful precedent, not authority to read a
 publisher's private operation records.
 
 Repeat full Board installation and browser profiles, retaining the recent R2/R3
-selected successes as prior evidence. Add real metadata-only versus SELECT-only
+selected successes as prior evidence. Add real non-SELECT metadata versus SELECT-only
 placement checks where the latest browser fixture injected denial for presentation.
 Check incomplete coverage, failed/revoked observation clearing, retained definition
 and location pages, and independent computed-result attribution. Board must issue
