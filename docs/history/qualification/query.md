@@ -5842,3 +5842,99 @@ targets did not run. The separately passed focused query, diagnostic, fast and
 documentation checks above retain only their stated coverage. Subsequent
 commits change documentation and one allocation-ownership comment, not the
 executable source tested by this clean attempt.
+
+## Owned predicate preparation and codec reuse — 2026-11-02
+
+Commits `55497142b` and `d5c1de2c9` add execution-owned literal preparation and
+reuse within each bounded filtered Table request. `e4fc3aa8d` adds the
+[measurement driver and method](../../../tests/performance/query/README.md#owned-predicate-preparation),
+its independent reporting controls and a storage budget regression. The
+[Fuze guide](../../../packages/zig/transit-fuze/README.md) owns the lifetime and
+accounting contract. No stored definition, SQL syntax or result protocol changes.
+
+Working-tree checks of the files committed in `e4fc3aa8d` pass:
+
+- `zig build test-string-execution -Doptimize=ReleaseSafe`: **610 cases /
+  16,810 rows**, comparing scalar Batch, single/batched/prepared codec outcomes,
+  physical visit counts and lossless projections with the independent Python
+  oracle. Raw corpus/output/provenance remain in
+  `.cache/verification/string-execution/runs/latest-fg1_y_0t`.
+- Focused Fuze prepared/compressed-predicate tests: **28/28**. Literal overwrite,
+  schema mismatch, full-value validation, allocation failures and sealed warm
+  comparisons retain their checks.
+- `just test::table-filtering`: **49 Fuze, 6 storage and 10 catalog tests**, then
+  the signed disk-backed `projection` scenario. The new budget case fits only
+  preparation's actual arena reserve and refuses both cached and fresh group
+  decisions without publishing changes. The service verifies segment/WAL rows,
+  empty pages, ordinals, LIMIT, owned results, prepared/interleaved ASCII_CI
+  predicates, ordered failures and post-compute/terminal revocation.
+- Diagnostic mapping/mutation checks, **16** compiler-inferred error sets,
+  **9** unknown-cause projections and **3,769** outcome projections pass.
+  `840aba1bb` refreshes the source inventory and adds the independently reviewed
+  historical-cursor binding/refresh expectation already implemented by
+  `e8ecf80fe`; the remaining inventory drift comes from the prepared owners and
+  previously merged catalog/computation-inspection work.
+- All **65** fast checks pass locally and in `just ci clean --check fast` at
+  clean `e4fc3aa8df2c0fc6ddd74de71333d7c085756f2a`. Clean evidence is in
+  `.cache/ci/clean/e4fc3aa8df2c-transit-ci-qp3w3qnn`. Documentation formatting,
+  types, all **10** site tests and the production site build pass.
+
+The original readiness timeout remains in
+`.cache/checks/runs/fast-ll1zneiq`; the subsequent inventory and mapping failures
+remain in `fast-4vk6lo6_` and `fast-dvyfne0j`. The passing local record is
+`fast-ygu55juy`. A later pass does not establish the cause of the readiness
+failure. Owning runtime and site logs are retained under `.cache/checks/resume-*`.
+
+### Matched construction and page experiment
+
+`just test::string-predicates` completes **100/100 samples** on clean
+`e4fc3aa8d`, using Zig `0.17.0-dev.2267+48abf1a34`, ReleaseSafe, baseline
+`x86_64`, an AMD Ryzen Threadripper 3960X and CPU 0 affinity. Each arm evaluates
+30 warm pages of 4,096 rows, 256 distinct 45-byte values and six comparison
+atoms. Five process repetitions alternate raw/prepared order. One warmup and
+arena consolidation precede each sealed interval; 100 fresh preparations
+(raw mode: validations) are measured separately. The driver independently
+checks every ordered outcome's SHA-256 digest and weighted checksum, exact
+physical visits, zero warm allocation/growing-resize/remap attempts and zero
+live bytes after cleanup. The 2 MiB allocator allowance covers preparation and
+page scratch/output; input/page generation and validation buffers are separate.
+
+| Collation | Encoding | Prepared/raw elapsed median | Prepared/raw CPU median |
+| --- | --- | ---: | ---: |
+| UTF8_BINARY | dictionary | 1.230 | 0.986 |
+| UTF8_BINARY | FSST | 1.056 | 1.006 |
+| ASCII_CI | dictionary | 1.221 | 0.984 |
+| ASCII_CI | FSST | 1.051 | 0.935 |
+| CP037 | dictionary | 0.674 | 0.720 |
+| CP037 | FSST | 0.756 | 0.643 |
+| CP037 PAD SPACE | dictionary | 0.725 | 0.718 |
+| CP037 PAD SPACE | FSST | 0.664 | 0.650 |
+| CP1047 NO PAD | dictionary | 0.672 | 0.719 |
+| CP1047 NO PAD | FSST | 0.669 | 0.648 |
+
+Ratios below one mean less measured time. EBCDIC arms use roughly 28–36% less
+process CPU for this workload. Binary/ASCII elapsed medians regress 5–23%, while
+their CPU medians range from 6.5% lower to 0.6% higher. The host is shared
+(initial load averages 24.95/23.71/24.81), and raw elapsed ranges overlap for
+these binary/ASCII arms; the data do not establish a general speedup or isolate
+scheduling from other timing variation. Median preparation cost ranges from
+22.4 to 97.3 microseconds per construction. Prepared arenas retain 3,252–6,046
+bytes; the largest observed preparation-plus-page allocator peak is 42,972 bytes.
+
+The complete report, per-process stdout, diagnostics, source/fixture hashes,
+compiler identity, host load, min/max ranges and budgets remain at
+`.cache/verification/string-predicates/runs/latest-75chnhtz`. Its
+`experiment.json` SHA-256 is
+`2f231d9202e003c5edd499b74eee6467c61672592e2ae1b83050500ed236da2a`;
+the binary SHA-256 is
+`c9ed491294772e22bc8973b5ce4fab3c8d1649808caa90019929cccaeade0d4a`.
+The earlier 100-sample dirty-source run in `latest-gva74ci7` remains intact,
+including binary/ASCII regressions. Its timing included checksum work and its
+allocator counted successes, so it is not pooled with the revised experiment.
+
+Completion here establishes exact outcomes and the stated allocation bounds,
+not a latency acceptance gate. This measures one repeated page workload without
+device I/O; it does not establish installed SQL throughput, whole-request zero
+allocation, latency percentiles or hardware-cycle/IOPS budgets. Full clean
+`storage-query` qualification and installed performance comparisons were not run
+for this increment. The earlier failed lane retains its original status above.

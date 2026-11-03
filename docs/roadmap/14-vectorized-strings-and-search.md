@@ -572,6 +572,11 @@ memory contract. The [page experiment](../../tests/performance/query/README.md#o
 measures construction and repeated codec evaluation; it does not establish
 installed SELECT performance or whole-request zero allocation. The review gates
 below remain the scope for qualification, including installed performance.
+The [executed preparation account](../history/qualification/query.md#owned-predicate-preparation-and-codec-reuse--2026-11-02)
+records independent outcomes, allocation/refusal controls, signed retained-reader
+checks, clean fast validation and the 100-sample codec experiment. Its EBCDIC
+savings and mixed binary/ASCII timings do not close the installed-performance or
+full clean runtime-lane gates.
 
 | Review step | Owning implementation | Deliverable and exit condition |
 | --- | --- | --- |
