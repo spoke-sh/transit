@@ -629,8 +629,8 @@ The F0 diagnostic matrix predates these integrations. Preserve its frozen source
 and failed requests; final integration checks do not renew its timing claims.
 
 The current shared definition is
-`28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573`.
-The preceding integrated checks used `fa88766a…` and cannot qualify this cutover.
+`5878ef33ff46fb5c71724e4c1dd87303c39988d6822c0c4ba58734bd6956c8f7`.
+The preceding integrated checks used `28dd54cf…` and `fa88766a…` and cannot qualify this cutover.
 The first F0 diagnostics used `c3cbdfe9…`; the prior SDK performance campaign used
 `afac2bd8…`. Keep each campaign's frozen binaries for original-outcome inspection;
 never open those failed installations with this new

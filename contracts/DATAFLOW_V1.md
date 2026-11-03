@@ -116,7 +116,9 @@ authorizes expiry, silent cancellation or discarding accepted work.
 ## Installed finite Table profile
 
 `transit-query-direct.ManagedTable` owns `DFD1` declarations, `DFW1` work and
-`DFP1` immutable row pages and `DFR1` completed revision manifests. A named direct
+`DFP1` immutable row pages (up to 64 rows and 128 KiB of encoded rows per page,
+carrying `sequence`, `first_ordinal`, `previous` and `rows`, staged as one
+batched `INSERT` statement per page) and `DFR1` completed revision manifests. A named direct
 binary KV owns the current control,
 pending original work reference and paged completed revision keys. The logical
 computation definition hashes the declaration; it is distinct from the KV

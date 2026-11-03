@@ -480,11 +480,11 @@ fn applySelected(comptime action_tag: std.meta.Tag(w.Action), allocator: std.mem
         },
         .pin => {
             const value = @field(action.*, @tagName(action_tag));
-            return .{ .pin = if (delegation) |grant| (if (grant.binding.copied_from) |source| try catalog.copyRowsDefined(grant.binding.interpretation, value.owner, value.expected, source, policy) else if (value.selection == .current) try catalog.captureRowsDefined(grant.binding.interpretation, value.owner, value.expected, policy) else try catalog.pinRowsDefined(grant.binding.interpretation, value.owner, value.expected, policy)) else try catalog.pinRows(value.object, value.owner, value.expected, policy) };
+            return .{ .pin = if (delegation) |grant| (if (grant.binding.copied_from) |source| try catalog.copyRowsDefined(grant.binding.interpretation, value.owner, value.expected, source, policy) else if (value.selection == .current) try catalog.captureRowsDefined(grant.binding.interpretation, value.owner, value.expected, policy) else try catalog.pinRowsDefined(grant.binding.interpretation, value.owner, value.expected, policy)) else if (value.selection == .current) try catalog.captureRowsDefined(value.interpretation.?, value.owner, value.expected, policy) else if (value.interpretation) |interpretation| try catalog.pinRowsDefined(interpretation, value.owner, value.expected, policy) else try catalog.pinRows(value.object, value.owner, value.expected, policy) };
         },
         .retain_history => {
             const value = @field(action.*, @tagName(action_tag));
-            return .{ .pin = try catalog.retainHistory(value.object, value.owner, value.expected, if (delegation) |grant| grant.binding.interpretation else null, policy) };
+            return .{ .pin = try catalog.retainHistory(value.object, value.owner, value.expected, if (delegation) |grant| grant.binding.interpretation else value.interpretation, policy) };
         },
         .history_start => {
             const value = @field(action.*, @tagName(action_tag));

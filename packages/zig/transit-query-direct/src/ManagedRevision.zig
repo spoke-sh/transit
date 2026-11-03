@@ -21,6 +21,7 @@ decision: p.Transaction.Decision,
 scratch: std.heap.ArenaAllocator,
 limits: Limits,
 next_page: ?c.DirectRecord.Reference,
+page_offset: u32 = 0,
 remaining: u64,
 read_rows: u64 = 0,
 read_bytes: u64 = 0,
@@ -76,12 +77,12 @@ pub fn next(self: *Self, output: *std.heap.ArenaAllocator) !?f.TableRow.Row {
 fn nextInner(self: *Self, output: *std.heap.ArenaAllocator) !?f.TableRow.Row {
     try self.validateDisclosure();
     if (self.remaining == 0) {
-        if (self.next_page != null) return error.IncompleteDataflowCoverage;
+        if (self.next_page != null or self.page_offset != 0) return error.IncompleteDataflowCoverage;
         self.complete = true;
         return null;
     }
     const reference = self.next_page orelse return error.IncompleteDataflowCoverage;
-    if (self.read_rows == self.limits.rows or reference.content.bytes > self.limits.bytes - self.read_bytes) return error.ManagedTableResultBudget;
+    if (self.read_rows == self.limits.rows or (self.page_offset == 0 and reference.content.bytes > self.limits.bytes - self.read_bytes)) return error.ManagedTableResultBudget;
     if (reference.format != c.DirectTransactionRecord.format or !std.meta.eql(reference.scope, self.root.scope)) return error.InvalidManagedTableRecord;
     var client = self.manager.client;
     client.allocator = self.scratch.allocator();
@@ -90,18 +91,26 @@ fn nextInner(self: *Self, output: *std.heap.ArenaAllocator) !?f.TableRow.Row {
     // Parsed storage uses the reusable scratch arena and cannot escape this call.
     const page = parsed.value;
     if (page.definition != p.Growth.current_definition or !std.meta.eql(page.transaction, self.manifest.value.transaction) or
-        page.ordinal != self.remaining - 1 or (page.previous == null) != (page.ordinal == 0)) return error.IncompleteDataflowCoverage;
-    const encoded = try page.row.decode(self.scratch.allocator(), f.TableRow.max_bytes);
+        page.rows.len == 0 or page.rows.len > M.max_page_rows or self.page_offset >= page.rows.len or
+        page.first_ordinal + page.rows.len != self.remaining + self.page_offset or
+        (page.previous == null) != (page.sequence == 0) or
+        (page.previous == null) != (page.first_ordinal == 0)) return error.IncompleteDataflowCoverage;
+    const row_index = page.rows.len - 1 - self.page_offset;
+    const encoded = try page.rows[row_index].decode(self.scratch.allocator(), f.TableRow.max_bytes);
     const decoded = try f.TableRow.decodeInto(output.allocator(), self.schema.schema, encoded);
-    if (decoded.identity.ordinal != page.ordinal) return error.IncompleteDataflowCoverage;
+    if (decoded.identity.ordinal != page.first_ordinal + row_index) return error.IncompleteDataflowCoverage;
     const previous = page.previous;
+    const page_len = page.rows.len;
     // Authorization may have changed during I/O or decode. Do not advance the
     // cursor or report a complete empty/last page before this disclosure check.
     try self.validateDisclosure();
-    self.next_page = previous;
+    if (self.page_offset == 0) self.read_bytes += reference.content.bytes;
+    if (self.page_offset + 1 == page_len) {
+        self.next_page = previous;
+        self.page_offset = 0;
+    } else self.page_offset += 1;
     self.remaining -= 1;
     self.read_rows += 1;
-    self.read_bytes += reference.content.bytes;
     self.complete = self.remaining == 0;
     return decoded.row();
 }

@@ -5223,6 +5223,13 @@ pub fn captureRowsDefined(self: *Self, interpretation: d.Definition, owner: d.Op
     defer arena.deinit();
     var access = try self.snapshotAccess(arena.allocator(), interpretation.object, owner, policy, false);
     defer access.view.deinit();
+    if (access.view.table.workspace_read) |read| {
+        if (!std.meta.eql(owner, read.cut.begin.identity.begin) or
+            read.source.source.accepted.partition != minimum.partition or read.source.source.accepted.next_lsn < minimum.next_lsn) return error.InvalidTransactionRead;
+        if (!std.meta.eql(interpretation, read.source.source.interpretation)) return error.TableDefinitionChanged;
+        try check(access.current);
+        return .{ .owner = owner, .content = read.private };
+    }
     const state = try access.view.table.pinState(owner, access.current);
     var selected = state.position;
     if (state.handle) |handle| {
