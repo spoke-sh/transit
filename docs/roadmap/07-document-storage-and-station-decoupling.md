@@ -297,6 +297,8 @@ owner or persisting profile attestations. The
 [candidate mapping](../../packages/zig/transit-document-profiles/README.md#ordered-storage-candidates)
 owns its complete-frame input/output bounds; incremental staging, multipart
 graphs, direct lifecycle and the C7 exchange/Station cutover remain open.
+[Qualification](../history/qualification/storage.md#ordered-document-profile-handoff--2026-11-02)
+records the focused handoff, clean core check and SDK lane with their exact sources.
 
 1. **Continue from the merged causal path.** Full-width map changes, derived
    acceptance, cross-operation causal deduplication and within-value paging are

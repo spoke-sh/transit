@@ -5683,3 +5683,78 @@ unflushed-row dependencies remain separate edges to traverse. Only complete
 enumeration can support a future collector's marks; this component supplies no
 all-owner cut, persisted mark/work queue, physical inventory or deletion. Full
 collection and final committed-HEAD clean qualification remain outstanding.
+
+## Ordered Document profile handoff — 2026-11-02
+
+The private ordered-storage handoff now accepts verified MIME entity frames as
+well as JSON and XML. MIME preserves header order, duplicate/case-distinct field
+spellings, unfolded values, exact raw spans and one binary body, including an
+empty body. Parser windows do not become logical nodes. The
+[candidate mapping](../../../packages/zig/transit-document-profiles/README.md#ordered-storage-candidates)
+and [Document contract](../../../contracts/DOCUMENT_V1.md#integrated-ordered-versioned-storage-slice)
+own the representation and bounds.
+
+Implementation `f9bb23bd78a4c12be252d26d42da57690f0484cf` follows the merge of
+main at `0cfa0cec0983ef3c62224e897428eb42b390b64b`. The combined current-v1
+definition is
+`c8d8d8049cdc2888735421d661ea06abaad6a22917140cd91977172da302fd9c`;
+schemas, bindings, nested profile commitments and independent signing fixtures
+were regenerated together. `267e94fdb6d0b1d1460494d175ec20583dcc48b7` changes only
+the equivalent Zig enum spelling selected by the formatter and its diagnostic
+inventory entry.
+
+Focused working-tree checks before the implementation commit passed all 51
+`transit-document-profiles` tests and the `test-ordered-documents` disk test.
+Independent expected nodes and spans cover folded/duplicate headers, a header
+named `body`, binary bytes, empty headers/bodies, identical encoded candidates
+with 32/64/256-byte parser buffers, one-byte-short output refusal, malformed
+headers after a valid field and input hash/node-budget refusal. The disk test
+reopens JSON, XML and MIME revisions, recovers their original receipts without a
+new WAL append, checks paged values/raw parts and inspects persisted topology.
+The MIME body is 1,500 bytes and crosses the storage chunk boundary. This is
+bounded complete-frame construction, not streaming storage staging or a claim
+about arbitrarily large resident inputs.
+
+Documentation lint, format, type checks, all ten site tests and the production
+build passed. Focused logs remain at `.cache/m7/mime-ordered-tests.log` and
+`.cache/m7/mime-docs.log`; their hashes are retained in
+`.cache/m7/pr-focused-hashes.json`.
+
+At `267e94fdb6d0b1d1460494d175ec20583dcc48b7`,
+`just ci clean --check core` passed, with a 2,264.305-second check phase.
+This includes all 66 fast checks, all 20 contract checks, the full native test
+suite, diagnostic error/outcome/grammar checks, the Nix flake check, 205 CLI
+diagnostic cases and console history/outcome checks. The evidence bundle is
+`.cache/ci/clean/267e94fdb6d0-transit-ci-nlg78j1s/`; `preparation.json` SHA-256 is
+`ef8fea9b76dfba7e158d2433b51f51fcb3b6960535519e967ba3839f4f5d7133`.
+The copied fast, contract and native reports and their artifacts all verify with
+`tests/runner/capture.py`. The native report at `checks/native-all.json` has
+SHA-256 `8c0039895b388ed542b0940fb62ee6182e820ce7f1b8650a45182b8dfc75cd2c`;
+its run directory is `checks/runs/native-all-nv3mc556`.
+This is the complete `check::core` scope, not the separate 28-task core CI lane.
+
+At `f9bb23bd78a4c12be252d26d42da57690f0484cf`,
+`just ci clean --lane sdks-conformance` passed all seven tasks in 2,078.08 seconds,
+including all ten installed SDK language-pair journeys, native/port conformance,
+logical values, SQL, gRPC faults and connector preparation. The evidence bundle is
+`.cache/ci/clean/f9bb23bd78a4-transit-ci-jlvf5p4z/`, with run directory
+`runs/sdks-conformance-o6ssphht`. Its `sdks-conformance.meta.json` SHA-256 is
+`8edd52fd8a984d002d3fb6814803210997d8a7737d7be6ff47d7c6be280f3b83`.
+Preparation completed, every expected task exited successfully, and
+`tests/runner/capture.py` verified the copied task artifacts.
+
+The first clean core attempt at `f9bb23bd78a4c12be252d26d42da57690f0484cf`
+stopped in `zig-format`; its checkout and failure record remain at
+`/var/tmp/transit-ci-chzu4ddf/`, with local output in
+`.cache/m7/clean-core-mime.log`. The initial merge contract check also caught SQL
+workload fixtures generated before their native input fixtures were refreshed;
+regeneration in dependency order and the subsequent contract checks passed.
+The earlier logs remain at `.cache/m7/merge-contracts.log` and
+`.cache/m7/merge-contracts-rerun.log`.
+
+These results cover the recorded component, `check::core` and SDK-lane sources.
+The prior 33-task storage-query result retains its earlier source and shared
+definition in the [topology qualification](#retained-ordered-document-topology-inspection--2026-11-02). This does not complete Milestone 7
+or qualify an installed direct Document catalog/SQL/SDK route, Station cutover,
+profile-attestation publication, multipart graphs, three-way merge, logical
+checkpoints, adaptive subcolumns or Document transaction participation.
