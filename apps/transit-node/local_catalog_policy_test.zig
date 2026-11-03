@@ -2574,13 +2574,6 @@ const HistoricalCollection = struct {
 
         const abandoning = try lost(service, .{ .abandon = requests[1].key }, requests[1].key);
         try t.expectEqual(H.Phase.abandoning, abandoning.state.phase);
-        try collectAndReopen(service);
-        try t.expectEqualDeep(abandoning, try step(service, .{ .inspect = requests[1].key }));
-        const cancelled = try finishHistory(service, requests[1].key, .cancelled);
-        try t.expect(cancelled.state.snapshot == null);
-        try t.expect((try pinState(service, requests[1].intent.identity())).released);
-        try t.expect(!(try pinState(service, requests[0].intent.identity())).released);
-        try t.expect(!(try pinState(service, private_owner)).released);
         const published = try finishHistory(service, requests[0].key, .published);
         const snapshot = published.state.snapshot.?;
         try expectRows(service, snapshot);
@@ -2589,14 +2582,22 @@ const HistoricalCollection = struct {
         try t.expectEqual(H.Phase.releasing, releasing.state.phase);
         try t.expectEqualDeep(snapshot, releasing.state.snapshot.?);
         try t.expectError(error.HistoricalSnapshotReleased, dispatch(service, .{ .historical_catalog = .{ .source = .{ .snapshot = snapshot, .object = object_id } } }));
+        // Both closure owners are paused before releasing their pins. One
+        // sweep checks both obligations without repeating the same disk work.
         try collectAndReopen(service);
+        try t.expectEqualDeep(abandoning, try step(service, .{ .inspect = requests[1].key }));
         try t.expectEqualDeep(releasing, try step(service, .{ .inspect = requests[0].key }));
+        const cancelled = try finishHistory(service, requests[1].key, .cancelled);
+        try t.expect(cancelled.state.snapshot == null);
+        try t.expect((try pinState(service, requests[1].intent.identity())).released);
+        try t.expect(!(try pinState(service, requests[0].intent.identity())).released);
+        try t.expect(!(try pinState(service, private_owner)).released);
         _ = try lost(service, .{ .advance = requests[0].key }, requests[0].key);
         const released = try finishHistory(service, requests[0].key, .released);
         try t.expectEqualDeep(snapshot, released.state.snapshot.?);
         try t.expectEqualDeep(published.receipt, released.receipt);
         try collectAndReopen(service);
-        // A second collector must traverse retained terminal evidence without
+        // Collection must traverse retained terminal evidence without
         // reopening a released pin, while the independent private pin survives.
         try t.expectEqualDeep(released, try step(service, .{ .acquire = requests[0] }));
         try t.expectEqualDeep(cancelled, try step(service, .{ .acquire = requests[1] }));
@@ -2612,7 +2613,7 @@ const HistoricalCollection = struct {
         defer old.deinit();
         try t.expectEqual(@as(u64, 3), old.value.result.snapshot.row_count);
         try dispatchWithoutOutput(service, .{ .release = private_pin });
-        std.debug.print("Historical disk collection: two original acquisitions, seven lost replies, four physical collections/reopens, exact three-row cut, abandonment and release, independent pin ownership passed ({s}).\n", .{if (typed_dispatch) "typed" else "signed JSON"});
+        std.debug.print("Historical disk collection: two original acquisitions, seven lost replies, three physical collections/reopens, exact three-row cut, abandonment and release, independent pin ownership passed ({s}).\n", .{if (typed_dispatch) "typed" else "signed JSON"});
     }
 };
 
