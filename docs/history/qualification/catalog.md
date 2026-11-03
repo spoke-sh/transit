@@ -9,6 +9,65 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Integrated standards ledger and retained collation cuts — 2026-11-02
+
+This increment checks whether the integrated capability claims have executable
+owners and whether retained Tables keep their original comparison semantics
+across a local disk restart. The fixture source is
+`887b37e3110c9adc9f6d4b7870baafc825656050`, based on `21a663fdb`; the only
+collation repair renames a duplicated local variable that prevented the new
+recovery fixture from compiling. Runtime implementation is unchanged. The
+current owners remain the [capability ledger](../../../contracts/sql/README.md),
+[Table reference](../../handbook/reference/tables.md) and
+[historical catalog contract](../../../contracts/HISTORICAL_CATALOG_V1.md).
+
+The pinned Nix environment uses Zig `0.17.0-dev.2267+48abf1a34` and ReleaseSafe
+artifacts. The shared definition is
+`c3cbdfe99cdb08a8a21cc2429783fd746b1311b096d9ca8371058e1abb037b64`;
+the Table schema definition remains
+`transit.table.schema.v1.2026-11-01.spatial-reference`. No compatibility cutover
+is introduced by these test changes.
+
+`just test::direct-table-service collations` passes against the signed local
+Table HTTP owner with a one-page resident cache and physical disk under
+`/var/tmp`. The four profiles are `ASCII_CI`, `EBCDIC_CP037`,
+`EBCDIC_037_PAD` and `EBCDIC_1047_NOPAD`. The fixture retains both the original
+pre-flush cut and a separately pinned sealed cut, then performs UPDATE, DELETE
+and punctuation-sensitive inserts. After node termination and restart, both
+original pin identities still return the independently expected five rows,
+range/full-scan counts and equality counts. The live Table has the separately
+expected later row count. Explicit release preserves each exact handle and
+reports it released. Prepared/captured plan bindings, neutral collation metadata
+and incompatible plan rejection also pass. This is local restart evidence;
+the fixture requests SIGTERM with a bounded SIGKILL fallback, not power loss.
+
+`just ci clean --check fast` passes all **65** checks at `887b37e31`. Its archived
+run record also passes artifact/completion verification. The ledger maps **83**
+implemented feature/stage pairs across **18** capabilities to **10** compiler,
+component, disk or installed checks. Negative controls reject missing recovery
+ownership, compiler-only runtime claims, unregistered tasks and stale case
+markers. These results establish mapping and generation consistency, not that
+every mapped behavioral check ran in this increment. The public handbook's
+formatting/lint, strict types, ten content tests and production build pass at
+`21a663fdb`; the subsequent changes affect test diagnostics and this evidence only.
+
+Private transcripts and source/binary hashes are retained in
+`transit-m10-plan/.cache/m10-resume/`, including `collations-fixed.log`,
+`source.json`, `results.json` and `docs-site.log`. The completed clean record is
+`.cache/ci/clean/887b37e3110c-transit-ci-q2cqzml4/`. Preserve the original
+`collations.log` compile failure. Two clean attempts could not start because an
+unrelated cleanup removed their temporary directory. An attempt with scratch
+under `.cache` failed the import-scanner controls because those paths are
+excluded; the passing run uses the separate
+`/var/tmp/m10-qualification-887b37e31/` parent. None of these earlier attempts is
+reclassified as passed.
+
+The [Board record](interfaces.md#independent-historical-board-readers--2026-11-02)
+owns the installed reader experiment and original-operation recovery. This
+increment does not complete the storage/query or installation/browser lanes,
+the remaining SDK schedules, common-revision qualification or
+[Milestone 10](../../roadmap/10-standards-and-catalogs.md).
+
 ## Offline Document construction and compound commitments — 2026-11-02
 
 This experiment asks whether applications can construct JSON/XML representations

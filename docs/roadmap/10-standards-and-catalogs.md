@@ -291,6 +291,31 @@ completion without waiting for their entire delivery.
    execution, with original bytes and uncertain work preserved. Old dated hashes
    in proof records are evidence for those runs, not today's compatibility ID.
 
+### Integrated qualification progress — 2026-11-02
+
+The [standards/collation record](../history/qualification/catalog.md#integrated-standards-ledger-and-retained-collation-cuts--2026-11-02)
+records the executed R0/R1 increment: the ledger maps 83 implemented stage
+claims to executable owners, its negative controls and 65 clean fast checks
+pass, and the signed disk schedule recovers both original pre-flush and sealed
+collation cuts after restart. The new fixture's compile error was repaired;
+this is selected evidence, not execution of every mapped owner or R1 closure.
+
+The [independent-reader record](../history/qualification/interfaces.md#independent-historical-board-readers--2026-11-02)
+preserves the installed Board attempts, original acquisition recovery and R3
+fixture repairs. Each principal now has a separate signing file. Historical
+settlement retains bounded per-step evidence, and uncertain physical flushes
+resume their saved object/frontier target, including an injected lost reply.
+The complete ordinary workbench driver passes at `6eae861d4`, including all
+12 browser cases and the real independent-reader/revocation assertions.
+Request deadlines and 32-attempt bounds are unchanged. Earlier failed runs
+remain failed; a successful recovery or narrower schedule does not replace them.
+
+M10 remains **In Progress**. R2's complete retention/collection matrix, R4's
+integrated work/allocation evidence, remaining consumer schedules and R5's
+common-revision clean lanes remain open. Use the records above for exact
+sources, completed checks, failures and omissions; the acceptance matrix below
+continues to specify the full closure obligation.
+
 ### Review units and delivery order
 
 These are planned changes and checks. Start with R0, then R1. R2 and R3 consume
@@ -495,9 +520,11 @@ qualify their stated sources and selected profiles.
 
 ### Acceptance matrix and runnable checks
 
-This table specifies planned evidence. None of these commands was executed as
-runtime qualification while writing this plan. Use the pinned Nix shells and
-[tasks](../../tasks/README.md); each narrower check keeps its stated scope.
+This table specifies the full closure requirements. The
+[integrated progress](#integrated-qualification-progress--2026-11-02) above
+links subsequent selected executions; listing a command here establishes no
+passing result. Use the pinned Nix shells and [tasks](../../tasks/README.md);
+each narrower check keeps its stated scope.
 
 | Gate | Existing owning check to run/extend | Required result |
 | --- | --- | --- |
@@ -526,8 +553,8 @@ common-revision closure.
 Public documentation updates use the existing type/Table/history/query/caller
 owners and state/query/storage internals, with component/SDK guides for exact
 profiles. Check repository links/whitespace and affected handbook builds. This
-planning-only change establishes no runtime guarantee and leaves milestone status
-unchanged.
+plan establishes no runtime guarantee by itself; executed scopes belong in the
+qualification records above. Milestone status remains In Progress.
 
 ## Remaining implementation plan — 2026-11-01
 
