@@ -9,7 +9,7 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
-## Current-definition managed staging and SDK baselines — 2026-11-02
+## Managed staging and SDK diagnostic baselines — 2026-11-02
 
 This is the first F0 implementation packet from the approved
 [next performance plan](../../roadmap/08-gateway-architecture-and-protocol-ingress.md#next-performance-implementation-after-milestones--2026-11-02).
@@ -18,14 +18,13 @@ document and Board milestones, before changing snapshot or batching semantics.
 The timing source includes main `bfc0251b5` (PR #332). Runtime and measurement source is
 clean `ab6baf98fc091c619ba335846c438bf9ed97eaee`, with unchanged shared definition
 `c3cbdfe99cdb08a8a21cc2429783fd746b1311b096d9ca8371058e1abb037b64`.
-Installed native SDK libraries/packages are frozen at clean `1787c0b8f`; later
-changes concern private host inspection, its fixture and documentation, not SDK
-implementation or schemas. Native artifact records, package and executable hashes
+Installed native SDK libraries/packages are frozen at clean `1787c0b8f` under that
+same definition. Native artifact records, package and executable hashes
 are retained separately; these are not claimed to have identical Git stamps.
 No old `afac2bd8…` installation was opened with these binaries. Later integration
-includes main `5f23092f2` (PR #338), whose Queue, storage-fencing and Board changes
+includes main `3df8a63da` (PR #341), whose Queue, storage-fencing and Board changes
 arrived after timing. These observations are not a performance score for that
-integrated tree. Final installed/native checks freeze
+integrated tree. The first integrated installed/native checks freeze
 `4d62eb5a91e836ff76797e7e00f758f52f64b122` in an isolated checkout. The original
 measurement and qualification commits remain reachable through the
 [frozen diagnostic source](https://github.com/spoke-sh/transit/tree/perf/owned-staging-diagnostic-source)
@@ -208,7 +207,7 @@ Copied clean evidence is under
 `.cache/ci/clean/ab6baf98fc09-transit-ci-v2vg5cvk/`. This qualifies that frozen
 source and selected lane, not all later main changes or the full repository suite.
 
-At `4d62eb5a9`, the final clean `installation-ui` lane **passes 16 of 17 tasks
+At `4d62eb5a9`, the first integrated clean `installation-ui` lane **passes 16 of 17 tasks
 and fails the last task** after 4,219 seconds. Passed tasks include logging,
 single-executable defaults, direct Tables, all five managed revisions, the corrected
 real direct-fault host, SQL lifetimes/recovery, Board inspection/query/workbench
@@ -217,8 +216,9 @@ including blocked work, caller death, abrupt restart, exact recovery and durable
 cancellation. The clean checkout and original task metadata remain at
 `/var/tmp/transit-ci-dub8gn4t/`.
 
-The final `test::declarative-browser` task fails during Google-provider provisioning,
-before its browser assertions. The saved `admin-3.json` remains at
+The final `test::declarative-browser` task fails while declaring a Google-profile
+provider against local test peers, before its browser assertions. This is local
+provisioning, not a call to Google. The saved `admin-3.json` remains at
 `/var/tmp/transit-browser-karqedae/`, with SHA-256
 `76bbfc63b7843331475d81dd6540922ab3b5d7360b5e2816eef0df35efe35b7b`.
 The client reports `HttpConnectionClosing` for `client_token` with an uncertain
@@ -278,6 +278,39 @@ settlement and original-outcome recovery, without replaying as fresh work. PR #3
 bootstrap-byte reduction needs separate transfer, parse, first-result and heap
 measurements; byte counts establish no time-to-interactive gain. No 10× or 100×
 end-to-end gain is claimed here.
+
+The subsequent #339/#340 integration retains the shared `ManagedTableRecords`
+owner alongside the counters, without duplicating its persisted codecs. SQL SHOW
+now uses signed independent-reader computation inspection, also exposed through
+Board. Earlier managed timings do not measure this metadata owner. Future profiles
+must separate current/retained metadata observation, retained rows and execution,
+including reader revocation and polling interference.
+
+At `d94cf940a`, all 65 clean fast checks pass. The clean installation/UI attempt
+passes its first seven tasks, then ends without a recoverable exit status during
+the managed-table task. No supervisor or checkout process remains after the turn
+interruption. The original metadata still marks that task incomplete. A separate
+continuation from the same clean checkout uses the pinned default shell and
+`TMPDIR=/var/tmp` after the shared `/tmp` exhausts its inode limit. Its native
+managed proof passes original recovery, atomic output, retained nonempty/empty
+revisions, bounded reads, early close, incomplete prefixes and current denial.
+The continuation is deliberately stopped during installed managed compilation
+after the requested rebase introduces another definition. The installed managed
+outcome and the remaining lane tasks are unqualified by this attempt. These are
+partial results, not a completed clean lane. Original metadata/logs remain in
+`/var/tmp/transit-ci-vjss78zm/`; `latest-qualification.json` and
+`latest-continuation.json` record the interruption and selected continuation.
+The source remains on
+[the preserved qualification branch](https://github.com/spoke-sh/transit/tree/perf/owned-staging-qualification-source).
+
+PR #341 replaces the shared definition with
+`fa88766ac95f2c156474b0c97eb9eaafcccc8c13a70009e574d09397d7ba3c72` for original
+Queue renewal results. The measurements above remain `c3cbdfe9…` evidence and
+cannot qualify this new definition. Old failed installations remain paired with
+their original binaries; rebased qualification uses fresh fixtures. Include
+renewal settlement, exact original-handle recovery and terminal delivery in
+subsequent Queue measurements, distinguishing a returned descriptor from current
+lease liveness. No source identity or saved request is rewritten by the rebase.
 
 ## SDK validator initialization and captured-read recovery — 2026-11-02
 
