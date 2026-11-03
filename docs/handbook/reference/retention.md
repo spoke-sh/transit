@@ -80,6 +80,10 @@ steps; no background sweeper completes interrupted retirement. The successful
 creation receipt, head and immutable directory metadata remain inspectable after
 release. Physical collection separately checks all remaining data dependencies;
 retirement neither erases that evidence nor releases another branch's pin.
+An immutable fork owns an independent copy of its parent's exact retained cut.
+Parent retirement preserves that accepted child pin and the original ancestry
+metadata. Admission without an accepted pin copy does not hold the parent's data;
+such a pending child refuses if its parent retires before acquisition.
 
 The Stream storage component can expire one sealed prefix batch per call under
 an explicitly declared age. Trusted append time establishes eligibility; payload

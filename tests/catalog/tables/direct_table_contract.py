@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "5878ef33ff46fb5c71724e4c1dd87303c39988d6822c0c4ba58734bd6956c8f7"
+definition = "2e4a3b9bb0fef6545fe2c0983c0635bf2a9c140f6bad21dfbf510eb696aa79c0"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -277,6 +277,7 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
         "source": {"interpretation": source_definition, "manifest": None,
                    "checkpoint_lsn": 0, "accepted": {"partition": 9, "next_lsn": 2**64 - 1}},
         "mode": "full_data",
+        "parent": None,
     }
     branch_key = {"definition": definition, "connection": request_input["connection"],
                   "account": [19] * 32, "token": [23] * 16}
@@ -290,7 +291,11 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
                       "intent_digest": list(hashlib.sha256(b"transit.catalog.table-branch.v1\0" + canonical(branch_intent)).digest())}
     branch_head = {"reference": {"identity": {"scope": request_input["connection"]["scope"], "branch": 2**64 - 2},
                                  "version": 1, "content": {"bytes": 512, "sha256": [27] * 32}}, "generation": 1}
+    fork_create = copy.deepcopy(branch_input["action"]["branch"]["create"])
+    fork_create["intent"]["parent"] = branch_head
+    branch_fixture["fork_digest"] = list(hashlib.sha256(b"transit.catalog.table-branch.v1\0" + canonical(fork_create["intent"])).digest())
     for label, action in (
+        ("fork", {"create": fork_create}),
         ("retire", {"retire": {"key": branch_key, "expected": branch_head}}),
         ("list", {"list": {"namespace": 1, "after": {"catalog": {"partition": 9, "next_lsn": 2**64 - 1}, "namespace": 1, "after": 2**64 - 2}}}),
     ):
@@ -400,6 +405,7 @@ validator.validate(request)
 validator.validate(branch_request)
 validator.validate(branch_fixture["retire"])
 validator.validate(branch_fixture["list"])
+validator.validate(branch_fixture["fork"])
 for field in ("key", "expected"):
     incomplete = copy.deepcopy(branch_fixture["retire"])
     del incomplete["action"]["branch"]["retire"][field]
@@ -415,7 +421,7 @@ for field in ("key", "cut"):
     invalid_common = copy.deepcopy(common_request)
     del invalid_common["action"]["historical_catalog"]["acquire"]["intent"]["common"][field]
     assert not validator.is_valid(invalid_common), field
-for field in ("connection", "namespace", "operation", "name", "source", "mode"):
+for field in ("connection", "namespace", "operation", "name", "source", "mode", "parent"):
     invalid = copy.deepcopy(branch_request)
     del invalid["action"]["branch"]["create"]["intent"][field]
     assert not validator.is_valid(invalid), field

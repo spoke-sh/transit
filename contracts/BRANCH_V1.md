@@ -9,7 +9,7 @@ coverage and forward publication decisions. The `branch` group of the reflected
 
 These validators perform no I/O, authorization, retention, candidate computation
 or publication. The installed immutable single-Table profile below supplies a
-durable owner for creation, discovery, reads and retirement. Writable branches,
+durable owner for creation, immutable forks, discovery, reads and retirement. Writable branches,
 SQL commands, remote transfer and branch transaction participation remain unavailable. Ordinary
 direct Table and transaction operations continue to require branch one. An
 alleged reference, validation result or decision is not evidence that its owner
@@ -33,8 +33,25 @@ invented main-branch ancestry. Full-data reads retain the original rows and
 schema as the parent advances. Schema-only reads expose the original schema
 and zero rows; this initial profile conservatively retains the same source pin.
 
+`create` requires an explicit nullable `parent` head. Null selects the exact live
+Table frontier described above. A non-null parent forks an existing published
+immutable Table branch: `source` must equal that parent's retained source, and
+full-data inclusion requires a full-data parent. Schema-only omission cannot
+be converted into access to the parent's omitted rows. The parent belongs to
+the same original principal and scope; current source SELECT and namespace CREATE
+still apply. Its exact head is checked before admission and first pin acquisition.
+
+A fork copies the parent's retained pin into its own original operation without
+resampling the live Table or copying rows. Its `fork` manifest records the actual
+parent reference. After that independent pin is accepted, parent retirement
+cannot prevent recovery/publication or release the child's data. A lost pin-copy
+reply recovers the same copy after reopen. If the parent retires before the copy
+is accepted, advance refuses and the admitted child can be cancelled. Parent
+publication metadata remains retained for ancestry; reading a child does not
+recursively reopen ancestor pins. Forks are immutable and confer no write rights.
+
 `create` binds the original account/client token to the entire intent, including
-source, mode, namespace and name. A paged catalog directory reserves the name
+parent, source, mode, namespace and name. A paged catalog directory reserves the name
 and a nonreused branch ID derived from the catalog admission position. The
 operation is `admitted` before a head exists. A single catalog acceptance records
 both the immutable published head and the original operation's terminal result.
@@ -44,8 +61,8 @@ A changed intent cannot reuse the token.
 
 Loss of a pin or publication reply leaves the outcome uncertain. Inspect or
 advance the original token; never issue a fresh operation to resolve it.
-An acquired pin survives parent advancement and disk reopen. If the parent
-changes before pin acquisition, advance refuses the stale source without
+An acquired pin survives source Table advancement and disk reopen. For direct
+Table creation, if the Table changes before pin acquisition, advance refuses the stale source without
 substituting a newer cut; the admitted operation stays pending until cancelled.
 There is no background branch sweeper. `cancel` records `abandoning`, releases
 any original pin, then records `cancelled` and frees the name. Interrupted
@@ -92,7 +109,7 @@ Catalog directories and source pins participate in physical collection;
 published branches have unlimited retention until explicit retirement. Collection
 retains creation/retirement evidence, manifest, directory and entry metadata
 independently of live data pins; old publication history cannot resurrect a
-released pin. There is no write, fork, merge, restore, SQL adapter or whole-catalog
+released pin. There is no write, merge, restore, SQL adapter or whole-catalog
 inclusion operation in this profile. The bounded in-memory branch models do not
 extend this service.
 

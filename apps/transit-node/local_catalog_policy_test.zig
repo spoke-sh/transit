@@ -2289,7 +2289,7 @@ fn branchDispatch(service: *@import("LocalTableService.zig"), owner_role: u64) !
     const connection: w.Connection = .{ .scope = scope, .branch = 1, .audience = service.configuration.audience, .principal = 101, .role = null };
     const request: @FieldType(c.DirectBranch.Request, "create") = .{
         .key = .{ .definition = g.current_definition, .connection = connection, .account = @splat(90), .token = @splat(91) },
-        .intent = .{ .connection = connection, .namespace = 1, .operation = 100002, .name = try .init("trial"), .source = .{ .interpretation = definition.interpretation.interpretation, .manifest = null, .checkpoint_lsn = 0, .accepted = definition.position }, .mode = .full_data },
+        .intent = .{ .connection = connection, .namespace = 1, .operation = 100002, .name = try .init("trial"), .source = .{ .interpretation = definition.interpretation.interpretation, .manifest = null, .checkpoint_lsn = 0, .accepted = definition.position }, .mode = .full_data, .parent = null },
     };
     const published = try dispatch(service, .{ .branch = .{ .create = request } });
     defer published.deinit();
@@ -2299,15 +2299,19 @@ fn branchDispatch(service: *@import("LocalTableService.zig"), owner_role: u64) !
     empty_request.intent.operation += 1;
     empty_request.intent.name = try .init("empty_trial");
     empty_request.intent.mode = .schema_only;
-    // Pinning advances the physical frontier, so take the current source for
-    // the separate schema-only operation, not a fabricated later acceptance.
-    const after_pin = try dispatch(service, .{ .lookup = .{ .namespace = 1, .name = "branch_source" } });
-    defer after_pin.deinit();
-    empty_request.intent.source.accepted = after_pin.value.result.lookup.?.position;
+    empty_request.intent.parent = head;
     const empty = try dispatch(service, .{ .branch = .{ .create = empty_request } });
     defer empty.deinit();
     const empty_head = empty.value.result.branch.status.?.state.head.?;
     try branchInsert(service, 100004, "INSERT INTO branch_source VALUES (99)");
+    var child_request = request;
+    child_request.key.token = @splat(93);
+    child_request.intent.operation = 100005;
+    child_request.intent.name = try .init("child_trial");
+    child_request.intent.parent = head;
+    const child = try dispatch(service, .{ .branch = .{ .create = child_request } });
+    defer child.deinit();
+    const child_head = child.value.result.branch.status.?.state.head.?;
     const advanced = try dispatch(service, .{ .lookup = .{ .namespace = 1, .name = "branch_source" } });
     defer advanced.deinit();
     const flushed = try dispatch(service, .{ .flush = .{ .object = binding.target, .through = advanced.value.result.lookup.?.position } });
@@ -2384,6 +2388,7 @@ fn branchDispatch(service: *@import("LocalTableService.zig"), owner_role: u64) !
     for ([_]c.DirectBranch.Request{
         .{ .scan = .{ .head = head, .after = null, .limits = .{} } },
         .{ .scan = .{ .head = empty_head, .after = null, .limits = .{} } },
+        .{ .scan = .{ .head = child_head, .after = null, .limits = .{} } },
         .{ .source = head },
         .{ .list = .{ .namespace = 1, .after = null } },
     }) |read| {
@@ -2401,6 +2406,7 @@ fn branchDispatch(service: *@import("LocalTableService.zig"), owner_role: u64) !
     defer listing.deinit();
     try t.expectEqualDeep(head, listing.value.result.branch.listing.entries[0].?.head);
     try t.expectEqualDeep(empty_head, listing.value.result.branch.listing.entries[1].?.head);
+    try t.expectEqualDeep(child_head, listing.value.result.branch.listing.entries[2].?.head);
     try t.expect(listing.value.result.branch.listing.next == null);
     const retire: c.DirectBranch.Request = .{ .retire = .{ .key = request.key, .expected = head } };
     const retiring = try dispatch(service, .{ .branch = retire });
@@ -2423,10 +2429,21 @@ fn branchDispatch(service: *@import("LocalTableService.zig"), owner_role: u64) !
     const still_live = try c.DirectBranch.call(caller, .{ .source = empty_head });
     defer still_live.deinit();
     try t.expectEqual(0, still_live.value.result.branch.source.rows);
+    const child_source = try c.DirectBranch.call(caller, .{ .source = child_head });
+    defer child_source.deinit();
+    try t.expectEqual(3, child_source.value.result.branch.source.rows);
+    const child_rows = try c.DirectBranch.call(caller, .{ .scan = .{ .head = child_head, .after = null, .limits = .{} } });
+    defer child_rows.deinit();
+    try t.expectEqual(3, child_rows.value.result.branch.page.rows.len);
+    try t.expect(child_rows.value.result.branch.page.next == null);
+    const child_retry = try c.DirectBranch.call(caller, .{ .create = child_request });
+    defer child_retry.deinit();
+    try t.expectEqualDeep(child.value.result, child_retry.value.result);
     const remaining = try c.DirectBranch.call(caller, .{ .list = .{ .namespace = 1, .after = null } });
     defer remaining.deinit();
     try t.expectEqualDeep(empty_head, remaining.value.result.branch.listing.entries[0].?.head);
-    try t.expect(remaining.value.result.branch.listing.entries[1] == null);
+    try t.expectEqualDeep(child_head, remaining.value.result.branch.listing.entries[1].?.head);
+    try t.expect(remaining.value.result.branch.listing.entries[2] == null);
 }
 
 test "signed branch reads survive collection and fence buffered disclosure" {

@@ -500,7 +500,7 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             const head = state.head orelse return error.InvalidBranchState;
             const intent = value.progress.receipt.binding.intent.branch;
             const manifest = try s.BranchSnapshot.loadManifest(index.store, head.reference);
-            if (manifest.kind != .genesis or manifest.mode != intent.mode or !std.meta.eql(manifest.catalog, value.progress.receipt.position) or !std.meta.eql(manifest.retention_owner, intent.identity())) return error.InvalidBranchState;
+            try intent.validateManifest(manifest, value.progress.receipt.position);
             var directory = try s.BranchSnapshot.init(allocator, index.store, state.branch, intent.identity(), 1, 0, 1);
             defer directory.deinit();
             try directory.restore(manifest.objects);

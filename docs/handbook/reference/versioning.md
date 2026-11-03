@@ -108,8 +108,10 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`5878ef33ff46fb5c71724e4c1dd87303c39988d6822c0c4ba58734bd6956c8f7`.
-It binds non-delegated current snapshot pin capture under an explicit Table
+`2e4a3b9bb0fef6545fe2c0983c0635bf2a9c140f6bad21dfbf510eb696aa79c0`.
+It binds an explicit nullable parent head in immutable Table branch creation,
+independent retained-pin copying and accepted fork ancestry, as well as
+non-delegated current snapshot pin capture under an explicit Table
 interpretation and multi-row `DFP1` managed Table result pages (`sequence`,
 `first_ordinal`, `previous` and bounded `rows`) with per-page batched output
 staging. It also binds immutable-branch discovery and the persisted `retiring`/`retired`

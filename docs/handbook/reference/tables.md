@@ -50,23 +50,36 @@ the grant through admission, worker replacement and explicit pin cleanup.
 The direct Table service can create a named, read-only branch of one explicitly
 selected Table. Supply the exact definition and accepted position from Table
 lookup, a branch name, `full_data` or `schema_only`, and an original account/client
-token through the `DirectBranch.Request.create` action. The shared Zig caller uses
+token through the `DirectBranch.Request.create` action, with `parent: null`.
+The shared Zig caller uses
 `DirectBranch.call(client, request)` and the existing signed `/table/v1` endpoint.
 SQL branch commands and additional language convenience wrappers are unavailable.
 
+To fork an existing immutable branch, supply its exact published head as `parent`
+and its retained `source`, with a fresh name and original token. The owner copies
+that retained pin into independent ownership and records the actual parent in the
+child manifest. It does not resample the live Table. A full-data fork requires a
+full-data parent; either kind can produce a schema-only child. Every child remains
+read-only and requires the original principal's current source rights.
+
 Inspect the original token to observe `admitted`, `published`, `abandoning`,
 `cancelled`, `retiring` or `retired`. A published head identifies immutable schema
-and data, including rows accepted before flushing. Parent writes and later
+and data, including rows accepted before flushing. Source Table writes and later
 physical collection do not change its rows. Use `source` to inspect schema and `scan` to read bounded
 pages; retain each response until its bytes have been consumed. Complete coverage
 requires the original cursor sequence and its terminal row count.
 
-After an uncertain reply, inspect or advance the same token. If the parent
-advanced before pin acquisition, cancel the pending operation and deliberately
+After an uncertain reply, inspect or advance the same token. For `parent: null`,
+if the Table advanced before pin acquisition, cancel the pending operation and deliberately
 choose a fresh source for new work. Cancellation releases unpublished preparation
 before freeing its name; it cannot remove a published branch. Published branches
 have unlimited retention. Schema-only branches return zero rows but currently
 retain the full source pin as well as its schema.
+
+A fork can recover its accepted pin copy after the parent retires, including
+when the copy's reply was lost. If retirement happens before the copy is accepted,
+advance refuses; cancel that pending child rather than substituting another head.
+Retiring a parent never releases an accepted child's independent pin.
 
 Use `list` with a namespace to discover your published branches under current
 source access. Pages examine at most eight branch IDs and can be empty with a

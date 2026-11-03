@@ -848,6 +848,27 @@ those runs. Publish supported profiles and remaining limits in the public owners
 then update milestone/index status together. A local Table-only release still
 leaves multi-model, remote and execution-profile gates open.
 
+## Immutable Table forks — 2026-11-02
+
+The installed `DirectBranch.create` intent now distinguishes direct Table
+genesis (`parent: null`) from an immutable fork of an exact published head.
+Forks copy the selected parent's retained pin into an independent original
+operation and persist its actual manifest ancestry. No current Table frontier
+substitutes for the parent cut. Accepted copies recover after parent retirement;
+admission without a copy refuses once the parent becomes unavailable. A
+schema-only parent cannot produce a full-data child.
+
+This extends R1/R2/R8 with actual child retention and ancestry through the
+existing native owner. It leaves common catalog cuts, writable histories,
+independent readers, background recovery, diff/merge and forward restore open.
+The [branch contract](../../contracts/BRANCH_V1.md#installed-immutable-table-branches)
+owns the current supported profile; the publication boundary above remains
+required before writable branches. Milestone 20 stays **In Progress**.
+
+The [fork qualification record](../history/qualification/catalog.md#immutable-table-forks--2026-11-02)
+records the disk recovery, ancestry, repeated physical collection and clean
+formal checks, with exact sources and incomplete attempts kept distinct.
+
 ## Immutable branch discovery and retirement — 2026-11-02
 
 This extension of the installed single-Table profile adds bounded `list` and

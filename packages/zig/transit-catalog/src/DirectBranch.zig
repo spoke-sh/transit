@@ -15,6 +15,7 @@ pub const Intent = struct {
     name: c.TableAuthority.Name,
     source: d.SourceCut,
     mode: p.Branch.Mode,
+    parent: ?p.Branch.Head,
 
     pub fn identity(self: Intent) d.Operation {
         return .{ .scope = self.connection.scope, .principal = self.connection.principal, .operation = self.operation };
@@ -26,7 +27,18 @@ pub const Intent = struct {
         try self.name.validate();
         try self.source.validate();
         try self.connection.object(self.source.interpretation.object);
+        if (self.parent) |head| {
+            try head.validate();
+            try head.reference.identity.requireScope(self.connection.scope);
+        }
         if (self.source.manifest != null or self.source.checkpoint_lsn != 0 or self.source.accepted.next_lsn == 0) return error.InvalidBranchCreation;
+    }
+    pub fn validateManifest(self: Intent, manifest: p.Branch.Manifest, catalog: d.Position) !void {
+        try manifest.validate();
+        const parent: ?p.Branch.Reference = if (self.parent) |head| head.reference else null;
+        if (manifest.kind != (if (parent != null) p.Branch.Kind.fork else .genesis) or
+            !std.meta.eql(manifest.parent, parent) or manifest.mode != self.mode or
+            !std.meta.eql(manifest.catalog, catalog) or !std.meta.eql(manifest.retention_owner, self.identity())) return error.InvalidBranchState;
     }
     pub fn digest(self: Intent) ![32]u8 {
         try self.validate();
@@ -211,7 +223,7 @@ pub const Result = union(enum) { status: ?Status, source: Source, page: Page, li
 /// rows/schema have been consumed, then deinit; a page is not a whole result.
 pub fn call(client: c.DirectTableClient, request: Request) !std.json.Parsed(w.Response) {
     return client.call(.{ .branch = request }) catch |err| {
-        if ((request == .source or request == .scan) and err == error.Conflict and client.service.last_rejection == .QueryExpired) return error.BranchRetired;
+        if ((request == .source or request == .scan or (request == .create and request.create.intent.parent != null)) and err == error.Conflict and client.service.last_rejection == .QueryExpired) return error.BranchRetired;
         return err;
     };
 }
@@ -311,7 +323,7 @@ pub fn validateResult(allocator: std.mem.Allocator, connection: w.Connection, re
 }
 
 test "direct branch independent signature binds exact full-width source and mode" {
-    const Fixture = struct { request: w.Request, retire: w.Request, list: w.Request, public_key: [32]u8, intent_digest: [32]u8 };
+    const Fixture = struct { request: w.Request, fork: w.Request, fork_digest: [32]u8, retire: w.Request, list: w.Request, public_key: [32]u8, intent_digest: [32]u8 };
     const parsed = try p.Json.parseFromSlice(Fixture, std.testing.allocator, @embedFile("fixtures/direct-branch-v1.json"));
     defer parsed.deinit();
     const fixture = parsed.value;
@@ -325,6 +337,12 @@ test "direct branch independent signature binds exact full-width source and mode
     try fixture.retire.proof.verify(fixture.public_key);
     try fixture.list.validate(std.testing.allocator);
     try fixture.list.proof.verify(fixture.public_key);
+    try fixture.fork.validate(std.testing.allocator);
+    try fixture.fork.proof.verify(fixture.public_key);
+    try std.testing.expectEqualSlices(u8, &fixture.fork_digest, &try fixture.fork.action.branch.create.intent.digest());
+    changed = fixture.fork;
+    changed.action.branch.create.intent.parent.?.generation += 1;
+    try std.testing.expectError(error.InvalidAuthorizationCredential, changed.validate(std.testing.allocator));
     changed = fixture.retire;
     changed.action.branch.retire.expected.generation += 1;
     try std.testing.expectError(error.InvalidAuthorizationCredential, changed.validate(std.testing.allocator));

@@ -5562,13 +5562,24 @@ fn prepareBranchAdmission(self: *Self, intent: c.DirectBranch.Intent, policy: Po
     defer scratch.deinit();
     try check(try self.branchGuard(scratch.allocator(), intent, policy, true));
     if (try self.store.tree().get(self.store.root.branch_names, try r.nameKey(intent.namespace, intent.name)) != null) return error.BranchNameConflict;
+    if (intent.parent != null) _ = try self.branchParent(scratch.allocator(), intent, policy);
     var access = try self.snapshotAccess(scratch.allocator(), intent.source.interpretation.object, intent.identity(), policy, false);
     defer access.view.deinit();
     const root = access.view.table.root;
-    if (root.retired or root.transaction != null or !std.meta.eql(root.interpretation, intent.source.interpretation) or
-        root.partition != intent.source.accepted.partition or root.next_lsn != intent.source.accepted.next_lsn) return error.BranchSourceChanged;
+    if (intent.parent == null and (root.retired or root.transaction != null or !std.meta.eql(root.interpretation, intent.source.interpretation) or
+        root.partition != intent.source.accepted.partition or root.next_lsn != intent.source.accepted.next_lsn)) return error.BranchSourceChanged;
     // An unrelated pin using this identity cannot be adopted as branch work.
     if ((try access.view.table.pinState(intent.identity(), access.current)).handle != null) return error.DataIdentityConflict;
+}
+
+/// First acquisition requires the exact live parent. Once the child has its own
+/// accepted copy, recovery uses that pin without reopening a retired ancestor.
+fn branchParent(self: *Self, scratch: std.mem.Allocator, intent: c.DirectBranch.Intent, policy: Policy) !s.BranchSnapshot.Entry {
+    var parent = try self.openBranch(scratch, intent.parent orelse return error.InvalidBranchCreation, policy);
+    defer parent.deinit();
+    if (!std.meta.eql(parent.entry.source, intent.source)) return error.BranchSourceChanged;
+    if (parent.mode == .schema_only and intent.mode == .full_data) return error.InvalidBranchCreation;
+    return parent.entry;
 }
 
 fn requireUnreservedBranchPin(self: *Self, object: d.Object, owner: d.Operation) !void {
@@ -5646,6 +5657,9 @@ pub fn advanceBranch(self: *Self, key: c.DirectClientToken.Key, cancel_requested
     const pin = if (pin_state.handle) |pin| blk: {
         if (pin_state.released) return error.TableSnapshotReleased;
         break :blk pin;
+    } else if (intent.parent != null) blk: {
+        const parent = try self.branchParent(scratch.allocator(), intent, policy);
+        break :blk try access.view.table.copySnapshot(intent.identity(), parent.pin, fenced.guard());
     } else try access.view.table.pin(intent.identity(), intent.source.accepted, fenced.guard());
     var frozen = try access.view.table.inspectSnapshot(self.allocator, pin, fenced.guard());
     defer frozen.deinit();
@@ -5658,14 +5672,14 @@ pub fn advanceBranch(self: *Self, key: c.DirectClientToken.Key, cancel_requested
         .definition = p.Growth.current_definition,
         .identity = state.branch,
         .version = 1,
-        // An explicit single-Table projection has no claim to a complete main
-        // branch history. Its genesis retains the exact source attribution.
-        .kind = .genesis,
+        // A direct Table projection is genesis; only an accepted parent head
+        // supplies fork ancestry. Neither claims a complete catalog cut.
+        .kind = if (intent.parent != null) .fork else .genesis,
         .mode = intent.mode,
         .catalog = progress.receipt.position,
         .objects = try directory.seal(),
         .retention_owner = intent.identity(),
-        .parent = null,
+        .parent = if (intent.parent) |parent| parent.reference else null,
         .merge_parent = null,
         .restored_from = null,
     });
@@ -5781,7 +5795,7 @@ pub fn openBranch(self: *Self, scratch: std.mem.Allocator, head: p.Branch.Head, 
     try (observed.state.head orelse return error.BranchNotPublished).requireSame(head);
     if (observed.state.phase != .published) return error.BranchRetired;
     const manifest = try s.BranchSnapshot.loadManifest(self.data_objects, head.reference);
-    if (manifest.kind != .genesis or manifest.mode != intent.mode or !std.meta.eql(manifest.catalog, progress.receipt.position) or !std.meta.eql(manifest.retention_owner, intent.identity())) return error.InvalidBranchState;
+    try intent.validateManifest(manifest, progress.receipt.position);
     var directory = try s.BranchSnapshot.init(self.allocator, self.data_objects, observed.state.branch, intent.identity(), 1, self.options.resident_pages, self.options.index_work_bytes);
     defer directory.deinit();
     try directory.restore(manifest.objects);

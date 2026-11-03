@@ -66,6 +66,105 @@ and it is not counted as passed. The previous clean storage/query run at
 record in `.cache/m10-resume/pr-clean-storage-query-interruption.json`. That run
 remains incomplete, not evidence of a diagnosed catalog failure or a lane pass.
 
+## Immutable Table forks — 2026-11-02
+
+This experiment asks whether an immutable child retains its parent's exact Table
+cut independently through source evolution, lost replies, parent retirement,
+disk reopen and physical collection. Current semantics belong to the
+[branch contract](../../../contracts/BRANCH_V1.md#installed-immutable-table-branches)
+and [Table reference](../../handbook/reference/tables.md). Implementation
+`5c401cc5c6fe` is based on `5061abd6f431` and uses definition
+`4aa56d2f2fb9ca8bcb666dd6bf01634978ab88a94f05e215536d64c9724b763f`.
+The pinned Nix shell supplies Zig `0.17.0-dev.2267+48abf1a34`.
+
+The initial `transit-catalog` run with `-Dtest-filter="direct branch"`
+passes 14 tests. After strengthening the fork schedules with live schema
+evolution and grandchild ancestry, the final `-Dtest-filter="direct branch fork"`
+run passes all eight selected tests. The disk schedule retains thirteen
+unflushed rows and the original schema after the live Table gains a row and a
+nonnullable defaulted column. It loses the child pin-copy reply, retires the
+parent, reopens both stores, denies and restores current CREATE, loses the
+publication reply, and recovers the same receipt and copied pin. Bounded reads
+match independently expected row values. A grandchild survives child retirement,
+and bounded ancestry resolves the actual child reference after both ancestors
+retire. Refusal/cancellation cases cover changed parent identity, stale heads,
+source substitution, schema-only inclusion, current SELECT, retirement before
+first copy and cleanup that releases only the child's preparation.
+
+At committed `e3f3e8d689bc`, `zig build transit-node test-local-catalog
+-Dlocal-catalog-filter=branch -Doptimize=ReleaseSafe -j2 --summary all` passes
+all three tests. Signed and typed dispatch each complete three physical
+collection passes: 492, 5,874 and 7,016 bounded steps, reclaiming 1, 2,063 and
+1 confirmed allocations respectively. After parent retirement and repeated
+reclamation, the full-data child returns its retained three-row terminal page,
+the schema-only child remains empty, and exact retries preserve both original
+creation receipts. Current authorization rejects buffered child disclosure.
+`service-resumed.json` records the clean worktree source, exact command, exit
+zero and log hash; `service-resumed.log` reports 42 minutes of test execution
+and 43M maximum RSS. This is local disk correctness evidence, not a latency
+measurement or a clean-clone integration lane.
+
+Dependent checks pass: 123 protocol tests, 28 SQL protocol tests, 20 contract
+checks, 66 fast checks, Board checks and the documentation production build.
+Diagnostic execution passes 3,773 projections across 24 surfaces and 680
+compiler cases with 1,013 grammar obligations. Clean fast and contract checks
+also pass at committed `5c401cc5c6fe`, with archives
+`.cache/ci/clean/5c401cc5c6fe-transit-ci-r2qh8der/` and
+`.cache/ci/clean/5c401cc5c6fe-transit-ci-8sylktgp/`.
+Integration through `7cd4b5ae515e` includes main `444cd1e85`; the Document
+fixture is regenerated for the new definition. All 66 fast and 20 contract
+checks pass again, and protocol tests reuse their passing unchanged inputs.
+The clean formal lane passes all 15 tasks at `7cd4b5ae515e`, including its
+negative controls; its source-attributed archive is
+`.cache/ci/clean/7cd4b5ae515e-transit-ci-dv25rfvw/`. These finite models do not
+establish implementation refinement or physical power-loss behavior.
+
+After integrating main `0cfa0cec0` at `e3f3e8d689bc`, all 66 fast checks,
+20 contract checks and the documentation production build pass again.
+`integration-final.json` and `docs-final.json` record that source, each exact
+command, completion and a SHA-256 commitment to its log.
+The complete selected `direct branch` package suite is also rerun in
+ReleaseSafe at that committed source: all 14 tests pass, including the final
+fork assertions. `catalog-resumed.json` records the command and log commitment;
+the test execution takes 42 seconds with 24 MiB maximum reported RSS.
+All 15 formal tasks also pass in a clean checkout of `e3f3e8d689bc`, archived
+under `.cache/ci/clean/e3f3e8d689bc-transit-ci-u5l0bzn4/` and summarized by
+`clean-formal-final.json`.
+
+The initial focused runtime checks started from the modified worktree before its
+implementation commit; they are not clean-lane qualification. Raw logs and
+`source.json`/`source.diff` remain locally under
+`.cache/verification/m20-branch-forks/`; the captured diff has SHA-256
+`720095fdc536038c109dfcd369c4b132fce9d11da37469a2cb39d62dc393dbd3`.
+Later precommit edits change contract wording only. Clean-check archives have
+their own committed-source provenance.
+
+An initial fast run used scratch beneath the Git worktree, causing temporary
+fixture repositories to inherit the outer repository's empty tracked-file
+selection. Moving scratch to `/var/tmp/transit-m20-forks-0223` resolves those
+three import-discovery failures without changing the tests. The initial Debug
+service attempt was interrupted and replaced by ReleaseSafe. That first
+ReleaseSafe tool session subsequently ended without a result; both attempts
+are incomplete. The service restart records its command, committed source,
+completion and log hash independently of the conversation session.
+An integration-check invocation used an invalid Just recipe combination; the
+corrected owning recipes pass. None of these earlier attempts is counted as
+passing.
+
+The older clean core, storage-query and SDK-conformance runs at
+`c67f9b6010a4` were interrupted after that branch merged, before restarting
+qualification for this cutover. Their local logs remain under
+`.cache/verification/m20-branch-lifecycle/`; none completed. The merged
+branch's [hosted SDK-conformance job](https://github.com/spoke-sh/transit/actions/runs/41563837731/job/125684487352)
+also failed during Rust compilation with `No space left on device`, before
+conformance completed. That failure does not qualify this replacement.
+
+These checks cover immutable single-Table forks and local process/disk recovery.
+They do not establish writable branch isolation, common multi-Table cuts,
+independent read holds, diff/merge, forward restore, remote ownership, power-loss
+safety or full clean integration. Remaining work stays in
+[Milestone 20](../../roadmap/20-branches-merges-and-restore.md#immutable-table-forks--2026-11-02).
+
 ## Integrated standards ledger and retained collation cuts — 2026-11-02
 
 This increment checks whether the integrated capability claims have executable

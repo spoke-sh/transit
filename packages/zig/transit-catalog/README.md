@@ -222,6 +222,10 @@ Cancellation durably releases unpublished preparation. Bounded `list` calls
 discover the caller's published branches under current source rights. Explicit
 `retire` first makes a branch unavailable, then resumably releases its original
 pin; it preserves the successful creation receipt and never reuses the branch ID.
+Creation with an exact `parent` head forks its retained cut through an independent
+pin copy and records real ancestry. Parent retirement cannot release an accepted
+child copy. Schema-only parents cannot produce full-data children; all forks
+remain immutable and use current source authorization.
 See the [installed branch contract](../../../contracts/BRANCH_V1.md#installed-immutable-table-branches)
 for recovery, retention, caller ownership and profile limits.
 

@@ -4430,7 +4430,7 @@
         "InvalidBranchCreation": 1,
         "InvalidBranchCursor": 1,
         "InvalidBranchResponse": 20,
-        "InvalidBranchState": 10,
+        "InvalidBranchState": 11,
         "InvalidTableReadBudget": 1
       },
       "outcomes": {
@@ -4465,6 +4465,7 @@
         "Cursor.validate()": "<inferred>",
         "Intent.digest()": "<inferred>",
         "Intent.validate()": "<inferred>",
+        "Intent.validateManifest()": "<inferred>",
         "Request.validate()": "<inferred>",
         "State.load()": "<inferred>",
         "State.stage()": "<inferred>",
@@ -4475,7 +4476,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 62,
+        "try": 65,
         "catch": 1
       },
       "imports": [
@@ -4559,7 +4560,7 @@
         "BranchOperationRequired": 4,
         "BranchRetentionOwned": 1,
         "BranchRetired": 1,
-        "BranchSourceChanged": 2,
+        "BranchSourceChanged": 3,
         "CatalogDenied": 83,
         "CatalogDependencyOwned": 1,
         "CatalogHistoryMissing": 1,
@@ -4611,7 +4612,8 @@
         "IncompleteDataflowCoverage": 1,
         "IncompleteHistoricalSelection": 4,
         "IncompleteTransactionCut": 3,
-        "InvalidBranchState": 7,
+        "InvalidBranchCreation": 2,
+        "InvalidBranchState": 6,
         "InvalidCatalogConfiguration": 1,
         "InvalidCatalogCursor": 3,
         "InvalidCatalogDependency": 11,
@@ -4797,6 +4799,7 @@
         "beginTransaction()": "<inferred>",
         "beginTransactionBounded()": "<inferred>",
         "branchGuard()": "<inferred>",
+        "branchParent()": "<inferred>",
         "branchProgress()": "<inferred>",
         "branchStatus()": "<inferred>",
         "cancel()": "<inferred>",
@@ -5047,7 +5050,7 @@
       },
       "open_error_set_uses": 11,
       "propagation": {
-        "try": 2258,
+        "try": 2263,
         "catch": 30
       },
       "imports": [
@@ -7326,7 +7329,7 @@
         "DocumentHistoryUnavailable": 3,
         "DocumentStateObjectMissing": 1,
         "IncompleteBranchDirectory": 2,
-        "InvalidBranchState": 3,
+        "InvalidBranchState": 2,
         "InvalidCatalogDescriptor": 1,
         "InvalidClientToken": 2,
         "InvalidDataIndexObject": 1,
@@ -7475,7 +7478,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 594,
+        "try": 595,
         "catch": 1
       },
       "imports": [
@@ -23114,7 +23117,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"5878ef33ff46fb5c71724e4c1dd87303c39988d6822c0c4ba58734bd6956c8f7\""
+          "@\"2e4a3b9bb0fef6545fe2c0983c0635bf2a9c140f6bad21dfbf510eb696aa79c0\""
         ],
         "Effect.phase": [
           "pending",
