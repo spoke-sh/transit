@@ -609,7 +609,7 @@ jobs:
       - uses: Homebrew/actions/setup-homebrew@ae72030040bc05e2d65c41c577092cb98bc0a27e
       - uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
       - name: Build the private host operation driver for Board profile provisioning
-        run: nix develop .#release-checks --command zig build test-operation-fixture -Dtarget=x86_64-linux-musl -Dcpu=baseline -Doptimize=ReleaseSafe -Dsdk-examples=false -j2
+        run: nix develop .#release-checks --command zig build test-operation-fixture -Dtarget=${{ matrix.architecture }}-linux-musl -Dcpu=baseline -Doptimize=ReleaseSafe -Dsdk-examples=false -j2
       - name: Install the exact formula with its checksummed candidate archive
         env:
           HOMEBREW_NO_AUTO_UPDATE: '1'
