@@ -149,20 +149,21 @@ def main():
         for source in sources:
             expected = list(json_events(json.loads(source, object_pairs_hook=Pairs, parse_int=Number, parse_float=Number))) if family == "json" else xml_events(source)
             for chunk in (1, 3, 17, 8192):
-                status, events = invoke(binary, family, source, chunk)
-                assert status == "complete", (family, source, status)
-                actual = [event[:4] for event in events]
-                assert (actual if family == "json" else coalesce(actual)) == expected, (family, source, actual, expected)
-                if family == "json":
-                    for kind, value, _, _, start, end in events:
-                        raw = source[start:end]
-                        if kind in ("key", "string"):
-                            assert json.loads(raw) == value, (source, start, end, value)
-                        elif kind in ("number", "boolean", "null_value"):
-                            assert raw.decode() == value
-                        else:
-                            assert raw == {"object_start": b"{", "object_end": b"}", "array_start": b"[", "array_end": b"]"}[kind]
-                schedules += 1
+                for mode in (family, f"{family}-candidate"):
+                    status, events = invoke(binary, mode, source, chunk)
+                    assert status == "complete", (mode, source, status)
+                    actual = [event[:4] for event in events]
+                    assert (actual if family == "json" else coalesce(actual)) == expected, (mode, source, actual, expected)
+                    if family == "json":
+                        for kind, value, _, _, start, end in events:
+                            raw = source[start:end]
+                            if kind in ("key", "string"):
+                                assert json.loads(raw) == value, (source, start, end, value)
+                            elif kind in ("number", "boolean", "null_value"):
+                                assert raw.decode() == value
+                            else:
+                                assert raw == {"object_start": b"{", "object_end": b"}", "array_start": b"[", "array_end": b"]"}[kind]
+                    schedules += 1
     constructed = 0
     for source in json_sources:
         expected = list(json_events(json.loads(source, object_pairs_hook=Pairs, parse_int=Number, parse_float=Number)))
@@ -201,9 +202,10 @@ def main():
             else:
                 raise AssertionError(("bad independent negative", family, source))
             for chunk in (1, 8192):
-                status, _ = invoke(binary, family, source, chunk)
-                assert status.startswith("error\t"), (family, source, status)
-                schedules += 1
+                for mode in (family, f"{family}-candidate"):
+                    status, _ = invoke(binary, mode, source, chunk)
+                    assert status.startswith("error\t"), (mode, source, status)
+                    schedules += 1
                 assert serialize(binary, source, chunk, family) is None, source
     # Mutate a deterministic subset; oracle-invalid bytes must never complete.
     # Valid mutations are covered by the value/order corpus above, avoiding a
@@ -222,14 +224,15 @@ def main():
                 json.loads(source) if family == "json" else expat.ParserCreate().Parse(source, True)
             except (ValueError, expat.ExpatError):
                 for chunk in (1, 8192):
-                    status, _ = invoke(binary, family, source, chunk)
-                    assert status.startswith("error\t"), (family, source, status)
+                    for mode in (family, f"{family}-candidate"):
+                        status, _ = invoke(binary, mode, source, chunk)
+                        assert status.startswith("error\t"), (mode, source, status)
+                        schedules += 1
                     assert serialize(binary, source, chunk, family) is None, source
-                    schedules += 1
                 invalid_mutations += 1
     assert invalid_mutations >= 300, invalid_mutations
     print(f"Document construction: {constructed} JSON and {xml_constructed} XML independent round trips and byte commitments passed")
-    print(f"Document profiles: {schedules} independent JSON/Expat chunk schedules, values, order, provenance and malformed-frame refusals passed")
+    print(f"Document profiles: {schedules} independent JSON/Expat reader/candidate schedules, values, order, provenance and malformed-frame refusals passed")
 
 
 if __name__ == "__main__":

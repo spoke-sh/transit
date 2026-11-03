@@ -41,6 +41,23 @@ pub fn require(value: contract.Descriptor, format: contract.Format) !void {
     if (!std.meta.eql(value, expected)) return error.UnsupportedDocumentProfile;
 }
 
+/// Report only the exact implemented offline interpretation. A resealed but
+/// unsupported descriptor cannot inherit capabilities from its format name.
+pub fn capabilities(value: contract.Descriptor) !contract.Capabilities {
+    try require(value, value.format);
+    return .{ .descriptor = value, .operations = .{
+        .parse = true,
+        .construct = true,
+        .validate_schema = false,
+        .edit = false,
+        .persist = false,
+        .query = false,
+        .search = false,
+        .branch = false,
+        .live_transport = false,
+    } };
+}
+
 pub const Budget = struct {
     limits: contract.Limits,
     offset: u64 = 0,

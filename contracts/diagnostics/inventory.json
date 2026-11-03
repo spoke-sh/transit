@@ -11670,6 +11670,66 @@
         "transit_sql_client"
       ]
     },
+    "packages/zig/transit-document-profiles/src/Candidate.zig": {
+      "errors": {
+        "DocumentCandidateCancelled": 1,
+        "DocumentCandidateConflict": 2,
+        "DocumentCandidateFailed": 1,
+        "DocumentCandidateNoEvent": 1,
+        "DocumentNodeLimitExceeded": 1,
+        "DocumentParserComplete": 1,
+        "IncompleteDocumentFrame": 1,
+        "InvalidDocumentWorkBudget": 1,
+        "UnsupportedDocumentCandidateSource": 1
+      },
+      "outcomes": {
+        "Offered": [
+          "consumed",
+          "blocked"
+        ],
+        "PumpStep.result": [
+          "progress",
+          "blocked",
+          "need_input",
+          "yield",
+          "verified"
+        ],
+        "Step.result": [
+          "event",
+          "need_input",
+          "yield",
+          "verified"
+        ],
+        "state": [
+          "reading",
+          "verified",
+          "failed",
+          "cancelled"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "advance()": "<inferred>",
+        "consume()": "<inferred>",
+        "init()": "<inferred>",
+        "next()": "<inferred>",
+        "pump()": "<inferred>",
+        "requireUsable()": "<inferred>",
+        "verifiedBinding()": "<inferred>",
+        "verifiedPart()": "<inferred>"
+      },
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 15,
+        "catch": 3
+      },
+      "imports": [
+        "Event.zig",
+        "Profile.zig",
+        "Reader.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-document-profiles/src/Container.zig": {
       "errors": {
         "DocumentContainerComplete": 1,
@@ -11929,12 +11989,13 @@
         "Budget.consume()": "<inferred>",
         "Budget.node()": "<inferred>",
         "Budget.output()": "<inferred>",
+        "capabilities()": "<inferred>",
         "descriptor()": "<inferred>",
         "require()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 3,
+        "try": 4,
         "catch": 0
       },
       "imports": [
@@ -12159,6 +12220,7 @@
         "catch": 0
       },
       "imports": [
+        "Candidate.zig",
         "Container.zig",
         "Event.zig",
         "Json.zig",
@@ -22575,7 +22637,7 @@
     },
     "packages/zig/transit-protocol/src/DocumentProfile.zig": {
       "errors": {
-        "DocumentProfileConflict": 1,
+        "DocumentProfileConflict": 2,
         "DocumentProfileCoverageGap": 1,
         "DocumentProfilePartConflict": 1,
         "DocumentProfileSpanConflict": 1,
@@ -22584,9 +22646,21 @@
         "InvalidDocumentProfileLimits": 1,
         "InvalidDocumentProfilePart": 1,
         "InvalidDocumentProfileSpan": 1,
-        "InvalidDocumentProfileValidation": 1
+        "InvalidDocumentProfileValidation": 1,
+        "UnsupportedDocumentProfileCapability": 1
       },
       "outcomes": {
+        "Capability": [
+          "parse",
+          "construct",
+          "validate_schema",
+          "edit",
+          "persist",
+          "query",
+          "search",
+          "branch",
+          "live_transport"
+        ],
         "Capture": [
           "preparing",
           "ready",
@@ -22665,6 +22739,7 @@
       },
       "error_sets": {},
       "error_returns": {
+        "Capabilities.require()": "<inferred>",
         "Descriptor.sealed()": "<inferred>",
         "Descriptor.validate()": "<inferred>",
         "Descriptor.validateFields()": "<inferred>",
@@ -22678,11 +22753,37 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 13,
+        "try": 15,
         "catch": 0
       },
       "imports": [
+        "DocumentProfileCandidate.zig",
         "DocumentProfileContainer.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-protocol/src/DocumentProfileCandidate.zig": {
+      "errors": {
+        "DocumentCandidateConflict": 3,
+        "DocumentProfileContainerLimitExceeded": 1,
+        "IncompatibleDefinition": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Binding.requireSame()": "<inferred>",
+        "Binding.sealed()": "<inferred>",
+        "Binding.validate()": "<inferred>",
+        "Binding.validateFields()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 9,
+        "catch": 0
+      },
+      "imports": [
+        "DocumentProfile.zig",
         "root.zig",
         "std"
       ]

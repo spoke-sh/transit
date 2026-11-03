@@ -111,6 +111,47 @@ def container_commitment(profile, root, parts, relationships):
     return list(hashlib.sha256(out).digest())
 
 
+def candidate_commitment(value):
+    out = bytearray(b'transit.document.candidate.v1\0')
+    out.extend(bytes.fromhex(value['definition']))
+
+    def number(item):
+        out.extend(struct.pack('>Q', item))
+
+    def target(item):
+        partition = item['partition']
+        interpretation = partition['interpretation']
+        obj = interpretation['object']
+        out.extend(bytes.fromhex(partition['definition']))
+        for field in (obj['scope']['realm'], obj['scope']['resource'], obj['scope']['catalog'],
+                      obj['branch'], obj['object'], interpretation['revision']):
+            number(field)
+        out.extend(interpretation['digest'])
+        number(partition['partition'])
+        out.extend(item['document'])
+
+    target(value['target'])
+    operation = value['operation']
+    for item in (operation['scope']['realm'], operation['scope']['resource'],
+                 operation['scope']['catalog'], operation['principal'], operation['operation']):
+        number(item)
+    base = value['base']
+    out.append(int(base is not None))
+    if base is not None:
+        target(base['target'])
+        number(base['revision'])
+        out.extend(base['manifest'])
+    out.extend(value['interpretation']['digest'])
+    source = value['source']
+    out.extend(bytes.fromhex(source['definition']))
+    out.extend(source['profile'])
+    for field in ('root', 'parts', 'relationships', 'retained_bytes',
+                  'complete_parts', 'redacted_parts', 'prefix_parts'):
+        number(source[field])
+    out.extend(source['digest'])
+    return list(hashlib.sha256(out).digest())
+
+
 def fixture():
     current = json.loads((ROOT / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition']
     grammar = b'JSON scalar/event corpus: UTF-8; ordered duplicate keys; exact number lexemes'
@@ -155,6 +196,14 @@ def fixture():
                                  parts=3, relationships=2, retained_bytes=6, complete_parts=1,
                                  redacted_parts=1, prefix_parts=1,
                                  digest=container_commitment(descriptor['digest'], 0, parts, relationships)))
+    result['capabilities'] = dict(descriptor=copy.deepcopy(descriptor), operations=dict(
+        parse=True, construct=True, validate_schema=False, edit=False, persist=False,
+        query=False, search=False, branch=False, live_transport=False))
+    result['candidate'] = dict(definition=current, target=copy.deepcopy(reference['revision']['target']),
+        operation=dict(scope=copy.deepcopy(reference['revision']['target']['partition']['interpretation']['object']['scope']),
+                       principal=11, operation=2**64-1), base=copy.deepcopy(reference['revision']),
+        interpretation=copy.deepcopy(descriptor), source=copy.deepcopy(result['container']), digest=[0]*32)
+    result['candidate']['digest'] = candidate_commitment(result['candidate'])
     return result
 
 
@@ -180,7 +229,7 @@ def main():
     assert actual == SCHEMA.read_bytes(), 'Document profile schema drift: run just contract::generate'
     assert json.loads(FIXTURE.read_text()) == expected, 'Document profile fixture drift'
     assert json.loads(CONTAINER_FIXTURE.read_text()) == container, 'Document container fixture drift'
-    for owner in ('descriptor', 'part', 'container'):
+    for owner in ('descriptor', 'part', 'container', 'candidate'):
         for definition in (None, '0'*64, '0'):
             changed = copy.deepcopy(expected)
             if definition is None:
