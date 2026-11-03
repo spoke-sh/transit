@@ -2779,10 +2779,6 @@
           "code": "inspection.invalid_cursor",
           "category": "binding"
         },
-        "InvalidHistoricalCursor": {
-          "code": "inspection.invalid_cursor",
-          "category": "binding"
-        },
         "QueryRequestTooLarge": {
           "code": "inspection.request_too_large",
           "category": "limit"
