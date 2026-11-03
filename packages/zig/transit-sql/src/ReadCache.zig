@@ -110,7 +110,7 @@ fn write(self: *Self, client: c.DirectTableClient, state: c.DirectClientToken.Pr
     };
 }
 fn release(client: c.DirectTableClient, record: Record) !void {
-    try client.closeOriginalPin(record.table.interpretation.interpretation.object, record.owner(), record.expected, record.handle);
+    try client.closeOriginalCapture(record.table.interpretation.interpretation, record.owner(), record.expected, record.handle);
 }
 /// Observe a durable recovery slot without creating it or acquiring a pin.
 pub fn inspect(self: *Self, client: c.DirectTableClient, index: usize) !?Record {
@@ -169,64 +169,36 @@ pub fn acquireCurrentWithMetadata(self: *Self, client: c.DirectTableClient, tabl
         state = (try self.open(client, index, true)) orelse return error.InvalidSqlReadRecovery;
         previous_record = (try self.read(client, state)).record;
     }
-    var selected = metadata;
+    const selected = metadata;
     if (previous_record) |prior| {
         var to_release = prior;
         if (cached != null) {
             const released = try client.call(.{ .release = try to_release.snapshot() });
             released.deinit();
-            if (std.meta.eql(to_release.table.interpretation.interpretation.object, table.interpretation.interpretation.object)) {
-                selected.position.next_lsn = try std.math.add(u64, selected.position.next_lsn, 1);
-            } else {
-                const refreshed = try client.call(.{ .lookup = .{ .namespace = table.namespace, .name = table.name.slice() } });
-                defer refreshed.deinit();
-                selected = refreshed.value.result.lookup orelse return error.TableDefinitionChanged;
-                try table.check(client.connection, selected);
-            }
         } else {
             if (to_release.state != .closing) {
                 to_release.state = .closing;
                 state = try self.write(client, state, to_release);
             }
             try release(client, to_release);
-            const refreshed = try client.call(.{ .lookup = .{ .namespace = table.namespace, .name = table.name.slice() } });
-            defer refreshed.deinit();
-            selected = refreshed.value.result.lookup orelse return error.TableDefinitionChanged;
-            try table.check(client.connection, selected);
         }
     }
-    for (0..4) |attempt| {
-        var random: [8]u8 = undefined;
-        try self.io.randomSecure(&random);
-        const operation = (std.mem.readInt(u64, &random, .little) % p.max_counter) + 1;
-        var record: Record = .{ .definition = p.Growth.current_definition, .gateway = self.gateway, .generation = self.generation, .table = table, .operation = operation, .changed_lsn = selected.changed_lsn, .expected = selected.position, .handle = null, .state = .active };
-        state = try self.write(client, state, record);
-        const pinned = client.call(.{ .pin = .{ .object = table.interpretation.interpretation.object, .owner = record.owner(), .expected = record.expected } }) catch |err| {
-            if (err != error.Conflict or attempt == 3) return err;
-            // A Conflict alone proves nothing about acceptance. Only an absent
-            // original pin at a strictly later monotone frontier proves this
-            // exact acquisition cannot have succeeded or succeed in the future.
-            // No iterator or result exists yet. Accepted/uncertain pins, other
-            // failures and any already opened result retain their original cut.
-            const observed = try client.call(.{ .pin_status = .{ .object = table.interpretation.interpretation.object, .owner = record.owner() } });
-            defer observed.deinit();
-            const current = observed.value.result.pin_state;
-            if (current.handle != null or current.released or current.retired or
-                current.position.partition != record.expected.partition or current.position.next_lsn <= record.expected.next_lsn) return err;
-            record.state = .closing;
-            state = try self.write(client, state, record);
-            const refreshed = try client.call(.{ .lookup = .{ .namespace = table.namespace, .name = table.name.slice() } });
-            defer refreshed.deinit();
-            selected = refreshed.value.result.lookup orelse return error.TableDefinitionChanged;
-            try table.check(client.connection, selected);
-            continue;
-        };
-        defer pinned.deinit();
-        record.handle = pinned.value.result.pin;
-        self.entries[index] = .{ .record = record, .state = state, .users = 1 };
-        return record;
-    }
-    unreachable;
+    var random: [8]u8 = undefined;
+    try self.io.randomSecure(&random);
+    const operation = (std.mem.readInt(u64, &random, .little) % p.max_counter) + 1;
+    var record: Record = .{ .definition = p.Growth.current_definition, .gateway = self.gateway, .generation = self.generation, .table = table, .operation = operation, .changed_lsn = selected.changed_lsn, .expected = selected.position, .handle = null, .state = .active };
+    state = try self.write(client, state, record);
+    const pinned = try client.call(.{ .pin = .{
+        .object = table.interpretation.interpretation.object,
+        .owner = record.owner(),
+        .expected = record.expected,
+        .selection = .current,
+        .interpretation = table.interpretation.interpretation,
+    } });
+    defer pinned.deinit();
+    record.handle = pinned.value.result.pin;
+    self.entries[index] = .{ .record = record, .state = state, .users = 1 };
+    return record;
 }
 /// A connection releases only its in-memory borrow. Durable cache pins survive
 /// between statements and are evicted under pressure or reconciled after restart.

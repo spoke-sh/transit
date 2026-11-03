@@ -759,7 +759,11 @@ fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values
                     snapshots[i] = snapshots[j];
                     continue;
                 }
-                const known_metadata = if (is_fresh and statement.plan == .select) statement.plan.select.metadata else null;
+                const known_metadata = if (is_fresh and statement.plan == .select) blk: {
+                    const value = statement.plan.select.metadata;
+                    statement.plan.select.metadata = null;
+                    break :blk value;
+                } else null;
                 read.pins[i] = try self.runtime.read_pins.?.acquireCurrentWithMetadata(self.table, binding, known_metadata);
                 snapshots[i] = try read.pins[i].?.snapshot();
             }

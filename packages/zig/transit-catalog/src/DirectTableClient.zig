@@ -217,13 +217,18 @@ pub fn call(self: Self, action: w.Action) !std.json.Parsed(w.Response) {
 /// At most three signed exchanges occur; no new cut or pin owner is substituted.
 /// A delegated client keeps its original grant and authenticates its executor.
 pub fn closeOriginalPin(self: Self, object: p.DataLifecycle.Object, owner: p.DataLifecycle.Operation, expected: p.DataLifecycle.Position, known: ?c.storage.TablePartition.SnapshotHandle) !void {
-    return self.closeOriginal(object, owner, expected, known, if (self.delegation) |grant| grant.binding.retention else .snapshot);
+    return self.closeOriginal(object, owner, expected, known, if (self.delegation) |grant| grant.binding.retention else .snapshot, null, null);
+}
+pub fn closeOriginalCapture(self: Self, interpretation: p.DataLifecycle.Definition, owner: p.DataLifecycle.Operation, expected: p.DataLifecycle.Position, known: ?c.storage.TablePartition.SnapshotHandle) !void {
+    try interpretation.validate();
+    return self.closeOriginal(interpretation.object, owner, expected, known, .snapshot, interpretation, .current);
 }
 pub fn closeOriginalHistory(self: Self, object: p.DataLifecycle.Object, owner: p.DataLifecycle.Operation, expected: p.DataLifecycle.Position, known: ?c.storage.TablePartition.SnapshotHandle) !void {
-    return self.closeOriginal(object, owner, expected, known, .history);
+    return self.closeOriginal(object, owner, expected, known, .history, null, null);
 }
-fn closeOriginal(self: Self, object: p.DataLifecycle.Object, owner: p.DataLifecycle.Operation, expected: p.DataLifecycle.Position, known: ?c.storage.TablePartition.SnapshotHandle, retention: c.storage.TablePartition.Retention) !void {
-    const selection = if (self.delegation) |grant| grant.binding.selection else .exact;
+fn closeOriginal(self: Self, object: p.DataLifecycle.Object, owner: p.DataLifecycle.Operation, expected: p.DataLifecycle.Position, known: ?c.storage.TablePartition.SnapshotHandle, retention: c.storage.TablePartition.Retention, explicit_interpretation: ?p.DataLifecycle.Definition, explicit_selection: ?w.CaptureSelection) !void {
+    const selection = if (self.delegation) |grant| grant.binding.selection else explicit_selection orelse .exact;
+    const interpretation = if (self.delegation) |grant| grant.binding.interpretation else explicit_interpretation;
     const copying = if (self.delegation) |grant| grant.binding.copied_from != null else false;
     try self.connection.object(object);
     try self.connection.owner(owner);
@@ -250,8 +255,7 @@ fn closeOriginal(self: Self, object: p.DataLifecycle.Object, owner: p.DataLifecy
             if (state.retired) return;
             if (selection == .exact and state.position.next_lsn > expected.next_lsn) return;
             if (state.position.next_lsn < expected.next_lsn) return error.InvalidTableResponse;
-            if (self.delegation) |grant| {
-                const original = grant.binding.interpretation;
+            if (interpretation) |original| {
                 // Definitions advance monotonically. With no accepted pin,
                 // a later definition permanently excludes this acquisition,
                 // even when its selection allowed a later data frontier.
@@ -261,7 +265,7 @@ fn closeOriginal(self: Self, object: p.DataLifecycle.Object, owner: p.DataLifecy
         }
         // An unknown handle must be recovered through the original acquisition
         // to verify its retained frontier. A matching owner alone is not enough.
-        const acquisition: w.Acquisition = .{ .object = object, .owner = owner, .expected = expected, .selection = selection };
+        const acquisition: w.Acquisition = .{ .object = object, .owner = owner, .expected = expected, .selection = selection, .interpretation = explicit_interpretation };
         const pinned = self.call(if (retention == .history) .{ .retain_history = acquisition } else .{ .pin = acquisition }) catch |err| {
             // A typed released-pin response proves that no delayed copy can
             // reopen this operation: either its source or destination is closed.

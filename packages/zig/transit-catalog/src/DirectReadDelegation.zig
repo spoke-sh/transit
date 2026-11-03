@@ -251,6 +251,7 @@ pub fn allow(self: Self, action: w.Action) !void {
         inline .pin, .retain_history => |value, tag| {
             if ((tag == .retain_history) != (self.binding.retention == .history)) return error.TableDelegationDenied;
             if (value.selection != self.binding.selection) return error.TableDelegationDenied;
+            if (value.interpretation) |interpretation| if (!std.meta.eql(interpretation, self.binding.interpretation)) return error.TableDelegationDenied;
             try self.requirePin(value.object, value.owner);
             if (!std.meta.eql(value.expected, self.binding.expected)) return error.TableDelegationDenied;
         },

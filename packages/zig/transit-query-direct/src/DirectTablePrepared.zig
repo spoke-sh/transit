@@ -62,7 +62,7 @@ pub fn prepareProjectedAt(allocator: std.mem.Allocator, client: c.DirectTableCli
     var output_fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
     var output = try (try prototype.plan.outputSchema(&output_fields)).clone(allocator);
     errdefer output.deinit();
-    _ = try binding.require(client, access);
+    if (projection != null) _ = try binding.require(client, access);
     var stored_metadata = metadata;
     stored_metadata.schema = .{ .base64 = "" };
     return .{ .binding = binding, .metadata = stored_metadata, .template = template, .output = output, .collations = .fromTable(schema.schema), .projection = target };
@@ -171,7 +171,6 @@ fn prepareView(allocator: std.mem.Allocator, client: c.DirectTableClient, namesp
     errdefer template.deinit();
     var output = try template.outputSchema(allocator);
     errdefer output.deinit();
-    _ = try binding.require(client, access);
     var stored_metadata = metadata;
     stored_metadata.schema = .{ .base64 = "" };
     return .{ .binding = binding, .metadata = stored_metadata, .template = template, .output = output, .collations = .fromTable(source_schema.schema), .view = .{ .stored = stored, .schema = view_schema, .plan = view_plan } };
