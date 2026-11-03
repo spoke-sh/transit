@@ -5,6 +5,40 @@ from pathlib import Path
 
 from performance.sdk.report import distribution, integer
 
+MANAGED_PHASES = ('acquire', 'evaluate', 'prepare', 'execute', 'checkpoint_prepare', 'checkpoint_execute', 'decide', 'abort')
+OWNER_COUNTERS = dict(
+    managed={phase + suffix for phase in MANAGED_PHASES for suffix in ('_calls', '_ns')} |
+            {'failed_steps', 'result_rows', 'result_pages', 'result_record_bytes'},
+    owned_records={'stage_calls', 'stage_failures', 'reservation_attempts', 'reservation_returns',
+                   'readiness_attempts', 'readiness_returns', 'reused_returns', 'stored_bytes',
+                   'reservation_logical_bytes'})
+UNAVAILABLE = ('heap_allocations', 'live_allocation_bytes', 'peak_workspace_bytes', 'physical_object_writes',
+               'physical_log_writes', 'physical_syncs', 'retained_bytes', 'reclaimable_bytes', 'copies')
+
+
+def counters(value):
+    if not isinstance(value, dict) or value.keys() != OWNER_COUNTERS.keys():
+        raise ValueError('missing owner attribution')
+    for owner, fields in OWNER_COUNTERS.items():
+        if not isinstance(value[owner], dict) or value[owner].keys() != fields:
+            raise ValueError('missing owner counter: ' + owner)
+        for count in value[owner].values():
+            if integer(count) >= 2**64:
+                raise ValueError('overflowed counter')
+    return value
+
+
+def owner_snapshot(value):
+    if not isinstance(value, dict) or value.keys() != {'instance', *OWNER_COUNTERS}:
+        raise ValueError('missing owner snapshot')
+    instance = value['instance']
+    if not isinstance(instance, list) or len(instance) != 16 or any(type(n) is not int or not 0 <= n <= 255 for n in instance):
+        raise ValueError('missing owner instance')
+    for owner in OWNER_COUNTERS:
+        if not isinstance(value[owner], dict) or value[owner].keys() != {'values', 'overflowed'} or value[owner]['overflowed'] is not False:
+            raise ValueError('overflowed or missing owner counters')
+    return instance, counters({owner: value[owner]['values'] for owner in OWNER_COUNTERS})
+
 
 def inventory(manifest):
     repeat = integer(manifest['repeat'], 1)
@@ -35,11 +69,14 @@ def summarize(records):
     manifest, = manifests
     for key in ('source', 'binary_revision', 'binaries', 'drivers', 'system', 'machine', 'cpus', 'host_id',
                 'storage_device', 'toolchain', 'maintenance', 'durability', 'cache', 'instrumentation', 'bounds',
-                'build_mode', 'tls', 'client_versions', 'sql_limits'):
+                'build_mode', 'tls', 'client_versions', 'sql_limits', 'host_limits', 'unavailable'):
         if not manifest.get(key):
             raise ValueError('missing attribution: ' + key)
+    if type(manifest.get('attribution')) is not bool or manifest['unavailable'] != list(UNAVAILABLE):
+        raise ValueError('missing measurement availability')
     expected = inventory(manifest)
     samples, resource_cases = {}, set()
+    previous_owner = None
     for record in records[1:-1]:
         phase = record.get('phase')
         if phase == 'manifest':
@@ -59,6 +96,24 @@ def summarize(records):
             integer(value)
         for value in record.get('foreground_ns', []):
             integer(value)
+        measured = key[0] in ('foreground_baseline', 'activation', 'source_update', 'idle') or (
+            manifest['profile'] == 'connections' and key[0] != 'startup' and not key[0].endswith('_idle_peer'))
+        if manifest['attribution'] and measured:
+            counters(record.get('owner_counters'))
+            before_instance, before = owner_snapshot(record.get('owner_before'))
+            after_instance, after = owner_snapshot(record.get('owner_after'))
+            if before_instance != after_instance or any(
+                    after[owner][field] - before[owner][field] != record['owner_counters'][owner][field]
+                    for owner, fields in OWNER_COUNTERS.items() for field in fields):
+                raise ValueError('reset or inconsistent owner counters')
+            if previous_owner is not None:
+                instance, previous = previous_owner
+                if instance != before_instance or any(before[owner][field] < previous[owner][field]
+                        for owner, fields in OWNER_COUNTERS.items() for field in fields):
+                    raise ValueError('owner changed between samples')
+            previous_owner = after_instance, after
+        elif any(field in record for field in ('owner_counters', 'owner_before', 'owner_after')):
+            raise ValueError('unexpected instrumentation')
         if key[0] in ('activation', 'source_update'):
             target = manifest['rows'] + (key[1] + 1 if key[0] == 'source_update' else 0)
             if type(record.get('rows')) is not int or record['rows'] != target or not record.get('foreground_ns'):
@@ -80,7 +135,7 @@ def summarize(records):
     if resource_cases != resources:
         raise ValueError('missing resource phases')
     definition = samples['startup', 0].get('definition')
-    if not isinstance(definition, str) or len(definition) != 64:
+    if not isinstance(definition, str) or len(definition) != 64 or any(c not in '0123456789abcdef' for c in definition):
         raise ValueError('missing definition')
     cases = {}
     for case in sorted({key[0] for key in expected}):
@@ -89,6 +144,9 @@ def summarize(records):
         foreground = [ns for value in selected for ns in value.get('foreground_ns', [])]
         if foreground:
             cases[case]['foreground'] = distribution(foreground)
+        if selected[0].get('owner_counters') is not None:
+            cases[case]['owner_totals'] = {owner: {field: sum(s['owner_counters'][owner][field] for s in selected)
+                for field in sorted(fields)} for owner, fields in OWNER_COUNTERS.items()}
         if case.endswith('_idle_peer'):
             cases[case]['admitted'] = sum(value['admitted'] for value in selected)
             cases[case]['refused'] = len(selected) - cases[case]['admitted']
@@ -100,7 +158,7 @@ def summarize(records):
 def compare(control, candidate):
     keys = ('profile', 'rows', 'repeat', 'peers', 'drivers', 'system', 'machine', 'cpus', 'host_id',
             'storage_device', 'toolchain', 'maintenance', 'durability', 'cache', 'instrumentation', 'bounds',
-            'build_mode', 'tls', 'client_versions', 'sql_limits')
+            'build_mode', 'tls', 'client_versions', 'sql_limits', 'attribution', 'host_limits', 'unavailable')
     if control['definition'] != candidate['definition'] or any(control['manifest'][key] != candidate['manifest'][key] for key in keys):
         raise ValueError('incomparable campaigns')
     def admissions(report):

@@ -76,6 +76,28 @@ cleanup. These nested durations describe attempts, including failed attempts;
 they do not establish durable completion. Default info logging omits this local
 attribution. The existing bounded telemetry sink can drop or suppress records.
 
+For a native-local node with `request_metrics: true`, the private SQL deployment
+inspection request `performance` exposes fixed-cardinality managed-work and transaction-owned-record
+counters. They use process-lifetime atomic counters without allocating or writing
+logs. The default is disabled (`performance: null` in the inspection reply).
+Ordinary lifecycle status retains its existing response shape. Snapshots carry a deployment
+instance; replacement, counter wrap or missing data invalidates a measurement.
+Individual counters are loaded independently, so a snapshot is not an atomic cut.
+
+Managed phase durations cover one recovery step after loading and validating its
+saved work: acquisition, evaluation, statement preparation/execution, checkpoint
+preparation/execution, common decision/cleanup and abort. They include nested
+owner I/O and progress publication. Evaluation row/page/encoded-byte counts are
+successful staging returns, including any repeated work after uncertainty.
+Transaction record counters distinguish reservation and readiness attempts from
+observed publication returns, reuses, stored envelope bytes and logical reservation
+charges. A lost acknowledgement can undercount durable publications. These are
+observations of work, never proof of a committed revision, current quota usage,
+physical writes/syncs, retained bytes or reclaimable debt. The
+[installed measurement guide](../../../tests/performance/load/installed.md)
+defines diagnostic controls and unavailable resource measurements. Keep these
+instrumented runs separate from ordinary elapsed-time comparisons.
+
 Text records contain a UTC timestamp, severity, service, stable event name,
 optional message and named fields. JSON emits one schema-v1 envelope per line,
 including the service instance and trace context when present. Text includes

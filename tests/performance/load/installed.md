@@ -9,6 +9,7 @@ Run each profile separately from other disk-heavy checks or timing campaigns:
 
 ```sh
 nix develop --command just test::installed-performance managed --rows 16 --repeat 3
+nix develop --command just test::installed-performance managed --rows 16 --repeat 3 --attribution
 nix develop --command just test::installed-performance connections --peers 4 --repeat 3
 ```
 
@@ -30,6 +31,43 @@ outcomes. Failed samples, missing expected cases, resources or terminal cleanup
 cannot produce an accepted report. A small diagnostic run supplies sample counts,
 medians, empirical p95 and maxima; it establishes no tail SLO or sustainable
 throughput. Do not interpret startup or a single restart as a distribution.
+
+The manifest includes CPU affinity, inherited cgroup-v2 CPU/memory limits when
+available, CPU model and filesystem type. `--attribution` enables the existing
+node `request_metrics` option through a fixture-owned executable wrapper. Binary
+hashes still identify the copied executables, and the wrapper's source and choice
+are attributed separately. These diagnostic runs cannot compare against timing
+controls with counters disabled. Provider/header instrumentation is enabled by
+that same option; its overhead is part of the diagnostic profile.
+
+Before/after owner snapshots are outside operation timing. They contain only
+fixed field names, integer values and a deployment instance, with an explicit
+overflow flag. The reporter rejects missing fields, reset/wrapped counters,
+changed instances and deltas inconsistent with those snapshots. Failed operations
+retain their available counters and original error; an inspection failure cannot
+replace that error or convert the sample to success. Snapshot loads are not an
+atomic cut and can include unrelated background work.
+If final inspection fails, the initial snapshot remains available without an
+invented final snapshot or delta.
+
+`managed` reports phase calls and inclusive nanoseconds, evaluation rows, pages
+and encoded result-record bytes. Preparation and execution are separate from the
+checkpoint pair. `decide` includes common-decision settlement and cleanup;
+telemetry cannot divide those internally overlapping activities into exclusive
+elapsed costs. `owned_records` reports stage calls/failures, reservation/readiness
+attempts and observed returns, ready-record reuse, stored envelope bytes and
+logical reservation charges (envelope plus the current 32 KiB metadata charge).
+These charges are cumulative observed reservations, not resident memory or
+physical storage occupancy. Lost replies can make publication returns lower than
+durable counts. Exact result/completion checks remain the success oracle.
+Counters accumulate work: retries can count rows, pages and stored bytes again,
+so these totals do not establish unique result cardinality.
+
+Heap allocation counts, live allocation bytes, peak workspace bytes, physical
+object/log writes and syncs, retained bytes, reclaimable debt and copy counts are
+explicitly unavailable. Process RSS/PSS/high-water observations retain their
+separate procfs meaning. Never infer those missing values from attempt counts or
+logical reservation bytes.
 
 ## Managed computation profile
 

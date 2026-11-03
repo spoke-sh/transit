@@ -62,6 +62,13 @@ are identified by the complete configuration fingerprint: repeating an identical
 start observes that activation, and replacement requires its current fingerprint.
 The host joins the old tasks before replacement and before releasing node owners.
 Its status includes bounded typed-request attempt counters, not durable outcomes.
+With the local node's `request_metrics` enabled, `inspectPerformance` snapshots the managed
+query and owned-record owners' process counters. A fresh deployment instance
+invalidates previous observation windows even when its configuration is identical.
+See [observability](../../../docs/handbook/reference/observability.md) for scope,
+reset semantics and the distinction between publication returns and acceptance.
+Its explicit `performance` request has its own inspection reply; ordinary lifecycle
+status keeps its existing strict shape. The inspection grants no execution rights.
 `Shutdown` supplies an event wakeup; signal ownership remains with the executable.
 
 Run `nix develop --command zig build test` from this package. Installed lifecycle,
