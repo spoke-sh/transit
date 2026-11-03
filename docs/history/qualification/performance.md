@@ -379,6 +379,17 @@ recovery. They do not explain the failures recorded above. The tested
 Earlier `fa88766a…` checks cannot qualify this new definition; matching fresh
 fixtures are required, and failed installations retain their original binaries.
 
+At publication, clean `b2ba03b6a31cb5aee0fa6b23e0dacb64efd199b5` passes all
+**66 fast checks** in 74.82 seconds. Its fresh clean installation/UI attempt
+has passed Board checks, documentation/site checks, Node binding checks and
+installed observability. The broader lane remains in progress; its remaining
+tasks and the subsequent focused native checks are not claimed as passed.
+The clean checkout is `/var/tmp/transit-ci-fr8s4w9k/`, with command/source/status
+records in `branch-cutover-qualification.json` under the ignored evidence
+directory. Publishing this measurement packet does not close that qualification
+or resolve the earlier failures. The final history-only commit adds no runtime
+changes to this tested source.
+
 ## SDK validator initialization and captured-read recovery — 2026-11-02
 
 This packet starts the approved [post-merge delivery plan](../../roadmap/08-gateway-architecture-and-protocol-ingress.md#post-merge-performance-delivery-plan--2026-11-01).
