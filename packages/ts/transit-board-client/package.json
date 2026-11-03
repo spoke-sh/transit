@@ -8,6 +8,7 @@
     "./deployment": "./src/deployment.ts",
     "./storage": "./src/storage.ts",
     "./inspection": "./src/inspection.ts",
+    "./computations": "./src/computations.ts",
     "./catalog": "./src/catalog.ts",
     "./evidence": "./src/evidence.ts",
     "./relational": "./src/relational.ts",

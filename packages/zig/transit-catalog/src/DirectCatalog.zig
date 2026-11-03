@@ -1306,6 +1306,106 @@ fn operationGuard(self: *Self, allocator: std.mem.Allocator, binding: d.Binding,
     return self.guard(allocator, policy, namespace_value, view.properties.target(binding.target.object), access);
 }
 
+/// Inspect one published managed computation without borrowing the publisher's
+/// authority. Generic token/record/transaction reads remain publisher-scoped.
+pub fn inspectManaged(self: *Self, output: std.mem.Allocator, request: c.ManagedInspection.Request, policy: Policy) !c.ManagedInspection.Result {
+    const M = c.ManagedTableRecords;
+    try self.requireInitialized();
+    if (self.transaction_read != null) return error.UnsupportedTransactionRead;
+    var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = 8 * 1024 * 1024 };
+    var arena: std.heap.ArenaAllocator = .init(memory.allocator());
+    defer arena.deinit();
+    const scratch = arena.allocator();
+    try check(try self.guard(scratch, policy, null, null, .database));
+    try check(try self.guard(scratch, policy, try self.schema(request.namespace), null, .schema));
+    const candidate_name = try self.candidate(request.namespace, request.name) orelse return error.ManagedTableNotFound;
+    // Name reservation identifies publication provenance, never read authority.
+    var resolved = try self.resolveKV(scratch, request.namespace, request.name, policy) orelse return error.ManagedTableNotFound;
+    const object = resolved.table.root.interpretation.object;
+    resolved.deinit();
+    var control = try self.kvAccess(scratch, object, .read, false, null, policy);
+    defer control.view.deinit();
+    var kv: s.KVPartition = .{ .storage = control.view.table };
+    defer control.view.table = kv.storage;
+    var publisher: c.DirectTableProtocol.Connection = .{ .scope = self.config().scope, .branch = self.config().branch, .audience = self.config().audience, .principal = candidate_name.reservation.principal, .role = null };
+    const publication = try self.store.clientTokenIdentity(M.nameKey(publisher, request.namespace, request.name)) orelse return error.ManagedTableInitializationPending;
+    if (publication.pending or publication.cancel or publication.receipt.binding.intent != .external) return error.ManagedTableInitializationPending;
+    publisher = publication.receipt.binding.key.connection;
+    const reference = publication.receipt.binding.intent.external.record;
+    if (reference.format != M.declaration_format or reference.content.bytes > M.max_definition_bytes or !std.meta.eql(reference.scope.connection, publisher)) return error.InvalidManagedTableRecord;
+    const declaration_bytes = try c.DirectRecord.load(scratch, self.data_objects, reference);
+    const parsed = try p.Json.parseFromSlice(M.Declaration, scratch, declaration_bytes);
+    const declared = parsed.value;
+    try declared.validate();
+    if (!std.meta.eql(declared.connection, publisher) or !std.meta.eql(declared.object, object) or declared.namespace != request.namespace or !std.meta.eql(declared.name, request.name)) return error.DataflowIdentityConflict;
+    const interpretation = try declared.interpretation(scratch);
+    if (!std.mem.eql(u8, &publication.receipt.binding.fingerprint, &interpretation.digest)) return error.DataflowIdentityConflict;
+    if (request.expected) |expected| if (!std.meta.eql(expected, interpretation)) return error.DataflowIdentityConflict;
+    // Full source/output/control read conjunction, independent of publication,
+    // execution privileges, and declaration token ownership.
+    var source = try self.readAccess(scratch, declared.source.interpretation.interpretation.object, policy, false);
+    defer source.view.deinit();
+    var destination = try self.readAccess(scratch, declared.output.interpretation.interpretation.object, policy, false);
+    defer destination.view.deinit();
+    if (!std.meta.eql(source.view.table.root.declared(), declared.source.interpretation) or
+        !std.meta.eql(destination.view.table.root.declared(), declared.output.interpretation)) return error.TableDefinitionChanged;
+    var result: c.ManagedInspection.Result = .{ .declaration = declared, .interpretation = interpretation, .observation = null, .completed = null };
+    var revision = request.revision;
+    if (revision == null) {
+        const head = try managedKV(M.Head, scratch, &kv, M.head_key, control.current);
+        try head.validate();
+        if (!std.mem.eql(u8, &head.declaration, &interpretation.digest)) return error.DataflowIdentityConflict;
+        result.observation = .{ .head = head, .storage = kv.storage.root.interpretation, .position = .{ .partition = kv.storage.root.partition, .next_lsn = kv.storage.root.next_lsn }, .completion = null };
+        if (head.revision != 0) revision = head.revision;
+    }
+    if (revision) |number| {
+        const key = try M.revisionKey(number);
+        const root = try managedKV(c.DirectRecord.Reference, scratch, &kv, &key, control.current);
+        try root.validate();
+        if (root.format != c.DirectTransactionRecord.format or root.content.bytes > c.ManagedInspection.max_bytes or !std.meta.eql(root.scope.connection, publisher)) return error.InvalidManagedTableRecord;
+        const bytes = try c.DirectRecord.load(scratch, self.data_objects, root);
+        const envelope = (try p.Json.parseFromSlice(TransactionRecord.Envelope, scratch, bytes)).value;
+        try envelope.validate(root);
+        if (envelope.format != M.revision_format) return error.InvalidManagedTableRecord;
+        const progress = try self.store.clientTokenState(envelope.transaction) orelse return error.ClientOperationMissing;
+        if (progress.receipt.binding.intent != .transaction or progress.receipt.binding.intent.transaction.begin.objects.count != 3) return error.InvalidManagedTableRecord;
+        const directory = try self.transactionRecords(envelope.transaction);
+        const owned = try TransactionRecord.entry(scratch, &self.store.index, directory, root.content) orelse return error.InvalidTransactionRecord;
+        if (!owned.ready) return error.TransactionRecordPending;
+        const guarded = (try p.Json.parseFromSlice(c.DirectRecord.Guarded, scratch, try envelope.payload.decode(scratch, c.ManagedInspection.max_bytes))).value;
+        try guarded.validate(publisher);
+        const required: [3]?d.Object = .{ declared.source.interpretation.interpretation.object, declared.output.interpretation.interpretation.object, declared.object };
+        if (!std.meta.eql(guarded.objects, required)) return error.InvalidManagedTableRecord;
+        const saved = (try p.Json.parseFromSlice(M.Revision, scratch, try guarded.payload.decode(scratch, c.ManagedInspection.max_bytes))).value;
+        try envelope.transaction.requireSame(saved.transaction);
+        try reference.requireSame(saved.declaration);
+        if (saved.metadata.revision != number) return error.DataflowIdentityConflict;
+        // The common transaction owner verifies its real decision journal. No
+        // supplied committed tag, participant position or head can replace it.
+        const completion = try self.inspectAcceptedTransaction(scratch, progress, policy);
+        if (completion.observation != .decided or completion.cut == null or !std.meta.eql(completion.cut.?, saved.metadata.cut)) return error.IncompleteDataflowCoverage;
+        result.completed = .{ .manifest = root, .revision = saved, .decision = completion.observation.decided };
+        if (result.observation) |*observed| observed.completion = completion.observation.decided;
+    }
+    try result.validate(scratch, request);
+    // Copy out of reusable scratch before the final current-policy checks.
+    const encoded = try p.Json.valueAllocBounded(scratch, result, c.ManagedInspection.max_bytes);
+    const owned = try p.Json.parseFromSliceOwned(c.ManagedInspection.Result, output, encoded);
+    errdefer owned.deinit();
+    try check(source.current);
+    try check(destination.current);
+    try check(control.current);
+    return owned.value;
+}
+
+fn managedKV(comptime T: type, allocator: std.mem.Allocator, kv: *s.KVPartition, key: []const u8, guard_value: P.Guard) !T {
+    var row = try kv.get(allocator, key, guard_value) orelse return error.DataflowRevisionNotFound;
+    defer row.deinit();
+    const cell = row.cell();
+    if (cell != .value or cell.value != .atom or cell.value.atom != .bytes or cell.value.atom.bytes.len > c.ManagedTableRecords.max_definition_bytes) return error.InvalidManagedTableRecord;
+    return (try p.Json.parseFromSliceOwned(T, allocator, cell.value.atom.bytes)).value;
+}
+
 pub fn directRecord(self: *Self, allocator: std.mem.Allocator, request: c.DirectRecord.Request, policy: Policy) !c.DirectRecord.Result {
     try self.requireInitialized();
     try request.validate();
@@ -3099,12 +3199,16 @@ pub fn resumeTransaction(self: *Self, key: c.DirectClientToken.Key, steps: u16, 
 /// The host serializes database publication while this method observes owners.
 pub fn inspectTransaction(self: *Self, key: c.DirectClientToken.Key, policy: Policy) !TransactionControl.Status {
     const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
+    return self.inspectAcceptedTransaction(self.allocator, progress, policy);
+}
+
+fn inspectAcceptedTransaction(self: *Self, allocator: std.mem.Allocator, progress: c.DirectClientToken.Progress, policy: Policy) !TransactionControl.Status {
     if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
     const begin = progress.receipt.binding.intent.transaction.begin;
     var result: TransactionControl.Status = .{ .revision = progress.revision, .begin = begin, .acquired = false, .cut = null, .last_statement = 0, .pending_statement = false, .last_control = 0, .pending_control = false, .savepoints = 0, .attempt = null, .observation = .not_observed, .cleanup_complete = false };
     const reference = progress.record orelse return result;
     if (reference.format != TransactionControl.format) {
-        const head = try TransactionWorkspace.recover(self.allocator, self.data_objects, progress);
+        const head = try TransactionWorkspace.recover(allocator, self.data_objects, progress);
         result.acquired = true;
         result.cut = head.acquired.cut;
         result.last_statement = head.last_statement;
@@ -3114,16 +3218,16 @@ pub fn inspectTransaction(self: *Self, key: c.DirectClientToken.Key, policy: Pol
         result.savepoints = head.savepoint_count;
         return result;
     }
-    const control = try TransactionControl.load(self.allocator, self.data_objects, progress);
+    const control = try TransactionControl.load(allocator, self.data_objects, progress);
     result.acquired = control.workspace != null;
     result.cut = if (control.workspace) |head| head.acquired.cut else null;
     result.last_statement = control.binding.attempt.last_statement;
     if (control.workspace) |head| result.last_control = head.last_control;
     result.attempt = control.binding.attempt;
     result.cleanup_complete = control.cleanup_complete;
-    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
-    var journal = try s.TransactionDecisionLog.init(self.allocator, self.data_log, self.data_objects, progress.receipt.coordination.?, control.binding);
+    var journal = try s.TransactionDecisionLog.init(allocator, self.data_log, self.data_objects, progress.receipt.coordination.?, control.binding);
     try journal.recover();
     result.observation = try journal.observe(try self.guard(arena.allocator(), policy, null, null, .database));
     if (control.decision) |known| {

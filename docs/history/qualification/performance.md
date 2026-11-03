@@ -23,9 +23,9 @@ changes concern private host inspection, its fixture and documentation, not SDK
 implementation or schemas. Native artifact records, package and executable hashes
 are retained separately; these are not claimed to have identical Git stamps.
 No old `afac2bd8…` installation was opened with these binaries. Later integration
-includes main `5f23092f2` (PR #338), whose Queue, storage-fencing and Board changes
+includes main `5e00b53bf` (PR #340), whose Queue, storage-fencing and Board changes
 arrived after timing. These observations are not a performance score for that
-integrated tree. Final installed/native checks freeze
+integrated tree. The first integrated installed/native checks freeze
 `4d62eb5a91e836ff76797e7e00f758f52f64b122` in an isolated checkout. The original
 measurement and qualification commits remain reachable through the
 [frozen diagnostic source](https://github.com/spoke-sh/transit/tree/perf/owned-staging-diagnostic-source)
@@ -278,6 +278,15 @@ settlement and original-outcome recovery, without replaying as fresh work. PR #3
 bootstrap-byte reduction needs separate transfer, parse, first-result and heap
 measurements; byte counts establish no time-to-interactive gain. No 10× or 100×
 end-to-end gain is claimed here.
+
+The subsequent #339/#340 merge retains the shared `ManagedTableRecords` owner
+alongside the counters, without duplicating its persisted codecs. SQL SHOW now
+uses signed independent-reader computation inspection, also exposed through Board.
+The earlier managed timings therefore do not measure this metadata owner. Future
+profiles must separate current/retained metadata observation, retained rows and
+execution, including reader revocation and polling interference. Integration
+follow-up results retain their own committed-source metadata and are reported in
+the implementation PR; none renews the earlier timing claims.
 
 ## SDK validator initialization and captured-read recovery — 2026-11-02
 

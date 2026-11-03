@@ -219,3 +219,12 @@ test "publication hints coalesce without losing notification before wait registr
     var parked = try t.io.concurrent(Worker.wait, .{ &changes, t.io, after + 1 });
     try t.expectError(error.Canceled, parked.cancel(t.io));
 }
+
+test "validated local missing selection is distinct from unavailable authority" {
+    const t = std.testing;
+    var client = @import("root.zig").Client.init(t.allocator, t.io, "http://127.0.0.1:1");
+    defer client.deinit();
+    try t.expectEqual(error.NotFound, client.reject(.not_found, .NotFound));
+    try t.expectEqual(.NotFound, client.last_rejection.?);
+    try t.expectEqual(error.AuthorityUnavailable, client.reject(.service_unavailable, .NotFound));
+}

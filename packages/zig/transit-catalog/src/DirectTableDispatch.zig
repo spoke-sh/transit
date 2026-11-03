@@ -172,6 +172,7 @@ fn applySelected(comptime action_tag: std.meta.Tag(w.Action), allocator: std.mem
                 .settle => |value| .{ .status = try catalog.settleTransaction(value.key, value.operation, value.command, value.steps, policy) },
             } };
         },
+        .managed_inspection => return .{ .managed_inspection = try catalog.inspectManaged(allocator, action.managed_inspection, policy) },
         .record => {
             const value = @field(action.*, @tagName(action_tag));
             return .{ .record = try catalog.directRecord(allocator, value, policy) };

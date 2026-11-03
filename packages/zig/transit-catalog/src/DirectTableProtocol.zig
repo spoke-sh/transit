@@ -321,6 +321,7 @@ pub const Action = union(enum) {
     client_token: c.DirectClientToken.Request,
     client_progress: c.DirectClientToken.ProgressRequest,
     record: c.DirectRecord.Request,
+    managed_inspection: c.ManagedInspection.Request,
     workload_result: c.DirectWorkloadResultProtocol.Request,
     initialize,
     describe,
@@ -498,6 +499,7 @@ pub const Request = struct {
                 try connection.binding(value.binding);
                 if (value.steps == 0 or value.steps > 256) return error.InvalidCatalogStepBudget;
             },
+            .managed_inspection => |value| try value.validate(connection),
             .record => |value| {
                 try value.validate();
                 if (!std.meta.eql(value.scope().connection, connection)) return error.CatalogIdentityConflict;
@@ -838,6 +840,7 @@ pub const Result = union(enum) {
     schema_projection: c.DirectSchemaProjection.Result,
     transaction: c.DirectTransactionRequest.Result,
     record: c.DirectRecord.Result,
+    managed_inspection: c.ManagedInspection.Result,
     workload_result: c.DirectWorkloadResultProtocol.Result,
     client_token: ?c.DirectClientToken.Receipt,
     client_progress: c.DirectClientToken.ProgressResult,

@@ -156,3 +156,10 @@ document-test:
 document-browser:
     zig build transit-node transit-admin transit-station-document-worker example-station-document transit-board
     python3 -B examples/station-document/run.py --browser
+
+# Independent-reader computation metadata over the real managed Table fixture.
+computations-test:
+    zig build test-board-computations -Doptimize=ReleaseSafe
+
+computations-browser:
+    zig build test-board-computations -Doptimize=ReleaseSafe -Dcomputation-browser=true

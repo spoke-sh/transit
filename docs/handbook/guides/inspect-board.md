@@ -57,6 +57,24 @@ from Table progress. Counters reset when their owner restarts; a retained last
 failure does not mean the current worker is failed. Interface bindings are
 inspected in **Definition**, outside Operations.
 
+With a catalog connection, choose **Inspect a computation** in Operations,
+select its schema and enter its name. **Inspect** resolves its exact definition.
+The source → computation → output diagram and matching grid select the same
+Inspector. Table links open current dataset metadata with a separate observation
+basis; the computation Inspector shows declared SQL and exact completion evidence.
+
+**Last completed result** reports a committed revision and its row count, including
+zero. **Current computation** reports control state, epoch, pending work and the
+owner's blocked reason. Active control does not imply a completed or fresh result;
+no pending work does not prove that output reflects current source data.
+Choose a positive **Retained revision** to inspect an older result. Refreshing
+current progress preserves that selection; **Latest completed** follows the latest
+observed completion again. A missing revision remains missing. Selection creates
+no retention pin and never reads output rows. Denial or definition change clears
+both observations and their Inspector; a same-name replacement requires another
+explicit Inspect. Manifest and schema sizes use B/KiB/MiB/GiB with exact values
+available for inspection and copying.
+
 With a catalog connection, **Inspect a retained catalog** is available in both
 Catalog and Operations. Supply a saved selector and historical schema, then
 choose an object. **Physical definitions** maps logical columns to one physical

@@ -219,3 +219,37 @@ Captured and host-driven maintained execution retain their
 not service executors. The [capability ledger](sql/standards-ledger.json) records
 these separate boundaries. Stored records and caller contracts use the single
 current definition under the [versioning policy](../docs/handbook/reference/versioning.md).
+
+## Independent-reader metadata inspection
+
+The signed `managed_inspection` direct-catalog action resolves one namespace/name
+and optionally requires an exact computation definition and positive retained
+revision. Without a revision it returns a current control observation and the
+last completed revision, if any. With a revision it returns only that verified
+revision's metadata. Missing selections fail; they never fall back to live rows.
+
+The native owner derives the original publisher from the named control KV's
+reservation and locates that publisher's canonical declaration token in the
+bounded token index. It verifies the accepted immutable declaration and exact
+control identity. Publisher principal/role remain attribution. Disclosure uses
+the independently signed reader: database connect, schema usage, control KV
+inspect/read and source/output Table SELECT rights are required. Generic token,
+record and transaction inspection remain scoped to their original caller.
+
+A revision must be a ready transaction-owned immutable manifest with exact
+source/output/control guards, the original declaration and schema commitment,
+and the actual committed decision and common cut from the transaction owner.
+The owner reads metadata only. It neither traverses row pages nor starts a
+query, acquires a pin, initializes a declaration, settles a transaction or
+executes recovery. Current source/output/control guards are checked again after
+copying the response and before disclosure. SQL revalidates before disclosing
+buffered metadata, including empty results and terminal observations.
+
+The first profile has exactly three transaction participants, a 64 KiB declaration,
+a 256 KiB manifest/response ceiling and an 8 MiB inspection scratch budget.
+Catalog/token/KV lookups use their paged directories, without scanning the whole
+catalog or revision history. A prepared control participant may refuse a head
+read; such a refusal is not evidence of absence or a completed successor.
+`ManagedTableRecords` owns the existing persisted codecs;
+`ManagedInspection.verifyRevision` is shared with retained row readers. This
+additive read changes neither stored encodings nor their definition identifiers.

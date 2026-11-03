@@ -123,6 +123,10 @@ pub fn prepare(init: std.process.Init, client: c.DirectTableClient, path: []cons
     const published = try manager.publish(declaration);
     try t.expectEqual(.published, published.head.control.state);
     try t.expectEqual(@as(u64, 0), published.head.revision);
+    const inspection = try client.call(.{ .managed_inspection = .{ .namespace = 1, .name = declaration.name, .expected = null, .revision = null } });
+    defer inspection.deinit();
+    try t.expect(inspection.value.result.managed_inspection.completed == null);
+    try t.expectEqualDeep(published, inspection.value.result.managed_inspection.observation.?);
     _ = try manager.publish(declaration);
     var conflict = declaration;
     conflict.operation.operation = 652020;
@@ -212,7 +216,15 @@ pub fn recover(init: std.process.Init, client: c.DirectTableClient, path: []cons
     try t.expectError(error.DataflowSourceChanged, manager.publish(cycle));
     try control(manager, cycle, .retire, 652017);
     try t.expect(try manager.start(cycle) == null);
+    try control(manager, declaration, .refresh, 652029);
+    _ = (try manager.start(declaration)).?;
+    const successor = try client.call(.{ .managed_inspection = .{ .namespace = declaration.namespace, .name = declaration.name, .expected = null, .revision = null } });
+    defer successor.deinit();
+    try t.expect(successor.value.result.managed_inspection.observation.?.head.pending != null);
+    try t.expectEqual(@as(u64, 5), successor.value.result.managed_inspection.completed.?.revision.metadata.revision);
+    try t.expectEqual(@as(u64, 4), successor.value.result.managed_inspection.completed.?.revision.metadata.rows);
     try control(manager, declaration, .retire, 652012);
+    try drain(manager, declaration, init.io, .cwd());
     try t.expect(try manager.start(declaration) == null);
     try count(client, 4);
     // Executor refusal must close the original attempt without publishing an
@@ -230,8 +242,8 @@ pub fn recover(init: std.process.Init, client: c.DirectTableClient, path: []cons
     try t.expectEqual(@as(u64, 0), refusal.head.revision);
     try t.expect(refusal.head.pending == null);
     try count(client, 4);
-    try control(manager, limited, .retire, 652025);
-    try t.expect(try manager.start(limited) == null);
+    // Keep this refusal observable across replacement for the independent
+    // reader. Retirement (covered above) clears the current blocked reason.
     try dml(client, "DELETE FROM managed_output", 652028);
     try retained(manager, declaration, 1, &.{ 1, 2, 3 });
     try retained(manager, declaration, 2, &.{ 1, 2, 3, 4 });
@@ -282,6 +294,74 @@ pub fn verify(init: std.process.Init, client: c.DirectTableClient, path: []const
         authorities[i] = metadata.value.result.lookup.?.authorization;
     }
     authorities[2] = (try c.DirectKVClient.apply(&output, client, .{ .observe = declaration.value.object })).definition.authorization;
+    // Read through the public owner with another signed principal. The publisher
+    // keeps its original token, record and transaction authority.
+    const reader_key = try c.protocol.Ed25519.KeyPair.generateDeterministic(@splat(31));
+    const reader_role = (try client.authority.query(.{ .realm = 42, .principal = 102, .kind = .{ .authorization = .{ .kind = .identity } } }, reader_key)).body.authorization.body.identity.login_role;
+    const config = try client.call(.describe);
+    defer config.deinit();
+    const authority = config.value.result.description.authority;
+    for ([_]struct { id: u64, rights: u64 }{
+        .{ .id = authority.database, .rights = c.TableAuthority.connect },
+        .{ .id = authority.initial_schema_authority, .rights = c.TableAuthority.usage },
+        .{ .id = authorities[0], .rights = c.TableAuthority.select },
+        .{ .id = authorities[1], .rights = c.TableAuthority.select },
+        .{ .id = authorities[2], .rights = c.KVAuthority.inspect | c.KVAuthority.read },
+    }) |grant| _ = try admin.change(.{ .grant = .{ .object = c.TableAuthority.reference(grant.id), .grantee = reader_role, .privileges = grant.rights } });
+    const budget_control = (try c.DirectKVClient.apply(&output, client, .{ .lookup = .{ .namespace = 1, .name = "managed_budget" } })).lookup.?;
+    _ = try admin.change(.{ .grant = .{ .object = c.TableAuthority.reference(budget_control.authorization), .grantee = reader_role, .privileges = c.KVAuthority.inspect | c.KVAuthority.read } });
+    var viewer = client;
+    viewer.connection.principal = 102;
+    viewer.connection.role = null;
+    viewer.key = reader_key;
+    const blocked = try viewer.call(.{ .managed_inspection = .{ .namespace = 1, .name = try .init("managed_budget"), .expected = null, .revision = null } });
+    defer blocked.deinit();
+    try t.expect(blocked.value.result.managed_inspection.completed == null);
+    try t.expectEqual(c.protocol.Dataflow.Blocked.budget, blocked.value.result.managed_inspection.observation.?.head.blocked);
+    var request: c.ManagedInspection.Request = .{ .namespace = declaration.value.namespace, .name = declaration.value.name, .expected = try declaration.value.interpretation(output.allocator()), .revision = null };
+    const observed = try viewer.call(.{ .managed_inspection = request });
+    defer observed.deinit();
+    try t.expectEqualDeep(declaration.value.connection, observed.value.result.managed_inspection.declaration.connection);
+    try t.expectEqual(@as(u64, 5), observed.value.result.managed_inspection.completed.?.revision.metadata.revision);
+    try t.expectEqual(@as(u64, 4), observed.value.result.managed_inspection.completed.?.revision.metadata.rows);
+    try t.expectEqual(c.protocol.Dataflow.State.retired, observed.value.result.managed_inspection.observation.?.head.control.state);
+    const projected = try q.ManagedInspection.apply(output.allocator(), viewer, .{ .definition = c.protocol.Growth.current_definition, .namespace = request.namespace, .name = request.name.slice(), .expected = null, .revision = "1" });
+    try t.expectEqualStrings("1", projected.completed.?.revision);
+    try t.expectEqualStrings("3", projected.completed.?.rows);
+    try t.expect(projected.current == null);
+    var forged = observed.value.result.managed_inspection;
+    forged.completed.?.revision.metadata.rows = 1;
+    try t.expectError(error.InvalidManagedTableRecord, forged.validate(output.allocator(), request));
+    forged = observed.value.result.managed_inspection;
+    forged.completed.?.revision.metadata.schema.sha256[0] ^= 1;
+    try t.expectError(error.InvalidManagedTableRecord, forged.validate(output.allocator(), request));
+
+    for ([_]u64{ 1, 2, 4 }, [_]u64{ 3, 4, 0 }) |number, rows| {
+        request.revision = number;
+        const revision = try viewer.call(.{ .managed_inspection = request });
+        defer revision.deinit();
+        try t.expect(revision.value.result.managed_inspection.observation == null);
+        try t.expectEqual(rows, revision.value.result.managed_inspection.completed.?.revision.metadata.rows);
+        try t.expectError(error.CatalogIdentityConflict, c.DirectRecord.read(init.gpa, viewer, revision.value.result.managed_inspection.completed.?.manifest));
+    }
+    try t.expectError(error.CatalogIdentityConflict, c.DirectClientToken.lookup(viewer, manager.nameKey(request.namespace, request.name)));
+    request.revision = 6;
+    try t.expectError(error.NotFound, viewer.call(.{ .managed_inspection = request }));
+    request.revision = null;
+    request.expected.?.digest[0] ^= 1;
+    try t.expectError(error.Conflict, viewer.call(.{ .managed_inspection = request }));
+    request.expected.?.digest[0] ^= 1;
+    for (authorities, 0..) |authorization, i| {
+        const rights = if (i == 2) c.KVAuthority.read else c.TableAuthority.select;
+        _ = try admin.change(.{ .revoke_privileges = .{ .object = c.TableAuthority.reference(authorization), .grantee = reader_role, .privileges = rights } });
+        // Buffered metadata is not a new disclosure grant, including empty
+        // completions and an explicitly selected older nonempty revision.
+        for ([_]?u64{ null, 1, 4 }) |number| {
+            request.revision = number;
+            try t.expectError(error.AccessDenied, viewer.call(.{ .managed_inspection = request }));
+        }
+        _ = try admin.change(.{ .grant = .{ .object = c.TableAuthority.reference(authorization), .grantee = reader_role, .privileges = rights } });
+    }
     for (authorities) |authorization| {
         var nonempty = try q.ManagedRevision.open(manager, declaration.value, 1, .{});
         defer nonempty.deinit();

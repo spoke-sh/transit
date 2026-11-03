@@ -84,6 +84,13 @@ collection. Committed records retain indefinitely.
 See [managed Table computations](../../../docs/handbook/reference/queries.md#managed-table-computations)
 for supported SQL, current-policy checks and retention limits.
 
+`ManagedInspection.apply` provides bounded, read-only computation metadata with
+lossless host values. It calls Catalog's signed `managed_inspection` action and
+never opens a retained row reader. Requests explicitly select namespace/name,
+optionally fence the computation definition, and optionally select one positive
+revision. SQL SHOW uses that same native owner. An independent reader needs the
+current source/output/control read conjunction, not publisher credentials.
+
 `ManagedTable.diagnostics` provides opt-in, fixed-cardinality process observations
 of recovery phases and successful result-page staging. Hosts configure it before
 starting workers and never reset it during work. The private SQL deployment

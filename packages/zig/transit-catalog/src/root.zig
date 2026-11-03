@@ -189,3 +189,6 @@ pub const DirectTransactionRead = @import("DirectTransactionRead.zig");
 pub const CatalogDefinition = @import("CatalogDefinition.zig");
 
 pub const DirectDefinition = @import("DirectDefinition.zig");
+
+pub const ManagedTableRecords = @import("ManagedTableRecords.zig");
+pub const ManagedInspection = @import("ManagedInspection.zig");

@@ -586,7 +586,7 @@ defines this separate workload.
 **Status: In Progress; implementation sequence approved.** The first F0 packet
 implements bounded owner attribution and diagnostic controls. The initial audit
 followed PR #330 at `095544060e2cdf99fa7088210610255cdc3ab024`; integration now
-includes `origin/main` at `5f23092f2` (PR #338). It retains the F0/R1/M3/C4/D5/S6/E7/Q8
+includes `origin/main` at `5e00b53bf` (PR #340). It retains the F0/R1/M3/C4/D5/S6/E7/Q8
 work packages below, the existing numerical goals and issue
 [#211](https://github.com/spoke-sh/transit/issues/211), coordinated with
 [#76](https://github.com/spoke-sh/transit/issues/76). M8 remains In Progress.
@@ -618,6 +618,7 @@ complete revision, current permissions and cleanup ownership throughout.
 | [#335](https://github.com/spoke-sh/transit/pull/335), automatic local Board data | Default local read-only data binding, with a one-time Board restart when account enrollment completes; explicit workbench configuration overrides automatic binding | Measure first verified catalog/query result and binding activation separately from readiness. Include disabled/explicit-override and revoked-original-binding controls; earlier Board boot timings predate this default. |
 | [#336](https://github.com/spoke-sh/transit/pull/336), SQL Queue NACK | Receipt-bound retry settlement and original-token recovery through the SQL service | Include NACK settlement and first original-outcome lookup in Queue measurements, preserving lease fencing, requested visibility and delayed FIFO behavior. Do not count recovery as a fresh settlement. |
 | [#338](https://github.com/spoke-sh/transit/pull/338), Board storage and deferred features | Readable retained-storage evidence, split public clients/validators and deferred feature imports, with bundle guards | Measure cold bootstrap, first Catalog/Workbook result, deferred transfer/parse time and browser heap separately. The recorded bootstrap-byte reduction is not time-to-interactive or an SDK latency gain. |
+| [#339](https://github.com/spoke-sh/transit/pull/339), [#340](https://github.com/spoke-sh/transit/pull/340), computation inspection | Shared persisted-record codecs and signed independent-reader metadata inspection, reused by SQL SHOW and Board Computations | Measure current/retained metadata observation separately from retained-row consumption and execution. Include independent-reader rights, after-buffer revocation and visible/hidden polling under active work. The F0 SHOW timings predate this owner; absence of pending work is not proof of source freshness. |
 
 PR #337 repairs release prerequisites without supplying a new performance baseline.
 The F0 diagnostic matrix predates these integrations. Preserve its frozen sources

@@ -35,7 +35,7 @@ function bundleBudget(): Plugin {
             `Board bootstrap exceeds four scripts / 800 kB (${initial.size} scripts, ${initialBytes} bytes)`,
           );
         const featureRoot =
-          /transit-board-web\/src\/(?:catalog|dataset|workbook|operations|activity|atlas|process-evidence|definition|unified-workspace|relational-workspace|live-table)\.tsx$/;
+          /transit-board-web\/src\/(?:catalog|dataset|workbook|operations|computations|activity|atlas|process-evidence|definition|unified-workspace|relational-workspace|live-table)\.tsx$/;
         for (const script of scripts) {
           if (
             initial.has(script.fileName) &&
@@ -83,6 +83,10 @@ export default defineConfig({
             {
               name: "operations",
               test: /transit-board-web\/src\/(?:operations|storage|storage-model|maintenance-model)\.tsx?$|transit-board-client\/src\/storage(?:-validators)?\.(?:ts|js)$/,
+            },
+            {
+              name: "computations",
+              test: /transit-board-web\/src\/(?:computations|computation-owner)\.tsx?$|transit-board-client\/src\/(?:computations|computation-validators)\.(?:ts|js)$/,
             },
             { name: "dataset", test: /transit-board-web\/src\/dataset\.tsx$/ },
             { name: "workbook", test: /transit-board-web\/src\/workbook\.tsx$/ },

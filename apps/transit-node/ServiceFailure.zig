@@ -5,6 +5,9 @@ pub const Refusal = struct { status: std.http.Status, code: p.ErrorCode };
 pub fn table(err: anyerror) Refusal {
     const code: p.ErrorCode = switch (err) {
         error.InvalidBody => .InvalidBody,
+        error.ManagedTableNotFound, error.DataflowRevisionNotFound => .NotFound,
+        error.InvalidDataflowRevision, error.InvalidManagedTableRecord, error.InvalidManagedTableHead, error.InvalidDataflowDeclaration => .InvalidRequest,
+        error.DataflowIdentityConflict, error.IncompleteDataflowCoverage, error.ManagedTableInitializationPending => .Conflict,
         error.InvalidRequest => .InvalidRequest,
         error.BranchOperationRequired, error.InvalidBranchCreation, error.InvalidBranchCursor, error.BranchIdentityConflict, error.BranchNotFound => .InvalidRequest,
         error.HistoricalOperationRequired, error.EmptyHistoricalSelection, error.InvalidHistoricalCursor, error.InvalidHistoricalLimits, error.InvalidHistoricalSelector, error.HistoricalObjectNotSelected, error.UnsupportedHistoricalTransaction => .InvalidRequest,
@@ -66,6 +69,7 @@ pub fn native(err: anyerror) Refusal {
 fn status(code: p.ErrorCode) std.http.Status {
     return switch (code) {
         .AccessDenied => .forbidden,
+        .NotFound => .not_found,
         .InvalidRequest, .InvalidBody => .bad_request,
         .Conflict, .TableDefinitionChanged, .QueryExpired, .HistoryReclaimed, .StaleAuthorizationRevision, .StaleAuthorizationCredential, .AuthorizationSubjectDenied => .conflict,
         .AuthorityUnavailable, .ClockRollback, .ClockUnavailable, .DeadlineUncertain, .UntrustedTime, .AdmissionClosed, .ControlCapacity, .StorageQuota => .service_unavailable,

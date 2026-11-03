@@ -476,3 +476,11 @@ the transaction workspace quota. `DirectStorageGraph` retains uncertain and
 committed records and releases aborted payloads only after complete cleanup.
 Ordinary saved records remain protected. See the [record ownership
 contract](../../../contracts/DIRECT_TABLE_V1.md#durable-client-token-bindings).
+
+`ManagedTableRecords` owns the existing finite-computation metadata codecs,
+without importing the query executor. `ManagedInspection` and the signed
+`managed_inspection` action resolve one published computation under a reader's
+current grants and verify retained completion metadata through the original
+transaction decision owner. Generic caller-token, record and transaction
+ownership remain unchanged. See [DATAFLOW_V1](../../../contracts/DATAFLOW_V1.md#independent-reader-metadata-inspection)
+for disclosure and work bounds.

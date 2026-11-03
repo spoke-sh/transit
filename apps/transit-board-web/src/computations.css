@@ -1,0 +1,61 @@
+.computation-evidence {
+  border-top: 1px solid var(--line);
+  margin-top: 1rem;
+  padding-top: 1rem;
+}
+.computation-diagram {
+  display: flex;
+  gap: 0.75rem;
+  align-items: stretch;
+  margin: 1rem 0;
+}
+.computation-node {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+  min-width: 0;
+}
+.computation-node button {
+  display: grid;
+  gap: 0.4rem;
+  padding: 1rem;
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+.computation-edge {
+  font-size: 0.85rem;
+  max-width: 7rem;
+}
+.computation-summaries {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+.computation-evidence dl {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) 2fr;
+  gap: 0.5rem 1rem;
+}
+.computation-evidence dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.computation-evidence pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 750px) {
+  .computation-diagram,
+  .computation-node {
+    flex-direction: column;
+  }
+  .computation-node,
+  .computation-node button {
+    width: 100%;
+  }
+  .computation-summaries {
+    grid-template-columns: 1fr;
+  }
+}
