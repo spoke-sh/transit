@@ -12,11 +12,14 @@ from interfaces.installation.board_workbench import installed as workbench
 from interfaces.cli.table_console import records
 from interfaces.cli.console_terminal import local_transcript
 from interfaces.cli.console_edit import local_edit
+from harness.operation_helpers import operations
 
 def run(prefix):
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
     prefix = Path(prefix).resolve()
-    for binary in (prefix / 'bin').iterdir():
+    # Test provisioning must be portable too: an existing ELF with a missing
+    # loader otherwise fails much later as a misleading FileNotFoundError.
+    for binary in [*(prefix / 'bin').iterdir(), Path(operations())]:
         assert 'INTERP' not in subprocess.check_output(['readelf', '-l', str(binary)], text=True), binary
         assert '(NEEDED)' not in subprocess.check_output(['readelf', '-d', str(binary)], text=True), binary
     fixture = Board(prefix / 'bin/transit', prefix / 'bin/transit-node',

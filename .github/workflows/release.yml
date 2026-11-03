@@ -147,7 +147,7 @@ jobs:
       - name: Build native static Linux release
         run: python3 -B tasks/build_release.py --out-link .cache/release-runtime --cores 2
       - name: Qualify installed startup, SQL and retained restart
-        run: nix develop .#ci-experience --command just test::release .cache/release-runtime
+        run: nix develop .#release-checks --command just test::release .cache/release-runtime
       - name: Retain the private operation fixture for installation checks
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -609,7 +609,7 @@ jobs:
       - uses: Homebrew/actions/setup-homebrew@ae72030040bc05e2d65c41c577092cb98bc0a27e
       - uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
       - name: Build the private host operation driver for Board profile provisioning
-        run: nix develop .#ci-experience --command zig build test-operation-fixture -Doptimize=ReleaseSafe -Dsdk-examples=false -j2
+        run: nix develop .#release-checks --command zig build test-operation-fixture -Dtarget=x86_64-linux-musl -Dcpu=baseline -Doptimize=ReleaseSafe -Dsdk-examples=false -j2
       - name: Install the exact formula with its checksummed candidate archive
         env:
           HOMEBREW_NO_AUTO_UPDATE: '1'
