@@ -591,7 +591,10 @@ work packages below, the existing numerical goals and issue
 [#211](https://github.com/spoke-sh/transit/issues/211), coordinated with
 [#76](https://github.com/spoke-sh/transit/issues/76). M8 remains In Progress.
 Qualification remains source-attributed; an implementation or source audit alone
-establishes no latency claim.
+establishes no latency claim. The first
+[F0 diagnostic scorecard and failure inventory](../history/qualification/performance.md#current-definition-managed-staging-and-sdk-baselines--2026-11-02)
+records owned-record/statement amplification and the failed managed/SDK profiles;
+physical-I/O, allocation/workspace and retention-debt attribution remains open.
 
 The next application outcome is a reliable complete read and a substantially
 cheaper complete managed successor under ordinary maintenance, followed by lower
@@ -793,6 +796,7 @@ do not combine its older-definition observations with the current Table timings.
 | JSON/XML construction and compound commitments | Parse versus construct/drain/hash, one-byte and practical output windows, nesting, long scalars, part count and external references; cold setup and warmed reuse | M16 pure package and independent Python/Expat oracle. Fixed workspace and exact bytes/commitments; no installed ingestion, external-part availability or SIMD claim. |
 | Catalog/history and Stream/Queue | Object/column/history growth, retained selection/release, empty/terminal reads; hot/sealed/cold logs, key skew, waits, lease expiry/redelivery and original settlement | M10/M6 public owners and existing log-runtime/Station-turn runners; report actual supported caller surfaces separately from pending SQL/Station composition |
 | Board and published watches | Polling/reconnect/freshness, empty tables, active watches, policy-progress delay, admission refusal, grant/revoke latency, idle CPU and foreground interference | Existing read-only Board and real HTTP/WebSocket fixtures. Observer requests are counted separately; no pin, mutation or additional policy authority is added. |
+| Original control operations | Declaration/provider publication, native admission/work time, deadline failures and original-outcome inspection under background observation; distinguish accepted mutation, response delivery and pending-quota settlement | The retained F0 browser-provisioning failure supplies an original request, not a successful latency sample. Use the real administrative/native owners; preserve its mutation and ordinary budgets. Do not replay as new work or infer rejection from transport timeout. |
 
 After M14's baseline, choose plan-owned literal preparation and shared
 filter/projection page ownership as separate measured candidates. Preserve eager
