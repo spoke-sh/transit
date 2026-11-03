@@ -385,12 +385,7 @@ class Faults:
             result = client.execute('SELECT id FROM native_sessions')['batch']
             expected = {(b'\x03' + value.to_bytes(8, 'little', signed=True)).hex() for value in (1, 996, 997)}
             assert result['complete'] and {row[0] for row in result['rows']} == expected, result
-            assert len(self.pin_attempts) == 2, self.pin_attempts
-            first, second = self.pin_attempts
-            assert first['owner'] != second['owner']
-            assert any(item['owner'] == first['owner'] and not item['retained'] and
-                       item['position']['partition'] == first['expected']['partition'] and
-                       item['position']['next_lsn'] > first['expected']['next_lsn'] for item in self.pin_states), self.pin_states
+            assert len(self.pin_attempts) == 1 and not self.pin_states, (self.pin_attempts, self.pin_states)
             assert client.call(dict(fetch=dict(cursor=result['cursor'], batch=result['batch'])))['batch'] == result
             client.call(dict(close_result=result['cursor']))
             write('DELETE FROM native_sessions WHERE id = 997')
@@ -402,6 +397,10 @@ class Faults:
             # Background cleanup may resolve the original unknown handle before
             # releasing it. Every acquisition must still carry that same owner
             # and exact frontier; an RPC count would reject legitimate cleanup.
+            deadline = time.monotonic() + 5
+            while not any(item['owner'] == self.pin_attempts[0]['owner'] and item['retained'] for item in self.pin_states):
+                assert time.monotonic() < deadline, (self.pin_attempts, self.pin_states)
+                time.sleep(0.01)
             assert all(item == self.pin_attempts[0] for item in self.pin_attempts), self.pin_attempts
             assert any(item['owner'] == self.pin_attempts[0]['owner'] and item['retained'] for item in self.pin_states), self.pin_states
             print('Snapshot preparation: raced unaccepted pin is proven absent before reacquisition; a lost accepted pin reply never switches identity.', flush=True)

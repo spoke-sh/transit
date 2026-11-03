@@ -148,9 +148,8 @@ fn countFiles(io: std.Io, directory: std.Io.Dir) !u64 {
     var iterator = directory.iterate();
     while (try iterator.next(io)) |entry| {
         if (entry.kind == .directory) continue;
-        const file = try directory.openFile(io, entry.name, .{ .follow_symlinks = false });
-        defer file.close(io);
-        total = try std.math.add(u64, total, try file.length(io));
+        const stat = try directory.statFile(io, entry.name, .{ .follow_symlinks = false });
+        total = try std.math.add(u64, total, stat.size);
     }
     return total;
 }

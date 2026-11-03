@@ -107,8 +107,7 @@ fn objectKey(kind: @FieldType(Allocations.Allocation, "kind"), address: [32]u8) 
 fn scopeKey(root: core.StorageWalk.Root) !core.pages.Key {
     return c.key(.entry, 1 + @as(u64, @backingInt(root.kind)), root.resource orelse 0, &root.reference.location);
 }
-fn mark(state: *State, pages: *PageStore, edge: core.StorageWalk.Edge) !void {
-    var marks = try c.Catalog(PageStore).open(pages, state.marks);
+fn mark(state: *State, marks: *c.Catalog(PageStore), pages: *PageStore, edge: core.StorageWalk.Edge) !void {
     if (edge == .page) {
         const root = edge.page;
         const scope = try scopeKey(root);
@@ -132,7 +131,6 @@ fn mark(state: *State, pages: *PageStore, edge: core.StorageWalk.Edge) !void {
             state.verified_blocks += 1;
         }
     }
-    state.marks = marks.snapshot;
 }
 fn reclaim(self: *Self, cursor: u64, allocation: Allocations.Allocation, cut: core.growing.Head) !u64 {
     // A paused creator must finish before its inventory item can be consumed.
@@ -225,9 +223,12 @@ pub fn step(self: *Self, engine: anytype, now: core.Time.Sample) !bool {
             defer engine.page_store.track_activity = tracked;
             try engine.page_store.begin(engine.head.storage_epoch, true);
             defer engine.page_store.discard();
+            var marks = try c.Catalog(PageStore).open(engine.page_store, state.marks);
+            var pending: c.Candidate = .{};
+            marks.pending = &pending;
             for (0..4) |_| {
                 if (state.walk) |*walk| {
-                    if (try walk.next(engine.page_store)) |edge| try mark(&state, engine.page_store, edge) else state.walk = null;
+                    if (try walk.next(engine.page_store)) |edge| try mark(&state, &marks, engine.page_store, edge) else state.walk = null;
                 } else switch (state.roots.next(engine.journal, engine.page_store, state.cut) catch |err| {
                     if (err != error.HistoryReclaimed) return err;
                     // An incomplete graph can never authorize deletion.
@@ -244,6 +245,10 @@ pub fn step(self: *Self, engine: anytype, now: core.Time.Sample) !bool {
                         break;
                     },
                 }
+            }
+            if (!state.aborted) {
+                try marks.flush();
+                state.marks = marks.snapshot;
             }
             try engine.page_store.finish();
         },
