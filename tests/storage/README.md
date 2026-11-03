@@ -45,7 +45,8 @@ private fixture. Run it alone with `nix develop --command zig build
 test-direct-table-service -Doptimize=ReleaseSafe -- managed-recovery`.
 Automatic maintenance is enabled with a one-second interval and a two-second
 operation deadline. JSON records identify source, binaries, request allocation
-counts/peaks and whole-node CPU, RSS and I/O around replacement. These small
+counts/peaks and whole-node CPU, RSS and I/O around replacement. Every observed
+owner response, including the withheld reply, must have allocation metrics. These small
 finite runs do not establish capacity, latency, generic work-record collection
 or physical power-loss guarantees.
 

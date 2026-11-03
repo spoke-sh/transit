@@ -187,6 +187,10 @@ def run(node, caller, mode="tables", *artifacts):
                     connection.request("POST", self.path, body, headers)
                     response = connection.getresponse()
                     data = response.read()
+                    # Account for the owner's accepted response before a fault
+                    # withholds it from the caller.
+                    if self.path == "/table/v1" and request_memory is not None:
+                        request_memory.observe(envelope["action"], response.getheader("x-transit-work"), len(data))
                     if managed_boundary is not None and self.path == "/table/v1":
                         if managed_boundary.observe(envelope, response.status, data):
                             return
@@ -217,8 +221,6 @@ def run(node, caller, mode="tables", *artifacts):
                                               "status": response.status,
                                               "memory": {name: json.loads(metrics).get(name) for name in ("owner_memory", "request_memory")} if metrics else None}), flush=True)
                     if self.path == "/table/v1":
-                        if request_memory is not None:
-                            request_memory.observe(envelope["action"], response.getheader("x-transit-work"), len(data))
                         if capture_pressure_scan and "scan" in envelope["action"] and response.status == 200:
                             assert not pressure_scan, "Pressure oracle issued more than one scan"
                             metrics = json.loads(response.getheader("x-transit-work"))["request_memory"]
@@ -781,11 +783,14 @@ def run(node, caller, mode="tables", *artifacts):
                         managed_boundary.release.set()
                     authority = start()
                     subprocess.run([caller, endpoint, "managed-crash-verify", str(profile)], check=True, timeout=600)
+                    memory = request_memory.snapshot()
+                    assert sum(row["responses"] for row in memory.values()) == managed_boundary.calls, \
+                        f"{boundary}: missing request-memory observations"
                     results.append(dict(boundary=boundary, passed=True, caller_sigkill_before_reply=True,
                                         node_sigkill=True, elapsed_seconds=time.monotonic() - started,
                                         node_before=before, node_at_crash=at_crash,
                                         replacement=direct_table_maintenance.process_usage(authority),
-                                        requests=managed_boundary.calls, request_memory=request_memory.snapshot()))
+                                        requests=managed_boundary.calls, request_memory=memory))
                     print(json.dumps(dict(profile="managed_recovery_boundary", **results[-1])), flush=True)
                 assert source == provenance(ROOT), "Source changed during the recovery matrix"
                 assert binaries == [identity(Path(path)) for path in (node, caller)], "Proof binaries changed"
