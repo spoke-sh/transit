@@ -1,6 +1,6 @@
 # 10. Standards, collations and historical catalogs
 
-[Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** In Progress ([remaining implementation plan](#remaining-implementation-plan--2026-11-01); [delivered evidence](#delivered-implementation-evidence--2026-10-30))
+[Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** In Progress ([remaining implementation plan](#remaining-implementation-plan--2026-11-02); [integrated baseline](#integrated-baseline-and-remaining-obligations))
 
 Establish historical query, collation/encoding fidelity, multi-model and branch
 semantics using the [grammar inventory](../handbook/reference/sql/grammar-surface.md),
@@ -48,6 +48,10 @@ passes do not qualify the replacement definition, and a progress merge does not
 close those gates or the broader umbrella issue.
 
 ## Delivery sequence
+
+This is the milestone's full target. The [integrated baseline](#integrated-baseline-and-remaining-obligations)
+and current completion plan below distinguish delivered profiles from remaining
+work and later-owner handoffs.
 
 The catalog/snapshot contract in
 [#125](https://github.com/spoke-sh/transit/issues/125), retention/pins in
@@ -162,678 +166,378 @@ explicit projections, metadata-only rights, revocation after a prefix and branch
 movement after admission. Publish independent transition/canonical fixtures before
 implementing branch storage.
 
-## Remaining implementation plan — 2026-11-01
+## Remaining implementation plan — 2026-11-02
 
-### Outcome and source basis
+### Outcome, source basis and scope
 
 **Source basis:** fetched `origin/main` at
-`c8d060cb2dfcf3bc531ef2e41fcdf7d4f172c2d5`. This plan replaces the earlier
-P0–P8 sequence with completion work against that source. The
-[October 30 record](#implementation-plan--2026-10-30) preserves the initial
-plan and delivered helper evidence. Milestone 10 remains **In Progress**;
-the source audit itself establishes no new runtime qualification.
+`5e00b53bfed8a552dc7306e1338394ec037ac9bb`, including the M10 progress merge
+(`9d7a15fd6`, PR #320), subsequent integration, and Board's independent computation
+inspection (PRs #339–340). This is a source and evidence audit, not a new runtime
+qualification. Milestone 10 remains **In Progress**.
 
-An application must be able to retain a declared data basis, evolve names and
-schemas, then query or inspect that original basis with its original meaning.
-The result identifies its catalog, definitions, data cuts, interpretation rules
-and projection coverage. Current policy still governs every disclosure. A second
-journey declares row-local integrity and inspects constraint dependencies without
-mistaking a staged foreign key for enforced integrity.
+An application must be able to retain selected data and definitions, evolve the
+live catalog, then query the retained basis with its original interpretation and
+inspect why that interpretation applies. Another caller with current rights must
+be able to inspect that evidence without acquiring the publisher's authority.
+Integrity declarations must distinguish enforced CHECK from staged foreign keys.
+An interrupted acquisition, query capture or release must preserve its original
+identity, retained obligations and observable outcome.
 
-Deliver these journeys first over the installed local direct Table owner, native
-SQL sessions and public Zig client. Preserve all affected existing consumers in
-the coordinated cutover. Full closure also requires the companion type families,
-versioned view/graph/foreign bindings, and shared inspection described below;
-a Table-only demonstration does not waive those gates. Direct KV/Stream/Queue
-and Document historical execution is admitted per qualified owner, not inferred
-from a shared descriptor. New broad language coverage, writable branches,
-index-backed foreign keys and general graph/foreign execution retain their
-existing milestone owners.
+The work is now completion of the integrated owners and their evidence. Do not
+restart the October helper-to-runtime implementation sequence. Preserve its P0–P8
+acceptance scope through the mapping below. The
+[earlier plan](#remaining-implementation-plan--2026-11-01) and
+[pre-integration qualification](../history/qualification/catalog.md#standards-and-historical-catalogs-before-main-integration--2026-11-01)
+retain the original implementation history and failures.
 
-### First integrated increment — 2026-11-01
+The required executable profile comprises direct Tables, native SQL sessions,
+qualified PostgreSQL/MySQL projections, public Zig and Python/TypeScript callers,
+and read-only Board inspection. It includes companion values and expressions,
+explicit schema projection, common-cut transfer, captured historical Tables,
+finite historical views and versioned graph/foreign metadata. It does not infer
+historical KV/Stream/Queue/Document execution from their descriptors. Existing
+consumer refusals are part of qualification, not permission to silently discard
+unsupported values. Broader language and transport support retains its owner.
 
-The capability ledger now generates the public support matrix, records explicit
-unverified standards references and MIT fixture provenance, rejects dependency
-cycles, and checks positive/negative cases against the production DDL, relational
-and inspection entry points. Analytical, search, dataflow and policy helpers no
-longer imply public SQL support.
+### Integrated baseline and remaining obligations
 
-CP037 PAD SPACE and CP1047 NO PAD are integrated through Table schemas, SQL
-CREATE/ADD COLUMN, defaults and row validation, saved query plans, comparison
-keys, relational hashes, compressed predicates and affected language bindings.
-Existing CP037 NO PAD is preserved. Dictionary comparisons retain every distinct
-stored value when multiple codes compare equal. The coordinated current-v1
-cutover updates reflected resources and independent signing/encoding fixtures;
-old schemas and shared definitions reject before execution.
+Read the current public owners before changing semantics: [historical SQL](../handbook/reference/sql/as-of.md),
+[Tables](../handbook/reference/tables.md), [types](../handbook/reference/sql/types.md),
+[expressions](../handbook/reference/sql/expressions.md), [queries](../handbook/reference/queries.md)
+and [caller semantics](../handbook/reference/callers.md).
 
-The owning tests cover index/scan agreement, prepared and captured plans,
-UPDATE/DELETE with retained reads, disk reopen, padded-key conflicts, code-page
-punctuation, zone-map pruning, and six-profile consumer wire fixtures. Executing
-these checks is required for qualification; their presence alone is not evidence.
-
-This completes the collation integration slice, not Milestone 10. P0's remaining
-historical/effect contracts, the other P1 type families, P2–P6, broader historical
-client work and final P8 closure remain open. The following source-basis table
-records the original audit, before this increment.
-
-### Current implementation and remaining gaps
-
-The next implementation increment persists bounded CHECK and explicitly staged
-foreign-key descriptors in Table schemas. SQL and typed writes enforce CHECK,
-including transaction candidates; NOT VALID defers only old-row validation.
-Foreign-key publication registers exact parent/column protection before child
-visibility and records bounded original-operation cleanup. `finalizing` separates
-an accepted Table commit from completed dependency settlement. Physical rewrites
-on populated Tables reject pending M11; bounded validation preserves physical
-row roots and retained old definitions.
-
-Independent Python CHECK/FK byte fixtures, Fuze compiler/codec tests, disk Table
-validation tests, disk foreign-key interruption/cancellation tests and the
-transaction/savepoint constraint test have executed during development. The
-diagnostic grammar and representative Python/TypeScript value checks also pass.
-The installed native/PostgreSQL/MySQL integrity scenario passes CHECK INSERT and
-UPDATE refusal, NULL handling, NOT VALID new-write enforcement, atomic validation,
-stable-column renames, transaction/savepoint rejection, original DDL recovery
-after gateway restart, and staged-FK dependency cleanup. This development evidence
-does not close P2/P3/P8; final committed-revision qualification remains required.
-
-The projection increment adds real retained-directory inspection to the Table
-owner and signed dispatcher: one physical schema generation or eight row
-locations per call, exact ADD-time origins, distinct definition/schema revisions,
-full-width host projections and snapshot-bound continuations. Disk mixed-layout
-tests and in-memory signed dispatch/permission tests execute these operations.
-They establish directory interpretation and bounded pagination, not payload
-verification, historical SQL, installed language/UI composition or complete P3.
-
-The historical catalog increment adds paged selected-name/definition directories,
-original-token acquisition and abandonment, verified publication and explicit
-bounded release. Source pins preserve the original Table interpretation and WAL
-frontier. SQL snapshot suffixes bind this catalog before compilation and carry
-its identity through result and metadata observations. The ambiguous integer
-system-time grammar fragment is removed. Eight focused owner tests pass during
-development, including independent signatures/selectors, lost replies, collection,
-current disclosure and metadata reads with segment access/writes blocked. The
-reference grammar also passes. The installed native/PostgreSQL/MySQL history
-scenario now passes rename/name reuse, prepared reuse, gateway restart,
-independent multi-source reads, paged metadata, buffered revocation and explicit
-release. These development binaries do not establish final committed-revision
-qualification. Common-cut transfer, explicit target projection, P1's
-other type families, P6 and P7 still require implementation and qualification.
-
-The shared Catalog host now exposes explicit historical acquisition, progress,
-release and metadata operations with full-width neutral values and selector-bound
-list cursors. Current-object authorization precedes released-snapshot disclosure;
-result validation rejects mismatched source cuts and scope. Installed host/SDK
-and Board composition remain part of P7/P8, beyond the SQL transport run above.
-
-The companion-value increment integrates RANGE/MULTIRANGE and aligned dense
-VECTOR values through descriptors, canonical/neutral codecs, Table schemas and
-rows, SQL declarations/literals, Arrow export/import and TypeScript/Python value
-APIs. Persisted column semantics bind rounding, metrics, actual TZif artifacts
-and reserved spatial metadata; incompatible layouts require a rewrite. The
-current-v1 cutover regenerates contracts and language resources and retains
-explicit old-definition rejection. Narrower SDK profiles reject unsupported
-descriptors instead of discarding them.
-
-Development checks pass 497 Fuze tests, 305 independent DDL cases and 251 PyArrow
-cases. The focused disk test recovers admitted DDL after a lost reply and two
-reopenings, retaining companion defaults and semantic descriptors. These checks
-do not close P1 or P8: production interval/distance/decimal/timezone expression
-integration, decimal aggregates and final installed-consumer qualification remain
-required, alongside the historical catalog work listed above.
-
-The expression increment binds bounded scalar programs into production Table
-SELECT and prepared/captured logical plans: explicit DECIMAL arithmetic and
-ordered DECIMAL(38,s) SUM, range predicates/order, vector distance and frozen
-TZif timezone conversion/bucketing. Captured Table declarations retain exact
-column semantics. Scalar programs and 128-bit aggregate progress participate in
-the coordinated current-v1 cutover; former plans/checkpoints reject.
-
-Development evidence includes 505 full Fuze tests, 69 focused scalar/prepared
-tests, 132 query tests, 37 independent decimal/instruction-byte fixtures,
-21 TypeScript catalog/query adapter tests and strict Python type checking.
-The reference grammar and 60 fast checks pass. Installed scalar/history scenarios
-and final committed-revision qualification remain required; this increment does
-not close P1/P8 or the remaining projection, common-cut, view and inspection work.
-
-The common transaction-cut transfer now preserves catalog namespaces/names with
-its acquired source closure, reserves original pins during bounded transfer and
-publishes independently retained copies. Common-cut selectors and shared host
-values preserve the complete original attribution. Development checks cover disk
-restart, lost copy/control/release replies, committed prepared writes, abandonment,
-namespace rename, forged cuts, current-policy denial and collection after original
-pin release. The shared v1 cutover replaces saved selectors and persisted pin/catalog
-metadata; it supplies no fallback decoder. Development checks pass all 234
-catalog tests, four focused storage tests, 19 contract checks, 60 fast checks and
-569 diagnostic grammar cases. These checks do not replace P8's final
-committed-source qualification or close the remaining projection/view/caller work.
-
-Historical interpretation coverage now uses the original published selector and
-stable object through shared read operations. Definition pages expose accepted
-physical schemas and ADD-time defaults; eight-entry location pages expose WAL
-or segment placement independently of payload verification. Current metadata
-and SELECT permissions remain distinct, and inspection acquires no new pins.
-The shared owned Python/TypeScript catalog values preserve full-width cursors;
-Board exposes only the read subset and removes failed/revoked observations.
-Development checks pass 27 focused historical catalog tests, Python value checks
-and strict typing, 21 TypeScript catalog tests, and Board type checking. The
-installed SDK and Board scenarios include coverage traversal and denial, and
-remain pending execution at the final revision. Captured historical execution,
-versioned views/descriptors and P8 qualification remain open.
-
-The following table preserves the original source audit. It is not a description
-of the newer increments above.
-
-The source owners below distinguish integrated behavior from reusable helpers.
-The dated proof records qualify their own revisions; their union is not a pass
-at this source.
-
-| Boundary | Available at the source basis | Remaining M10 integration |
+| Original package | Implemented at the source basis | Remaining completion obligation |
 | --- | --- | --- |
-| Standards and effects | [`standards-ledger.json`](../../contracts/sql/standards-ledger.json), generated `StandardsLedgerData`, [`OperatorTraits`](../../packages/zig/transit-fuze/src/OperatorTraits.zig), compiler rejection checks and metadata-only direct Table EXPLAIN | Feature-specific evidence and generated public capability views; trait propagation through every admitted operator and frontend. Ledger generation checks consistency, not conformance. |
-| Types and semantic rules | [`Range`](../../packages/zig/transit-fuze/src/Range.zig), [`VectorMetric`](../../packages/zig/transit-fuze/src/VectorMetric.zig), [`DecimalArithmetic`](../../packages/zig/transit-fuze/src/DecimalArithmetic.zig), [`Timezone`](../../packages/zig/transit-fuze/src/Timezone.zig) and expanded `Collation.Profile` helpers | Wire/value/schema/storage/query integration and generated consumers. A metric helper is not an unboxed stored vector. TZif helpers do not enable SQL timezone expressions. |
-| Current schemas and collations | [`TableSchema`](../../packages/zig/transit-fuze/src/TableSchema.zig) persists logical types and independent physical attributes. Admitted text collations are `utf8_binary`, `ascii_ci`, `ebcdic_cp037`, all NO PAD; `icu_root` rejects | Persist complete interpretation descriptors. CP037 PAD SPACE and CP1047 helpers are not admitted Table/SQL collations. Do not reinterpret existing CP037 as PAD SPACE. |
-| Integrity and evolution | [`TableConstraints`](../../packages/zig/transit-fuze/src/TableConstraints.zig) evaluates supplied descriptors; `TableEvolution`, `TableSchemaProjection` and `TableInterpretations` implement existing lazy evolution | `TableDdl` still rejects CHECK/FOREIGN KEY. Persist constraints, compile DDL, enforce all write paths, register column dependencies and expose actual evolution/projection evidence. |
-| Catalog history | [`DirectCatalogRoots`](../../packages/zig/transit-catalog/src/DirectCatalogRoots.zig) verifies retained control-WAL roots one frame per step. [`HistoricalCatalog`](../../packages/zig/transit-catalog/src/HistoricalCatalog.zig) validates borrowed fixture cuts and supplied grants | Durable paged historical name/definition resolution, complete publication evidence, pin lifecycle and current runtime authorization. Neither helper supplies a production historical catalog. |
-| Retained data | `TableSnapshot`, retained history, lazy physical-schema interpretation and transaction cuts preserve exact data bases; [`DirectStorageGraph`](../../packages/zig/transit-catalog/src/DirectStorageGraph.zig) walks retained obligations | Bind catalog interpretation to those bases, including committed WAL-only rows, deletion vectors and complete transaction decisions. A control-root position alone is not a data frontier. |
-| SQL and results | M4 result lifecycle, M5 Table transactions, shared SQL readers and direct compilation are integrated | [`FOR SYSTEM_TIME AS OF`](../handbook/reference/sql/as-of.md) remains an isolated grammar fragment. No production historical selector/name binding, explicit projection or historical result provenance is provided by the fixture helper. |
-| Verification | [`historical_catalog_test.zig`](../../packages/zig/transit-catalog/src/historical_catalog_test.zig) exercises helper semantics; [`historical_catalog.py`](../../tests/catalog/tables/historical_catalog.py) regenerates neutral fixtures | Independent execution correspondence, installed callers, disk recovery, authorization races, bounded growth and one-revision closure. Matching generated fixtures is not an independent semantic oracle. |
+| P0 — Standards/effects | [Ledger](../../contracts/sql/standards-ledger.json), generated capabilities and production `OperatorTraits`; resolved CHECK/DML/projection traits and metadata-only EXPLAIN | Reconcile feature/stage/surface claims with the integrated entry points and independently executed cases. Preserve explicit unverified standards references; generation consistency alone is not conformance. |
+| P1 — Types/interpretation | Stored RANGE/MULTIRANGE, aligned dense VECTOR, exact decimal programs/SUM, pinned TZif operations, CP037 PAD SPACE and CP1047 NO PAD; persisted `transit-spatial.Reference` metadata | Repeat storage/query/Arrow/neutral correspondence across the combined definition and M14 paths. Verify each narrower wire/SDK refusal and every changed-format rejection. UCA/locale execution remains refused. |
+| P2 — Integrity | Persisted bounded CHECK and explicitly staged FK descriptors, owner-enforced writes, validation and recoverable dependency finalization | Prove all actual write/admission paths and interruption points at the integrated source. FK dependency protection is not parent/child enforcement; M11 owns enforcement and referential actions. |
+| P3 — Evolution/projection | Accepted definition and ADD-origin directories; lazy evolution, validation/rewrite classification, signed/SQL explicit targets and paged physical interpretation | Qualify mixed segment/WAL generations, retained defaults, stable-column identity and current-policy disclosure through installed consumers. Directory coverage must not claim payload verification. |
+| P4 — Historical retention | [`DirectHistory`](../../packages/zig/transit-catalog/src/DirectHistory.zig), paged directories, original-token acquisition/release, independent/common cuts and exact pin copies | Complete integrated fault/collection/growth evidence, including current mixed-transaction and Document roots. No partial cut or cleanup prefix may become a completed result. |
+| P5 — Historical queries | `AS OF SNAPSHOT`, retained namespace selection, explicit Table projection, prepared reuse and captured Table descriptors/copy grants | Requalify installed history and capture after all shared-definition changes; cover result lifetimes, release races and buffered revocation. Temporal `FOR SYSTEM_TIME AS OF` remains separate. |
+| P6 — Versioned interpretations | [`DirectDefinition`](../../packages/zig/transit-catalog/src/DirectDefinition.zig) atomically publishes metadata/dependencies; finite historical view expansion, graph mappings and captured foreign-layout artifacts | Qualify replacement, lost replies, retention/collection and independent metadata inspection. Graph traversal, general foreign scans and captured/joined views remain outside the admitted profile. |
+| P7 — Callers/inspection | Shared Catalog history/definitions/projection operations, owned Python/TypeScript values and Board read surfaces | Repeat installed SDK and full Board schedules at the closure source; add real independently granted metadata/row readers where recent fixtures used injected UI denial. Preserve original recovery and explicit cleanup. |
+| P8 — Closure | Substantial component, installed and clean-lane evidence at separately identified revisions | Resolve or reproduce recorded failures, complete missing schedules and qualify all required profiles at one committed revision. No sum of earlier passes closes this gate. |
 
-The Python and TypeScript Catalog adapters now expose owned historical selections,
-acquisitions, exact control recovery, common-cut inputs and bounded metadata
-pages through the existing shared host. Development tests cover full-width
-independent neutral fixtures, host loss, changed response identities, cursor
-scope/progress, and joined Python cancellation. These are boundary tests; the
-installed language journey, Board inspection and final clean qualification remain
-open with the other P3/P5/P6/P7 work.
+The contracts already exist: [historical catalog](../../contracts/HISTORICAL_CATALOG_V1.md),
+[catalog interpretations](../../contracts/CATALOG_DEFINITIONS_V1.md),
+[Table schema](../../contracts/TABLE_SCHEMA_V1.md), [DDL](../../contracts/TABLE_DDL_V1.md),
+[logical types](../../contracts/FUZE_TYPES_V1.md), [direct operations](../../contracts/DIRECT_TABLE_V1.md),
+[results](../../contracts/SQL_RESULTS_V1.md) and [sessions](../../contracts/SQL_SESSION_V1.md).
+Amend these owners before dependent runtime changes if an acceptance case exposes
+a missing rule; do not introduce a second history/result protocol.
 
-### Recent foundations and upcoming handoffs
+### Recent progress and future milestone dependencies
 
-The implementation integrates `origin/main` at `f49a3da65`, including M9's fair
-admission waits and direct KV recovery, distinct browser/retained-branch record
-tags, and the inserted game-asset milestone. The original audit basis remains
-recorded above; the references below follow the current sequence. The combined
-current definition is
-`ae5e85b8e21d8cd9ca81753a18ab12d10d6d2470dd9149f070f6dc3782fb387c`.
-Both preceding branch definitions reject, and the combined consumer fixtures
-require fresh qualification.
+Milestone numbers express ownership and sequencing, not completion. Consume only
+qualified facets of unfinished milestones; the following boundaries permit M10
+completion without waiting for their entire delivery.
 
-| Owner and roadmap status | Progress to consume | M10 dependency or handoff |
+| Milestone and status at this source | Progress or dependency to use | M10 boundary and handoff |
 | --- | --- | --- |
-| [M1](01-declarative-data-lifecycle.md), [M2](02-storage-and-query-performance.md), Completed | Scoped object/definition identities, explicit snapshot consistency, WAL/object durability, retained roots and physical codecs | Extend `DataLifecycle` and storage owners. Do not introduce another catalog ID allocator, in-memory manifest authority or mandatory global CAS for ordinary writes. |
-| [M3](03-live-storage-and-sql-cutover.md), In Progress | Direct catalog/Table lifecycle, retained readers, lazy column projection and original-operation recovery | Build history over installed operations. Preserve remaining lifecycle/recovery qualification; a historical adapter cannot certify unfinished M3 profiles. |
-| [M4](04-statement-results-and-consumption.md), [M5](05-transactions-and-atomic-composition.md), Completed for their recorded profiles | Logical statement results, bounded verified completion, local serializable Table transactions and common cuts | Extend existing observation/result types. Retaining a historical cut is separate from keeping an interactive transaction open. Preserve private/provisional versus committed results. |
-| [M6](06-streams-queues-and-durable-runtime.md), In Progress | Database independence, Stream/Queue declarations and typed payloads, bounded Queue waits, named direct KV, native mixed state/append/settlement and explicit DLQ transfer have landed; installed mixed proof is recorded [here](../history/qualification/transactions.md#installed-mixed-state-output-and-input-settlement--2026-10-31) | Account for new object kinds, prepared roots and decision dependencies in retention and cutover tests. Dedicated workload SQL, automatic DLQ scheduling and transactional Station replacement remain open. Do not repeat the older Table-only participant assessment. |
-| [M7](07-document-storage-and-station-decoupling.md), In Progress | Document contracts, algebra, shredder, partition and authority/graph foundations; [remaining plan](07-document-storage-and-station-decoupling.md#implementation-plan-for-remaining-work) separates these from installed lifecycle | Bind exact projection/merge/decoder descriptors now; direct Document execution waits for owner-derived state, public dispatch, transaction and consumer gates. Never route new database history through Station turns. |
-| [M8](08-gateway-architecture-and-protocol-ingress.md), In Progress | Co-hosted direct execution, event-driven recovery, neutral wire framing and resumable PostgreSQL/MySQL command engines | Carry historical observations through the shared service and host disclosure guards. Socket scheduling, remote SQL and Flight/Serving expansion are separate gates; no new per-row gateway requests. |
-| [M9](09-client-foundation-and-language-apis.md), In Progress | Bounded Catalog/SQL context leases, fair admission waits, frozen SQL submissions, direct KV composition and original KV mutation recovery | Put typed historical calls and owned values in existing shared data/SQL clients; coordinate the data ABI extraction. Managed handles, principal coordination and installed language composition remain unfinished. |
-| [M11](11-indexing-and-access-paths.md), Planned | Offline index lifecycle descriptors; maintained indexes and online builds remain future work | Supply exact comparison/constraint bindings, coverage requirements and rewrite classifications. M11 owns index-backed FK enforcement, fine-grained range conflict tracking and recoverable physical rewrites. No circular dependency on those implementations for M10 metadata or CHECK. |
-| [M12](12-sql-and-dataflows.md), In Progress | Analytical, temporal, delta and managed-dataflow helpers have component evidence, with runtime integration still open | Supply immutable view/dependency bindings, range order and operator effects. Temporal joins, managed activation and incremental execution do not follow from historical selection. |
-| [M13](13-data-structures-and-performance.md), [M14](14-vectorized-strings-and-search.md), In Progress; [M15](15-data-centric-compilation-and-specialization.md), Planned | Memory accounting, collation prefixes, German strings, compressed predicates and search helpers already exist | Reuse exact comparator/key rules; compare optimized paths against scalar meaning. Bind compiled-plan/cache identity to the complete interpretation. Their helpers do not qualify every persisted collation or index profile. |
-| [M16](16-document-profiles-and-gateway-exchange-lifecycle.md), [M17](17-geospatial-and-spatio-temporal-computing.md), [M18](18-multi-model-and-foreign-relations.md), Planned | Future Document profiles, spatial execution and foreign/graph relations | Deliver versioned decoder/layout and spatial descriptor bindings with explicit rejection for unavailable execution. File paths/URIs are not immutable foreign inputs. |
-| [M20](20-branches-merges-and-restore.md), In Progress | [Immutable single-Table branches](20-branches-merges-and-restore.md#local-table-branch-increment) now retain definitions and WAL-only data through the existing catalog token/pin owner | Reuse that publication and protected-pin lifecycle. A selected Table branch is not a whole-catalog snapshot or writable branch history. M20 owns divergence, merge, restore and broader branch lifetime. |
-| [M22](22-formal-semantics-and-correspondence.md), [M27](27-control-and-policy-plane.md), [M28](28-published-resources-and-investigations.md), [M30](30-board-reimplementation.md), In Progress | Scoped formal models, policy/publication/investigation contracts and operator UI work | Supply independent collation/DDL correspondence and retained provenance. Current native rights remain authority; policy/investigation helpers cannot grant historical access. Board consumes public read surfaces. |
-| [M21](21-service-and-sdk-coverage.md), In Progress; [M43](43-sql-grammar-and-dialect-ergonomics.md), Planned | Existing SDK/transport profiles and future full dialect audit | M10 migrates every affected consumer and records per-surface support; M21 adds breadth, M43 audits broader syntax/standards. No blanket SQL conformance claim. |
+| [M1–M2](02-storage-and-query-performance.md), Completed; [M3](03-live-storage-and-sql-cutover.md), In Progress | Stable identities, direct declarations, native WAL/object storage, retained roots and lazy Table interpretation | Extend these owners; preserve M3's unfinished installed lifecycle gates. No new catalog authority or Station-mediated database history. |
+| [M4](04-statement-results-and-consumption.md) and [M5](05-transactions-and-atomic-composition.md), Completed | Logical results, verified terminal counts, local serializable Table transactions and retained common cuts | Historical retention outlives a transaction independently. An independent source vector never becomes a common cut merely because its sources were acquired together. |
+| [M6](06-streams-queues-and-durable-runtime.md), In Progress | Direct KV/Stream/Queue, mixed transactions, automatic DLQ recovery, declaration and partial workload SQL have landed | Preserve complete participant decisions and root retention during historical transfer/GC. Remaining workload SQL and Station replacement are not prerequisites for Table history and are not delivered by it. |
+| [M7](07-document-storage-and-station-decoupling.md), In Progress | First causal map-tree storage slice, fenced WAL acceptance and authenticated paging are integrated | Regress current Document roots and descriptor compatibility. Historical Document selection waits for its own retained interpretation, transaction and caller contracts; do not treat the first slice as the complete BP/shredded Document lifecycle. |
+| [M8](08-gateway-architecture-and-protocol-ingress.md) / [M9](09-client-foundation-and-language-apis.md), In Progress | Co-hosted direct execution, recovery/startup continuations; Station-free Catalog/SQL context, frozen submissions and local recovery storage | Reuse shared operations and disclose through the current guards. Core-bounded scheduling, coarse remote SQL, broad managed handles and language composition retain their own gates. |
+| [M11](11-indexing-and-access-paths.md), Planned | Neutral index lifecycle contracts exist; installed secondary indexes and online builds do not | Hand off exact source/column/constraint/comparison identities, historical coverage and rewrite classification. Index-backed FK enforcement and phased physical rewrites stay here; no synchronous scan fallback or circular dependency for M10 CHECK/history. |
+| [M12](12-sql-and-dataflows.md), In Progress | Service-owned finite managed Table recomputation, immutable completion revisions and transaction-owned staging have landed | Preserve retained definition/source attribution and independent inspection. WAL-complete incremental execution, temporal joins and valid-time periods remain M12 work; RANGE or snapshot syntax does not implement them. |
+| [M13](13-data-structures-and-performance.md) / [M14](14-vectorized-strings-and-search.md), In Progress; [M15](15-data-centric-compilation-and-specialization.md), Planned | Resource accounting, compact Batch strings, shared lookup and encoded predicates are present | Qualify collation equivalence through the actual optimized paths and scalar controls. Retained operator keys, search-index lifecycle, broader metering and compilation remain separate. |
+| [M16](16-document-profiles-and-gateway-exchange-lifecycle.md) / [M17](17-geospatial-and-spatio-temporal-computing.md), In Progress; [M18](18-multi-model-and-foreign-relations.md), Planned | Offline JSON/XML construction and compound commitments; canonical `SPR1` reference and exact spatial predicates | Preserve exact decoder/artifact/reference identities. These are no longer merely planned helpers, but do not supply installed profile retention, spatial SQL or general foreign/graph execution. M19 and later scientific workloads consume these same descriptors. |
+| [M20](20-branches-merges-and-restore.md), In Progress | Immutable single-Table branches retain definitions and WAL-only data through the catalog pin owner | Preserve branch-owned retention and exact historical meaning. Writable branches, branch/tag SQL convenience, whole-catalog ancestry, diff/merge and restore remain M20 work. |
+| [M22](22-formal-semantics-and-correspondence.md), In Progress | Scoped collation/DDL/result/storage models and concrete correspondence checks | Reuse A1/A2/A5 and T1/T2/T4/T8 only with their stated assumptions and implementation mappings; abstract proofs do not qualify every codec or frontend. |
+| [M27](27-control-and-policy-plane.md) / [M28](28-published-resources-and-investigations.md) / [M30](30-board-reimplementation.md), In Progress | Policy/investigation foundations; merged readable storage and independent-reader computation inspection | Use current grants and public reads. Board's newer selected passes inform the remaining matrix; they do not grant historical access or close full installation/browser qualification. M29 reviewed publication stays separate. |
+| [M21](21-service-and-sdk-coverage.md), In Progress; [M43](43-sql-grammar-and-dialect-ergonomics.md) / [M44](44-qualification-and-benchmarks.md), Planned | Existing consumer profiles, future full grammar comparison and combined workload qualification | M10 owns its changed-consumer regression and common-source gates. Broad new surfaces, dialect ergonomics and release-scale benchmarking retain their owners. |
 
-### Contract decisions before runtime exposure
+### Decisions that constrain the remaining implementation
 
-These decisions refine the original plan. New type/API names and SQL forms below
-are implementation targets until the owning contract, grammar and executable
-entry point land together.
+1. **Keep exact identities and lifecycle boundaries.** Selection/staging,
+   acceptance, source retention, publication and availability are distinct.
+   Reuse `DataLifecycle.Snapshot`, stable object/ColumnIds and the existing
+   operation/token owner. Catalog positions, partition LSNs, schema revisions,
+   content identities and transaction decisions are distinct typed evidence.
+   Snapshot `manifest/v{N}` notation does not create protocol v2/v3.
+2. **Bind before compilation and preserve original recovery.** Resolve the
+   published selector and retained namespace before names, views, columns and
+   comparison rules. Freeze explicit projection targets by accepted definition;
+   `CURRENT` resolves once. Prepared/captured work cannot silently refresh a
+   source or reparse under today's schema after an uncertain reply.
+3. **Separate interpretation from current permission.** Metadata, rows, row
+   placement and terminal counts require their current owning grants, including
+   after buffering, DROP, empty/repeated pages and independent-reader access.
+   Historical grants, a selector and an old policy epoch confer no authority.
+   EXPLAIN/inspection acquire no new pins, read no payloads and dispatch nothing.
+4. **Preserve the admitted semantic profiles.** Keep logical type, physical
+   encoding and comparison/rounding/metric/timezone/spatial rules orthogonal.
+   Existing CP037 NO PAD remains distinct from PAD SPACE and CP1047. Hashes,
+   normalized keys, prefixes, dictionary/FSST predicates and pruning must agree
+   with full comparison. Pin actual TZif bytes; never fall back to host rules.
+   Spatial metadata and recorded UCA names do not imply executable spatial/UCA SQL.
+5. **Keep integrity and evolution explicit.** CHECK TRUE/NULL passes; FALSE,
+   missing, type_error and conflict reject candidate rows. NOT VALID defers old
+   data validation only. FK staging is visibly unenforced, with protected exact
+   dependencies. Lazy metadata/projection, bounded validation and physical
+   rewrite are distinct; populated incompatible rewrites reject pending M11.
+6. **Do not manufacture completeness or retention.** Results retain M4's schema,
+   bounded batch lifetimes and verified outcome; EOF/early close is not empty
+   success. Projection-directory inspection is not payload verification. Missing,
+   corrupt, explicitly released and unsupported history have distinct failures.
+   Unlimited retention remains the default; pressure cannot authorize expiry.
+7. **Change compatibility only when necessary.** This plan does not schedule a
+   gratuitous definition replacement. If a fix changes stored/wire/ABI semantics,
+   follow the [current-v1 cutover policy](../handbook/reference/versioning.md):
+   replace the shared definition, regenerate affected resources/fixtures and
+   migrate all consumers together. Missing/foreign definitions reject before
+   execution, with original bytes and uncertain work preserved. Old dated hashes
+   in proof records are evidence for those runs, not today's compatibility ID.
 
-1. **Use one historical basis with distinct identities.** A proposed `CatalogCut`
-   identifies immutable catalog interpretation within existing `DataLifecycle.Scope`
-   and branch identities; data coverage stays in `SourceCut`, `Snapshot` and the
-   transaction owner. Keep catalog publication sequence, partition LSN, schema
-   revision, content digest and application revision distinct. The notation
-   `manifest/v{N}` describes a publication sequence, not a second protocol version.
-   Reuse M20 branch IDs and heads rather than allocating a competing namespace.
-2. **Freeze an accepted catalog and its selected source closure.** The control
-   WAL contains reservations and pending work as well as completed operations;
-   a historical root is insufficient unless the accepted object declaration is
-   verified. Specify a bounded acquisition protocol that resolves completed
-   name/definition bindings, retains exact source cuts, validates concurrent DDL
-   and records recoverable progress before publishing a complete basis. A
-   single-source cut is coherent; a selected common transaction cut uses its
-   owner; other sources remain an explicitly independent vector. Do not invent
-   whole-catalog atomicity or force independent DML through the catalog WAL.
-3. **Separate selection, projection and time.** First expose typed immutable
-   snapshot/catalog selection, with a branch selector only for its qualified
-   M20 scope. Resolve mutable heads once before compilation. `AS OF SNAPSHOT`
-   and explicit projection require grammar and typed-operation contracts;
-   `PROJECTING TO` is a proposed spelling, not executable syntax. Match stable
-   ColumnIds and freeze the target definition, including a requested `CURRENT`.
-   `FOR SYSTEM_TIME AS OF` remains reserved for temporal-table meaning. Remove
-   the ambiguous integer fragment at its deliberate cutover; never reinterpret
-   its integer as a manifest or LSN. Timestamp convenience needs authority-time,
-   ordering/tie and retention rules before admission; M12 owns temporal joins
-   and valid-time behavior. Unsupported selectors reject rather than choose a
-   nearby or current cut.
-4. **Keep current authorization separate from historical evidence.** Resolve
-   metadata and rows through their owning native policy references, including
-   retained objects after DROP. Historical `policy_epoch` is attribution, never
-   permission. Recheck current rights after buffering and before rows, schema,
-   metadata, repeated/empty batches and terminal counts. A recreated name grants
-   no access to its previous object. Metadata-only EXPLAIN/DESCRIBE must not
-   acquire data pins, read segments or disclose hidden dependencies.
-5. **Preserve comparison meaning through every representation.** Persist exact
-   collation repertoire, padding, normalization/case rules and implementation/data
-   identity. Existing `EBCDIC_CP037` is NO PAD: adding PAD SPACE is a distinct
-   descriptor. Equality, hashes, sort keys, four-byte prefixes, dictionary/FSST
-   predicates, joins, keys and zone maps must agree under that descriptor.
-   Equal prefixes require full comparison. Versioned UCA/ICU locale descriptors
-   remain rejected until tables, options, licensing and independent conformance
-   are pinned; recognizing a name does not qualify execution.
-6. **Separate constraint validation from enforcement.** CHECK uses a bounded,
-   deterministic row expression with no external access or effects. TRUE/NULL
-   pass; FALSE/missing/type_error/conflict reject with attributable diagnostics.
-   `NOT VALID` can defer old-row validation while enforcing new candidate rows;
-   it is not `NOT ENFORCED`. FK descriptors may be explicitly staged/not enforced,
-   with dependency protection and visible status; a plain enforced declaration
-   cannot silently downgrade. Enforced activation and referential actions require
-   M11's supporting indexes and transaction checks. Before then, reject activation
-   and any mutation requiring unavailable enforcement.
-7. **Keep historical interpretation within the current Transit definition.** Old
-   application schemas can coexist in retained data; old incompatible Transit
-   formats cannot. Plan one coordinated descriptor/consumer release boundary,
-   with no v2, fallback reader or defaulted persisted definition. Any additional
-   incompatible change still requires a new shared current-v1 definition and
-   complete migration/rejection checks. Reserving a descriptor does not guarantee
-   that future spatial or language work will never need another cutover.
+### Review units and delivery order
 
-### Work packages and delivery gates
+These are planned changes and checks. Start with R0, then R1. R2 and R3 consume
+that settled contract/consumer boundary; R4 measures the resulting implementations.
+R5 closes only after all required results are available at its chosen source.
+Within each unit, first reproduce the existing case, add only missing coverage
+and fix the owning defect; avoid replacing mature owners with another abstraction.
 
-Retain P0–P8 for continuity with the earlier evidence. P1 is the coordinated
-contract/consumer boundary, not a repeat of helper implementation. P2/P3 and P4
-can progress independently after their shared contracts are fixed; P5 requires
-both durable acquisition and correct interpretation. Publish each runtime slice's
-supported semantics with its evidence rather than waiting for final closure.
+#### R0 — Reconcile capability claims and preserve the failure baseline
 
-| Package | Deliverable | Start gate | Completion gate |
-| --- | --- | --- | --- |
-| P0 | Evidence ledger, effect propagation and historical/integrity contract decisions | Audited source | Typed contracts, capability matrix, migration inventory and independent fixture specification reviewed together |
-| P1 | Canonical types, semantic descriptors and coordinated v1 consumer cutover | P0 | Actual values/schema/storage/query paths and affected consumers pass, including rejection of incompatible artifacts |
-| P2 | Durable CHECK and staged FK definitions, dependencies and write enforcement | P1 constraint representation | SQL and typed writes share enforcement; dependency publication/recovery cannot leave an unprotected visible constraint |
-| P3 | Lazy/validation/rewrite classification and projection provenance | P1; P2 for constraint-aware changes | Mixed-generation segments and WAL tails preserve historical/live meanings; physical rewrites reject pending M11 |
-| P4 | Durable historical catalog acquisition, lookup and retention | P0/P1 identities and format; existing storage/transaction/branch owners | Exact paged catalog/data cuts survive interruption, restart and collection with current policy |
-| P5 | Historical compilation and result lifecycle | P0, P3, P4 | Installed historical SELECT/metadata/projection with frozen basis, verified completion and disclosure fencing |
-| P6 | Versioned views and graph/foreign/decoder catalog bindings | P2–P5 | Historical definitions and dependencies survive replacement; execution gates remain explicit per data kind |
-| P7 | Shared clients, transports and read-only inspection | P5/P6; qualified M8/M9 facets | Same basis/constraints/coverage through public APIs, with ownership, cleanup and original recovery |
-| P8 | Independent correspondence, faults, resource evidence and closure | Every claimed P0–P7 profile | Required journeys pass at one committed revision and current public owners describe them |
+**Maps to P0/P8. Owners:** `standards-ledger.json`, its generator/checker,
+`OperatorTraits`, grammar corpus and the domain qualification records.
 
-#### P0 — Complete contracts and evidence ownership
+Complete the existing ledger/evidence mapping for every admitted M10 entry point with
+separate parse/lower/execute/recover/transport claims, exact surface/type limits,
+positive/negative cases and fixture provenance/license. Check the actual compilers
+and dispatchers, not symbol presence. Keep selected SQL:2023, SQL/JSON, SQL/PGQ
+and SQL/MED targets distinct from Transit extensions and unverified standards
+citations. GQL/Cypher/PGQL support requires its own evidence.
 
-Extend the existing ledger and validator instead of recreating them. Each feature
-must identify edition/part/correction where verified, extension versus standard,
-owner, dependencies, deviations, fixture provenance/license and independent
-`parse`/`lower`/`execute`/`recover`/`transport` evidence. Record transport/type
-profiles explicitly: a native type is not automatically supported by Flight,
-PostgreSQL, MySQL or every SDK. Generated capability views must preserve rejected
-and reference-only states. Do not copy restricted standards text into fixtures.
+Record the closure candidate's commit, shared/format definitions, binary hashes,
+installed artifacts, toolchain, topology, commands and unchanged budgets. Give
+each runner a separate evidence directory. Preserve original failures and private
+installations; no concurrent job may remove another job's checkout or overwrite
+its report. The ledger and existing tests should reveal missing work rather than
+being relabeled to make it disappear.
 
-Carry `OperatorTraits` through lowering and validation for every admitted plan,
-including CHECK and historical projection. Derive read/mutate/capture/dispatch,
-determinism, fallibility, five-state behavior, collation, change mode and work
-bounds from shared typed semantics. Test EXPLAIN against instrumented owners:
-metadata access is permitted, but zero data acquisition, segment reads, durable
-mutation or external dispatch is required.
+**Exit:** every original P0–P8 obligation maps to an implemented owner plus an
+executable check or a named missing check; known failures below have reproducible
+commands and explicit expected outcomes. Unverified standards remain unverified.
 
-Amend [data lifecycle](../../contracts/DATA_LIFECYCLE_V1.md),
-[direct requests](../../contracts/DIRECT_TABLE_V1.md),
-[types](../../contracts/FUZE_TYPES_V1.md),
-[schema](../../contracts/TABLE_SCHEMA_V1.md),
-[DDL](../../contracts/TABLE_DDL_V1.md),
-[results](../../contracts/SQL_RESULTS_V1.md),
-[sessions](../../contracts/SQL_SESSION_V1.md) and the
-[grammar](../../contracts/sql/README.md) before dependent runtime exposure.
-Specify historical selection/acquisition/release/inspection, consistency,
-constraint states, effect-free projection, retention failures and observation
-immutability. Add an owning exact historical contract if those operations need
-one; do not turn the fixture JSON into a second authoritative protocol.
+#### R1 — Close semantic and consumer integration gaps
 
-Inventory all affected stored roots, schemas, rows, plans, prepared requests,
-transaction preparations, branch pins, Arrow metadata, ABI/host declarations and
-SDK resources. Bind each to its generator, consumer and old-definition rejection
-check. Use independent canonical vectors as the oracle for P1–P8.
+**Maps to P0–P3/P6/P7. Owners:** `transit-fuze`, `transit-storage`,
+`transit-catalog`, generated protocol/neutral/Arrow bindings and affected SDKs.
 
-#### P1 — Integrate types and interpretation descriptors
+Run independent comparator/key/hash/prefix/pruning fixtures through stored Table
+keys, scans, dictionary/FSST filters, compact Batch strings, prepared/captured
+plans and retained reads. Include distinct stored spellings that compare equal,
+PAD SPACE/control characters, CP037/CP1047 punctuation and prefix ties. Exercise
+actual optimized paths and a scalar/full-scan oracle at the same cut.
 
-Extend `Types`/`Values`, `TableSchema`/JSON/row codecs, `PhysicalCodecs`/`TSeg`,
-query binding and shared neutral/Arrow/ABI consumers together. Explicitly refuse
-unsupported combinations at the earliest owning boundary. Keep the following
-subchanges reviewable within the coordinated release:
+Carry companion descriptors and values through storage reopen, query expressions,
+Arrow and neutral values: range extrema/empty/unbounded/continuous bounds and
+multirange coalescing; vector alignment/dimension/metric, finite/zero-norm and
+binary padding rules; decimal scale, rounding, intermediate overflow and ordered
+SUM; TZif digest, gap/fold, coverage refusal and unavailable artifacts. Preserve
+explicit unsupported transport/language combinations, including C/C++'s narrower
+construction profile and Flight's selected types.
 
-- **Ranges:** integrate `Range` over the declared INT64/DECIMAL/DATE/timestamp
-  domains. Specify successor rules for discrete bounds, overflow at extrema,
-  empty/unbounded bounds, continuous inclusivity and canonical sorted/coalesced
-  multiranges. Continuous intervals cannot all be converted to `[lower, upper)`
-  without changing meaning. Persist the element's exact order; qualify the
-  admitted containment, overlap, adjacency and ordering operators.
-- **Vectors:** use `VectorMetric` with fixed dimension and admitted FLOAT32,
-  FLOAT16, BFLOAT16, INT8 and binary layouts, a whole-cell five-state tag and
-  unboxed elements. Define binary dimension/padding, finite-value and zero-norm
-  handling, metric/type compatibility, accumulation/overflow rules and bounded
-  allocation. Runtime slabs are 64-byte aligned; wire bytes need not share a
-  host pointer layout. Coordinate with M14's `VectorSlab` to avoid duplicate
-  value representations. SIMD results must satisfy the declared scalar oracle.
-- **Decimals and time:** integrate deterministic scale promotion, explicit
-  rounding and overflow in expressions/aggregates. Do not invent monetary
-  defaults. Pin timezone rules by actual immutable TZif content plus declared
-  identity, retain the required artifacts and define local-time gaps/folds.
-  Existing coverage refusals remain until separately implemented and tested;
-  no host tzdb fallback or digest derived only from a release label.
-- **Collations and spatial descriptors:** integrate CP037 PAD SPACE and CP1047
-  only after comparator/key/hash/pruning correspondence passes. Preserve current
-  NO PAD semantics. Reserve validated spatial reference/manifold/precision/order
-  bindings for M17, with explicit unsupported execution. UCA/locale profiles
-  remain recorded refusals unless their complete evidence gate passes.
+Exercise CHECK at point/bulk/SQL/typed/transaction candidates and savepoints,
+including defaults and NOT VALID validation. A rejected atomic write publishes no
+successful prefix. Interrupt FK protection/publication/finalization/cancellation;
+retain protection until original publication is settled. Check hidden dependency
+blockers without disclosing their identities. Rename preserves stable bindings;
+DROP/recreate cannot rebind them. Verify schema evolution against mixed physical
+generations and WAL tails, ADD-time defaults and exact projection targets.
 
-Change format definitions and the shared Transit definition wherever required;
-regenerate consumers and signing/schema fixtures. An incompatible retained store
-or saved request must fail before execution while preserving original bytes and
-recovery material. No silent reset or compatibility shim. Run version alignment
-checks if manifests change. Do not advertise SQL operators solely because a new
-value round-trips through the neutral codec.
+**Exit:** actual owner and consumer checks pass for each admitted profile and
+refusal. Any incompatible repair includes all stored-plan/schema/selector/pin,
+transaction, ABI, signing and generated-consumer updates in the same cutover.
+Definition changes reopen affected downstream qualification.
 
-#### P2 — Persist integrity and enforce it at acceptance
+#### R2 — Qualify complete historical acquisition, execution and cleanup
 
-Store constraint identity/name, canonical expression, referenced ColumnIds,
-validation/enforcement state and exact FK target object/definition/columns in
-immutable schema/catalog records. Compile the bounded CHECK subset and explicit
-staged FK declaration through SQL and typed callers; reject unsupported forms.
-FK arity, type/comparison compatibility, nullable SET NULL targets and candidate
-key requirements must be validated or visibly pending, never inferred from names.
+**Maps to P3–P6. Owners:** `DirectHistory`, `DirectDefinition`,
+`DirectStorageGraph`, Table pin/projection and transaction owners,
+`transit-query-direct`, `transit-query` and `transit-sql`.
 
-Enforce CHECK after assignment/default resolution and before point/bulk acceptance
-or transaction statement publication. Cover INSERT, UPDATE, UPSERT, private
-workspaces, savepoints, direct binary ingress and replay validation; an adapter
-cannot bypass the owner. A failed row rejects the atomic operation without a
-successful prefix. Constraint diagnostics use shared typed failures and respect
-metadata visibility. Recovered accepted work retains its bound definition.
+Extend the installed disk schedules only where their matrix is incomplete:
 
-Extend the paged `DirectCatalogDependencies` owner with column-level integrity
-edges. Current registration and dependent publication are separate acceptances:
-record the original pending operation, acquire protection before visibility,
-recover uncertain publication and release abandoned edges only after resolution.
-Do not claim atomic graph/schema publication unless the new owner proves it.
-Block dependent DROP/incompatible ALTER, including hidden blockers without
-leaking their identities. Compatible renames preserve bindings; no automatic
-name-based rebinding. M11 receives enforcement state, key requirements and
-referential actions, not an unbounded parent/child scan fallback.
+- Interrupt before/after source-pin acceptance, catalog publication, common-cut
+  reservation/copy, abandonment and release. Lose acknowledgements and restart
+  the owner; inspect the same original operation. Unpublished prefixes stay
+  unavailable; no acquired pin becomes an untracked collection obligation.
+- Transfer the exact acquired transaction closure while commit/abort and cleanup
+  race. Preserve mixed participant commitments, copying only the selected Table
+  sources admitted by history. Published history and the transaction own separate
+  pins; cleanup neither releases the other's copy nor bypasses a reservation.
+- Compile retained namespace/table/column names before and after rename, DROP,
+  recreation and later defaults. Reuse prepared queries; exercise explicit
+  projection and old-column success/new-column rejection. Never splice a newer
+  snapshot into an incomplete read.
+- Capture an exact historical Table while copy acknowledgement is lost and live
+  DDL/frontiers advance. Release before copy acceptance fails explicitly;
+  release after acceptance leaves the query-owned copy usable. Replacement and
+  closure reconcile the original copy without acquiring a newer basis.
+- Replace/drop a view, graph mapping and foreign decoder; retain original exact
+  dependencies, typed view filters and captured bytes through real collection.
+  Verify view filtering before an outer fallible expression, zero-source foreign
+  metadata selections, unavailable bytes and corrupt checksums. Replay never
+  fetches a mutable URI or activates an effect/computation.
+- Checkpoint/trim/flush/compact and reopen with cold caches. Keep schema origins,
+  TZif and decoder artifacts, `.tseg`/`.tdel`, WAL-only rows, required decisions,
+  branch/history/managed-result obligations and current Document roots reachable.
+  Collect a separately staged orphan to show that retention is not blanket
+  collection disablement.
 
-#### P3 — Integrate evolution and projection coverage
+**Exit:** exact rows, definitions, source/consistency evidence and operation
+outcomes match independent expectations through restart and collection; all
+acquisition/release controls finish or retain explicit unresolved obligations.
+No test converts missing history or an incomplete prefix into a successful empty
+result. Unsupported temporal, branch convenience and view profiles still refuse.
 
-Connect the existing classifier/helpers to `TableEvolution`, catalog preview,
-accepted ALTER and recovery. Report three distinct paths: lazy metadata/projection,
-validation scan, and physical rewrite. Adding a NOT VALID CHECK still enforces
-new writes; validating old data, changing comparison/key semantics and physical
-conversion need bounded validation or M11's phased lifecycle before activation.
-An empty live Table does not make its old retained definitions disposable.
+#### R3 — Complete public caller and independent inspection journeys
 
-Use `TableInterpretations` and stable ColumnIds to interpret each physical segment
-and WAL row at the selected logical definition. Preserve frozen ADD-time defaults,
-nullable additions, later default changes and dropped/recreated identities.
-Default historical reads target the historical schema; explicit projections bind
-their own target and missing/default/conversion policy without rewriting data.
+**Maps to P5/P7. Owners:** `transit-data-client`, `transit-sql-results/client`,
+SQL service/host adapters, language SDKs and Board's existing feature owners.
 
-Expose bounded per-definition/segment projection evidence with known versus
-completed coverage. Keep result observation immutable: detailed coverage may be
-paged through a separately identified inspection result or finalized through the
-owning completion contract, not silently appended to the cursor's initial basis.
-Budget metadata traversal as well as rows. Claim no constant-time DDL or zero
-allocations without measurements against the actual retained graph.
+Execute the same retained-basis journey through public Zig, installed sync/async
+Python and TypeScript, native SQL and the admitted PostgreSQL/MySQL profiles.
+Check full-width identities, output ownership beyond scratch reset/next call,
+selector-bound continuations, cancellation/join, early close, host/node/gateway
+replacement and recovery from saved original acquisition/release identities.
+Closing a local handle must not release separately retained history.
 
-The next storage increment publishes accepted definition revisions and their
-frozen ADD-origin directories atomically with Table DDL. Exact metadata lookup
-and forward projection survive reply loss, checkpoint/restart, later defaults,
-column removal and a history larger than the resident cache. A real collection
-walk preserves the origin pages while deleting an unaccepted declaration.
-Independent 194-byte fixtures cover wide identities and canonical rejection.
-The focused disk projection and canonical fixture checks pass. Signed native
-preparation/scan and the shared reader now bind exact accepted targets separately
-from source cuts; the signed test covers metadata-only rights, denied reads,
-later defaults, DROP, continuation fencing and historical release. SQL SELECT,
-DESCRIBE and EXPLAIN are wired to these operations with separate observation
-evidence. The current cutover passes all 320 storage tests, 13 focused catalog tests,
-20 direct-query tests, 13 SQL tests, 26 result tests, reflected contract checks
-and 60 fast checks. Expanded installed SQL qualification remains pending.
+Use independent authority subjects for metadata-only, row-capable and denied
+readers. Revoke after buffering rows, schema, metadata, repeated/empty pages and
+terminal counts. Exercise live/retired/recreated objects and released selectors;
+a wrong-kind/connection/selector continuation must fail. Preserve validated
+missing-selection diagnostics versus authority unavailability through the client.
+The recent computation reader is a useful precedent, not authority to read a
+publisher's private operation records.
 
-#### P4 — Build durable catalog cuts and their retention lifecycle
+Repeat full Board installation and browser profiles, retaining the recent R2/R3
+selected successes as prior evidence. Add real metadata-only versus SELECT-only
+placement checks where the latest browser fixture injected denial for presentation.
+Check incomplete coverage, failed/revoked observation clearing, retained definition
+and location pages, and independent computed-result attribution. Board must issue
+only permitted public inspection reads for these features; fixture setup owns
+retention/mutation separately. No raw provider reads or hidden pin controls.
 
-Implement historical acquisition and lookup in `DirectCatalog`,
-`DirectCatalogRecords`/`Store`/`Roots`, with paged immutable directories and bounded
-caches. Resolve names and definitions from accepted historical bindings, including
-namespace changes, DROP and name reuse. Keep the existing complete control-WAL
-recovery walk; an optional lookup index is an acceleration structure, not permission
-to discard earlier recovery roots. Measure pages/steps with increasing history
-before promising logarithmic access.
+**Exit:** all required public journeys preserve one basis, truthful completion,
+original recovery and current disclosure across installed boundaries. Unsupported
+SDK/wire profiles reject explicitly; local frontend tests or injected 403s alone
+do not establish native permission enforcement.
 
-Record acquisition intent and source selection under the existing client token
-and operation owner. Acquire catalog/schema/artifact references and complete
-Table source pins, including `.tseg`, `.tdel`, accepted unflushed WAL and relevant
-transaction decisions. Verify definition/data agreement and DDL races before
-conditional publication. Preserve acquired progress across failure and use the
-same original identity to finish or abandon it. Partially acquired cuts remain
-unpublished. Once admitted, execution cannot silently retry against another cut.
+#### R4 — Establish bounded work and implementation correspondence
 
-For selected multi-Table common cuts, reuse the transaction owner and explicitly
-coordinate catalog interpretation with that selected closure; do not relabel an
-ordinary independent vector. M6's mixed preparations and M20's operation-to-branch
-pin transfer must remain reachable during collection. Reuse immutable Table
-branch bindings for that scope; whole-catalog branch histories remain M20 work.
+**Maps to P1–P8. Owners:** existing storage/query/catalog tests,
+`transit-memory` measurement seams and M22's scoped proof/replay owners.
 
-Integrate pins, release/abandonment and metadata/artifact roots into
-`DirectStorageGraph`, checkpoint/trim and collection. Retention stays unlimited
-by default. Explicit expiry, caller release, storage unavailability, corruption,
-unsupported definition and denied access have distinct outcomes, subject to
-non-disclosure rules. A missing segment is not proof of authorized expiry. No
-outage or quota pressure permits skipping history or returning empty success.
+Grow objects, definitions, source selections, pins, dependencies and physical
+schemas beyond resident caches. Measure cold/warm lookup, acquisition/publication,
+read and release/abandon/collection work, including incomplete operations and
+reopen without hints. Use counting allocators after warmup and separate scratch
+from retained output. Account for bytes/pages/ranges, resident high water,
+allocation count, retained bytes and time to first/complete result. Check quota
+refusal without losing accepted obligations. Do not raise fixed ceilings or
+require expiry to make the schedule pass.
 
-#### P5 — Bind historical SQL before name resolution
+Compare current and retained reads at identical source, durability, policy and
+budgets. Preserve the earlier 8/137-object and mixed-layout measurements as
+baselines at their recorded sources; set regression budgets from reruns rather
+than inventing latency promises. Report increased total work separately from
+bounded resident memory.
 
-Wire the contracted selectors through grammar, AST, direct relational compilation,
-`DatabaseRuntime`, `ReadCache` and the shared SQL session/result owners. Resolve
-the exact catalog cut first, then object/column/view/decoder bindings and all
-comparison/codec/timezone rules. A current-name lookup followed by replacing the
-data snapshot is invalid. Plan/cache keys include the full frozen interpretation,
-source basis and explicit projection target; repeated aliases share qualified pins.
+Run independent semantic fixtures against real owners and the applicable existing
+A1/A2/A5 and T1/T2/T4/T8 checks. Where correspondence is claimed, retain the abstract
+trace mapping, implementation replay and compiling negative controls. A Lean
+preorder assumption does not prove a new concrete collation; an interrupted model
+or a mutant that cannot compile is not passing evidence.
 
-Define historical SELECT, SHOW, DESCRIBE and EXPLAIN through the same typed
-operations. Metadata inspection has a catalog observation, not an invented data
-snapshot. SELECT carries exact source/consistency evidence in M4's existing
-result lifecycle. Test old-column success/new-column rejection, moved branch
-heads and prepared statements retained across later DDL. Cross-basis queries
-must identify each basis rather than imply an atomic snapshot.
+**Exit:** each admitted hot path has its stated allocation/resource evidence,
+collection/recovery grows without a total-cardinality memory array, and formal
+claims name exact assumptions and implementation coverage. Broader M13 performance
+and M44 release benchmarking remain separate.
 
-Keep the initial historical SQL profile read-only. Reject historical selection
-inside an active write transaction until the transaction owner specifies how
-that basis composes with its common cut and private writes. Do not hide a commit,
-reopen a transaction or permit DML against a retained historical definition.
+#### R5 — Close at one committed revision
 
-Historical reads must survive ordinary physical maintenance or fail explicitly
-when required evidence is unavailable. Keep no-index/full-comparison paths when
-an acceleration structure lacks exact definition/collation/cut coverage. Apply
-current policy at every protected disclosure, including M8's delayed output
-slices. Early close/cancellation/failure releases owned transient reads without
-destroying a separately retained basis or converting a prefix into completion.
+**Maps to P8 and all prior exit gates.** Select a committed closure candidate after
+R1–R4 fixes. Build matching runtime/SDK/Board artifacts there and execute the
+acceptance matrix below and affected clean lanes from the real inventory. If code,
+contract or fixtures change, rerun affected gates and record the new source;
+previous-source successes remain historical evidence. Preserve failed and
+incomplete outcomes without concatenating continuations into a passed lane.
 
-Historical namespace selection now accepts the optional `IN SCHEMA name` suffix
-and resolves it only inside the published selection. SELECT and metadata bindings
-freeze the stable namespace ID; metadata observations retain it independently of
-the session namespace. The SQL and service package suites pass (13 and 11 tests),
-and the independent grammar check accepts all four statement forms, including
-quoted names. The installed history scenario now covers namespace rename/reuse
-and restart; that expanded scenario remains pending final execution. Shared
-CHECK/DML validation and resolved schema projections also derive OperatorTraits;
-the Fuze suite passes 508 tests and ten focused catalog projection tests pass.
-These checks do not close the outstanding explicit projection, captured-query,
-versioned-definition or final qualification gates.
+Promote established behavior/limits to the existing public owners, including any
+stale helper-only explanations in component or internals prose. Publish exact
+commands, sources, artifacts, faults, budgets, outcomes and omissions in the
+owning qualification topics. Update this milestone and the roadmap index together
+only when every required gate passes. Do not close the broader standards issue or
+move unfinished M10 obligations to a later milestone to obtain completion.
 
-The installed historical SQL scenario passes at `07955e0c2`: native, PostgreSQL
-and MySQL reads preserve original objects across namespace/table rename and
-reuse, explicit projection defaults, gateway replacement and release. Buffered
-metadata revocation and paged listings pass. Board's installed read-only scenario
-also passes retained definition/location pagination and current-policy refusal;
-its expanded browser scenario still needs execution.
+### Failure baseline and what remains to resolve
 
-Captured historical Table descriptors now freeze the original selector, accepted
-source and optional projection target in TQS1. A signed exact copy grant retains
-that source under the query operation; closure reconciles the original copy even
-when live DDL/frontiers advance. The shared current definition changes to
-`90f861504d63e02569dbf22889557aab7782cf110b141588c3a7373a74999a21`.
-Focused catalog copy/recovery and delegation checks pass (6 tests each), and the
-query descriptor/neutral-value checks pass (9 tests). The expanded installed
-capture scenario covers lost copy replies, DDL, replacement and release-before-copy;
-execution of that scenario and final clean qualification remain pending.
+The [M10 pre-integration record](../history/qualification/catalog.md#standards-and-historical-catalogs-before-main-integration--2026-11-01)
+is the failure baseline. Later [Board storage evidence](../history/qualification/interfaces.md#board-readable-storage-and-deferred-features--2026-11-02)
+and [computation inspection evidence](../history/qualification/interfaces.md#board-computation-inspection--2026-11-02)
+qualify their stated sources and selected profiles.
 
-#### P6 — Bind views and multi-model interpretation
-
-Publish immutable view definitions, output identities and exact dependencies
-through the existing catalog/query owners. Preserve source text as provenance;
-execution uses the accepted typed binding. Replacing a view must not affect a
-historical expansion, and a dependency closure resolves once at the selected
-basis. Cycles, unsupported operators, missing artifacts and incompatible source
-changes refuse before publication/execution. Uncertain publication retains its
-original protection and outcome.
-
-Add versioned property-graph key/label/property mappings and foreign/mainframe
-layout/decoder descriptors with stable ColumnIds and explicit dependencies.
-Persist actual content identities and declared availability for captured foreign
-inputs; never refetch a mutable URI during replay. Validate physical codec limits
-and malformed-value policy separately from storage corruption: a foreign decode
-may produce a declared type_error cell, whereas broken durable checksums or
-incompatible formats must not be converted into ordinary cells.
-
-M10 supplies durable descriptor/history/inspection semantics and historical view
-expansion over qualified sources. Graph traversal and general foreign scans remain
-M18; richer Document profiles remain M7/M16. Register each admitted/rejected
-profile in the ledger, including changed historical decoders and dependency
-failures. Do not activate computations, effects or connectors while inspecting
-or restoring definitions.
-
-The versioned-definition increment implements atomic metadata/dependency
-publication, exact retained view expansion, graph mappings and captured foreign
-decoder inputs. Metadata-only selections have independent consistency and zero
-Table sources. This increment used the shared definition
-`d9c9be6cf8ac63f1003a2d98ab3076936e28cea6a7278e620fe8b869530fc4d4`;
-generated native, host, SDK and Board descriptions move together. The owner is
-the [catalog interpretation contract](../../contracts/CATALOG_DEFINITIONS_V1.md).
-All 250 catalog tests and 21 direct-query tests pass in ReleaseSafe, including
-lost-reply recovery, graph replacement, exact decoder history and real collection.
-The collector checks caught and fixed borrowed provenance in queued input work;
-the rerun preserves old accepted artifacts while deleting an unaccepted input.
-Installed view/Board scenarios and final committed-source qualification remain
-pending. These component results do not close P6–P8.
-
-#### P7 — Expose one shared caller and inspection surface
-
-Extend `transit-data-client.Catalog`, `transit-sql-results` and
-`transit-sql-client`, then the existing ABI/host/language projections. Use M9's
-context leases, frozen submission and recovery-store boundary where available;
-do not create a history-specific host, token allocator or polling workflow.
-Define owned versus borrowed buffers, bounded pagination, cancellation, close
-and recovery of original cut acquisitions. New conveniences cannot resubmit SQL
-or reacquire a moving branch as new work after uncertainty.
-
-Expose catalog/data basis, schema and semantic digests, constraint state,
-dependencies and projection coverage through public read operations. Preserve
-exact identities through JSON/ABI/Arrow and reject unsupported transport/type
-profiles. M8 gateways adapt these operations without owning historical semantics.
-Qualify native SQL and public Zig first, representative Python/TypeScript data
-facets with M9, and regression coverage for every affected existing binding.
-Additional new coverage stays with M21.
-
-Board inspection consumes those same authorized public reads, with bounded pages
-and visible incomplete coverage. It acquires no raw storage access or independent
-permission/configuration authority. Publish current semantics and limits in
-Tables, data types, historical SQL, query results, caller/component/SDK references
-and the state/query/storage internals as each capability lands.
-
-#### P8 — Prove integration and close the milestone
-
-Extend the existing domain suites under `tests/catalog/`, `tests/query/`,
-`tests/storage/`, `tests/interfaces/` and `tests/sdk/`; register real runners in
-the test inventory. Keep fixture consistency checks, component semantics,
-installed fault schedules and formal correspondence separate. Feed independent
-canonical fixtures to actual Zig owners and compare observations, not source
-symbol presence or regenerated copies of the same expected answers.
-
-With M22, connect comparator/key/prefix/pruning and codec cases to A2/A5, and
-CHECK/projection/DDL transitions to A1/T8 where their scoped models apply.
-Include negative controls and implementation replay where claimed. Abstract
-proofs do not establish correctness of every concrete collation, SIMD path or
-storage codec. Retain earlier evidence and failure records.
-
-### Acceptance matrix
-
-| Journey or fault | Required evidence | Packages |
+| Recorded observation | Current interpretation | Required next evidence |
 | --- | --- | --- |
-| Capability and explanation | Every claimed stage/surface has positive and negative cases; metadata-only EXPLAIN has zero data pins/segment reads/mutations/effects | P0, P7 |
-| Rename/drop/recreate | Table, namespace and column reuse cannot rebind original identities; old columns succeed and later columns reject at the old cut | P3–P5 |
-| Historical schema projection | Mixed physical generations plus WAL-only rows preserve frozen defaults and five-state distinctions; explicit target mapping never matches reused names | P1, P3, P5 |
-| Collation and codec fidelity | Independent compare/key/hash/full-scan oracles agree for admitted profiles, PAD SPACE/control characters, multibyte text, prefix collisions, dictionary/FSST and zone maps; malformed foreign values and corrupt durable bytes remain distinct | P1, P5, P6 |
-| Companion types | Range extrema/continuous bounds/coalescing, vector layout/metric/zero-norm limits, decimal scale/rounding/overflow and exact TZif digest/gap/fold/coverage cases pass through actual storage/query/neutral boundaries | P1, P5, P7 |
-| CHECK and FK | All write variants reject invalid CHECK atomically; NULL differs from missing/error/conflict; staged FK is visible, blocks incompatible metadata changes and cannot be mistaken for enforcement | P2, P3 |
-| Online-rewrite handoff | Populated type/collation/key changes cannot trigger unbounded synchronous rewriting or mutate retained interpretation; validation and activation stay distinct | P3 |
-| Complete cut acquisition | Concurrent DDL/DML, pending declarations, unflushed rows and mixed decisions cannot publish partial source coverage; independent vectors and common cuts retain their exact meaning | P4 |
-| Lost replies and process death | Kill before/after source pin, catalog publication, abandonment and release; recover the original operation with no leaked untracked roots or duplicate accepted cut | P4, P7 |
-| Retention and maintenance | Restart, checkpoint, compaction, trim and real collection preserve reachable schema/data/TZif roots; opted-in expiry, missing evidence and corruption fail explicitly | P4, P5 |
-| Current policy | Metadata-only versus row rights; revoke after buffering rows/schema, repeated fetch, empty output and terminal counts; old grants and recreated names cannot authorize disclosure | P4, P5, P7 |
-| Moving heads and changed views | Accepted basis survives branch movement/view replacement/upstream rename; unsupported branch scope, foreign scope or incompatible artifact rejects before execution | P4–P6 |
-| Result truth and cleanup | Empty/multi-batch output, incomplete prefix, cancellation, early close and missing completion preserve M4 semantics; no SELECT restart/splicing or scratch-buffer lifetime leak | P5, P7 |
-| Bounded growth | Histories, objects, pins, segments and dependencies exceed resident caches; paged lookup/acquisition/recovery/cleanup stay within byte/work quotas; warm paths have counting-allocation evidence | P1–P8 |
-| Consumer cutover | All affected generated contracts, signing fixtures, SDKs and saved-format rejection checks agree on the current definition; unsupported surfaces refuse explicitly | P1, P7, P8 |
+| C logical fixture expected unsupported companion construction; corrected profile passed independently | A corrected focused check is not a passed systems SDK lane | R1/R5: run the complete current `sdks-systems` inventory, retaining admitted values and explicit refusals |
+| Board acquisition returned 409 although the original operation later published; original-token recovery fixes and focused retries passed | Preserve the original failure; later success does not explain its cause | R2/R3: reproduce lost/pending/capacity outcomes under original identities; R5: complete installation/UI lane |
+| Browser admission exceeded the unchanged bound; another stopped-authority attempt returned 503 and lost its saved token | Later workbench browser passes narrow the pending scope but do not resolve the old unknown operation | R3: retain exact pre-dispatch recovery state, prove original settlement and run complete browser profiles; do not increase timeouts or resubmit SQL |
+| Storage-query checkout disappeared after twelve successful targets; common-source runners were interrupted | Missing raw records and unexecuted targets remain missing evidence | R0/R5: isolated preserved checkout/report paths, then a complete storage-query run |
+| Core continuation and corrected `transit-sql-results` target passed separately | Neither makes the earlier failed/incomplete aggregate pass | R5: use real inventory targets and complete clean core plus required dependent lanes |
+| New Board retained-placement/independent-computation focused schedules pass; full connection profiles retain SQL-only 503/timeout failures | Reuse successful fixture coverage, keep full-profile failures open | R3/R5: real metadata/row grant splits, original SQL outcome diagnostics and complete installation/browser evidence without hidden retries |
 
-### Verification sequence and first changes
+### Acceptance matrix and runnable checks
 
-Before implementation, reproduce relevant existing checks and record failures
-without weakening assertions. Inside the pinned `nix develop` environment use:
+This table specifies planned evidence. None of these commands was executed as
+runtime qualification while writing this plan. Use the pinned Nix shells and
+[tasks](../../tasks/README.md); each narrower check keeps its stated scope.
 
-- `python3 -B tests/runner/launch.py tests/query/logical/standards_ledger.py`
-  and `python3 -B tests/runner/launch.py tests/catalog/tables/historical_catalog.py`
-  for existing generation/fixture consistency only.
-- Package-local `zig build test` in the affected Fuze, catalog, storage,
-  query-direct, SQL result/client/service and data-client owners, selecting
-  focused filters during iteration.
-- `just test::direct-table-service collations`,
-  `just test::direct-table-service projection`, `just test::local-catalog`,
-  `just test::direct-state-transaction` and `just test::direct-mixed-transaction`
-  for affected owner/service regressions; extend their real scenarios for history.
-- `just test::sql-sessions`, `just test::sql-transactions` and affected installed
-  SDK schedules for caller behavior, disclosure and original-operation recovery.
-- `just check contracts`, documentation checks and the affected committed-HEAD
-  `just ci clean --lane NAME` inventories. Shared format/authority changes require
-  dependent lanes, including affected language and interface lanes; selected
-  passes are not full integration qualification.
+| Gate | Existing owning check to run/extend | Required result |
+| --- | --- | --- |
+| Standards/fixtures/contract drift | `python3 -B tests/runner/launch.py tests/query/logical/standards_ledger.py`; `python3 -B tests/runner/launch.py tests/catalog/tables/historical_catalog.py`; `just check contracts` | Generated data matches owners; independent positive/negative runtime checks support claimed stages; no incompatible artifact accepted |
+| Semantic integration and projection | Package-local `zig build test` in Fuze/storage/catalog/query-direct; `just test::direct-table-service collations`; `just test::direct-table-service projection`; `just test::logical-codec`; `just test::logical-arrow` | Compare/hash/key/pruning and companion semantics agree; mixed layouts retain exact meanings and bounded lifetimes |
+| Integrity | `just test::sql-integrity`; `just test::direct-state-transaction`; `just test::direct-mixed-transaction` | All candidate writes and savepoints preserve CHECK and atomicity; staged FK protection/finalization is recoverable |
+| Historical SQL/results | `just test::sql-history`; `just test::sql-sessions`; `just test::sql-transactions`; `just test::sql-result-allocations` | Names/views/projections and common/independent observations remain exact; empty/multi-batch/early-close and revocation preserve result truth |
+| Captured historical Tables | `just test::sql-history` runs `captured_history` in the [installed driver](../../tests/interfaces/sql_sessions/history.py); `just test::direct-captured-query --captured-only` covers the shared capture regressions | Lost copy replies, release races, replacement and closure keep the original source and query-owned retention |
+| Durable retention/growth | `just test::local-catalog`; `just test::storage-collection`; affected storage/catalog disk and counting-allocation tests | Complete cuts survive physical maintenance; abandoned work and genuine orphans clean up; growth stays within resident/work budgets |
+| Installed language callers | `just bindings::python-test`; `just bindings::node-sdk-test`; affected logical/ABI and remaining language profiles | Original history operations survive caller replacement/lost replies; owned wide values and unsupported-type failures remain faithful |
+| Read-only Board | `just transit-board::workbench-test`; `just transit-board::workbench-browser`; `just transit-board::computations-test`; `just transit-board::computations-browser` | Full installed profiles pass with current rights, exact retained evidence and bounded pages; independent readers gain no mutation/private-token authority |
+| Correspondence | `just test::sql-rewrites` and affected model/replay tasks from the `formal` lane | Completed scoped models, actual implementation correspondence and effective negative controls, with explicit exclusions |
 
-Measure warm/cold lookup and acquisition, time to first/complete result, WAL/object
-requests and bytes, retained bytes, resident high-water memory, allocation counts
-and cleanup/recovery work as history grows. Include current-read and full-scan
-controls at identical durability, policy and resource budgets. Set regression
-budgets from that baseline; do not invent latency or O(1) guarantees in the plan.
-Record source, toolchain, configuration, workload, seed/fault schedule and omissions
-in the owning [qualification records](../history/qualification/README.md).
+The [suite inventory](../../tests/runner/suite.json) is authoritative for lane
+contents. Before pushing implementation/test changes run affected committed-HEAD
+`just ci clean --lane NAME` checks. The closure candidate needs `core`,
+`storage-query`, `interfaces-sql`, `interfaces-relational`, `installation-ui`,
+`browser`, `formal` and `sdks-conformance`, `sdks-scripting`, `sdks-systems`,
+`sdks-managed`. Include `interfaces-connectors` and `launchers` for the integrated
+M10 definition: their earlier passes predate its replacement. Record the dependency
+decision for any future scope adjustment; no required M10 gate may be excluded
+solely because an earlier revision passed. Full integration remains a release
+gate. Separate lane runs must all identify the same candidate before claiming
+common-revision closure.
 
-The first implementation changes should be:
+Public documentation updates use the existing type/Table/history/query/caller
+owners and state/query/storage internals, with component/SDK guides for exact
+profiles. Check repository links/whitespace and affected handbook builds. This
+planning-only change establishes no runtime guarantee and leaves milestone status
+unchanged.
 
-1. **P0 contract/evidence change:** settle typed cut acquisition, selector versus
-   temporal semantics, constraint state and immutable observation rules; repair
-   ledger evidence gaps and inventory all consumers of the coordinated cutover.
-2. **P1 integration change set:** persist canonical types/descriptors and
-   constraint representations, migrate consumers and reject incompatible
-   artifacts. Reuse the delivered helpers and M14 representations with independent
-   oracles; do not publish helper-only completion claims.
-3. **P2/P3 integrity and evolution change set:** wire real write checks,
-   recoverable dependency protection, lazy evolution and projection evidence.
-4. **P4 durable acquisition change set:** implement bounded retained catalog/data
-   cuts over current owners and prove disk interruption/GC before SQL exposure.
-5. **P5–P7 caller change sets, then P8 closure:** historical SQL, views/descriptors
-   and shared inspection over those proven owners; execute the full matrix at one
-   committed revision and promote current semantics to public owners.
+## Remaining implementation plan — 2026-11-01
 
-Keep the milestone **In Progress** until every claimed gate is met. Record any
-partial delivery against its work package; do not close M10 by reclassifying
-unfinished integration as a later milestone without an explicit scope decision.
+The [complete prior plan and increment record at this plan's source](https://github.com/spoke-sh/transit/blob/5e00b53bfed8a552dc7306e1338394ec037ac9bb/docs/roadmap/10-standards-and-catalogs.md#remaining-implementation-plan--2026-11-01)
+preserves the original P0–P8 work packages, intermediate definition identities,
+source audits, development checks and acceptance matrix. The November 2 plan
+above supersedes its scheduling and stale open-work assessments. Implemented
+collations, CHECK/FK metadata, historical catalogs, SQL, views and caller surfaces
+must not be treated as unimplemented because an earlier paragraph predates their
+increment. Earlier passes retain their original revision and limits; the
+[qualification record](../history/qualification/catalog.md#standards-and-historical-catalogs-before-main-integration--2026-11-01)
+preserves failures and incomplete runs.
 
 ## Implementation plan — 2026-10-30
 
@@ -848,9 +552,11 @@ its limits; it does not establish production integration.
 
 PR [#262](https://github.com/spoke-sh/transit/pull/262) introduced standalone
 helpers and fixture checks. Those are prerequisites, not completion of the
-`P0`–`P8` exit gates. The production SQL compiler still rejects CHECK/FOREIGN KEY,
-RANGE/VECTOR and historical catalog selectors; native schemas do not persist
-those descriptors. Milestone 10 remains **In Progress**.
+`P0`–`P8` exit gates. At that revision, the production SQL compiler rejected
+CHECK/FOREIGN KEY, RANGE/VECTOR and historical catalog selectors; native schemas
+did not persist those descriptors. The table preserves that revision's assessment;
+the [integrated baseline](#integrated-baseline-and-remaining-obligations) describes
+the newer implementation. Milestone 10 remains **In Progress**.
 
 | Work package | Current implementation and evidence boundary | Remaining exit work |
 | --- | --- | --- |
@@ -863,8 +569,8 @@ those descriptors. Milestone 10 remains **In Progress**.
 
 At that revision, the next implementation boundary was `P1`'s coordinated
 descriptor cutover, followed by `P2`/`P3` write and schema integration. The
-[current sequence](#verification-sequence-and-first-changes) adds the contract
-and evidence decisions required by the newer source. Existing WAL traversal,
+[current sequence](#review-units-and-delivery-order) completes integration and
+qualification against the newer source. Existing WAL traversal,
 Table snapshot/transaction identities, current-policy checks and retention owners
 must be reused; a separate in-memory manifest namespace cannot replace them.
 
