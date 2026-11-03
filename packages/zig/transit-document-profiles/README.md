@@ -381,12 +381,16 @@ events/spans and routes semantic construction through the candidate handoff.
 
 ## Ordered storage candidates
 
-`OrderedInput.encode` converts one complete verified JSON/XML part into a
+`OrderedInput.encode` converts one complete verified JSON/XML/MIME part into a
 canonical ordered request for `DocumentPartition.applyOrdered`. Supply the
-existing reader workspace, a `token_bytes` name buffer, `depth` container-end
-offsets and a separately bounded output buffer. Input, output and workspace
+existing reader workspace and a separately bounded output buffer. JSON/XML also
+need a `token_bytes` name buffer and `depth` container-end offsets; MIME can pass
+empty slices for both. Input, output and workspace
 must not overlap. It performs no allocation or publication. Errors return no
 candidate; errors after output construction begins invalidate its magic.
+The complete input and encoded output are resident caller buffers, bounded by
+their capacities and the storage declaration's change budget. This adapter is
+not the streaming candidate sink or multi-request staging interface.
 
 The adapter copies borrowed events before advancing the parser, preserves
 ordered duplicate JSON members and numeric lexemes, and expands container spans
@@ -397,7 +401,22 @@ carries the verified part and exact descriptor; generic ordered storage does not
 persist that profile attestation or infer grammar/schema conformance from spans.
 Profile identity publication and compound container graphs remain separate work.
 
+MIME maps to a root map with two ordered children: a `headers` list followed by
+one `body` binary node, including when either is empty. Each header is a binary
+node named with its original field spelling and containing the unfolded value;
+duplicates, case, order and continuation whitespace survive. A header named
+`body` remains a header. The root spans the whole part, the header list spans
+through the terminating empty line, header spans exclude their final CRLF, and
+the body spans the remaining raw bytes. Parser body windows do not create nodes:
+the verified body is copied once into the output after parsing completes.
+The parser's node budget counts fields and one body; storage adds the root and
+header-list nodes, which are subject to the storage owner's depth/work/byte
+budgets. No MIME header interpretation, transfer decoding, multipart expansion
+or protocol/effect authority is implied.
+
 The owning tests cover these mappings and late malformed input, wrong hashes and
-output exhaustion. The repository's `zig build test-ordered-documents` exercises
-the candidate-to-disk handoff; it does not enable gateway capture or a public
+output exhaustion. MIME checks compare exact nodes/spans and identical candidate
+bytes across parser buffer sizes. The repository's `zig build test-ordered-documents`
+exercises the candidate-to-disk handoff, original receipt retry, paged raw/binary
+reads and topology after reopen; it does not enable gateway capture or a public
 Document route.

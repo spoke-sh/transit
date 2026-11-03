@@ -76,3 +76,95 @@ test "verified profile candidates preserve duplicate keys numbers XML mixed cont
         try t.expectError(error.DocumentEncodingCapacity, profiles.OrderedInput.encode(descriptor, part, request, fixture.input, workspace, output[0..128]));
     }
 }
+
+test "MIME ordered candidates preserve exact header and body nodes independently of parser windows" {
+    const fields = "X-A: one\r\n\t two \r\nx-a:\r\nbody: header\r\n";
+    const prefix = fields ++ "\r\n";
+    const body = comptime blk: {
+        @setEvalBranchQuota(2000);
+        var bytes: [1500]u8 = undefined;
+        for (&bytes, 0..) |*byte, i| byte.* = "\x00\xff\r\n."[i % 5];
+        break :blk bytes;
+    };
+    const source = prefix ++ body;
+    const expected = [_]ordered.Node{
+        .{ .depth = 0, .kind = .map, .span = .{ .part = 19, .start = 0, .end = source.len } },
+        .{ .depth = 1, .kind = .list, .name = "headers", .span = .{ .part = 19, .start = 0, .end = prefix.len } },
+        .{ .depth = 2, .kind = .binary, .name = "X-A", .value = " one\t two ", .span = .{ .part = 19, .start = 0, .end = 16 } },
+        .{ .depth = 2, .kind = .binary, .name = "x-a", .span = .{ .part = 19, .start = 18, .end = 22 } },
+        .{ .depth = 2, .kind = .binary, .name = "body", .value = " header", .span = .{ .part = 19, .start = 24, .end = 36 } },
+        .{ .depth = 1, .kind = .binary, .name = "body", .value = &body, .span = .{ .part = 19, .start = prefix.len, .end = source.len } },
+    };
+    var raw: [256]u8 = undefined;
+    var unfolded: [256]u8 = undefined;
+    var output: [8192]u8 = undefined;
+    var original: [8192]u8 = undefined;
+    var original_len: usize = 0;
+    for ([_]u32{ 32, 64, 256 }) |window| {
+        var bounded = limits;
+        bounded.token_bytes = window;
+        bounded.depth = 1;
+        bounded.nodes = 4; // Three fields and one body; two storage envelope nodes.
+        const descriptor = try profiles.Profile.descriptor(.mime, bounded);
+        const part: profiles.Profile.contract.Part = .{ .definition = descriptor.definition, .profile = descriptor.digest, .id = 19, .bytes = source.len, .sha256 = profiles.Profile.grammar(source).sha256, .coverage = .complete, .source = null };
+        const workspace: profiles.OrderedInput.Workspace = .{ .reader = .{ .mime = .{ .raw = raw[0..window], .unfolded = unfolded[0..window] } }, .name = &.{}, .ends = &.{} };
+        const request: profiles.OrderedInput.Request = .{ .document = @splat(0x81), .epoch = 1, .expected_revision = 0 };
+        const candidate = try profiles.OrderedInput.encode(descriptor, part, request, source, workspace, &output);
+        try t.expectEqualDeep(part, candidate.verified_part);
+        // Workspace is borrowed only during encoding; no event slices escape.
+        @memset(&raw, 0xcc);
+        @memset(&unfolded, 0xcc);
+        var decoder = try ordered.Decoder.init(candidate.bytes);
+        try t.expectEqual(expected.len, decoder.header.nodes);
+        try t.expectEqualStrings(source, (try decoder.nextPart()).?.bytes);
+        var frames: [3]ordered.Frame = undefined;
+        var validator: ordered.Validator = .{ .frames = &frames };
+        for (expected) |node| {
+            const actual = (try decoder.next()).?;
+            try t.expectEqualDeep(node, actual);
+            try validator.push(actual);
+        }
+        try validator.finish();
+        try t.expect((try decoder.next()) == null);
+        if (original_len == 0) {
+            original_len = candidate.bytes.len;
+            @memcpy(original[0..original_len], candidate.bytes);
+        } else try t.expectEqualSlices(u8, original[0..original_len], candidate.bytes);
+        try t.expectError(error.DocumentEncodingCapacity, profiles.OrderedInput.encode(descriptor, part, request, source, workspace, output[0 .. original_len - 1]));
+        try t.expectError(error.InvalidOrderedChange, ordered.Decoder.init(&output));
+    }
+}
+
+test "MIME ordered candidates retain empty bodies and refuse malformed or over-budget parts" {
+    const descriptor = try profiles.Profile.descriptor(.mime, limits);
+    var raw: [256]u8 = undefined;
+    var unfolded: [256]u8 = undefined;
+    var output: [2048]u8 = undefined;
+    const workspace: profiles.OrderedInput.Workspace = .{ .reader = .{ .mime = .{ .raw = &raw, .unfolded = &unfolded } }, .name = &.{}, .ends = &.{} };
+    const request: profiles.OrderedInput.Request = .{ .document = @splat(0x81), .epoch = 1, .expected_revision = 0 };
+    for ([_][]const u8{ "\r\n", "X: y\r\n\r\n", "X: good\r\nBad\r\n", "X: good\r\n", "X: good\r\n\n" }, 0..) |source, i| {
+        const part: profiles.Profile.contract.Part = .{ .definition = descriptor.definition, .profile = descriptor.digest, .id = 19, .bytes = source.len, .sha256 = profiles.Profile.grammar(source).sha256, .coverage = .complete, .source = null };
+        if (i < 2) {
+            const candidate = try profiles.OrderedInput.encode(descriptor, part, request, source, workspace, &output);
+            var decoder = try ordered.Decoder.init(candidate.bytes);
+            try t.expectEqual(3 + i, decoder.header.nodes);
+            _ = try decoder.nextPart();
+            var last: ordered.Node = undefined;
+            while (try decoder.next()) |node| last = node;
+            try t.expectEqualDeep(ordered.Node{ .depth = 1, .kind = .binary, .name = "body", .span = .{ .part = 19, .start = source.len, .end = source.len } }, last);
+        } else {
+            if (profiles.OrderedInput.encode(descriptor, part, request, source, workspace, &output)) |_| return error.AcceptedInvalidProfile else |_| {}
+            try t.expectError(error.InvalidOrderedChange, ordered.Decoder.init(&output));
+        }
+        var wrong_part = part;
+        wrong_part.sha256[0] ^= 1;
+        try t.expectError(error.InvalidOrderedPart, profiles.OrderedInput.encode(descriptor, wrong_part, request, source, workspace, &output));
+    }
+    const source = "X: y\r\n\r\n";
+    var tight = limits;
+    tight.nodes = 1;
+    const tight_descriptor = try profiles.Profile.descriptor(.mime, tight);
+    const part: profiles.Profile.contract.Part = .{ .definition = tight_descriptor.definition, .profile = tight_descriptor.digest, .id = 19, .bytes = source.len, .sha256 = profiles.Profile.grammar(source).sha256, .coverage = .complete, .source = null };
+    try t.expectError(error.DocumentNodeLimitExceeded, profiles.OrderedInput.encode(tight_descriptor, part, request, source, workspace, &output));
+    try t.expectError(error.InvalidOrderedChange, ordered.Decoder.init(&output));
+}

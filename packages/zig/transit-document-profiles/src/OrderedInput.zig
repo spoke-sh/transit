@@ -1,4 +1,4 @@
-//! Convert a completely verified single JSON/XML part into an ordered storage
+//! Convert a completely verified single JSON/XML/MIME part into an ordered storage
 //! request. Output is private until success; this module cannot publish it.
 const std = @import("std");
 const p = @import("transit_protocol");
@@ -27,7 +27,7 @@ pub const Candidate = struct {
 /// bounds. The retained profile attestation is returned separately: a generic
 /// ordered tree does not itself claim a profile grammar or application schema.
 pub fn encode(descriptor: Profile.contract.Descriptor, part: Profile.contract.Part, request: Request, input: []const u8, workspace: Workspace, output: []u8) !Candidate {
-    if (workspace.name.len < descriptor.limits.token_bytes or workspace.ends.len < descriptor.limits.depth) return error.DocumentWorkspaceTooSmall;
+    if (descriptor.format != .mime and (workspace.name.len < descriptor.limits.token_bytes or workspace.ends.len < descriptor.limits.depth)) return error.DocumentWorkspaceTooSmall;
     if (input.len != part.bytes) return error.DocumentProfilePartConflict;
     var reader = try Reader.init(descriptor, part, workspace.reader);
     if (output.len < 8) return error.DocumentEncodingCapacity;
@@ -36,6 +36,12 @@ pub fn encode(descriptor: Profile.contract.Descriptor, part: Profile.contract.Pa
     try ordered.writeHeader(&w, .{ .definition = p.Growth.definition_bytes, .document = request.document, .epoch = request.epoch, .expected_revision = request.expected_revision, .path = request.path, .nodes = 1, .parts = 1 });
     const count_offset = w.offset - 8;
     try ordered.writePart(&w, .{ .id = part.id, .bytes = input, .digest = part.sha256 });
+    if (descriptor.format == .mime) {
+        const nodes = try writeMime(&reader, part, input, &w);
+        const verified = try reader.verifiedPart();
+        std.mem.writeInt(u32, output[count_offset..][0..4], nodes, .little);
+        return .{ .bytes = output[0..w.offset], .descriptor = descriptor, .verified_part = verified };
+    }
     const xml = descriptor.format == .xml;
     var nodes: u32 = 0;
     // XML permits comments/PIs before and after its element root. An explicit
@@ -109,4 +115,40 @@ pub fn encode(descriptor: Profile.contract.Descriptor, part: Profile.contract.Pa
     const verified = try reader.verifiedPart();
     std.mem.writeInt(u32, output[count_offset..][0..4], nodes, .little);
     return .{ .bytes = output[0..w.offset], .descriptor = descriptor, .verified_part = verified };
+}
+
+/// An explicit envelope keeps header names (including "body") independent of
+/// the body member. Parser fetch windows never become logical body nodes.
+fn writeMime(reader: *Reader, part: Profile.contract.Part, input: []const u8, w: *document.codec.Writer) !u32 {
+    try ordered.writeNode(w, .{ .depth = 0, .kind = .map, .span = .{ .part = part.id, .start = 0, .end = part.bytes } });
+    try ordered.writeNode(w, .{ .depth = 1, .kind = .list, .name = "headers", .span = .{ .part = part.id, .start = 0, .end = 0 } });
+    const headers_end_offset = w.offset - 8;
+    var body_start: ?usize = null;
+    var nodes: u32 = 3; // Envelope, header list and the single (possibly empty) body.
+    var offset: usize = 0;
+    while (true) {
+        const step = try reader.next(input[offset..], true, 256);
+        offset += step.consumed;
+        switch (step.result) {
+            .complete => break,
+            .need_input => return error.IncompleteDocumentFrame,
+            .yield => {},
+            .event => |event| switch (event.kind) {
+                .mime_field => {
+                    try ordered.writeNode(w, .{ .depth = 2, .kind = .binary, .name = event.value, .value = event.detail, .span = .{ .part = part.id, .start = event.span.byte_start, .end = event.span.byte_end } });
+                    nodes = std.math.add(u32, nodes, 1) catch return error.DocumentNodeLimitExceeded;
+                },
+                .mime_headers_end => {
+                    body_start = @intCast(event.span.byte_end);
+                    std.mem.writeInt(u64, w.bytes[headers_end_offset..][0..8], event.span.byte_end, .little);
+                },
+                .mime_body => {}, // Retain the verified input slice once, below.
+                else => unreachable,
+            },
+        }
+    }
+    _ = try reader.verifiedPart();
+    const start = body_start orelse return error.IncompleteDocumentFrame;
+    try ordered.writeNode(w, .{ .depth = 1, .kind = .binary, .name = "body", .value = input[start..], .span = .{ .part = part.id, .start = start, .end = part.bytes } });
+    return nodes;
 }

@@ -136,8 +136,11 @@ Document API described above.
 The same storage owner supports conditional versioned ordered trees through
 `applyOrdered`: create, complete replacement and ordinal-path subtree replacement.
 It preserves duplicate names, arrays, exact numeric lexemes, mixed content, raw
-parts and byte spans in `.tseg` records with persisted BP topology. The JSON/XML profile
+parts and byte spans in `.tseg` records with persisted BP topology. The JSON/XML/MIME profile
 readers can produce a candidate only after complete grammar and byte verification.
+MIME candidates preserve ordered duplicate headers and one opaque binary body;
+the [candidate mapping](../../../packages/zig/transit-document-profiles/README.md#ordered-storage-candidates)
+defines exact spans, envelope nodes and caller-buffer bounds.
 Pinned pages expose the accepted tree and raw parts under current authority. See
 [ordered storage](../../../packages/zig/transit-storage/docs/document-partitions.md#ordered-versioned-trees)
 for limits and the component evidence. Versioned three-way merge, causal list/text

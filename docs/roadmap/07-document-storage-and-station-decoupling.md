@@ -289,6 +289,15 @@ The [partition guide](../../packages/zig/transit-storage/docs/document-partition
 owns usage and limits. C1 merges, the remaining physical-layout gates and the
 direct lifecycle/transaction/consumer work remain open.
 
+The ordered candidate handoff also composes M16's MIME entity reader with the
+same accepted residual/BP representation. It preserves duplicate header order,
+unfolded field values, exact raw spans and a single binary body independently of
+parser windows. This advances C2/C3's profile handoff without adding a transport
+owner or persisting profile attestations. The
+[candidate mapping](../../packages/zig/transit-document-profiles/README.md#ordered-storage-candidates)
+owns its complete-frame input/output bounds; incremental staging, multipart
+graphs, direct lifecycle and the C7 exchange/Station cutover remain open.
+
 1. **Continue from the merged causal path.** Full-width map changes, derived
    acceptance, cross-operation causal deduplication and within-value paging are
    implemented. The next packet extends that path to persisted ordered/versioned

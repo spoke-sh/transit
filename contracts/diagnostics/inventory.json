@@ -12095,6 +12095,33 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-document-profiles/src/OrderedInput.zig": {
+      "errors": {
+        "DocumentEncodingCapacity": 1,
+        "DocumentNodeLimitExceeded": 2,
+        "DocumentProfilePartConflict": 1,
+        "DocumentWorkspaceTooSmall": 2,
+        "IncompleteDocumentFrame": 3
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "encode()": "<inferred>",
+        "writeMime()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 15,
+        "catch": 2
+      },
+      "imports": [
+        "Profile.zig",
+        "Reader.zig",
+        "std",
+        "transit_document",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-document-profiles/src/Profile.zig": {
       "errors": {
         "DocumentExpansionLimitExceeded": 1,

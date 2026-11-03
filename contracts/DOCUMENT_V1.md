@@ -291,6 +291,14 @@ Every referenced span must fit its verified part. Patching a tree does not rewri
 the captured source frame or imply that the modified tree still parses from it.
 Constructed nodes can omit provenance. Profile interpretation is separate.
 
+The offline profile adapter can supply verified JSON/XML/MIME single-part inputs.
+Its [ordered candidate mapping](../packages/zig/transit-document-profiles/README.md#ordered-storage-candidates)
+uses the same generic node kinds and verified raw parts. MIME fields remain
+ordered binary nodes under a header list, with one separate binary body node;
+parser fetch windows do not alter the tree. The descriptor attestation remains
+outside the accepted generic tree. This adds no wire kind, installed route or
+transport authority.
+
 The owner derives the whole candidate before one fenced WAL acceptance. The
 preorder residual tree stores node metadata (`N`), name (`K`) and value (`V`)
 chunks, raw part metadata (`P`) and bytes (`R`), and a `2N`-bit BP stream (`B`) in
