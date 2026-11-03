@@ -47,11 +47,31 @@ caches for disposable raw-client and Station consumer projects while retaining
 Debug, core/Arrow, installed-example and negative-type checks. The two existing
 feedback/isolation controls and package-version check pass at that change.
 
+`just ci clean --lane sdks-conformance` at
+`d3fcb8bae02a51d1e4c537632a565c28e9722226` subsequently passed all seven tasks
+in an isolated checkout without inherited workspace build outputs: binding
+generation, native boundary, logical types, the complete ten-language
+interoperability ring, SQL, gRPC faults and connector preparation. The ring
+completed in 1,239.99 seconds; the lane completed in 1,856.52 seconds.
+
+The [hosted SDK conformance rerun](https://github.com/spoke-sh/transit/actions/runs/41558980471/job/125669509899)
+also passed all seven tasks, including the interoperability ring in 1,078.56
+seconds. Its source `c6bad5ae66b1b2e96c2e4edf2bf466845c8f71eb` has tree
+`7a18b8cbed2756ff8b281bf211bb35298902a835`, identical to both PR #342's
+submitted `049df2aba931` and merged `8f13acdc774c` trees. This qualifies that
+hosted execution with the cache change; it does not establish a peak-storage
+budget, a controlled performance comparison or a whole-suite pass.
+
 The local experiment is retained in `.cache/m6-rust-space-probe.py` (SHA-256
 `e6cd2f154361397aa022d8765ab90610dee3df9c786ddd46929f2d1aab33c73f`), with
 output `.cache/m6-rust-space-probe.log` (SHA-256
 `cc63aee51fc60fd6a4358ebbbffcb22cca982350a3486215dcca15badbac9e77`) in the
-implementation worktree. These are local evidence paths, not public artifacts.
+implementation worktree. Clean-run preparation, source metadata, task logs and
+results are retained under
+`.cache/ci/clean/d3fcb8bae02a-transit-ci-zb3l44a9`; its completed
+`sdks-conformance.json` has SHA-256
+`14e6ea036f941a096451889e2105dcddb6c8e5b2437483c742a391875639cd65`.
+These are local evidence paths, not public artifacts.
 
 ## Bounded admission and direct KV recovery — 2026-11-01
 

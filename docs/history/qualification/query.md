@@ -91,6 +91,16 @@ combined-source SQL evidence, including the installed native/PostgreSQL/MySQL/
 console renewal assertions, discarded execution/fetch responses, original
 results after later settlement and DROP, and stale-handle refusal.
 
+The same source's [storage lane](https://github.com/spoke-sh/transit/actions/runs/41553991753/job/125648425919)
+passed all 33 tasks, including `test::direct-workload-result` in 45.99 seconds.
+Preparation, opening, saved-position verification, lost replies and node
+replacement all completed. The [core lane](https://github.com/spoke-sh/transit/actions/runs/41553991753/job/125648425954)
+and [installation lane](https://github.com/spoke-sh/transit/actions/runs/41553991753/job/125648425903)
+also passed, qualifying the corrected managed payload-result fixture on the
+combined tree. The overall workflow still failed because SDK conformance ran
+out of disk; its [separate repair and reruns](sdk.md#disposable-rust-consumer-cache-storage--2026-11-02)
+preserve that failed attempt.
+
 The local `just test::direct-workload-result` rerun at `f00b7f0b9c24` failed
 in `workload-result-prepare` at its unchanged 180-second deadline. The node
 recorded 257 Stream setup requests totaling 156.0 seconds before the Queue
@@ -108,14 +118,25 @@ response and an error handler, preserving the original caller timeout. Both
 controls fail when the old daemon behavior is restored. The clean fast check
 at that commit passed all 66 checks; it does not qualify native storage.
 
+A further local `just test::direct-workload-result` run from clean source
+`049df2aba931f8186d24f829d48fb865f58350fa`, including that cleanup fix, again
+timed out during preparation at 180 seconds. It exited with the original
+`TimeoutExpired` and code 1, without the interpreter abort. Its retained private
+fixture `/var/tmp/transit-table-workload-result-6nj2ci9w` contains 400 signed
+attempts and 400 captured proxy replies; result recovery assertions never ran.
+The hosted pass does not convert either local timeout into a pass or identify
+its cause. No deadline, lease, setup cardinality or resident budget was relaxed.
+
 Local raw evidence in the implementation worktree is
 `.cache/m6-resumed-workload-result.log` (SHA-256
 `c640656bdcdcb016ac8113b0a4a27d88205789abb4a6d63a814e7954ece61a1c`),
 `.cache/m6-proxy-negative-control.log` (SHA-256
 `1e122020d3102b1b960ecfba48b6c38dc9855ab4e1d0859cceac8a2cd2e58936`), and
 `.cache/ci/clean/e97eeb1ce4d7-transit-ci-99imf_j4` for automatic clean-check
-records. These local paths are not portable public artifacts. The setup timeout
-and the separate preserved maintenance/terminal-retention gates remain open.
+records. The later timeout log is `.cache/m6-joined-workload-result.log`
+(SHA-256 `65d068153926d1d9e0328289f562af116e1ad712c730aec13f40dbc11006f8ca`).
+These local paths are not portable public artifacts. Local setup latency and
+the separate preserved maintenance/terminal-retention gates remain unresolved.
 
 ## SQL Queue NACK settlement and recovery — 2026-11-02
 
