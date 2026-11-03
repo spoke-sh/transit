@@ -2,6 +2,49 @@ const std = @import("std");
 const t = std.testing;
 const SuccinctTree = @import("SuccinctTree.zig").SuccinctTree;
 
+const ParenthesisReader = struct {
+    bytes: []const u8,
+    at: usize = 0,
+    pub fn next(self: *ParenthesisReader) !?bool {
+        if (self.at == self.bytes.len) return null;
+        const bit = self.bytes[self.at];
+        self.at += 1;
+        return switch (bit) {
+            '(' => true,
+            ')' => false,
+            else => error.InvalidSuccinctTree,
+        };
+    }
+};
+
+test "streamed BP navigation uses bounded caller state and preserves exact structural relations" {
+    // Independent literal: root 0 has children 1 and 3; 1 has child 2.
+    const expected = [_]SuccinctTree.Navigation{
+        .{ .ordinal = 0, .depth = 0, .first_child = 1, .subtree_end = 4 },
+        .{ .ordinal = 1, .depth = 1, .parent = 0, .first_child = 2, .next_sibling = 3, .subtree_end = 3 },
+        .{ .ordinal = 2, .depth = 2, .parent = 1, .subtree_end = 3 },
+        .{ .ordinal = 3, .depth = 1, .parent = 0, .subtree_end = 4 },
+    };
+    var ancestors: [3]u64 = undefined;
+    for (expected) |want| {
+        var reader: ParenthesisReader = .{ .bytes = "((())())" };
+        try t.expectEqualDeep(want, try SuccinctTree.navigate(&reader, 4, want.ordinal, &ancestors));
+    }
+    var leaf: ParenthesisReader = .{ .bytes = "()" };
+    try t.expectEqualDeep(SuccinctTree.Navigation{ .ordinal = 0, .depth = 0, .subtree_end = 1 }, try SuccinctTree.navigate(&leaf, 1, 0, ancestors[0..1]));
+    try t.expectEqual(@as(u32, 23), (SuccinctTree.Navigation{ .ordinal = 0, .depth = 0 }).byteSize());
+    try t.expectEqual(@as(u32, 47), expected[1].byteSize());
+    var missing: ParenthesisReader = .{ .bytes = "()" };
+    try t.expectError(error.NodeOutOfBounds, SuccinctTree.navigate(&missing, 1, 1, &ancestors));
+    try t.expectEqual(@as(usize, 0), missing.at);
+    for ([_][]const u8{ "", ")(", "((())()", "(())()", "((()))()" }) |invalid| {
+        var reader: ParenthesisReader = .{ .bytes = invalid };
+        try t.expectError(error.InvalidSuccinctTree, SuccinctTree.navigate(&reader, 4, 0, &ancestors));
+    }
+    var deep: ParenthesisReader = .{ .bytes = "((()))" };
+    try t.expectError(error.InvalidSuccinctTree, SuccinctTree.navigate(&deep, 3, 0, ancestors[0..2]));
+}
+
 test "succinct BP tree matches reference oracle across navigation and LCA" {
     // Tree topology (10 nodes in preorder):
     // 0 (root)

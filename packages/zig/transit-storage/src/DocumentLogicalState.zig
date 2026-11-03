@@ -1,4 +1,4 @@
-//! Definition-bound roots for the integrated causal map-tree storage slice.
+//! Definition-bound roots for the integrated causal and ordered tree storage.
 const std = @import("std");
 const p = @import("transit_protocol");
 const d = p.DataLifecycle;
@@ -12,9 +12,14 @@ pub const State = struct {
     target: p.DocumentOperation.Target,
     epoch: u64,
     conflicts: u16,
+    layout: enum { causal_map, ordered },
+    nodes: u64,
+    parts: u64,
     index: Index.Root,
     pub fn validate(self: State) !void {
         if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
+        if (self.layout == .causal_map and (self.nodes != 0 or self.parts != 0)) return error.InvalidLogicalState;
+        if (self.layout == .ordered and (self.nodes == 0 or self.nodes > (std.math.maxInt(u64) - 7) / 2)) return error.InvalidLogicalState;
         try self.target.validate();
         try self.index.validate();
         if (self.epoch == 0 or self.index.identity.document != self.target.partition.interpretation.object.object or self.index.identity.epoch != self.epoch or self.index.identity.type_revision != self.target.partition.interpretation.revision) return error.InvalidLogicalState;

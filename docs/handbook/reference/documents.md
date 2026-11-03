@@ -14,9 +14,11 @@ stages private candidates over `.tseg` records and paged indexes. It exposes no
 public Document admission, accepted revision lookup or collection lifecycle.
 
 The direct-storage [partition component](../../../packages/zig/transit-storage/docs/document-partitions.md)
-also supplies bounded WAL recovery and authenticated retained revision reads with
-cumulative byte/work budgets. It currently accepts supplied state bytes; logical
-evaluation and the installed service lifecycle remain separate integration work.
+also evaluates causal-map and conditional ordered changes, supplies bounded WAL
+recovery, and reads exact retained revisions under byte/work budgets and current
+authorization. Ordered structural inspection returns parent/child/sibling and
+subtree metadata from persisted topology with bounded resident memory. These are
+storage-library operations; the installed service lifecycle remains separate.
 
 The offline [Document profile library](../../../packages/zig/transit-document-profiles/README.md)
 interprets JSON, a declared UTF-8 XML subset and MIME entity framing with bounded
@@ -129,5 +131,18 @@ exact causal retries retain their first revision. Pinned path pages distinguish
 value, null, missing, type error and conflict and recheck authority before
 disclosure. See the [partition guide](../../../packages/zig/transit-storage/docs/document-partitions.md#evaluated-causal-map-trees)
 for its format, bounds and exclusions. This component does not change the installed
-Document API described above or provide list/text editing, versioned merges,
-logical checkpoints, succinct tree/subcolumn integration or Document transactions.
+Document API described above.
+
+The same storage owner supports conditional versioned ordered trees through
+`applyOrdered`: create, complete replacement and ordinal-path subtree replacement.
+It preserves duplicate names, arrays, exact numeric lexemes, mixed content, raw
+parts and byte spans in `.tseg` records with persisted BP topology. The JSON/XML/MIME profile
+readers can produce a candidate only after complete grammar and byte verification.
+MIME candidates preserve ordered duplicate headers and one opaque binary body;
+the [candidate mapping](../../../packages/zig/transit-document-profiles/README.md#ordered-storage-candidates)
+defines exact spans, envelope nodes and caller-buffer bounds.
+Pinned pages expose the accepted tree and raw parts under current authority. See
+[ordered storage](../../../packages/zig/transit-storage/docs/document-partitions.md#ordered-versioned-trees)
+for limits and the component evidence. Versioned three-way merge, causal list/text
+edits, logical checkpoints, BP navigation indexes, adaptive subcolumns and Document
+transactions remain separate gates.

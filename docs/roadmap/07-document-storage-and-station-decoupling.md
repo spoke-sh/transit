@@ -1,6 +1,6 @@
 # 7. Logical document storage, `.tseg` trees and Station decoupling
 
-[Roadmap](README.md) · [Foundation #125](https://github.com/spoke-sh/transit/issues/125) · [Native State #126](https://github.com/spoke-sh/transit/issues/126) · [Layouts & Codecs #128](https://github.com/spoke-sh/transit/issues/128) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · **Status:** In Progress — First causal map-tree storage slice integrated; complete succinct/shredded storage, direct lifecycle and the existing mixed transaction owner before the Station/consumer cutover ([remaining implementation plan, 2026-11-01](#implementation-plan-for-remaining-work))
+[Roadmap](README.md) · [Foundation #125](https://github.com/spoke-sh/transit/issues/125) · [Native State #126](https://github.com/spoke-sh/transit/issues/126) · [Layouts & Codecs #128](https://github.com/spoke-sh/transit/issues/128) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · **Status:** In Progress — Causal maps and conditional ordered/versioned trees with verified raw parts are integrated as storage components. Next finish merge/physical-layout gates, direct lifecycle, transaction participation and the coordinated Station/consumer cutover ([remaining implementation plan, 2026-11-02](#implementation-plan-for-remaining-work)).
 
 Decouple `Document` (`DOCUMENT`) completely from the `Station` durable actor
 runtime ([`transit-station-document`](../../packages/zig/transit-station-document/README.md),
@@ -204,23 +204,21 @@ The completion packages below sequence implementation against the current source
 ## Implementation plan for remaining work
 
 **Plan basis:** fetched `origin/main` at
-`c8d060cb2dfcf3bc531ef2e41fcdf7d4f172c2d5`, 2026-11-01. This updates the
-2026-10-31 assessment at `0e2fba447` and is the current implementation sequence;
-the [initial plan](#implementation-plan-for-initial-document-decoupling) below
-retains its original scope and source attribution. This plan incorporates merged
-work only, including M7's read/recovery fixes (PR #300), M20's immutable Table
-branches (#301), M8's installed startup work (#302), and M6's named KV,
-mixed transactions and Stream/Queue SQL declarations (#303). The transaction
-model fixture correction in #304 is part of this base. Uncommitted work in other
-checkouts is not an implemented prerequisite.
+`5e00b53bfed8a552dc7306e1338394ec037ac9bb`, 2026-11-02.
+This replaces the remaining-work assessment at `c8d060cb2` and its integration
+at `f49a3da65`; C0–C8 remain the stable completion packages. The
+[initial plan](#implementation-plan-for-initial-document-decoupling) and dated
+delivery/evidence records retain their scope and attribution. Only merged source
+is treated as available; work in other branches or worktrees is not a prerequisite.
 
-**Integration basis:** implementation subsequently incorporates `origin/main`
-at `f49a3da6502ac8d3e12347a3812d6d81404d8d47`. That base adds M9's bounded
-admission and direct KV recovery increment, the shared Serving caller and its
-current definition cutover, and planned M19 interactive asset/simulation work.
-Branches are now M20, language coverage M21, formal correspondence M22 and
-policy/publication M27/M28. The source audit below retains the original plan
-basis; the dependency handoffs include these later changes.
+The new basis includes M7 causal storage (#319), M6 workload SQL, automatic
+Queue transfers and recovery qualification (#321/#333/#336), M8 connection
+startup and performance work (#315/#325/#330), M10 historical interpretation
+(#320), M12 retained results and owned staging (#318/#324/#328), M14 production
+strings/predicate reuse (#316/#329), M16 parsing/construction (#317/#327), and
+Board's local access, storage and independent computation inspection
+(#332/#335/#338/#339/#340). Their installed profiles and remaining gates are
+distinguished below. No runtime suite was rerun to create this plan.
 
 **Outcome:** an application declares a Document object, applies causal or
 versioned changes, reads exact accepted revisions and relational projections,
@@ -232,29 +230,30 @@ both journeys, the physical storage path and the affected consumer cutover pass.
 ### Delivered basis and remaining obligations
 
 The [2026-10-30 component evidence](../history/qualification/storage.md#direct-document-protocol-succinct-algebra-tseg-shredding-and-documentpartition--2026-10-30)
-records D0–D3 and the authority/graph portion of D4. Preserve those results and
-their source revisions. The source audit below narrows what they establish:
-component availability does not establish an integrated logical Document engine
-or an installed direct service. The later `e422d4c58` and `47ad5be61` safeguards
-are described by the [partition guide](../../packages/zig/transit-storage/docs/document-partitions.md)
-and its owner tests. No runtime proofs were rerun to create this plan.
+records D0–D3 and the authority/graph portion of D4. The
+[2026-11-01 causal storage evidence](../history/qualification/storage.md#integrated-causal-document-map-trees--2026-11-01)
+adds evaluated map roots, disk reopen and authenticated value paging. Preserve
+both records' source revisions and exclusions. The audit below describes the
+new plan basis; the [partition guide](../../packages/zig/transit-storage/docs/document-partitions.md)
+owns the component's current behavior. Component integration does not establish
+an installed direct Document service.
 
 | Boundary at the plan basis | Existing implementation | Work still required |
 | --- | --- | --- |
 | Installed Document lifecycle | [Public Documents](../handbook/reference/documents.md), `transit-station-document`, `DirectResource` and `NamedResource` still use native resource allocation and Station initialization/publication | Replace that lifecycle and every affected caller together; preserve state/input/reply atomicity |
-| Neutral contracts (D0) | [`DOCUMENT_V1`](../../contracts/DOCUMENT_V1.md), `DocumentDeclaration`, `DocumentOperation`, `DocumentRead` and reflected fixtures | Specify canonical logical mutation/state encodings, collection versus logical-document identity, exact merge ancestry, staged payloads, bounded path/collection reads and transaction bindings |
-| Deterministic algebra (D1) | [`SuccinctTree`, `SpanText` and `VersionedMerge`](../../packages/zig/transit-document/README.md) have component oracles; the existing `Model`/`codec` still implement the old bounded change profile | Integrate one canonical evaluator with persisted causal/tree/span state; remove old payload caps in that evaluator. Resident span arrays, recursive trees and zero-allocation navigation alone do not prove paged growth or constant-time navigation |
-| Physical layout (D2) | [`DocumentShredder.shredBatch`](../../packages/zig/transit-storage/src/DocumentShredder.zig) builds owned in-memory subcolumns, bitmaps, zone maps and residual topologies; `DocumentIndex` stages old causal records | Persist/reopen those structures through the shared segment writer/reader, bind all structural and codec descriptors, and execute queries against actual accepted segments |
-| Durable owner (D3) | [`DocumentPartition`](../../packages/zig/transit-storage/src/DocumentPartition.zig) records mutation receipts, revision directories, pins and checkpoints. Retained reads enforce cumulative bytes/steps before allocation, exact receipt/target binding and current disclosure rights; successful output is caller-owned | `applyMutation` still accepts supplied `payload_bytes`, `state_bytes` and conflict counts without invoking the algebra/shredder. Derive accepted state in the database and page within a revision; whole-state loading remains bounded only by the admitted total read budget |
+| Neutral contracts (D0, partial C0) | [`DOCUMENT_V1`](../../contracts/DOCUMENT_V1.md), declarations/receipts and `DCHANGE1` causal-map changes bind full-width identities and mandatory definitions | Extend canonical operations to ordered trees, spans, conditional versioned updates, complete ancestry, staged parts, collection cuts and transaction bindings |
+| Deterministic algebra (D1, partial C1) | [`LogicalChange`/`CausalTree`](../../packages/zig/transit-document/README.md) evaluate maps through a paged index; `SuccinctTree`, `SpanText` and `VersionedMerge` have separate component oracles. Installed `Model`/`codec` retain the old profile | Integrate ordered trees, list/span edits and versioned evaluation with bounded persistent readers/builders. Resident arrays and recursive trees do not prove paged growth; zero-allocation navigation does not prove constant time |
+| Physical layout (D2, partial C2) | [`DocumentShredder.shredBatch`](../../packages/zig/transit-storage/src/DocumentShredder.zig) builds owned in-memory subcolumns, bitmaps, zone maps and residual topologies; `DocumentIndex` stores the integrated causal records in `.tseg` rows | Persist/reopen BP, spans and subcolumns through the shared segment writer/reader, bind all structural and codec descriptors, and execute queries against actual accepted segments |
+| Durable owner (D3, partial C3) | [`DocumentPartition.applyCausal`](../../packages/zig/transit-storage/src/DocumentPartition.zig) derives map roots/counts and accepts through one fenced WAL append. Pinned path pages own up to 240 value bytes and enforce cumulative budgets/current rights. Opaque `applyMutation` cannot replace a logical root | Integrate the remaining logical profiles, BP/subcolumns, raw parts, logical checkpoints, collection scans and installed lifecycle. The opaque receipt seam is not an ingestion API; its whole-state reads are separate from logical value paging |
 | Recovery and cursor keys | `open`/`recoverStep` replay bounded units (default 64 records, permitted 1–256), reuse per-record scratch and refuse operations until ready. A nonzero host-supplied `read_secret` is mandatory | Preserve these safeguards while adding logical pages and transaction records; prove bounded candidate construction, checkpoint validation and installed cold recovery. Root readiness is not an exhaustive scrub or zero-allocation claim; define installed key persistence/rotation |
-| Two deduplication identities | Same-operation recovery exists; replica sequence checks reject an already-used sequence under another operation | Separate client-token recovery from duplicate causal-change lookup. Preserve the first accepted revision when the same canonical change arrives under another operation, without publishing a second logical revision |
+| Two deduplication identities | Same-operation retries recover their receipt. Identical causal changes under another operation receive a receipt for the first revision without advancing the head | Preserve both identities through new layouts, checkpoints, archive/trim and transaction preparation. Changed bytes at either identity must still refuse |
 | Catalog/authority (partial D4) | [`DocumentAuthority`](../../packages/zig/transit-catalog/src/DocumentAuthority.zig) supplies masks/bindings; `DirectStorageGraph` walks Document roots | Add the actual Document domain/profile/registrar, typed lifecycle and payload operations, signed node dispatch, original-token recovery and installed disclosure checks. The configured profile still has the six database/schema/Table/Stream/Queue/KV domains |
 | Mixed transaction owner (D5 prerequisite) | `DirectTransaction`, `TransactionDirectory`, private state/log workspaces and `TransactionDecisionLog` now execute Table/KV/Stream/Queue composition. Installed schedules recover original mixed decisions and explicit paired Queue transfers | Documents still reject in `Participant.requireLocalState`, `Guard.requirePagedState`, `DirectCatalog` selection and decision preparation. Add a partition-aware Document cut/workspace/preparation path; removing rejection branches alone is insufficient |
-| SQL, shared clients and installed consumers (D5) | M4 results, M6 frozen log declarations and paged metadata, M8 local dispatch/resumable wire engines, and M9 Catalog/context/SQL recovery owners exist | Add direct Document dispatch, SQL lowering and queries; migrate Station/ABI/SDK/Board/examples under one current-v1 definition. No direct Document lifecycle is exposed by these surrounding capabilities |
+| SQL, shared clients and installed consumers (D5) | M4 results, M6 declaration/workload settlement, M8 local dispatch/startup continuations, M9 Catalog/context/recovery, and M30 independent read-only inspection exist | Add direct Document dispatch, SQL lowering and queries; migrate Station/ABI/SDK/Board/examples under the current-v1 policy. Board persistence and M16 profile publication still require the new public owner |
 
 #### First integrated storage slice — 2026-11-01
 
-Following this audit, the selected first increment connects canonical causal
+The merged first increment connects canonical causal
 map changes to paged evaluation, `.tseg` storage and fenced WAL acceptance.
 `DocumentPartition.applyCausal` derives logical roots and conflicts; duplicate
 causal changes under new operation identities retain their first revision.
@@ -280,24 +279,44 @@ component work or declare D4 complete.
 
 ### Changes to the previous plan
 
-1. **Preserve completed safeguards.** C0/C3 no longer need to remove a default
-   cursor secret or introduce record-budgeted replay and cumulative read limits.
-   They need installed ownership of those mechanisms, paged logical state and
-   bounded work inside each accepted record.
-2. **Extend the delivered mixed owner.** M6 R5 is no longer a future coordinator
-   seam. Its [installed recovery evidence](../history/qualification/transactions.md#installed-recovery-and-bounded-evaluation)
-   covers Table/KV, mixed state/log work and paired Queue transfers, while the
-   full fault matrix and clean integrated qualification remain open. C5 can
-   proceed against these owners without waiting for M6 completion.
-3. **Reuse delivered adapters.** M6's [declaration SQL evidence](../history/qualification/sql.md#stream-and-queue-declaration-sql--2026-10-31)
-   supplies a concrete pattern for frozen DDL tokens, paged metadata and
-   revocation after buffering. M9 supplies bounded context leases and original
-   SQL submission persistence. Neither adds Document semantics automatically.
-4. **Keep separate release gates.** M6 R7/R8 still own transactional Station and
-   effect/delivery replacement. M20 has immutable single-Table branches, not
-   Document branches. The latest integration regenerated one shared definition;
-   prior proof records remain tied to their recorded definitions and revisions.
-   The #304 model-fixture fix is source progress, not a new mixed-Document proof.
+The ordered storage increment now also reads parent/child/sibling, depth and
+subtree boundaries from persisted BP chunks under an exact retained revision.
+The neutral traversal uses a bounded ancestor stack; the partition owns chunk
+access, bit/lookup budgets and current disclosure checks. This extends C2/C3's
+structural-read path without changing accepted formats. It remains a linear
+scan, with no persisted rank/select directory or constant-time navigation claim.
+The [partition guide](../../packages/zig/transit-storage/docs/document-partitions.md#ordered-versioned-trees)
+owns usage and limits. C1 merges, the remaining physical-layout gates and the
+direct lifecycle/transaction/consumer work remain open.
+
+The ordered candidate handoff also composes M16's MIME entity reader with the
+same accepted residual/BP representation. It preserves duplicate header order,
+unfolded field values, exact raw spans and a single binary body independently of
+parser windows. This advances C2/C3's profile handoff without adding a transport
+owner or persisting profile attestations. The
+[candidate mapping](../../packages/zig/transit-document-profiles/README.md#ordered-storage-candidates)
+owns its complete-frame input/output bounds; incremental staging, multipart
+graphs, direct lifecycle and the C7 exchange/Station cutover remain open.
+[Qualification](../history/qualification/storage.md#ordered-document-profile-handoff--2026-11-02)
+records the focused handoff, clean core check and SDK lane with their exact sources.
+
+1. **Continue from the merged causal path.** Full-width map changes, derived
+   acceptance, cross-operation causal deduplication and within-value paging are
+   implemented. The next packet extends that path to persisted ordered/versioned
+   trees and parts; it does not repeat the old plan's first map-storage increment.
+2. **Make the next consumers concrete.** M16's ordered JSON/XML and compound
+   commitments expose representation gaps that a causal map cannot cover. M30's
+   saved drafts need conditional versioned edits, collection listing and accepted
+   operation discovery. Specify these shared contracts now; no private parser
+   store, Board write route or selectable second Document engine is authorized.
+3. **Consume actual database progress.** Extend M6's existing mixed owner and
+   preserve its newer clean core/SQL/storage-query evidence. Reuse M10 historical
+   interpretation, M12 owned preparation roots and M14 production string kernels.
+   Their passes do not qualify Document participation, retention or performance.
+4. **Keep the runtime dependency exact.** M6 R7/R8 still own transactional Station
+   and effect/delivery replacement. Develop the Document participant before that
+   adapter, then qualify their composition. M20 Table branches, M16 offline
+   parsers and M30 inspection do not close the public Document cutover gate.
 
 ### Milestone context and dependency handoffs
 
@@ -306,23 +325,33 @@ component work or declare D4 complete.
 | [M1–M3: lifecycle and local storage](03-live-storage-and-sql-cutover.md) | Stable object/definition identities, direct catalog names/dependencies, `LocalWal`/`LocalSegmentStore`, publication guards, retained graphs and local installation | Preserve original named-Document lifecycle/recovery coverage while replacing its mechanism. M3 remains independently In Progress; M7 does not close its other storage or latency gates |
 | [M4: statement results](04-statement-results-and-consumption.md) | Implemented command/`ResultSet` distinction, bounded consumption and terminal observation | Use `transit-sql-results` and `transit-sql-client`; no Document-specific SQL result or recovery protocol |
 | [M5: transactions](05-transactions-and-atomic-composition.md#selected-delivery-profile-and-exclusions) | Completed local serializable Table profile, common cuts, durable preparations/decisions, private workspaces and savepoints | Its completion excludes direct Document and log settlements. C5 supplies Document obligations to the same decision owner |
-| [M6: streams, queues and runtime](06-streams-queues-and-durable-runtime.md#work-packages-and-dependencies) | Named direct KV, signed Stream/Queue operations and waits, mixed state/append/settlement decisions, explicit atomic DLQ, declaration SQL and paged inspection | Extend R5's actual owners with Document participation; retain its remaining fault/resource gates. R7/R8 still own transactional Station and effect/delivery migration. Workload SQL, `STREAM_SLICE` and automatic DLQ scheduling are not M7 prerequisites |
-| [M8: gateway](08-gateway-architecture-and-protocol-ingress.md#implementation-plan--2026-10-31) | Event-driven SQL recovery, typed local dispatch, node-cohosted execution and pure resumable PG/MySQL command engines; installed startup batching/worker replacement | Use the host/service disclosure boundary, including resumed metadata/results. Preserve startup readiness/recovery gates. Socket scheduling, coarse remote SQL, full protocol separation and Flight/Serving integration remain M8 work; no new Document polling service |
+| [M6: streams, queues and runtime](06-streams-queues-and-durable-runtime.md#queue-settlement-sql-follow-up--2026-11-02) | Direct KV/logs and native mixed decisions; automatic terminal Queue transfers; SQL append/consume/claim/ACK/NACK and original-operation recovery. Selected clean core/SQL/storage-query lanes and unordered Queue cold recovery have recorded passes | Extend R5 with Document cuts/preparations. Renewal SQL, groups/waits/offset SQL, `STREAM_SLICE`, mixed SQL and complete resource/fault baselines remain open. R7/R8's real transactional Station/effect replacement gates C7; independent workload SQL does not supply atomic Document turns |
+| [M8: gateway](08-gateway-architecture-and-protocol-ingress.md#connection-startup-continuations--2026-11-01) | Event-driven SQL recovery, typed local dispatch, node-cohosted execution, pure PG/MySQL command/startup continuations and host-owned TLS/credentials. Later startup/validator work has scoped measurements | Reuse host admission, output lifetimes and resumed-disclosure checks. Socket deadlines/scheduling, core-bounded workers, coarse remote SQL and Flight/Serving integration remain M8 work. Add no Document polling service or per-page HTTP orchestration |
 | [M9: shared clients](09-client-foundation-and-language-apis.md#implemented-context-and-kv-recovery-increment--2026-11-01) | [`Catalog` and `Context`](../../packages/zig/transit-data-client/README.md), bounded data/control leases and admission waits, direct KV dispatch, frozen SQL submission and explicit `LocalRecoveryStore`/`SqlRecovery`/`KVRecovery` | Supply the minimal owned Document caller and compose its context facet; reuse the persist-before-send and original-outcome recovery boundary. Ordinary Catalog/log settlement, native principal coordination, aggregate accounting, managed handles and installed data-language APIs remain M9/M21 work; M7 cannot defer migration of existing affected consumers to them |
-| [M10: historical interpretation](10-standards-and-catalogs.md#delivered-implementation-evidence--2026-10-30) and [M11: indexes](11-indexing-and-access-paths.md) | Exact-definition/dependency contracts and collation helpers | Retain Document interpretation with every cut. Historical-catalog helpers are not a durable `AS OF` service. M11 owns secondary path/search indexes; M7 owns base tree/subcolumn access and pruning |
-| [M12: dataflows](12-sql-and-dataflows.md#delivered-implementation-evidence--2026-10-30) | Finite five-state oracles, source-cut and common-decision requirements | Supply stable Document revision/change evidence and retained finite readers; automatic maintained Document queries and source activation remain M12 work |
-| [M13: resource/performance](13-data-structures-and-performance.md), [M14: strings](14-vectorized-strings-and-search.md#delivered-implementation-evidence--2026-10-30), [M15: compilation](15-data-centric-compilation-and-specialization.md) | Allocation accounting, `GermanString`/`StringArena`, collation-prefix helpers and compressed predicate implementations | Integrate the existing helpers where their declared profiles apply. Measure the persistent Document path; helper tests do not prove zero-copy storage, a metered service or compiled Document queries |
-| [M16: profiles and exchanges](16-document-profiles-and-gateway-exchange-lifecycle.md) | Required raw-part, lineage and provenance extension points | M7 owns generic tree/envelope/part references and verified raw slices. M16 owns JSON/XML/EDI/protocol/office parsers, unpacking/validation profiles and gateway/connector exchange capture; do not move `STATION_EXCHANGE_V1` into this cutover |
+| [M10: historical interpretation](10-standards-and-catalogs.md#progress-pr-scope--2026-11-01) and [M11: indexes](11-indexing-and-access-paths.md) | Persisted interpretation, retained historical catalogs/SQL, distinct CP037 PAD SPACE/CP1047 NO PAD semantics and shared capability inspection; common-revision M10 closure remains open | Extend exact retained interpretation to Documents; Table historical SQL is not Document `AS OF`. Bind accepted collation/encoding descriptors without silently adding CP1047/ICU to the Document profile. M11 owns secondary indexes; M7 owns base tree/subcolumn access |
+| [M12: dataflows](12-sql-and-dataflows.md#next-implementation-slice-owned-staging-and-finite-qualification) | Installed finite Table computations, immutable DFR1 results, transaction-owned candidate roots and abort collection; declaration/work-record cleanup remains open | Reuse neutral ownership/graph seams for Document candidates and preparations. Supply Document source/revision/change evidence; do not treat DFR1 as Document storage or enable continuous/multi-source Document activation through it |
+| [M13: resource/performance](13-data-structures-and-performance.md), [M14: strings](14-vectorized-strings-and-search.md#encoded-predicate-reuse-increment--2026-11-01), [M15: compilation](15-data-centric-compilation-and-specialization.md) | Production lossless 16-byte Batch strings, safe external tails, allocation controls and shared per-column dictionary/FSST predicate traversal | Integrate `TSegReader`/`PhysicalCodecs` rather than the removed prototype evaluator. Preserve raw projection and ordered failures. Retained operator keys, full resource metering, durable search and AOT/adaptive compilation retain their own gates |
+| [M16: profiles and exchanges](16-document-profiles-and-gateway-exchange-lifecycle.md#immediate-representation-gap-and-m7-acceptance-handoff) | Offline bounded JSON/XML readers and constructors, ordered events, raw offsets, compound commitment fixtures and local part verification | C0–C3 supply ordered/residual nodes, immutable parts and verified publication; causal maps cannot preserve duplicate JSON members, arrays, exact number lexemes or XML mixed content. M16 owns parsers, unpackers and exchange capture; no `STATION_EXCHANGE_V1` replacement in M7 |
 | [M19: interactive assets and simulation](19-game-asset-pipelines-and-simulation-streaming.md) | Planned consumer of generic Document trees, container parts and immutable revision identities | Preserve those generic storage boundaries. Asset importers, cooking dataflows, GPU/engine adapters and simulation streaming remain M19 and its M16–M18 prerequisites; they add no prerequisite to this storage slice |
 | [M20: branches](20-branches-merges-and-restore.md#local-table-branch-increment) | Durable immutable single-Table branches, operation-owned retained pins, bounded ancestry/manifest helpers and collection/disclosure checks | Begin Documents on branch one. Reuse pin-ownership and reachability patterns, while explicitly refusing Document branch operations. Versioned Document merge is not catalog branch merge; M20 owns multi-model branching and restore |
 | [M22: formal correspondence](22-formal-semantics-and-correspondence.md), [M27: policy](27-control-and-policy-plane.md), [M28: published resources](28-published-resources-and-investigations.md) | Finite decision/workspace models, native grants, interpretation and current disclosure boundaries | Extend affected production replay/negative controls with the new participant; existing Table/log model checks do not prove Document atomicity. Preserve browser/application-migration gates; retained revisions are not investigation pins or a new policy authority |
+| [M30: Board](30-board-reimplementation.md#local-connections-and-document-persistence-plan--2026-11-02) | Automatic local data access, reactive storage inspection and independent managed-computation reads are merged; saved workbook/preferences/connection Documents remain planned | Deliver versioned expected-revision updates, ordered cells/long text, bounded logical-document listing and accepted-operation lookup through C0–C4. Prove the non-browser journey before M30 L3/L4. Existing inspection stays read-only; application saves use a separate typed caller. Basic drafts do not require M28 retained-result publication |
 
-The critical path is **C0 → C1 → C2 → C3 → C4 → C6 → C7 → C8**.
-C5 can develop after C0/C3 against M6 R5's delivered participant owners; C7 additionally
-requires C5 and M6 R7's state/input/output decision. This breaks the apparent
+The storage-to-caller path is **C0 → C1/C2 → C3 → C4 → C6**; each logical
+profile crosses evaluation, disk persistence and recovery before its adapters.
+C5 can develop after C0/C3 against M6 R5's delivered participant owners. C7 joins
+C4–C6 with M6 R7's state/input/output decision and R8 where consumers require it;
+C8 qualifies the combined cutover. This breaks the apparent
 M6/M7 cycle: M6 can qualify Table/KV turns first, M7 supplies its participant
 without requiring a finished Station adapter, then both qualify Document turns.
 Neither a Table-only transaction nor two recoverable commits opens that gate.
+
+M16 can test its private ordered-tree/part candidate against C1–C3 before SQL
+or Station is ready. M30 can test conditional saves through C4's non-browser
+caller before analytical projections, but its installed persistence waits for
+the coordinated public cutover. These are development handoffs, not alternate
+release profiles or new dependencies on all of M16/M30. The full BP, span,
+shredding, merge and consumer criteria remain required for M7 completion.
 
 **Independent delivery scope:** storage and participant changes can land with
 their own component evidence before installed exposure. The first integrated
@@ -355,9 +384,10 @@ identities. Changes, complete replacement values and merge requests use the same
 authoritative evaluator and validation; arbitrary supplied state bytes are not
 an accepted logical mutation.
 
-Both `causal_crdt` and `versioned` remain milestone requirements. Implement
-causal integration first to preserve the installed semantics, then qualified
-three-way merges. Treat `immutable_lineage` as a lineage requirement to resolve
+Both `causal_crdt` and `versioned` remain milestone requirements. Preserve the
+delivered causal-map integration, add conditional versioned ordered trees next,
+then finish causal sequence/span semantics and qualified three-way merges.
+Treat `immutable_lineage` as a lineage requirement to resolve
 in C0, not a third currently accepted profile tag. Retain observed-remove
 conflicts, detached descendants, deleted anchors and explicit resolution.
 Define byte/scalar coordinates for spans; do not silently add grapheme
@@ -392,9 +422,10 @@ logical-retention and physical-cleanup decisions.
 | C7 | Station and all existing consumer migration | C4–C6 and M6 R7/R8 where affected | Installed ABI/SDK/Board/example/replacement paths preserve prior guarantees |
 | C8 | Measured qualification and one current-v1 cutover | All preceding gates | Common-revision caller/fault/resource evidence, removals and public documentation |
 
-No C package is complete at this baseline. C0–C3 reuse the delivered components
-and safeguards above; C4 has the authority/graph foundation only. The following
-owner map identifies the concrete extension seams, not new parallel authorities.
+No C package is complete at this baseline. C0/C1/C3 include the merged causal-map
+vertical path; C2 has component shredding/BP support and causal record segments,
+not the target integrated layout. C4 has the authority/graph foundation only.
+The owner map identifies the concrete extension seams, not new parallel authorities.
 
 | Boundary | Implementation owners to extend | Review constraint |
 | --- | --- | --- |
@@ -426,7 +457,20 @@ Resolve the old evaluator's `u64` Document/replica identities versus the direct
 contract's 16-byte identities without truncation or hashing away equality.
 Freeze multi-parent revision ancestry and the meaning of `immutable_lineage`
 before persisting versioned merges; the current optional `parent_revision` is
-not a complete arbitrary ancestry contract.
+not a complete arbitrary ancestry contract. Separate expected accepted head,
+merge base and candidate parents. Start versioned integration with conditional
+create/replace/path-patch, then explicit three-way merge; a stale save must report
+conflict without changing the accepted head. Keep canonical numeric values
+separate from raw number lexemes and preserve duplicate ordered members as
+syntax-tree nodes rather than overwriting them in a map.
+
+Bind M16's existing `Event` and compound commitment types to a bounded candidate
+builder. Specify when borrowed events cease to be valid, how complete parser
+coverage is verified, and how a final manifest names immutable ordered trees,
+raw parts and derived projections. Preserve shared/cyclic container relationships
+as a graph with explicit traversal limits; BP represents each tree, not the
+container graph. No parser completion or matching caller-supplied digest alone
+authorizes publication of a logical root.
 
 Define distinct recovery keys for an operation retry and an identical causal
 change submitted under another operation. Both recover the original accepted
@@ -442,6 +486,24 @@ already requires an explicit nonzero key; define durable provisioning, restart
 reuse and rotation without orphaning original pins or silently reissuing reads.
 Define incomplete progress, per-page versus total budgets, early close, pin lease
 recovery and unavailable history explicitly.
+
+Specify accepted-operation discovery as well as exact-token lookup. An authorized
+replacement caller must be able to page accepted pending work by object/logical
+document and owning account, recover the original canonical attempt and observe
+its outcome without inventing a new token. Missing discovery is not rejection;
+never imply recovery of edits that were never sent. Keep discovery, operation
+ownership and payload disclosure rights distinct. This is M30's browser/Board
+loss handoff, implemented in the shared caller/catalog owner rather than a UI
+recovery database. Freeze the proposed 64 KiB read-page and 256 KiB save-request
+budgets there only after owner measurements; they are not current Document limits.
+
+Define private staging ownership before adding multi-call payload upload.
+Reuse M12's neutral transaction-owned root protection where applicable; extend
+the catalog/storage contract for standalone Document candidates. Record owner,
+operation, definition, root inventory and creation fence before a collector can
+observe staged bytes. Resolve or fence uncertain attachment before explicit
+abandonment; elapsed time or a missing reply cannot authorize deletion. Duplicate
+chunks, interrupted upload, late attach and shared part roots need exact outcomes.
 
 Extend M6 R5's existing preparation, common-cut selection, savepoint and
 publication guards before changing persisted transaction unions. Include absent
@@ -491,6 +553,11 @@ must not overwrite newer accepted state or silently pick a conflict winner.
 Cover node-kind conflicts, subtree delete/edit races, sequence identity and
 ordering, duplicate dots, partial-span deletion and multibyte boundaries.
 Application-created values have no raw-byte provenance unless explicitly bound.
+Define sequence tie-breaking against the full-width direct dot contract before
+extending the map-only `DCHANGE1` format; do not assume the old counter/replica
+ordering follows from the new encoded dot order. Preserve the specified
+accepted-set semantics through independent sequence fixtures and explicit
+current-v1 rejection of superseded requests.
 
 Use independent accepted-set and tree oracles, including the existing
 24-permutation cases. Add changes exceeding the old name/scalar/operation caps,
@@ -531,6 +598,15 @@ deep/wide trees, high-entropy paths and 1 KiB–10 MiB values. Differentially
 reconstruct against unshredded evaluation after disk reopen, codec changes,
 deletion-vector application and compaction.
 
+Persist an ordered residual representation before requiring path promotion.
+Use M16 fixtures to prove duplicate JSON members, arrays, exact number lexemes
+and XML attributes/mixed content survive reopen and reconstruction. Copy borrowed
+events into owned candidate pages before advancing the parser. A late grammar,
+length or hash failure leaves no accepted revision. Raw spans use half-open
+offsets in a named immutable part; decompressed/decoded coordinates carry their
+own source mapping. This opens the profile handoff without claiming all adaptive
+subcolumns or external formats are installed.
+
 #### C3 — Integrate acceptance, bounded recovery, retention and reads
 
 Make `DocumentPartition` consume a verified C1/C2 candidate built against its
@@ -550,8 +626,9 @@ change. Missing/corrupt state or evidence refuses recovery; no empty reset.
 Checkpoint validation must retain causal/deletion/frontier evidence and cannot
 accept an arbitrary supplied checkpoint blob.
 
-Replace whole-state revision delivery with byte/step-bounded path, sequence,
-raw-slice and revision pages. Retain one exact cut; distinguish progress-only
+Generalize the existing causal value pages to byte/step-bounded ordered-path,
+sequence, raw-slice and revision reads; remove whole-state materialization from
+the remaining logical paths. Retain one exact cut; distinguish progress-only
 pages, genuine emptiness, terminal coverage and failed prefixes. Large values
 need a continuation without exceeding the response budget. Ownership must survive
 the next scratch reset, cache eviction and repeated fetch. Recheck rights after
@@ -564,6 +641,13 @@ logical revision expiry and physical reclamation; live pins and unresolved work
 remain protected. Integrate bounded local maintenance with Table/Stream/Queue
 scheduling and reserved control capacity. Physical rewrites must not advance
 logical revisions or invalidate original-operation inspection.
+
+Use the shared owned-root machinery for prepared Document candidates and final
+revision dependencies. Add standalone staging ownership where that machinery
+does not yet apply. Test collection racing with stage/attach, lost admission
+replies, abort, late attachment and shared parts. A generic unmarked object or
+terminal work phase is not sufficient deletion evidence. Keep the collector
+independent of profile parsers, Fuze and Station.
 
 Exercise process death and injected storage failures before/after object
 publication, acceptance, receipt delivery, checkpoint replacement, trim and
@@ -592,6 +676,13 @@ creation rule. A fixture using a Table-shaped metadata record does not establish
 the new domain or its bootstrap grants.
 Test revocation during staging, before acceptance, after buffering and during
 receipt inspection. Cached grants, a PID or a replica ID cannot authorize work.
+
+Qualify an independent reader principal from the first installed fixture. Follow
+M30's independent computation-inspection boundary: the reader keeps its own
+current grant while accepted metadata retains the writer's attribution. Do not
+copy publisher credentials, relax generic operation ownership or scan unrelated
+resources to make discovery work. Application saves and read-only operational
+inspection remain separate permissions and caller operations.
 
 Expose signed typed lifecycle/edit/read/inspect/checkpoint/close operations and
 their owned response validation through the native node and
@@ -686,6 +777,12 @@ structural conflicts, schema evolution and `.tdel` visibility. Preserve ordered
 error/conflict behavior through joins/aggregates; a pruning optimization cannot
 silently remove an error that the reference execution would report.
 
+Reuse the production `TSegReader`/`PhysicalCodecs` column-group traversal for
+dictionary/FSST predicates and M14's lossless Batch lanes. Preserve independent
+atom outcomes at their original positions, separately charge selected projection,
+and compare against unpruned evaluation. Do not restore the superseded string
+prototype or persist execution pointers in Document pages.
+
 Use M4's existing command counts, `ResultSet`, result reader and terminal
 observation. Exercise empty and multi-batch results, large strings, early close,
 cancelled prefixes, pin release, scratch ownership and current authorization
@@ -716,7 +813,7 @@ recorded effect protocol; a Document commit never dispatches an external effect.
 | Station service/worker and named resources | Replace Document storage/publication jobs and three-turn initialization with direct lifecycle/transaction adapters; prove worker absence for direct operations and replacement for behaviors |
 | Shared ABI/host and public Zig + ten non-Zig SDKs | Migrate `DocumentCodec`, saved operations/references, writer/remote actions, reads and errors through shared Zig semantics; install real consumers with full-width identities and values exceeding old caps |
 | Captured/maintained Query and SQL sources | Preserve exact accepted source/result attribution, retention, current access and five-state behavior; do not promote M12's unfinished activation work |
-| Board API/browser | Read public authorized metadata/cuts only; preserve value-free inspection, terminal coverage and revocation. Update reflected schemas/validators and actual browser tests |
+| Board API/browser | Preserve the read-only Document inspector, value-free operational evidence, terminal coverage and revocation through public reads. M30's new workbook application uses separately authorized typed saves after the C4/cutover handoff; M7 supplies no workbook schema or implicit SQL execution. Update reflected validators and actual browser tests for existing consumers |
 | Examples, application installation and launchers | Migrate `examples/station-document`, bootstrap manifests, configuration, local/Compose/reference paths and replacement checks. Audit recent application schema-migration bindings; format compatibility and application revision are separate |
 | Browser publication/Serving consumers | Audit explicit native-reader/Document source bindings introduced by recent browser work. Preserve existing supported Table paths and strict capability checks; broader direct Document publication needs its own owner-qualified adapter |
 
@@ -729,7 +826,9 @@ not proof that accepted-call semantics survived.
 #### C8 — Qualify the cutover, measure and promote behavior
 
 Coordinate every incompatible protocol, stored layout and ABI change under the
-single current-v1 policy. Replace the shared definition, regenerate reflected
+single current-v1 policy, including intermediate component increments that alter
+accepted artifacts. Do not defer definition replacement until the final release.
+Replace the shared definition, regenerate reflected
 schemas, signing fixtures, ABI/host/browser resources and binding artifacts,
 and align manifests/internal pins with `VERSION`. Reject old persisted definitions,
 saved requests, roots, cursors and installations before execution/disclosure.
@@ -759,10 +858,12 @@ Earlier component passes remain evidence only for their recorded boundaries.
 | Logical correctness | Causal accepted-set convergence, explicit structural conflicts, duplicate identity recovery, detached/deleted anchors, safe stale-base updates and budget refusal | Independent semantic fixtures, seeded schedules and C1 oracle |
 | Persisted representation | BP/spans/parts and shredded/residual reads agree across codecs, collations, deletions and compaction; bounded page construction/navigation | C2 segment round trips, differential query tests and counting allocator |
 | Original operations and lifecycle | Lost replies at reservation/genesis/publication/mutation/checkpoint/close; conflicting token/content; rename/DROP/name reuse cannot retarget work | Catalog/node caller schedules with restart |
+| Conditional versioned saves | Two callers share a base; one commits and the other receives an explicit stale-base conflict without losing its candidate. After caller loss, authorized bounded discovery recovers the original accepted save and revision | Non-browser C4 caller on disk, long ordered cell/text fixture, process loss and revoked lookup; M30 owns later Save/Open browser checks |
+| Profile and part handoff | Ordered members/arrays/XML content, exact lexemes and raw offsets survive page reuse/reopen; late parser/hash failure cannot publish; missing/shared/cyclic part relationships preserve explicit coverage | M16 independent profile fixtures composed with C1–C3 persistent candidate/reader tests |
 | Current authority | Denied metadata/data/mutation/checkpoint, replica impersonation, stale owner/policy epochs and revocation after buffering, including empty/terminal results | Independent signed callers and native policy tests |
 | Reads/results | Exact revision/collection basis, progress-only pages, multi-page values, scratch reuse, early close, cancelled/failed prefixes and no silent query restart | Shared Query/SQL client/service tests |
 | Mixed decisions and Station | Table + Document + exact Queue ACK + Stream append commit together; multiple logical Documents share one partition preparation; multiple partitions and read-only/absent-path dependencies remain serializable | Extend existing installed mixed caller and disk fault schedules; add real behavior/SDK replacement |
-| Recovery/retention/collection | Reopen from accepted WAL/checkpoints, missing/corrupt format refusal, merge-floor resync, pinned old reads and unresolved work retained through collection | Local disk fault/kill schedules and graph traversal |
+| Recovery/retention/collection | Reopen from accepted WAL/checkpoints, missing/corrupt format refusal, merge-floor resync, pinned old reads and unresolved work retained through collection; stage/attach/abort/late-attach races preserve owned/shared roots | Local disk fault/kill schedules and graph traversal, including M12 transaction-owned candidate regression cases |
 | Resources/performance | Retained growth exceeds fixed resident budgets; large values page within a revision; warmed hot loops allocate no heap where claimed; mixed transactions stay inside existing budgets and maintenance/control work progresses | Allocation/growth harness and matched installed workload reports |
 | Consumer/cutover completeness | Existing ABI/SDK/Board/examples preserve outcomes; incompatible old artifacts fail before use; no legacy successful decoder remains | Installed consumer, browser, launcher and definition/signing suites |
 
@@ -809,40 +910,82 @@ Close M7 and its index row together only when C0–C8 and the
 profiles and later distributed/history extensions retain their own status.
 Documentation validation for this plan establishes no new runtime capability.
 
+### Ordered storage increment — 2026-11-02
+
+The next-PR scope below now has a component implementation: canonical `DORDER01`
+ordered changes; conditional versioned create/root replacement/ordinal-path
+subtree replacement; persisted residual nodes, `2N` BP bits and verified raw
+parts in shared `.tseg` records; retained authenticated metadata/value/part/topology
+pages; and an M16 verified JSON/XML candidate adapter. Original-operation retries,
+stale-head refusal, private candidate staging and one fenced WAL decision reuse
+the existing partition owner. The shared current-v1 definition changed because
+logical descriptors now require explicit layout and node/part counts.
+
+Current behavior and numeric limits live in the
+[ordered partition guide](../../packages/zig/transit-storage/docs/document-partitions.md#ordered-versioned-trees)
+and [Document contract](../../contracts/DOCUMENT_V1.md#integrated-ordered-versioned-storage-slice).
+The source includes a workbook-shaped JSON and XML disk handoff, bounded dirty
+slab/cache growth, parser/part failures, old retained reads and graph coverage.
+These component checks do not qualify installed direct callers or Station turns.
+The completion record must name the actual executed checks and source revision.
+
+This advances packets 1/2 without closing C0–C3. Profile attestations and compound
+container graphs are not persisted by the generic tree; multi-request staging,
+rank/select navigation, incremental patches, adaptive subcolumns, logical
+checkpoints, causal lists/span edits and three-way merge remain open. Patches
+currently rebuild the resulting tree and envelope within declared work budgets.
+C4/C5 caller/transaction work and the coordinated C7 consumer replacement retain
+their existing dependencies. M7 remains **In Progress**.
+
 ### First implementation changes
 
-Implement these reviewable changes in order, preserving C0–C8 as the full
-completion checklist. Storage/participant work may be reviewed separately;
-public exposure and consumer replacement share the final release gate.
+Implement these reviewable changes from the merged causal-map baseline,
+preserving C0–C8 as the full completion checklist. Each storage packet includes
+its own disk/recovery proof before dependent adapters. Storage and participant
+work can land independently; public exposure and consumer replacement share the
+coordinated release gate.
 
 | Order | Change | Evidence needed to start the next dependent change |
 | --- | --- | --- |
-| 1 | C0 canonical changes, full-width identities, part/lineage descriptors, budgets and partition-aware transaction contract; exact consumer inventory | Independent fixtures and refusal cases; agreed state/input/reply atomicity and single supported cutover profile |
-| 2 | C1/C2 bounded causal evaluator and persistent residual tree/span path | Change exceeds old scalar/name/operation caps; accepted-set oracle, detached/deleted-anchor semantics and private candidate refusal agree after segment round trip |
-| 3 | C3 logical acceptance and paged read/recovery vertical path | One data acceptance, lost-reply recovery, disk reopen, same change under a different token recovering its first revision, and read continuation across a value larger than the response budget; bounded replay/key safeguards remain intact |
-| 4 | C1/C2 completion: persisted versioned merge, raw-part commitments, adaptive shredding and physical maintenance | Three-way/causal semantics, 1 KiB–10 MiB texts, collated five-state pruning and reconstruction agree across reopen, compaction and retained old cuts |
-| 5 | C4 named lifecycle and minimal signed caller; C5 Document participant against delivered M6 owners | Direct create/edit/read/recover without worker/courier; Table + Document then Queue ACK + Stream append share one original decision, including same-partition multi-document work and failure/revocation cases |
-| 6 | C6 SQL declarations/metadata and persisted Fuze projections; C7 Station/ABI/SDK/Board/example migration when M6 R7/R8 pass | Actual console/native/wire outcomes, bounded complete results and original recovery; replaced behaviors settle input/state/output together without handler replay |
-| 7 | C8 coordinated removal, definition regeneration, installed resource/performance and clean-lane qualification | One supported Document implementation at one committed revision, source-attributed evidence and updated public contracts/guides; close M7 only after every completion criterion passes |
+| 1 | C0 contracts and capability/removal inventory: ordered nodes, conditional versioned writes, ancestry/parts, staged ownership, discovery and partition-aware transaction cuts | Canonical positive/negative fixtures, explicit numeric workspace/page/request budgets and current-v1 rejection cases. Keep the existing causal path as a regression |
+| 2 | C1–C3 persisted ordered residual/BP tree and versioned create/replace/path-patch; verified immutable raw parts using the M16 candidate interface | One-partition disk journey: ordered values and long text reopen exactly, stale expected head refuses, a lost reply recovers the same revision, late parser/hash failure publishes nothing, reads survive scratch reset and revocation |
+| 3 | C1–C3 complete causal lists/span edits, three-way versioned merge and logical checkpoints; preserve map deduplication and original receipts | Accepted-set/merge oracles, deleted anchors, multibyte spans, merge-window resync, retained old reads and bounded disk recovery. Grow text/history past caches without raising cardinality limits |
+| 4 | C2/C3 persist adaptive subcolumns, shared string kernels and physical maintenance | Shredded/residual equivalence under five states and admitted collations, actual pruning, cold reopen/compaction, verified parts and owned-candidate collection races; measured page/heap/byte bounds |
+| 5 | C4 catalog/domain/bootstrap/native dispatch and owned typed caller, including collection listing and accepted-operation discovery; C5 in a separate review against the same qualified roots | Signed create/edit/list/read/recover without worker/courier; independent reader and concurrent conditional saves. Then Table + Document, multiple Documents/partitions, Queue ACK + Stream append share one original decision through faults |
+| 6 | C6 selected SQL lifecycle/metadata and finite Fuze projections, using M4 results and M10 interpretation | Real compiler/service/console outcomes, empty/multi-batch/failed prefixes, unchanged retained cuts, current buffered disclosure and exact original recovery; no syntax claim from parser acceptance alone |
+| 7 | C7 real transactional Station Document behavior and existing ABI/SDK/Board/example replacement when M6 R7/R8 handoffs pass | State, exact input lease, journal and reply/output intents commit together; replacement resolves the original decision without handler replay. Run actual installed consumers, preserving read-only inspection |
+| 8 | C8 coordinated removal, final regeneration and common-revision qualification | All C0–C8/completion criteria, actual resource/performance and affected clean lanes, removal inventory and public documentation agree. M16/M30 can consume the qualified public owner; their remaining features keep their own gates |
 
-The first implementation should finish change 1 and the smallest causal
-change-2/3 path before widening SQL or consumer APIs. After that path passes,
-change 4 and the contract-bound portions of C4/C5 can progress independently;
-all profiles and physical layouts must join before cutover. This avoids waiting
-for every optimization or all of M6/M9 to start useful storage work while still
-requiring their exact consumer dependencies for release.
+**Selected ordered-storage PR scope:** finish the packet-1 contract subset required for
+packet 2, then deliver that ordered/versioned disk path with its independent
+fixtures. Target `DocumentOperation`/`DocumentRead`, the deterministic
+`transit-document` reader/builder, `DocumentPartition`, segment/graph owners and
+their tests. Pair it with M16's existing profile fixtures and a versioned
+workbook-shaped fixture; do not add a Board route or executable Document SQL yet.
+Conditional saves are an initial subset of the required versioned merge profile,
+not a new profile tag or a reason to omit three-way merge.
+
+After packet 2, bounded C4 lifecycle/caller and C5 participant development can
+proceed while packets 3/4 finish; neither needs all of M6, M9 or M16 completed.
+M6 can qualify a Table/KV transactional behavior independently. The Document
+behavior then joins its exact input/output decision, and the public replacement
+ships only after its consumer, storage and recovery gates pass. If that handoff
+is unavailable, land qualified private components and keep the installed Station
+Document owner and M7 status unchanged.
 
 ### Decisions and risks to resolve during implementation
 
 | Decision or risk | Required resolution and gate |
 | --- | --- |
-| Old evaluator versus direct identity/size model | Choose canonical full-width changes and paged builders in C0/C1; larger declaration limits cannot conceal the old 96-byte/eight-operation execution path |
+| Installed evaluator versus direct identity/size model | Preserve delivered full-width causal maps; finish ordered/span/versioned builders and migrate installed consumers. Larger declaration limits cannot conceal the old 96-byte/eight-operation execution path |
+| M16 ordered representation versus causal maps | Preserve duplicate/order/lexeme/raw-part evidence through C0–C3. A causal-map import or opaque byte capture cannot claim a lossless queryable JSON/XML tree |
+| M30 conditional persistence versus runtime cutover | Supply owner-enforced expected revisions, listing and accepted-operation discovery before browser integration. Keep workbook schema and Save/Open in M30; typed reads/writes do not bypass the C7 public cutover gate |
 | Document collection versus transaction owner | Freeze partition selection, whole-partition conflict basis and one preparation per owner in C0/C5; reject unsupported selection before admission |
 | Supplied state and checkpoint bytes | Derive or validate all logical roots, counts and causal evidence in C1/C3; matching a content digest alone cannot establish valid Document state |
 | Navigation and memory targets | Benchmark actual paged BP/span traversal and admitted work; retain the O(1)/O(log B) targets as open until evidence supports them. Bound page visits, scratch, output borrows and resident owner overlap |
 | Authority and retention across cutover | Install a distinct Document domain, persist cursor-key ownership and trace every private/accepted/pinned root; no key change, quota, unsupported graph edge or stale native resource may cause unauthorized disclosure or deletion |
 | Station and language dependency | C7 requires the specific M6 turn/settlement and shared ABI seams. If those remain unfinished, record component delivery and leave the public cutover and M7 open; do not emulate atomicity with two commits |
-| Evidence from changing definitions | Re-run affected integrated schedules at the final definition; preserve earlier failures and original uncertain work. M6/M8/M9/M20 partial or failed clean lanes cannot be combined into a current-revision pass |
+| Evidence from changing definitions | Re-run affected integrated schedules at the final definition; preserve earlier failures and original uncertain work. Neither later passing M6 lanes nor incomplete M8/M9/M20 runs establish Document qualification at this revision |
 
 ## Implementation plan for initial Document decoupling
 

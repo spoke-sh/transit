@@ -739,3 +739,280 @@ test "document partition evaluates causal trees pages large values and recovers 
     _ = try owner.releaseRead(.{ .target = target, .operation = operation(13), .read = read.handle() }, policy.guard());
     try t.expectError(error.DocumentReadReleased, owner.readCausalPage(cursor, path, policy.guard()));
 }
+
+fn orderedMutation(target: doc.Target, id: u64, revision: u64, bytes: []const u8) doc.Mutation {
+    return .{ .target = target, .operation = operation(id), .lineage = .{ .profile = .versioned, .merge_epoch = 1, .base_revision = revision, .parent_revision = null, .replica = null, .raw_span = null }, .operations = 1, .payload = .{ .bytes = bytes.len, .sha256 = hashBytes(bytes) } };
+}
+
+fn expectOrdered(owner: *s.DocumentPartition, read: doc.Read.Receipt, expected: []const @import("transit_document").OrderedChange.Node, policy: *Policy) !s.DocumentPartition.OrderedCursor {
+    var cursor = try owner.orderedCursor(read, .{ .kind = .tree }, policy.guard());
+    var seen: usize = 0;
+    var value_bytes: usize = 0;
+    var name_bytes: usize = 0;
+    while (try owner.readOrderedPage(cursor, policy.guard())) |page| {
+        const node = expected[@intCast(page.ordinal)];
+        switch (page.section) {
+            .node => {
+                try t.expectEqual(seen, page.ordinal);
+                try t.expectEqual(node.depth, page.node.?.depth);
+                try t.expectEqual(node.kind, page.node.?.kind);
+                try t.expectEqual(node.name.len, page.node.?.name_bytes);
+                try t.expectEqual(node.value.len, page.node.?.value_bytes);
+                try t.expectEqualDeep(node.span, page.node.?.span);
+                seen += 1;
+            },
+            .name => {
+                try t.expectEqualSlices(u8, node.name[@intCast(page.offset)..][0..page.data.len], page.data.slice());
+                name_bytes += page.data.len;
+            },
+            .value => {
+                try t.expectEqualSlices(u8, node.value[@intCast(page.offset)..][0..page.data.len], page.data.slice());
+                value_bytes += page.data.len;
+            },
+            else => return error.UnexpectedOrderedSection,
+        }
+        // The copied page retains its bytes across the next scratch reset.
+        const owned = page;
+        if (!page.cursor.complete) _ = try owner.readOrderedPage(page.cursor, policy.guard());
+        try t.expectEqualDeep(owned, page);
+        cursor = page.cursor;
+    }
+    try t.expectEqual(expected.len, seen);
+    var expected_names: usize = 0;
+    var expected_values: usize = 0;
+    for (expected) |node| {
+        expected_names += node.name.len;
+        expected_values += node.value.len;
+    }
+    try t.expectEqual(expected_names, name_bytes);
+    try t.expectEqual(expected_values, value_bytes);
+    try t.expect(cursor.complete);
+    return cursor;
+}
+
+test "document partition ordered trees retain raw parts BP and conditional revisions across disk recovery" {
+    const ordered = @import("transit_document").OrderedChange;
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var definition = sampleDefinition();
+    definition.configuration.profile = .versioned;
+    definition.configuration.retention.merge_window_revisions = null;
+    var prepared = try s.DocumentDeclaration.prepare(t.allocator, definition);
+    defer prepared.deinit();
+    const declared = try s.DocumentDeclaration.stage(objects.objectStore(), &prepared);
+    var policy: Policy = .{};
+    const init_req: s.DocumentInitialization.Request = .{ .definition = p.Growth.current_definition, .declared = declared, .operation = operation(1), .ordinal = 0, .partition = 112 };
+    _ = try s.DocumentInitialization.initialize(t.allocator, wal.log(), objects.objectStore(), init_req, policy.guard());
+    const options: s.DocumentPartition.Options = .{ .read_secret = @splat(17), .resident_pages = 1, .logical = .{ .pending_records = 8, .resident_pages = 1 } };
+    var owner = try s.DocumentPartition.open(t.allocator, wal.log(), objects.objectStore(), init_req, policy.guard(), options);
+    defer owner.deinit();
+    const target: doc.Target = .{ .partition = init_req.target(), .document = @splat(0xf1) };
+    const raw = "{\"dup\":123456789012345678901234567890}";
+    const parts = [_]ordered.Part{.{ .id = 42, .bytes = raw, .digest = hashBytes(raw) }};
+    const large: [5000]u8 = @splat('v');
+    const nodes = [_]ordered.Node{
+        .{ .depth = 0, .kind = .map, .span = .{ .part = 42, .start = 0, .end = raw.len } },
+        .{ .depth = 1, .kind = .number, .name = "dup", .value = "123456789012345678901234567890", .span = .{ .part = 42, .start = 7, .end = 37 } },
+        .{ .depth = 1, .kind = .list, .name = "dup" },
+        .{ .depth = 2, .kind = .null_value },
+        .{ .depth = 2, .kind = .string, .value = &large },
+        .{ .depth = 1, .kind = .text, .value = "mixed content" },
+        .{ .depth = 1, .kind = .missing },
+        .{ .depth = 1, .kind = .type_error, .value = "expected integer" },
+        .{ .depth = 1, .kind = .conflict },
+        .{ .depth = 2, .kind = .null_value },
+        .{ .depth = 2, .kind = .string, .value = "alternative" },
+    };
+    const header: ordered.Header = .{ .definition = p.Growth.definition_bytes, .document = target.document, .epoch = 1, .expected_revision = 0, .nodes = nodes.len, .parts = parts.len };
+    var buffer: [16384]u8 = undefined;
+    const bytes = try ordered.encode(header, &parts, &nodes, &buffer);
+    const mutation = orderedMutation(target, 2, 0, bytes);
+    const before = wal.appends;
+    var fault: Fault = .{ .underlying = wal.log(), .lose_reply = true };
+    owner.log = fault.log();
+    try t.expectError(error.DocumentAppendUncertain, owner.applyOrdered(mutation, bytes, policy.guard()));
+    try t.expectEqual(before + 1, wal.appends);
+    owner.deinit();
+    wal.deinit();
+    objects.deinit();
+    wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    owner = try s.DocumentPartition.open(t.allocator, wal.log(), objects.objectStore(), init_req, policy.guard(), options);
+    const first = try owner.applyOrdered(mutation, bytes, policy.guard());
+    try t.expectEqual(@as(u64, 1), first.accepted_revision);
+    try t.expectEqual(@as(u16, 1), first.unresolved_conflicts);
+    const stored = try s.DocumentLogicalState.load(t.allocator, objects.objectStore(), first.state);
+    var descriptor_bytes: [s.DocumentLogicalState.max_bytes]u8 = undefined;
+    const descriptor = try s.DocumentLogicalState.encode(stored, &descriptor_bytes);
+    descriptor_bytes[8] ^= 1;
+    try t.expectError(error.IncompatibleDefinition, s.DocumentLogicalState.decode(t.allocator, descriptor));
+    descriptor_bytes[8] ^= 1;
+    const layout_field = "\"layout\":\"ordered\",";
+    const layout_at = std.mem.indexOf(u8, descriptor, layout_field).?;
+    std.mem.copyForwards(u8, descriptor_bytes[layout_at..], descriptor[layout_at + layout_field.len ..]);
+    try t.expectError(error.MissingField, s.DocumentLogicalState.decode(t.allocator, descriptor_bytes[0 .. descriptor.len - layout_field.len]));
+    try t.expectEqual(@as(u64, 0), wal.appends);
+    const read = try owner.beginRead(.{ .target = target, .operation = operation(3), .from_revision = 1, .through_revision = 1, .max_steps = 4096, .max_bytes = 16384 }, policy.guard());
+    const complete = try expectOrdered(&owner, read, &nodes, &policy);
+    try expectOrderedNavigation(&owner, read, &nodes, &policy);
+    var changed_read = read;
+    changed_read.request.max_bytes -= 1;
+    try t.expectError(error.DocumentReadConflict, owner.inspectOrderedNode(changed_read, 0, policy.guard()));
+    policy.deny_at = policy.calls + 3;
+    try t.expectError(error.PermissionDenied, owner.inspectOrderedNode(read, 0, policy.guard()));
+    policy.deny_at = std.math.maxInt(usize);
+    const raw_cursor = try owner.orderedCursor(read, .{ .kind = .part, .part = 42 }, policy.guard());
+    const raw_page = (try owner.readOrderedPage(raw_cursor, policy.guard())).?;
+    try t.expectEqualSlices(u8, raw, raw_page.data.slice());
+    try t.expectEqualSlices(u8, &hashBytes(raw), &raw_page.part.?.digest);
+    try t.expect(raw_page.cursor.complete);
+    const topology = (try owner.readOrderedPage(try owner.orderedCursor(read, .{ .kind = .topology }, policy.guard()), policy.guard())).?;
+    const bp = "(()(()())()()()(()()))";
+    try t.expectEqual(nodes.len * 2, bp.len);
+    for (bp, 0..) |paren, bit| try t.expectEqual(paren == '(', topology.data.data[bit / 8] & (@as(u8, 1) << @intCast(bit % 8)) != 0);
+    try t.expect(topology.cursor.complete);
+    var tampered = raw_cursor;
+    tampered.selection.part = 43;
+    try t.expectError(error.InvalidDocumentCursor, owner.readOrderedPage(tampered, policy.guard()));
+    const fresh = try owner.orderedCursor(read, .{ .kind = .tree }, policy.guard());
+    policy.deny_at = policy.calls + 2;
+    try t.expectError(error.PermissionDenied, owner.readOrderedPage(fresh, policy.guard()));
+    policy.deny_at = std.math.maxInt(usize);
+    const short = try owner.beginRead(.{ .target = target, .operation = operation(4), .from_revision = 1, .through_revision = 1, .max_steps = 1, .max_bytes = 1 }, policy.guard());
+    try t.expectError(error.DocumentReadLimitExceeded, owner.readOrderedPage(try owner.orderedCursor(short, .{ .kind = .tree }, policy.guard()), policy.guard()));
+    try t.expectError(error.DocumentReadLimitExceeded, owner.inspectOrderedNode(short, 0, policy.guard()));
+
+    // Replace only the second duplicate-name child, leaving the first and raw
+    // source part untouched. The path is a child ordinal, not a name lookup.
+    var patch_buffer: [1024]u8 = undefined;
+    var patch_header = header;
+    patch_header.expected_revision = 1;
+    patch_header.nodes = 1;
+    patch_header.parts = 0;
+    patch_header.path = &.{ 1, 0, 0, 0 };
+    const patch = ordered.Node{ .depth = 0, .kind = .string, .name = "dup", .value = "replacement" };
+    const patch_bytes = try ordered.encode(patch_header, &.{}, &.{patch}, &patch_buffer);
+    const patch_mutation = orderedMutation(target, 5, 1, patch_bytes);
+    const second = try owner.applyOrdered(patch_mutation, patch_bytes, policy.guard());
+    try t.expectEqual(@as(u64, 2), second.accepted_revision);
+    try t.expectEqualDeep(first, try owner.applyOrdered(mutation, bytes, policy.guard()));
+    try t.expectError(error.DocumentRevisionConflict, owner.applyOrdered(orderedMutation(target, 6, 1, patch_bytes), patch_bytes, policy.guard()));
+    var expected: [9]ordered.Node = undefined;
+    @memcpy(expected[0..2], nodes[0..2]);
+    expected[2] = patch;
+    expected[2].depth = 1;
+    @memcpy(expected[3..], nodes[5..]);
+    const next_read = try owner.beginRead(.{ .target = target, .operation = operation(7), .from_revision = 2, .through_revision = 2, .max_steps = 4096, .max_bytes = 16384 }, policy.guard());
+    _ = try expectOrdered(&owner, next_read, &expected, &policy);
+    _ = try expectOrdered(&owner, read, &nodes, &policy);
+    try expectOrderedNavigation(&owner, next_read, &expected, &policy);
+    try expectOrderedNavigation(&owner, read, &nodes, &policy);
+    try t.expectEqualSlices(u8, raw, (try owner.readOrderedPage(try owner.orderedCursor(next_read, .{ .kind = .part, .part = 42 }, policy.guard()), policy.guard())).?.data.slice());
+
+    // All rejected candidates leave the WAL/head unchanged, including a late
+    // span error after private segments have already been sealed.
+    const at_refusal = wal.appends;
+    var invalid_buffer: [16384]u8 = undefined;
+    var invalid_nodes = nodes;
+    invalid_nodes[10].span = .{ .part = 42, .start = 0, .end = raw.len + 1 };
+    var invalid_header = header;
+    invalid_header.expected_revision = 2;
+    const invalid = try ordered.encode(invalid_header, &parts, &invalid_nodes, &invalid_buffer);
+    try t.expectError(error.InvalidOrderedSpan, owner.applyOrdered(orderedMutation(target, 8, 2, invalid), invalid, policy.guard()));
+    invalid_buffer[8] ^= 1;
+    try t.expectError(error.IncompatibleDefinition, owner.applyOrdered(orderedMutation(target, 8, 2, invalid), invalid, policy.guard()));
+    invalid_buffer[8] ^= 1;
+    invalid_buffer[126] ^= 1;
+    try t.expectError(error.InvalidOrderedPart, owner.applyOrdered(orderedMutation(target, 8, 2, invalid), invalid, policy.guard()));
+    try t.expectEqual(at_refusal, wal.appends);
+    const work_limit = owner.options.index_work_bytes;
+    owner.options.index_work_bytes = 1;
+    const budget_bytes = try ordered.encode(invalid_header, &parts, &nodes, &invalid_buffer);
+    try t.expectError(error.StorageCandidateTooLarge, owner.applyOrdered(orderedMutation(target, 8, 2, budget_bytes), budget_bytes, policy.guard()));
+    owner.options.index_work_bytes = work_limit;
+    try t.expectEqual(at_refusal, wal.appends);
+    // More nodes than either the pending slab or a topology page can hold.
+    // The depth stack remains constant; intermediate sealed segments stay private.
+    var wide_nodes: [1002]ordered.Node = @splat(.{ .depth = 1, .kind = .null_value });
+    wide_nodes[0] = .{ .depth = 0, .kind = .list };
+    var wide_header = header;
+    wide_header.document = @splat(0xf2);
+    wide_header.nodes = wide_nodes.len;
+    wide_header.parts = 0;
+    var wide_buffer: [32768]u8 = undefined;
+    const wide_bytes = try ordered.encode(wide_header, &.{}, &wide_nodes, &wide_buffer);
+    const wide_target: doc.Target = .{ .partition = target.partition, .document = wide_header.document };
+    _ = try owner.applyOrdered(orderedMutation(wide_target, 10, 0, wide_bytes), wide_bytes, policy.guard());
+    const wide_read = try owner.beginRead(.{ .target = wide_target, .operation = operation(11), .from_revision = 1, .through_revision = 1, .max_steps = 4096, .max_bytes = 32768 }, policy.guard());
+    _ = try expectOrdered(&owner, wide_read, &wide_nodes, &policy);
+    var bp_cursor = try owner.orderedCursor(wide_read, .{ .kind = .topology }, policy.guard());
+    var bp_bits: usize = 0;
+    while (try owner.readOrderedPage(bp_cursor, policy.guard())) |page| {
+        for (page.data.slice()) |byte| for (0..8) |bit| {
+            const want_open = bp_bits == 0 or (bp_bits < wide_nodes.len * 2 - 1 and bp_bits % 2 == 1);
+            try t.expectEqual(want_open, byte & (@as(u8, 1) << @intCast(bit)) != 0);
+            bp_bits += 1;
+        };
+        bp_cursor = page.cursor;
+    }
+    try t.expectEqual((wide_nodes.len * 2 + 7) / 8 * 8, bp_bits);
+    // Structural reads cross the 1,920-bit chunk boundary with a one-page
+    // index cache, without retaining a topology-sized resident array.
+    const root_inspection = try owner.inspectOrderedNode(wide_read, 0, policy.guard());
+    try t.expectEqualDeep(@import("transit_document").SuccinctTree.Navigation{ .ordinal = 0, .depth = 0, .first_child = 1, .subtree_end = wide_nodes.len }, root_inspection.node);
+    try t.expectEqual(@as(u32, wide_nodes.len * 2 + 3), root_inspection.steps);
+    for ([_]u64{ 1, 959, 960, 1001 }) |ordinal| {
+        const inspected = try owner.inspectOrderedNode(wide_read, ordinal, policy.guard());
+        try t.expectEqualDeep(@import("transit_document").SuccinctTree.Navigation{ .ordinal = ordinal, .depth = 1, .parent = 0, .next_sibling = if (ordinal + 1 < wide_nodes.len) ordinal + 1 else null, .subtree_end = ordinal + 1 }, inspected.node);
+        try t.expectEqual(@as(u64, 1), inspected.revision);
+    }
+    try t.expectError(error.DocumentPathMissing, owner.inspectOrderedNode(wide_read, wide_nodes.len, policy.guard()));
+    const bounded = try owner.beginRead(.{ .target = wide_target, .operation = operation(12), .from_revision = 1, .through_revision = 1, .max_steps = root_inspection.steps, .max_bytes = 31 }, policy.guard());
+    try t.expectEqualDeep(root_inspection, try owner.inspectOrderedNode(bounded, 0, policy.guard()));
+    const less_work = try owner.beginRead(.{ .target = wide_target, .operation = operation(13), .from_revision = 1, .through_revision = 1, .max_steps = root_inspection.steps - 1, .max_bytes = 31 }, policy.guard());
+    try t.expectError(error.DocumentReadLimitExceeded, owner.inspectOrderedNode(less_work, 0, policy.guard()));
+    const less_output = try owner.beginRead(.{ .target = wide_target, .operation = operation(14), .from_revision = 1, .through_revision = 1, .max_steps = root_inspection.steps, .max_bytes = 30 }, policy.guard());
+    try t.expectError(error.DocumentReadLimitExceeded, owner.inspectOrderedNode(less_output, 0, policy.guard()));
+    const range_read = try owner.beginRead(.{ .target = target, .operation = operation(15), .from_revision = 1, .through_revision = 2, .max_steps = 4096, .max_bytes = 16384 }, policy.guard());
+    try t.expectError(error.DocumentSingleRevisionRequired, owner.inspectOrderedNode(range_read, 0, policy.guard()));
+    const before_inspection = wal.appends;
+    owner.deinit();
+    owner = try s.DocumentPartition.open(t.allocator, wal.log(), objects.objectStore(), init_req, policy.guard(), options);
+    try t.expectEqualDeep(root_inspection, try owner.inspectOrderedNode(wide_read, 0, policy.guard()));
+    try t.expectEqual(before_inspection, wal.appends);
+    _ = try owner.releaseRead(.{ .target = target, .operation = operation(9), .read = read.handle() }, policy.guard());
+    try t.expectError(error.DocumentReadReleased, owner.readOrderedPage(complete, policy.guard()));
+    try t.expectError(error.DocumentReadReleased, owner.inspectOrderedNode(read, 0, policy.guard()));
+}
+
+/// Independent oracle over the input's preorder depths, not BP navigation.
+fn expectOrderedNavigation(owner: *s.DocumentPartition, receipt: doc.Read.Receipt, nodes: []const @import("transit_document").OrderedChange.Node, policy: *Policy) !void {
+    for (nodes, 0..) |node, ordinal| {
+        var parent: ?u64 = null;
+        var before = ordinal;
+        while (before > 0) {
+            before -= 1;
+            if (nodes[before].depth < node.depth) {
+                parent = before;
+                break;
+            }
+        }
+        var end = ordinal + 1;
+        while (end < nodes.len and nodes[end].depth > node.depth) : (end += 1) {}
+        const want: @import("transit_document").SuccinctTree.Navigation = .{
+            .ordinal = ordinal,
+            .depth = node.depth,
+            .parent = parent,
+            .first_child = if (ordinal + 1 < end) ordinal + 1 else null,
+            .next_sibling = if (end < nodes.len and nodes[end].depth == node.depth) end else null,
+            .subtree_end = end,
+        };
+        const observed = try owner.inspectOrderedNode(receipt, ordinal, policy.guard());
+        try t.expectEqualDeep(want, observed.node);
+        try t.expectEqual(receipt.through_revision, observed.revision);
+    }
+}

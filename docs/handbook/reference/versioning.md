@@ -108,7 +108,7 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`2e4a3b9bb0fef6545fe2c0983c0635bf2a9c140f6bad21dfbf510eb696aa79c0`.
+`1a81487b17b998cf1e5c89eaf621d7c97cbecb389f13fedfc3c0691125beb141`.
 It binds an explicit nullable parent head in immutable Table branch creation,
 independent retained-pin copying and accepted fork ancestry, as well as
 non-delegated current snapshot pin capture under an explicit Table
@@ -160,6 +160,11 @@ owner. Installation records require per-worker enrollment receipts and the last
 accepted public key. Restart conditionally rotates that key and ownership
 without re-granting permissions. Earlier installations cannot synthesize these
 fields and reject before starting authority.
+
+The current definition also requires explicit causal/ordered layout and node/part
+counts in persisted logical Document descriptors. Earlier descriptors cannot
+default to either layout. Ordered requests, raw parts, tree metadata and retained
+cursors share the current definition; no old data is silently converted or reset.
 
 This definition also integrates managed-computation operation identities, logical
 Document storage, and compact string results. Managed computations and database

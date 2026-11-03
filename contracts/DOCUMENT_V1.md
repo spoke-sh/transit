@@ -203,7 +203,10 @@ Replaying either operation returns its own original receipt.
 ### Persistent representation and budgets
 
 `DLOG0001` state objects contain the mandatory shared definition, exact target,
-epoch, derived conflict count and a validated `DocumentIndex.Root`. The binary
+epoch, derived conflict count, mandatory `layout` (`causal_map` or `ordered`),
+`nodes`, `parts` and a validated `DocumentIndex.Root`. Causal roots require zero
+node/part counts; ordered roots require a nonzero node count. Missing fields or
+an earlier shared definition refuse; readers do not infer a layout. The binary
 prefix includes the shared definition before the canonical JSON descriptor.
 State descriptors are at most 4,096 bytes. Format dispatch verifies those bounded
 bytes against their accepted digest before deciding whether they own child roots;
@@ -263,3 +266,96 @@ These storage-component cursors do not replace the shared installed caller ABI.
 Collection scans, list/text editing, BP navigation, adaptive shredding, versioned
 merge, logical checkpoints, Document transaction participants and installed
 catalog/client/SQL/Station exposure remain separate gates.
+
+
+## Integrated ordered versioned storage slice
+
+`DocumentPartition.applyOrdered` accepts the
+[canonical ordered input](TRANSIT_STORAGE_V1.md#canonical-ordered-document-changes)
+for a declaration using the existing `versioned` profile. It checks the complete
+payload, current definition/interpretation, full Document ID and merge epoch.
+The outer mutation has one operation, no replica, parent revision or outer raw
+span, and a base revision equal to the header's expected revision. Create requires
+revision zero and epoch one. An existing tree requires its exact accepted head;
+a stale or future expectation returns `DocumentRevisionConflict`. Exact original
+operation retries return their recorded receipt even after a newer revision.
+A new operation using an old expected head is a conflict, not a causal alias.
+
+An empty ordinal path supplies a complete replacement tree and raw-part envelope.
+A nonempty path replaces that subtree, including its root name; callers include
+the intended edge name in the replacement. Ordinals count immediate ordered
+children, preserving duplicate names. Patch paths cannot create missing parents
+or traverse a scalar. A patch retains the original raw parts and may add parts;
+reusing an ID with different bytes/digest returns `DocumentPartIdentityConflict`.
+Every referenced span must fit its verified part. Patching a tree does not rewrite
+the captured source frame or imply that the modified tree still parses from it.
+Constructed nodes can omit provenance. Profile interpretation is separate.
+
+The offline profile adapter can supply verified JSON/XML/MIME single-part inputs.
+Its [ordered candidate mapping](../packages/zig/transit-document-profiles/README.md#ordered-storage-candidates)
+uses the same generic node kinds and verified raw parts. MIME fields remain
+ordered binary nodes under a header list, with one separate binary body node;
+parser fetch windows do not alter the tree. The descriptor attestation remains
+outside the accepted generic tree. This adds no wire kind, installed route or
+transport authority.
+
+The owner derives the whole candidate before one fenced WAL acceptance. The
+preorder residual tree stores node metadata (`N`), name (`K`) and value (`V`)
+chunks, raw part metadata (`P`) and bytes (`R`), and a `2N`-bit BP stream (`B`) in
+shared `.tseg` key/value rows. Keys are a tag followed by big-endian `u64` node or
+part ID and chunk ordinal. Chunk payloads are at most 240 bytes. BP uses an open
+bit of one, close bit of zero, least-significant bit first, and zero tail padding.
+Topology is persisted; rank/select directories and constant-time navigation are
+not implemented on this path. Ordinal path resolution scans bounded residual
+metadata. A patch rebuilds its resulting tree and envelope; it is not an
+incremental-update or write-amplification performance claim.
+
+A depth stack has `path_depth + 1` entries (root depth zero). Canonical input
+remains bounded by `change_bytes`; names, values and parts have `u32` input
+lengths. Total retained nodes and revision history do not size the pending slab.
+The builder seals private segments when that slab fills and resumes from the
+sealed root. `read_steps` bounds indexed reads/writes during construction,
+`index_work_bytes` bounds cumulative encoded logical-index staging across those
+seals, and configured segment/scratch/cache budgets remain independent. A budget,
+span, structure, part or policy refusal publishes no prefix. Intermediate segments
+may remain unreferenced; they acquire no revision or retention authority.
+
+`orderedCursor` requires a retained read receipt for exactly one revision.
+Select the tree, one raw part ID, or topology bytes. `readOrderedPage` emits owned
+node metadata followed by any name/value byte sections, or chunks of the selected
+raw part/topology. The HMAC domain is `transit.document.ordered.page.v1\x00`;
+it binds the current definition and every cursor field, including source handle,
+revision, selection, ordinal, section, offset, cumulative budgets and completion.
+Metadata encoding lengths and returned chunk bytes count against `max_bytes`;
+indexed operations count against `max_steps`. Directory/descriptor lookup adds
+bounded per-page overhead. Bytes may split UTF-8 scalars. Every call checks the
+live pin and current authorization, including repeated/terminal calls, and
+reauthorizes after buffering. Scratch/cache reuse cannot invalidate returned pages.
+
+`inspectOrderedNode(receipt, ordinal, guard)` returns structural metadata for a
+zero-based preorder node in that same single-revision retained read: parent,
+first child, next sibling, depth and exclusive subtree-end ordinal. Missing
+relations are explicit nulls; an out-of-range ordinal returns
+`DocumentPathMissing`. The result owns its fields and reports its revision and
+consumed work. It neither accepts work nor acquires another pin.
+
+The reader scans persisted BP chunks with a caller-bounded depth stack, retaining
+one 240-byte topology chunk at a time. Each examined bit and each indexed chunk
+or node lookup consumes one `max_steps` unit. Structural output consumes 23
+bytes plus eight for each non-null parent/child/sibling against `max_bytes`;
+revision and work attribution are control metadata. Each call starts its own
+bounded inspection from the original retained receipt; it is not a continuation
+of a previous page. Exhaustion returns `DocumentReadLimitExceeded`, with no
+partial navigation result. Receipt identity, live retention and current rights
+are checked before work, with authorization repeated after buffering, including
+repeated inspections. The traversed topology prefix is validated and its target
+depth is checked against residual node metadata. This is linear bounded scanning,
+not a rank/select index, constant-time navigation or an exhaustive storage scrub.
+It adds no persisted layout, cursor format or installed endpoint.
+
+The existing retained graph follows both layouts into their directories and all
+reachable segments, including raw parts and topology. Opaque mutations and caller
+checkpoints cannot replace either logical layout. Three-way merges, logical
+checkpoints, incremental text edits, adaptive subcolumns and Document transaction
+participation remain outside this increment. This component does not replace the
+installed Station Document lifecycle, native/SDK routes or SQL capability.

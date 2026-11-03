@@ -308,8 +308,10 @@ def main():
         header += struct.pack('<H', 3) + b'abc' + b'filename\0comment\0'
         header += struct.pack('<H', zlib.crc32(header) & 0xffff)
         assert invoke(base + ['--gzip'], bytes(header) + compressed[10:], env=env) == ordinary
+        # A fixed replacement byte can equal the timestamp-dependent CRC byte.
+        # Flip a bit so this case always corrupts the valid header.
         for bad in (compressed[:-1], compressed[:10], compressed + b'garbage', compressed * 2,
-                    compressed[:-8] + b'\0' * 8, bytes(header[:-1]) + b'x' + compressed[10:]):
+                    compressed[:-8] + b'\0' * 8, bytes(header[:-1]) + bytes([header[-1] ^ 1]) + compressed[10:]):
             invoke(base + ['--gzip'], bad, 1, env)
         for flags, data_in in [(['--max-bytes', '5'], data), (['--max-encoded-bytes', '5'], data), (['--gzip', '--max-bytes', '5'], compressed)]:
             invoke(base + flags, data_in, 1, env)

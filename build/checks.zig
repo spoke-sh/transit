@@ -332,6 +332,18 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const tests = b.addTest(.{ .root_module = adapter.module("transit_backend_ursula") });
     const test_step = b.step("test", "Run compiled components, independent fixtures and local process faults");
     const components_step = b.step("test-components", "Run compiled component tests, including package-local filesystem checks");
+    const ordered_documents = b.addRunArtifact(b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/storage/local/ordered_documents.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "transit_storage", .module = storage.module("transit_storage") },
+            .{ .name = "transit_protocol", .module = protocol.module("transit_protocol") },
+            .{ .name = "transit_document_profiles", .module = document_profiles.module("transit_document_profiles") },
+        },
+    }) }));
+    b.step("test-ordered-documents", "Verify profile candidates through ordered Document disk storage").dependOn(&ordered_documents.step);
+    components_step.dependOn(&ordered_documents.step);
     const document_profiles_probe = b.addExecutable(.{ .name = "transit-document-profiles-probe", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/catalog/tables/document_profiles.zig"),
         .target = target,

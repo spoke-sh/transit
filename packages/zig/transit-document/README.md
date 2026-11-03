@@ -38,6 +38,12 @@ package also exports:
   and excess summaries supporting zero-allocation `parent`, `firstChild`,
   `nextSibling`, `subtreeSize`, `depth`, `isAncestor`, `within`, and `lca`
   navigation.
+  Its `navigate` helper also reads a caller-supplied BP stream with a bounded
+  ancestor stack, returning owned parent/child/sibling and subtree metadata.
+  This streaming path uses full-width ordinals and does not materialize the
+  tree or use the resident representation's node cap. The reader owns access
+  and work limits; navigation validates only the consumed prefix and scans
+  linearly rather than supplying a persisted rank/select index.
 - [`SpanText`](src/SpanText.zig): span-based collaborative UTF-8 text supporting
   arbitrary-length contiguous spans beyond 96 bytes, interior span splitting,
   range tombstones, 24-permutation causal convergence, and step/byte-bounded
@@ -63,3 +69,12 @@ I/O dependency. It returns private state; the storage partition decides acceptan
 See the [canonical format and limits](../../../contracts/DOCUMENT_V1.md#integrated-causal-map-tree-storage-slice).
 The installed `Model`/`Document` evaluator remains the existing Station contract;
 this addition does not migrate its callers or claim BP/subcolumn integration.
+
+
+`OrderedChange` defines a borrowed, allocation-free canonical ordered tree input
+and a validator with a caller-owned depth stack. It preserves duplicate names,
+exact JSON number lexemes, XML node kinds, five-state nodes and optional raw-part
+coordinates. Header/part/node writers compose bounded request buffers. The
+[ordered format](../../../contracts/TRANSIT_STORAGE_V1.md#canonical-ordered-document-changes)
+is evaluated and persisted by `DocumentPartition.applyOrdered`; it does not add
+storage, clocks, policy, or Station dependencies to this package.

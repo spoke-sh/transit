@@ -12,6 +12,7 @@ pub const SuccinctTree = @import("SuccinctTree.zig").SuccinctTree;
 pub const SpanText = @import("SpanText.zig").SpanText;
 pub const VersionedMerge = @import("VersionedMerge.zig");
 test {
+    _ = @import("ordered_change_test.zig");
     _ = @import("logical_tree_test.zig");
     _ = Model;
     _ = codec;
@@ -26,3 +27,5 @@ test {
 pub const LogicalChange = @import("LogicalChange.zig");
 pub const CausalTree = @import("CausalTree.zig").CausalTree;
 pub const CausalTreeChunkBytes = @import("CausalTree.zig").chunk_bytes;
+
+pub const OrderedChange = @import("OrderedChange.zig");
