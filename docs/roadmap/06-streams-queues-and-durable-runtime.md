@@ -34,6 +34,11 @@ The [SQL reference](../handbook/reference/sql/streaming.md#renew-a-queue-lease)
 and [result contract](../../contracts/SQL_RESULTS_V1.md#original-workload-evidence)
 own the executable semantics.
 
+The [renewal qualification record](../history/qualification/query.md#sql-queue-renewal-original-results--2026-11-02)
+attributes the completed SQL/SDK checks and earlier failures to their tested
+revisions. Those checks predate integration with the latest Board computation
+changes; the PR tracks validation of the combined branch separately.
+
 Batch 0's preserved fixture now has a matching-binary, read-only recovery
 [observation](../history/qualification/storage.md#preserved-queue-fixture-read-only-recovery--2026-11-02)
 for the original enqueue, claim and payload, obtained from a private copy with
@@ -46,6 +51,13 @@ completion plan, not all of Batches 0–9. Group assignment/offset SQL, waits an
 claim predicates, retained `STREAM_SLICE`, mixed SQL transactions, Station
 services/effects, the M7 Document handoff, remaining baseline profiles and
 common-revision resource/fault/provider qualification retain their gates.
+
+The next planned feature review unit is **4a.1**: explicit Stream assignment
+and group binding, followed by authenticated progress handoff and `COMMIT OFFSET`.
+Batch 3's result/coverage contract comes first; native assignment generations and
+owner-issued read evidence remain authoritative. Queue WAIT (4b.2) is an
+independent subsequent unit. Batch 0's maintenance investigation and Batch 1's
+baseline work remain separate completion gates.
 
 ## Queue settlement SQL follow-up — 2026-11-02
 
