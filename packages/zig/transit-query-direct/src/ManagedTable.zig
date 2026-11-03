@@ -63,12 +63,16 @@ pub const Work = struct {
     sequence: u64,
     statement: ?c.DirectTransactionWorkspace.Request,
 };
+pub const max_page_rows: u32 = 64;
+pub const max_page_bytes: usize = 128 * 1024;
 pub const Page = struct {
+    pub const json_schema_sequence_bounds = .{ .rows = max_page_rows };
     definition: p.Growth.Definition,
     transaction: c.DirectClientToken.Key,
-    ordinal: u64,
+    sequence: u64,
+    first_ordinal: u64,
     previous: ?c.DirectRecord.Reference,
-    row: w.Binary,
+    rows: []const w.Binary,
 };
 /// Immutable result root. The same transaction publishes this reference, the
 /// current checkpoint and output rows. DirectRecord retention protects the
@@ -510,7 +514,7 @@ fn stepInner(self: Self, token: c.DirectClientToken.Key, io: std.Io, directory: 
     try value.validate();
     try work.lease.validate();
     try work.transaction.validate();
-    if (!std.meta.eql(work.lease.target, try value.interpretation(self.client.allocator)) or !std.meta.eql(work.transaction.connection, self.client.connection) or work.page_count != work.rows or work.sequence > work.rows + 2) return error.InvalidManagedTableRecord;
+    if (!std.meta.eql(work.lease.target, try value.interpretation(self.client.allocator)) or !std.meta.eql(work.transaction.connection, self.client.connection) or (if (work.rows == 0) work.page_count != 0 else (work.page_count == 0 or work.page_count > work.rows)) or work.sequence > work.page_count + 2) return error.InvalidManagedTableRecord;
     const tx: Tx = .{ .catalog = self.client };
     // A prepared participant can refuse ordinary head reads. Its original
     // decision must remain resumable without reading any participant first.
@@ -581,7 +585,10 @@ fn stepInner(self: Self, token: c.DirectClientToken.Key, io: std.Io, directory: 
                     defer page.deinit();
                     work.next_page = page.value.previous;
                 }
-                if (work.sequence > 0 and work.next_page == null) work.phase = .checkpoint;
+                if (work.sequence > 0 and work.next_page == null) {
+                    if (work.sequence != work.page_count + 1) return error.IncompleteDataflowCoverage;
+                    work.phase = .checkpoint;
+                }
             } else {
                 const client = try self.privateClient(work.transaction);
                 const response = try client.call(.{ .lookup = .{ .namespace = value.namespace, .name = value.output.name.slice() } });
@@ -592,25 +599,31 @@ fn stepInner(self: Self, token: c.DirectClientToken.Key, io: std.Io, directory: 
                 defer self.client.allocator.free(bytes);
                 var schema = try f.TableSchema.decode(self.client.allocator, bytes);
                 defer schema.deinit();
+                var arena: std.heap.ArenaAllocator = .init(self.client.allocator);
+                defer arena.deinit();
                 var page: ?std.json.Parsed(Page) = null;
                 defer if (page) |parsed| parsed.deinit();
-                var row: ?f.TableRow.Owned = null;
-                defer if (row) |*owned| owned.deinit();
-                var rows: [1][]const f.Types.Values.Cell = undefined;
-                var ordinal: u64 = 0;
+                var page_sequence: u64 = 0;
                 const action: f.TableDml.Action = if (work.sequence == 0) .delete else blk: {
                     page = try self.load(Page, work.next_page orelse return error.InvalidManagedTableRecord, page_format);
                     if (page.?.value.definition != p.Growth.current_definition or !std.meta.eql(page.?.value.transaction, work.transaction)) return error.InvalidManagedTableRecord;
-                    if (page.?.value.ordinal != work.rows - work.sequence or (page.?.value.previous == null) != (page.?.value.ordinal == 0)) return error.IncompleteDataflowCoverage;
-                    const encoded = try page.?.value.row.decode(self.client.allocator, f.TableRow.max_bytes);
-                    defer self.client.allocator.free(encoded);
-                    row = try f.TableRow.decode(self.client.allocator, schema.schema, encoded);
-                    rows[0] = row.?.row().cells;
-                    ordinal = page.?.value.ordinal;
-                    break :blk .{ .insert = &rows };
+                    if (page.?.value.rows.len == 0 or page.?.value.rows.len > max_page_rows or
+                        page.?.value.sequence != work.page_count - work.sequence or
+                        (page.?.value.previous == null) != (page.?.value.sequence == 0) or
+                        (page.?.value.previous == null) != (page.?.value.first_ordinal == 0) or
+                        (work.sequence == 1 and page.?.value.first_ordinal + page.?.value.rows.len != work.rows)) return error.IncompleteDataflowCoverage;
+                    const insert_rows = try arena.allocator().alloc([]const f.Types.Values.Cell, page.?.value.rows.len);
+                    for (page.?.value.rows, 0..) |encoded_row, row_idx| {
+                        const encoded = try encoded_row.decode(arena.allocator(), f.TableRow.max_bytes);
+                        const decoded = try f.TableRow.decodeInto(arena.allocator(), schema.schema, encoded);
+                        if (decoded.identity.ordinal != page.?.value.first_ordinal + row_idx) return error.IncompleteDataflowCoverage;
+                        insert_rows[row_idx] = decoded.row().cells;
+                    }
+                    page_sequence = page.?.value.sequence;
+                    break :blk .{ .insert = insert_rows };
                 };
                 const plan: f.TableDml.Plan = .{ .name = metadata.name.slice(), .schema = schema.schema, .action = action, .predicate = null };
-                const identity = if (work.sequence == 0) self.operation(value, "delete", work.lease.epoch) else rowOperation(self, value, work.lease.epoch, ordinal);
+                const identity = if (work.sequence == 0) self.operation(value, "delete", work.lease.epoch) else rowOperation(self, value, work.lease.epoch, page_sequence);
                 var intent = try c.DirectTableIntent.fromDml(self.client.allocator, client.connection, metadata, identity.operation, plan, .bulk);
                 defer intent.deinit();
                 work.statement = try tx.stage(work.transaction, client.transaction.?.revision, work.sequence + 1, intent.parsed.value.work);
@@ -685,6 +698,37 @@ fn rowOperation(self: Self, value: Declaration, attempt: u64, ordinal: u64) d.Op
     return self.operation(value, &bytes, 0);
 }
 
+fn flushPage(
+    self: Self,
+    scratch: *std.heap.ArenaAllocator,
+    value: Declaration,
+    transaction: c.DirectClientToken.Key,
+    sequence: u64,
+    first_ordinal: u64,
+    previous: ?c.DirectRecord.Reference,
+    rows: []const w.Binary,
+    retained_bytes: *u64,
+) !c.DirectRecord.Reference {
+    const page: Page = .{
+        .definition = p.Growth.current_definition,
+        .transaction = transaction,
+        .sequence = sequence,
+        .first_ordinal = first_ordinal,
+        .previous = previous,
+        .rows = rows,
+    };
+    const page_bytes = p.Json.valueAllocBounded(scratch.allocator(), page, c.DirectRecord.max_bytes) catch |err| return if (err == error.WriteFailed) error.ManagedTableResultBudget else err;
+    const guarded = c.DirectRecord.encodeGuarded(scratch.allocator(), self.client.connection, readObjects(value), page_bytes) catch |err| return if (err == error.WriteFailed) error.ManagedTableResultBudget else err;
+    const owned = c.DirectTransactionRecord.encode(scratch.allocator(), transaction, page_format, guarded) catch |err| return if (err == error.WriteFailed) error.ManagedTableResultBudget else err;
+    retained_bytes.* = try std.math.add(u64, retained_bytes.*, owned.len);
+    if (retained_bytes.* > value.options.budgets.result_bytes) return error.ManagedTableResultBudget;
+    const staged = try c.DirectTransactionRecord.stage(self.client, transaction, page_format, guarded);
+    diagnostics.add("result_rows", rows.len);
+    diagnostics.add("result_pages", 1);
+    diagnostics.add("result_record_bytes", owned.len);
+    return staged;
+}
+
 fn evaluate(self: Self, value: Declaration, work: *Work, io: std.Io, directory: std.Io.Dir, cancellation: ?*const std.atomic.Value(bool)) !void {
     const client = try self.privateClient(work.transaction);
     const response = try client.call(.{ .lookup = .{ .namespace = value.namespace, .name = value.source.name.slice() } });
@@ -715,29 +759,39 @@ fn evaluate(self: Self, value: Declaration, work: *Work, io: std.Io, directory: 
     defer self.client.allocator.free(buffer);
     var previous: ?c.DirectRecord.Reference = null;
     var rows: u64 = 0;
+    var page_count: u64 = 0;
     var retained_bytes: u64 = 0;
+    var page_rows: [max_page_rows]w.Binary = undefined;
+    var page_row_count: u32 = 0;
+    var page_raw_bytes: usize = 0;
+    var page_first_ordinal: u64 = 0;
     while (try executor.next()) |returned| {
         var row = returned;
         defer row.deinit();
         if (rows >= value.options.budgets.output_rows or rows > std.math.maxInt(u32)) return error.ManagedTableResultBudget;
         const encoded = try (f.TableRow.Row{ .identity = .{ .origin = self.client.connection.principal + 1, .operation = work.lease.owner.operation, .ordinal = @intCast(rows) }, .cells = row.cells[0..row.len] }).encode(schema.schema, buffer);
-        const page: Page = .{ .definition = p.Growth.current_definition, .transaction = work.transaction, .ordinal = rows, .previous = previous, .row = try w.Binary.encode(scratch.allocator(), encoded) };
-        const page_bytes = try p.Json.valueAllocBounded(scratch.allocator(), page, c.DirectRecord.max_bytes);
-        const guarded = c.DirectRecord.encodeGuarded(scratch.allocator(), self.client.connection, readObjects(value), page_bytes) catch |err| return if (err == error.WriteFailed) error.ManagedTableResultBudget else err;
-        const owned = c.DirectTransactionRecord.encode(scratch.allocator(), work.transaction, page_format, guarded) catch |err| return if (err == error.WriteFailed) error.ManagedTableResultBudget else err;
-        retained_bytes = try std.math.add(u64, retained_bytes, owned.len);
-        if (retained_bytes > value.options.budgets.result_bytes) return error.ManagedTableResultBudget;
-        previous = try c.DirectTransactionRecord.stage(self.client, work.transaction, page_format, guarded);
-        diagnostics.add("result_rows", 1);
-        diagnostics.add("result_pages", 1);
-        diagnostics.add("result_record_bytes", owned.len);
+        if (page_row_count > 0 and (page_row_count == max_page_rows or encoded.len > max_page_bytes - page_raw_bytes)) {
+            previous = try self.flushPage(&scratch, value, work.transaction, page_count, page_first_ordinal, previous, page_rows[0..page_row_count], &retained_bytes);
+            page_count += 1;
+            page_row_count = 0;
+            page_raw_bytes = 0;
+            _ = scratch.reset(.retain_capacity);
+        }
+        if (page_row_count == 0) page_first_ordinal = rows;
+        page_rows[page_row_count] = try w.Binary.encode(scratch.allocator(), encoded);
+        page_row_count += 1;
+        page_raw_bytes += encoded.len;
         rows += 1;
-        _ = scratch.reset(.retain_capacity);
     }
     if (!executor.complete) return error.IncompleteDataflowCoverage;
+    if (page_row_count > 0) {
+        previous = try self.flushPage(&scratch, value, work.transaction, page_count, page_first_ordinal, previous, page_rows[0..page_row_count], &retained_bytes);
+        page_count += 1;
+        _ = scratch.reset(.retain_capacity);
+    }
     work.pages = previous;
     work.next_page = previous;
-    work.page_count = rows;
+    work.page_count = page_count;
     work.rows = rows;
     work.source = metadata.position;
     work.phase = .staging;
