@@ -68,6 +68,7 @@ pub const Read = struct {
     caller: c.DirectTableClient,
     reference: native.Reference,
     position: native.Position,
+    initial: native.Position,
     projector: f.WorkloadProjection.Projector,
     response: ?std.json.Parsed(w.Response) = null,
     index: usize = 0,
@@ -76,7 +77,7 @@ pub const Read = struct {
 
     pub fn init(prepared: *Prepared, caller: c.DirectTableClient) !Read {
         const opened = try prepared.open(caller);
-        return .{ .prepared = prepared, .caller = caller, .reference = opened.reference, .position = opened.position, .projector = prepared.projector, .scratch = .init(caller.allocator) };
+        return .{ .prepared = prepared, .caller = caller, .reference = opened.reference, .position = opened.position, .initial = opened.position, .projector = prepared.projector, .scratch = .init(caller.allocator) };
     }
     pub fn deinit(self: *Read) void {
         if (self.response) |response| response.deinit();
@@ -107,7 +108,11 @@ pub const Read = struct {
     pub fn completion(self: *const Read, rows: u64) !g.results.Completion {
         if (!try self.complete()) return error.IncompleteWorkloadCoverage;
         if (rows != self.emitted) return error.InvalidWorkloadResultCount;
-        const value: g.results.Completion = .{ .rows = rows, .workload = .{ .intent = self.prepared.reference.record.content, .position = self.position } };
+        const progress: ?p.StreamRead.Progress = if (self.reference.selection == .consume and self.reference.selection.consume.request.group != null)
+            try p.StreamRead.Progress.between(self.initial.consume, self.position.consume)
+        else
+            null;
+        const value: g.results.Completion = .{ .rows = rows, .workload = .{ .intent = self.prepared.reference.record.content, .position = self.position, .progress = progress } };
         try value.validate(.{ .data = .{ .workload = try self.observation() } });
         return value;
     }
@@ -372,6 +377,10 @@ test "workload reader retains projected cells and original coverage through lost
         while (try limited.pull(deadline)) |_| count += 1;
         try t.expectEqual(case.rows, count);
         const complete_result = try limited.completion(count);
+        const handoff = try complete_result.workload.?.streamProgress(try limited.observation(), count);
+        const settlement = try handoff.settlement(.{ .scope = scope, .principal = 5, .operation = 999 });
+        try t.expectEqual(0, settlement.commit.expected_next);
+        try t.expectEqual(case.through, settlement.commit.next);
         try t.expectEqual(case.through, complete_result.workload.?.position.consume.coverage.through);
         try t.expectEqual(case.through == 3, complete_result.workload.?.position.consume.coverage.complete);
         try t.expectEqual(@as(?u64, case.limit), (try limited.observation()).limit);

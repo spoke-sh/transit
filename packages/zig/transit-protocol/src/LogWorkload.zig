@@ -20,6 +20,10 @@ pub const Refusal = enum {
     producer_receipt_expired,
     lease_fenced,
     lease_expired,
+    group_fenced,
+    offset_conflict,
+    read_released,
+    cursor_unauthenticated,
 
     pub fn fromError(cause: anyerror) ?Refusal {
         return switch (cause) {
@@ -27,6 +31,10 @@ pub const Refusal = enum {
             error.LogProducerReceiptExpired => .producer_receipt_expired,
             error.QueueLeaseFenced => .lease_fenced,
             error.QueueLeaseExpired => .lease_expired,
+            error.LogGroupFenced => .group_fenced,
+            error.LogOffsetConflict => .offset_conflict,
+            error.StreamReadReleased => .read_released,
+            error.StreamCursorUnauthenticated => .cursor_unauthenticated,
             else => null,
         };
     }
@@ -85,6 +93,9 @@ pub const Closure = struct {
                 .queue => |value| if (value.kind != .enqueue) return error.InvalidLogClosure,
             },
             .lease_fenced, .lease_expired => if (self.binding != .queue or self.binding.queue.kind != .settle) return error.InvalidLogClosure,
+            .group_fenced, .offset_conflict => if (self.binding != .stream or (self.binding.stream.kind != .consume and self.binding.stream.kind != .offset and self.binding.stream.kind != .assign)) return error.InvalidLogClosure,
+            .read_released => if (self.binding != .stream or (self.binding.stream.kind != .offset and self.binding.stream.kind != .release)) return error.InvalidLogClosure,
+            .cursor_unauthenticated => if (self.binding != .stream or self.binding.stream.kind != .offset) return error.InvalidLogClosure,
         };
     }
     pub fn requireStream(self: Closure, request: StreamRequest) !void {
@@ -267,6 +278,10 @@ pub const QueueRequest = union(QueueKind) {
 
 test "workload terminal refusal classification excludes uncertain and retryable failures" {
     const t = std.testing;
+    try t.expectEqual(Refusal.group_fenced, Refusal.fromError(error.LogGroupFenced).?);
+    try t.expectEqual(Refusal.offset_conflict, Refusal.fromError(error.LogOffsetConflict).?);
+    try t.expectEqual(Refusal.read_released, Refusal.fromError(error.StreamReadReleased).?);
+    try t.expectEqual(Refusal.cursor_unauthenticated, Refusal.fromError(error.StreamCursorUnauthenticated).?);
     try t.expectEqual(Refusal.lease_expired, Refusal.fromError(error.QueueLeaseExpired).?);
     try t.expectEqual(Refusal.lease_fenced, Refusal.fromError(error.QueueLeaseFenced).?);
     try t.expectEqual(Refusal.producer_fenced, Refusal.fromError(error.LogProducerFenced).?);

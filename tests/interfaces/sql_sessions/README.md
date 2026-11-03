@@ -16,7 +16,10 @@ four interfaces. It verifies filtered progress versus returned rows, LIMIT 0,
 partial-limit completion and exhaustion below the limit, 65 rows across three
 SQL batches, typed parameters and revoked buffered/empty terminals. A saved
 read and token must retain their original cut after a later append and service
-replacement. GROUP and WAIT remain explicit SQL refusals in this profile.
+replacement. It also checks explicit native assignments through SQL GROUP,
+authenticated partial/empty progress, offset settlement over all four callers,
+stale generation/checkpoint and forged-MAC refusals, original-token recovery
+after replacement/reassignment and current disclosure. WAIT remains refused.
 
 [Queue claims and settlements](claims.py) use the same installed task. The
 65-row claim keeps its original payloads and receipts after expiry/replacement.

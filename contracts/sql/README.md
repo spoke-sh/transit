@@ -86,22 +86,22 @@ their shared transaction lowering is implemented.
 
 `LogConsumeSql.Prepared` is a pure compiler with a separate checked
 `logConsumeStatement` root and a command in the ordinary statement grammar.
-The SQL service admits the positional subset; GROUP and WAIT remain preparation
-only:
+The SQL service admits positional and explicitly assigned grouped reads; WAIT
+remains preparation only:
 
 ```text
 CONSUME * | column [AS name] [, column [AS name]]
-  FROM name [AS alias] [GROUP text-or-parameter]
+  FROM name [AS alias] [GROUP binary-or-parameter]
   [WHERE predicate] [LIMIT integer-or-parameter] [WAIT text-or-parameter]
 ```
 
 Preparation owns the supplied schema, projection, Boolean/state predicate and
 one typed parameter namespace. It returns an independent logical plan, input
-field layout, unresolved group name and wait duration. Unqualified `_partition`
+field layout, explicit native assignment/checkpoint descriptor and wait duration. Unqualified `_partition`
 and `_offset` are unsigned metadata fields; star includes application columns
 only, even when a predicate needs metadata. The same physical-name collision
 refusal as append projections applies. Predicates preserve declared collations.
-Group names must be nonempty text. Waits accept positive whole `ms`, `s` or `m`
+GROUP decodes the bounded `StreamHandle.Group` binary envelope. Waits accept positive whole `ms`, `s` or `m`
 durations fitting unsigned 32-bit milliseconds; the native owner must still
 enforce its wait policy. NULL metadata, aggregate/derived sources, joins,
 sorting and extra statements are refused. The MySQL compiler dialect supports
@@ -111,14 +111,23 @@ LIMIT is a logical output bound, not an offset interval or proof of completed
 native coverage. The schema fingerprint used during pure preparation is not a
 native operation/result binding. This helper performs no capture, group lookup,
 assignment, admission, waiting or offset settlement. `DirectLogPreparedConsume`
-binds the positional subset to an exact catalog definition and native operation,
+binds the read to an exact catalog definition and native operation,
 then freezes its plan as an original workload result. A multi-partition Stream
-requires a predicate whose conservative metadata bounds select one partition.
+requires a predicate whose conservative metadata bounds select one partition,
+or a matching explicit group descriptor.
 Lower offset bounds select the starting position; upper comparisons remain row
 predicates within the accepted native cut. Ambiguous or contradictory routing,
-GROUP and WAIT are refused by this adapter. The [consumption corpus](corpus/log-consumes.json)
+WAIT is refused by this adapter. A group starts at its supplied checkpoint;
+offset predicates cannot skip untraversed group input. The [consumption corpus](corpus/log-consumes.json)
 uses independent expected layouts and five-row predicate outcomes through
 `just test::table-dml-sql`; those checks establish preparation only.
+
+`LogOffsetSql.Prepared` admits `COMMIT OFFSET ON STREAM name RECEIPT
+binary-or-parameter`. The binary `StreamHandle.Progress` contains the original
+read receipt and authenticated traversal boundaries; the native owner supplies
+settlement authority. This command is distinct from interactive COMMIT and has
+no row schema or relational matched/changed counts. See the
+[Stream contract](../STREAM_V1.md#sql-assignment-and-progress-descriptors).
 
 `LogClaimSql.Prepared` has a dedicated preparation-only `logClaimStatement` root:
 

@@ -110,7 +110,13 @@ and the native append, consume, claim or renewal receipt. Selection and delivery
 owner. A descriptor establishes neither current rights nor continued retention.
 
 A workload result's terminal includes the same intent content and a position
-in that original selection. Append and claim output counts equal their
+in that original selection. A grouped consume also requires `progress`, the
+owner-issued complete or partial interval from the original initial position.
+Its endpoints must match the receipt and final cursor; the interval starts at
+the original checkpoint. Positional and other results have null progress.
+`Workload.Completion.streamProgress` validates observation/count correspondence
+and produces the bounded settlement descriptor; it grants no native authority.
+Append and claim output counts equal their
 complete original row counts; their projections cannot hide accepted rows or
 leases. Stream output count may be smaller than authenticated traversal coverage
 because of filtering. Coverage retains the original range, cut, group and cursor
@@ -151,8 +157,9 @@ retained rows. A successful row operation cannot be converted to a command
 completion; rejected/cancelled outcomes have command shape. The shared client
 checks the returned intent and selection against settlement evidence. SQL text
 admission supports `PRODUCE INTO` and `ENQUEUE INTO`, including optional
-`RETURNING`, positional `CONSUME`, partition-routed `CLAIM` and receipt-bound
-`ACK`/`NACK` and `EXTEND LEASE`. Group progress and waits remain native-only.
+`RETURNING`, positional/grouped `CONSUME`, authenticated `COMMIT OFFSET`,
+partition-routed `CLAIM` and receipt-bound
+`ACK`/`NACK` and `EXTEND LEASE`. Group assignment and waits remain native-only.
 
 ## Ownership and consumers
 

@@ -172,6 +172,24 @@ class Decoder:
                 assert limit is None or 0 <= total <= limit
                 assert coverage['complete'] or (limit is not None and total == limit)
                 assert total <= coverage['rows'] <= coverage['through'] - coverage['from']
+                proof = evidence.get('progress')
+                if receipt['request']['group'] is not None:
+                    assert proof is not None
+                    if 'exhausted' in proof:
+                        assert proof['exhausted'] == cursor and coverage['complete']
+                    else:
+                        first, last = proof['interval']['first'], proof['interval']['last']
+                        assert last == cursor
+                        assert first['read'] == last['read']
+                        for field in ('cut', 'from', 'until'):
+                            assert first['coverage'][field] == coverage[field]
+                        assert first['coverage']['through'] == coverage['from']
+                        assert first['coverage']['rows'] == 0
+                        assert not coverage['complete']  # full exhaustion has one canonical form
+                        assert any(first['authentication']) and any(last['authentication'])
+                else:
+                    assert proof is None
+
                 assert any(cursor['authentication'])
             elif 'claim' in selection:
                 assert limit is None

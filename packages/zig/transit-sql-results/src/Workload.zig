@@ -109,20 +109,39 @@ pub const Observation = struct {
 pub const Completion = struct {
     intent: d.Content,
     position: p.LogWorkloadResult.Position,
+    /// Owner-issued boundaries for an explicitly grouped read, including a
+    /// partial logical LIMIT. Closing a result never commits this progress.
+    progress: ?p.StreamRead.Progress = null,
 
     pub fn validateShape(self: Completion) !void {
         try self.intent.validate();
+        if (self.progress) |progress| {
+            try progress.validate();
+            if (self.position != .consume or !std.meta.eql(progress.end(), self.position.consume)) return error.WorkloadResultConflict;
+        }
         switch (self.position) {
             .append => {},
             .renewal => |ordinal| if (ordinal > 1) return error.WorkloadResultConflict,
             inline .consume, .claim => |cursor| try cursor.validate(),
         }
     }
+    pub fn streamProgress(self: Completion, observation: Observation, rows: u64) !p.StreamHandle.Progress {
+        try self.validate(observation, rows);
+        if (observation.selection != .consume) return error.InvalidStreamProgress;
+        const value: p.StreamHandle.Progress = .{ .definition = p.Growth.current_definition, .receipt = observation.selection.consume, .progress = self.progress orelse return error.InvalidStreamProgress };
+        try value.validate();
+        return value;
+    }
     pub fn validate(self: Completion, observation: Observation, rows: u64) !void {
         try self.validateShape();
         try observation.validate();
         if (!std.meta.eql(self.intent, observation.intent)) return error.WorkloadResultConflict;
         const exhausted = try self.position.complete(observation.selection);
+        if (observation.selection == .consume and observation.selection.consume.request.group != null) {
+            const progress = self.progress orelse return error.IncompleteWorkloadCoverage;
+            try progress.requireReceipt(observation.selection.consume);
+            if ((try progress.coverage()).from != observation.selection.consume.request.from) return error.WorkloadResultConflict;
+        } else if (self.progress != null) return error.WorkloadResultConflict;
         if (observation.limit) |limit| {
             if (rows > limit) return error.InvalidWorkloadResultCount;
             if (!exhausted and rows != limit) return error.IncompleteWorkloadCoverage;

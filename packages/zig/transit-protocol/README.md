@@ -183,3 +183,8 @@ name, and empty payloads require an empty object. Quoted numeric enum ordinals
 are rejected, including all-zero strings in contract definition fields. Escaped
 UTF-8 and full-width protocol counters round-trip through
 the shared encoder/parser; these host checks do not change native signing bytes.
+
+[StreamHandle](src/StreamHandle.zig) encodes explicit native group assignments
+and authenticated read progress as bounded binary SQL operands. The
+[Stream contract](../../../contracts/STREAM_V1.md#sql-assignment-and-progress-descriptors)
+owns their byte layout and authority limits.

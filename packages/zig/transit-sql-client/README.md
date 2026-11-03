@@ -48,6 +48,12 @@ not attach it. `execute` submits once. Its uncertainty result
 retains the original account, instance, admission token and known operation; a
 missing observation never authorizes resubmission.
 
+For a completed grouped Stream result, `Workload.Completion.streamProgress`
+validates the workload observation and row count and returns a native
+`StreamHandle.Progress`. Encode that descriptor for `COMMIT OFFSET ... RECEIPT`.
+Result completion, buffer cleanup and explicit offset settlement are independent;
+partial LIMITs and empty results retain their authenticated traversal boundaries.
+
 Workload operations carry typed command/row dispatch and original native
 evidence. Once settlement identifies retained rows, `Executor` opens that exact
 operation and checks the returned intent and selection before exposing a result.

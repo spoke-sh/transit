@@ -7,7 +7,7 @@ from interfaces.sql_sessions.native import Client
 from interfaces.sql_sessions.storage import text, unsigned
 
 
-def run(root, port, postgres, mysql_options, restart, authorize, console):
+def run(root, port, postgres, mysql_options, restart, authorize, console, stream_native):
     first = Client(root, port).open()
     for invalid, code, state in (
         ('CREATE STREAM invalid_key (id BIGINT PRIMARY KEY)', 'UnsupportedLogPrimaryKey', b'0A000'),
@@ -185,7 +185,7 @@ def run(root, port, postgres, mysql_options, restart, authorize, console):
                           current_disclosure_authorization=True, passed=True)), flush=True)
     appends(root, port, postgres, mysql_options, restart, authorize, console, config, consumer, home)
     from interfaces.sql_sessions import consumes
-    consumes.run(root, port, postgres, mysql_options, restart, authorize, console, config, consumer, home)
+    consumes.run(root, port, postgres, mysql_options, restart, authorize, console, config, consumer, home, stream_native)
     from interfaces.sql_sessions import claims
     claims.run(root, port, postgres, mysql_options, restart, authorize, console, config, consumer, home)
 

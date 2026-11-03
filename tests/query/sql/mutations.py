@@ -1,3 +1,4 @@
+from interfaces.native.stream_handles import encode as stream_handle
 """Independent general DML grammar, typed rows and canonical FDM1 payloads.
 
 Uniqueness against stored rows and atomic publication belong to the separate
@@ -168,6 +169,7 @@ def check(binary):
     print(f'General DML: {pg_cases} PostgreSQL/ANTLR AST comparisons; {agreed} exact independent ANTLR/typed FDM1 plans; {len(cases)} cases, defaults, reordered fields, general predicates and compound literals. Codec round trips preserve intent. No admission/publication claim.')
     check_log_appends(binary)
     check_log_consumes(binary)
+    check_log_offsets(binary)
     check_log_claims(binary)
     check_log_settlements(binary)
 
@@ -253,7 +255,14 @@ def check_log_appends(binary):
 def check_log_consumes(binary):
     corpus = json.loads((ROOT / 'contracts/sql/corpus/log-consumes.json').read_text())
     assert corpus['version'] == 1
+    definition = json.loads((ROOT / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition']
     cases = corpus['cases']
+    for case in cases:
+        group = case.get('group_fixture')
+        if group is not None:
+            group['target']['definition'] = definition
+            envelope = dict(definition=definition, group=group)
+            case['sql'] = case['sql'].replace('{group}', stream_handle(envelope).hex())
     path = CACHE / 'log-consume-cases.json'
     path.write_text(json.dumps([dict(sql=c['sql'], basis=corpus['basis'], consume=True) for c in cases]))
     result = subprocess.run([binary, str(path)], capture_output=True, text=True, check=True)
@@ -296,6 +305,40 @@ def check_log_claims(binary):
         expected = dict(err=case['error']) if 'error' in case else case['expected']
         assert response == expected, (case, expected, response)
     print(f'Log claim preparation: {len(cases)} independent grammar, predicate, acquisition budget, lease and projection cases. No admission, acquisition or settlement claim.')
+
+
+def check_log_offsets(binary):
+    import copy
+    corpus = json.loads((ROOT / 'contracts/sql/corpus/log-offsets.json').read_text())
+    native = json.loads((ROOT / 'packages/zig/transit-protocol/src/fixtures/stream-queue-v1.json').read_text())
+    cases = []
+    for original in corpus['cases']:
+        case = dict(original)
+        handle = copy.deepcopy(native['progress_handle'])
+        if case.get('exhausted'): handle['progress'] = native['read_progress_complete']
+        if case.get('foreign_definition'): handle['definition'] = '0' * 64
+        if case.get('reversed_rows'):
+            handle['progress']['interval']['first']['coverage'].update(through=18446744073709551613, rows=2)
+        case['sql'] = case['sql'].replace('{receipt}', stream_handle(handle).hex())
+        cases.append(case)
+    path = CACHE / 'log-offset-cases.json'
+    path.write_text(json.dumps([dict(sql=c['sql'], basis='', offset=True) for c in cases]))
+    result = subprocess.run([binary, str(path)], capture_output=True, text=True, check=True)
+    (CACHE / 'log-offset-results.jsonl').write_text(result.stdout)
+    actual = [json.loads(line) for line in result.stdout.splitlines()]
+    assert len(actual) == len(cases)
+    for index, (case, response) in enumerate(zip(cases, actual, strict=True)):
+        assert response.pop('index') == index
+        if case.get('syntax_error'):
+            try: tree(case['sql'], 'logOffsetStatement')
+            except ValueError: pass
+            else: raise AssertionError(('invalid offset syntax accepted', case))
+        else:
+            tree(case['sql'], 'statement')
+            tree(case['sql'], 'logOffsetStatement')
+        expected = dict(err=case['error']) if 'error' in case else case['expected']
+        assert response == expected, (case, expected, response)
+    print(f'Log offset preparation: {len(cases)} independent full-width progress and refusal cases; no native authority claim.')
 
 
 def check_log_settlements(binary):

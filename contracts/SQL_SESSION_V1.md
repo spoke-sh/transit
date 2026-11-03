@@ -165,8 +165,11 @@ selection and completion evidence. Reopening preserves that exact renewed handle
 even after later lease changes; it does not assert current liveness. Disclosure
 requires current settle rights, including repeated and terminal batches, without
 additional payload READ rights. Data appends, consumption and acquisition
-still require their exact preparation interpretation. GROUP, WAIT, Queue payload
-predicates and attached-transaction workloads remain outside
+still require their exact preparation interpretation. GROUP binds an explicit
+native assignment/checkpoint binary descriptor. COMMIT OFFSET binds the original
+read receipt and authenticated completion progress, using the same workload
+token and command-result lifecycle. WAIT, Queue payload predicates and
+attached-transaction workloads remain outside
 the SQL execution profile.
 
 Prepared descriptions always include `schema`. It is null when the statement

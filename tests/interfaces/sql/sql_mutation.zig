@@ -2,7 +2,7 @@
 //! expectations and canonical payload bytes; this is not native admission.
 const std = @import("std");
 const f = @import("transit_fuze");
-const Case = struct { sql: []const u8, basis: []const u8, workload: bool = false, consume: bool = false, claim: bool = false, settlement: bool = false };
+const Case = struct { sql: []const u8, basis: []const u8, workload: bool = false, consume: bool = false, claim: bool = false, settlement: bool = false, offset: bool = false };
 fn hex(allocator: std.mem.Allocator, bytes: []const u8) ![]const u8 {
     const result = try allocator.alloc(u8, bytes.len * 2);
     const alphabet = "0123456789abcdef";
@@ -35,6 +35,14 @@ fn matchedRows(fields: []const f.WorkloadProjection.Field, plan: f.LogicalQuery.
     return matched;
 }
 fn emit(init: std.process.Init, out: *std.Io.Writer, case: Case, index: usize) !void {
+    if (case.offset) {
+        var prepared = try f.LogOffsetSql.Prepared.init(init.gpa, case.sql, .transit, null);
+        defer prepared.deinit();
+        const bound = try prepared.bind(init.gpa, &.{}, null);
+        const coverage = try bound.progress.coverage();
+        try std.json.Stringify.value(.{ .index = index, .name = prepared.source.name, .group = bound.receipt.request.group.?.id, .generation = bound.receipt.request.group.?.generation, .expected_next = coverage.from, .next = coverage.until, .rows = coverage.rows, .complete = coverage.complete }, .{}, out);
+        return;
+    }
     if (case.settlement) {
         var prepared = try f.LogSettlementSql.Prepared.init(init.gpa, case.sql, .transit, null);
         defer prepared.deinit();
@@ -60,7 +68,7 @@ fn emit(init: std.process.Init, out: *std.Io.Writer, case: Case, index: usize) !
             .indices = indices[0..bound.plan.plan.projection.len],
             .names = bound.plan.plan.output_names,
             .limit = bound.plan.plan.limit,
-            .group = bound.group,
+            .group = if (bound.group) |value| .{ .id = value.group.id, .generation = value.group.generation, .principal = value.group.principal, .partition = value.target.partition, .next = value.next } else null,
             .wait_ms = bound.wait_ms,
             .matched = matched,
         }, .{}, out);

@@ -19,6 +19,34 @@ records preserve their original attribution. Delivery-sequence SQL examples
 below illustrate proposed scope; use the [SQL reference](../handbook/reference/sql/streaming.md)
 for the current executable declarations, workload operations and inspection forms.
 
+## Explicit SQL Stream groups and offset settlement — 2026-11-03
+
+The next implementation review unit delivers Batch 3's grouped progress handoff
+and **4a.1** over the existing native assignment, read and settlement owners.
+`CONSUME ... GROUP` binds an explicit binary native assignment and starts at its
+checkpoint; predicates filter output without skipping input progress. Grouped
+completion retains the authenticated initial/final boundaries, including partial
+LIMITs and empty results. `COMMIT OFFSET ON STREAM ... RECEIPT` submits that
+progress through the existing original-token lifecycle. Fresh stale assignments,
+checkpoint conflicts, released reads and forged cursor MACs receive recorded
+native refusals; recovery retains the original accepted identity.
+
+The [public SQL profile](../handbook/reference/sql/streaming.md#consume-and-settle-an-assigned-group)
+and [Stream contract](../../contracts/STREAM_V1.md#sql-assignment-and-progress-descriptors)
+own executable syntax and limits. PostgreSQL, MySQL and the console accept the
+same binary descriptors, while the native SQL result API supplies authenticated
+completion metadata. SQL does not create or rebalance assignments, infer progress
+from row counts, release a read pin on result close, or silently commit progress.
+The current-v1 definition changes to
+`78b1bcc56b9de85d82591f5a249df53e8c556ae8d0ad0c30c7946e9fc4260f33`;
+generated consumers and independent fixtures move with it.
+
+This section supersedes the older dated next-step descriptions for 4a.1 below.
+M6 remains **In Progress**. Stream/Queue waits, payload acquisition predicates,
+finite `STREAM_SLICE`, mixed SQL, transactional Station, the M7 handoff and the
+remaining maintenance, resource, performance and common-revision qualification
+gates retain their existing owners and acceptance criteria.
+
 ## Original renewal results and SQL admission — 2026-11-02
 
 The implementation following the `edeb8618c` completion plan supplies Batch

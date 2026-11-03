@@ -129,7 +129,7 @@
       }
     },
     {
-      "sql": "CONSUME i.id FROM items AS i GROUP 'billing' WHERE _partition = 0 AND i.id >= 1 LIMIT 10 WAIT '250ms'",
+      "sql": "CONSUME i.id FROM items AS i GROUP X'{group}' WHERE _partition = 0 AND i.id >= 1 LIMIT 10 WAIT '250ms'",
       "expected": {
         "fields": [
           {
@@ -153,8 +153,72 @@
           true
         ],
         "limit": 10,
-        "group": "billing",
+        "group": {
+          "id": 42,
+          "generation": 7,
+          "principal": 17,
+          "partition": 0,
+          "next": 18446744073709551611
+        },
         "wait_ms": 250
+      },
+      "group_fixture": {
+        "target": {
+          "definition": "{definition}",
+          "interpretation": {
+            "object": {
+              "scope": {
+                "realm": 1,
+                "resource": 7,
+                "catalog": 18446744073709551615
+              },
+              "branch": 1,
+              "object": 43
+            },
+            "revision": 2,
+            "digest": [
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29
+            ]
+          },
+          "partition": 0
+        },
+        "group": {
+          "id": 42,
+          "generation": 7,
+          "principal": 17
+        },
+        "next": 18446744073709551611
       }
     },
     {
@@ -271,7 +335,7 @@
       }
     },
     {
-      "sql": "CONSUME _partition, _offset, body FROM items GROUP 'billing' LIMIT 0 WAIT '1m'",
+      "sql": "CONSUME _partition, _offset, body FROM items GROUP X'{group}' LIMIT 0 WAIT '1m'",
       "expected": {
         "fields": [
           {
@@ -302,8 +366,72 @@
           true
         ],
         "limit": 0,
-        "group": "billing",
+        "group": {
+          "id": 42,
+          "generation": 7,
+          "principal": 17,
+          "partition": 0,
+          "next": 18446744073709551611
+        },
         "wait_ms": 60000
+      },
+      "group_fixture": {
+        "target": {
+          "definition": "{definition}",
+          "interpretation": {
+            "object": {
+              "scope": {
+                "realm": 1,
+                "resource": 7,
+                "catalog": 18446744073709551615
+              },
+              "branch": 1,
+              "object": 43
+            },
+            "revision": 2,
+            "digest": [
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29,
+              29
+            ]
+          },
+          "partition": 0
+        },
+        "group": {
+          "id": 42,
+          "generation": 7,
+          "principal": 17
+        },
+        "next": 18446744073709551611
       }
     },
     {
@@ -372,8 +500,8 @@
       "error": "InvalidLogConsumeOperand"
     },
     {
-      "sql": "CONSUME id FROM items GROUP ''",
-      "error": "InvalidLogGroupName"
+      "sql": "CONSUME id FROM items GROUP X''",
+      "error": "InvalidStreamHandle"
     },
     {
       "sql": "CONSUME id FROM items WAIT '0ms'",

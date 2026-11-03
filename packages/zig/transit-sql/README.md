@@ -55,8 +55,11 @@ multi-partition Stream requires a predicate that selects exactly one partition.
 `DirectLogPreparedClaim` admits an unfiltered `CLAIM ... WITH LEASE` on one
 Queue partition. Exact `_partition` equality routes multi-partition declarations;
 LIMIT bounds acquisition and never hides accepted result rows. Native FIFO,
-capacity and lease checks remain authoritative. Group consumption, WAIT, Queue
-payload predicates remain unimplemented; group assignment
+capacity and lease checks remain authoritative. Group consumption binds an
+explicit native assignment/checkpoint descriptor, and COMMIT OFFSET freezes
+the original read receipt and authenticated traversal interval. Grouped result
+completion preserves both boundaries even at a partial LIMIT or LIMIT 0. WAIT
+and Queue payload predicates remain unimplemented; group assignment
 and read-release tokens stay with their native owners.
 
 Run `zig build test` or `zig build check` from this directory. The build graph
