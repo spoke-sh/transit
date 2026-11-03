@@ -46,9 +46,9 @@ test-direct-table-service -Doptimize=ReleaseSafe -- managed-recovery`.
 Automatic maintenance is enabled with a one-second interval and a two-second
 operation deadline. JSON records identify source, binaries, request allocation
 counts/peaks and whole-node CPU, RSS and I/O around replacement. Every observed
-owner response, including the withheld reply, must have allocation metrics. These small
-finite runs do not establish capacity, latency, generic work-record collection
-or physical power-loss guarantees.
+owner response, including the withheld reply, must have allocation metrics.
+These small finite runs do not establish capacity, latency, generic work-record
+collection or physical power-loss guarantees.
 
 The local-owner recovery schedule publishes each fault selection atomically and
 requires its exact counter before treating a request as faulted. Fault delivery

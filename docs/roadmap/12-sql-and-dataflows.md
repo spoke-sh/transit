@@ -1042,7 +1042,7 @@ tests alone. R9 migration work and R10 correspondence accompany every row.
 | **R1b candidate portion — Delivered by PR #328** | TXR1 reservation/readiness, transaction-bound result candidates and aborted-payload collection | R1a | [Recorded disk/installed checks](../history/qualification/query.md#transaction-owned-managed-result-candidates--2026-11-02); preserve creation-during-grace and frozen-owner guards |
 | **R9 metadata portion — Delivered by PRs #339/#340** | Independently authorized catalog/SQL metadata and linked Board computation inspection | Existing finite owner | [Focused native/API/browser evidence](../history/qualification/interfaces.md#board-computation-inspection--2026-11-02); preserve exact publisher attribution and no-work reads |
 | **R1b remainder — Private work closure** | Catalog-owned creation/attachment/closure for remaining private work, complete reachability and paged cleanup | Candidate ownership already delivered; freeze remaining lifetime contract | Original pending work and independent inspection survive collection; closed private work reclaims only after all replay/recovery references close; generic records remain protected |
-| **R3a — Finite lifecycle qualification** | Combined-source baseline, bounded fair runtime work, reserved control capacity and complete finite crash/revocation/growth proof | Begin baseline now; finish collection matrix after R1b | Old/new complete output at every staging/prepare/decision/finalize kill; original recovery, stale-worker refusal, growth beyond helper capacities, idle parking and attributed retained-revision costs |
+| **R3a — Finite lifecycle qualification** | Combined-source baseline, bounded fair runtime work, reserved control capacity and complete finite crash/revocation/growth proof | Named finite crash baseline executed; finish combined collection/growth matrix after R1b | Old/new complete output at every staging/prepare/decision/finalize kill; original recovery, stale-worker refusal, growth beyond helper capacities, idle parking and attributed retained-revision costs |
 | **R2a/R3b — Table history consumer** | Persisted history protection, snapshot backfill and exact ordered/net modes in the installed service; explicit resume policy | R3a | Concurrent backfill writes, no-ops, oscillations, archive/trim, true gaps, lost wakes and restart; no checkpoint through an incomplete acceptance |
 | **R2b/R3c — Multiple inputs and managed dependencies** | Paged source vector, real common-decision barrier, alias deduplication and bounded acyclic scheduling | R2a/R3b; R5a for joins | Delayed/aborted mixed participants never publish a partial cut; durable waiting and cycle rejection; admit output chaining only with qualified dependency coverage |
 | **R4a — Persistent delta execution** | Typed batches, durable arrangements and real spill for projection/filter and admitted UNION ALL | R2a/R3b; finite operator semantics | Independent finite equality at every completed basis; reopen arrangements, checked multiplicities, allocation and disk-budget controls |
@@ -1063,11 +1063,14 @@ tests alone. R9 migration work and R10 correspondence accompany every row.
 
 **Next review units on this base:**
 
-1. **R3a baseline and regression harness.** Run the combined finite owner and
-   independent-inspection journeys with ordinary maintenance; add named crash
-   points and resource counters to their existing fixtures. Freeze the source,
-   definition and binaries before recording measurements. Keep this PR useful
-   independently of the cleanup format change.
+1. **R3a finite qualification.** The existing owner fixture now has a
+   [16-handoff process-death baseline](../history/qualification/query.md#named-finite-managed-recovery-handoffs--2026-11-02)
+   with automatic maintenance, original token/cut/transaction recovery, retained
+   revisions and attributed resource counters. Complete the combined owner and
+   independent-inspection collection/revocation/growth matrix after R1b, including
+   bounded fair runtime work and reserved control capacity. Freeze source,
+   definition and binaries before recording further measurements; the finite
+   harness does not close those remaining gates.
 2. **R1b remaining ownership contract and implementation.** Deliver the lifetime
    inventory, catalog-owned closure and graph traversal below with real disk
    recovery/collection tests in the same review unit (split by independently safe

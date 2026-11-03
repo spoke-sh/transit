@@ -9,6 +9,91 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Named finite managed recovery handoffs — 2026-11-02
+
+The question is whether a finite managed computation preserves its original
+accepted work, source cut, transaction and retained revision when both caller
+and disk owner die after acceptance but before the caller receives a reply.
+Current semantics belong to the
+[query reference](../../handbook/reference/queries.md#managed-table-computations)
+and [managed computation contract](../../../contracts/DATAFLOW_V1.md).
+
+The [proxy schedule](../../../tests/storage/tables/managed_recovery.py) observes
+successful public owner responses at 16 named boundaries. It holds the selected
+reply, requires caller and node SIGKILL, restarts the same disk owner, then runs
+the [signed recovery assertions](../../../tests/catalog/tables/managed_table.zig).
+The cases cover work staging, head claim, token binding, cut acquisition, result
+page and output staging, statement execution, revision manifest and checkpoint,
+preparation, commit, cleanup, completion, empty completion and two fenced-abort
+handoffs. A missing handoff, early caller exit or incomplete recovery fails.
+
+The fixture uses one Table source, one output Table and a control KV, with zero,
+three or four output rows and a one-page owner cache. Automatic maintenance runs
+at one-second intervals with a two-second operation deadline. The store is on
+physical disk under `/var/tmp`. Each case verifies the original work record and
+token, lease, transaction and acquired cut; the canonical publisher receipt and
+prior retained revision remain unchanged. Committed successors publish complete
+rows, including the empty relation. Fenced aborts retain the prior result and
+suspended control state.
+
+The first complete matrix at `ccecfe151a4c4dd430af7a45834d0ddbb770e753`
+passed all 16 cases. Its automatic records exposed a measurement omission:
+the proxy counted each withheld response but returned before collecting that
+response's allocation metrics. Every case omitted exactly one metrics record.
+`eb296d0d760376fa66990fe53b697f9b8512f199` moves metric collection before the
+interruption and requires the per-operation response counts to equal the total
+observed requests. These are test-driver changes; runtime semantics are unchanged.
+
+The complete `just test::managed-tables` task passed in the isolated
+committed-source checkout at `eb296d0d760376fa66990fe53b697f9b8512f199`.
+The corrected matrix passed all 16 boundaries and accounted for all 5,300 owner
+responses. The existing direct managed lifecycle passed retained nonempty/empty
+reads after replacement and output edits, early close, incomplete-prefix refusal
+and current source/output/control denial. The installed SQL fixture passed
+publication/control, complete and empty successors, suspend/restart/resume,
+refresh, idle parking, retirement, retained attribution, output-constraint failure
+and checked SUM overflow preserving the original output.
+
+The separate Board computation fixture also passed independent-reader access,
+retained nonempty/empty metadata, exact publisher identity, missing-revision
+handling and read-only requests on the same clean source.
+
+The enclosing `just ci clean --lane installation-ui` run passed 17 of 18 tasks.
+Its last task, `test::declarative-browser`, failed on the ten-second HTTP timeout
+while finishing the GitHub callback used to establish a short-lived session.
+Session-expiry and subsequent assertions did not complete. The browser fixture
+and production inputs are unchanged from base `5e00b53bf`; the timeout's cause
+is unresolved. This is not a passing installation/UI lane or whole-suite result.
+The clean checkout remains at `/var/tmp/transit-ci-qwhcshkr/src`, and the private
+browser failure state remains at `/var/tmp/transit-browser-ij7znt7g`.
+
+The initial raw records are in
+`.cache/verification/m12-resume-20261102/managed-recovery.log` and
+`original-matrix-summary.json` in the same directory. The final
+`managed_recovery_matrix` record identifies clean source, pinned toolchain,
+binary hashes, configuration and all completed boundaries. The corrected run is
+retained in `clean-installation-ui.log` and `corrected-matrix-summary.json` in that
+same directory. The copied automatic lane records are in
+`clean-installation-ui-artifacts/`, with the outcome summarized in
+`clean-installation-ui-summary.json`. All 18 task records and their diagnostic
+hashes were checked; the final task's failure is preserved. Reproduce the owning
+schedule with `nix develop --command zig build test-direct-table-service
+-Doptimize=ReleaseSafe -- managed-recovery`; `just test::managed-tables` also runs
+the existing retained-reader and installed SQL lifecycle schedules.
+
+At the initial matrix revision, `just check fast` stopped on diagnostic inventory
+drift. A separate diagnostic-mapping check failed for `board-inspection`. Their
+production, contract and checker inputs are unchanged from base `5e00b53bf`;
+these are unresolved base failures. The other fast checks passed, with the seven
+checks after those diagnostic gates run separately and their automatic artifacts
+verified. That selected execution is not a passing aggregate fast check.
+
+This is finite process-death evidence. The resource records are attributed
+observations on a shared host, not latency, capacity or zero-allocation thresholds.
+The run does not establish host power-loss durability, generic abandoned-work
+collection, the combined collection/revocation/growth matrix or T5/T8
+implementation correspondence. R1b and R3a retain those open gates.
+
 ## SQL Queue NACK settlement and recovery — 2026-11-02
 
 This review unit starts from `ffbf2e9b12dceca856000faf15eebbc252ae580c`.
