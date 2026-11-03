@@ -7,7 +7,10 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{.{ .name = "transit_protocol", .module = protocol.module("transit_protocol") }},
+        .imports = &.{
+            .{ .name = "transit_protocol", .module = protocol.module("transit_protocol") },
+            .{ .name = "transit_document", .module = b.dependency("transit_document", .{ .target = target, .optimize = optimize }).module("transit_document") },
+        },
     });
     const filters = b.option([]const []const u8, "test-filter", "Run selected profile tests") orelse &.{};
     const tests = b.addTest(.{ .root_module = module, .filters = filters });

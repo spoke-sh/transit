@@ -5,7 +5,7 @@ Applications can parse or construct JSON, the XML subset below and MIME entity
 frames using caller-owned buffers. They can inspect ordered events
 and raw source coordinates, verify retained bytes, and build compound
 representation commitments. The package
-imports only `transit-protocol`; it has no allocator,
+imports `transit-protocol` and the pure `transit-document` codec; it has no allocator,
 socket, TLS, clock, storage, Station or effect-dispatch interface.
 
 The [profile contract](../../../contracts/DOCUMENT_PROFILE_V1.md) owns descriptor
@@ -378,3 +378,26 @@ refusal and late hash failure after generated output is already complete. A
 100,000-value stream uses unchanged workspace. The independent Python/Expat
 probe checks both raw readers and candidate delivery against its own expected
 events/spans and routes semantic construction through the candidate handoff.
+
+## Ordered storage candidates
+
+`OrderedInput.encode` converts one complete verified JSON/XML part into a
+canonical ordered request for `DocumentPartition.applyOrdered`. Supply the
+existing reader workspace, a `token_bytes` name buffer, `depth` container-end
+offsets and a separately bounded output buffer. Input, output and workspace
+must not overlap. It performs no allocation or publication. Errors return no
+candidate; errors after output construction begins invalidate its magic.
+
+The adapter copies borrowed events before advancing the parser, preserves
+ordered duplicate JSON members and numeric lexemes, and expands container spans
+to their closing boundary. XML uses an explicit list envelope so comments and
+processing instructions outside the element root survive alongside attributes
+and mixed content. Raw bytes are retained verbatim. The returned candidate also
+carries the verified part and exact descriptor; generic ordered storage does not
+persist that profile attestation or infer grammar/schema conformance from spans.
+Profile identity publication and compound container graphs remain separate work.
+
+The owning tests cover these mappings and late malformed input, wrong hashes and
+output exhaustion. The repository's `zig build test-ordered-documents` exercises
+the candidate-to-disk handoff; it does not enable gateway capture or a public
+Document route.
