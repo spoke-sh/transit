@@ -108,7 +108,7 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`2e4a3b9bb0fef6545fe2c0983c0635bf2a9c140f6bad21dfbf510eb696aa79c0`.
+`1a81487b17b998cf1e5c89eaf621d7c97cbecb389f13fedfc3c0691125beb141`.
 It binds an explicit nullable parent head in immutable Table branch creation,
 independent retained-pin copying and accepted fork ancestry, as well as
 non-delegated current snapshot pin capture under an explicit Table

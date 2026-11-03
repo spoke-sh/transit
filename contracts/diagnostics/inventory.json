@@ -12378,6 +12378,7 @@
         "JsonWriter.zig",
         "Mime.zig",
         "MimeWriter.zig",
+        "OrderedInput.zig",
         "Profile.zig",
         "Reader.zig",
         "Xml.zig",
@@ -12629,6 +12630,65 @@
         "std"
       ]
     },
+    "packages/zig/transit-document/src/OrderedChange.zig": {
+      "errors": {
+        "DocumentConflictLimitExceeded": 1,
+        "DocumentDepthLimitExceeded": 1,
+        "InvalidOrderedChange": 5,
+        "InvalidOrderedNode": 9,
+        "InvalidOrderedPart": 4,
+        "InvalidOrderedSpan": 2,
+        "InvalidOrderedTree": 6
+      },
+      "outcomes": {
+        "Kind": [
+          "map",
+          "list",
+          "element",
+          "attribute",
+          "string",
+          "binary",
+          "number",
+          "boolean",
+          "signed",
+          "unsigned",
+          "float",
+          "null_value",
+          "missing",
+          "type_error",
+          "conflict",
+          "text",
+          "comment",
+          "processing_instruction"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Decoder.init()": "<inferred>",
+        "Decoder.next()": "<inferred>",
+        "Decoder.nextPart()": "<inferred>",
+        "Header.validate()": "<inferred>",
+        "Node.validate()": "<inferred>",
+        "Validator.close()": "<inferred>",
+        "Validator.finish()": "<inferred>",
+        "Validator.push()": "<inferred>",
+        "Validator.pushStructure()": "<inferred>",
+        "encode()": "<inferred>",
+        "writeHeader()": "<inferred>",
+        "writeNode()": "<inferred>",
+        "writePart()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 58,
+        "catch": 2
+      },
+      "imports": [
+        "LogicalChange.zig",
+        "codec.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-document/src/SpanText.zig": {
       "errors": {
         "InvalidDeleteRange": 1,
@@ -12842,6 +12902,7 @@
         "Document.zig",
         "LogicalChange.zig",
         "Model.zig",
+        "OrderedChange.zig",
         "SpanText.zig",
         "SuccinctTree.zig",
         "VersionedMerge.zig",
@@ -23145,7 +23206,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"2e4a3b9bb0fef6545fe2c0983c0635bf2a9c140f6bad21dfbf510eb696aa79c0\""
+          "@\"1a81487b17b998cf1e5c89eaf621d7c97cbecb389f13fedfc3c0691125beb141\""
         ],
         "Effect.phase": [
           "pending",
@@ -38529,9 +38590,14 @@
       "errors": {
         "DocumentStateObjectMissing": 2,
         "IncompatibleDefinition": 2,
-        "InvalidLogicalState": 8
+        "InvalidLogicalState": 10
       },
-      "outcomes": {},
+      "outcomes": {
+        "State.layout": [
+          "causal_map",
+          "ordered"
+        ]
+      },
       "error_sets": {},
       "error_returns": {
         "State.validate()": "<inferred>",
@@ -38636,12 +38702,12 @@
         "DocumentRevisionConflict": 1,
         "DocumentSingleRevisionRequired": 3,
         "DocumentStateObjectMissing": 1,
-        "IncompatibleDefinition": 1,
+        "IncompatibleDefinition": 2,
         "InvalidDocumentArchive": 2,
         "InvalidDocumentCheckpoint": 2,
-        "InvalidDocumentCursor": 3,
-        "InvalidDocumentLineage": 4,
-        "InvalidDocumentMutation": 2,
+        "InvalidDocumentCursor": 10,
+        "InvalidDocumentLineage": 6,
+        "InvalidDocumentMutation": 3,
         "InvalidDocumentPartitionRecord": 3,
         "InvalidDocumentRead": 1,
         "InvalidDocumentRecovery": 2,
@@ -38654,13 +38720,28 @@
         "StalePolicyEpoch": 1,
         "StaleWriterEpoch": 1
       },
-      "outcomes": {},
+      "outcomes": {
+        "OrderedSection": [
+          "node",
+          "name",
+          "value",
+          "raw",
+          "topology"
+        ],
+        "OrderedSelection.kind": [
+          "tree",
+          "part",
+          "topology"
+        ]
+      },
       "error_sets": {},
       "error_returns": {
+        "OrderedSelection.validate()": "<inferred>",
         "acceptCausalAlias()": "<inferred>",
         "acceptMutation()": "<inferred>",
         "applyCausal()": "<inferred>",
         "applyMutation()": "<inferred>",
+        "applyOrdered()": "<inferred>",
         "archive()": "<inferred>",
         "archivedThrough()": "<inferred>",
         "authorize()": "<inferred>",
@@ -38679,6 +38760,7 @@
         "nextPosition()": "<inferred>",
         "open()": "<inferred>",
         "operationKey()": "<inferred>",
+        "orderedCursor()": "<inferred>",
         "pathHash()": "<inferred>",
         "publishCheckpoint()": "<inferred>",
         "publishRecord()": "<inferred>",
@@ -38686,6 +38768,8 @@
         "readCausalPageInner()": "<inferred>",
         "readCursor()": "<inferred>",
         "readNextRevision()": "<inferred>",
+        "readOrderedPage()": "<inferred>",
+        "readOrderedPageInner()": "<inferred>",
         "recoverStep()": "<inferred>",
         "releaseRead()": "<inferred>",
         "replicaKey()": "<inferred>",
@@ -38697,6 +38781,7 @@
         "revisionKey()": "<inferred>",
         "selectCheckpoint()": "<inferred>",
         "signCausal()": "<inferred>",
+        "signOrdered()": "<inferred>",
         "stageBytes()": "<inferred>",
         "trimArchived()": "<inferred>"
       },
@@ -38711,6 +38796,7 @@
         "DocumentIndex.zig",
         "DocumentInitialization.zig",
         "DocumentLogicalState.zig",
+        "DocumentOrderedTree.zig",
         "DocumentPartitionRecord.zig",
         "DocumentRead.zig",
         "DocumentRecovery.zig",
