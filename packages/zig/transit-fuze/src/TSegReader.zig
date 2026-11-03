@@ -75,6 +75,14 @@ pub const Decisions = struct {
 /// LIMIT and failure disclosure. Pruning represents only a non-selection, not
 /// exact three-valued truth. Structural/page integrity errors still fail now.
 pub fn decisions(self: *const Self, allocator: std.mem.Allocator, source: Source, schema: TableSchema.Schema, index: usize, program: ColumnPredicate.Program, limits: Limits) !Decisions {
+    return programDecisions(self, allocator, source, schema, index, program, limits);
+}
+
+pub fn preparedDecisions(self: *const Self, allocator: std.mem.Allocator, source: Source, schema: TableSchema.Schema, index: usize, program: *const ColumnPredicate.PreparedProgram, limits: Limits) !Decisions {
+    return programDecisions(self, allocator, source, schema, index, program, limits);
+}
+
+fn programDecisions(self: *const Self, allocator: std.mem.Allocator, source: Source, schema: TableSchema.Schema, index: usize, program: anytype, limits: Limits) !Decisions {
     if (schema.object != self.footer.object_id or schema.revision != self.footer.schema_revision or
         !std.mem.eql(u8, &try schema.layoutFingerprint(), &self.footer.layout_fingerprint)) return error.TableSchemaChanged;
     if (index >= self.footer.row_groups.len or self.footer.row_groups[index].pages.len != schema.columns.len) return error.InvalidSegmentCoordinate;
@@ -408,24 +416,24 @@ const ProgramColumns = struct {
     // borrow predicate-major slices without acquiring duplicate ownership.
     owned: [ColumnPredicate.Program.max_instructions]?[]ColumnPredicate.Outcome = @splat(null),
     instructions: [ColumnPredicate.Program.max_instructions]PredicateMachine.Instruction(OutcomeAtom) = undefined,
-    fn init(reader: *const Self, allocator: std.mem.Allocator, workspace: *Workspace, source: Source, schema: TableSchema.Schema, index: usize, program: ColumnPredicate.Program, page_budget: usize) !ProgramColumns {
+    fn init(reader: *const Self, allocator: std.mem.Allocator, workspace: *Workspace, source: Source, schema: TableSchema.Schema, index: usize, program: anytype, page_budget: usize) !ProgramColumns {
         var result: ProgramColumns = .{ .allocator = workspace.bounded() };
         errdefer result.deinit();
         for (program.instructions, 0..) |instruction, i| {
             result.instructions[i] = switch (instruction) {
                 .atom => |atom| blk: {
                     if (result.columns[i] == null) {
-                        if (atom.predicate == .all) {
+                        if (atom.predicate.isAll()) {
                             const outcomes = try result.allocator.alloc(ColumnPredicate.Outcome, reader.footer.row_groups[index].row_count);
                             result.owned[i] = outcomes;
                             result.columns[i] = outcomes;
                             @memset(outcomes, .yes);
                         } else {
-                            var predicates: [ColumnPredicate.Program.max_instructions]ColumnPredicate.Predicate = undefined;
+                            var predicates: [ColumnPredicate.Program.max_instructions]@TypeOf(atom.predicate) = undefined;
                             var positions: [ColumnPredicate.Program.max_instructions]usize = undefined;
                             var count: usize = 0;
                             for (program.instructions[i..], i..) |candidate, position| {
-                                if (candidate != .atom or candidate.atom.column != atom.column or candidate.atom.predicate == .all) continue;
+                                if (candidate != .atom or candidate.atom.column != atom.column or candidate.atom.predicate.isAll()) continue;
                                 predicates[count] = candidate.atom.predicate;
                                 positions[count] = position;
                                 count += 1;
@@ -447,7 +455,7 @@ const ProgramColumns = struct {
     fn deinit(self: *ProgramColumns) void {
         for (self.owned) |slot| if (slot) |outcomes| self.allocator.free(outcomes);
     }
-    fn decision(self: *const ProgramColumns, program: ColumnPredicate.Program, row: usize) !Decision {
+    fn decision(self: *const ProgramColumns, program: anytype, row: usize) !Decision {
         var instruction: ?u8 = null;
         const truth = PredicateMachine.truthDiagnostic(self.instructions[0..program.instructions.len], OutcomeRow{ .columns = &self.columns, .row = row }, &instruction) catch |err| switch (err) {
             error.QueryTypeError, error.QueryConflict => {
@@ -493,7 +501,7 @@ fn programRows(self: *const Self, allocator: std.mem.Allocator, workspace: *Work
     return .{ .rows = rows, .examined = examined };
 }
 
-fn columnOutcomes(self: *const Self, allocator: std.mem.Allocator, workspace: *Workspace, source: Source, schema: TableSchema.Schema, index: usize, column_index: usize, predicates: []const ColumnPredicate.Predicate, page_budget: usize) !PhysicalCodecs.EvaluatedPredicates {
+fn columnOutcomes(self: *const Self, allocator: std.mem.Allocator, workspace: *Workspace, source: Source, schema: TableSchema.Schema, index: usize, column_index: usize, predicates: anytype, page_budget: usize) !PhysicalCodecs.EvaluatedPredicates {
     const coordinate = self.footer.row_groups[index].pages[column_index];
     if (coordinate.length > page_budget) return error.SegmentReadBudgetExceeded;
     const bytes = try allocator.alloc(u8, coordinate.length);
@@ -501,7 +509,10 @@ fn columnOutcomes(self: *const Self, allocator: std.mem.Allocator, workspace: *W
     try source.read(source.context, coordinate.offset, bytes);
     try TSeg.verifyColumnRange(schema, &self.footer, bytes, index, column_index);
     const bounded = workspace.bounded();
-    const result = try PhysicalCodecs.evaluateColumnPredicates(bounded, bounded, schema.columns[column_index], bytes, predicates);
+    const result = if (@TypeOf(predicates[0]) == ColumnPredicate.PreparedPredicate)
+        try PhysicalCodecs.evaluatePreparedColumnPredicates(bounded, bounded, schema.columns[column_index], bytes, predicates)
+    else
+        try PhysicalCodecs.evaluateColumnPredicates(bounded, bounded, schema.columns[column_index], bytes, predicates);
     errdefer bounded.free(result.outcomes);
     if (result.row_count != self.footer.row_groups[index].row_count) return error.InvalidSegment;
     return result;

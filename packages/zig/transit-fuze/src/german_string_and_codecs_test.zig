@@ -424,6 +424,15 @@ test "compressed predicate batch bounds and malformed suffixes reject before suc
     const malformed = try fsstPage(&bytes, 2, "a", &.{ 0, 0xfe });
     const predicates = [_]ColumnPredicate.Predicate{ .all, .{ .compare = .{ .op = .eq, .value = .{ .bytes = "z" } } } };
     try std.testing.expectError(error.InvalidFsstStream, PhysicalCodecs.evaluateColumnPredicates(a, a, column, malformed, &predicates));
+    var arena = std.heap.ArenaAllocator.init(a);
+    defer arena.deinit();
+    var prepared: [2]ColumnPredicate.PreparedPredicate = undefined;
+    for (predicates, &prepared) |predicate, *owned| owned.* = try .init(arena.allocator(), column, predicate);
+    try std.testing.expectError(error.InvalidFsstStream, PhysicalCodecs.evaluatePreparedColumnPredicates(a, a, column, malformed, &prepared));
     const invalid_utf8 = try fsstPage(&bytes, 1, "\xc3", &.{0});
     try std.testing.expectError(error.InvalidUtf8, PhysicalCodecs.evaluateColumnPredicates(a, a, column, invalid_utf8, &predicates));
+    try std.testing.expectError(error.InvalidUtf8, PhysicalCodecs.evaluatePreparedColumnPredicates(a, a, column, invalid_utf8, &prepared));
+    var foreign = column;
+    foreign.collation = .ascii_ci;
+    try std.testing.expectError(error.TableSchemaChanged, PhysicalCodecs.evaluatePreparedColumnPredicates(a, a, foreign, invalid_utf8, &prepared));
 }
