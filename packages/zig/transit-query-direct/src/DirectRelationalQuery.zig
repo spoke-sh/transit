@@ -7,22 +7,8 @@ const e = f.RelationalExecution;
 const Memory = @import("root.zig").QueryMemory;
 const Self = @This();
 const Run = e.Execution(*q.DirectRelationalTables, *q.RelationalSpill);
-pub const Consistency = enum { per_resource_snapshot_vector, independent_table_snapshots, transaction, atomic };
-pub const Options = struct {
-    dialect: f.Sql.Dialect = .transit,
-    consistency: Consistency,
-    budgets: r.Budgets,
-    /// Physical access limits supplement the logical operation budget.
-    requests: u64,
-    spill_work: u64,
-    pub fn requireClient(self: Options, client: q.catalog.DirectTableClient) !void {
-        switch (self.consistency) {
-            .independent_table_snapshots => if (client.transaction != null) return error.UnsupportedRelationalConsistency,
-            .transaction => if (client.transaction == null) return error.UnsupportedRelationalConsistency,
-            .per_resource_snapshot_vector, .atomic => return error.UnsupportedRelationalConsistency,
-        }
-    }
-};
+pub const Consistency = q.catalog.ManagedTableRecords.Consistency;
+pub const Options = q.catalog.ManagedTableRecords.Options;
 parent: std.mem.Allocator,
 memory: Memory,
 owned: f.RelationalCodec.Owned,

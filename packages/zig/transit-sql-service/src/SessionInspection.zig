@@ -127,23 +127,18 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
                 break :blk value;
             } else null;
             try parser.finish();
-            const manager: g.direct.ManagedTable = .{ .client = host.table };
-            const parsed = try manager.find(host.namespace, try .init(name.slice())) orelse return error.CatalogNameNotFound;
-            defer parsed.deinit();
-            var declared = parsed.value;
+            const response = host.table.call(.{ .managed_inspection = .{ .namespace = host.namespace, .name = try .init(name.slice()), .expected = null, .revision = revision } }) catch |err| return if (err == error.NotFound) (if (revision != null) error.DataflowRevisionNotFound else error.CatalogNameNotFound) else err;
+            defer response.deinit();
+            const inspected = response.value.result.managed_inspection;
+            var declared = inspected.declaration;
             declared.sql = try a.dupe(u8, declared.sql);
-            if (revision) |number| {
-                var reader = try g.direct.ManagedRevision.open(manager, declared, number, .{});
-                defer reader.deinit();
-                const rows = try a.alloc([]const f.Types.Values.Cell, 1);
-                rows[0] = try a.dupe(f.Types.Values.Cell, &.{text(try c.protocol.Json.valueAlloc(a, .{ .revision = reader.manifest.value.metadata, .manifest = reader.root, .decision = reader.decision }))});
-                return .{ .arena = arena, .name = name, .managed = declared, .managed_revision = .{ .revision = number, .root = reader.root }, .rows = rows, .output = &.{.{ .name = "dataflow_revision", .type = .utf8 }} };
-            }
-            const observed = try manager.inspect(declared);
-            _ = try declared.source.require(host.table, .read);
-            _ = try declared.output.require(host.table, .read);
             const rows = try a.alloc([]const f.Types.Values.Cell, 1);
-            rows[0] = try a.dupe(f.Types.Values.Cell, &.{text(try c.protocol.Json.valueAlloc(a, .{ .declaration = declared, .observation = observed }))});
+            if (revision) |number| {
+                const completed = inspected.completed orelse return error.InvalidManagedTableRecord;
+                rows[0] = try a.dupe(f.Types.Values.Cell, &.{text(try c.protocol.Json.valueAlloc(a, .{ .revision = completed.revision.metadata, .manifest = completed.manifest, .decision = completed.decision }))});
+                return .{ .arena = arena, .name = name, .managed = declared, .managed_revision = .{ .revision = number, .root = completed.manifest }, .rows = rows, .output = &.{.{ .name = "dataflow_revision", .type = .utf8 }} };
+            }
+            rows[0] = try a.dupe(f.Types.Values.Cell, &.{text(try c.protocol.Json.valueAlloc(a, .{ .declaration = declared, .observation = inspected.observation.? }))});
             return .{ .arena = arena, .name = name, .managed = declared, .rows = rows, .output = &.{.{ .name = "dataflow", .type = .utf8 }} };
         }
         if (!(try parser.takeWord("STORAGE"))) {
@@ -261,14 +256,13 @@ pub fn validate(self: *Self, host: *g.Session) !void {
         defer response.deinit();
     }
     if (self.managed) |declared| {
-        _ = try declared.source.require(host.table, .read);
-        _ = try declared.output.require(host.table, .read);
-        if (self.kind != .plan) {
-            const manager: g.direct.ManagedTable = .{ .client = host.table };
-            if (self.managed_revision) |revision|
-                try revision.root.requireSame(try manager.revisionReference(declared, revision.revision))
-            else
-                _ = try manager.inspect(declared);
+        if (self.kind == .plan) {
+            _ = try declared.source.require(host.table, .read);
+            _ = try declared.output.require(host.table, .read);
+        } else {
+            const response = try host.table.call(.{ .managed_inspection = .{ .namespace = declared.namespace, .name = declared.name, .expected = try declared.interpretation(self.arena.allocator()), .revision = if (self.managed_revision) |revision| revision.revision else null } });
+            defer response.deinit();
+            if (self.managed_revision) |revision| try revision.root.requireSame(response.value.result.managed_inspection.completed.?.manifest);
         }
     }
     if (self.node_storage) try validateNode(host);

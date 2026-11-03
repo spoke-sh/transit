@@ -331,6 +331,18 @@ pub fn clientToken(self: *Self, key: c.DirectClientToken.Key) !?c.DirectClientTo
     const state = try self.clientTokenState(key) orelse return null;
     return state.receipt;
 }
+/// Domain-owned publication discovery by original identity. Generic callers keep
+/// exact connection checks in clientTokenState; this helper is not a wire action.
+pub fn clientTokenIdentity(self: *Self, key: c.DirectClientToken.Key) !?c.DirectClientToken.Progress {
+    try self.ready();
+    try key.validate();
+    if (!key.connection.matches(self.root.configuration)) return error.DataIdentityConflict;
+    const digest = try key.digest();
+    const value = try self.tree().get(self.root.client_tokens, try pages.Key.init(&digest)) orelse return null;
+    const state = try self.tokenRecord(self.root, value);
+    if (!std.mem.eql(u8, &digest, &try state.receipt.binding.key.digest())) return error.DataIdentityConflict;
+    return state;
+}
 pub fn clientTokenState(self: *Self, key: c.DirectClientToken.Key) !?c.DirectClientToken.Progress {
     try self.ready();
     return self.clientTokenAt(self.root, key);

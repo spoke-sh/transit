@@ -171,6 +171,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .kv_list => .kv_list,
         .transaction => .transaction,
         .record => .record,
+        .managed_inspection => .managed_inspection,
         .client_token => .client_token,
         .client_progress => .client_progress,
         .initialize => .initialized,
@@ -245,6 +246,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
             if (value.retired or value.namespace != request.action.kv_lookup.namespace or !std.mem.eql(u8, value.name.slice(), request.action.kv_lookup.name)) return error.InvalidKVResponse;
         },
         .transaction => |value| try c.DirectTransactionRequest.validateResult(request.action.transaction, value),
+        .managed_inspection => |value| try value.validate(allocator, request.action.managed_inspection),
         .record => |value| {
             try value.reference.validate();
             const input = request.action.record;
