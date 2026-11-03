@@ -10652,6 +10652,13 @@
             "refresh"
           ]
         },
+        "InvalidHistoricalCursor": {
+          "code": "inspection.invalid_cursor",
+          "category": "binding",
+          "actions": [
+            "refresh"
+          ]
+        },
         "QueryRequestTooLarge": {
           "code": "inspection.request_too_large",
           "category": "limit",
