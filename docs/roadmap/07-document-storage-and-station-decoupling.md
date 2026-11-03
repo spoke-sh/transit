@@ -279,6 +279,16 @@ component work or declare D4 complete.
 
 ### Changes to the previous plan
 
+The ordered storage increment now also reads parent/child/sibling, depth and
+subtree boundaries from persisted BP chunks under an exact retained revision.
+The neutral traversal uses a bounded ancestor stack; the partition owns chunk
+access, bit/lookup budgets and current disclosure checks. This extends C2/C3's
+structural-read path without changing accepted formats. It remains a linear
+scan, with no persisted rank/select directory or constant-time navigation claim.
+The [partition guide](../../packages/zig/transit-storage/docs/document-partitions.md#ordered-versioned-trees)
+owns usage and limits. C1 merges, the remaining physical-layout gates and the
+direct lifecycle/transaction/consumer work remain open.
+
 1. **Continue from the merged causal path.** Full-width map changes, derived
    acceptance, cross-operation causal deduplication and within-value paging are
    implemented. The next packet extends that path to persisted ordered/versioned

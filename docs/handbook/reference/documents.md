@@ -14,9 +14,11 @@ stages private candidates over `.tseg` records and paged indexes. It exposes no
 public Document admission, accepted revision lookup or collection lifecycle.
 
 The direct-storage [partition component](../../../packages/zig/transit-storage/docs/document-partitions.md)
-also supplies bounded WAL recovery and authenticated retained revision reads with
-cumulative byte/work budgets. It currently accepts supplied state bytes; logical
-evaluation and the installed service lifecycle remain separate integration work.
+also evaluates causal-map and conditional ordered changes, supplies bounded WAL
+recovery, and reads exact retained revisions under byte/work budgets and current
+authorization. Ordered structural inspection returns parent/child/sibling and
+subtree metadata from persisted topology with bounded resident memory. These are
+storage-library operations; the installed service lifecycle remains separate.
 
 The offline [Document profile library](../../../packages/zig/transit-document-profiles/README.md)
 interprets JSON, a declared UTF-8 XML subset and MIME entity framing with bounded

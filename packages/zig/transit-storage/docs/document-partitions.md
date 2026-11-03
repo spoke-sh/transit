@@ -8,8 +8,10 @@ retained reads. The exact persisted records are specified in the
 identities and read coverage belong to the
 [direct Document contract](../../../../contracts/DOCUMENT_V1.md).
 
-This component accepts supplied state bytes and conflict counts. It does not yet
-derive them through the logical evaluator or persist `DocumentShredder` output.
+The component derives causal-map and ordered/versioned state through its logical
+evaluators. A separate opaque receipt-owner seam accepts supplied state bytes
+and conflict counts, but cannot replace either integrated logical layout.
+It does not yet persist `DocumentShredder` output.
 The installed [Document service](../../transit-station-document/README.md) retains
 its existing lifecycle. These component APIs do not enable direct Document SQL,
 mixed transactions or Station turns over this owner.
@@ -139,10 +141,24 @@ Each page owns its bytes inline; preserve its returned signed cursor and check
 completion. Refusal does not complete a prefix. See the
 [exact semantics and budgets](../../../../contracts/DOCUMENT_V1.md#integrated-ordered-versioned-storage-slice).
 
+`inspectOrderedNode(receipt, ordinal, guard)` reads parent, first-child,
+next-sibling, depth and exclusive subtree-end metadata from the persisted BP
+stream. It uses the same exact single-revision receipt, live pin and current
+authority as page reads. Output fields are owned and remain valid across scratch
+reuse. Each call has its own work/output accounting within the receipt's limits;
+a refusal produces no partial answer. The scan holds one 240-byte chunk and a
+depth-bounded ancestor stack, independent of total node count. It charges each
+examined bit and indexed lookup, rechecks authorization after buffering and
+returns the consumed work. This provides bounded linear structural reads; it
+does not supply a rank/select index or constant-time navigation.
+
 The disk owner test covers an eight-record dirty slab, a one-page cache, a 5 KB
 value, a 1,002-node tree spanning BP chunks, conditional patches, original retry,
 raw hashes/spans, lost acceptance replies, retained old revisions, cursor tampering,
-revocation and release. `zig build test-ordered-documents` from the repository
+revocation and release. Structural inspection is compared with an independent
+preorder-depth oracle before and after subtree replacement, crosses a topology
+chunk boundary, and checks exact work/output budgets, reopen and revoked/released
+reads. `zig build test-ordered-documents` from the repository
 root connects M16's verified JSON/XML candidate adapter to disk acceptance and
 reopen, including a workbook-shaped JSON tree. The installed Document API remains
 owned by Station until the coordinated lifecycle/transaction/consumer cutover.

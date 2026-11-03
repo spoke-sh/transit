@@ -3,8 +3,49 @@
 const std = @import("std");
 const change = @import("transit_document").OrderedChange;
 const wire = @import("transit_document").codec;
+const Topology = @import("transit_document").SuccinctTree;
 const Index = @import("DocumentIndex.zig");
 pub const chunk_bytes = 240;
+pub const Navigation = Topology.Navigation;
+
+/// One owned topology chunk. The durable tree may be larger than every cache.
+const TopologyReader = struct {
+    index: Index,
+    store: *Index.Store,
+    budget: *Budget,
+    bit_count: u64,
+    position: u64 = 0,
+    chunk: Index.Value = .{},
+
+    pub fn next(self: *TopologyReader) !?bool {
+        if (self.position == self.bit_count) return null;
+        try self.budget.charge();
+        const within = self.position % (chunk_bytes * 8);
+        if (within == 0) {
+            self.chunk = try get(self.index, self.store, 'B', 0, self.position / (chunk_bytes * 8), self.budget);
+            const remaining = (self.bit_count - self.position + 7) / 8;
+            if (self.chunk.len != @min(chunk_bytes, remaining)) return error.InvalidOrderedState;
+            if (remaining <= chunk_bytes and self.bit_count % 8 != 0 and
+                self.chunk.data[self.chunk.len - 1] >> @as(u3, @intCast(self.bit_count % 8)) != 0) return error.InvalidOrderedState;
+        }
+        const open = self.chunk.data[@intCast(within / 8)] & (@as(u8, 1) << @as(u3, @intCast(within % 8))) != 0;
+        self.position += 1;
+        return open;
+    }
+};
+
+pub fn navigate(index: Index, store: *Index.Store, count: u64, ordinal: u64, ancestors: []u64, budget: *Budget) !Navigation {
+    const bits = std.math.mul(u64, count, 2) catch return error.InvalidOrderedState;
+    if (bits > std.math.maxInt(u64) - 7) return error.InvalidOrderedState;
+    var reader: TopologyReader = .{ .index = index, .store = store, .budget = budget, .bit_count = bits };
+    const result = Topology.navigate(&reader, count, ordinal, ancestors) catch |err| switch (err) {
+        error.NodeOutOfBounds => return error.DocumentPathMissing,
+        error.InvalidSuccinctTree => return error.InvalidOrderedState,
+        else => return err,
+    };
+    if ((try node(index, store, ordinal, budget)).depth != result.depth) return error.InvalidOrderedState;
+    return result;
+}
 pub const Node = struct {
     depth: u32,
     kind: change.Kind,

@@ -36,6 +36,63 @@ pub const SuccinctTree = struct {
         parent: ?u32,
     };
 
+    /// Owned structural metadata. Ordinals and the exclusive subtree boundary
+    /// are independent of the resident representation's u32 node limit.
+    pub const Navigation = struct {
+        ordinal: u64,
+        depth: u32,
+        parent: ?u64 = null,
+        first_child: ?u64 = null,
+        next_sibling: ?u64 = null,
+        subtree_end: u64 = 0,
+
+        pub fn byteSize(self: Navigation) u32 {
+            return 23 + @as(u32, @intFromBool(self.parent != null)) * 8 +
+                @as(u32, @intFromBool(self.first_child != null)) * 8 +
+                @as(u32, @intFromBool(self.next_sibling != null)) * 8;
+        }
+    };
+
+    /// Navigate a validated BP stream without materializing it. The reader owns
+    /// byte access and work accounting; next() returns an open bit or exact EOF.
+    /// Ancestors bounds depth, not total nodes. Only the consumed prefix is
+    /// validated; successful navigation is not an audit of the remaining tree.
+    pub fn navigate(reader: anytype, count: u64, ordinal: u64, ancestors: []u64) !Navigation {
+        if (ordinal >= count) return error.NodeOutOfBounds;
+        var level: usize = 0;
+        var seen: u64 = 0;
+        var found: ?Navigation = null;
+        while (try reader.next()) |open| {
+            if (open) {
+                if (seen == count or level == ancestors.len or (level == 0 and seen != 0)) return error.InvalidSuccinctTree;
+                if (seen == ordinal) {
+                    found = .{ .ordinal = ordinal, .depth = std.math.cast(u32, level) orelse return error.InvalidSuccinctTree, .parent = if (level == 0) null else ancestors[level - 1] };
+                } else if (found) |*result| {
+                    if (level == @as(usize, result.depth) + 1 and result.first_child == null) result.first_child = seen;
+                }
+                ancestors[level] = seen;
+                level += 1;
+                seen += 1;
+            } else {
+                if (level == 0) return error.InvalidSuccinctTree;
+                level -= 1;
+                if (ancestors[level] == ordinal) {
+                    var result = found orelse return error.InvalidSuccinctTree;
+                    result.subtree_end = seen;
+                    if (try reader.next()) |following| {
+                        if (level == 0) return error.InvalidSuccinctTree;
+                        if (following) {
+                            if (seen == count) return error.InvalidSuccinctTree;
+                            result.next_sibling = seen;
+                        }
+                    } else if (level != 0 or seen != count) return error.InvalidSuccinctTree;
+                    return result;
+                }
+            }
+        }
+        return error.InvalidSuccinctTree;
+    }
+
     pub fn deinit(self: *SuccinctTree, allocator: std.mem.Allocator) void {
         allocator.free(self.words);
         allocator.free(self.summaries);

@@ -858,6 +858,13 @@ test "document partition ordered trees retain raw parts BP and conditional revis
     try t.expectEqual(@as(u64, 0), wal.appends);
     const read = try owner.beginRead(.{ .target = target, .operation = operation(3), .from_revision = 1, .through_revision = 1, .max_steps = 4096, .max_bytes = 16384 }, policy.guard());
     const complete = try expectOrdered(&owner, read, &nodes, &policy);
+    try expectOrderedNavigation(&owner, read, &nodes, &policy);
+    var changed_read = read;
+    changed_read.request.max_bytes -= 1;
+    try t.expectError(error.DocumentReadConflict, owner.inspectOrderedNode(changed_read, 0, policy.guard()));
+    policy.deny_at = policy.calls + 3;
+    try t.expectError(error.PermissionDenied, owner.inspectOrderedNode(read, 0, policy.guard()));
+    policy.deny_at = std.math.maxInt(usize);
     const raw_cursor = try owner.orderedCursor(read, .{ .kind = .part, .part = 42 }, policy.guard());
     const raw_page = (try owner.readOrderedPage(raw_cursor, policy.guard())).?;
     try t.expectEqualSlices(u8, raw, raw_page.data.slice());
@@ -877,6 +884,7 @@ test "document partition ordered trees retain raw parts BP and conditional revis
     policy.deny_at = std.math.maxInt(usize);
     const short = try owner.beginRead(.{ .target = target, .operation = operation(4), .from_revision = 1, .through_revision = 1, .max_steps = 1, .max_bytes = 1 }, policy.guard());
     try t.expectError(error.DocumentReadLimitExceeded, owner.readOrderedPage(try owner.orderedCursor(short, .{ .kind = .tree }, policy.guard()), policy.guard()));
+    try t.expectError(error.DocumentReadLimitExceeded, owner.inspectOrderedNode(short, 0, policy.guard()));
 
     // Replace only the second duplicate-name child, leaving the first and raw
     // source part untouched. The path is a child ordinal, not a name lookup.
@@ -901,6 +909,8 @@ test "document partition ordered trees retain raw parts BP and conditional revis
     const next_read = try owner.beginRead(.{ .target = target, .operation = operation(7), .from_revision = 2, .through_revision = 2, .max_steps = 4096, .max_bytes = 16384 }, policy.guard());
     _ = try expectOrdered(&owner, next_read, &expected, &policy);
     _ = try expectOrdered(&owner, read, &nodes, &policy);
+    try expectOrderedNavigation(&owner, next_read, &expected, &policy);
+    try expectOrderedNavigation(&owner, read, &nodes, &policy);
     try t.expectEqualSlices(u8, raw, (try owner.readOrderedPage(try owner.orderedCursor(next_read, .{ .kind = .part, .part = 42 }, policy.guard()), policy.guard())).?.data.slice());
 
     // All rejected candidates leave the WAL/head unchanged, including a late
@@ -950,6 +960,59 @@ test "document partition ordered trees retain raw parts BP and conditional revis
         bp_cursor = page.cursor;
     }
     try t.expectEqual((wide_nodes.len * 2 + 7) / 8 * 8, bp_bits);
+    // Structural reads cross the 1,920-bit chunk boundary with a one-page
+    // index cache, without retaining a topology-sized resident array.
+    const root_inspection = try owner.inspectOrderedNode(wide_read, 0, policy.guard());
+    try t.expectEqualDeep(@import("transit_document").SuccinctTree.Navigation{ .ordinal = 0, .depth = 0, .first_child = 1, .subtree_end = wide_nodes.len }, root_inspection.node);
+    try t.expectEqual(@as(u32, wide_nodes.len * 2 + 3), root_inspection.steps);
+    for ([_]u64{ 1, 959, 960, 1001 }) |ordinal| {
+        const inspected = try owner.inspectOrderedNode(wide_read, ordinal, policy.guard());
+        try t.expectEqualDeep(@import("transit_document").SuccinctTree.Navigation{ .ordinal = ordinal, .depth = 1, .parent = 0, .next_sibling = if (ordinal + 1 < wide_nodes.len) ordinal + 1 else null, .subtree_end = ordinal + 1 }, inspected.node);
+        try t.expectEqual(@as(u64, 1), inspected.revision);
+    }
+    try t.expectError(error.DocumentPathMissing, owner.inspectOrderedNode(wide_read, wide_nodes.len, policy.guard()));
+    const bounded = try owner.beginRead(.{ .target = wide_target, .operation = operation(12), .from_revision = 1, .through_revision = 1, .max_steps = root_inspection.steps, .max_bytes = 31 }, policy.guard());
+    try t.expectEqualDeep(root_inspection, try owner.inspectOrderedNode(bounded, 0, policy.guard()));
+    const less_work = try owner.beginRead(.{ .target = wide_target, .operation = operation(13), .from_revision = 1, .through_revision = 1, .max_steps = root_inspection.steps - 1, .max_bytes = 31 }, policy.guard());
+    try t.expectError(error.DocumentReadLimitExceeded, owner.inspectOrderedNode(less_work, 0, policy.guard()));
+    const less_output = try owner.beginRead(.{ .target = wide_target, .operation = operation(14), .from_revision = 1, .through_revision = 1, .max_steps = root_inspection.steps, .max_bytes = 30 }, policy.guard());
+    try t.expectError(error.DocumentReadLimitExceeded, owner.inspectOrderedNode(less_output, 0, policy.guard()));
+    const range_read = try owner.beginRead(.{ .target = target, .operation = operation(15), .from_revision = 1, .through_revision = 2, .max_steps = 4096, .max_bytes = 16384 }, policy.guard());
+    try t.expectError(error.DocumentSingleRevisionRequired, owner.inspectOrderedNode(range_read, 0, policy.guard()));
+    const before_inspection = wal.appends;
+    owner.deinit();
+    owner = try s.DocumentPartition.open(t.allocator, wal.log(), objects.objectStore(), init_req, policy.guard(), options);
+    try t.expectEqualDeep(root_inspection, try owner.inspectOrderedNode(wide_read, 0, policy.guard()));
+    try t.expectEqual(before_inspection, wal.appends);
     _ = try owner.releaseRead(.{ .target = target, .operation = operation(9), .read = read.handle() }, policy.guard());
     try t.expectError(error.DocumentReadReleased, owner.readOrderedPage(complete, policy.guard()));
+    try t.expectError(error.DocumentReadReleased, owner.inspectOrderedNode(read, 0, policy.guard()));
+}
+
+/// Independent oracle over the input's preorder depths, not BP navigation.
+fn expectOrderedNavigation(owner: *s.DocumentPartition, receipt: doc.Read.Receipt, nodes: []const @import("transit_document").OrderedChange.Node, policy: *Policy) !void {
+    for (nodes, 0..) |node, ordinal| {
+        var parent: ?u64 = null;
+        var before = ordinal;
+        while (before > 0) {
+            before -= 1;
+            if (nodes[before].depth < node.depth) {
+                parent = before;
+                break;
+            }
+        }
+        var end = ordinal + 1;
+        while (end < nodes.len and nodes[end].depth > node.depth) : (end += 1) {}
+        const want: @import("transit_document").SuccinctTree.Navigation = .{
+            .ordinal = ordinal,
+            .depth = node.depth,
+            .parent = parent,
+            .first_child = if (ordinal + 1 < end) ordinal + 1 else null,
+            .next_sibling = if (end < nodes.len and nodes[end].depth == node.depth) end else null,
+            .subtree_end = end,
+        };
+        const observed = try owner.inspectOrderedNode(receipt, ordinal, policy.guard());
+        try t.expectEqualDeep(want, observed.node);
+        try t.expectEqual(receipt.through_revision, observed.revision);
+    }
 }

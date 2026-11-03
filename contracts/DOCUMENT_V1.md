@@ -324,6 +324,27 @@ bounded per-page overhead. Bytes may split UTF-8 scalars. Every call checks the
 live pin and current authorization, including repeated/terminal calls, and
 reauthorizes after buffering. Scratch/cache reuse cannot invalidate returned pages.
 
+`inspectOrderedNode(receipt, ordinal, guard)` returns structural metadata for a
+zero-based preorder node in that same single-revision retained read: parent,
+first child, next sibling, depth and exclusive subtree-end ordinal. Missing
+relations are explicit nulls; an out-of-range ordinal returns
+`DocumentPathMissing`. The result owns its fields and reports its revision and
+consumed work. It neither accepts work nor acquires another pin.
+
+The reader scans persisted BP chunks with a caller-bounded depth stack, retaining
+one 240-byte topology chunk at a time. Each examined bit and each indexed chunk
+or node lookup consumes one `max_steps` unit. Structural output consumes 23
+bytes plus eight for each non-null parent/child/sibling against `max_bytes`;
+revision and work attribution are control metadata. Each call starts its own
+bounded inspection from the original retained receipt; it is not a continuation
+of a previous page. Exhaustion returns `DocumentReadLimitExceeded`, with no
+partial navigation result. Receipt identity, live retention and current rights
+are checked before work, with authorization repeated after buffering, including
+repeated inspections. The traversed topology prefix is validated and its target
+depth is checked against residual node metadata. This is linear bounded scanning,
+not a rank/select index, constant-time navigation or an exhaustive storage scrub.
+It adds no persisted layout, cursor format or installed endpoint.
+
 The existing retained graph follows both layouts into their directories and all
 reachable segments, including raw parts and topology. Opaque mutations and caller
 checkpoints cannot replace either logical layout. Three-way merges, logical

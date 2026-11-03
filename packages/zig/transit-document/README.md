@@ -38,6 +38,12 @@ package also exports:
   and excess summaries supporting zero-allocation `parent`, `firstChild`,
   `nextSibling`, `subtreeSize`, `depth`, `isAncestor`, `within`, and `lca`
   navigation.
+  Its `navigate` helper also reads a caller-supplied BP stream with a bounded
+  ancestor stack, returning owned parent/child/sibling and subtree metadata.
+  This streaming path uses full-width ordinals and does not materialize the
+  tree or use the resident representation's node cap. The reader owns access
+  and work limits; navigation validates only the consumed prefix and scans
+  linearly rather than supplying a persisted rank/select index.
 - [`SpanText`](src/SpanText.zig): span-based collaborative UTF-8 text supporting
   arbitrary-length contiguous spans beyond 96 bytes, interior span splitting,
   range tombstones, 24-permutation causal convergence, and step/byte-bounded

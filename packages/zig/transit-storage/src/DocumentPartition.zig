@@ -907,6 +907,39 @@ pub const OrderedPage = struct {
     data: LogicalIndex.Value = .{},
     cursor: OrderedCursor,
 };
+pub const OrderedNodeInspection = struct {
+    revision: u64,
+    node: Ordered.Navigation,
+    steps: u32,
+};
+
+/// Structural metadata from persisted BP, under one exact retained revision.
+/// Output owns every field; failure never discloses a partial traversal.
+pub fn inspectOrderedNode(self: *Self, receipt: doc.Read.Receipt, ordinal: u64, guard: Guard) !OrderedNodeInspection {
+    return self.inspectOrderedNodeInner(receipt, ordinal, guard) catch |err| switch (err) {
+        error.DocumentEvaluationBudget => error.DocumentReadLimitExceeded,
+        else => err,
+    };
+}
+fn inspectOrderedNodeInner(self: *Self, receipt: doc.Read.Receipt, ordinal: u64, guard: Guard) !OrderedNodeInspection {
+    _ = try self.readCursor(receipt, guard);
+    defer _ = self.scratch.reset(.retain_capacity);
+    if (receipt.request.from_revision != receipt.through_revision) return error.DocumentSingleRevisionRequired;
+    try self.requirePartition(receipt.request.target.partition);
+    if (receipt.request.max_bytes < 23) return error.DocumentReadLimitExceeded;
+    const value = try self.tree().get(self.root.revisions_root, try revisionKey(receipt.request.target.document, receipt.through_revision)) orelse return error.DocumentHistoryUnavailable;
+    const revision = try self.decodeValue(RevisionEntry, value);
+    const state = try Logical.load(self.scratch.allocator(), self.objects, revision.state);
+    try state.target.requireSame(receipt.request.target);
+    if (state.layout != .ordered) return error.DocumentLogicalLayoutMismatch;
+    if (state.epoch != revision.merge_epoch or state.conflicts != revision.unresolved_conflicts) return error.InvalidLogicalState;
+    const ancestors = try self.scratch.allocator().alloc(u64, @as(usize, self.root.declared.declaration.limits.path_depth) + 1);
+    var budget: Ordered.Budget = .{ .remaining = receipt.request.max_steps };
+    const result = try Ordered.navigate(.{ .root = state.index }, &self.logical_store, state.nodes, ordinal, ancestors, &budget);
+    if (result.byteSize() > receipt.request.max_bytes) return error.DocumentReadLimitExceeded;
+    try authorize(guard);
+    return .{ .revision = receipt.through_revision, .node = result, .steps = @intCast(budget.used) };
+}
 fn signOrdered(self: *Self, value: OrderedCursor) !OrderedCursor {
     var out = value;
     out.authentication = @splat(0);
