@@ -185,7 +185,9 @@ pub fn main(init: std.process.Init) !void {
     var client = try caller(init, &wire, config);
     if (std.mem.eql(u8, mode, "stream-release")) {
         if (args.len != 6) return error.Usage;
-        const receipt = try support.load(p.StreamRead.Receipt, init, directory, args[4]);
+        const bytes = try support.loadBytes(init, directory, args[4], p.StreamHandle.max_bytes);
+        defer init.gpa.free(bytes);
+        const receipt = (try p.StreamHandle.decode(p.StreamHandle.Progress, init.gpa, bytes)).receipt;
         var external = client;
         external.connection.principal = 1235;
         external.connection.role = (try admin.query(.{ .authorization = .{ .kind = .{ .resolve = try .init("gateway-caller") } } })).body.authorization.body.resolve.id;

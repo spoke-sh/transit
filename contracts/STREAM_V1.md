@@ -269,6 +269,10 @@ timestamp selection requires the declared timestamp column before admission.
 A null end selects the
 observed upper frontier once during acceptance. Group reads bind their assigned
 principal; the runtime must also compare the current generation and checkpoint.
+Reassignment fences cursor creation and page traversal, including reopening an
+original read. Advancing the checkpoint within the same generation does not
+invalidate that retained read. Original operation and accepted settlement lookup
+remain available under current rights; they do not grant further row delivery.
 `StreamRead.Receipt` retains that original request, exact cut, resolved end,
 immutable source commitment and the next physical publication frontier. Retrying
 after later appends cannot extend its cut. Its initial coverage starts at the

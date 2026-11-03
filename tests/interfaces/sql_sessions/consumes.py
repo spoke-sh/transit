@@ -1,12 +1,11 @@
-"""Installed positional consumption: frozen cuts, logical limits and disclosure."""
-from interfaces.native.stream_handles import encode as stream_handle
-
+"""Installed Stream reads and settlements: cuts, limits, fencing and disclosure."""
 import copy
 import json
 import os
 import struct
 import subprocess
 
+from interfaces.native.stream_handles import encode as stream_handle
 from interfaces.sql_sessions.native import Client
 from interfaces.sql_sessions.storage import unsigned
 
@@ -157,11 +156,14 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
     restart()
     client = Client(root, port).open()
     assert submit(commit_sql, commit_token) == committed
-    # The first read retains its original selection after advancement/reassignment.
+    # The operation remains original, but reassignment fences further delivery.
+    before_reassignment = client.call(dict(result=original_group['identity']))['batch']
     reassigned = stream_native('stream-assign', 'grouped_events', 51, 8151)
     assert reassigned['group']['next'] == 8 and reassigned['group']['group']['generation'] == 2
+    client.call(dict(fetch=dict(cursor=before_reassignment['cursor'], batch=0)), error='Conflict')
+    client.call(dict(close_result=before_reassignment['cursor']))
     assert submit(grouped_sql, group_token) == original_group
-    assert rows(original_group['identity']) == grouped
+    client.call(dict(result=original_group['identity']), error='Conflict')
     fenced = client.terminal(client.execute(grouped_sql, list(os.urandom(16)))['operation'], outcomes=('rejected',))
     assert fenced['workload']['receipt']['closed']['reason'] == {'refused': 'group_fenced'}
     assert submit(commit_sql, commit_token) == committed
@@ -170,8 +172,8 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
     released_group = stream_native('stream-assign', 'grouped_events', 55, 8055)
     released_read = rows(submit(f'CONSUME value FROM grouped_events GROUP {binary(released_group)} LIMIT 1')['identity'])
     released_handle = handle(released_read)
-    (root / 'group-release.json').write_text(json.dumps(released_handle['receipt']))
-    stream_native('stream-release', 'group-release.json', 9055)
+    (root / 'group-release.bin').write_bytes(stream_handle(released_handle))
+    stream_native('stream-release', 'group-release.bin', 9055)
     released = client.terminal(client.execute(f'COMMIT OFFSET ON STREAM grouped_events RECEIPT {binary(released_handle)}', list(os.urandom(16)))['operation'], outcomes=('rejected',))
     assert released['workload']['receipt']['closed']['reason'] == {'refused': 'read_released'}
     # Lose every outcome byte after headers, replace the service and recover
@@ -193,9 +195,10 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
     raw_group = stream_handle(reassigned)
     binary_type = descriptor('binary')
     encoded_group = (b'FVL1' + struct.pack('<H', len(binary_type)) + binary_type + b'\x01\x03' + struct.pack('<I', len(raw_group)) + raw_group).hex()
-    typed_group = rows(submit('CONSUME value FROM grouped_events GROUP $1 LIMIT 0', parameters=[encoded_group])['identity'])
+    typed_operation = submit('CONSUME value FROM grouped_events GROUP $1 LIMIT 0', parameters=[encoded_group])
+    typed_group = rows(typed_operation['identity'])
     assert typed_group[0] == []
-    buffered = client.call(dict(result=original_group['identity']))['batch']
+    buffered = client.call(dict(result=typed_operation['identity']))['batch']
     authorize(False)
     try:
         client.call(dict(fetch=dict(cursor=buffered['cursor'], batch=0)), error='AccessDenied')
@@ -244,5 +247,5 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
     print(json.dumps(dict(profile='sql_positional_consumes', native=True, postgres=True, mysql=True, console=True,
                           original_cut_after_append_and_replacement=True, result_batches=all_rows[1],
                           filtered_partial_coverage=True, zero_limit=True, exhausted_before_limit=True,
-                          typed_parameters=True, explicit_groups=True, authenticated_offsets=True, stale_group_and_checkpoint_refusal=True,
+                          typed_parameters=True, explicit_groups=True, authenticated_offsets=True, stale_group_and_checkpoint_refusal=True, reassignment_fences_buffered_and_reopened_reads=True,
                           current_disclosure_authorization=True, passed=True)), flush=True)

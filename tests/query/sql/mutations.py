@@ -1,4 +1,3 @@
-from interfaces.native.stream_handles import encode as stream_handle
 """Independent general DML grammar, typed rows and canonical FDM1 payloads.
 
 Uniqueness against stored rows and atomic publication belong to the separate
@@ -11,6 +10,7 @@ from decimal import Decimal
 import re
 import struct
 import subprocess
+from interfaces.native.stream_handles import encode as stream_handle
 from query.sql.reference import ROOT, CACHE, tree, identifier, column
 from query.sql.table_reference import create, schema_bytes, literal, cell_bytes
 

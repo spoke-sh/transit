@@ -227,8 +227,10 @@ result API. Group assignments use the 152-byte `SGH1` encoding; progress uses
 Offset settlement returns command completion without relational row counts.
 Native verification rejects forged boundaries, stale assignments/checkpoints and
 released reads. Preserve the original token after lost replies; retries recover
-the same settlement even after reassignment. Closing results advances no offset
-and releases no native pin. Group assignment and read release remain native
+the same settlement even after reassignment. Reassignment fences further delivery
+of the old grouped read, including buffered and reopened results; the original
+operation and accepted settlement remain recoverable. Closing results advances
+no offset and releases no native pin. Group assignment and read release remain native
 operations. WAIT and attached interactive workload transactions remain outside
 this SQL profile.
 
