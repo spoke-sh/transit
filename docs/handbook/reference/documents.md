@@ -134,7 +134,7 @@ Document API described above.
 The same storage owner supports conditional versioned ordered trees through
 `applyOrdered`: create, complete replacement and ordinal-path subtree replacement.
 It preserves duplicate names, arrays, exact numeric lexemes, mixed content, raw
-parts and byte spans in `.tseg` records with persisted BP topology. M16 JSON/XML
+parts and byte spans in `.tseg` records with persisted BP topology. The JSON/XML profile
 readers can produce a candidate only after complete grammar and byte verification.
 Pinned pages expose the accepted tree and raw parts under current authority. See
 [ordered storage](../../../packages/zig/transit-storage/docs/document-partitions.md#ordered-versioned-trees)
