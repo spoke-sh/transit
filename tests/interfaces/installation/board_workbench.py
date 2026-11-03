@@ -35,7 +35,11 @@ UNCERTAIN_TRANSPORT = (ConnectionError, TimeoutError, IncompleteRead, RemoteDisc
 
 def direct_client(fixture, definition, connection, seed):
     """Signed fixture caller; never shared with Board or the browser."""
-    key = ExistingKey(fixture.root, seed)
+    # Every account names its seed table.seed. Keep the derived signing file
+    # separate so opening another principal cannot replace an existing key.
+    key_directory = fixture.root / f'direct-key-{connection["principal"]}'
+    key_directory.mkdir(mode=0o700, exist_ok=True)
+    key = ExistingKey(key_directory, seed)
     port = fixture.config['ports']['node']
     realm, principal = connection['scope']['realm'], connection['principal']
     identity = post(port, '/v1/query', native(key, realm, principal,
