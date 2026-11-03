@@ -6064,6 +6064,26 @@ allocator counted successes, so it is not pooled with the revised experiment.
 Completion here establishes exact outcomes and the stated allocation bounds,
 not a latency acceptance gate. This measures one repeated page workload without
 device I/O; it does not establish installed SQL throughput, whole-request zero
-allocation, latency percentiles or hardware-cycle/IOPS budgets. Full clean
-`storage-query` qualification and installed performance comparisons were not run
-for this increment. The earlier failed lane retains its original status above.
+allocation, latency percentiles or hardware-cycle/IOPS budgets. The experiment
+does not establish full clean `storage-query` qualification or installed
+performance comparisons. The earlier failed lane retains its original status
+above.
+
+### Pre-push integration checks
+
+After merging `8f13acdc7` and removing duplicate historical-cursor expectations,
+clean `11dda0d8a016a1466b811c6885e1bf4309a4f677` passes all **66** fast checks.
+The fresh-checkout evidence remains at
+`.cache/ci/clean/11dda0d8a016-transit-ci-2sre_c_q`. Independent diagnostic
+inventory/mapping checks and **11,102** local documentation links also pass.
+
+The clean `storage-query` attempt at that same source completes its first
+**12 targets**, through `test::local-payload-service`, including the **610-case /
+16,810-row** string oracle and the complete Fuze test target. It then starts
+`test::local-catalog`, but no terminal result is recorded and its processes are
+no longer active when inspected after reconnect. This attempt is **incomplete**;
+neither the catalog target nor subsequent targets are qualified. Its source,
+completed target results and unfinished phase remain in
+`/var/tmp/transit-ci-jerlu3vp`. The earlier attempt at merge `1399ff432` was
+deliberately interrupted to remove the duplicate diagnostic expectations; its
+evidence remains in `/var/tmp/transit-ci-g597iz4_`.
