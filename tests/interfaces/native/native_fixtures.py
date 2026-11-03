@@ -376,6 +376,26 @@ def generated():
                 accepted=dict(partition=93, next_lsn=17)))
         results[FIXTURES / 'document-v1.json'] = document
         lifecycle['document'] = document
+        collection_cut = dict(target=doc_partition, observed=dict(partition=93, next_lsn=16),
+                              changed_next_lsn=15, heads_digest=[67]*32)
+        collection_coverage = dict(after=doc_target['document'], heads=1, steps=3, bytes=512, complete=True)
+        collection_mac = (b'transit.document.collection.coverage.v1\0' + bytes.fromhex(definition) +
+                          compact(dict(read=doc_read_handle, coverage=collection_coverage)))
+        collection_cursor = dict(read=doc_read_handle, coverage=collection_coverage,
+                                 authentication=list(hmac.digest(bytes([7]*32), collection_mac, 'sha256')))
+        collection = dict(
+            receipt=dict(request=dict(target=doc_partition, operation=doc_read_op, max_steps=4096,
+                                      max_bytes=262144, page_heads=16, page_bytes=32768),
+                         cut=collection_cut, source=doc_read_source, accepted=dict(partition=93, next_lsn=17)),
+            cursor=collection_cursor,
+            page=dict(heads=[dict(cut=doc_cut, unresolved_conflicts=1)] + [None]*15,
+                      count=1, cursor=collection_cursor),
+            release=dict(release=dict(target=doc_partition,
+                                      operation=dict(scope=log_scope, principal=17, operation=2**64-15),
+                                      read=doc_read_handle), accepted=dict(partition=93, next_lsn=18)))
+        lifecycle['document_collection'] = collection
+        results[FIXTURES / 'document-collection-v1.json'] = collection
+        results[ROOT / 'packages/zig/transit-storage/src/document_collection_fixture.json'] = collection['cursor']
         results[lifecycle_path] = lifecycle
 
         serving_path = ROOT / 'packages/zig/transit-serving/src/fixtures/serving-v1.json'

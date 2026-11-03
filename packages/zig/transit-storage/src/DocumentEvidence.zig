@@ -15,6 +15,8 @@ pub const Outcome = union(enum) {
     checkpoint: doc.CheckpointReceipt,
     read: doc.Read.Receipt,
     read_release: doc.Read.ReleaseReceipt,
+    collection_read: doc.Read.Collection.Receipt,
+    collection_release: doc.Read.Collection.ReleaseReceipt,
 
     pub fn validate(self: Outcome) !void {
         switch (self) {
@@ -22,6 +24,8 @@ pub const Outcome = union(enum) {
             .checkpoint => |v| try v.validate(),
             .read => |v| try v.validate(),
             .read_release => |v| try v.validate(),
+            .collection_read => |v| try v.validate(),
+            .collection_release => |v| try v.validate(),
         }
     }
 
@@ -31,6 +35,8 @@ pub const Outcome = union(enum) {
             .checkpoint => |v| v.checkpoint.operation,
             .read => |v| v.request.operation,
             .read_release => |v| v.release.operation,
+            .collection_read => |v| v.request.operation,
+            .collection_release => |v| v.release.operation,
         };
     }
 };

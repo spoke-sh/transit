@@ -7428,7 +7428,7 @@
         "InvalidClientToken": 4,
         "InvalidDataIndexObject": 1,
         "InvalidDirectCatalogHistory": 1,
-        "InvalidDocumentStorageGraph": 16,
+        "InvalidDocumentStorageGraph": 17,
         "InvalidHistoricalDirectory": 3,
         "InvalidLogCatalogOperation": 1,
         "InvalidLogStorageGraph": 47,
@@ -7533,6 +7533,7 @@
           "document_root",
           "document_index",
           "document_read",
+          "document_collection",
           "document_wal",
           "table_history",
           "table_root",
@@ -7572,7 +7573,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 606,
+        "try": 612,
         "catch": 1
       },
       "imports": [
@@ -22851,6 +22852,39 @@
         "std"
       ]
     },
+    "packages/zig/transit-protocol/src/DocumentCollection.zig": {
+      "errors": {
+        "DocumentReadConflict": 2,
+        "InvalidDocumentCollection": 11,
+        "InvalidDocumentCoverage": 4,
+        "InvalidDocumentCursor": 1,
+        "InvalidDocumentRelease": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Coverage.validate()": "<inferred>",
+        "Cursor.validate()": "<inferred>",
+        "Cut.validate()": "<inferred>",
+        "Page.validate()": "<inferred>",
+        "Receipt.requireRequest()": "<inferred>",
+        "Receipt.validate()": "<inferred>",
+        "Release.validate()": "<inferred>",
+        "ReleaseReceipt.requireRelease()": "<inferred>",
+        "ReleaseReceipt.validate()": "<inferred>",
+        "Request.requireSame()": "<inferred>",
+        "Request.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 23,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-protocol/src/DocumentDeclaration.zig": {
       "errors": {
         "DocumentDeclarationConflict": 2,
@@ -23200,6 +23234,7 @@
         "catch": 2
       },
       "imports": [
+        "DocumentCollection.zig",
         "DocumentOperation.zig",
         "root.zig",
         "std"
@@ -23307,7 +23342,7 @@
           "deadline"
         ],
         "Definition": [
-          "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8"
+          "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97"
         ],
         "Effect.phase": [
           "pending",
@@ -38636,6 +38671,38 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-storage/src/DocumentCollection.zig": {
+      "errors": {
+        "DocumentReadMissing": 1,
+        "IncompatibleDefinition": 2,
+        "InvalidDocumentCollection": 8,
+        "InvalidDocumentCursor": 1,
+        "InvalidDocumentReadSecret": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Source.validate()": "<inferred>",
+        "encode()": "<inferred>",
+        "key()": "<inferred>",
+        "load()": "<inferred>",
+        "sign()": "<inferred>",
+        "stage()": "<inferred>",
+        "verify()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 20,
+        "catch": 0
+      },
+      "imports": [
+        "DocumentEvidence.zig",
+        "TransitObjectStore.zig",
+        "TreeStore.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-storage/src/DocumentDeclaration.zig": {
       "errors": {
         "DocumentDeclarationMissing": 1,
@@ -38681,7 +38748,9 @@
           "mutation",
           "checkpoint",
           "read",
-          "read_release"
+          "read_release",
+          "collection_read",
+          "collection_release"
         ]
       },
       "error_sets": {},
@@ -38694,7 +38763,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 16,
+        "try": 18,
         "catch": 0
       },
       "imports": [
@@ -38906,14 +38975,14 @@
         "DocumentLogicalEvaluationRequired": 3,
         "DocumentLogicalLayoutMismatch": 5,
         "DocumentMutationLimitExceeded": 3,
-        "DocumentOperationConflict": 7,
+        "DocumentOperationConflict": 9,
         "DocumentPartMissing": 1,
-        "DocumentPartitionConflict": 4,
+        "DocumentPartitionConflict": 5,
         "DocumentPathCapacity": 3,
         "DocumentPositionExhausted": 1,
-        "DocumentReadConflict": 6,
-        "DocumentReadLimitExceeded": 11,
-        "DocumentReadMissing": 2,
+        "DocumentReadConflict": 9,
+        "DocumentReadLimitExceeded": 15,
+        "DocumentReadMissing": 3,
         "DocumentReadReleased": 1,
         "DocumentRecoveryMissing": 1,
         "DocumentRecoveryRequired": 2,
@@ -38925,11 +38994,12 @@
         "IncompatibleDefinition": 2,
         "InvalidDocumentArchive": 2,
         "InvalidDocumentCheckpoint": 2,
+        "InvalidDocumentCollection": 2,
         "InvalidDocumentCursor": 10,
         "InvalidDocumentLineage": 6,
         "InvalidDocumentMutation": 3,
-        "InvalidDocumentPartitionRecord": 3,
-        "InvalidDocumentRead": 1,
+        "InvalidDocumentPartitionRecord": 4,
+        "InvalidDocumentRead": 2,
         "InvalidDocumentRecovery": 2,
         "InvalidDocumentRecoveryBudget": 1,
         "InvalidDocumentStateObject": 4,
@@ -38937,6 +39007,7 @@
         "InvalidLogicalState": 6,
         "InvalidOrderedState": 1,
         "InvalidWalEpoch": 1,
+        "PermissionDenied": 2,
         "StalePolicyEpoch": 1,
         "StaleWriterEpoch": 1
       },
@@ -38952,10 +39023,16 @@
           "tree",
           "part",
           "topology"
+        ],
+        "PinEntry.kind": [
+          "revision",
+          "collection"
         ]
       },
       "error_sets": {},
       "error_returns": {
+        "CollectionStore.charge()": "<inferred>",
+        "CollectionStore.load()": "<inferred>",
         "OrderedSelection.validate()": "<inferred>",
         "acceptCausalAlias()": "<inferred>",
         "acceptMutation()": "<inferred>",
@@ -38965,9 +39042,11 @@
         "archive()": "<inferred>",
         "archivedThrough()": "<inferred>",
         "authorize()": "<inferred>",
+        "beginCollectionRead()": "<inferred>",
         "beginRead()": "<inferred>",
         "causalCursor()": "<inferred>",
         "checkpointRecovery()": "<inferred>",
+        "collectionCursor()": "<inferred>",
         "decodeValue()": "<inferred>",
         "docKey()": "<inferred>",
         "encodeValue()": "<inferred>",
@@ -38986,16 +39065,19 @@
         "publishRecord()": "<inferred>",
         "readCausalPage()": "<inferred>",
         "readCausalPageInner()": "<inferred>",
+        "readCollectionPage()": "<inferred>",
         "readCursor()": "<inferred>",
         "readNextRevision()": "<inferred>",
         "readOrderedPage()": "<inferred>",
         "readOrderedPageInner()": "<inferred>",
         "recoverStep()": "<inferred>",
+        "releaseCollectionRead()": "<inferred>",
         "releaseRead()": "<inferred>",
         "replicaKey()": "<inferred>",
         "requireCausalPath()": "<inferred>",
         "requireLivePin()": "<inferred>",
         "requirePartition()": "<inferred>",
+        "requirePin()": "<inferred>",
         "requireReady()": "<inferred>",
         "requireRecoveryBudget()": "<inferred>",
         "revisionKey()": "<inferred>",
@@ -39007,10 +39089,11 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 315,
-        "catch": 7
+        "try": 380,
+        "catch": 8
       },
       "imports": [
+        "DocumentCollection.zig",
         "DocumentDeclaration.zig",
         "DocumentEvidence.zig",
         "DocumentIndex.zig",
@@ -39034,7 +39117,7 @@
       "errors": {
         "DocumentPartitionConflict": 1,
         "IncompatibleDefinition": 3,
-        "InvalidDocumentPartitionRecord": 14
+        "InvalidDocumentPartitionRecord": 15
       },
       "outcomes": {
         "Action": [
@@ -39042,6 +39125,8 @@
           "checkpoint",
           "read",
           "read_release",
+          "collection_read",
+          "collection_release",
           "declaration",
           "archive",
           "recovery_checkpoint"
@@ -42429,6 +42514,7 @@
         "BitmapDirectory.zig",
         "BranchAncestry.zig",
         "BranchSnapshot.zig",
+        "DocumentCollection.zig",
         "DocumentDeclaration.zig",
         "DocumentEvidence.zig",
         "DocumentIndex.zig",

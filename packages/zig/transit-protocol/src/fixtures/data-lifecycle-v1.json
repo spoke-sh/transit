@@ -1,6 +1,6 @@
 {
   "binding": {
-    "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+    "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
     "identity": {
       "scope": {
         "realm": 1,
@@ -107,7 +107,7 @@
   },
   "commit": {
     "binding": {
-      "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+      "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
       "identity": {
         "scope": {
           "realm": 1,
@@ -392,7 +392,7 @@
     }
   },
   "snapshot": {
-    "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+    "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
     "owner": {
       "scope": {
         "realm": 1,
@@ -489,7 +489,7 @@
     "not_observed": {}
   },
   "resource_initialization": {
-    "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+    "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
     "interpretation": {
       "object": {
         "scope": {
@@ -541,7 +541,7 @@
   },
   "transaction": {
     "begin": {
-      "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+      "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
       "identity": {
         "begin": {
           "scope": {
@@ -610,7 +610,7 @@
     },
     "cut": {
       "begin": {
-        "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+        "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
         "identity": {
           "begin": {
             "scope": {
@@ -834,7 +834,7 @@
     },
     "prepared": {
       "attempt": {
-        "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+        "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
         "transaction": {
           "begin": {
             "scope": {
@@ -1091,7 +1091,7 @@
     "observation": {
       "decided": {
         "attempt": {
-          "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+          "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
           "transaction": {
             "begin": {
               "scope": {
@@ -1333,7 +1333,7 @@
       "action": {
         "append": {
           "target": {
-            "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+            "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
             "interpretation": {
               "object": {
                 "scope": {
@@ -1448,7 +1448,7 @@
         "source": {
           "exhausted": {
             "target": {
-              "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+              "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
               "interpretation": {
                 "object": {
                   "scope": {
@@ -1505,7 +1505,7 @@
         },
         "destination": {
           "target": {
-            "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+            "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
             "interpretation": {
               "object": {
                 "scope": {
@@ -1613,7 +1613,7 @@
   },
   "stream_queue": {
     "declaration": {
-      "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+      "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
       "interpretation": {
         "object": {
           "scope": {
@@ -1727,7 +1727,7 @@
     "append": {
       "append": {
         "target": {
-          "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+          "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
           "interpretation": {
             "object": {
               "scope": {
@@ -1857,7 +1857,7 @@
     },
     "producer": {
       "target": {
-        "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+        "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
         "interpretation": {
           "object": {
             "scope": {
@@ -1934,7 +1934,7 @@
     "claim": {
       "claim": {
         "target": {
-          "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+          "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
           "interpretation": {
             "object": {
               "scope": {
@@ -2061,7 +2061,7 @@
       "coverage": {
         "cut": {
           "target": {
-            "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+            "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
             "interpretation": {
               "object": {
                 "scope": {
@@ -2139,7 +2139,7 @@
         },
         "lease": {
           "target": {
-            "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+            "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
             "interpretation": {
               "object": {
                 "scope": {
@@ -2213,7 +2213,7 @@
     },
     "group_progress": {
       "target": {
-        "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+        "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
         "interpretation": {
           "object": {
             "scope": {
@@ -2282,7 +2282,7 @@
         },
         "cut": {
           "target": {
-            "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+            "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
             "interpretation": {
               "object": {
                 "scope": {
@@ -2340,7 +2340,7 @@
         },
         "expected": {
           "target": {
-            "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+            "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
             "interpretation": {
               "object": {
                 "scope": {
@@ -2427,7 +2427,7 @@
         "coverage": {
           "cut": {
             "target": {
-              "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+              "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
               "interpretation": {
                 "object": {
                   "scope": {
@@ -2500,7 +2500,7 @@
     "read": {
       "request": {
         "target": {
-          "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+          "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
           "interpretation": {
             "object": {
               "scope": {
@@ -2569,7 +2569,7 @@
       },
       "cut": {
         "target": {
-          "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+          "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
           "interpretation": {
             "object": {
               "scope": {
@@ -2720,7 +2720,7 @@
       "coverage": {
         "cut": {
           "target": {
-            "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+            "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
             "interpretation": {
               "object": {
                 "scope": {
@@ -2783,38 +2783,38 @@
         "complete": true
       },
       "authentication": [
-        215,
-        51,
-        194,
-        191,
-        104,
-        126,
-        68,
-        16,
-        119,
-        18,
-        205,
-        191,
-        242,
-        197,
-        244,
-        218,
-        75,
-        99,
-        122,
-        39,
+        74,
+        144,
+        227,
+        78,
         202,
-        156,
+        209,
+        1,
+        248,
+        37,
+        26,
+        65,
+        55,
+        233,
+        254,
+        140,
+        21,
         95,
-        112,
-        158,
-        199,
-        57,
-        94,
-        107,
-        13,
-        10,
-        187
+        229,
+        133,
+        250,
+        131,
+        254,
+        100,
+        171,
+        73,
+        37,
+        137,
+        153,
+        247,
+        117,
+        244,
+        101
       ]
     },
     "read_progress": {
@@ -2871,7 +2871,7 @@
           "coverage": {
             "cut": {
               "target": {
-                "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+                "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
                 "interpretation": {
                   "object": {
                     "scope": {
@@ -2934,38 +2934,38 @@
             "complete": false
           },
           "authentication": [
-            104,
-            251,
-            121,
-            218,
-            84,
-            139,
-            85,
-            81,
-            173,
-            170,
-            120,
-            136,
-            146,
-            106,
+            238,
+            176,
+            98,
+            132,
+            216,
+            39,
+            147,
+            12,
             137,
-            178,
-            213,
-            75,
-            230,
-            59,
-            118,
-            123,
-            23,
-            168,
-            190,
-            214,
-            119,
-            86,
-            170,
+            136,
+            101,
             77,
-            178,
-            20
+            130,
+            10,
+            145,
+            34,
+            37,
+            45,
+            6,
+            29,
+            47,
+            16,
+            86,
+            1,
+            235,
+            86,
+            26,
+            3,
+            181,
+            16,
+            52,
+            24
           ]
         },
         "last": {
@@ -3020,7 +3020,7 @@
           "coverage": {
             "cut": {
               "target": {
-                "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+                "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
                 "interpretation": {
                   "object": {
                     "scope": {
@@ -3083,38 +3083,38 @@
             "complete": false
           },
           "authentication": [
-            37,
-            89,
-            204,
-            133,
-            230,
-            96,
-            129,
-            23,
-            187,
-            109,
-            210,
-            28,
-            150,
-            3,
-            76,
-            188,
-            189,
-            160,
-            219,
-            67,
-            168,
-            82,
-            10,
-            135,
-            10,
+            194,
+            50,
+            203,
+            255,
+            206,
+            136,
+            83,
+            183,
+            26,
+            130,
+            120,
             214,
-            213,
-            5,
-            166,
+            241,
+            159,
+            101,
+            6,
+            39,
+            203,
+            137,
+            47,
+            2,
             118,
-            112,
-            123
+            202,
+            42,
+            156,
+            189,
+            250,
+            169,
+            227,
+            219,
+            35,
+            202
           ]
         }
       }
@@ -3172,7 +3172,7 @@
         "coverage": {
           "cut": {
             "target": {
-              "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+              "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
               "interpretation": {
                 "object": {
                   "scope": {
@@ -3235,45 +3235,45 @@
           "complete": true
         },
         "authentication": [
-          215,
-          51,
-          194,
-          191,
-          104,
-          126,
-          68,
-          16,
-          119,
-          18,
-          205,
-          191,
-          242,
-          197,
-          244,
-          218,
-          75,
-          99,
-          122,
-          39,
+          74,
+          144,
+          227,
+          78,
           202,
-          156,
+          209,
+          1,
+          248,
+          37,
+          26,
+          65,
+          55,
+          233,
+          254,
+          140,
+          21,
           95,
-          112,
-          158,
-          199,
-          57,
-          94,
-          107,
-          13,
-          10,
-          187
+          229,
+          133,
+          250,
+          131,
+          254,
+          100,
+          171,
+          73,
+          37,
+          137,
+          153,
+          247,
+          117,
+          244,
+          101
         ]
       }
     },
     "read_release": {
       "release": {
         "target": {
-          "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+          "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
           "interpretation": {
             "object": {
               "scope": {
@@ -3389,7 +3389,7 @@
       "receipt": {
         "claim": {
           "target": {
-            "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+            "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
             "interpretation": {
               "object": {
                 "scope": {
@@ -3511,7 +3511,7 @@
         "claim": {
           "claim": {
             "target": {
-              "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+              "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
               "interpretation": {
                 "object": {
                   "scope": {
@@ -3626,7 +3626,7 @@
     "queue_observation_basis": {
       "cut": {
         "target": {
-          "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+          "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
           "interpretation": {
             "object": {
               "scope": {
@@ -3690,7 +3690,7 @@
     "queue_lease_observation": {
       "original": {
         "target": {
-          "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+          "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
           "interpretation": {
             "object": {
               "scope": {
@@ -3766,7 +3766,7 @@
   },
   "document": {
     "declaration": {
-      "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+      "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
       "interpretation": {
         "object": {
           "scope": {
@@ -3880,7 +3880,7 @@
       "mutation": {
         "target": {
           "partition": {
-            "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+            "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
             "interpretation": {
               "object": {
                 "scope": {
@@ -4077,7 +4077,7 @@
     "replica": {
       "target": {
         "partition": {
-          "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+          "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
           "interpretation": {
             "object": {
               "scope": {
@@ -4175,7 +4175,7 @@
       "checkpoint": {
         "target": {
           "partition": {
-            "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+            "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
             "interpretation": {
               "object": {
                 "scope": {
@@ -4297,7 +4297,7 @@
       "cut": {
         "target": {
           "partition": {
-            "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+            "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
             "interpretation": {
               "object": {
                 "scope": {
@@ -4415,7 +4415,7 @@
       "request": {
         "target": {
           "partition": {
-            "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+            "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
             "interpretation": {
               "object": {
                 "scope": {
@@ -4500,7 +4500,7 @@
       "cut": {
         "target": {
           "partition": {
-            "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+            "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
             "interpretation": {
               "object": {
                 "scope": {
@@ -4709,7 +4709,7 @@
         "cut": {
           "target": {
             "partition": {
-              "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+              "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
               "interpretation": {
                 "object": {
                   "scope": {
@@ -4830,45 +4830,45 @@
         "complete": true
       },
       "authentication": [
-        36,
-        100,
-        248,
-        91,
-        149,
-        9,
-        213,
-        149,
+        40,
+        167,
+        170,
+        116,
+        114,
+        141,
+        225,
+        92,
+        37,
+        116,
+        113,
+        153,
+        106,
+        48,
+        212,
+        191,
+        15,
         26,
-        208,
-        38,
-        62,
-        172,
-        160,
-        17,
-        20,
-        71,
-        56,
-        28,
-        216,
-        173,
-        238,
-        161,
-        176,
-        156,
-        9,
-        78,
-        23,
-        205,
-        229,
-        125,
-        128
+        22,
+        16,
+        27,
+        85,
+        248,
+        100,
+        98,
+        247,
+        147,
+        35,
+        0,
+        116,
+        248,
+        235
       ]
     },
     "read_release": {
       "release": {
         "target": {
           "partition": {
-            "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+            "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
             "interpretation": {
               "object": {
                 "scope": {
@@ -5002,7 +5002,7 @@
   },
   "branch": {
     "manifest": {
-      "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+      "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
       "identity": {
         "scope": {
           "realm": 1,
@@ -5170,7 +5170,7 @@
       "generation": 103
     },
     "attempt": {
-      "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+      "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
       "operation": {
         "scope": {
           "realm": 1,
@@ -5374,7 +5374,7 @@
     },
     "validation": {
       "attempt": {
-        "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+        "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
         "operation": {
           "scope": {
             "realm": 1,
@@ -5619,7 +5619,7 @@
     },
     "decision": {
       "attempt": {
-        "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+        "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
         "operation": {
           "scope": {
             "realm": 1,
@@ -5884,7 +5884,7 @@
   },
   "dataflow": {
     "declaration": {
-      "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+      "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
       "interpretation": {
         "object": {
           "scope": {
@@ -6029,7 +6029,7 @@
       }
     },
     "control": {
-      "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+      "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
       "operation": {
         "scope": {
           "realm": 1,
@@ -6282,7 +6282,7 @@
       "complete": true
     },
     "candidate": {
-      "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+      "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
       "lease": {
         "target": {
           "object": {
@@ -6437,7 +6437,7 @@
     },
     "completion": {
       "candidate": {
-        "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+        "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
         "lease": {
           "target": {
             "object": {
@@ -6608,7 +6608,7 @@
       }
     },
     "revision": {
-      "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+      "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
       "computation": {
         "object": {
           "scope": {
@@ -6792,7 +6792,7 @@
       "rows": 4,
       "cut": {
         "begin": {
-          "definition": "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8",
+          "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
           "identity": {
             "begin": {
               "scope": {
@@ -6903,6 +6903,677 @@
           "partition": 4,
           "next_lsn": 1
         }
+      }
+    }
+  },
+  "document_collection": {
+    "receipt": {
+      "request": {
+        "target": {
+          "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
+          "interpretation": {
+            "object": {
+              "scope": {
+                "realm": 1,
+                "resource": 7,
+                "catalog": 18446744073709551615
+              },
+              "branch": 1,
+              "object": 18446744073709551614
+            },
+            "revision": 1,
+            "digest": [
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47
+            ]
+          },
+          "partition": 0
+        },
+        "operation": {
+          "scope": {
+            "realm": 1,
+            "resource": 7,
+            "catalog": 18446744073709551615
+          },
+          "principal": 17,
+          "operation": 18446744073709551602
+        },
+        "max_steps": 4096,
+        "max_bytes": 262144,
+        "page_heads": 16,
+        "page_bytes": 32768
+      },
+      "cut": {
+        "target": {
+          "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
+          "interpretation": {
+            "object": {
+              "scope": {
+                "realm": 1,
+                "resource": 7,
+                "catalog": 18446744073709551615
+              },
+              "branch": 1,
+              "object": 18446744073709551614
+            },
+            "revision": 1,
+            "digest": [
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47
+            ]
+          },
+          "partition": 0
+        },
+        "observed": {
+          "partition": 93,
+          "next_lsn": 16
+        },
+        "changed_next_lsn": 15,
+        "heads_digest": [
+          67,
+          67,
+          67,
+          67,
+          67,
+          67,
+          67,
+          67,
+          67,
+          67,
+          67,
+          67,
+          67,
+          67,
+          67,
+          67,
+          67,
+          67,
+          67,
+          67,
+          67,
+          67,
+          67,
+          67,
+          67,
+          67,
+          67,
+          67,
+          67,
+          67,
+          67,
+          67
+        ]
+      },
+      "source": {
+        "bytes": 1024,
+        "sha256": [
+          61,
+          61,
+          61,
+          61,
+          61,
+          61,
+          61,
+          61,
+          61,
+          61,
+          61,
+          61,
+          61,
+          61,
+          61,
+          61,
+          61,
+          61,
+          61,
+          61,
+          61,
+          61,
+          61,
+          61,
+          61,
+          61,
+          61,
+          61,
+          61,
+          61,
+          61,
+          61
+        ]
+      },
+      "accepted": {
+        "partition": 93,
+        "next_lsn": 17
+      }
+    },
+    "cursor": {
+      "read": {
+        "owner": {
+          "scope": {
+            "realm": 1,
+            "resource": 7,
+            "catalog": 18446744073709551615
+          },
+          "principal": 17,
+          "operation": 18446744073709551602
+        },
+        "source": {
+          "bytes": 1024,
+          "sha256": [
+            61,
+            61,
+            61,
+            61,
+            61,
+            61,
+            61,
+            61,
+            61,
+            61,
+            61,
+            61,
+            61,
+            61,
+            61,
+            61,
+            61,
+            61,
+            61,
+            61,
+            61,
+            61,
+            61,
+            61,
+            61,
+            61,
+            61,
+            61,
+            61,
+            61,
+            61,
+            61
+          ]
+        }
+      },
+      "coverage": {
+        "after": [
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40,
+          41,
+          42,
+          43,
+          44,
+          45,
+          46,
+          47,
+          48
+        ],
+        "heads": 1,
+        "steps": 3,
+        "bytes": 512,
+        "complete": true
+      },
+      "authentication": [
+        57,
+        200,
+        123,
+        68,
+        181,
+        176,
+        20,
+        23,
+        129,
+        247,
+        10,
+        206,
+        250,
+        143,
+        154,
+        217,
+        76,
+        225,
+        87,
+        102,
+        180,
+        65,
+        229,
+        3,
+        46,
+        250,
+        158,
+        6,
+        40,
+        118,
+        227,
+        13
+      ]
+    },
+    "page": {
+      "heads": [
+        {
+          "cut": {
+            "target": {
+              "partition": {
+                "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
+                "interpretation": {
+                  "object": {
+                    "scope": {
+                      "realm": 1,
+                      "resource": 7,
+                      "catalog": 18446744073709551615
+                    },
+                    "branch": 1,
+                    "object": 18446744073709551614
+                  },
+                  "revision": 1,
+                  "digest": [
+                    47,
+                    47,
+                    47,
+                    47,
+                    47,
+                    47,
+                    47,
+                    47,
+                    47,
+                    47,
+                    47,
+                    47,
+                    47,
+                    47,
+                    47,
+                    47,
+                    47,
+                    47,
+                    47,
+                    47,
+                    47,
+                    47,
+                    47,
+                    47,
+                    47,
+                    47,
+                    47,
+                    47,
+                    47,
+                    47,
+                    47,
+                    47
+                  ]
+                },
+                "partition": 0
+              },
+              "document": [
+                33,
+                34,
+                35,
+                36,
+                37,
+                38,
+                39,
+                40,
+                41,
+                42,
+                43,
+                44,
+                45,
+                46,
+                47,
+                48
+              ]
+            },
+            "merge_epoch": 3,
+            "retained_from": 18446744073709551610,
+            "accepted_revision": 18446744073709551614,
+            "state": {
+              "bytes": 1024,
+              "sha256": [
+                59,
+                59,
+                59,
+                59,
+                59,
+                59,
+                59,
+                59,
+                59,
+                59,
+                59,
+                59,
+                59,
+                59,
+                59,
+                59,
+                59,
+                59,
+                59,
+                59,
+                59,
+                59,
+                59,
+                59,
+                59,
+                59,
+                59,
+                59,
+                59,
+                59,
+                59,
+                59
+              ]
+            },
+            "accepted": {
+              "partition": 93,
+              "next_lsn": 15
+            }
+          },
+          "unresolved_conflicts": 1
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "count": 1,
+      "cursor": {
+        "read": {
+          "owner": {
+            "scope": {
+              "realm": 1,
+              "resource": 7,
+              "catalog": 18446744073709551615
+            },
+            "principal": 17,
+            "operation": 18446744073709551602
+          },
+          "source": {
+            "bytes": 1024,
+            "sha256": [
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61
+            ]
+          }
+        },
+        "coverage": {
+          "after": [
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48
+          ],
+          "heads": 1,
+          "steps": 3,
+          "bytes": 512,
+          "complete": true
+        },
+        "authentication": [
+          57,
+          200,
+          123,
+          68,
+          181,
+          176,
+          20,
+          23,
+          129,
+          247,
+          10,
+          206,
+          250,
+          143,
+          154,
+          217,
+          76,
+          225,
+          87,
+          102,
+          180,
+          65,
+          229,
+          3,
+          46,
+          250,
+          158,
+          6,
+          40,
+          118,
+          227,
+          13
+        ]
+      }
+    },
+    "release": {
+      "release": {
+        "target": {
+          "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
+          "interpretation": {
+            "object": {
+              "scope": {
+                "realm": 1,
+                "resource": 7,
+                "catalog": 18446744073709551615
+              },
+              "branch": 1,
+              "object": 18446744073709551614
+            },
+            "revision": 1,
+            "digest": [
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47,
+              47
+            ]
+          },
+          "partition": 0
+        },
+        "operation": {
+          "scope": {
+            "realm": 1,
+            "resource": 7,
+            "catalog": 18446744073709551615
+          },
+          "principal": 17,
+          "operation": 18446744073709551601
+        },
+        "read": {
+          "owner": {
+            "scope": {
+              "realm": 1,
+              "resource": 7,
+              "catalog": 18446744073709551615
+            },
+            "principal": 17,
+            "operation": 18446744073709551602
+          },
+          "source": {
+            "bytes": 1024,
+            "sha256": [
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61,
+              61
+            ]
+          }
+        }
+      },
+      "accepted": {
+        "partition": 93,
+        "next_lsn": 18
       }
     }
   }

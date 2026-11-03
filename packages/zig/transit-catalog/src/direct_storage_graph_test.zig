@@ -501,6 +501,36 @@ fn documentGraph(comptime ordered: bool) !void {
     };
     const logical_receipt = if (ordered) try owner.applyOrdered(logical_mutation, logical_bytes, guard) else try owner.applyCausal(logical_mutation, logical_bytes, guard);
     const logical_state = try s.DocumentLogicalState.load(t.allocator, objects.objectStore(), logical_receipt.state);
+    const collection_read = try owner.beginCollectionRead(.{
+        .target = init_req.target(),
+        .operation = .{ .scope = scope_id, .principal = 7, .operation = 7 },
+        .max_steps = 4096,
+        .max_bytes = 262144,
+        .page_heads = 16,
+        .page_bytes = 32768,
+    }, guard);
+    // Walk only the collection pin: no current heads or revision directory can
+    // accidentally hide a missing edge to its retained logical trees/segments.
+    var isolated: Workspace = .{};
+    defer isolated.deinit();
+    try isolated.enqueue(.{ .document_collection = .{
+        .context = .{ .interpretation = init_req.target().interpretation, .partition = init_req.partition, .ordinal = init_req.ordinal, .next_lsn = owner.root.next_lsn, .archive = .{ .from = 0, .through = 0, .directory = null } },
+        .handle = collection_read.handle(),
+    } });
+    var isolated_at: usize = 0;
+    var isolated_steps: usize = 0;
+    while (isolated_at < isolated.jobs.items.len) : (isolated_at += 1) {
+        var work = isolated.jobs.items[isolated_at];
+        while (!try Graph.step(t.allocator, &owner.store, wal.log(), &work, &isolated)) {
+            isolated_steps += 1;
+            if (isolated_steps == 2000) return error.FixtureBudget;
+        }
+    }
+    var collection_key: [96]u8 = undefined;
+    try t.expect(isolated.marks.contains(try s.DocumentCollection.key(collection_read.source, &collection_key)));
+    try t.expect(isolated.marks.contains(try s.TreeStore.key(logical_state.index.records.location, &collection_key)));
+    try t.expect(isolated.marks.contains(try s.TreeStore.key(logical_state.index.ordered.location, &collection_key)));
+
     // Seal a private candidate without accepting it. Collection must distinguish
     // its segment from the accepted tree even though they share directory pages.
     var private = try owner.logical_store.begin(.{ .root = logical_state.index }, 1024 * 1024);
@@ -527,6 +557,7 @@ fn documentGraph(comptime ordered: bool) !void {
     try t.expect(workspace.marks.contains(try s.DocumentDeclaration.key(declared.content, &name)));
     try t.expect(workspace.marks.contains(try s.DocumentRecovery.key(recovery_ref.content, &name)));
     try t.expect(workspace.marks.contains(try s.DocumentRead.key(live_read.source, &name)));
+    try t.expect(workspace.marks.contains(try s.DocumentCollection.key(collection_read.source, &name)));
     const state_key = try std.fmt.bufPrint(&name, "document-states/{x}.data", .{&mut_rec.state.sha256});
     try t.expect(workspace.marks.contains(state_key));
     const payload_key = try std.fmt.bufPrint(&name, "document-payloads/{x}.data", .{&mut_rec.mutation.payload.sha256});
