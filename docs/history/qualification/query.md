@@ -81,6 +81,42 @@ evidence, not whole-suite, provider, performance or milestone completion. The
 [preserved maintenance failure](storage.md#preserved-queue-fixture-read-only-recovery--2026-11-02)
 retains its original outcome and unresolved cause.
 
+### Post-merge validation and fault-proxy cleanup — 2026-11-02
+
+The [hosted SQL lane](https://github.com/spoke-sh/transit/actions/runs/41553991753/job/125648425947)
+completed all eight tasks on `7b7595b92f7f119e02bcf1b19d5bf61855c9c7fe`.
+Its Git tree, `7b4da0a171fb28b8ff62aff6af2f19a53c7d590a`, equals both the
+submitted `f00b7f0b9c24` tree and merged `3df8a63daef0` tree. This supplies
+combined-source SQL evidence, including the installed native/PostgreSQL/MySQL/
+console renewal assertions, discarded execution/fetch responses, original
+results after later settlement and DROP, and stale-handle refusal.
+
+The local `just test::direct-workload-result` rerun at `f00b7f0b9c24` failed
+in `workload-result-prepare` at its unchanged 180-second deadline. The node
+recorded 257 Stream setup requests totaling 156.0 seconds before the Queue
+setup prefix. It did not reach the result recovery assertions. The private
+fixture `/var/tmp/transit-table-workload-result-03e2hovw` retains 336 original
+signed attempts and 335 replies; the final saved Queue cancellation has no
+captured reply. That absence does not establish rejection. Other builds and
+disk I/O overlapped this run; it is not an isolated latency measurement or a
+cause analysis of the earlier maintenance timeout.
+
+An earlier attempt also aborted Python during daemon-thread error reporting.
+Commit `e97eeb1ce4d7` makes the direct-service fault proxy join its request
+handlers before fixture teardown. Real HTTP cleanup controls cover a blocked
+response and an error handler, preserving the original caller timeout. Both
+controls fail when the old daemon behavior is restored. The clean fast check
+at that commit passed all 66 checks; it does not qualify native storage.
+
+Local raw evidence in the implementation worktree is
+`.cache/m6-resumed-workload-result.log` (SHA-256
+`c640656bdcdcb016ac8113b0a4a27d88205789abb4a6d63a814e7954ece61a1c`),
+`.cache/m6-proxy-negative-control.log` (SHA-256
+`1e122020d3102b1b960ecfba48b6c38dc9855ab4e1d0859cceac8a2cd2e58936`), and
+`.cache/ci/clean/e97eeb1ce4d7-transit-ci-99imf_j4` for automatic clean-check
+records. These local paths are not portable public artifacts. The setup timeout
+and the separate preserved maintenance/terminal-retention gates remain open.
+
 ## SQL Queue NACK settlement and recovery — 2026-11-02
 
 This review unit starts from `ffbf2e9b12dceca856000faf15eebbc252ae580c`.
