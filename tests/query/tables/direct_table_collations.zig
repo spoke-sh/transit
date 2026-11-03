@@ -61,10 +61,10 @@ pub fn run(client: c.DirectTableClient) !void {
         // Retain this original pin across the fixture's node restart. The
         // recovery phase observes its owner identity; it cannot acquire a
         // replacement snapshot to stand in for the old comparison basis.
-        const source = try client.call(.{ .snapshot = snapshot });
-        defer source.deinit();
+        const retained_source = try client.call(.{ .snapshot = snapshot });
+        defer retained_source.deinit();
         for (0..32) |_| {
-            const progress = try client.call(.{ .flush = .{ .object = snapshot.object, .through = source.value.result.snapshot.accepted } });
+            const progress = try client.call(.{ .flush = .{ .object = snapshot.object, .through = retained_source.value.result.snapshot.accepted } });
             defer progress.deinit();
             if (progress.value.result.flush.complete) break;
         } else return error.IncompleteCollationFlush;

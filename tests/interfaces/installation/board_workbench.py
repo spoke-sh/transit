@@ -156,18 +156,26 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030, na
     def settle(initial, terminal, pending):
         action, status, uncertain, conflicts, injected = initial, None, 0, 0, 0
         capacity = 0
+        progress = []
+        progress_file = fixture.root / f'history-progress-{operation}-{terminal}.json'
         for attempt in range(32):
+            step = dict(attempt=attempt + 1, action=next(iter(action)))
+            progress.append(step)
+            started = time.monotonic()
             try:
                 status = call(action)['status']
+                step['state'] = None if status is None else status['state']
                 if operation == 900030 and terminal == 'published' and 'advance' in action and not injected:
                     # Deterministic lost-progress schedule: hide one successful
                     # step and require an inspection of its original identity.
                     # This is injected evidence, not an observed storage refusal.
                     injected = 1
+                    step['injected_conflict'] = True
                     raise CatalogConflict()
-            except UNCERTAIN_TRANSPORT:
+            except UNCERTAIN_TRANSPORT as error:
                 # Inspect the saved operation after an incomplete reply. Never
                 # select a new frontier or assign a replacement acquisition.
+                step['error'] = type(error).__name__
                 uncertain += 1
                 action = dict(inspect=token)
                 continue
@@ -175,6 +183,7 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030, na
                 # A physical storage epoch can change between bounded steps.
                 # Inspect the original accepted identity after a conflict. The
                 # same 32-step bound still applies; a persistent conflict fails.
+                step['error'] = 'CatalogConflict'
                 conflicts += 1
                 action = dict(inspect=token)
                 continue
@@ -183,6 +192,7 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030, na
                 # finish, then inspect this exact identity before progressing.
                 # Capacity consumes the existing bound; no new selection or
                 # acquisition budget is permitted, even before acceptance.
+                step['error'] = 'CatalogCapacity'
                 capacity += 1
                 action = dict(inspect=token)
                 if attempt < 31:
@@ -195,6 +205,9 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030, na
                         phase=state['phase'], inflight=state['inflight'], after=state['after'],
                         descriptor_after=state['descriptor_after'])), flush=True)
                 raise
+            finally:
+                step['seconds'] = time.monotonic() - started
+                progress_file.write_text(json.dumps(progress, indent=2) + '\n')
             if status is None:
                 action = initial
                 continue
@@ -214,7 +227,7 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030, na
                 return status
             assert phase in pending, status
             action = initial if terminal == 'released' and phase == 'published' else dict(advance=token)
-        raise AssertionError(f'Retained source did not reach {terminal} within its bounded schedule')
+        raise AssertionError(f'Retained source did not reach {terminal} within its bounded schedule; progress: {progress_file}')
 
     status = settle(acquisition, 'published', ('acquiring', 'verifying'))
     snapshot = status['state']['snapshot']
