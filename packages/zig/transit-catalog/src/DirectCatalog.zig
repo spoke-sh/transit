@@ -3691,6 +3691,8 @@ fn openTransaction(self: *Self, allocator: std.mem.Allocator, target: r.Entry, c
         var table = cached.table;
         if (table.root.partition == target.partition and std.meta.eql(cached.seed, original_seed)) {
             errdefer table.deinit();
+            table.log = if (control) self.store.log else self.data_log;
+            table.objects = if (control) self.store.objects else self.data_objects;
             try table.refresh();
             const properties = try Properties.decode(allocator, table.declaration.definition.properties);
             return .{ .table = table, .properties = properties, .recovery_state = self.options.table_recovery, .owner_slot = slot, .seed = original_seed };
@@ -4132,6 +4134,10 @@ fn requestGuard(self: *Self, allocator: std.mem.Allocator, policy: Policy, reque
 }
 
 fn pending(self: *Self, object: u64, current: P.Guard) !bool {
+    return self.pendingWithView(object, null, current);
+}
+
+fn pendingWithView(self: *Self, object: u64, existing: ?*View, current: P.Guard) !bool {
     const value = try self.store.tree().get(self.store.root.pending, try r.idKey(object)) orelse return false;
     const operation = try r.fromValue(d.Operation, self.allocator, value);
     const target = try self.entry(object) orelse return error.InvalidDirectCatalogOperation;
@@ -4148,6 +4154,9 @@ fn pending(self: *Self, object: u64, current: P.Guard) !bool {
     if (!observed.pending()) return false;
     if (observed.requires_settlement) return true;
     if (target.seed == null) return true;
+    if (existing) |view| if (view.table.root.partition == target.partition) {
+        return (try view.table.observeEvidence(binding, current)) == null;
+    };
     var view = try self.open(self.allocator, target, false);
     defer view.deinit();
     return (try view.table.observeEvidence(binding, current)) == null;
@@ -4210,7 +4219,7 @@ fn admissionReason(self: *Self, request: Request, known: bool, existing: ?*View,
         if (request.binding.expected_data) |expected| {
             if (!expected.unchangedAt(.{ .partition = view.table.root.partition, .next_lsn = view.table.root.next_lsn }, view.table.root.changed_lsn)) return .stale_data;
         }
-        if (view.table.root.pending != null or try self.pending(object, current)) return .object_conflict;
+        if (view.table.root.pending != null or try self.pendingWithView(object, view, current)) return .object_conflict;
         if ((request.intent.action == .drop and try self.hasDependents(object)) or try self.altersReferencedColumn(request)) return .dependency;
     } else return .object_conflict;
     const proposed_name = if (request.intent.action == .rename) request.intent.action.rename else request.intent.name;
@@ -4433,6 +4442,9 @@ pub fn perform(self: *Self, binding: d.Binding, policy: Policy) !Observation {
     var view = try self.open(self.allocator, target, binding.action != .alter);
     defer view.deinit();
     if (binding.action == .alter) view.table.log = self.store.log;
+    defer if (binding.action == .alter) {
+        view.table.log = self.data_log;
+    };
     view.table.lose_reply = self.lose_table_reply;
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
@@ -5023,7 +5035,7 @@ pub fn previewRows(self: *Self, request: s.TableDmlIntent.Request, policy: Polic
     };
     if (result.reason == .none) {
         if (!std.meta.eql(request.interpretation, result.current.interpretation)) return error.TableSchemaChanged;
-        if (try self.pending(target.object, current)) result.reason = .object_conflict;
+        if (try self.pendingWithView(target.object, &view, current)) result.reason = .object_conflict;
     }
     try check(current);
     return result;
@@ -5067,7 +5079,7 @@ fn rowOperation(self: *Self, binding: d.Binding, action: enum { admit, commit, p
     try check(current);
     if (action == .admit or action == .commit) {
         try c.OperationBinding.claim(self.allocator, self.data_objects, binding);
-        if (try view.table.operationState(binding, current) == .not_observed and try self.pending(target.object, current)) return error.CatalogObjectBusy;
+        if (try view.table.operationState(binding, current) == .not_observed and try self.pendingWithView(target.object, &view, current)) return error.CatalogObjectBusy;
     }
     view.table.lose_reply = self.lose_table_reply;
     return switch (action) {
