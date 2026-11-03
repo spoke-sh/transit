@@ -46,23 +46,7 @@ pub const Program = struct {
     /// Boolean composition uses the same three-valued truth operations as the
     /// row machine. Any possible eager failure prevents pruning the group.
     pub fn mayMatch(self: Program, schema: TableSchema.Schema, zones: anytype) !bool {
-        try self.validate(schema);
-        if (zones.len != schema.columns.len) return error.InvalidSegmentCoordinate;
-        var stack: [max_instructions]Possibilities = undefined;
-        var depth: usize = 0;
-        for (self.instructions) |instruction| switch (instruction) {
-            .atom => |atom| {
-                stack[depth] = try atom.predicate.possibilities(schema.columns[atom.column], zones[atom.column]);
-                depth += 1;
-            },
-            .negate => stack[depth - 1] = stack[depth - 1].negate(),
-            .conjunction, .disjunction => {
-                const right = stack[depth - 1];
-                depth -= 1;
-                stack[depth - 1] = stack[depth - 1].combine(right, instruction == .conjunction);
-            },
-        };
-        return stack[0].fails or stack[0].truths & 1 != 0;
+        return programMayMatch(self, schema, zones);
     }
     /// Preserve instruction order and unknown/NULL atoms while binding the
     /// physical execution to the host's exact column collations. The host must
@@ -95,6 +79,150 @@ pub const Program = struct {
     }
 };
 
+/// Request/execution-local preparation. Instructions, literals and comparison
+/// weights own their bytes independently of the input program. The allocator
+/// must carry the owner's memory budget and outlive this object. No data or
+/// authority is cached, and no pointer or prepared representation is persisted.
+pub const PreparedProgram = struct {
+    const PreparedAtom = struct {
+        column: u8,
+        predicate: PreparedPredicate,
+        pub fn validateShape(self: PreparedAtom) !void {
+            if (self.column >= TableSchema.max_columns) return error.UnknownColumn;
+        }
+        pub fn truth(self: PreparedAtom, row: Row) !Finite.Truth {
+            if (self.column >= row.schema.columns.len or self.column >= row.cells.len) return error.UnknownColumn;
+            return (try self.predicate.evaluate(row.schema.columns[self.column], row.cells[self.column])).truth();
+        }
+    };
+    pub const Instruction = Machine.Instruction(PreparedAtom);
+    arena: std.heap.ArenaAllocator,
+    schema_fingerprint: [32]u8,
+    instructions: []const Instruction,
+
+    pub fn init(allocator: std.mem.Allocator, schema: TableSchema.Schema, program: Program) !PreparedProgram {
+        try program.validate(schema);
+        const fingerprint = try schema.fingerprint();
+        var arena = std.heap.ArenaAllocator.init(allocator);
+        errdefer arena.deinit();
+        const a = arena.allocator();
+        const instructions = try a.alloc(Instruction, program.instructions.len);
+        for (program.instructions, instructions) |source, *target| target.* = switch (source) {
+            .atom => |atom| .{ .atom = .{ .column = atom.column, .predicate = try PreparedPredicate.init(a, schema.columns[atom.column], atom.predicate) } },
+            .negate => .negate,
+            .conjunction => .conjunction,
+            .disjunction => .disjunction,
+        };
+        return .{ .arena = arena, .schema_fingerprint = fingerprint, .instructions = instructions };
+    }
+    pub fn deinit(self: *PreparedProgram) void {
+        self.arena.deinit();
+        self.* = undefined;
+    }
+    pub fn validate(self: *const PreparedProgram, schema: TableSchema.Schema) !void {
+        if (!std.mem.eql(u8, &self.schema_fingerprint, &try schema.fingerprint())) return error.TableSchemaChanged;
+    }
+    pub fn truth(self: *const PreparedProgram, schema: TableSchema.Schema, cells: []const Values.Cell, failure: *?u8) !Finite.Truth {
+        return Machine.truthDiagnostic(self.instructions, Row{ .schema = schema, .cells = cells }, failure);
+    }
+    pub fn mayMatch(self: *const PreparedProgram, schema: TableSchema.Schema, zones: anytype) !bool {
+        return programMayMatch(self, schema, zones);
+    }
+};
+
+fn programMayMatch(program: anytype, schema: TableSchema.Schema, zones: anytype) !bool {
+    try program.validate(schema);
+    if (zones.len != schema.columns.len) return error.InvalidSegmentCoordinate;
+    var stack: [Program.max_instructions]Possibilities = undefined;
+    var depth: usize = 0;
+    for (program.instructions) |instruction| switch (instruction) {
+        .atom => |atom| {
+            stack[depth] = try atom.predicate.possibilities(schema.columns[atom.column], zones[atom.column]);
+            depth += 1;
+        },
+        .negate => stack[depth - 1] = stack[depth - 1].negate(),
+        .conjunction, .disjunction => {
+            const right = stack[depth - 1];
+            depth -= 1;
+            stack[depth - 1] = stack[depth - 1].combine(right, instruction == .conjunction);
+        },
+    };
+    return stack[0].fails or stack[0].truths & 1 != 0;
+}
+
+/// A prepared atom borrows its preparation allocator, never decoder scratch.
+/// Raw literals remain available to unoptimized pattern/numeric evaluation.
+pub const PreparedPredicate = struct {
+    predicate: Predicate,
+    column_id: TableSchema.ColumnId,
+    type_fingerprint: [32]u8,
+    collation: TableSchema.Collation,
+    comparison: ?Collation.PreparedBytes = null,
+    zone_key: ?[]const u8 = null,
+
+    pub fn init(allocator: std.mem.Allocator, column: TableSchema.Column, predicate: Predicate) !PreparedPredicate {
+        try predicate.validate(column);
+        var result: PreparedPredicate = .{ .predicate = predicate, .column_id = column.id, .type_fingerprint = try column.type.fingerprint(), .collation = column.collation };
+        // The enclosing preparation arena releases partial construction on error.
+        switch (result.predicate) {
+            .compare => |*cmp| {
+                if (cmp.value == .bytes) {
+                    cmp.value.bytes = try allocator.dupe(u8, cmp.value.bytes);
+                    result.comparison = try Collation.PreparedBytes.init(allocator, cmp.value.bytes, column.collation);
+                }
+                if (cmp.op == .ne) return result;
+                var bytes: [Collation.max_sort_key_bytes]u8 = undefined;
+                const key = Collation.encodeSortKey(.{ .value = .{ .atom = cmp.value } }, column.type, column.collation, &bytes) catch |err| switch (err) {
+                    error.WriteFailed => return result,
+                    else => return err,
+                };
+                result.zone_key = try allocator.dupe(u8, key);
+            },
+            .in_set => |*literals| {
+                const owned = try allocator.alloc([]const u8, literals.len);
+                for (literals.*, owned) |literal, *out| out.* = try allocator.dupe(u8, literal);
+                literals.* = owned;
+            },
+            .starts_with => |*literal| {
+                literal.* = try allocator.dupe(u8, literal.*);
+                result.comparison = try Collation.PreparedBytes.init(allocator, literal.*, column.collation);
+            },
+            .contains => |*literal| literal.* = try allocator.dupe(u8, literal.*),
+            .like => |*spec| spec.pattern = try allocator.dupe(u8, spec.pattern),
+            else => {},
+        }
+        return result;
+    }
+    pub fn validate(self: PreparedPredicate, column: TableSchema.Column) !void {
+        if (column.id != self.column_id or column.collation != self.collation or
+            !std.mem.eql(u8, &self.type_fingerprint, &try column.type.fingerprint())) return error.TableSchemaChanged;
+        try column.validateEncodingAndCollation();
+    }
+    pub fn isAll(self: PreparedPredicate) bool {
+        return self.predicate == .all;
+    }
+    pub fn evaluate(self: PreparedPredicate, column: TableSchema.Column, cell: Values.Cell) !Outcome {
+        if (self.predicate == .compare and self.comparison != null and cell == .value) {
+            if (cell.value != .atom) return error.UnsupportedComparison;
+            try Types.Semantics.validate(cell.value.atom, column.type);
+            const order = try self.comparison.?.compare(cell.value.atom.bytes);
+            const selected = switch (self.predicate.compare.op) {
+                .eq => order == .eq,
+                .ne => order != .eq,
+                .lt => order == .lt,
+                .le => order != .gt,
+                .gt => order == .gt,
+                .ge => order != .lt,
+            };
+            return if (selected) .yes else .no;
+        }
+        return self.predicate.evaluate(column, cell);
+    }
+    fn possibilities(self: PreparedPredicate, column: TableSchema.Column, zone: anytype) !Possibilities {
+        return self.predicate.possibilitiesWithKey(column, zone, true, self.zone_key);
+    }
+};
+
 pub const Outcome = enum(u8) {
     yes,
     no,
@@ -122,6 +250,10 @@ pub const Predicate = union(enum) {
     starts_with: []const u8,
     contains: []const u8,
     like: struct { pattern: []const u8, escape: ?u8 = null },
+
+    pub fn isAll(self: Predicate) bool {
+        return self == .all;
+    }
 
     pub fn validate(self: Predicate, column: TableSchema.Column) !void {
         try column.validateEncodingAndCollation();
@@ -210,6 +342,9 @@ pub const Predicate = union(enum) {
     }
 
     fn possibilities(self: Predicate, column: TableSchema.Column, zone: anytype) !Possibilities {
+        return self.possibilitiesWithKey(column, zone, false, null);
+    }
+    fn possibilitiesWithKey(self: Predicate, column: TableSchema.Column, zone: anytype, prepared: bool, prepared_key: ?[]const u8) !Possibilities {
         const count = @as(u64, zone.value_count) + zone.null_count + zone.missing_count + zone.error_count + zone.conflict_count;
         if (count == 0) return .{};
         switch (self) {
@@ -240,7 +375,7 @@ pub const Predicate = union(enum) {
                 .compare => |comparison| {
                     if (comparison.op == .ne) break :candidate true;
                     var buffer: [Collation.max_sort_key_bytes]u8 = undefined;
-                    const key = Collation.encodeSortKey(.{ .value = .{ .atom = comparison.value } }, column.type, column.collation, &buffer) catch |err| switch (err) {
+                    const key = if (prepared) prepared_key orelse break :candidate true else Collation.encodeSortKey(.{ .value = .{ .atom = comparison.value } }, column.type, column.collation, &buffer) catch |err| switch (err) {
                         error.WriteFailed => break :candidate true,
                         else => return err,
                     };

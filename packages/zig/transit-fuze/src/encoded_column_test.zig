@@ -6,6 +6,59 @@ const Schema = @import("TableSchema.zig");
 const Codecs = @import("PhysicalCodecs.zig");
 const Predicate = @import("ColumnPredicate.zig");
 
+test "prepared predicates own literals and preserve collated order without warm allocations" {
+    const memory = @import("transit_memory");
+    const names = [_][]const u8{ "", "A", "a", "a ", "a\x00", "a\x00 ", "é", "[", "123456789012", "1234567890123" };
+    for ([_]Schema.Collation{ .utf8_binary, .ascii_ci, .ebcdic_cp037, .ebcdic_037_pad, .ebcdic_1047_nopad }) |collation| {
+        const columns = [_]Schema.Column{.{ .id = 1, .name = "v", .type = .utf8, .collation = collation }};
+        const schema: Schema.Schema = .{ .object = 1, .revision = 1, .next_column = 2, .columns = &columns };
+        for (names) |name| {
+            const literal = try t.allocator.dupe(u8, name);
+            defer t.allocator.free(literal);
+            var probe: memory.AllocationProbe = .{ .parent = t.allocator };
+            const raw: Predicate.Program = .{ .instructions = &.{.{ .atom = .{ .column = 0, .predicate = .{ .compare = .{ .op = .lt, .value = .{ .bytes = literal } } } } }} };
+            var prepared = try Predicate.PreparedProgram.init(probe.allocator(), schema, raw);
+            defer prepared.deinit();
+            @memset(literal, 'Z');
+            probe.begin(true);
+            try prepared.validate(schema);
+            var changed = schema;
+            changed.revision += 1;
+            try t.expectError(error.TableSchemaChanged, prepared.validate(changed));
+            for (names) |candidate| {
+                const cell: Values.Cell = .{ .value = .{ .atom = .{ .bytes = candidate } } };
+                const reference: Predicate.Predicate = .{ .compare = .{ .op = .lt, .value = .{ .bytes = name } } };
+                var failure: ?u8 = null;
+                try t.expectEqual(try (try reference.evaluate(columns[0], cell)).truth(), try prepared.truth(schema, &.{cell}, &failure));
+                try t.expectEqual(null, failure);
+            }
+            var failure: ?u8 = null;
+            try t.expectError(error.QueryTypeError, prepared.truth(schema, &.{.{ .type_error = .binary }}, &failure));
+            try t.expectEqual(@as(?u8, 0), failure);
+            try t.expectError(error.InvalidUtf8, prepared.truth(schema, &.{.{ .value = .{ .atom = .{ .bytes = "z\xff" } } }}, &failure));
+            try probe.verify();
+        }
+    }
+}
+
+fn prepareWithFailures(allocator: std.mem.Allocator) !void {
+    const columns = [_]Schema.Column{.{ .id = 1, .name = "v", .type = .utf8, .collation = .ascii_ci }};
+    const schema: Schema.Schema = .{ .object = 1, .revision = 1, .next_column = 2, .columns = &columns };
+    const raw: Predicate.Program = .{ .instructions = &.{
+        .{ .atom = .{ .column = 0, .predicate = .{ .compare = .{ .op = .eq, .value = .{ .bytes = "Alpha" } } } } },
+        .{ .atom = .{ .column = 0, .predicate = .{ .in_set = &.{ "alpha", "beta" } } } },
+        .conjunction,
+    } };
+    var prepared = try Predicate.PreparedProgram.init(allocator, schema, raw);
+    defer prepared.deinit();
+    var failure: ?u8 = null;
+    try t.expectEqual(@import("Finite.zig").Truth.true_value, try prepared.truth(schema, &.{.{ .value = .{ .atom = .{ .bytes = "ALPHA" } } }}, &failure));
+}
+
+test "prepared predicates release partial construction on allocation failure" {
+    try t.checkAllAllocationFailures(t.allocator, prepareWithFailures, .{});
+}
+
 fn page(out: []u8, encoding: Schema.Encoding, tags: []const u8, payload: []const u8) []u8 {
     @memcpy(out[0..4], "TCP1");
     @memcpy(out[4..36], &@import("transit_protocol").Growth.definition_bytes);
