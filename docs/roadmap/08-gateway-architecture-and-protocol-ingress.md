@@ -586,13 +586,13 @@ defines this separate workload.
 **Status: In Progress; implementation sequence approved.** The first F0 packet
 implements bounded owner attribution and diagnostic controls. The initial audit
 followed PR #330 at `095544060e2cdf99fa7088210610255cdc3ab024`; integration now
-includes `origin/main` at `5f23092f2` (PR #338). It retains the F0/R1/M3/C4/D5/S6/E7/Q8
+includes `origin/main` at `3df8a63da` (PR #341). It retains the F0/R1/M3/C4/D5/S6/E7/Q8
 work packages below, the existing numerical goals and issue
 [#211](https://github.com/spoke-sh/transit/issues/211), coordinated with
 [#76](https://github.com/spoke-sh/transit/issues/76). M8 remains In Progress.
 Qualification remains source-attributed; an implementation or source audit alone
 establishes no latency claim. The first
-[F0 diagnostic scorecard and failure inventory](../history/qualification/performance.md#current-definition-managed-staging-and-sdk-baselines--2026-11-02)
+[F0 diagnostic scorecard and failure inventory](../history/qualification/performance.md#managed-staging-and-sdk-diagnostic-baselines--2026-11-02)
 records owned-record/statement amplification and the failed managed/SDK profiles;
 physical-I/O, allocation/workspace and retention-debt attribution remains open.
 
@@ -618,15 +618,18 @@ complete revision, current permissions and cleanup ownership throughout.
 | [#335](https://github.com/spoke-sh/transit/pull/335), automatic local Board data | Default local read-only data binding, with a one-time Board restart when account enrollment completes; explicit workbench configuration overrides automatic binding | Measure first verified catalog/query result and binding activation separately from readiness. Include disabled/explicit-override and revoked-original-binding controls; earlier Board boot timings predate this default. |
 | [#336](https://github.com/spoke-sh/transit/pull/336), SQL Queue NACK | Receipt-bound retry settlement and original-token recovery through the SQL service | Include NACK settlement and first original-outcome lookup in Queue measurements, preserving lease fencing, requested visibility and delayed FIFO behavior. Do not count recovery as a fresh settlement. |
 | [#338](https://github.com/spoke-sh/transit/pull/338), Board storage and deferred features | Readable retained-storage evidence, split public clients/validators and deferred feature imports, with bundle guards | Measure cold bootstrap, first Catalog/Workbook result, deferred transfer/parse time and browser heap separately. The recorded bootstrap-byte reduction is not time-to-interactive or an SDK latency gain. |
+| [#339](https://github.com/spoke-sh/transit/pull/339), [#340](https://github.com/spoke-sh/transit/pull/340), computation inspection | Shared persisted-record codecs and signed independent-reader metadata inspection, reused by SQL SHOW and Board Computations | Measure current/retained metadata observation separately from retained-row consumption and execution. Include independent-reader rights, after-buffer revocation and visible/hidden polling under active work. The F0 SHOW timings predate this owner; absence of pending work is not proof of source freshness. |
+| [#341](https://github.com/spoke-sh/transit/pull/341), SQL Queue renewal results | Receipt-returning `EXTEND LEASE`, exact original renewal-result recovery and a shared-definition cutover | Measure settlement, original-handle recovery and verified terminal delivery separately from current lease liveness. Use fresh installations and matching regenerated SDKs; the `c3cbdfe9…` F0 diagnostics do not qualify this definition. |
 
 PR #337 repairs release prerequisites without supplying a new performance baseline.
 The F0 diagnostic matrix predates these integrations. Preserve its frozen sources
 and failed requests; final integration checks do not renew its timing claims.
 
 The current shared definition is
-`c3cbdfe99cdb08a8a21cc2429783fd746b1311b096d9ca8371058e1abb037b64`.
-The prior SDK performance campaign used `afac2bd8…`. Keep its frozen binaries for
-original-outcome inspection; never open those failed installations with this new
+`fa88766ac95f2c156474b0c97eb9eaafcccc8c13a70009e574d09397d7ba3c72`.
+The first F0 diagnostics used `c3cbdfe9…`; the prior SDK performance campaign used
+`afac2bd8…`. Keep each campaign's frozen binaries for original-outcome inspection;
+never open those failed installations with this new
 build. Previous 9.21× import and
 7.39× first-metadata gains remain scoped to their recorded experiments. Earlier
 19–27-second managed successors, roughly 590 ms INSERT and 739–741 installation
