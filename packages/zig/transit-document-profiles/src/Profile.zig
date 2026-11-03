@@ -49,7 +49,7 @@ pub fn capabilities(value: contract.Descriptor) !contract.Capabilities {
     try require(value, value.format);
     return .{ .descriptor = value, .operations = .{
         .parse = true,
-        .construct = value.format != .mime,
+        .construct = true,
         .validate_schema = false,
         .edit = false,
         .persist = false,
