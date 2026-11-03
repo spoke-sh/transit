@@ -6115,6 +6115,88 @@ test "direct branch admission never retargets a stale unpinned source" {
     try t.expectEqualDeep(published, (try catalog.inspectBranch(next.key, access.policy())).?);
 }
 
+test "direct branch retirement preserves publication through lost replies and disk reopen" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    var output = std.heap.ArenaAllocator.init(t.allocator);
+    defer output.deinit();
+    try catalog.initialize(access.policy());
+    const create = try creation(7, 1, "events");
+    _ = try catalog.admit(create, access.policy());
+    _ = try catalog.perform(create.binding, access.policy());
+    for (10..13) |value| _ = try insertSelectedTable(&catalog, &access, "events", value);
+    const request = try branchRequest(&catalog, &access, 200, 1, "retained", .full_data);
+    const published = try catalog.createBranch(request, access.policy());
+    const head = published.state.head.?;
+    const retire: c.DirectBranch.Request = .{ .retire = .{ .key = request.key, .expected = head } };
+    const first = (try dispatchBranch(output.allocator(), &catalog, &access, .{ .scan = .{ .head = head, .after = null, .limits = .{ .rows = 1 } } })).page;
+    try t.expect(first.next != null);
+    var wrong = retire.retire;
+    wrong.expected.generation += 1;
+    try t.expectError(error.StaleBranchHead, catalog.retireBranch(wrong, access.policy()));
+    access.denied_privileges = .{ .id = 107, .mask = a.select };
+    try t.expectError(error.CatalogDenied, catalog.retireBranch(retire.retire, access.policy()));
+    access.denied_privileges = null;
+    catalog.store.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.retireBranch(retire.retire, access.policy()));
+    catalog.store.lose_reply = false;
+    const retiring = (try catalog.inspectBranch(request.key, access.policy())).?;
+    try t.expectEqual(c.DirectBranch.Phase.retiring, retiring.state.phase);
+    try t.expectEqualDeep(published.receipt, retiring.receipt);
+    try t.expectEqualDeep(head, retiring.state.head.?);
+    try t.expect(!retiring.state.pending() and !retiring.state.cancelled());
+    try t.expect(try catalog.lookupBranch(1, request.intent.name, access.policy()) == null);
+    try t.expect((try catalog.listBranches(.{ .namespace = 1, .after = null }, access.policy())).entries[0] == null);
+    try t.expectError(error.BranchRetired, dispatchBranch(output.allocator(), &catalog, &access, .{ .source = head }));
+    try t.expectError(error.BranchRetired, dispatchBranch(output.allocator(), &catalog, &access, .{ .scan = .{ .head = head, .after = first.next, .limits = .{} } }));
+    const blocked = try branchRequest(&catalog, &access, 201, 2, "retained", .schema_only);
+    try t.expectError(error.BranchNameConflict, catalog.createBranch(blocked, access.policy()));
+    catalog.lose_table_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.retireBranch(retire.retire, access.policy()));
+    catalog.lose_table_reply = false;
+    try t.expect((try catalog.pinState(create.binding.target, request.intent.identity(), access.policy())).released);
+    catalog.deinit();
+    wal.deinit();
+    objects.deinit();
+    wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    catalog = try owner(&wal, &objects);
+    // Cleanup resumes the original released pin; it cannot acquire a new cut.
+    catalog.store.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.retireBranch(retire.retire, access.policy()));
+    catalog.store.lose_reply = false;
+    const retired = try catalog.retireBranch(retire.retire, access.policy());
+    try c.DirectBranch.validateResult(t.allocator, request.key.connection, retire, .{ .status = retired });
+    try t.expectEqual(c.DirectBranch.Phase.retired, retired.state.phase);
+    try t.expectEqualDeep(published.receipt, retired.receipt);
+    try t.expectEqualDeep(head, retired.state.head.?);
+    try t.expectEqualDeep(retired, try catalog.createBranch(request, access.policy()));
+    try t.expectEqualDeep(retired, try catalog.advanceBranch(request.key, true, access.policy()));
+    const replacement = try branchRequest(&catalog, &access, 202, 3, "retained", .schema_only);
+    const recreated = try catalog.createBranch(replacement, access.policy());
+    try t.expect(recreated.state.branch.branch > retired.state.branch.branch);
+    try t.expectEqualDeep(retired, try catalog.retireBranch(retire.retire, access.policy()));
+    try t.expectEqualDeep(recreated, (try catalog.lookupBranch(1, request.intent.name, access.policy())).?);
+    // Old completion and new name ownership both survive full recovery.
+    catalog.deinit();
+    catalog = try owner(&wal, &objects);
+    try t.expectEqualDeep(retired, (try catalog.inspectBranch(request.key, access.policy())).?);
+    try t.expectEqualDeep(recreated, (try catalog.lookupBranch(1, request.intent.name, access.policy())).?);
+    var forged = retired.state;
+    forged.phase = .published;
+    try t.expectError(error.InvalidBranchState, c.DirectBranch.State.transition(retired.state, forged));
+    forged = retiring.state;
+    forged.head.?.generation += 1;
+    try t.expectError(error.InvalidBranchState, c.DirectBranch.State.transition(published.state, forged));
+}
+
 test "direct branch directories exceed the old branch model bound with one resident page" {
     var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
     defer wal.deinit();
@@ -6141,6 +6223,30 @@ test "direct branch directories exceed the old branch model bound with one resid
     catalog = try owner(&wal, &objects);
     try t.expectEqualDeep(first.?, (try catalog.lookupBranch(1, try a.Name.init("branch_0"), access.policy())).?);
     try t.expect((try catalog.lookupBranch(1, try a.Name.init("branch_136"), access.policy())).?.state.branch.branch > first.?.state.branch.branch);
+    var cursor: ?c.DirectBranch.Cursor = null;
+    var total: usize = 0;
+    var rounds: usize = 0;
+    while (true) {
+        const request: c.DirectBranch.Request = .{ .list = .{ .namespace = 1, .after = cursor } };
+        const result = try catalog.listBranches(request.list, access.policy());
+        try c.DirectBranch.validateResult(t.allocator, first.?.receipt.binding.key.connection, request, .{ .listing = result });
+        for (result.entries) |slot| if (slot != null) {
+            total += 1;
+        };
+        rounds += 1;
+        if (rounds > 138) return error.FixtureBudget;
+        cursor = result.next orelse break;
+    }
+    try t.expectEqual(137, total);
+    try t.expect(rounds > 1);
+    const page = try catalog.listBranches(.{ .namespace = 1, .after = null }, access.policy());
+    access.denied_privileges = .{ .id = 107, .mask = a.select };
+    const filtered = try catalog.listBranches(.{ .namespace = 1, .after = null }, access.policy());
+    try t.expect(filtered.entries[0] == null and filtered.next != null);
+    access.denied_privileges = null;
+    const retirement = try catalog.retireBranch(.{ .key = first.?.receipt.binding.key, .expected = first.?.state.head.? }, access.policy());
+    try t.expectEqual(c.DirectBranch.Phase.retiring, retirement.state.phase);
+    try t.expectError(error.CatalogObservationChanged, catalog.listBranches(.{ .namespace = 1, .after = page.next }, access.policy()));
 }
 
 test "mixed Table KV transaction preserves private reads rights and one decision across disk replacement" {

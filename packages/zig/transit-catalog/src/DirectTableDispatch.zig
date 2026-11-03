@@ -683,7 +683,9 @@ fn branch(output: std.mem.Allocator, catalog: *D, policy: D.Policy, request: c.D
         .inspect => |key| return .{ .status = try catalog.inspectBranch(key, policy) },
         .advance => |key| return .{ .status = try catalog.advanceBranch(key, false, policy) },
         .cancel => |key| return .{ .status = try catalog.advanceBranch(key, true, policy) },
+        .retire => |value| return .{ .status = try catalog.retireBranch(value, policy) },
         .lookup => |value| return .{ .status = try catalog.lookupBranch(value.namespace, value.name, policy) },
+        .list => |value| return .{ .listing = try catalog.listBranches(value, policy) },
         .source, .scan => {},
     }
     const head = if (request == .source) request.source else request.scan.head;

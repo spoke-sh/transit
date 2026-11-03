@@ -72,6 +72,15 @@ release. The paged lease directory bounds the oldest-lease check independently
 of pin count. This operation does not reclaim physical objects; the installed
 service has no automatic Table history-expiry policy.
 
+Published [immutable Table branches](tables.md#immutable-table-branches) retain
+their source pin without expiry, including schema-only branches. Explicit
+retirement first closes branch reads, including existing continuations, then
+resumably releases the original pin. Current source access is required for both
+steps; no background sweeper completes interrupted retirement. The successful
+creation receipt, head and immutable directory metadata remain inspectable after
+release. Physical collection separately checks all remaining data dependencies;
+retirement neither erases that evidence nor releases another branch's pin.
+
 The Stream storage component can expire one sealed prefix batch per call under
 an explicitly declared age. Trusted append time establishes eligibility; payload
 timestamps do not. A paged consumer watermark index prevents expiry beyond the

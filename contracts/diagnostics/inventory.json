@@ -4423,11 +4423,14 @@
     },
     "packages/zig/transit-catalog/src/DirectBranch.zig": {
       "errors": {
-        "BranchIdentityConflict": 2,
+        "BranchIdentityConflict": 3,
+        "BranchRetired": 1,
+        "Conflict": 1,
         "IncompatibleDefinition": 1,
         "InvalidBranchCreation": 1,
-        "InvalidBranchResponse": 14,
-        "InvalidBranchState": 3,
+        "InvalidBranchCursor": 1,
+        "InvalidBranchResponse": 20,
+        "InvalidBranchState": 10,
         "InvalidTableReadBudget": 1
       },
       "outcomes": {
@@ -4435,38 +4438,45 @@
           "admitted",
           "published",
           "abandoning",
-          "cancelled"
+          "cancelled",
+          "retiring",
+          "retired"
         ],
         "Request": [
           "create",
           "inspect",
           "advance",
           "cancel",
+          "retire",
           "lookup",
+          "list",
           "source",
           "scan"
         ],
         "Result": [
           "status",
           "source",
-          "page"
+          "page",
+          "listing"
         ]
       },
       "error_sets": {},
       "error_returns": {
+        "Cursor.validate()": "<inferred>",
         "Intent.digest()": "<inferred>",
         "Intent.validate()": "<inferred>",
         "Request.validate()": "<inferred>",
         "State.load()": "<inferred>",
         "State.stage()": "<inferred>",
+        "State.transition()": "<inferred>",
         "State.validate()": "<inferred>",
         "call()": "<inferred>",
         "validateResult()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 47,
-        "catch": 0
+        "try": 62,
+        "catch": 1
       },
       "imports": [
         "root.zig",
@@ -4475,6 +4485,7 @@
     },
     "packages/zig/transit-catalog/src/DirectCallerCodes.zig": {
       "errors": {
+        "BranchRetired": 1,
         "CatalogDependencyOwned": 1,
         "CatalogDirectoryChanged": 1,
         "CatalogKindMismatch": 1,
@@ -4488,6 +4499,7 @@
         "HistoricalReadOnly": 1,
         "HistoricalSnapshotReleased": 1,
         "IncompatibleSchemaProjection": 1,
+        "InvalidBranchCursor": 1,
         "InvalidCatalogAssertion": 1,
         "InvalidCatalogCursor": 1,
         "InvalidCatalogDescriptor": 1,
@@ -4539,15 +4551,16 @@
     },
     "packages/zig/transit-catalog/src/DirectCatalog.zig": {
       "errors": {
-        "AccessDenied": 2,
+        "AccessDenied": 4,
         "BranchIdentityConflict": 1,
         "BranchNameConflict": 1,
         "BranchNotFound": 1,
-        "BranchNotPublished": 1,
+        "BranchNotPublished": 2,
         "BranchOperationRequired": 4,
         "BranchRetentionOwned": 1,
+        "BranchRetired": 1,
         "BranchSourceChanged": 2,
-        "CatalogDenied": 81,
+        "CatalogDenied": 83,
         "CatalogDependencyOwned": 1,
         "CatalogHistoryMissing": 1,
         "CatalogIdentityConflict": 9,
@@ -4558,11 +4571,11 @@
         "CatalogNotInitialized": 1,
         "CatalogObjectBusy": 2,
         "CatalogObjectMissing": 1,
-        "CatalogObservationChanged": 1,
+        "CatalogObservationChanged": 2,
         "CatalogRegistrationRequired": 12,
         "CheckConstraintViolation": 1,
         "ClientOperationConflict": 2,
-        "ClientOperationMissing": 25,
+        "ClientOperationMissing": 26,
         "ClientOperationPending": 8,
         "ClientTokenCapacity": 1,
         "ClientTokenConflict": 4,
@@ -4573,7 +4586,7 @@
         "DataflowIdentityConflict": 5,
         "DataflowRevisionNotFound": 1,
         "DuplicatePrimaryKey": 1,
-        "Forbidden": 7,
+        "Forbidden": 9,
         "ForeignKeyDefinitionRequired": 1,
         "ForeignKeyScopeUnsupported": 1,
         "ForeignKeySetNullRequiresNullableColumn": 1,
@@ -4598,7 +4611,7 @@
         "IncompleteDataflowCoverage": 1,
         "IncompleteHistoricalSelection": 4,
         "IncompleteTransactionCut": 3,
-        "InvalidBranchState": 5,
+        "InvalidBranchState": 7,
         "InvalidCatalogConfiguration": 1,
         "InvalidCatalogCursor": 3,
         "InvalidCatalogDependency": 11,
@@ -4858,6 +4871,7 @@
         "kvReady()": "<inferred>",
         "kvRequirements()": "<inferred>",
         "list()": "<inferred>",
+        "listBranches()": "<inferred>",
         "listDefinitions()": "<inferred>",
         "listHistory()": "<inferred>",
         "listKV()": "<inferred>",
@@ -4969,6 +4983,7 @@
         "resourceRequirements()": "<inferred>",
         "resumeTransaction()": "<inferred>",
         "retainHistory()": "<inferred>",
+        "retireBranch()": "<inferred>",
         "rowOperation()": "<inferred>",
         "rowStatus()": "<inferred>",
         "scanColumns()": "<inferred>",
@@ -5032,8 +5047,8 @@
       },
       "open_error_set_uses": 11,
       "propagation": {
-        "try": 2239,
-        "catch": 28
+        "try": 2257,
+        "catch": 30
       },
       "imports": [
         "DirectCatalogIntent.zig",
@@ -5726,7 +5741,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 380,
+        "try": 381,
         "catch": 1
       },
       "imports": [
@@ -7310,7 +7325,7 @@
         "CatalogHistoryMissing": 1,
         "DocumentHistoryUnavailable": 3,
         "DocumentStateObjectMissing": 1,
-        "IncompleteBranchDirectory": 1,
+        "IncompleteBranchDirectory": 2,
         "InvalidBranchState": 3,
         "InvalidCatalogDescriptor": 1,
         "InvalidClientToken": 2,
@@ -7460,7 +7475,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 592,
+        "try": 594,
         "catch": 1
       },
       "imports": [
@@ -7830,7 +7845,7 @@
       },
       "open_error_set_uses": 9,
       "propagation": {
-        "try": 246,
+        "try": 248,
         "catch": 0
       },
       "imports": [
@@ -22971,7 +22986,7 @@
           "deadline"
         ],
         "Definition": [
-          "fa88766ac95f2c156474b0c97eb9eaafcccc8c13a70009e574d09397d7ba3c72"
+          "@\"28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573\""
         ],
         "Effect.phase": [
           "pending",
@@ -37864,6 +37879,7 @@
         "contentOf()": "<inferred>",
         "cursor()": "<inferred>",
         "encode()": "<inferred>",
+        "entryContent()": "<inferred>",
         "entryKey()": "<inferred>",
         "get()": "<inferred>",
         "init()": "<inferred>",
@@ -37882,7 +37898,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 55,
+        "try": 59,
         "catch": 1
       },
       "imports": [
