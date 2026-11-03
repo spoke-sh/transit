@@ -12,7 +12,8 @@ several batches does not make that query continuous.
 | --- | --- | --- |
 | Declare and inspect a Stream or Queue | Shared Catalog declaration owner | `CREATE`, policy `ALTER`, `RENAME`, `DROP`, named `SHOW` and `DESCRIBE` below |
 | Append schema-bound events or work | Stream/Queue native owner with Catalog operation identity | `PRODUCE INTO`, `ENQUEUE INTO`, optional `RETURNING` below |
-| Consume a finite Stream cut | Native read with retained identity and bounded Fuze projection | Positional `CONSUME`, typed predicates and logical `LIMIT` below |
+| Consume a finite Stream cut | Native read with retained identity and bounded Fuze projection | Positional or explicitly grouped `CONSUME`, typed predicates and logical `LIMIT` below |
+| Settle Stream progress | Native group checkpoint owner with authenticated read boundaries | `COMMIT OFFSET ... RECEIPT` below |
 | Acquire Queue work | Native fenced leases and retained original selection | `CLAIM ... WITH LEASE`, one partition and an acquisition maximum below |
 | Settle or renew Queue work | Native settlement of an exact lease | `ACK`, `NACK` and `EXTEND LEASE` below |
 | Read an explicit state projection | Fuze over declared KV, Table or accepted Document state | Finite `SELECT` |
