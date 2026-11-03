@@ -19,8 +19,11 @@ cumulative byte/work budgets. It currently accepts supplied state bytes; logical
 evaluation and the installed service lifecycle remain separate integration work.
 
 The offline [Document profile library](../../../packages/zig/transit-document-profiles/README.md)
-interprets JSON and a declared UTF-8 XML subset with bounded caller-owned memory,
-ordered events and raw part offsets. Its verified reader checks grammar, byte
+interprets JSON, a declared UTF-8 XML subset and MIME entity framing with bounded
+caller-owned memory, ordered events and raw part offsets. MIME parsing preserves
+ordered duplicate ASCII fields, unfolds CRLF continuations and streams an opaque
+binary body after the required empty separator line. Multipart interpretation,
+transfer decoding and field semantics are unsupported. Its verified reader checks grammar, byte
 count and content hash before reporting complete. Intermediate events remain
 provisional; complete interpretation does not publish a revision or authorize an
 effect. The [profile contract](../../../contracts/DOCUMENT_PROFILE_V1.md) binds
@@ -34,8 +37,9 @@ retention; the manifest does not establish protocol terminality or publication.
 Other protocol and compound-format names in that contract are vocabulary, not
 implemented parser or gateway capabilities.
 
-The library reports exact parse/construct capabilities and streams provisional
-single-part JSON/XML events into a private candidate sink with bounded backpressure.
+The library reports exact capabilities: JSON/XML support parsing and construction;
+MIME framing supports parsing only. It streams provisional single-part events
+into a private candidate sink with bounded backpressure.
 Each event must be consumed before its parser buffers are reused; verification
 requires all events consumed and the final source length/hash check. Original
 operation/target/profile/source commitments remain fixed; cancellation, sink

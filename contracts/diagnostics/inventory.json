@@ -11803,7 +11803,10 @@
           "attribute",
           "text",
           "comment",
-          "processing_instruction"
+          "processing_instruction",
+          "mime_field",
+          "mime_headers_end",
+          "mime_body"
         ],
         "Step.result": [
           "event",
@@ -11989,6 +11992,48 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-document-profiles/src/Mime.zig": {
+      "errors": {
+        "DocumentAttributeLimitExceeded": 1,
+        "DocumentParserComplete": 1,
+        "DocumentParserFailed": 1,
+        "DocumentTokenLimitExceeded": 1,
+        "DocumentWorkspaceTooSmall": 1,
+        "IncompleteDocumentFrame": 1,
+        "InvalidDocumentWorkBudget": 1,
+        "InvalidMimeField": 3,
+        "InvalidMimeFraming": 2,
+        "MimeLineLimitExceeded": 1
+      },
+      "outcomes": {
+        "State": [
+          "start",
+          "name",
+          "value",
+          "line_lf",
+          "after_line",
+          "separator_lf",
+          "body"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "advance()": "<inferred>",
+        "append()": "<inferred>",
+        "field()": "<inferred>",
+        "init()": "<inferred>",
+        "next()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 13,
+        "catch": 1
+      },
+      "imports": [
+        "Event.zig",
+        "Profile.zig"
+      ]
+    },
     "packages/zig/transit-document-profiles/src/Profile.zig": {
       "errors": {
         "DocumentExpansionLimitExceeded": 1,
@@ -12030,11 +12075,13 @@
       "outcomes": {
         "Parser": [
           "json",
-          "xml"
+          "xml",
+          "mime"
         ],
         "Workspace": [
           "json",
-          "xml"
+          "xml",
+          "mime"
         ]
       },
       "error_sets": {},
@@ -12046,12 +12093,13 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 5,
+        "try": 6,
         "catch": 1
       },
       "imports": [
         "Event.zig",
         "Json.zig",
+        "Mime.zig",
         "Profile.zig",
         "Xml.zig",
         "std"
@@ -12240,6 +12288,7 @@
         "Event.zig",
         "Json.zig",
         "JsonWriter.zig",
+        "Mime.zig",
         "Profile.zig",
         "Reader.zig",
         "Xml.zig",

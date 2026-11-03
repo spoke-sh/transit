@@ -6,6 +6,7 @@ pub const contract = p.DocumentProfile;
 /// deliberate restrictions. Changes to meaning require a new grammar commitment.
 pub const json_grammar = "transit.document.json.rfc8259.utf8.v1;ordered-duplicate-keys;exact-number-lexemes;unicode-scalars;no-bom";
 pub const xml_grammar = "transit.document.xml10.5.utf8.v1;no-dtd;no-external-entities;ascii-names;no-namespaces;normalized-text;predefined-and-numeric-entities;no-bom";
+pub const mime_grammar = "transit.document.mime.entity-frame.v1;rfc5322-ascii-fields;crlf;ordered-duplicates;unfold-crlf;header-line-998;required-separator;opaque-binary-body;no-field-semantics;no-multipart-interpretation;no-transfer-decoding;no-encoded-words";
 
 pub fn grammar(bytes: []const u8) p.DataLifecycle.Content {
     var digest: [32]u8 = undefined;
@@ -17,6 +18,7 @@ pub fn descriptor(format: contract.Format, limits: contract.Limits) !contract.De
     const selected = switch (format) {
         .json => json_grammar,
         .xml => xml_grammar,
+        .mime => mime_grammar,
         else => return error.UnsupportedDocumentProfile,
     };
     return (contract.Descriptor{
@@ -26,9 +28,9 @@ pub fn descriptor(format: contract.Format, limits: contract.Limits) !contract.De
         .grammar = grammar(selected),
         .schema = null,
         .segmenter = null,
-        .encoding = .utf8,
+        .encoding = if (format == .mime) .binary else .utf8,
         .framing = .single,
-        .key_collation = .utf8_binary,
+        .key_collation = if (format == .mime) .ascii_ci else .utf8_binary,
         .value_collation = .utf8_binary,
         .limits = limits,
         .digest = undefined,
@@ -47,7 +49,7 @@ pub fn capabilities(value: contract.Descriptor) !contract.Capabilities {
     try require(value, value.format);
     return .{ .descriptor = value, .operations = .{
         .parse = true,
-        .construct = true,
+        .construct = value.format != .mime,
         .validate_schema = false,
         .edit = false,
         .persist = false,

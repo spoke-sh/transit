@@ -391,6 +391,18 @@ this offline handoff. These additive APIs expose no persisted operation and do
 not change the shared definition. Schema validation, editing, persistence,
 query/search/branch and live transport remain unsupported by this library.
 
+The MIME framing increment starts P4's independent grammar work on the merged
+candidate foundation. Its exact parse-only descriptor admits ordered duplicate
+ASCII fields, CRLF unfolding, a mandatory separator and an opaque binary body.
+The same `Reader`/`Candidate` verify source bytes and preserve bounded event
+handoff. Component checks cover every split, quotas, raw spans, late hash failure,
+cancellation and 400,000 body bytes through two three-byte buffers. The existing
+oracle owner adds 1,674 independent MIME field/order, binary-body, span and refusal
+schedules using Python's header parser and generated expectations. This is an
+offline framing slice: HTTP/gRPC grammars, multipart trees, transfer decoding,
+MIME construction and field semantics remain open, alongside live adapters.
+It does not alter stored/wire definitions or satisfy P2/P5/P6 publication gates.
+
 The remaining [P0/P1 publication handoff](#next-increment-profile-candidates-and-publication-handoff)
 must connect P2 to M7's evaluated, paged direct owner. M7 now supplies a causal-map
 storage slice, but its ordered-tree/raw-part, public-admission and transaction

@@ -58,12 +58,47 @@ maximum capacity or promise a storage/CPU budget reservation.
 descriptors, requires exact equality and refuses an unsupported operation.
 Grammar checking during parsing is distinct from application schema validation.
 
-The pure library's `Profile.capabilities` accepts only its exact JSON/restricted
-XML interpretations and reports parse/construct support. Every other operation
-is false. Resealing an unsupported grammar, schema, encoding or framing cannot
+The pure library's `Profile.capabilities` accepts its exact JSON/restricted
+XML interpretations with parse/construct support, and its MIME entity-frame
+interpretation with parse support only. Every other operation is false.
+Resealing an unsupported grammar, schema, encoding or framing cannot
 inherit support from the format name. A capability record is implementation
 metadata, not a signed permission, capacity reservation or proof of execution;
 adapters must obtain it from their actual owning implementation.
+
+### MIME entity-frame interpretation
+
+The pure library's MIME descriptor selects binary encoding, single framing,
+ASCII case-insensitive field-name comparison and byte-preserving field values.
+Its exact grammar admits an ordered, duplicate-preserving ASCII header section,
+a required empty CRLF line, and an opaque binary body extending to the supplied
+end of input. This is framing derived from [RFC 5322 sections 2.1–2.2](https://www.rfc-editor.org/rfc/rfc5322#section-2.1)
+and [RFC 2045's entity/body definitions](https://www.rfc-editor.org/rfc/rfc2045#section-2.4),
+not validation of mail fields, media types, transfer encodings or multipart trees.
+
+Field names are nonempty printable ASCII excluding colon; field bodies admit
+printable ASCII, space and tab. CRLF followed by space/tab continues a field.
+Unfolding removes only that CRLF, preserving surrounding whitespace, original
+name spelling and duplicate order. Header lines have at most 998 bytes excluding
+CRLF. Bare CR/LF, controls, non-ASCII headers and orphan continuations refuse.
+An empty header section is allowed; a missing separator remains incomplete.
+Body bytes are not decoded, normalized or subjected to header line limits.
+
+`mime_field` events carry the original name in `value`, unfolded bytes in
+`detail`, and a raw span including internal folds but excluding the terminating
+CRLF. `mime_headers_end` spans the empty separator line. `mime_body` events carry
+bounded, contiguous raw body slices; their boundaries depend on input/workspace
+windows and have no semantic part identity. All events have depth zero. Empty
+bodies emit no body slice. Grammar completion still requires end of input, and
+`Reader`/`Candidate` additionally verify the complete source length/hash.
+
+Each field and the single body count once against `nodes`; the header count is
+bounded by `attributes`. `token_bytes` bounds an entire folded field including
+its terminating CRLF and each body window. Two non-overlapping caller buffers
+of that size retain raw and unfolded bytes. Work charges each consumed byte and
+each byte inspected while unfolding; one call consumes at most its input work
+allowance and may additionally finalize one bounded field. No transport,
+redaction, child-part resolution, construction or publication is supplied.
 
 ## Parts and provenance
 
