@@ -12657,8 +12657,8 @@
     "packages/zig/transit-document/src/SuccinctTree.zig": {
       "errors": {
         "EmptySuccinctTree": 1,
-        "InvalidSuccinctTree": 15,
-        "NodeOutOfBounds": 4,
+        "InvalidSuccinctTree": 23,
+        "NodeOutOfBounds": 5,
         "TreeTooLarge": 1
       },
       "outcomes": {},
@@ -12682,6 +12682,7 @@
         "SuccinctTree.fromParentSlice()": "Error",
         "SuccinctTree.isAncestor()": "Error",
         "SuccinctTree.lca()": "Error",
+        "SuccinctTree.navigate()": "<inferred>",
         "SuccinctTree.nextSibling()": "Error",
         "SuccinctTree.openBit()": "Error",
         "SuccinctTree.parent()": "Error",
@@ -12691,7 +12692,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 23,
+        "try": 25,
         "catch": 0
       },
       "imports": [
@@ -38525,30 +38526,88 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-storage/src/DocumentOrderedTree.zig": {
+      "errors": {
+        "DocumentDepthLimitExceeded": 1,
+        "DocumentEvaluationBudget": 1,
+        "DocumentPartIdentityConflict": 1,
+        "DocumentPathMissing": 3,
+        "DocumentPathTypeError": 1,
+        "InvalidOrderedSpan": 1,
+        "InvalidOrderedState": 11,
+        "InvalidOrderedTree": 2,
+        "InvalidSuccinctTree": 1,
+        "NodeOutOfBounds": 1,
+        "StorageCandidateTooLarge": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Budget.charge()": "<inferred>",
+        "Builder.add()": "<inferred>",
+        "Builder.addPart()": "<inferred>",
+        "Builder.bit()": "<inferred>",
+        "Builder.bytes()": "<inferred>",
+        "Builder.copyBytes()": "<inferred>",
+        "Builder.copyNode()": "<inferred>",
+        "Builder.copyParts()": "<inferred>",
+        "Builder.finish()": "<inferred>",
+        "Builder.init()": "<inferred>",
+        "Builder.metadata()": "<inferred>",
+        "Builder.put()": "<inferred>",
+        "Node.decode()": "<inferred>",
+        "Node.encode()": "<inferred>",
+        "Part.decode()": "<inferred>",
+        "Part.encode()": "<inferred>",
+        "TopologyReader.next()": "<inferred>",
+        "get()": "<inferred>",
+        "key()": "<inferred>",
+        "navigate()": "<inferred>",
+        "node()": "<inferred>",
+        "part()": "<inferred>",
+        "resolve()": "<inferred>",
+        "subtreeEnd()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 73,
+        "catch": 3
+      },
+      "imports": [
+        "DocumentIndex.zig",
+        "std",
+        "transit_document"
+      ]
+    },
     "packages/zig/transit-storage/src/DocumentPartition.zig": {
       "errors": {
         "DocumentAppendUncertain": 2,
         "DocumentCheckpointRequired": 1,
-        "DocumentEpochFenced": 2,
-        "DocumentEvaluationBudget": 2,
-        "DocumentHistoryUnavailable": 8,
+        "DocumentConflictLimitExceeded": 1,
+        "DocumentDepthLimitExceeded": 1,
+        "DocumentEpochFenced": 4,
+        "DocumentEvaluationBudget": 4,
+        "DocumentHistoryUnavailable": 10,
         "DocumentInitializationMissing": 1,
         "DocumentLogicalCheckpointUnsupported": 1,
         "DocumentLogicalEvaluationRequired": 3,
-        "DocumentMutationLimitExceeded": 2,
-        "DocumentOperationConflict": 6,
-        "DocumentPartitionConflict": 3,
+        "DocumentLogicalLayoutMismatch": 5,
+        "DocumentMutationLimitExceeded": 3,
+        "DocumentOperationConflict": 7,
+        "DocumentPartMissing": 1,
+        "DocumentPartitionConflict": 4,
         "DocumentPathCapacity": 3,
         "DocumentPositionExhausted": 1,
-        "DocumentReadConflict": 5,
-        "DocumentReadLimitExceeded": 5,
+        "DocumentReadConflict": 6,
+        "DocumentReadLimitExceeded": 11,
         "DocumentReadMissing": 2,
         "DocumentReadReleased": 1,
         "DocumentRecoveryMissing": 1,
         "DocumentRecoveryRequired": 2,
         "DocumentReplicaConflict": 3,
         "DocumentRevisionBeyondCut": 2,
-        "DocumentSingleRevisionRequired": 1,
+        "DocumentRevisionConflict": 1,
+        "DocumentSingleRevisionRequired": 3,
         "DocumentStateObjectMissing": 1,
         "IncompatibleDefinition": 1,
         "InvalidDocumentArchive": 2,
@@ -38562,7 +38621,8 @@
         "InvalidDocumentRecoveryBudget": 1,
         "InvalidDocumentStateObject": 4,
         "InvalidLogicalOperation": 1,
-        "InvalidLogicalState": 4,
+        "InvalidLogicalState": 6,
+        "InvalidOrderedState": 1,
         "InvalidWalEpoch": 1,
         "StalePolicyEpoch": 1,
         "StaleWriterEpoch": 1
@@ -38586,6 +38646,8 @@
         "findOutcome()": "<inferred>",
         "getDocumentHead()": "<inferred>",
         "getReplicaState()": "<inferred>",
+        "inspectOrderedNode()": "<inferred>",
+        "inspectOrderedNodeInner()": "<inferred>",
         "loadBytes()": "<inferred>",
         "nextPosition()": "<inferred>",
         "open()": "<inferred>",
@@ -38613,8 +38675,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 247,
-        "catch": 5
+        "try": 315,
+        "catch": 7
       },
       "imports": [
         "DocumentDeclaration.zig",
