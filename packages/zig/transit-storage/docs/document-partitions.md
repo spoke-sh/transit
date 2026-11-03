@@ -67,6 +67,34 @@ before disclosure. Failure after buffering frees that output.
 using its own operation identity. An unrelated document cannot release the pin.
 Exact release retries recover their original receipt.
 
+## Retained partition membership
+
+`beginCollectionRead` pins the current head directory, including an empty one.
+`collectionCursor(receipt, principal, guard)` and
+`readCollectionPage(cursor, principal, guard)` require the trusted host principal
+that owns the receipt and current scoped authority. A page owns at most 16 heads
+inline; it does not borrow scratch storage or materialize revision values. Use
+its authenticated cursor until `coverage.complete`. Each ID appears once in
+ascending byte order, under the original directory even after live replacements
+or insertions. A vector of independently acquired partition cuts is not atomic.
+
+`changed_next_lsn` tracks logical head changes separately from the observed WAL
+position. Acquiring/releasing reads, recording causal aliases and maintenance
+preserve it. Work budgets charge scans and visited directory pages; byte budgets
+charge canonical encoded heads. Per-page capacity can return an incomplete
+prefix; cumulative budget exhaustion refuses the next fetch. Keep the original
+cursor on failure. Missing storage cannot establish an empty result.
+
+`releaseCollectionRead` records release using a distinct owner operation. Pins
+have no implicit expiry; exact acquisition/release retries return their recorded
+outcomes. Preserve `read_secret` across reopen to continue cursors, or reissue a
+cursor from the same live receipt under current authority after changing the key.
+The retained graph preserves the source, heads and referenced logical storage
+until all dependencies permit collection. This API exposes neither operation
+records nor logical deletion, and does not implement transaction cut acquisition.
+The [neutral contract](../../../../contracts/DOCUMENT_V1.md#retained-partition-membership)
+defines coverage and failure behavior.
+
 ## Verification
 
 From this package in the pinned development shell, run

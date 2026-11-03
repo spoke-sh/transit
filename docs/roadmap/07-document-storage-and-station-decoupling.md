@@ -1,6 +1,6 @@
 # 7. Logical document storage, `.tseg` trees and Station decoupling
 
-[Roadmap](README.md) · [Foundation #125](https://github.com/spoke-sh/transit/issues/125) · [Native State #126](https://github.com/spoke-sh/transit/issues/126) · [Layouts & Codecs #128](https://github.com/spoke-sh/transit/issues/128) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · **Status:** In Progress — Causal maps, conditional ordered/versioned trees, retained topology inspection and verified JSON/XML/MIME raw parts are integrated as storage components. Next establish collection cuts and protected staging, then direct lifecycle and transaction participation alongside the remaining merge/physical-layout work. The Station/consumer replacement retains one coordinated cutover gate ([remaining implementation plan, 2026-11-03](#implementation-plan-for-remaining-work)).
+[Roadmap](README.md) · [Foundation #125](https://github.com/spoke-sh/transit/issues/125) · [Native State #126](https://github.com/spoke-sh/transit/issues/126) · [Layouts & Codecs #128](https://github.com/spoke-sh/transit/issues/128) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · **Status:** In Progress — Causal maps, conditional ordered/versioned trees, retained topology inspection and verified JSON/XML/MIME raw parts are integrated as storage components. Retained partition membership and bounded head pages are also implemented at the component boundary. Next finish participant/staging/discovery contracts and protected staging, then direct lifecycle and transaction participation alongside the remaining merge/physical-layout work. The Station/consumer replacement retains one coordinated cutover gate ([remaining implementation plan, 2026-11-03](#implementation-plan-for-remaining-work)).
 
 Decouple `Document` (`DOCUMENT`) completely from the `Station` durable actor
 runtime ([`transit-station-document`](../../packages/zig/transit-station-document/README.md),
@@ -990,9 +990,22 @@ ordered layout. Packet 3 may first exercise bounded one-request writes without
 waiting for all large-value staging features. Every dependent feature keeps its
 specific prerequisite. No unfinished packet is waived at the public cutover.
 
+#### Retained collection cut increment — 2026-11-03
+
+The component portion of packet 1 adds `DocumentRead.Collection` cuts, acquisition,
+bounded head enumeration and explicit release. `DocumentPartition` persists a
+separate logical-head frontier and collection-pin kind; `DirectStorageGraph`
+traverses the captured directory independently of current heads. The current-v1
+cutover regenerates shared definitions and independent fixtures. The
+[public contract](../../contracts/DOCUMENT_V1.md#retained-partition-membership)
+owns semantics and limits. This increment does not close packet 1 or C0/C3:
+partition-aware transaction targets/guards, candidate ownership and original-
+operation discovery still need their reviewed contracts and implementation.
+Logical deletion and common-cut acquisition remain unsupported.
+
 #### Next review: retained collection cuts and owner contracts
 
-The next implementation starts with packet 1. The direct Document declaration
+Continue packet 1 from the retained membership increment above. The direct Document declaration
 can describe several logical documents and partitions; its current
 `DocumentOperation.Cut` is only one logical document's revision basis. Catalog listing,
 collection queries and transaction guards need a retained partition-head basis
