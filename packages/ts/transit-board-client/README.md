@@ -5,6 +5,16 @@ pages, exact Table metadata and paged registered relationships. Its generated
 runtime validators precede presentation. It starts no data query; callers use
 the shared `@transit/query-client` statement reader for explicit previews and SQL.
 
+`inspectComputation` from `@transit/board-client/computations` reads one published
+finite Table computation through the configured catalog identity. A null revision
+observes the current head and its last completion; a positive decimal revision
+selects only that retained manifest. Pass the returned immutable definition as
+`expected` on later reads. Runtime validation binds the response to that exact
+scope/name/definition and rejects a substituted revision. The caller owns refresh,
+selection and disclosure clearing; no query, result reader or retention pin is
+created. See the [read contract](../../../docs/handbook/reference/board-api.md#computation-inspection)
+for authorization, bounds and missing-revision behavior.
+
 Typed resource client for Board's inspection and optional KV/Table/Document query APIs, exposed in the workspace as
 `@transit/board-client`. This is a shared browser TypeScript package, independent of React and Router; it is not a Transit
 execution/signing client. [Zig transit-board-api](../../zig/transit-board-api/README.md) owns the
@@ -25,11 +35,11 @@ References into nested definitions retain every ancestor along their original
 JSON Pointer path; their closed targets and siblings can still share validators.
 Nested schema resources with their own identifiers remain unchanged.
 Validators are generated in host/configuration, process inspection, storage,
-resource/capture evidence, finite query, relational and catalog groups. The main
+resource/capture evidence, finite query, relational, computation and catalog groups. The main
 validator entry re-exports every contract; generation checks assign each contract
 to exactly one group and detect output drift. Public client subpaths
 (`@transit/board-client/deployment`, `/inspection`, `/storage`, `/evidence`,
-`/catalog`, `/relational`, `/query`, `/request`) let a lazy feature load only its
+`/catalog`, `/computations`, `/relational`, `/query`, `/request`) let a lazy feature load only its
 client and validators. The package root retains the same typed operations.
 
 The small transport wrapper exposes `capabilities` and

@@ -908,7 +908,11 @@ services. R2 delivery does not complete M30.
 
 ### R3 — Explain completed and pending computation
 
-**Review status: Approved for implementation.** Source basis:
+**Review status: Implemented for review; focused R3 qualification passes.**
+The public independent-reader owner and Board integration are separate review
+units. The [executed account](../history/qualification/interfaces.md#board-computation-inspection--2026-11-02)
+records the signed reader, real Board API/browser checks and their limits. R4
+and full-milestone completion remain separate. Original planning source basis:
 `origin/main` at `5f23092f258b774e545351d83cf76765a0af4451`, the merge of
 [PR #338](https://github.com/spoke-sh/transit/pull/338). This plan is based on a
 source audit, not a new runtime qualification. It selects R3 as the next feature

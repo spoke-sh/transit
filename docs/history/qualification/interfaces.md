@@ -9,6 +9,81 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Board computation inspection — 2026-11-02
+
+The focused R3 journey passes with the independent inspection owner at
+`632ef74d4` and the Board fixture/browser source at `654f9c95c`. Node and Board
+use ReleaseSafe binaries built at `3ba084171`; runtime implementation is unchanged
+between those sources. Later changes preserve the fixture's budget-blocked state
+for inspection, isolate browser fixture loading and document state ownership.
+The fixture caller is rebuilt at `632ef74d4`. Private raw logs, exact binary
+SHA-256 hashes and source identities are retained in
+`transit-m30-computation-plan/.cache/m30-computations/`, including
+`provenance.json` and `board-verified.log`. Current semantics belong in the
+[Board guide](../../handbook/guides/inspect-board.md),
+[Board API](../../handbook/reference/board-api.md#computation-inspection),
+[computation contract](../../../contracts/DATAFLOW_V1.md#independent-reader-metadata-inspection)
+and [state account](../../handbook/internals/service-interfaces.md#computation-selection-and-disclosure).
+
+The signed disk-backed managed fixture passes publication, original transaction
+recovery across replacement, pending work alongside an earlier completion,
+retirement, a budget-blocked computation with no completion, and an independent
+reader with source/output/control grants. The reader verifies revisions 1, 2 and
+4 with 3, 4 and 0 rows respectively; latest completion 5 retains four rows even
+after the current output is emptied. Missing revision 6 remains missing. Exact
+definition mismatch and forged row/schema metadata are rejected. Revoking each
+source, output and control read grant denies current, nonempty and empty retained
+inspection. Generic publisher token and record access still rejects the separate
+reader. Existing bounded retained reads, early close and incomplete-prefix checks
+also pass. These are selected executable schedules, not arbitrary revocation-race
+or honest-computation proofs.
+
+The real Board API checks pass through its configured independent catalog reader.
+Both Chromium cases pass in 15 seconds: deferred loading, diagram/grid/Inspector
+agreement, keyboard selection and focus return, exact evidence, explicit older
+revision preservation, latest selection, completed-empty and missing revisions,
+budget refusal, 750-pixel layout without horizontal overflow, and automated
+WCAG A/AA checks. A typed injected 403 exercises browser clearing and explicit
+access recheck; the native fixture separately performs actual grant revocations.
+The recorded upstream action allowlist admits only inspection reads; Board makes
+no SQL submission, result-page read, pin or control request. Reproduce with
+`just transit-board::computations-browser`; the API-only task is
+`just transit-board::computations-test`.
+
+The installed `test-server-managed-tables` target also passes against the
+`3ba084171` runtime build: SQL publication/control, complete and empty successors,
+missing-revision diagnostics, suspend/restart/resume, refresh, idle parking,
+retirement, output-constraint failure and checked SUM overflow. Its combined
+build invocation still exits nonzero because the concurrently scheduled older
+Board fixture retained the incorrect post-retirement budget assertion. The
+corrected Board journey above is a separate exit-zero run using the rebuilt
+caller; the combined invocation is not reported as passed. The original
+`origin/main` baseline `just test::managed-tables` also passes independently.
+
+Supporting checks pass: `just transit-board::check` (138 Board tests, strict
+TypeScript, formatting/lint and generated-contract drift), native Board units,
+the standalone shared-client tests, reflected Direct Table contract checks,
+runner inventory and six task-coverage tests, documentation links and
+`just transit-docs::check` including the production handbook build. The unchanged
+reactive-client lint warning remains. The standalone frontend build measures
+705,775 bootstrap bytes across four scripts, a 479,610-byte largest script and
+three additional computation scripts totaling 484,871 bytes including Catalog.
+Existing per-script/bootstrap/import/embedded limits pass without increases.
+These byte counts do not establish parse cost, heap residency or latency.
+
+Earlier runs remain failed evidence. Initial fixture assertions confused the
+latest completion with retained empty revision 4 and expected a blocked reason
+after retirement had cleared it. A separate real defect mapped a validated native
+404 `NotFound` to `AuthorityUnavailable`; shared-client HTTP/local tests now
+preserve the typed missing-selection response while opaque 404s remain invalid
+and service-unavailable responses remain unavailable. Corrected runs do not
+retroactively certify those earlier executions.
+
+This is focused component/installed-feature evidence. Whole-repository clean
+lanes at one committed revision, the broader R4 installation schedule,
+remote-tunnel latency, renderer timing, heap measurements and unrestricted browser
+interleavings are not qualified here. M30 remains In Progress.
+
 ## Board readable storage and deferred features — 2026-11-02
 
 R2 implements readable binary quantities, retained-definition/row-placement
