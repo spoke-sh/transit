@@ -32044,6 +32044,100 @@
         "root.zig"
       ]
     },
+    "packages/zig/transit-sql-service/src/PgCatalog.zig": {
+      "errors": {
+        "AccessDenied": 1,
+        "CatalogDenied": 1,
+        "CatalogIdentityConflict": 3,
+        "PostgresCatalogBudget": 1,
+        "PostgresCatalogChanged": 3,
+        "TableDefinitionChanged": 1,
+        "TableNotFound": 2,
+        "UnsupportedPostgresCatalogQuery": 1,
+        "UnsupportedPostgresTableDescription": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Read.candidate()": "<inferred>",
+        "Read.next()": "<inferred>",
+        "Read.nextDatabase()": "<inferred>",
+        "Read.nextSchema()": "<inferred>",
+        "Read.nextTable()": "<inferred>",
+        "Read.observe()": "<inferred>",
+        "describe()": "<inferred>",
+        "prepare()": "<inferred>",
+        "quote()": "<inferred>",
+        "request()": "<inferred>",
+        "row()": "<inferred>",
+        "samePosition()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 67,
+        "catch": 1
+      },
+      "imports": [
+        "PgCatalogSql.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql-service/src/PgCatalogSql.zig": {
+      "errors": {
+        "InvalidCatalogName": 2,
+        "InvalidSqlSyntax": 3,
+        "UnsupportedPostgresCatalogPattern": 6,
+        "UnsupportedPostgresCatalogQuery": 9
+      },
+      "outcomes": {
+        "Kind": [
+          "relations",
+          "schemas",
+          "databases",
+          "schema_publications",
+          "resolve",
+          "relation",
+          "columns",
+          "indexes",
+          "foreign_keys",
+          "references",
+          "policies",
+          "statistics",
+          "publications",
+          "parents",
+          "children"
+        ],
+        "Token.kind": [
+          "word",
+          "string",
+          "quoted",
+          "symbol"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Lexer.next()": "<inferred>",
+        "Parser.finish()": "<inferred>",
+        "Parser.need()": "<inferred>",
+        "Parser.pattern()": "<inferred>",
+        "Parser.take()": "<inferred>",
+        "Pattern.decode()": "<inferred>",
+        "Pattern.matches()": "<inferred>",
+        "Pattern.matchesEscaped()": "<inferred>",
+        "Pattern.validate()": "<inferred>",
+        "parse()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 54,
+        "catch": 2
+      },
+      "imports": [
+        "std"
+      ]
+    },
     "packages/zig/transit-sql-service/src/ReadSources.zig": {
       "errors": {},
       "outcomes": {},
@@ -32232,6 +32326,8 @@
         "NullNotAllowed": 1,
         "NullWorkloadParameter": 1,
         "OutOfMemory": 1,
+        "PostgresCatalogBudget": 1,
+        "PostgresCatalogChanged": 1,
         "QueueClaimLimitExceeded": 1,
         "ReadOnlyTransaction": 1,
         "Rejected": 3,
@@ -32279,6 +32375,9 @@
         "UnsupportedLogPrimaryKey": 1,
         "UnsupportedLogRepartition": 1,
         "UnsupportedLogTimestampChange": 1,
+        "UnsupportedPostgresCatalogPattern": 1,
+        "UnsupportedPostgresCatalogQuery": 1,
+        "UnsupportedPostgresTableDescription": 1,
         "UnsupportedScalarFunction": 1,
         "UnsupportedTransactionIsolation": 1,
         "UnsupportedTransactionStatement": 1,
@@ -32396,10 +32495,11 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 111,
+        "try": 113,
         "catch": 3
       },
       "imports": [
+        "PgCatalog.zig",
         "SessionStorage.zig",
         "root.zig",
         "std"

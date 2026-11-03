@@ -10,6 +10,13 @@ configured database names to Catalog bindings. `ReadSources` composes cleanup
 for explicitly configured source connections above the database runtime; it
 introduces no database permission or storage authority.
 
+`PgCatalogSql` recognizes complete PostgreSQL 18 psql inspection query templates;
+`PgCatalog` projects authorized public Catalog metadata through `SessionInspection`.
+It shares ordinary result batching, retained definitions and current disclosure
+checks, including suspended portals and empty results. It performs no durable
+admission. The [public psql profile](../../../docs/handbook/reference/database-protocols.md#psql-inspection-commands)
+defines supported commands, name patterns, missing metadata and work limits.
+
 Each command verifies its account credential against the native identity. Its
 direct Table clients reuse that observed credential epoch when signing requests,
 avoiding a separate identity read before every Table exchange. The epoch is a

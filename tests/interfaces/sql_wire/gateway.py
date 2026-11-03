@@ -290,10 +290,14 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                 return
             if slice == 'cli':
                 run_cli(root,sql_port,mysql_port)
+                from interfaces.sql_wire.psql import run as psql_metadata
+                psql_metadata(root, client_options(root,sql_port,mysql_port)[0], lambda allowed: call(catalog, 'external-role', 'allow' if allowed else 'deny'), inventory)
                 print(json.dumps(dict(profile='database_wire_cli',seconds=round(time.monotonic()-started,3),fresh_fixture=True,both_protocols=True)),flush=True)
                 return
             if slice == 'all':
                 options,mysql_options = clients(root,sql_port,mysql_port)
+                from interfaces.sql_wire.psql import run as psql_metadata
+                psql_metadata(root, options, lambda allowed: call(catalog, 'external-role', 'allow' if allowed else 'deny'), inventory)
             else:
                 options,mysql_options = client_options(root,sql_port,mysql_port)
                 with psycopg.connect(**options) as connection:

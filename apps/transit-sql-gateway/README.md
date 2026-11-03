@@ -51,7 +51,11 @@ splice that read onto an earlier result prefix.
 
 For PostgreSQL/MySQL, multi-statement requests, autocommit-off, ALTER/DROP,
 RETURNING, COPY, bulk/long-data uploads, cursors, replication and arbitrary system
-catalog emulation are unsupported. PostgreSQL extended writes require exactly
+catalog emulation are unsupported. The bounded
+[psql 18 inspection profile](../../docs/handbook/reference/database-protocols.md#psql-inspection-commands)
+supports `\d`, `\dt`, `\d name`, `\dn` and `\l` through authorized Catalog
+metadata, including literal and wildcard name filters. Other catalog queries
+report an explicit unsupported-feature error. PostgreSQL extended writes require exactly
 one execution followed by Sync; Flush after a pending write rejects before
 dispatch. Read portals may suspend and resume within that same cycle. MySQL
 connection reset clears prepared handles without cancelling durable work.

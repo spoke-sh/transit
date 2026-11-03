@@ -196,7 +196,7 @@ pub const Read = struct {
                 metadata.kind = prepared.kind;
                 metadata.historical = prepared.historical_list;
                 metadata.namespace = prepared.historical_namespace orelse self.host.namespace;
-                metadata.consistency = if (prepared.storage or prepared.node_storage) .independent_observations else .exact_definitions;
+                metadata.consistency = if (prepared.storage or prepared.node_storage or (prepared.postgres != null and prepared.metadata == null)) .independent_observations else .exact_definitions;
                 if (prepared.metadata) |binding| {
                     metadata.definitions = try allocator.dupe(p.DataLifecycle.Definition, &.{binding.interpretation.interpretation});
                     metadata.historical = binding.catalog;
@@ -793,7 +793,8 @@ pub fn closeRead(self: *Self, read: *Read) void {
         .source => |*source| source.deinit(),
         .captured => |*captured| captured.deinit(),
         .workload => |*value| value.deinit(),
-        .probe, .inspection => {},
+        .probe => {},
+        .inspection => |*inspection| inspection.deinit(),
         .settings => |*settings| settings.deinit(),
     }
     self.releasePins(read);
@@ -970,6 +971,11 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
         error.GatewayMutationCancelled => .{ "57014".*, "Table operation cancelled" },
         error.SqlWorkloadRejected => .{ "55000".*, "Original Stream or Queue operation was refused; inspect its recorded outcome" },
         error.SqlWorkloadCancelled => .{ "57014".*, "Original Stream or Queue operation was cancelled" },
+        error.UnsupportedPostgresCatalogQuery => .{ "0A000".*, "Unsupported PostgreSQL catalog query; use psql 18 \\d, \\dt, \\dn, \\l or Transit SHOW commands" },
+        error.UnsupportedPostgresCatalogPattern => .{ "0A000".*, "Unsupported psql name pattern; use a literal name, * or ?" },
+        error.UnsupportedPostgresTableDescription => .{ "0A000".*, "This Table has integrity constraints outside psql description support; use native DESCRIBE" },
+        error.PostgresCatalogChanged => .{ "40001".*, "Catalog changed during inspection; discard partial results and repeat the read" },
+        error.PostgresCatalogBudget => .{ "54000".*, "PostgreSQL catalog inspection request budget exceeded" },
         error.UnsupportedGatewayStatement, error.UnsupportedExecutionCycle, error.UnsupportedWireType => .{ "0A000".*, "Operation is outside the selected SQL profile" },
         error.InvalidSqlSyntax, error.ExpectedIdentifier, error.UnexpectedToken => .{ "42601".*, "SQL syntax rejected" },
         error.TableNotFound => .{ "42P01".*, "Table does not exist" },
