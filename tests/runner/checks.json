@@ -244,6 +244,16 @@
         ]
       },
       {
+        "id": "direct-service-cleanup-controls",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/storage/tables/test_direct_table_service.py"
+        ]
+      },
+      {
         "id": "fuze_sources",
         "phase": "static",
         "command": [
