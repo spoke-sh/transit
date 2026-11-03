@@ -182,6 +182,8 @@ def retained_metrics(fixture, definition, connection, seed, operation=900030, na
                 step['error'] = type(error).__name__
                 uncertain += 1
                 action = dict(inspect=token)
+                if attempt < 31:
+                    time.sleep(.15)
                 continue
             except CatalogConflict:
                 # A physical storage epoch can change between bounded steps.
@@ -457,12 +459,25 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False, 
         metadata = direct(dict(lookup=dict(namespace=1, name='placement_probe')))['lookup']
         target = dict(object=metadata['interpretation']['interpretation']['object'], through=metadata['position'])
         (fixture.root / 'placement-flush-target.json').write_text(json.dumps(target))
-        for _ in range(32):
+        uncertain_flush, injected_flush = 0, False
+        for attempt in range(32):
             # Repeating this exact physical target is the owning flush contract.
-            if direct(dict(flush=target))['flush']['complete']:
+            try:
+                flushed = direct(dict(flush=target))['flush']
+                if not injected_flush:
+                    injected_flush = True
+                    raise RemoteDisconnected('Injected lost flush reply')
+            except UNCERTAIN_TRANSPORT:
+                uncertain_flush += 1
+                if attempt < 31:
+                    time.sleep(.15)
+                continue
+            if flushed['complete']:
                 break
         else:
             raise AssertionError('Placement flush did not complete its bounded target')
+        print(json.dumps(dict(profile='board_flush_original_recovery',
+            uncertain_replies=uncertain_flush - 1, injected_replies=1)), flush=True)
         fixture.console('ALTER TABLE placement_probe ADD COLUMN score BIGINT DEFAULT 7;\n')
         fixture.console("INSERT INTO placement_probe (id,label) VALUES " + ','.join(f"({i},'after')" for i in range(10,20)) + ';\n')
         native_snapshot = {}
