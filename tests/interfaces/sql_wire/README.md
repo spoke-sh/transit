@@ -7,7 +7,7 @@ Read the [protocol reference](../../../docs/handbook/reference/database-protocol
 | Responsibility | Driver |
 | --- | --- |
 | Wire contract and logical values | [contracts.py](contracts.py), [values.py](values.py), [schema.py](schema.py) |
-| Installed gateway and independent clients | [gateway.py](gateway.py), [clients.py](clients.py) |
+| Installed gateway and independent clients | [gateway.py](gateway.py), [clients.py](clients.py), [psql.py](psql.py) |
 | Authorization, lifecycle and lost replies | [authority.py](authority.py), [lifecycle.py](lifecycle.py), [faults.py](faults.py) |
 | TLS and connection settings | [tls.py](tls.py), [settings.py](settings.py) |
 | Explicit reference deployment | [reference.py](reference.py) |
@@ -17,6 +17,12 @@ Run the owning `just test::sql-wire-*` task with pinned clients; recipes identif
 the `sql-wire` shell and native binary inputs. Protocol acceptance and performance
 measurements have separate expectations. Reference deployment requires its own
 available infrastructure and cannot be inferred from local gateway checks.
+
+The gateway `cli` and `all` slices run `psql.py` with the pinned psql 18 client.
+It checks catalog pagination and ordering, literal/wildcard and quoted Unicode
+names, multi-batch Table descriptions and primary keys, unsupported-query refusal,
+absence of durable inspection operations and selected-role revocation while a
+metadata portal is suspended. Production query templates are not its oracle.
 
 `just test::sql-wire-contracts` includes the pure PostgreSQL/MySQL continuation
 checks and the host-owned session engines. The framing schedules split at every
