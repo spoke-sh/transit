@@ -50,6 +50,21 @@ and publish narrower support where necessary. Resource admission and shared
 deployment quotas remain separate. A valid descriptor does not allocate its
 maximum capacity or promise a storage/CPU budget reservation.
 
+## Exact capability metadata
+
+`Capabilities` pairs a complete descriptor with independent boolean operations:
+`parse`, `construct`, `validate_schema`, `edit`, `persist`, `query`, `search`,
+`branch` and `live_transport`. All fields are explicit. `require` validates both
+descriptors, requires exact equality and refuses an unsupported operation.
+Grammar checking during parsing is distinct from application schema validation.
+
+The pure library's `Profile.capabilities` accepts only its exact JSON/restricted
+XML interpretations and reports parse/construct support. Every other operation
+is false. Resealing an unsupported grammar, schema, encoding or framing cannot
+inherit support from the format name. A capability record is implementation
+metadata, not a signed permission, capacity reservation or proof of execution;
+adapters must obtain it from their actual owning implementation.
+
 ## Parts and provenance
 
 `Span` is a half-open byte interval in a nonzero, full-width `part_id` and an
@@ -140,6 +155,54 @@ intermediate parts never establish container completion. `requireExact` refuses
 redacted/prefix local parts. Even exact local coverage leaves external references,
 profile grammar, schema validity and durable acceptance unproved. Retain only
 permitted bytes: callers redact secrets before feeding this component.
+
+## Offline candidate bindings
+
+`DocumentProfile.Candidate.Binding` freezes a current definition, exact direct
+Document target, original `DataLifecycle.Operation`, optional edit base, profile
+descriptor and source manifest. The operation's scope must match the target.
+An edit base is an exact `Container.Revision` with that same target, including
+interpretation; null selects creation. The data owner must establish existence,
+current authority and the base precondition independently at acceptance.
+
+The source's profile digest must match the descriptor. Local part count and
+retained bytes cannot exceed descriptor `parts` and `input_bytes`; relationship
+count cannot exceed `work` (at least one work unit per relationship). The selected
+parser/driver enforces its further processing limits. Coverage remains explicit:
+a binding can describe incomplete/redacted source metadata, but cannot certify
+complete interpretation of that source.
+
+`sealed` validates attribution and computes a commitment. `validate` detects
+changed fields; `requireSame` rejects a conflicting original binding. The SHA-256
+commitment is the following canonical sequence, with all numbers big-endian u64:
+
+1. `transit.document.candidate.v1` plus zero and current 32-byte definition.
+2. Target: partition definition, scope realm/resource/catalog, branch/object,
+   interpretation revision and 32-byte digest, partition ordinal and 16-byte
+   logical Document ID.
+3. Operation scope realm/resource/catalog, principal and operation ID.
+4. Base presence (`0`/`1`), then when present its complete target encoding from
+   step 2, accepted revision and 32-byte manifest digest.
+5. The validated profile descriptor's 32-byte digest.
+6. Source manifest definition and profile digest, root/parts/relationships/
+   retained-bytes/complete-parts/redacted-parts/prefix-parts counts, then its
+   32-byte directory digest. The binding's own digest is excluded.
+
+Neither a binding nor a verified offline candidate registers private staging,
+acquires a retention hold, checks that an edit base exists, validates external
+part availability, or publishes a revision. There is no candidate storage route
+or recovery receipt in this contract. Direct accepted state retains its
+[Document operation](DOCUMENT_V1.md) owner. Process-local event-consumption
+tickets are buffer handoffs, not durable continuations or acknowledgements.
+
+The pure `Candidate` driver requires one complete local part, root ordinal zero
+and no relationships. It recomputes the source metadata commitment and verifies
+the complete part's bytes/grammar through `Reader`. It reoffers one pending event
+without consuming more input until its exact binding/ordinal ticket is consumed.
+Verification requires every event consumed and the source's final length/hash
+check. Sink failure, parse/integrity refusal or cancellation invalidates the
+candidate; private output must be discarded. A generated output part retains a
+new identity/commitment and does not replace the verified source binding.
 
 ## Independent observations
 

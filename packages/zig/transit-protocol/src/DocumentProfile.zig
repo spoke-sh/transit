@@ -7,6 +7,7 @@ const d = p.DataLifecycle;
 pub const fixture_json = @embedFile("fixtures/document-profile-v1.json");
 
 pub const Container = @import("DocumentProfileContainer.zig");
+pub const Candidate = @import("DocumentProfileCandidate.zig");
 
 pub const Format = enum(u8) {
     json = 1,
@@ -194,6 +195,34 @@ pub const Part = struct {
 /// Capture availability does not encode validation, acknowledgement, an effect
 /// permit or a remote outcome. These observations remain independently bound.
 pub const Capture = enum { preparing, ready, capturing, complete, unknown, retired };
+
+/// Exact implementation capability metadata, not permission or acceptance.
+/// Grammar validation during parse is distinct from application schema validation.
+pub const Capability = enum { parse, construct, validate_schema, edit, persist, query, search, branch, live_transport };
+pub const Capabilities = struct {
+    descriptor: Descriptor,
+    operations: struct {
+        parse: bool,
+        construct: bool,
+        validate_schema: bool,
+        edit: bool,
+        persist: bool,
+        query: bool,
+        search: bool,
+        branch: bool,
+        live_transport: bool,
+    },
+
+    pub fn require(self: Capabilities, descriptor: Descriptor, capability: Capability) !void {
+        try self.descriptor.validate();
+        try descriptor.validate();
+        if (!std.meta.eql(self.descriptor, descriptor)) return error.DocumentProfileConflict;
+        const supported = switch (capability) {
+            inline else => |operation| @field(self.operations, @tagName(operation)),
+        };
+        if (!supported) return error.UnsupportedDocumentProfileCapability;
+    }
+};
 pub const Validation = struct {
     revision: u64,
     validator: d.Content,
@@ -217,6 +246,8 @@ pub const SchemaTypes = struct {
     container: Container.Manifest,
     reference: Container.Reference,
     relationship: Container.Relationship,
+    capabilities: Capabilities,
+    candidate: Candidate.Binding,
 };
 
 test "document profile independent fixture and interpretation commitments" {
@@ -232,6 +263,9 @@ test "document profile independent fixture and interpretation commitments" {
     try sample.container.validate();
     try sample.reference.validate();
     try sample.relationship.validate(sample.container.parts);
+    try sample.capabilities.require(sample.descriptor, .parse);
+    try t.expectError(error.UnsupportedDocumentProfileCapability, sample.capabilities.require(sample.descriptor, .persist));
+    try sample.candidate.validate();
     try t.expectError(error.DocumentProfileCoverageGap, sample.container.requireExact());
     try t.expectEqual(@as(u64, std.math.maxInt(u64)), sample.span.part_id);
     try t.expectError(error.DocumentProfileCoverageGap, sample.part.requireExact());
