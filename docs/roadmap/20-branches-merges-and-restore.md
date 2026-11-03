@@ -865,6 +865,10 @@ The [branch contract](../../contracts/BRANCH_V1.md#installed-immutable-table-bra
 owns the current supported profile; the publication boundary above remains
 required before writable branches. Milestone 20 stays **In Progress**.
 
+The [fork qualification record](../history/qualification/catalog.md#immutable-table-forks--2026-11-02)
+records the disk recovery, ancestry, repeated physical collection and clean
+formal checks, with exact sources and incomplete attempts kept distinct.
+
 ## Immutable branch discovery and retirement — 2026-11-02
 
 This extension of the installed single-Table profile adds bounded `list` and
