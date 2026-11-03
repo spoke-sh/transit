@@ -5943,7 +5943,7 @@ fn branchRequest(catalog: *D, access: *Access, operation: u64, token: u8, name: 
     var view = (try resolve(catalog, access, "events")).?;
     defer view.deinit();
     const connection: c.DirectTableProtocol.Connection = .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null };
-    return .{ .key = .{ .definition = p.Growth.current_definition, .connection = connection, .account = @splat(19), .token = @splat(token) }, .intent = .{ .connection = connection, .namespace = 1, .operation = operation, .name = try a.Name.init(name), .source = .{ .interpretation = view.table.root.interpretation, .manifest = null, .checkpoint_lsn = 0, .accepted = .{ .partition = view.table.root.partition, .next_lsn = view.table.root.next_lsn } }, .mode = mode } };
+    return .{ .key = .{ .definition = p.Growth.current_definition, .connection = connection, .account = @splat(19), .token = @splat(token) }, .intent = .{ .connection = connection, .namespace = 1, .operation = operation, .name = try a.Name.init(name), .source = .{ .interpretation = view.table.root.interpretation, .manifest = null, .checkpoint_lsn = 0, .accepted = .{ .partition = view.table.root.partition, .next_lsn = view.table.root.next_lsn } }, .mode = mode, .parent = null } };
 }
 fn dispatchBranch(output: std.mem.Allocator, catalog: *D, access: *Access, request: c.DirectBranch.Request) !c.DirectBranch.Result {
     const Execution = struct {
@@ -6195,6 +6195,157 @@ test "direct branch retirement preserves publication through lost replies and di
     forged = retiring.state;
     forged.head.?.generation += 1;
     try t.expectError(error.InvalidBranchState, c.DirectBranch.State.transition(published.state, forged));
+}
+
+test "direct branch fork recovers its independent pin after parent retirement and disk reopen" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const create = try creation(7, 1, "events");
+    _ = try catalog.admit(create, access.policy());
+    _ = try catalog.perform(create.binding, access.policy());
+    for (100..113) |value| _ = try insertSelectedTable(&catalog, &access, "events", value);
+    const request = try branchRequest(&catalog, &access, 200, 1, "parent", .full_data);
+    const parent = try catalog.createBranch(request, access.policy());
+    var child_request = request;
+    child_request.key.token = @splat(2);
+    child_request.intent.operation = 201;
+    child_request.intent.name = try a.Name.init("child");
+    child_request.intent.parent = parent.state.head.?;
+    _ = try insertSelectedTable(&catalog, &access, "events", 999);
+    var live = (try resolve(&catalog, &access, "events")).?;
+    const evolution = try edit(&live, 300, .{ .alter = .{ .add = .{ .name = "later", .type = .int64, .nullable = false, .default = .{ .value = .{ .atom = .{ .signed = 5 } } } } } });
+    live.deinit();
+    _ = try catalog.admit(evolution, access.policy());
+    try t.expect((try catalog.perform(evolution.binding, access.policy())) == .committed);
+    // Copy the retained parent, not the now-advanced live Table frontier.
+    catalog.lose_table_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.createBranch(child_request, access.policy()));
+    catalog.lose_table_reply = false;
+    const pending = (try catalog.inspectBranch(child_request.key, access.policy())).?;
+    try t.expectEqual(c.DirectBranch.Phase.admitted, pending.state.phase);
+    const child_pin = (try catalog.pinState(create.binding.target, child_request.intent.identity(), access.policy())).handle.?;
+    const parent_pin = (try catalog.pinState(create.binding.target, request.intent.identity(), access.policy())).handle.?;
+    try t.expect(!std.meta.eql(parent_pin, child_pin));
+    _ = try catalog.retireBranch(.{ .key = request.key, .expected = parent.state.head.? }, access.policy());
+    _ = try catalog.advanceBranch(request.key, false, access.policy());
+    try t.expect((try catalog.pinState(create.binding.target, request.intent.identity(), access.policy())).released);
+    catalog.deinit();
+    wal.deinit();
+    objects.deinit();
+    wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    catalog = try owner(&wal, &objects);
+    access.deny_create = true;
+    try t.expectError(error.CatalogDenied, catalog.advanceBranch(child_request.key, false, access.policy()));
+    access.deny_create = false;
+    catalog.store.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.advanceBranch(child_request.key, false, access.policy()));
+    catalog.store.lose_reply = false;
+    const child = try catalog.createBranch(child_request, access.policy());
+    try t.expectEqualDeep(pending.receipt, child.receipt);
+    try t.expectEqual(c.DirectBranch.Phase.published, child.state.phase);
+    const manifest = try s.BranchSnapshot.loadManifest(objects.objectStore(), child.state.head.?.reference);
+    try t.expectEqual(p.Branch.Kind.fork, manifest.kind);
+    try t.expectEqualDeep(parent.state.head.?.reference, manifest.parent.?);
+    var output = std.heap.ArenaAllocator.init(t.allocator);
+    defer output.deinit();
+    const source = (try dispatchBranch(output.allocator(), &catalog, &access, .{ .source = child.state.head.? })).source;
+    try t.expectEqual(13, source.rows);
+    try t.expectEqualDeep(request.intent.source.interpretation, source.interpretation.interpretation);
+    var schema = try c.fuze.TableSchema.decode(t.allocator, try source.schema.decode(output.allocator(), c.fuze.TableSchema.max_bytes));
+    defer schema.deinit();
+    var cursor: ?P.SnapshotCursor = null;
+    var seen: usize = 0;
+    while (true) {
+        _ = output.reset(.retain_capacity);
+        const page = (try dispatchBranch(output.allocator(), &catalog, &access, .{ .scan = .{ .head = child.state.head.?, .after = cursor, .limits = .{ .rows = 3 } } })).page;
+        try t.expectEqual(13, page.total_rows);
+        for (page.rows) |row| {
+            var decoded = try c.fuze.TableRow.decode(t.allocator, schema.schema, try row.decode(output.allocator(), c.fuze.TableRow.max_bytes));
+            defer decoded.deinit();
+            try t.expectEqual(@as(i64, @intCast(100 + seen)), decoded.row().cells[0].value.atom.signed);
+            seen += 1;
+        }
+        cursor = page.next orelse break;
+    }
+    try t.expectEqual(13, seen);
+    var changed = child_request;
+    changed.intent.parent = null;
+    try t.expectError(error.ClientTokenConflict, catalog.createBranch(changed, access.policy()));
+    try t.expectError(error.BranchRetentionOwned, catalog.releaseRows(create.binding.target, child_pin, access.policy()));
+    var grandchild_request = child_request;
+    grandchild_request.key.token = @splat(3);
+    grandchild_request.intent.operation = 202;
+    grandchild_request.intent.name = try a.Name.init("grandchild");
+    grandchild_request.intent.parent = child.state.head.?;
+    const grandchild = try catalog.createBranch(grandchild_request, access.policy());
+    _ = try catalog.retireBranch(.{ .key = child_request.key, .expected = child.state.head.? }, access.policy());
+    _ = try catalog.advanceBranch(child_request.key, false, access.policy());
+    const grandchild_source = (try dispatchBranch(output.allocator(), &catalog, &access, .{ .source = grandchild.state.head.? })).source;
+    try t.expectEqual(13, grandchild_source.rows);
+    var ancestry = try s.BranchAncestry.init(t.allocator, objects.objectStore(), grandchild.state.head.?.reference, child.state.head.?.reference, .{ .visits = 16, .staged_bytes = 1024 * 1024, .step_bytes = 64 * 1024, .resident_pages = 1 });
+    defer ancestry.deinit();
+    try t.expectError(error.IncompleteBranchAncestry, ancestry.result());
+    while (!try ancestry.step()) {}
+    try t.expectEqualDeep(s.BranchAncestry.Resolution{ .unique = child.state.head.?.reference }, try ancestry.result());
+    access.denied_privileges = .{ .id = 107, .mask = a.select };
+    try t.expectError(error.CatalogDenied, dispatchBranch(output.allocator(), &catalog, &access, .{ .source = grandchild.state.head.? }));
+}
+
+test "direct branch fork refuses unavailable or omitted data and cancels only its own preparation" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const create = try creation(7, 1, "events");
+    _ = try catalog.admit(create, access.policy());
+    _ = try catalog.perform(create.binding, access.policy());
+    _ = try insertSelectedTable(&catalog, &access, "events", 100);
+    const request = try branchRequest(&catalog, &access, 200, 1, "parent", .schema_only);
+    const parent = try catalog.createBranch(request, access.policy());
+    var child = request;
+    child.key.token = @splat(2);
+    child.intent.operation = 201;
+    child.intent.name = try a.Name.init("child");
+    child.intent.parent = parent.state.head.?;
+    child.intent.mode = .full_data;
+    try t.expectError(error.InvalidBranchCreation, catalog.createBranch(child, access.policy()));
+    try t.expect(try catalog.inspectBranch(child.key, access.policy()) == null);
+    child.intent.mode = .schema_only;
+    child.intent.parent.?.generation += 1;
+    try t.expectError(error.StaleBranchHead, catalog.createBranch(child, access.policy()));
+    child.intent.parent = parent.state.head.?;
+    child.intent.source.accepted.next_lsn += 1;
+    try t.expectError(error.BranchSourceChanged, catalog.createBranch(child, access.policy()));
+    child.intent.source = request.intent.source;
+    catalog.lose_table_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.createBranch(child, access.policy()));
+    try t.expectError(error.LostAcknowledgement, catalog.advanceBranch(child.key, true, access.policy()));
+    catalog.lose_table_reply = false;
+    try t.expectEqual(c.DirectBranch.Phase.cancelled, (try catalog.advanceBranch(child.key, false, access.policy())).state.phase);
+    try t.expect((try catalog.pinState(create.binding.target, child.intent.identity(), access.policy())).released);
+    try t.expect(!(try catalog.pinState(create.binding.target, request.intent.identity(), access.policy())).released);
+    child.key.token = @splat(3);
+    child.intent.operation = 202;
+    // Admission alone cannot preserve a parent pin. Retirement wins before copy.
+    _ = try catalog.clientToken(.{ .bind = .{ .key = child.key, .fingerprint = try child.intent.digest(), .intent = .{ .branch = child.intent }, .budget = child.budget } }, access.policy());
+    _ = try catalog.retireBranch(.{ .key = request.key, .expected = parent.state.head.? }, access.policy());
+    _ = try catalog.advanceBranch(request.key, false, access.policy());
+    try t.expectError(error.BranchRetired, catalog.advanceBranch(child.key, false, access.policy()));
+    try t.expect((try catalog.pinState(create.binding.target, child.intent.identity(), access.policy())).handle == null);
+    try t.expectEqual(c.DirectBranch.Phase.cancelled, (try catalog.advanceBranch(child.key, true, access.policy())).state.phase);
 }
 
 test "direct branch directories exceed the old branch model bound with one resident page" {
