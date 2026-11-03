@@ -63,3 +63,12 @@ I/O dependency. It returns private state; the storage partition decides acceptan
 See the [canonical format and limits](../../../contracts/DOCUMENT_V1.md#integrated-causal-map-tree-storage-slice).
 The installed `Model`/`Document` evaluator remains the existing Station contract;
 this addition does not migrate its callers or claim BP/subcolumn integration.
+
+
+`OrderedChange` defines a borrowed, allocation-free canonical ordered tree input
+and a validator with a caller-owned depth stack. It preserves duplicate names,
+exact JSON number lexemes, XML node kinds, five-state nodes and optional raw-part
+coordinates. Header/part/node writers compose bounded request buffers. The
+[ordered format](../../../contracts/TRANSIT_STORAGE_V1.md#canonical-ordered-document-changes)
+is evaluated and persisted by `DocumentPartition.applyOrdered`; it does not add
+storage, clocks, policy, or Station dependencies to this package.

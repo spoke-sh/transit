@@ -21,6 +21,8 @@ const Guard = @import("PublicationGuard.zig");
 const Records = @import("DocumentPartitionRecord.zig");
 const pages = TreeStore.pages;
 const Self = @This();
+const Ordered = @import("DocumentOrderedTree.zig");
+const OrderedChange = @import("transit_document").OrderedChange;
 const Logical = @import("DocumentLogicalState.zig");
 const LogicalChange = @import("transit_document").LogicalChange;
 const LogicalIndex = @import("DocumentIndex.zig");
@@ -234,6 +236,7 @@ pub fn applyCausal(self: *Self, mutation: doc.Mutation, payload: []const u8, gua
     if (head) |h| {
         const state = try Logical.load(self.scratch.allocator(), self.objects, h.cut.state);
         try state.target.requireSame(mutation.target);
+        if (state.layout != .causal_map) return error.DocumentLogicalLayoutMismatch;
         if (state.epoch != header.epoch) return error.DocumentEpochFenced;
         base.root = state.index;
         summary.conflicts = state.conflicts;
@@ -264,9 +267,81 @@ pub fn applyCausal(self: *Self, mutation: doc.Mutation, payload: []const u8, gua
     identity[16..48].* = mutation.payload.sha256;
     logical_tree.index = try logical_tree.index.put(&self.logical_store, history, try LogicalIndex.Value.init(&identity));
     const sealed = try self.logical_store.seal(logical_tree.index);
-    const state: Logical.State = .{ .definition = p.Growth.current_definition, .target = mutation.target, .epoch = header.epoch, .conflicts = logical_tree.summary.conflicts, .index = sealed.root.? };
+    const state: Logical.State = .{ .definition = p.Growth.current_definition, .target = mutation.target, .epoch = header.epoch, .conflicts = logical_tree.summary.conflicts, .layout = .causal_map, .nodes = 0, .parts = 0, .index = sealed.root.? };
     var bytes: [Logical.max_bytes]u8 = undefined;
     return self.acceptMutation(mutation, payload, try Logical.encode(state, &bytes), logical_tree.summary.conflicts, true, guard);
+}
+
+/// Conditional ordered create/root replacement or ordinal-path subtree replacement.
+/// No publication occurs until the complete input and resulting tree are valid.
+pub fn applyOrdered(self: *Self, mutation: doc.Mutation, payload: []const u8, guard: Guard) !doc.MutationReceipt {
+    defer _ = self.scratch.reset(.retain_capacity);
+    try mutation.validate();
+    try self.requirePartition(mutation.target.partition);
+    try authorize(guard);
+    try self.requireReady();
+    const limits = self.root.declared.declaration.limits;
+    if (payload.len > limits.change_bytes or mutation.operations != 1) return error.DocumentMutationLimitExceeded;
+    if (payload.len != mutation.payload.bytes or !std.mem.eql(u8, &Evidence.hash(payload), &mutation.payload.sha256)) return error.InvalidDocumentMutation;
+    var decoder = try OrderedChange.Decoder.init(payload);
+    const header = decoder.header;
+    if (!std.mem.eql(u8, &header.definition, &p.Growth.definition_bytes)) return error.IncompatibleDefinition;
+    if (!std.meta.eql(mutation.target.partition.interpretation, self.root.declared.declaration.interpretation)) return error.DocumentPartitionConflict;
+    if (mutation.lineage.profile != .versioned or self.root.declared.declaration.configuration.profile != .versioned or
+        mutation.lineage.replica != null or mutation.lineage.parent_revision != null or mutation.lineage.raw_span != null or
+        !std.mem.eql(u8, &header.document, &mutation.target.document) or header.epoch != mutation.lineage.merge_epoch or
+        header.expected_revision != mutation.lineage.base_revision) return error.InvalidDocumentLineage;
+    if (header.path.len / 4 > limits.path_depth) return error.DocumentDepthLimitExceeded;
+    const frames = try self.scratch.allocator().alloc(OrderedChange.Frame, @as(usize, limits.path_depth) + 1);
+    var validator: OrderedChange.Validator = .{ .frames = frames };
+    while (try decoder.nextPart() != null) {}
+    while (try decoder.next()) |node| try validator.push(node);
+    try validator.finish();
+    if (try self.findOutcome(mutation.operation)) |existing| {
+        if (existing != .mutation) return error.DocumentOperationConflict;
+        try existing.mutation.requireMutation(mutation);
+        try authorize(guard);
+        return existing.mutation;
+    }
+    const head = try self.getDocumentHead(mutation.target.document);
+    var base: LogicalIndex = .{};
+    var count: u64 = 0;
+    if (head) |h| {
+        if (header.epoch != h.cut.merge_epoch) return error.DocumentEpochFenced;
+        if (header.expected_revision != h.cut.accepted_revision) return error.DocumentRevisionConflict;
+        const state = try Logical.load(self.scratch.allocator(), self.objects, h.cut.state);
+        try state.target.requireSame(mutation.target);
+        if (state.layout != .ordered) return error.DocumentLogicalLayoutMismatch;
+        if (state.epoch != header.epoch) return error.DocumentEpochFenced;
+        base.root = state.index;
+        count = state.nodes;
+    } else if (header.expected_revision != 0 or header.epoch != 1) return error.InvalidDocumentLineage;
+    var budget: Ordered.Budget = .{ .remaining = limits.read_steps };
+    var start: u64 = 0;
+    var end = count;
+    var depth: u32 = 0;
+    if (header.path.len != 0) {
+        start = try Ordered.resolve(base, &self.logical_store, header.path, count, &budget);
+        end = try Ordered.subtreeEnd(base, &self.logical_store, start, count, &budget);
+        depth = (try Ordered.node(base, &self.logical_store, start, &budget)).depth;
+    }
+    var builder = try Ordered.Builder.init(&self.logical_store, self.options.index_work_bytes, frames, &budget);
+    defer self.logical_store.abort();
+    // A subtree patch preserves the envelope's raw parts. A root replacement
+    // supplies its complete new envelope, allowing deliberate part removal.
+    if (header.path.len != 0) try builder.copyParts(base);
+    decoder = try OrderedChange.Decoder.init(payload);
+    while (try decoder.nextPart()) |part| try builder.addPart(part);
+    var ordinal: u64 = 0;
+    while (ordinal < start) : (ordinal += 1) try builder.copyNode(base, ordinal);
+    while (try decoder.next()) |node| try builder.add(node, depth);
+    ordinal = end;
+    while (ordinal < count) : (ordinal += 1) try builder.copyNode(base, ordinal);
+    const sealed = try builder.finish();
+    if (builder.validator.conflicts > limits.unresolved_conflicts) return error.DocumentConflictLimitExceeded;
+    const state: Logical.State = .{ .definition = p.Growth.current_definition, .target = mutation.target, .epoch = header.epoch, .conflicts = @intCast(builder.validator.conflicts), .layout = .ordered, .nodes = builder.count, .parts = builder.parts, .index = sealed.root.? };
+    var bytes: [Logical.max_bytes]u8 = undefined;
+    return self.acceptMutation(mutation, payload, try Logical.encode(state, &bytes), state.conflicts, true, guard);
 }
 
 fn acceptCausalAlias(self: *Self, mutation: doc.Mutation, original: doc.MutationReceipt, guard: Guard) !doc.MutationReceipt {
@@ -283,7 +358,7 @@ fn acceptCausalAlias(self: *Self, mutation: doc.Mutation, original: doc.Mutation
     return receipt;
 }
 
-/// Opaque receipt-owner component seam. Logical documents must use applyCausal;
+/// Opaque receipt-owner component seam. Logical documents must use applyCausal/applyOrdered;
 /// this seam cannot introduce or replace an integrated logical root.
 pub fn applyMutation(self: *Self, mutation: doc.Mutation, payload_bytes: []const u8, state_bytes: []const u8, unresolved_conflicts: u16, guard: Guard) !doc.MutationReceipt {
     if (std.mem.startsWith(u8, state_bytes, Logical.magic)) return error.DocumentLogicalEvaluationRequired;
@@ -767,6 +842,7 @@ fn readCausalPageInner(self: *Self, cursor: CausalCursor, path: []const []const 
     const revision = try self.decodeValue(RevisionEntry, value);
     const state = try Logical.load(self.scratch.allocator(), self.objects, revision.state);
     try state.target.requireSame(source.cut.target);
+    if (state.layout != .causal_map) return error.DocumentLogicalLayoutMismatch;
     var logical_tree: LogicalTree = .{ .index = .{ .root = state.index }, .summary = .{ .conflicts = state.conflicts }, .limits = .{ .depth = self.root.declared.declaration.limits.path_depth, .conflicts = self.root.declared.declaration.limits.unresolved_conflicts, .steps = source.request.max_steps - cursor.steps } };
     const view = logical_tree.lookup(&self.logical_store, path) catch |err| switch (err) {
         error.DocumentEvaluationBudget => return error.DocumentReadLimitExceeded,
@@ -797,6 +873,162 @@ fn readCausalPageInner(self: *Self, cursor: CausalCursor, path: []const []const 
     } else page.cursor.complete = true;
     page.cursor.steps += logical_tree.work;
     page.cursor = try self.signCausal(page.cursor);
+    try authorize(guard);
+    return page;
+}
+
+pub const OrderedSelection = struct {
+    kind: enum { tree, part, topology },
+    part: u64 = 0,
+    fn validate(self: OrderedSelection) !void {
+        if ((self.kind == .part) != (self.part != 0)) return error.InvalidDocumentCursor;
+    }
+};
+pub const OrderedSection = enum { node, name, value, raw, topology };
+pub const OrderedCursor = struct {
+    read: doc.Read.Handle,
+    revision: u64,
+    selection: OrderedSelection,
+    ordinal: u64 = 0,
+    section: OrderedSection = .node,
+    offset: u64 = 0,
+    steps: u32 = 0,
+    bytes: u32 = 0,
+    complete: bool = false,
+    authentication: [32]u8 = @splat(0),
+};
+pub const OrderedPage = struct {
+    ordinal: u64,
+    section: OrderedSection,
+    node: ?Ordered.Node = null,
+    part: ?Ordered.Part = null,
+    total_bytes: u64 = 0,
+    offset: u64,
+    data: LogicalIndex.Value = .{},
+    cursor: OrderedCursor,
+};
+fn signOrdered(self: *Self, value: OrderedCursor) !OrderedCursor {
+    var out = value;
+    out.authentication = @splat(0);
+    var buffer: [2048]u8 = undefined;
+    var writer: std.Io.Writer = .fixed(&buffer);
+    var encoder: std.json.Stringify = .{ .writer = &writer };
+    try p.Json.write(out, &encoder);
+    var mac = std.crypto.auth.hmac.sha2.HmacSha256.init(&self.options.read_secret);
+    mac.update("transit.document.ordered.page.v1\x00");
+    mac.update(&p.Growth.definition_bytes);
+    mac.update(writer.buffered());
+    mac.final(&out.authentication);
+    return out;
+}
+pub fn orderedCursor(self: *Self, receipt: doc.Read.Receipt, selection: OrderedSelection, guard: Guard) !OrderedCursor {
+    _ = try self.readCursor(receipt, guard);
+    if (receipt.request.from_revision != receipt.through_revision) return error.DocumentSingleRevisionRequired;
+    try selection.validate();
+    const cursor = try self.signOrdered(.{ .read = receipt.handle(), .revision = receipt.through_revision, .selection = selection, .section = switch (selection.kind) {
+        .tree => .node,
+        .part => .raw,
+        .topology => .topology,
+    } });
+    try authorize(guard);
+    return cursor;
+}
+fn advanceOrdered(cursor: *OrderedCursor, count: u64) void {
+    cursor.ordinal += 1;
+    cursor.offset = 0;
+    cursor.section = .node;
+    cursor.complete = cursor.ordinal == count;
+}
+/// Owned, bounded pages over one retained revision. Node metadata, names and
+/// values are distinct sections; raw parts and BP bytes use the same pin gates.
+pub fn readOrderedPage(self: *Self, cursor: OrderedCursor, guard: Guard) !?OrderedPage {
+    return self.readOrderedPageInner(cursor, guard) catch |err| switch (err) {
+        error.DocumentEvaluationBudget => error.DocumentReadLimitExceeded,
+        else => err,
+    };
+}
+fn readOrderedPageInner(self: *Self, cursor: OrderedCursor, guard: Guard) !?OrderedPage {
+    defer _ = self.scratch.reset(.retain_capacity);
+    try authorize(guard);
+    try self.requireReady();
+    try cursor.selection.validate();
+    const signed = try self.signOrdered(cursor);
+    if (!std.crypto.timing_safe.eql([32]u8, signed.authentication, cursor.authentication)) return error.InvalidDocumentCursor;
+    const pin = try self.requireLivePin(cursor.read);
+    const source = try Read.load(self.scratch.allocator(), self.objects, pin.source);
+    try self.requirePartition(source.cut.target.partition);
+    if (source.request.from_revision != cursor.revision or source.through_revision != cursor.revision or cursor.steps > source.request.max_steps or cursor.bytes > source.request.max_bytes) return error.DocumentReadConflict;
+    if (cursor.complete) {
+        try authorize(guard);
+        return null;
+    }
+    const value = try self.tree().get(self.root.revisions_root, try revisionKey(source.cut.target.document, cursor.revision)) orelse return error.DocumentHistoryUnavailable;
+    const revision = try self.decodeValue(RevisionEntry, value);
+    const state = try Logical.load(self.scratch.allocator(), self.objects, revision.state);
+    try state.target.requireSame(source.cut.target);
+    if (state.layout != .ordered) return error.DocumentLogicalLayoutMismatch;
+    if (state.epoch != revision.merge_epoch or state.conflicts != revision.unresolved_conflicts) return error.InvalidLogicalState;
+    const index: LogicalIndex = .{ .root = state.index };
+    var budget: Ordered.Budget = .{ .remaining = source.request.max_steps - cursor.steps };
+    var page: OrderedPage = .{ .ordinal = cursor.ordinal, .section = cursor.section, .offset = cursor.offset, .cursor = cursor };
+    var disclosed: u64 = 0;
+    var tag: u8 = undefined;
+    var id: u64 = 0;
+    switch (cursor.selection.kind) {
+        .tree => {
+            if (cursor.ordinal >= state.nodes) return error.InvalidDocumentCursor;
+            const node = try Ordered.node(index, &self.logical_store, cursor.ordinal, &budget);
+            switch (cursor.section) {
+                .node => {
+                    page.node = node;
+                    disclosed = (try node.encode()).len;
+                    if (node.name_bytes != 0) page.cursor.section = .name else if (node.value_bytes != 0) page.cursor.section = .value else advanceOrdered(&page.cursor, state.nodes);
+                },
+                .name, .value => {
+                    page.total_bytes = if (cursor.section == .name) node.name_bytes else node.value_bytes;
+                    tag = if (cursor.section == .name) 'K' else 'V';
+                    id = cursor.ordinal;
+                },
+                else => return error.InvalidDocumentCursor,
+            }
+        },
+        .part => {
+            if (cursor.section != .raw) return error.InvalidDocumentCursor;
+            try budget.charge();
+            const part_value = try index.get(&self.logical_store, try Ordered.key('P', cursor.selection.part, 0)) orelse return error.DocumentPartMissing;
+            page.part = try Ordered.Part.decode(part_value);
+            page.total_bytes = page.part.?.bytes;
+            disclosed = part_value.len;
+            tag = 'R';
+            id = cursor.selection.part;
+            if (page.total_bytes == 0) page.cursor.complete = true;
+        },
+        .topology => {
+            if (cursor.section != .topology) return error.InvalidDocumentCursor;
+            page.total_bytes = (state.nodes * 2 + 7) / 8;
+            tag = 'B';
+        },
+    }
+    if (page.total_bytes != 0) {
+        if (cursor.offset >= page.total_bytes or cursor.offset % Ordered.chunk_bytes != 0) return error.InvalidDocumentCursor;
+        const length = @min(Ordered.chunk_bytes, page.total_bytes - cursor.offset);
+        if (disclosed + length > source.request.max_bytes - cursor.bytes) return error.DocumentReadLimitExceeded;
+        page.data = try Ordered.get(index, &self.logical_store, tag, id, cursor.offset / Ordered.chunk_bytes, &budget);
+        if (page.data.len != length) return error.InvalidOrderedState;
+        disclosed += length;
+        page.cursor.offset += length;
+        if (page.cursor.offset == page.total_bytes) {
+            page.cursor.offset = 0;
+            if (cursor.selection.kind != .tree) page.cursor.complete = true else {
+                const node = try Ordered.node(index, &self.logical_store, cursor.ordinal, &budget);
+                if (cursor.section == .name and node.value_bytes != 0) page.cursor.section = .value else advanceOrdered(&page.cursor, state.nodes);
+            }
+        }
+    }
+    if (disclosed > source.request.max_bytes - cursor.bytes) return error.DocumentReadLimitExceeded;
+    page.cursor.bytes += @intCast(disclosed);
+    page.cursor.steps += @intCast(budget.used);
+    page.cursor = try self.signOrdered(page.cursor);
     try authorize(guard);
     return page;
 }

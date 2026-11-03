@@ -377,6 +377,10 @@ test "direct graph retains physical and ADD interpretations without receipt or h
 }
 
 test "direct graph retains document partition declarations states payloads evidence live reads and checkpoints" {
+    try documentGraph(false);
+    try documentGraph(true);
+}
+fn documentGraph(comptime ordered: bool) !void {
     const DocFixture = struct {
         fn acquire(_: *anyopaque) !s.PublicationGuard.Fence {
             return .{ .writer_epoch = 1, .policy_epoch = 1 };
@@ -416,7 +420,7 @@ test "direct graph retains document partition declarations states payloads evide
         .schema = .{ .object = 808, .revision = 1, .next_column = 2, .columns = &cols },
         .configuration = .{
             .partitioning = .{ .count = 4, .key_column = 1, .hash = .sha256_64 },
-            .profile = .causal_crdt,
+            .profile = if (ordered) .versioned else .causal_crdt,
             .shredding = .{ .frequent_path_threshold = 64, .max_shredded_columns = 32, .default_collation = .utf8_binary },
             .retention = .{ .max_age_ms = null, .merge_window_revisions = 16 },
         },
@@ -451,11 +455,11 @@ test "direct graph retains document partition declarations states payloads evide
         .target = target,
         .operation = .{ .scope = scope_id, .principal = 7, .operation = 2 },
         .lineage = .{
-            .profile = .causal_crdt,
+            .profile = if (ordered) .versioned else .causal_crdt,
             .merge_epoch = 1,
             .base_revision = 0,
             .parent_revision = null,
-            .replica = .{ .id = @splat(0x52), .epoch = 1, .sequence = 1, .preceding_sequence = 0 },
+            .replica = if (ordered) null else .{ .id = @splat(0x52), .epoch = 1, .sequence = 1, .preceding_sequence = 0 },
             .raw_span = null,
         },
         .operations = 1,
@@ -487,14 +491,15 @@ test "direct graph retains document partition declarations states payloads evide
     const logical_header: logical.Header = .{ .definition = c.protocol.Growth.definition_bytes, .document = @splat(0x61), .replica = @splat(0x71), .epoch = 1, .sequence = 1, .preceding_sequence = 0, .operations = 1 };
     var logical_buffer: [2048]u8 = undefined;
     const large_value: [800]u8 = @splat('x');
-    const logical_bytes = try logical.encode(logical_header, &.{.{ .field = "body", .value = .{ .kind = .string, .bytes = &large_value } }}, &logical_buffer);
-    const logical_receipt = try owner.applyCausal(.{
+    const logical_bytes = if (ordered) try s.OrderedDocumentChange.encode(.{ .definition = c.protocol.Growth.definition_bytes, .document = logical_header.document, .epoch = 1, .expected_revision = 0, .nodes = 1, .parts = 1 }, &.{.{ .id = 19, .bytes = &large_value, .digest = DocFixture.hashBytes(&large_value) }}, &.{.{ .depth = 0, .kind = .string, .value = &large_value, .span = .{ .part = 19, .start = 0, .end = large_value.len } }}, &logical_buffer) else try logical.encode(logical_header, &.{.{ .field = "body", .value = .{ .kind = .string, .bytes = &large_value } }}, &logical_buffer);
+    const logical_mutation: doc.Mutation = .{
         .target = .{ .partition = init_req.target(), .document = logical_header.document },
         .operation = .{ .scope = scope_id, .principal = 7, .operation = 6 },
-        .lineage = .{ .profile = .causal_crdt, .merge_epoch = 1, .base_revision = 0, .parent_revision = null, .replica = .{ .id = logical_header.replica, .epoch = 1, .sequence = 1, .preceding_sequence = 0 }, .raw_span = null },
+        .lineage = .{ .profile = if (ordered) .versioned else .causal_crdt, .merge_epoch = 1, .base_revision = 0, .parent_revision = null, .replica = if (ordered) null else .{ .id = logical_header.replica, .epoch = 1, .sequence = 1, .preceding_sequence = 0 }, .raw_span = null },
         .operations = 1,
         .payload = .{ .bytes = logical_bytes.len, .sha256 = DocFixture.hashBytes(logical_bytes) },
-    }, logical_bytes, guard);
+    };
+    const logical_receipt = if (ordered) try owner.applyOrdered(logical_mutation, logical_bytes, guard) else try owner.applyCausal(logical_mutation, logical_bytes, guard);
     const logical_state = try s.DocumentLogicalState.load(t.allocator, objects.objectStore(), logical_receipt.state);
     // Seal a private candidate without accepting it. Collection must distinguish
     // its segment from the accepted tree even though they share directory pages.

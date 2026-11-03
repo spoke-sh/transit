@@ -7,6 +7,7 @@ and recovery. Read the [storage reference](../../docs/handbook/reference/storage
 
 | Boundary | Drivers |
 | --- | --- |
+| Verified JSON/XML ordered Document candidates and workbook disk reopen | [Ordered Documents](local/ordered_documents.zig); `zig build test-ordered-documents` (also under `test-components`) |
 | Local objects, WAL and accepted Table maintenance process-death recovery | [Objects](local/local_objects.py), [storage faults](local/local_storage_faults.py), [collection faults](local/local_native_collection_faults.py) |
 | Local native collection and maintenance | [local/](local/), [growth](local/storage_growth.py) |
 | Automatic native/direct collection scheduling, restart, revocation and idle convergence | [Node collection schedule](../../apps/transit-node/local_collection_test.zig); `just test::local-catalog` |

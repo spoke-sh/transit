@@ -111,5 +111,38 @@ all continuations. Current authority is checked again after buffering.
 
 This is a library/storage integration. Installed Document lifecycle, native client
 and Station behavior still use their existing contract. It does not establish
-versioned merge, list/text editing, succinct BP layout, adaptive shredding,
+versioned merge, causal list/text editing, adaptive shredding,
 collection scans or mixed Document transactions.
+
+
+## Ordered versioned trees
+
+`applyOrdered` derives a versioned create, complete replacement or ordinal-path
+subtree replacement from `transit-document.OrderedChange`. Expected revisions
+make concurrent saves conditional; original-operation retries recover the original
+receipt. The evaluator preserves ordered duplicate names, arrays, mixed content,
+exact numeric lexemes and five-state nodes. Raw parts have verified digests and
+nodes carry optional exact byte spans. Storage checks coordinates without claiming
+that an arbitrary submitted tree agrees with a parser or application schema.
+
+The residual tree, raw parts and `2N` BP bits occupy shared `.tseg` records. The
+builder seals bounded dirty batches as needed and bounds cumulative logical-index
+staging. Path replacement currently rebuilds the resulting tree and retains its
+raw envelope; a root replacement supplies a new envelope. Request bytes, depth,
+index work, conflicts and indexed operation counts remain explicit limits.
+This does not provide constant-time BP navigation or adaptive columnar shredding.
+
+Use a single-revision `beginRead`, then `orderedCursor(receipt, selection, guard)`
+and `readOrderedPage`. Tree pages distinguish node metadata, name and value
+sections. Raw-part and topology selections use the same retained authority.
+Each page owns its bytes inline; preserve its returned signed cursor and check
+completion. Refusal does not complete a prefix. See the
+[exact semantics and budgets](../../../../contracts/DOCUMENT_V1.md#integrated-ordered-versioned-storage-slice).
+
+The disk owner test covers an eight-record dirty slab, a one-page cache, a 5 KB
+value, a 1,002-node tree spanning BP chunks, conditional patches, original retry,
+raw hashes/spans, lost acceptance replies, retained old revisions, cursor tampering,
+revocation and release. `zig build test-ordered-documents` from the repository
+root connects M16's verified JSON/XML candidate adapter to disk acceptance and
+reopen, including a workbook-shaped JSON tree. The installed Document API remains
+owned by Station until the coordinated lifecycle/transaction/consumer cutover.

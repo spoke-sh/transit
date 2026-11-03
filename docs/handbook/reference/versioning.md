@@ -161,6 +161,11 @@ accepted public key. Restart conditionally rotates that key and ownership
 without re-granting permissions. Earlier installations cannot synthesize these
 fields and reject before starting authority.
 
+The current definition also requires explicit causal/ordered layout and node/part
+counts in persisted logical Document descriptors. Earlier descriptors cannot
+default to either layout. Ordered requests, raw parts, tree metadata and retained
+cursors share the current definition; no old data is silently converted or reset.
+
 This definition also integrates managed-computation operation identities, logical
 Document storage, and compact string results. Managed computations and database
 workloads have distinct SQL operation tags; a saved identifier from an earlier

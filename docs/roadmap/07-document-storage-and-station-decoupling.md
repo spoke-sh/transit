@@ -1,6 +1,6 @@
 # 7. Logical document storage, `.tseg` trees and Station decoupling
 
-[Roadmap](README.md) · [Foundation #125](https://github.com/spoke-sh/transit/issues/125) · [Native State #126](https://github.com/spoke-sh/transit/issues/126) · [Layouts & Codecs #128](https://github.com/spoke-sh/transit/issues/128) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · **Status:** In Progress — Causal map-tree storage is integrated. Next deliver persisted ordered/versioned trees and verified parts, then direct lifecycle, transaction participation and the coordinated Station/consumer cutover ([remaining implementation plan, 2026-11-02](#implementation-plan-for-remaining-work)).
+[Roadmap](README.md) · [Foundation #125](https://github.com/spoke-sh/transit/issues/125) · [Native State #126](https://github.com/spoke-sh/transit/issues/126) · [Layouts & Codecs #128](https://github.com/spoke-sh/transit/issues/128) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · **Status:** In Progress — Causal maps and conditional ordered/versioned trees with verified raw parts are integrated as storage components. Next finish merge/physical-layout gates, direct lifecycle, transaction participation and the coordinated Station/consumer cutover ([remaining implementation plan, 2026-11-02](#implementation-plan-for-remaining-work)).
 
 Decouple `Document` (`DOCUMENT`) completely from the `Station` durable actor
 runtime ([`transit-station-document`](../../packages/zig/transit-station-document/README.md),
@@ -889,6 +889,33 @@ Close M7 and its index row together only when C0–C8 and the
 profiles and later distributed/history extensions retain their own status.
 Documentation validation for this plan establishes no new runtime capability.
 
+### Ordered storage increment — 2026-11-02
+
+The next-PR scope below now has a component implementation: canonical `DORDER01`
+ordered changes; conditional versioned create/root replacement/ordinal-path
+subtree replacement; persisted residual nodes, `2N` BP bits and verified raw
+parts in shared `.tseg` records; retained authenticated metadata/value/part/topology
+pages; and an M16 verified JSON/XML candidate adapter. Original-operation retries,
+stale-head refusal, private candidate staging and one fenced WAL decision reuse
+the existing partition owner. The shared current-v1 definition changed because
+logical descriptors now require explicit layout and node/part counts.
+
+Current behavior and numeric limits live in the
+[ordered partition guide](../../packages/zig/transit-storage/docs/document-partitions.md#ordered-versioned-trees)
+and [Document contract](../../contracts/DOCUMENT_V1.md#integrated-ordered-versioned-storage-slice).
+The source includes a workbook-shaped JSON and XML disk handoff, bounded dirty
+slab/cache growth, parser/part failures, old retained reads and graph coverage.
+These component checks do not qualify installed direct callers or Station turns.
+The completion record must name the actual executed checks and source revision.
+
+This advances packets 1/2 without closing C0–C3. Profile attestations and compound
+container graphs are not persisted by the generic tree; multi-request staging,
+rank/select navigation, incremental patches, adaptive subcolumns, logical
+checkpoints, causal lists/span edits and three-way merge remain open. Patches
+currently rebuild the resulting tree and envelope within declared work budgets.
+C4/C5 caller/transaction work and the coordinated C7 consumer replacement retain
+their existing dependencies. M7 remains **In Progress**.
+
 ### First implementation changes
 
 Implement these reviewable changes from the merged causal-map baseline,
@@ -908,7 +935,7 @@ coordinated release gate.
 | 7 | C7 real transactional Station Document behavior and existing ABI/SDK/Board/example replacement when M6 R7/R8 handoffs pass | State, exact input lease, journal and reply/output intents commit together; replacement resolves the original decision without handler replay. Run actual installed consumers, preserving read-only inspection |
 | 8 | C8 coordinated removal, final regeneration and common-revision qualification | All C0–C8/completion criteria, actual resource/performance and affected clean lanes, removal inventory and public documentation agree. M16/M30 can consume the qualified public owner; their remaining features keep their own gates |
 
-**Next implementation PR:** finish the packet-1 contract subset required for
+**Selected ordered-storage PR scope:** finish the packet-1 contract subset required for
 packet 2, then deliver that ordered/versioned disk path with its independent
 fixtures. Target `DocumentOperation`/`DocumentRead`, the deterministic
 `transit-document` reader/builder, `DocumentPartition`, segment/graph owners and

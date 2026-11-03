@@ -129,5 +129,15 @@ exact causal retries retain their first revision. Pinned path pages distinguish
 value, null, missing, type error and conflict and recheck authority before
 disclosure. See the [partition guide](../../../packages/zig/transit-storage/docs/document-partitions.md#evaluated-causal-map-trees)
 for its format, bounds and exclusions. This component does not change the installed
-Document API described above or provide list/text editing, versioned merges,
-logical checkpoints, succinct tree/subcolumn integration or Document transactions.
+Document API described above.
+
+The same storage owner supports conditional versioned ordered trees through
+`applyOrdered`: create, complete replacement and ordinal-path subtree replacement.
+It preserves duplicate names, arrays, exact numeric lexemes, mixed content, raw
+parts and byte spans in `.tseg` records with persisted BP topology. M16 JSON/XML
+readers can produce a candidate only after complete grammar and byte verification.
+Pinned pages expose the accepted tree and raw parts under current authority. See
+[ordered storage](../../../packages/zig/transit-storage/docs/document-partitions.md#ordered-versioned-trees)
+for limits and the component evidence. Versioned three-way merge, causal list/text
+edits, logical checkpoints, BP navigation indexes, adaptive subcolumns and Document
+transactions remain separate gates.

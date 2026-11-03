@@ -137,4 +137,5 @@ test {
 }
 
 pub const DocumentLogicalState = @import("DocumentLogicalState.zig");
+pub const OrderedDocumentChange = @import("transit_document").OrderedChange;
 pub const LogicalDocumentChange = @import("transit_document").LogicalChange;
