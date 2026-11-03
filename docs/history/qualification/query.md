@@ -6087,3 +6087,35 @@ completed target results and unfinished phase remain in
 `/var/tmp/transit-ci-jerlu3vp`. The earlier attempt at merge `1399ff432` was
 deliberately interrupted to remove the duplicate diagnostic expectations; its
 evidence remains in `/var/tmp/transit-ci-g597iz4_`.
+
+After integrating `0cfa0cec0`, clean
+`42fac1a237eb1ccec355cf18edaf04b5aca2098f` passes all **66** fast checks;
+evidence is in `.cache/ci/clean/42fac1a237eb-transit-ci-gnbdjfbo`.
+The documentation check passes **11,213** links across **730** files.
+Its clean `storage-query` attempt completes **20 targets**, including the
+610-case string oracle, complete Fuze and local catalog targets, and the signed
+direct Table service scenarios for prepared predicates, collation, projection,
+recovery and current denial. Direct KV, state/mixed transactions, Queue transfers
+and declaration-token recovery also pass.
+
+The lane then **fails** `test::direct-workload-token`: its `prepare` subprocess
+exceeds the existing 180-second deadline. The retained node log records all
+257 Stream cancellations and 254 of 257 Queue cancellations with HTTP 200 before
+the timeout, without reaching the token recovery assertions. The fixture and
+Stream/Queue storage owners are unchanged from `0cfa0cec0`; this is source
+attribution, not a separately executed baseline reproduction or an established
+cause of the timeout. No deadline or fixture cardinality was changed.
+The clean checkout, task results and logs remain at
+`/var/tmp/transit-ci-0y_87672`; the failed service fixture remains at
+`/var/tmp/transit-table-workload-token-m7mmsrdu`.
+The remaining **12 targets** did not run in this lane attempt, so this evidence
+does not establish a complete `storage-query` pass.
+
+A separate `just test::direct-workload-token` retry in the retained clean
+checkout at the same `42fac1a23` source **passes** with the original deadline and
+257-frame prefixes. It verifies **559 requests**, the three lost bind/execute/
+settle replies, SIGKILL/restarts, unchanged saved bindings and terminal settlement.
+The source/toolchain/binary identities and output remain in
+`.cache/checks/pr-workload-token-retry-42fac1a23.log`. This focused retry does not
+replace the failed lane result or qualify its unrun targets; the timeout's cause
+remains unestablished.
