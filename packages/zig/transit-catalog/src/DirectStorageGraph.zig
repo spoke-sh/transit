@@ -506,7 +506,10 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             try directory.restore(manifest.objects);
             const entry = try directory.get(intent.source.interpretation.object.object) orelse return error.IncompleteBranchDirectory;
             if (directory.root.count != 1 or !std.meta.eql(entry.source, intent.source)) return error.InvalidBranchState;
-            try directory.verifyEntry(allocator, entry);
+            // Historical publication evidence outlives the data pin. Opening
+            // that pin here would make collection fail after retirement.
+            const entry_content = try directory.entryContent(intent.source.interpretation.object.object) orelse return error.IncompleteBranchDirectory;
+            try markContent(workspace, try s.BranchSnapshot.objectKey(entry_content, &key_buffer), entry_content);
             try markContent(workspace, try s.BranchSnapshot.objectKey(head.reference.content, &key_buffer), head.reference.content);
             try markContent(workspace, try s.BranchSnapshot.objectKey(manifest.objects.content, &key_buffer), manifest.objects.content);
             // Table live-pin traversal retains the data/archive closure. This

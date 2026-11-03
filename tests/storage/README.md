@@ -15,6 +15,7 @@ and recovery. Read the [storage reference](../../docs/handbook/reference/storage
 | Direct Table graph collection, expiry and retained pins | [Disk collection](local/direct_collection.zig), [collection process faults](local/local_native_collection_faults.py) |
 | Direct Table service, slow body/response pressure, reserved original-outcome recovery and restart | [Direct Table schedule](tables/direct_table_service.py) |
 | Finite managed computation handoffs, original transaction/cut recovery and retained revisions | [Named crash boundaries](tables/managed_recovery.py), [signed assertions](../catalog/tables/managed_table.zig); `just test::managed-tables` |
+| Fault-proxy request joining after a failed caller, including response-error reporting | [Cleanup controls](tables/test_direct_table_service.py); included in the fast check |
 | Table/KV/Stream/Queue common decision after lost statement and commit replies and two process replacements | [Signed transaction caller](../catalog/tables/direct_state_transaction.zig), [HTTP schedule](tables/direct_table_service.py); `just test::direct-mixed-transaction` |
 | Original Stream/Queue declaration tokens across lost replies and two process replacements | [Signed declaration caller](../catalog/tables/direct_log_token.zig); `just test::direct-log-token` |
 | Original Stream/Queue workload tokens across lost replies, bounded cold replay and three process replacements | [Signed workload caller](../catalog/tables/direct_log_token.zig); `just test::direct-workload-token` |

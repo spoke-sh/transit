@@ -9,6 +9,79 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Independent historical Board readers — 2026-11-02
+
+This experiment checks whether Board can inspect a separately retained Table
+through a SELECT-only principal while another native principal has non-SELECT
+metadata visibility. The [Board API](../../handbook/reference/board-api.md) and
+[historical catalog contract](../../../contracts/HISTORICAL_CATALOG_V1.md)
+own the current semantics. UPDATE supplies the second caller's metadata
+visibility; it does not grant rows or row locations, and Board never receives
+that caller's signing material.
+
+The fixture changes through `6eae861d4` use the ReleaseSafe runtime binaries
+built at `21a663fdb`, with pinned Zig `0.17.0-dev.2267+48abf1a34` and the
+integrated shared definition recorded in the
+[collation experiment](catalog.md#integrated-standards-ledger-and-retained-collation-cuts--2026-11-02).
+Runtime code and binary hashes are unchanged. The driver is
+`tests/interfaces/installation/board_workbench.py`, launched through
+`python3 -B tests/runner/launch.py` with the five explicit `zig-out/bin/transit*`
+paths and `--browser`, as in `just transit-board::workbench-browser`.
+Authorities, WALs and objects reside on local physical disk under `/var/tmp`.
+
+The complete ordinary driver passes at `6eae861d4`, without the diagnostic
+wrapper: four Chromium connection-profile cases, seven workbench cases and
+the retained-storage browser case (**12** browser cases total). The installed
+assertions also pass exact 145-row traversal, empty/metadata results, read-only
+admission and capacity; two physical schema generations and ADD origins;
+20 distinct WAL/segment row locations compared with the signed native caller;
+independent SELECT/non-SELECT metadata readers; real revoked repeated,
+continued and empty coverage; rename, disk reopen, explicit release and current
+revocation after restart. The saved flush target completes after one deliberately
+hidden reply, with zero additional uncertain flush replies in this run. The
+successful acquisition likewise recovers its deliberately hidden progress step
+without changing the original token or selected source.
+
+The earlier failures remain part of this experiment:
+
+- At `21a663fdb` and `887b37e31`, all four independent connection profiles pass
+  in Chromium, but historical acquisition exhausts its unchanged 32 attempts.
+  The second run's retained per-step trace shows progress into verification,
+  then a disconnected reply, connection reset and refused connections.
+  The first run's original saved operation is inspected after restart and
+  publishes through that same identity in eight further advances, including
+  a policy-epoch reset. That separate recovery does not make either complete
+  browser run passed or establish the original outage's cause.
+- An API-only diagnostic run at `887b37e31` publishes history and reaches the
+  independent-reader comparison, then gets 403 from the original caller.
+  Both accounts used `table.seed`; constructing the second `ExistingKey`
+  overwrote the first caller's `table-proof.der`. `0301bf38c` separates those
+  files by principal, preserving the actual native authorization checks.
+- A diagnostic browser run at `0301bf38c` passes all four connection profiles
+  and all seven workbench cases, then loses the placement-flush reply.
+  Retained node stderr records `RequestTimeout` at the existing two-second
+  deadline, with `protocol_outcome=uncertain` and no response written.
+  `6eae861d4` retries only the saved object/frontier target within the existing
+  32 attempts, exercises one deliberately hidden flush reply, and paces uncertain
+  history inspections using the same 150-ms delay as capacity refusals.
+  It raises no request deadline or attempt limit. The diagnostic runs use a
+  private wrapper that redirects node stderr before executing the unchanged
+  binary; they remain distinct from the ordinary invocation.
+
+Private raw logs, runtime hashes and the result manifest are in
+`transit-m10-plan/.cache/m10-resume/`. The failed installations are
+`/var/tmp/transit-server-proof-gmyl1e7m`,
+`/var/tmp/transit-server-proof-17ok1f3c`,
+`/var/tmp/transit-server-proof-cq2eqnnk` and
+`/var/tmp/transit-server-proof-r_oz93ol`. They retain original intents and
+available progress evidence; credentials remain private. Log names include
+`workbench-browser.log`, `workbench-browser-traced.log`,
+`workbench-node-diagnostic.log`, `workbench-reader-fixed-browser.log`,
+`workbench-final-browser.log`, `history-inspection.log` and
+`history-recovery.log`. These selected schedules
+do not complete the installation/UI or browser CI lanes, resolve every earlier
+unknown operation, qualify provider recovery, or close Milestone 10.
+
 ## Board computation inspection — 2026-11-02
 
 The focused R3 journey passes with the independent inspection owner at

@@ -19,6 +19,12 @@ from runner.paths import ROOT
 from storage.tables import direct_table_maintenance, managed_recovery
 
 
+class FaultProxy(ThreadingHTTPServer):
+    # Join in-flight handlers before closing their evidence log or leaving the
+    # interpreter, including when the caller times out during an upstream request.
+    daemon_threads = False
+
+
 def run(node, caller, mode="tables", *artifacts):
     if mode not in ("log-baseline", "tables", "managed", "managed-recovery", "managed-board", "managed-board-browser", "queues", "kv", "state-transaction", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "log-token", "workload-token", "workload-result", "maintenance", "stream-maintenance", "growth", "resource-growth", "dependency-growth", "prepared", "count-ranges", "collations", "projection", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
         raise ValueError("Unknown direct service proof mode")
@@ -533,7 +539,7 @@ def run(node, caller, mode="tables", *artifacts):
                 exercise(node, caller, root, profile, url, artifacts[0],
                          baseline_restart, lambda: authority)
                 return
-            proxy = ThreadingHTTPServer(("127.0.0.1", 0), Proxy)
+            proxy = FaultProxy(("127.0.0.1", 0), Proxy)
             thread = threading.Thread(target=proxy.serve_forever, daemon=True)
             thread.start()
             endpoint = f"http://127.0.0.1:{proxy.server_port}"
@@ -1047,7 +1053,11 @@ def run(node, caller, mode="tables", *artifacts):
             if mode == "collations":
                 subprocess.run([caller, endpoint, "initialize", str(profile)], check=True, timeout=180)
                 subprocess.run([caller, endpoint, "collations", str(profile)], check=True, timeout=180)
-                print("Direct Table collation declarations, comparison paths and retained mutations passed.", flush=True)
+                stop(authority)
+                authority = None
+                authority = start()
+                subprocess.run([caller, endpoint, "collations-recover", str(profile)], check=True, timeout=180)
+                print("Direct Table collation declarations, comparison paths and original retained pins across disk restart passed.", flush=True)
                 return
             if mode == "count-ranges":
                 subprocess.run([caller, endpoint, "initialize", str(profile)], check=True, timeout=180)
@@ -1268,6 +1278,7 @@ def run(node, caller, mode="tables", *artifacts):
             stop(authority)
             authority = None
             authority = start()
+            subprocess.run([caller, endpoint, "collations-recover", str(profile)], check=True, timeout=180)
             subprocess.run([caller, endpoint, "delegated-closed", str(profile)], check=True, timeout=180)
             assert set(fault["commands"]) <= {"authorization"}, fault["commands"]
             assert fault["execute"] is not None

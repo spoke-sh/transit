@@ -8,9 +8,11 @@ pub const Selection = union(enum) {
     append: p.StreamQueue.AppendReceipt,
     consume: p.StreamRead.Receipt,
     claim: p.StreamQueue.ClaimReceipt,
+    renewal: p.StreamQueue.SettlementReceipt,
 
     pub fn validate(self: Selection) !void {
         switch (self) {
+            .renewal => |value| _ = try renewedLease(value),
             inline else => |value| try value.validate(),
         }
     }
@@ -23,6 +25,7 @@ pub const Selection = union(enum) {
                 .{ .queue = try (p.LogWorkload.QueueRequest{ .enqueue = value.append }).binding(scratch) },
             .consume => |value| .{ .stream = try (p.LogWorkload.StreamRequest{ .consume = value.request }).binding(scratch) },
             .claim => |value| .{ .queue = try (p.LogWorkload.QueueRequest{ .claim = value.claim }).binding(scratch) },
+            .renewal => |value| .{ .queue = try (p.LogWorkload.QueueRequest{ .settle = value.settlement }).binding(scratch) },
         };
     }
 };
@@ -31,6 +34,7 @@ pub const Position = union(enum) {
     append: u32,
     consume: p.StreamRead.Cursor,
     claim: p.QueueRead.Cursor,
+    renewal: u32,
     pub fn validate(self: Position, selection: Selection) !void {
         try selection.validate();
         if (!std.mem.eql(u8, @tagName(self), @tagName(selection))) return error.WorkloadResultConflict;
@@ -38,6 +42,7 @@ pub const Position = union(enum) {
             .append => |ordinal| if (ordinal > selection.append.append.rows) return error.WorkloadResultConflict,
             .consume => |cursor| try cursor.requireReceipt(selection.consume),
             .claim => |cursor| try cursor.requireReceipt(selection.claim),
+            .renewal => |ordinal| if (ordinal > 1) return error.WorkloadResultConflict,
         }
     }
     pub fn complete(self: Position, selection: Selection) !bool {
@@ -46,6 +51,17 @@ pub const Position = union(enum) {
             .append => |ordinal| ordinal == selection.append.append.rows,
             .consume => |cursor| cursor.coverage.complete,
             .claim => |cursor| cursor.complete(),
+            .renewal => |ordinal| ordinal == 1,
         };
     }
 };
+
+/// Reconstruct the original renewal's descriptor, never the current lease.
+/// Receipt validation establishes shape, not authenticity, rights or liveness.
+pub fn renewedLease(receipt: p.StreamQueue.SettlementReceipt) !p.StreamQueue.Lease {
+    try receipt.validate();
+    if (receipt.settlement.action != .extend) return error.WorkloadResultUnavailable;
+    var lease = receipt.settlement.lease;
+    lease.expires_ms = receipt.settlement.action.extend.expires_ms;
+    return lease;
+}

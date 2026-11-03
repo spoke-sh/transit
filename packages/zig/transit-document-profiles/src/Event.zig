@@ -17,13 +17,16 @@ pub const Event = struct {
         text,
         comment,
         processing_instruction,
+        mime_field,
+        mime_headers_end,
+        mime_body,
     },
     span: profile.Span,
     depth: u32,
     /// Borrowed until the next parser call. Copy to independently owned output
     /// if it must survive. For JSON numbers these are exact source lexemes.
     value: []const u8 = "",
-    /// Attribute value / processing-instruction body when applicable.
+    /// Attribute value, processing-instruction body or unfolded MIME field body.
     detail: []const u8 = "",
 };
 

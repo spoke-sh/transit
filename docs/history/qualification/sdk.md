@@ -20,6 +20,59 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Disposable Rust consumer cache storage — 2026-11-02
+
+The [SDK conformance job](https://github.com/spoke-sh/transit/actions/runs/41553991753/job/125654451442)
+at `7b7595b92f7f119e02bcf1b19d5bf61855c9c7fe` failed during the interoperability
+ring's Rust consumer build with `No space left on device`. It passed binding
+generation, native-boundary and logical-type tasks before that failure; the
+ring and later tasks did not complete. This is not an SDK conformance pass.
+
+The disposable Rust consumers embed the matching native libraries as byte
+constants. A two-crate experiment with one 32-MiB constant, the pinned bindings
+toolchain, default Debug compilation and `cargo check` followed by `cargo build`
+measured allocated file blocks with incremental compilation explicitly enabled
+and disabled:
+
+| Observation | Incremental enabled | Incremental disabled |
+| --- | ---: | ---: |
+| Build directory after check | 167,919,616 bytes | 67,162,112 bytes |
+| Build directory after build | 538,431,488 bytes | 269,651,968 bytes |
+| Incremental cache after build | 268,775,424 bytes | 0 bytes |
+
+Both executables returned the expected byte count. This isolates duplicated
+compiler-cache storage; it neither measures the actual SDK's peak usage nor
+proves that the hosted lane now fits. Commit `d3fcb8bae02a` disables incremental
+caches for disposable raw-client and Station consumer projects while retaining
+Debug, core/Arrow, installed-example and negative-type checks. The two existing
+feedback/isolation controls and package-version check pass at that change.
+
+`just ci clean --lane sdks-conformance` at
+`d3fcb8bae02a51d1e4c537632a565c28e9722226` subsequently passed all seven tasks
+in an isolated checkout without inherited workspace build outputs: binding
+generation, native boundary, logical types, the complete ten-language
+interoperability ring, SQL, gRPC faults and connector preparation. The ring
+completed in 1,239.99 seconds; the lane completed in 1,856.52 seconds.
+
+The [hosted SDK conformance rerun](https://github.com/spoke-sh/transit/actions/runs/41558980471/job/125669509899)
+also passed all seven tasks, including the interoperability ring in 1,078.56
+seconds. Its source `c6bad5ae66b1b2e96c2e4edf2bf466845c8f71eb` has tree
+`7a18b8cbed2756ff8b281bf211bb35298902a835`, identical to both PR #342's
+submitted `049df2aba931` and merged `8f13acdc774c` trees. This qualifies that
+hosted execution with the cache change; it does not establish a peak-storage
+budget, a controlled performance comparison or a whole-suite pass.
+
+The local experiment is retained in `.cache/m6-rust-space-probe.py` (SHA-256
+`e6cd2f154361397aa022d8765ab90610dee3df9c786ddd46929f2d1aab33c73f`), with
+output `.cache/m6-rust-space-probe.log` (SHA-256
+`cc63aee51fc60fd6a4358ebbbffcb22cca982350a3486215dcca15badbac9e77`) in the
+implementation worktree. Clean-run preparation, source metadata, task logs and
+results are retained under
+`.cache/ci/clean/d3fcb8bae02a-transit-ci-zb3l44a9`; its completed
+`sdks-conformance.json` has SHA-256
+`14e6ea036f941a096451889e2105dcddb6c8e5b2437483c742a391875639cd65`.
+These are local evidence paths, not public artifacts.
+
 ## Bounded admission and direct KV recovery — 2026-11-01
 
 [PR #307](https://github.com/spoke-sh/transit/pull/307) adds named KV to the

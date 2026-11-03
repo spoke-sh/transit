@@ -62,10 +62,17 @@ pub const AppendPage = struct {
     complete: bool,
     encoded_bytes: u32,
 };
+pub const RenewalPage = struct {
+    pub const json_schema_sequence_bounds = .{ .rows = 1 };
+    source: c.DirectLogProtocol.Definition,
+    rows: []const p.StreamQueue.Lease,
+    next: u32,
+};
 pub const Page = union(enum) {
     append: AppendPage,
     consume: c.DirectStream.Page,
     claim: c.DirectQueue.Page,
+    renewal: RenewalPage,
     pub fn deinit(self: Page, allocator: std.mem.Allocator) void {
         switch (self) {
             .append => |page| {
@@ -75,6 +82,10 @@ pub const Page = union(enum) {
             },
             .consume => |page| (c.DirectStream.Result{ .page = page }).deinit(allocator),
             .claim => |page| (c.DirectQueue.Result{ .page = page }).deinit(allocator),
+            .renewal => |page| {
+                allocator.free(page.source.schema.base64);
+                allocator.free(page.rows);
+            },
         }
     }
 };
@@ -88,7 +99,7 @@ allocator: std.mem.Allocator,
 intent: Intent,
 reference: Reference,
 payload: ?[]const u8,
-cursor: union(enum) { append: s.LogBatch.Iterator, consume: p.StreamRead.Cursor, claim: p.QueueRead.Cursor },
+cursor: union(enum) { append: s.LogBatch.Iterator, consume: p.StreamRead.Cursor, claim: p.QueueRead.Cursor, renewal: u32 },
 
 /// Reopening starts a separate delivery at the original selection's beginning.
 /// It does not splice a new selection into an incomplete previous delivery.
@@ -128,6 +139,7 @@ pub fn open(allocator: std.mem.Allocator, catalog: *c.DirectCatalog, intent_refe
             self.cursor = .{ .consume = result.cursor };
         },
         .claim => |receipt| self.cursor = .{ .claim = .{ .receipt = receipt, .next = 0 } },
+        .renewal => self.cursor = .{ .renewal = 0 },
     }
     try authorize(scratch.allocator(), catalog, intent.parsed.value.work, policy);
     return self;
@@ -146,6 +158,7 @@ pub fn position(self: *const Self) Position {
         .append => |iterator| .{ .append = iterator.ordinal },
         .consume => |cursor| .{ .consume = cursor },
         .claim => |cursor| .{ .claim = cursor },
+        .renewal => |ordinal| .{ .renewal = ordinal },
     };
 }
 
@@ -165,6 +178,7 @@ pub fn seek(self: *Self, at: Position) !void {
         },
         .consume => |cursor| self.cursor = .{ .consume = cursor },
         .claim => |cursor| self.cursor = .{ .claim = cursor },
+        .renewal => |ordinal| self.cursor = .{ .renewal = ordinal },
     }
 }
 
@@ -216,7 +230,7 @@ pub fn checkDisclosure(self: *const Self, scratch: std.mem.Allocator, catalog: *
 }
 
 /// Every page (including repeated empty completion) checks original outcome and
-/// current payload rights after buffering. Cursor advancement is transactional
+/// current disclosure rights after buffering. Cursor advancement is transactional
 /// with disclosure: failure leaves the local cursor unchanged. Output is owned
 /// by the caller and must be distinct from scratch; neither allocator is retained.
 /// Free a successful page with Page.deinit; failures free partial output.
@@ -236,6 +250,17 @@ pub fn nextRows(self: *Self, scratch_arena: *std.heap.ArenaAllocator, output: st
     limits.rows = row_budget;
     var cursor = self.cursor;
     const result: Page = switch (cursor) {
+        .renewal => |ordinal| blk: {
+            const count: usize = if (ordinal == 0) 1 else 0;
+            if (count != 0 and limits.encoded_bytes < p.QueueLeaseHandle.encoded_bytes) return error.WorkloadResultRowTooLarge;
+            const rows = try output.alloc(p.StreamQueue.Lease, count);
+            errdefer output.free(rows);
+            if (count != 0) rows[0] = try p.LogWorkloadResult.renewedLease(self.reference.selection.renewal);
+            var source = self.intent.parsed.value.source;
+            source.schema.base64 = try output.dupe(u8, source.schema.base64);
+            cursor = .{ .renewal = 1 };
+            break :blk .{ .renewal = .{ .source = source, .rows = rows, .next = 1 } };
+        },
         .append => |*iterator| blk: {
             var rows: [128]AppendRow = undefined;
             var length: usize = 0;
@@ -290,6 +315,9 @@ pub fn nextRows(self: *Self, scratch_arena: *std.heap.ArenaAllocator, output: st
 fn authorize(scratch: std.mem.Allocator, catalog: *c.DirectCatalog, work: Intent.Work, policy: c.DirectCatalog.Policy) !void {
     if (work.identity().principal != policy.subject.principal()) return error.CatalogDenied;
     _ = try catalog.logAuthorization(scratch, if (work == .stream) .stream else .queue, work.target(), work.access(), policy);
+    // Renewal discloses only the claimant's own accepted descriptor. It does
+    // not read message payloads or acquire any additional permission.
+    if (work == .queue and work.queue.work == .settle and work.queue.work.settle.action == .extend) return;
     _ = try catalog.logAuthorization(scratch, if (work == .stream) .stream else .queue, work.target(), .read, policy);
 }
 
@@ -318,6 +346,7 @@ fn observe(allocator: std.mem.Allocator, catalog: *c.DirectCatalog, intent: Inte
             break :blk switch (result.operation.?) {
                 .enqueue => |value| .{ .append = value },
                 .claim => |value| .{ .claim = value },
+                .settle => |value| if (value.settlement.action == .extend) .{ .renewal = value } else error.WorkloadResultUnavailable,
                 .closed => error.WorkloadResultClosed,
                 else => error.WorkloadResultUnavailable,
             };

@@ -55,7 +55,11 @@ fail. Its `history` action inspects a supplied retained
 catalog: namespace/name lookup, bounded Table listings, exact source schemas and
 physical-definition or row-placement coverage. Row placement requires SELECT;
 definition coverage requires metadata rights. It cannot acquire, release or
-advance retention. `POST /api/v1/sql-read` adapts the shared SQL client's
+advance retention. Table metadata visibility follows current ownership or any
+Table privilege; there is no independent metadata-only grant. Configure Board
+with a read-only SELECT subject. A separate non-SELECT writer's metadata
+visibility does not authorize Board row placement or justify giving Board writes.
+`POST /api/v1/sql-read` adapts the shared SQL client's
 generated `ReadWorkspace` contract: describe, run, observe, next-window and close.
 Both require same-origin JSON requests and explicit service-side configuration.
 The browser receives no SQL account secrets or native signing key.

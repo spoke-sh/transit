@@ -1,9 +1,10 @@
 # transit-document-profiles
 
 Pure, incremental interpretation and construction of bounded Document parts.
-Applications can parse or construct JSON and the XML subset below using
-caller-owned buffers, inspect ordered events and raw source coordinates, verify
-retained bytes, and build compound representation commitments. The package
+Applications can parse or construct JSON and the XML subset below, or parse
+MIME entity frames, using caller-owned buffers. They can inspect ordered events
+and raw source coordinates, verify retained bytes, and build compound
+representation commitments. The package
 imports only `transit-protocol`; it has no allocator,
 socket, TLS, clock, storage, Station or effect-dispatch interface.
 
@@ -17,8 +18,10 @@ and merge lifecycle.
 ## Qualified interpretations
 
 `Profile.descriptor(format, limits)` seals the exact implemented grammar,
-UTF-8 encoding, single-part framing and binary key/value collation. `Json.init`,
-`Xml.init` and `Reader.init` reject a different grammar, interpretation revision,
+encoding, single-part framing and key/value collations. JSON/XML use UTF-8 and
+binary collation; MIME uses binary encoding and ASCII case-insensitive field-name
+comparison while preserving original spelling. `Json.init`, `Xml.init`,
+`Mime.init` and `Reader.init` reject a different grammar, interpretation revision,
 schema, segmenter, encoding, framing or collation, including a correctly resealed
 unsupported descriptor. Names in the neutral format enum are vocabulary; other
 formats return `UnsupportedDocumentProfile`.
@@ -27,18 +30,29 @@ formats return `UnsupportedDocumentProfile`.
 | --- | --- | --- |
 | JSON | [RFC 8259](https://www.rfc-editor.org/rfc/rfc8259) UTF-8 values; ordered object keys including duplicates; exact number lexemes; decoded Unicode scalars and surrogate pairs | BOM, lone surrogate escapes, nonfinite numbers, schema validation, numeric coercion and duplicate-key selection |
 | XML | [XML 1.0 fifth edition](https://www.w3.org/TR/2008/REC-xml-20081126/) UTF-8 subset; one root; ASCII element/attribute/PI names; ordered unique attributes; mixed content, comments, CDATA and processing instructions; optional version 1.0 declaration with UTF-8 encoding and yes/no standalone; predefined/numeric entities; line-ending and attribute whitespace normalization | BOM, non-ASCII names, namespaces/`xmlns`, DTDs, custom/external entities, external resolution, non-UTF-8 encodings and application schema validation |
+| MIME entity frame | Ordered duplicate-preserving ASCII fields, CRLF unfolding, a required empty CRLF line and an opaque binary body; [exact framing contract](../../../contracts/DOCUMENT_PROFILE_V1.md#mime-entity-frame-interpretation) | Non-ASCII headers, bare CR/LF, field/media-type validation, multipart interpretation, transfer decoding, encoded-word decoding, construction and transport |
 
 These are scalar reference parsers. No SIMD throughput, full XML conformance,
 namespace processing, archive unpacking or installed runtime claim follows from
 these component checks. Raw bytes remain the caller's responsibility; decoded
 values do not replace the source representation.
 
+`Profile.capabilities(descriptor)` reports parse/construct support for the exact
+JSON/XML interpretations and parse-only support for MIME framing. Schema
+validation, editing, persistence, query,
+search, branching and live transport are separately false. Use the returned
+`require(descriptor, capability)` check when selecting a local implementation;
+it grants no data permission or resource reservation. Unsupported resealed
+descriptors refuse rather than inheriting capabilities from their format name.
+
 ## Workspace and stepping
 
 JSON takes `[]Json.Frame` with at least `limits.depth` entries and a token buffer
 with at least `limits.token_bytes` bytes. XML takes `Xml.Workspace`: depth frames,
 `depth * token_bytes` bytes of name-stack storage, `attributes` attribute slots,
-and separate raw/decoded buffers of `token_bytes` bytes each. Initialization
+and separate raw/decoded buffers of `token_bytes` bytes each. MIME takes
+`Mime.Workspace` with separate raw/unfolded buffers of `token_bytes` bytes each.
+Initialization
 checks size multiplication and buffer lengths before processing. Buffers must be
 non-overlapping and exclusively owned by that parser until it is discarded.
 Durable/input cardinality does not grow this resident workspace. Choose limits
@@ -65,15 +79,16 @@ idempotent; extra bytes after completion are refused. Reinitialization starts a
 new explicitly separate frame.
 
 Each call consumes at most `work` new bytes. JSON does constant work per byte;
-XML can additionally finalize one bounded token or emit one pending attribute.
+XML can additionally finalize one bounded token or emit one pending attribute;
+MIME can unfold one field with at most `token_bytes` additional inspections.
 XML finalization is bounded by `token_bytes * (attributes + 4)` byte inspections;
 duplicate detection is bounded by the per-element attribute quota. The total
-`limits.work` counter charges input bytes and XML's additional scans; it is a
+`limits.work` counter charges input bytes and additional scans; it is a
 deterministic processing meter, not a CPU-cycle estimate. Exceeding it fails.
 A host needing a smaller scheduling quantum must also choose smaller token and
 attribute limits.
 
-Both parsers enforce input, expanded-output, node, depth, token and work limits;
+The JSON/XML parsers enforce input, expanded-output, node, depth, token and work limits;
 XML also enforces attributes per element. JSON token limits count decoded string
 bytes or exact number/literal bytes. XML token limits bound each complete raw
 markup/text token, including all attributes of an opening tag. The XML name
@@ -81,6 +96,14 @@ stack therefore has an explicit `depth * token_bytes` bound. No entity expansion
 can exceed its input length, so every positive expansion-ratio limit is honored.
 Each parser has one part and one sticky diagnostic, within any positive parts
 and diagnostics quota. Quotas limit an operation, not a stored collection.
+
+MIME has no nesting. Its input, expanded-output, token and work limits bound the
+complete entity, and `attributes` bounds its field count. Each field and one
+logical body, including an empty body, count against `nodes`; fetching smaller
+body windows does not consume additional nodes. A folded field, including its
+final CRLF, must fit `token_bytes`, and every physical header line is limited to
+998 bytes excluding CRLF. A body can exceed either buffer: each call copies at
+most the smaller of input, work allowance and `token_bytes` into a borrowed event.
 
 ## Events and provenance
 
@@ -98,6 +121,16 @@ Other scalar/text values use `value`. The XML declaration and whitespace outside
 the root emit no events. Empty CDATA may emit empty text; chunk boundaries do not
 split text events. JSON duplicate keys remain separate ordered events.
 
+MIME emits `mime_field` with the original field name in `value` and unfolded
+field bytes in `detail`. Only internal CRLFs are removed; spaces, tabs and
+duplicate order remain. Its span includes folds and excludes the final CRLF.
+`mime_headers_end` spans the mandatory empty separator line. `mime_body` events
+cover contiguous binary body slices, including any NUL or non-UTF-8 bytes.
+Their window boundaries have no semantic part identity. All MIME events have
+depth zero; an empty body emits no body slice. This grammar validates framing
+only: a `Content-Type` field does not activate multipart parsing or decoding,
+and no SMTP envelope or full mail-message validation is supplied.
+
 `Reader.init(descriptor, part, workspace)` additionally requires complete,
 unredacted coverage, a matching profile digest and a part length within the
 input budget. Its `next` hashes exactly the consumed bytes and reports complete
@@ -106,6 +139,53 @@ until then. A valid replacement document with a different hash fails. An event
 prefix remains provisional even when it was emitted before a late grammar/hash
 failure. Applications staging projections must discard or explicitly mark such
 prefixes; these APIs never accept a stored revision or grant effect authority.
+
+## Resumable candidate handoff
+
+`Candidate.init(binding, part, workspace)` composes `Reader` with an explicit
+consumer handoff. The [candidate binding](../../../contracts/DOCUMENT_PROFILE_V1.md#offline-candidate-bindings)
+freezes an original operation, target, optional exact edit base, interpretation
+and source manifest. The driver supports one complete local part, root ordinal
+zero and no relationships. It checks the manifest's metadata commitment against
+that part, then verifies source bytes and grammar as they are consumed. This is
+offline preparation; the target and edit base are not looked up or authorized.
+
+`next(input, eof, work)` returns consumed input bytes and `event`, `need_input`,
+`yield` or `verified`. An event contains a binding/ordinal `ticket` and the
+borrowed parser event. Copy or finish consuming its values, then call
+`consume(ticket)`. Until that succeeds, repeated `next` calls return the same
+event with zero input consumption, preserving parser workspace. Consume the
+reported input prefix exactly once and resubmit its tail. A stale/foreign ticket
+or a second consumption refuses without poisoning the current candidate.
+The source input may be released after each call; event bytes must not survive
+consumption followed by another parser call. Keep the caller-owned workspace
+exclusive for the candidate's entire lifetime.
+
+`pump(input, eof, work, sink)` is an optional push adapter. A sink implements
+`pub fn offer(self, event) !Candidate.Offered`, returning `consumed` only after
+using/copying the whole event, or `blocked` without consuming a prefix. One pump
+invokes the sink at most once and reports `progress` or `blocked` in addition to
+the input/verification states. The sink bounds its own work and output storage;
+the driver adds no queue or allocator. Sink errors, parser errors and late
+length/hash failure poison the candidate and preserve the first error in `cause`.
+Discard all private sink output on failure. Further calls return
+`DocumentCandidateFailed`; they cannot resume a partly failed parse.
+
+`verifiedPart` and `verifiedBinding` succeed only after every event is consumed
+and the reader verifies its final bytes. Root-end events, empty input and filled
+output windows do not establish verification. `cancel` invalidates even a locally
+verified candidate, drops its pending event and is idempotent; existing failures
+keep their original cause. Zero work and trailing input after verification remain
+caller errors with the same non-poisoning behavior as `Reader`.
+
+For semantic serialization, pass a pending event to `JsonWriter.beginEvent` or
+`XmlWriter.beginEvent`, drain bounded output windows, then consume its ticket.
+Generated output gets a new part ID and commitment. A completed writer or
+compound verifier cannot establish that the original source finished: require
+the source candidate's verified binding separately before using derived output.
+The driver owns constant state plus the existing parser workspace. It supplies
+no durable staging continuation, edit engine, graph resolver or publication
+operation; a binding cannot acquire a retention hold by itself.
 
 ## JSON construction and semantic serialization
 
@@ -240,3 +320,17 @@ tests under `test-components`, and standalone manifests under
 manifest fixture, sticky failures, changed parts/references, quotas and 100,000 streamed parts/relationships
 without a resident directory. These checks establish no disk durability, gateway
 exchange or remote-effect result.
+
+The same probe compares MIME fields and order with Python's `email` header
+parser and checks independently generated raw spans, unfolded values and binary
+body bytes across reader/candidate schedules. Explicit strict-framing refusals
+are checked separately from that parser's permissive recovery. Package tests
+cover every split, header quotas, late hash failure and cancellation; a
+400,000-byte body streams through two three-byte buffers with one logical node.
+
+Candidate checks cover every input split with overwritten caller input, delayed
+event consumption, stale/foreign tickets, cancellation, sink errors, resource
+refusal and late hash failure after generated output is already complete. A
+100,000-value stream uses unchanged workspace. The independent Python/Expat
+probe checks both raw readers and candidate delivery against its own expected
+events/spans and routes semantic construction through the candidate handoff.

@@ -102,6 +102,7 @@ restarts again and compares original observations. The independent row oracle
 covers an empty claim before enqueue, filtered Stream output versus native
 coverage, batching across smaller native pages, exact repeats and revoked
 terminal disclosure. This exercises native tokens. `just test::sql-log-declarations`
-separately admits append and positional consumption SQL through native, console,
-PostgreSQL and MySQL consumers and verifies original results after gateway
-replacement, typed parameters, logical limits and revoked batches.
+separately admits append, positional consumption, claim and ACK/NACK/renewal SQL
+through native, console, PostgreSQL and MySQL consumers. It verifies original
+results after gateway replacement, typed parameters, logical limits, stale lease
+fencing, later settlement and revoked batches.

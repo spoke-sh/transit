@@ -41,13 +41,23 @@ pub const Intent = struct {
     }
 };
 
-pub const Phase = enum { admitted, published, abandoning, cancelled };
+/// Retirement changes availability, never the original publication outcome.
+pub const Phase = enum { admitted, published, abandoning, cancelled, retiring, retired };
 pub const State = struct {
     definition: p.Growth.Definition,
     branch: p.Branch.Identity,
     phase: Phase,
     head: ?p.Branch.Head,
 
+    pub fn pending(self: State) bool {
+        return self.phase == .admitted or self.phase == .abandoning;
+    }
+    pub fn cancelled(self: State) bool {
+        return self.phase == .abandoning or self.phase == .cancelled;
+    }
+    pub fn published(self: State) bool {
+        return self.phase == .published or self.phase == .retiring or self.phase == .retired;
+    }
     pub fn initial(receipt: c.DirectClientToken.Receipt) State {
         return .{ .definition = p.Growth.current_definition, .branch = .{ .scope = receipt.binding.key.connection.scope, .branch = receipt.position.next_lsn }, .phase = .admitted, .head = null };
     }
@@ -55,13 +65,33 @@ pub const State = struct {
         if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
         try self.branch.validate();
         if (progress.receipt.binding.intent != .branch or !std.meta.eql(self.branch, initial(progress.receipt).branch) or
-            (self.phase == .published) != (self.head != null) or
-            progress.pending != (self.phase == .admitted or self.phase == .abandoning) or
-            progress.cancel != (self.phase == .abandoning or self.phase == .cancelled)) return error.InvalidBranchState;
+            self.published() != (self.head != null) or
+            progress.pending != self.pending() or progress.cancel != self.cancelled()) return error.InvalidBranchState;
         if (self.head) |head| {
             try head.validate();
             if (!std.meta.eql(head.reference.identity, self.branch) or head.reference.version != 1 or head.generation != 1) return error.InvalidBranchState;
         }
+    }
+    /// Recovery checks the same monotonic transition as the publication owner.
+    /// Only initial publication introduces a head; retirement preserves it.
+    pub fn transition(before: State, after: State) !void {
+        var expected = before;
+        switch (before.phase) {
+            .admitted => switch (after.phase) {
+                .published => {
+                    if (after.head == null) return error.InvalidBranchState;
+                    expected.head = after.head;
+                },
+                .abandoning => {},
+                else => return error.InvalidBranchState,
+            },
+            .abandoning => if (after.phase != .cancelled) return error.InvalidBranchState,
+            .published => if (after.phase != .retiring) return error.InvalidBranchState,
+            .retiring => if (after.phase != .retired) return error.InvalidBranchState,
+            .cancelled, .retired => return error.InvalidBranchState,
+        }
+        expected.phase = after.phase;
+        if (!std.meta.eql(expected, after)) return error.InvalidBranchState;
     }
     pub fn stage(self: State, objects: c.storage.TransitObjectStore.ObjectStore, progress: c.DirectClientToken.Progress) !c.DirectRecord.Reference {
         try self.validate(progress);
@@ -104,17 +134,37 @@ pub const Page = struct {
     encoded_bytes: u32,
     next: ?c.storage.TablePartition.SnapshotCursor,
 };
+pub const Cursor = struct {
+    catalog: d.Position,
+    namespace: u64,
+    after: u64,
+    pub fn validate(self: Cursor, namespace: u64) !void {
+        try self.catalog.validate();
+        if (self.catalog.next_lsn == 0 or self.namespace != namespace or self.after == 0 or self.after >= self.catalog.next_lsn) return error.InvalidBranchCursor;
+    }
+};
+pub const Description = struct { name: c.TableAuthority.Name, head: p.Branch.Head, source: d.SourceCut, mode: p.Branch.Mode };
+/// Each request examines at most eight branch IDs. Filtered pages can be empty
+/// with a continuation; only null completes the selected catalog traversal.
+pub const Listing = struct {
+    catalog: d.Position,
+    namespace: u64,
+    entries: [c.storage.TreeStore.pages.page_entries]?Description = @splat(null),
+    next: ?Cursor = null,
+};
 pub const Request = union(enum) {
     create: struct { key: c.DirectClientToken.Key, intent: Intent, budget: c.DirectClientToken.Budget = .{} },
     inspect: c.DirectClientToken.Key,
     advance: c.DirectClientToken.Key,
     cancel: c.DirectClientToken.Key,
+    retire: struct { key: c.DirectClientToken.Key, expected: p.Branch.Head },
     lookup: struct { namespace: u64, name: c.TableAuthority.Name },
+    list: struct { namespace: u64, after: ?Cursor },
     source: p.Branch.Head,
     scan: Read,
 
     pub fn mutation(self: Request) bool {
-        return self == .create or self == .advance or self == .cancel;
+        return self == .create or self == .advance or self == .cancel or self == .retire;
     }
     pub fn validate(self: Request, connection: w.Connection) !void {
         switch (self) {
@@ -128,9 +178,19 @@ pub const Request = union(enum) {
                 try key.validate();
                 if (!std.meta.eql(key.connection, connection)) return error.BranchIdentityConflict;
             },
+            .retire => |value| {
+                try value.key.validate();
+                try value.expected.validate();
+                try value.expected.reference.identity.requireScope(connection.scope);
+                if (!std.meta.eql(value.key.connection, connection)) return error.BranchIdentityConflict;
+            },
             .lookup => |value| {
                 try c.Model.nativeId(value.namespace);
                 try value.name.validate();
+            },
+            .list => |value| {
+                try c.Model.nativeId(value.namespace);
+                if (value.after) |cursor| try cursor.validate(value.namespace);
             },
             .source => |head| {
                 try head.validate();
@@ -145,18 +205,21 @@ pub const Request = union(enum) {
         }
     }
 };
-pub const Result = union(enum) { status: ?Status, source: Source, page: Page };
+pub const Result = union(enum) { status: ?Status, source: Source, page: Page, listing: Listing };
 
 /// Returned variable bytes belong to the parsed response. Retain it until all
 /// rows/schema have been consumed, then deinit; a page is not a whole result.
 pub fn call(client: c.DirectTableClient, request: Request) !std.json.Parsed(w.Response) {
-    return client.call(.{ .branch = request });
+    return client.call(.{ .branch = request }) catch |err| {
+        if ((request == .source or request == .scan) and err == error.Conflict and client.service.last_rejection == .QueryExpired) return error.BranchRetired;
+        return err;
+    };
 }
 
 pub fn validateResult(allocator: std.mem.Allocator, connection: w.Connection, request: Request, result: Result) !void {
     try request.validate(connection);
     switch (request) {
-        .create, .inspect, .advance, .cancel, .lookup => {
+        .create, .inspect, .advance, .cancel, .retire, .lookup => {
             if (result != .status) return error.InvalidBranchResponse;
             const status = result.status orelse {
                 if (request != .inspect and request != .lookup) return error.InvalidBranchResponse;
@@ -164,7 +227,7 @@ pub fn validateResult(allocator: std.mem.Allocator, connection: w.Connection, re
             };
             try status.receipt.validate();
             try status.revision.validate();
-            const progress: c.DirectClientToken.Progress = .{ .receipt = status.receipt, .revision = status.revision, .pending = status.state.phase == .admitted or status.state.phase == .abandoning, .cancel = status.state.phase == .abandoning or status.state.phase == .cancelled, .record = null };
+            const progress: c.DirectClientToken.Progress = .{ .receipt = status.receipt, .revision = status.revision, .pending = status.state.pending(), .cancel = status.state.cancelled(), .record = null };
             try progress.validate();
             try status.state.validate(progress);
             const intent = status.receipt.binding.intent.branch;
@@ -175,8 +238,40 @@ pub fn validateResult(allocator: std.mem.Allocator, connection: w.Connection, re
                     if (!std.meta.eql(value.intent, intent)) return error.InvalidBranchResponse;
                 },
                 inline .inspect, .advance, .cancel => |key| try key.requireSame(status.receipt.binding.key),
+                .retire => |value| {
+                    try value.key.requireSame(status.receipt.binding.key);
+                    if (status.state.phase != .retiring and status.state.phase != .retired) return error.InvalidBranchResponse;
+                    try value.expected.requireSame(status.state.head.?);
+                },
                 .lookup => |value| if (value.namespace != intent.namespace or !std.meta.eql(value.name, intent.name) or status.state.phase != .published) return error.InvalidBranchResponse,
                 else => unreachable,
+            }
+        },
+        .list => |input| {
+            if (result != .listing) return error.InvalidBranchResponse;
+            const listing = result.listing;
+            try listing.catalog.validate();
+            if (listing.catalog.next_lsn == 0 or listing.namespace != input.namespace) return error.InvalidBranchResponse;
+            if (input.after) |cursor| if (!std.meta.eql(cursor.catalog, listing.catalog)) return error.InvalidBranchResponse;
+            var after: u64 = if (input.after) |cursor| cursor.after else 0;
+            var ended = false;
+            for (listing.entries) |slot| {
+                const entry = slot orelse {
+                    ended = true;
+                    continue;
+                };
+                try entry.name.validate();
+                try entry.head.validate();
+                try entry.head.reference.identity.requireScope(connection.scope);
+                try entry.source.validate();
+                try connection.object(entry.source.interpretation.object);
+                const id = entry.head.reference.identity.branch;
+                if (ended or id <= after or id >= listing.catalog.next_lsn) return error.InvalidBranchResponse;
+                after = id;
+            }
+            if (listing.next) |cursor| {
+                try cursor.validate(input.namespace);
+                if (!std.meta.eql(cursor.catalog, listing.catalog) or cursor.after < after or cursor.after <= (if (input.after) |previous| previous.after else 0)) return error.InvalidBranchResponse;
             }
         },
         .source => |head| {
@@ -216,7 +311,7 @@ pub fn validateResult(allocator: std.mem.Allocator, connection: w.Connection, re
 }
 
 test "direct branch independent signature binds exact full-width source and mode" {
-    const Fixture = struct { request: w.Request, public_key: [32]u8, intent_digest: [32]u8 };
+    const Fixture = struct { request: w.Request, retire: w.Request, list: w.Request, public_key: [32]u8, intent_digest: [32]u8 };
     const parsed = try p.Json.parseFromSlice(Fixture, std.testing.allocator, @embedFile("fixtures/direct-branch-v1.json"));
     defer parsed.deinit();
     const fixture = parsed.value;
@@ -225,5 +320,15 @@ test "direct branch independent signature binds exact full-width source and mode
     try std.testing.expectEqual(fixture.intent_digest, try fixture.request.action.branch.create.intent.digest());
     var changed = fixture.request;
     changed.action.branch.create.intent.mode = .schema_only;
+    try std.testing.expectError(error.InvalidAuthorizationCredential, changed.validate(std.testing.allocator));
+    try fixture.retire.validate(std.testing.allocator);
+    try fixture.retire.proof.verify(fixture.public_key);
+    try fixture.list.validate(std.testing.allocator);
+    try fixture.list.proof.verify(fixture.public_key);
+    changed = fixture.retire;
+    changed.action.branch.retire.expected.generation += 1;
+    try std.testing.expectError(error.InvalidAuthorizationCredential, changed.validate(std.testing.allocator));
+    changed = fixture.list;
+    changed.action.branch.list.after.?.after -= 1;
     try std.testing.expectError(error.InvalidAuthorizationCredential, changed.validate(std.testing.allocator));
 }

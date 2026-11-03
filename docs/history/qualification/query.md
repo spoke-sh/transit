@@ -94,6 +94,135 @@ The run does not establish host power-loss durability, generic abandoned-work
 collection, the combined collection/revocation/growth matrix or T5/T8
 implementation correspondence. R1b and R3a retain those open gates.
 
+## SQL Queue renewal original results — 2026-11-02
+
+This review unit implements receipt-returning `EXTEND LEASE`. Current semantics
+belong to the [SQL reference](../../handbook/reference/sql/streaming.md#renew-a-queue-lease),
+[Queue contract](../../../contracts/QUEUE_V1.md#opaque-lease-descriptor-codec)
+and [workload result contract](../../../contracts/SQL_RESULTS_V1.md#original-workload-evidence).
+The current-v1 cutover replaces the shared definition with
+`fa88766ac95f2c156474b0c97eb9eaafcccc8c13a70009e574d09397d7ba3c72`.
+Generated schemas, bindings and independent signing/frame fixtures use that
+definition together; this record establishes no compatibility with older stores.
+
+The question is whether a caller can recover the exact renewed lease from the
+original accepted settlement after losing execution or delivery responses,
+without another renewal or sampling today's lease. Native result selection
+returns one descriptor and a verified terminal position. Current claimant and
+settlement authority gate disclosure, including buffered, repeated and empty
+terminal delivery; this descriptor does not disclose payload or establish that
+the lease is still live.
+
+Executed with the pinned Nix Zig 0.17 toolchain:
+
+| Check and source | Outcome and boundary |
+| --- | --- |
+| `just ci clean --lane interfaces-sql` at `04f994a8f7c277a89f084d8a0c4b59a37b88aef9` | All eight tasks passed: TLS, result allocations, wire gateway, sessions, integrity, history, installed Stream/Queue workloads and transactions |
+| `just ci clean --lane sdks-conformance` at `4c88edb48e9039082c517756af73cace5dadde50` | All seven tasks passed: generated bindings, native boundary, logical types, installed language interoperability, SQL, gRPC faults and connector preparation |
+| `check::core` within the clean core attempt at `4c88edb48e9039082c517756af73cace5dadde50` | Passed 65 fast checks, 20 contract checks and all 2,267 native tests; this completed task is not a completed core lane |
+| `just ci clean --lane installation-ui` at `4c88edb48e9039082c517756af73cace5dadde50` | First seven tasks passed; `test::managed-tables` failed to compile the shared payload-result fixture because its switch omitted the new `renewal` variant. Later tasks did not run |
+
+Raw successful lane records, command logs, metadata and preparation provenance
+are retained under `.cache/ci/clean/04f994a8f7c2-transit-ci-rflfu3an` and
+`.cache/ci/clean/4c88edb48e90-transit-ci-iemsk6pd` in the implementation worktree.
+The completed core task and its native checkpoint are retained in
+`/var/tmp/transit-ci-dbfqdbhw/src/.cache/checks`; the failed installation lane
+is retained at `/var/tmp/transit-ci-68pz7nuh`. These are local evidence paths,
+not portable public artifacts. The SDK preparation's first dependency fetch
+timed out; the existing bounded preparation retry succeeded before checks ran.
+
+The installed SQL workload test destroys prepared parameter/receipt buffers,
+discards the first execution and fetch responses, replaces the service and
+recovers the original token. Compatible ALTER, later renewal, ACK, DROP and
+another replacement do not rewrite the original returned handle. Fresh
+ACK/NACK/renewal with the superseded handle is fenced; changed parameters
+conflict with the original token. Revocation denies buffered result and status
+disclosure. Native SQL, PostgreSQL, MySQL and the installed console all consume
+the one-row result; PostgreSQL emits the typed `EXTEND LEASE` completion tag.
+
+Native tests cover the original descriptor across disk-WAL restart and an
+unavailable clock, exact receipt binding, the 168-byte descriptor budget,
+unchanged log tail during result delivery, and revocation after buffering
+without cursor advancement. Catalog ownership/allocation-failure checks include
+the frozen renewal projection. Shared result tests reject incomplete coverage,
+wrong terminal counts and foreign or non-extension evidence. Independent signed
+request and result-frame fixtures cover the new selection.
+
+Earlier clean core attempts failed at reviewed Board diagnostic mappings
+(`04f994a8f7c2`, `/var/tmp/transit-ci-2efp3bxh`), its matching outcome entry
+(`95232fcf7`, `/var/tmp/transit-ci-zniz6zb1`), and the stale Station signing
+fixture (`d35070623`, `/var/tmp/transit-ci-biivw0kr`). The last attempt passed
+2,266 of 2,267 native tests; the independent signing oracle also rejected the
+same fixture. Updating the reviewed mapping/outcome and regenerating the fixture
+resolved those checks in the later completed core task. No assertion, deadline,
+lease or resource budget was weakened. The payload-only fixture's omitted
+variant is corrected in `218490476`; an unexpected renewal page now fails
+explicitly rather than being interpreted as a payload row.
+
+These completed checks predate the rebase onto `5e00b53bf` (Board computation
+inspection and presentation) and do not qualify the combined branch. Active
+follow-up validation belongs in the PR. This is selected component/caller
+evidence, not whole-suite, provider, performance or milestone completion. The
+[preserved maintenance failure](storage.md#preserved-queue-fixture-read-only-recovery--2026-11-02)
+retains its original outcome and unresolved cause.
+
+### Post-merge validation and fault-proxy cleanup — 2026-11-02
+
+The [hosted SQL lane](https://github.com/spoke-sh/transit/actions/runs/41553991753/job/125648425947)
+completed all eight tasks on `7b7595b92f7f119e02bcf1b19d5bf61855c9c7fe`.
+Its Git tree, `7b4da0a171fb28b8ff62aff6af2f19a53c7d590a`, equals both the
+submitted `f00b7f0b9c24` tree and merged `3df8a63daef0` tree. This supplies
+combined-source SQL evidence, including the installed native/PostgreSQL/MySQL/
+console renewal assertions, discarded execution/fetch responses, original
+results after later settlement and DROP, and stale-handle refusal.
+
+The same source's [storage lane](https://github.com/spoke-sh/transit/actions/runs/41553991753/job/125648425919)
+passed all 33 tasks, including `test::direct-workload-result` in 45.99 seconds.
+Preparation, opening, saved-position verification, lost replies and node
+replacement all completed. The [core lane](https://github.com/spoke-sh/transit/actions/runs/41553991753/job/125648425954)
+and [installation lane](https://github.com/spoke-sh/transit/actions/runs/41553991753/job/125648425903)
+also passed, qualifying the corrected managed payload-result fixture on the
+combined tree. The overall workflow still failed because SDK conformance ran
+out of disk; its [separate repair and reruns](sdk.md#disposable-rust-consumer-cache-storage--2026-11-02)
+preserve that failed attempt.
+
+The local `just test::direct-workload-result` rerun at `f00b7f0b9c24` failed
+in `workload-result-prepare` at its unchanged 180-second deadline. The node
+recorded 257 Stream setup requests totaling 156.0 seconds before the Queue
+setup prefix. It did not reach the result recovery assertions. The private
+fixture `/var/tmp/transit-table-workload-result-03e2hovw` retains 336 original
+signed attempts and 335 replies; the final saved Queue cancellation has no
+captured reply. That absence does not establish rejection. Other builds and
+disk I/O overlapped this run; it is not an isolated latency measurement or a
+cause analysis of the earlier maintenance timeout.
+
+An earlier attempt also aborted Python during daemon-thread error reporting.
+Commit `e97eeb1ce4d7` makes the direct-service fault proxy join its request
+handlers before fixture teardown. Real HTTP cleanup controls cover a blocked
+response and an error handler, preserving the original caller timeout. Both
+controls fail when the old daemon behavior is restored. The clean fast check
+at that commit passed all 66 checks; it does not qualify native storage.
+
+A further local `just test::direct-workload-result` run from clean source
+`049df2aba931f8186d24f829d48fb865f58350fa`, including that cleanup fix, again
+timed out during preparation at 180 seconds. It exited with the original
+`TimeoutExpired` and code 1, without the interpreter abort. Its retained private
+fixture `/var/tmp/transit-table-workload-result-6nj2ci9w` contains 400 signed
+attempts and 400 captured proxy replies; result recovery assertions never ran.
+The hosted pass does not convert either local timeout into a pass or identify
+its cause. No deadline, lease, setup cardinality or resident budget was relaxed.
+
+Local raw evidence in the implementation worktree is
+`.cache/m6-resumed-workload-result.log` (SHA-256
+`c640656bdcdcb016ac8113b0a4a27d88205789abb4a6d63a814e7954ece61a1c`),
+`.cache/m6-proxy-negative-control.log` (SHA-256
+`1e122020d3102b1b960ecfba48b6c38dc9855ab4e1d0859cceac8a2cd2e58936`), and
+`.cache/ci/clean/e97eeb1ce4d7-transit-ci-99imf_j4` for automatic clean-check
+records. The later timeout log is `.cache/m6-joined-workload-result.log`
+(SHA-256 `65d068153926d1d9e0328289f562af116e1ad712c730aec13f40dbc11006f8ca`).
+These local paths are not portable public artifacts. Local setup latency and
+the separate preserved maintenance/terminal-retention gates remain unresolved.
+
 ## SQL Queue NACK settlement and recovery — 2026-11-02
 
 This review unit starts from `ffbf2e9b12dceca856000faf15eebbc252ae580c`.

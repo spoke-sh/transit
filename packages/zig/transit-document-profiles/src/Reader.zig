@@ -4,14 +4,16 @@ const std = @import("std");
 const Profile = @import("Profile.zig");
 const Json = @import("Json.zig");
 const Xml = @import("Xml.zig");
+const Mime = @import("Mime.zig");
 const Step = @import("Event.zig").Step;
 const Self = @This();
 
 pub const Workspace = union(enum) {
     json: struct { frames: []Json.Frame, token: []u8 },
     xml: Xml.Workspace,
+    mime: Mime.Workspace,
 };
-const Parser = union(enum) { json: Json, xml: Xml };
+const Parser = union(enum) { json: Json, xml: Xml, mime: Mime };
 part: Profile.contract.Part,
 parser: Parser,
 hash: std.crypto.hash.sha2.Sha256 = .init(.{}),
@@ -27,6 +29,7 @@ pub fn init(descriptor: Profile.contract.Descriptor, part: Profile.contract.Part
     const parser: Parser = switch (workspace) {
         .json => |value| .{ .json = try Json.init(descriptor, part.id, value.frames, value.token) },
         .xml => |value| .{ .xml = try Xml.init(descriptor, part.id, value) },
+        .mime => |value| .{ .mime = try Mime.init(descriptor, part.id, value) },
     };
     return .{ .part = part, .parser = parser };
 }

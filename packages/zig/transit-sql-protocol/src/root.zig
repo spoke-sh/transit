@@ -114,7 +114,7 @@ pub const Operation = struct {
             _ = try self.commandEvidence();
         } else if (self.matched != 0 or self.changed != 0 or self.transaction != null or self.workload != null) return error.InvalidSqlOperation;
         if (self.result_kind == .rows and (self.identity.kind != .workload or (self.phase == .terminal and self.outcome != .applied) or
-            (self.command != .produce and self.command != .consume and self.command != .enqueue and self.command != .claim))) return error.InvalidSqlOperation;
+            (self.command != .produce and self.command != .consume and self.command != .enqueue and self.command != .claim and self.command != .extend_lease))) return error.InvalidSqlOperation;
         if ((self.phase == .ready or self.phase == .active) and self.command == null) return error.InvalidSqlOperation;
     }
     pub fn completion(self: Operation) !results.CommandCompletion {

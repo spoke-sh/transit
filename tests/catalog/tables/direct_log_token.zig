@@ -304,12 +304,14 @@ fn checkResultPage(init: std.process.Init, client: c.DirectTableClient, page: c.
     var scratch: std.heap.ArenaAllocator = .init(init.gpa);
     defer scratch.deinit();
     switch (page) {
-        inline else => |value, tag| {
+        .renewal => return error.TestUnexpectedResult,
+        inline .append, .consume, .claim => |value, tag| {
             try t.expectEqual(count, value.rows.len);
             const done = switch (tag) {
                 .append => value.complete,
                 .consume => value.cursor.coverage.complete,
                 .claim => value.cursor.complete(),
+                .renewal => unreachable,
             };
             try t.expectEqual(complete, done);
             for (value.rows, first..) |row, ordinal| {

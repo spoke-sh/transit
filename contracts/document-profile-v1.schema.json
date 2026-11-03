@@ -13,7 +13,9 @@
         "validation",
         "container",
         "reference",
-        "relationship"
+        "relationship",
+        "capabilities",
+        "candidate"
       ],
       "properties": {
         "descriptor": {
@@ -42,6 +44,12 @@
         },
         "relationship": {
           "$ref": "#/$defs/T33"
+        },
+        "capabilities": {
+          "$ref": "#/$defs/T36"
+        },
+        "candidate": {
+          "$ref": "#/$defs/T39"
         }
       },
       "required": [
@@ -53,7 +61,9 @@
         "validation",
         "container",
         "reference",
-        "relationship"
+        "relationship",
+        "capabilities",
+        "candidate"
       ],
       "x-transit-defaults": {}
     },
@@ -131,7 +141,7 @@
     "T2": {
       "type": "string",
       "enum": [
-        "c3cbdfe99cdb08a8a21cc2429783fd746b1311b096d9ca8371058e1abb037b64"
+        "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573"
       ]
     },
     "T3": {
@@ -829,6 +839,168 @@
               "$ref": "#/$defs/T25"
             }
           }
+        }
+      ]
+    },
+    "T36": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "descriptor",
+        "operations"
+      ],
+      "properties": {
+        "descriptor": {
+          "$ref": "#/$defs/T1"
+        },
+        "operations": {
+          "$ref": "#/$defs/T37"
+        }
+      },
+      "required": [
+        "descriptor",
+        "operations"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T37": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "parse",
+        "construct",
+        "validate_schema",
+        "edit",
+        "persist",
+        "query",
+        "search",
+        "branch",
+        "live_transport"
+      ],
+      "properties": {
+        "parse": {
+          "$ref": "#/$defs/T38"
+        },
+        "construct": {
+          "$ref": "#/$defs/T38"
+        },
+        "validate_schema": {
+          "$ref": "#/$defs/T38"
+        },
+        "edit": {
+          "$ref": "#/$defs/T38"
+        },
+        "persist": {
+          "$ref": "#/$defs/T38"
+        },
+        "query": {
+          "$ref": "#/$defs/T38"
+        },
+        "search": {
+          "$ref": "#/$defs/T38"
+        },
+        "branch": {
+          "$ref": "#/$defs/T38"
+        },
+        "live_transport": {
+          "$ref": "#/$defs/T38"
+        }
+      },
+      "required": [
+        "parse",
+        "construct",
+        "validate_schema",
+        "edit",
+        "persist",
+        "query",
+        "search",
+        "branch",
+        "live_transport"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T38": {
+      "type": "boolean"
+    },
+    "T39": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "definition",
+        "target",
+        "operation",
+        "base",
+        "interpretation",
+        "source",
+        "digest"
+      ],
+      "properties": {
+        "definition": {
+          "$ref": "#/$defs/T2"
+        },
+        "target": {
+          "$ref": "#/$defs/T27"
+        },
+        "operation": {
+          "$ref": "#/$defs/T40"
+        },
+        "base": {
+          "$ref": "#/$defs/T41"
+        },
+        "interpretation": {
+          "$ref": "#/$defs/T1"
+        },
+        "source": {
+          "$ref": "#/$defs/T24"
+        },
+        "digest": {
+          "$ref": "#/$defs/T6"
+        }
+      },
+      "required": [
+        "definition",
+        "target",
+        "operation",
+        "base",
+        "interpretation",
+        "source",
+        "digest"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T40": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "scope",
+        "principal",
+        "operation"
+      ],
+      "properties": {
+        "scope": {
+          "$ref": "#/$defs/T31"
+        },
+        "principal": {
+          "$ref": "#/$defs/T4"
+        },
+        "operation": {
+          "$ref": "#/$defs/T4"
+        }
+      },
+      "required": [
+        "scope",
+        "principal",
+        "operation"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T41": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/T26"
+        },
+        {
+          "type": "null"
         }
       ]
     }

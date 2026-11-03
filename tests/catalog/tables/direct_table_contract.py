@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "c3cbdfe99cdb08a8a21cc2429783fd746b1311b096d9ca8371058e1abb037b64"
+definition = "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -288,6 +288,15 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
     branch_request = {**branch_input, "proof": {"claim": branch_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(branch_claim)).digest())}}
     branch_fixture = {"request": branch_request, "public_key": public_key,
                       "intent_digest": list(hashlib.sha256(b"transit.catalog.table-branch.v1\0" + canonical(branch_intent)).digest())}
+    branch_head = {"reference": {"identity": {"scope": request_input["connection"]["scope"], "branch": 2**64 - 2},
+                                 "version": 1, "content": {"bytes": 512, "sha256": [27] * 32}}, "generation": 1}
+    for label, action in (
+        ("retire", {"retire": {"key": branch_key, "expected": branch_head}}),
+        ("list", {"list": {"namespace": 1, "after": {"catalog": {"partition": 9, "next_lsn": 2**64 - 1}, "namespace": 1, "after": 2**64 - 2}}}),
+    ):
+        branch_control = {**request_input, "action": {"branch": action}}
+        branch_control_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(branch_control)).digest())}
+        branch_fixture[label] = {**branch_control, "proof": {"claim": branch_control_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(branch_control_claim)).digest())}}
 
     history_intent = {
         "connection": request_input["connection"], "namespace": 1, "operation": 2**64 - 1,
@@ -389,6 +398,12 @@ fixture = {
 validator = jsonschema.Draft202012Validator({**schema, "$ref": "#/$defs/Request"})
 validator.validate(request)
 validator.validate(branch_request)
+validator.validate(branch_fixture["retire"])
+validator.validate(branch_fixture["list"])
+for field in ("key", "expected"):
+    incomplete = copy.deepcopy(branch_fixture["retire"])
+    del incomplete["action"]["branch"]["retire"][field]
+    assert not validator.is_valid(incomplete), field
 validator.validate(history_request)
 validator.validate(common_request)
 validator.validate(metadata_request)
@@ -806,8 +821,24 @@ for workload_kind, workload, fixture_value in (("stream", stream_work, stream_fi
         selection = {"claim": receipt}
         position = {"claim": {"receipt": receipt, "next": 1}}
     result_reference = {"intent": workload_reference, "selection": selection, "limits": result_limits}
-    for result_action in ({"open": {"intent": workload_reference, "limits": result_limits}},
-                          {"page": {"reference": result_reference, "position": position, "rows": 1}}):
+    result_actions = [{"open": {"intent": workload_reference, "limits": result_limits}},
+                      {"page": {"reference": result_reference, "position": position, "rows": 1}}]
+    if workload_kind == "queue":
+        original = receipt["claim"]
+        lease = dict(target=original["target"], claim=original["operation"], offset=0, epoch=1,
+                     attempt=1, expires_ms=receipt["expires_ms"])
+        settlement = dict(operation={**original["operation"], "operation": original["operation"]["operation"] - 1},
+                          lease=lease, action={"extend": {"expires_ms": lease["expires_ms"] + 1000}})
+        digest = hashlib.sha256(b"transit.catalog.queue.operation.v1\0" + bytes.fromhex(definition) + canonical({"settle": settlement})).digest()
+        renewal_intent = copy.deepcopy(workload_reference)
+        renewal_intent["binding"] = {"queue": dict(definition=definition, operation=settlement["operation"],
+                                                  target=lease["target"], kind="settle", intent=list(digest))}
+        renewal_reference = dict(intent=renewal_intent,
+                                 selection={"renewal": dict(settlement=settlement, accepted={"partition": 91, "next_lsn": 12})},
+                                 limits=result_limits)
+        for ordinal in (0, 1):
+            result_actions.append({"page": dict(reference=renewal_reference, position={"renewal": ordinal}, rows=1)})
+    for result_action in result_actions:
         result_input = {**request_input, "action": {"workload_result": result_action}}
         result_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(result_input)).digest())}
         with tempfile.TemporaryDirectory(prefix="transit-workload-result-contract-") as directory:

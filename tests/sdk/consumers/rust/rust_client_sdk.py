@@ -39,6 +39,9 @@ dependencies = ["serde_json", "transit-client"]
 '''
         (target / 'Cargo.lock').write_text(lock)
         env = {k: v for k, v in os.environ.items() if k not in ('TRANSIT_LIBRARY_DIR', 'LD_LIBRARY_PATH', 'LIBRARY_PATH')}
+        # Avoid retaining incremental copies of the embedded native library in
+        # this disposable consumer; Debug and negative type checks still run.
+        env['CARGO_INCREMENTAL'] = '0'
         subprocess.run(['cargo', 'build', '--locked', '--offline'], cwd=target, env=env, check=True)
         executable = target / 'consumer'
         shutil.copy2(target / 'target/debug/transit-rust-client-proof', executable)
