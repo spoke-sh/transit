@@ -34,6 +34,14 @@ retention; the manifest does not establish protocol terminality or publication.
 Other protocol and compound-format names in that contract are vocabulary, not
 implemented parser or gateway capabilities.
 
+The library reports exact parse/construct capabilities and streams provisional
+single-part JSON/XML events into a private candidate sink with bounded backpressure.
+Each event must be consumed before its parser buffers are reused; verification
+requires all events consumed and the final source length/hash check. Original
+operation/target/profile/source commitments remain fixed; cancellation, sink
+failure and late source verification failure invalidate the candidate. Offline
+verification does not publish a Document or verify that an edit base exists.
+
 Start with the [Document example](../../../examples/station-document/README.md) and
 [service guide](../../../packages/zig/transit-station-document/docs/service.md).
 The [shared-notebook recipe](../guides/workload-examples.md#share-an-incident-notebook-with-zig)

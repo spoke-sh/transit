@@ -381,8 +381,18 @@ The [construction qualification account](../history/qualification/catalog.md#off
 records the independent oracles, bounded-workspace checks and exact integration
 outcomes, including the failed service-wait assertion and separate passing retry.
 
-The next work is the [P0/P1 candidate and publication increment](#next-increment-profile-candidates-and-publication-handoff), then
-connect P2 to M7's evaluated, paged direct owner. M7 now supplies a causal-map
+The candidate increment adds exact capability discovery, canonical bindings for
+the original target/operation/base/profile/source, and a bounded single-part
+`Candidate` driver. A pending event remains borrowed until explicitly consumed;
+backpressure cannot advance the reader. Source/sink failure or cancellation
+invalidates the local candidate, including when a writer has already finished.
+Independent reader/candidate oracles and fixed-workspace failure schedules cover
+this offline handoff. These additive APIs expose no persisted operation and do
+not change the shared definition. Schema validation, editing, persistence,
+query/search/branch and live transport remain unsupported by this library.
+
+The remaining [P0/P1 publication handoff](#next-increment-profile-candidates-and-publication-handoff)
+must connect P2 to M7's evaluated, paged direct owner. M7 now supplies a causal-map
 storage slice, but its ordered-tree/raw-part, public-admission and transaction
 handoffs remain open. P5/P6 additionally require the Document participant and
 M6's Station/effect composition. No parser result may bypass those gates or
@@ -638,8 +648,30 @@ it cannot close with only request/response bodies migrated.
 | `EXP1`, `EXF1` and connector admission diagnostics | Preserve first accepted preparation/capture cause, original input, rejected versus not-dispatched versus unknown outcomes and redacted comparisons | Changed worker configuration after failure admission; lost failure reply; capture close racing effect closure |
 | `EXB2`, `EXL1`/`EXL2`, `EXH1` and caller holds | Nonrefundable root attempt budget, immutable child lineage/routing, unsettled-child protection and permanent consumer release tokens | Duplicate/conflicting followup, descendant crash, retirement refusal and authorized exact release |
 | HTTP/gRPC services, workers, shared bindings and outbound Flight | Replace persisted exchange references and diagnostic/replay readers together while preserving finite RPC descriptors, half-close, terminal cardinality and recorded destinations | Real worker/example/SDK binaries and independent peers; replay with network and secret resolution denied |
-| `transit-query` Exchange authorization and Board inspection | Resolve exact Document-backed metadata/parts through public readers, recheck current capture and effect rights after buffering, and retain independent effect diagnostics | Revocation, retired capture, held ancestor, denied child and incomplete lineage without payload/count leakage |
+| Exchange client/replay authorization and Board inspection | Resolve exact Document-backed metadata/parts through public readers, recheck current capture and effect rights after buffering, and retain independent effect diagnostics | Revocation, retired capture, held ancestor, denied child and incomplete lineage without payload/count leakage |
 | Serving `SV1`, shared native/Go callers and browser boundary | Attach request/response revisions to the original admitted service command and route; preserve original-subject authorization and uncertain receipt recovery | P6 disconnect before/after admission, duplicate command and response loss; native receipt never implies application completion |
+
+The concrete call sites below identify the current implementation boundaries for
+that future cutover. They are still active; the offline candidate driver replaces
+none of them. Remove their superseded Exchange representations only when the
+corresponding Document owner and recovery proof exist. Shared Publication and
+native effect authority have other consumers and are not removal targets.
+
+| Boundary | Current call sites | Cutover responsibility |
+| --- | --- | --- |
+| Exchange state and lifetime | [`Exchange.zig`](../../packages/zig/transit-exchange/src/Exchange.zig): `create`, `commitIntent`, `bind`, `settle`, `followupWithContextDiagnostic`, `retain`, `release`, `releaseCaller`, `retire`, `collect`; [`root.zig`](../../packages/zig/transit-exchange/src/root.zig): `Descriptor`, `Member`, `Coverage` | Replace `EX*` record encoders/readers and keys together; preserve the original effect binding, nonrefundable attempts, child protection and release-token semantics. |
+| Part staging and replay | `Exchange.beginSegment`/`append`/`sealSegment`/`finish`/`open`/`read`; [`Publication.zig`](../../packages/zig/transit-station/src/Publication.zig): `begin`, `append`, `publish`, `open`, `read` | Move Exchange-owned publication members to exact Document parts and manifests. Retain Publication for its other domains; verify empty records, coverage and terminal evidence before exposing complete replay. |
+| Admission, routes and failure recovery | [`Service.zig`](../../packages/zig/transit-exchange/src/Service.zig): `admit`, `admitFollowup`, `release`, `publish`; [`Worker.zig`](../../packages/zig/transit-exchange/src/Worker.zig): `handle`, `apply`, `stageAt`, `capture`; `Exchange.closePreparation`/`closeUnknown` | Replace frozen route/reference and failure persistence as one composition; preserve committed rejection, accepted first cause, original input and immutable followup context across worker replacement. |
+| HTTP preparation, capture and replay | [`RequestRecord.zig`](../../packages/zig/transit-station-http/src/RequestRecord.zig): `prepare`, `stage`, `read`; [`Transport.zig`](../../packages/zig/transit-station-http/src/Transport.zig): `execute`; [`Replay.zig`](../../packages/zig/transit-station-http/src/Replay.zig): `open`, `read`; [`HTTP worker`](../../apps/transit-station-http-worker/main.zig): `Driver.capture`, `capturedLocation`, `validateAdmission` | Replace stored request/capture references and `HT*` interpretation together. Keep request secrets as references, ordered headers/body/trailers, redirect evidence, capture failure and unknown external outcomes. |
+| gRPC preparation, capture and replay | [`RequestRecord.zig`](../../packages/zig/transit-station-grpc/src/RequestRecord.zig): `prepare`, `stage`, `read`; [`Capture.zig`](../../packages/zig/transit-station-grpc/src/Capture.zig): `emit`, `finish`; [`Replay.zig`](../../packages/zig/transit-station-grpc/src/Replay.zig): `open`, `read`; [`RPC worker`](../../apps/transit-station-grpc-worker/main.zig): `Driver.capture`, `validateAdmission` | Replace `GR*` and Exchange references while preserving exact descriptors, message order/cardinality, half-close, trailers/status and recorded destinations. |
+| Shared language bindings and outbound Flight | [`HttpCodec.zig`](../../packages/zig/transit-station-bindings/src/HttpCodec.zig) and [`GrpcCodec.zig`](../../packages/zig/transit-station-bindings/src/GrpcCodec.zig): `Action`, `Result`, `apply`; [`Flight Call.prepare`](../../packages/zig/transit-station-flight/src/root.zig); [`Flight Replay.open`/`next`](../../packages/zig/transit-station-flight/src/Replay.zig) | Regenerate affected ABI/schema/SDK resources and migrate their callers in the same definition change. Flight continues to compose the RPC owner; it acquires no separate capture store or dispatch authority. |
+| Authorized reads and Board projections | [`Client.zig`](../../packages/zig/transit-exchange/src/Client.zig): `inspect`, `failure`, `diagnostic`, `open`, `read`; [`Board Growing.metadata`](../../apps/transit-board/Growing.zig); [`HTTP`](../../packages/zig/transit-board-api/src/Http.zig), [`gRPC`](../../packages/zig/transit-board-api/src/Grpc.zig) and [`Exchange`](../../packages/zig/transit-board-api/src/Exchange.zig) projections | Migrate exact references, coverage and diagnostics through public reads with current authorization. Keep Board read-only and qualify denial after buffering. |
+| Inbound Serving | [`Service.zig`](../../packages/zig/transit-serving/src/Service.zig): `dispatchCommand`, `apply`, `operation`; [`Caller.zig`](../../packages/zig/transit-serving/src/Caller.zig): `prepare`, `inspect`, `process`; [`HTTP gateway`](../../packages/zig/transit-serving-http/src/root.zig), [`browser runtime`](../../packages/zig/transit-serving-http/src/BrowserRuntime.zig), [`Go caller`](../../sdks/go/serving/client.go) | Attach request/response revisions to the existing admission identity and response route. Replace affected `SV1` fields/consumers together; preserve original-subject policy and uncertain receipt recovery. |
+
+[`transit-query/ExchangeAuthorization.zig`](../../packages/zig/transit-query/src/ExchangeAuthorization.zig)
+authorizes relational worker exchange, not HTTP/gRPC capture. Its query source
+delegation is outside this removal map; an eventual Document query adapter must
+declare its own exact source and authorization contract.
 
 Every incompatible public/stored/ABI increment changes the shared current-v1
 definition and regenerates schemas/signing fixtures/consumers together. Do not
@@ -911,8 +943,10 @@ profiles, AOT, branch/search dependencies or failed recovery proofs visible.
 
 ### Next increment: profile candidates and publication handoff
 
-The next review unit should make the existing offline library consumable by M7
-without claiming storage acceptance. Preserve `Json`, `Xml`, `Reader`,
+This increment makes the existing offline library consumable by M7 without
+claiming storage acceptance. The capability/binding portion of A and the bounded
+composition in B are implemented; A's persisted transition contract and C remain
+open. Preserve `Json`, `Xml`, `Reader`,
 `JsonWriter`, `XmlWriter` and `Container`; their construction and commitment work
 is delivered. Complete the P0/P1 subset needed for the first installed JSON/XML
 journey. Namespaces, full schema languages and other families can follow as
@@ -965,6 +999,11 @@ unexposed. Freeze operation/resource limits from the existing per-format budgets
 and baseline measurements, not a single maximum document count.
 
 #### B. Implement bounded event-to-candidate composition
+
+Delivered by [`Candidate`](../../packages/zig/transit-document-profiles/src/Candidate.zig)
+for one complete local JSON/XML part with no relationships. Its public ownership,
+failure and verification contract is in the [package guide](../../packages/zig/transit-document-profiles/README.md#resumable-candidate-handoff).
+Compound traversal, editing and durable continuation remain separate work.
 
 Add the neutral sink/driver interface in `transit-document-profiles` through its
 public module; it must not import `transit-storage` or Station. Adapt
@@ -1023,8 +1062,9 @@ installed publication and exchange cutover marked open.
 
 Keep each change independently reviewable and preserve the P identifiers as the
 full scope. The first two changes are partially delivered by the compound
-commitments and semantic constructors described above; staging/publication,
-capability stages, schemas and namespaces remain open. Incoming M7 and M6 work
+commitments, semantic constructors, exact capability metadata, candidate bindings
+and bounded event handoff described above; staging/publication, schemas and
+namespaces remain open. Incoming M7 and M6 work
 is an explicit prerequisite for later exposure, not permission to route
 profile publication through Station or create a second transaction owner.
 

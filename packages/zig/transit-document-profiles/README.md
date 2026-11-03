@@ -33,6 +33,13 @@ namespace processing, archive unpacking or installed runtime claim follows from
 these component checks. Raw bytes remain the caller's responsibility; decoded
 values do not replace the source representation.
 
+`Profile.capabilities(descriptor)` reports parse and construct support only for
+these exact interpretations. Schema validation, editing, persistence, query,
+search, branching and live transport are separately false. Use the returned
+`require(descriptor, capability)` check when selecting a local implementation;
+it grants no data permission or resource reservation. Unsupported resealed
+descriptors refuse rather than inheriting capabilities from their format name.
+
 ## Workspace and stepping
 
 JSON takes `[]Json.Frame` with at least `limits.depth` entries and a token buffer
@@ -106,6 +113,53 @@ until then. A valid replacement document with a different hash fails. An event
 prefix remains provisional even when it was emitted before a late grammar/hash
 failure. Applications staging projections must discard or explicitly mark such
 prefixes; these APIs never accept a stored revision or grant effect authority.
+
+## Resumable candidate handoff
+
+`Candidate.init(binding, part, workspace)` composes `Reader` with an explicit
+consumer handoff. The [candidate binding](../../../contracts/DOCUMENT_PROFILE_V1.md#offline-candidate-bindings)
+freezes an original operation, target, optional exact edit base, interpretation
+and source manifest. The driver supports one complete local part, root ordinal
+zero and no relationships. It checks the manifest's metadata commitment against
+that part, then verifies source bytes and grammar as they are consumed. This is
+offline preparation; the target and edit base are not looked up or authorized.
+
+`next(input, eof, work)` returns consumed input bytes and `event`, `need_input`,
+`yield` or `verified`. An event contains a binding/ordinal `ticket` and the
+borrowed parser event. Copy or finish consuming its values, then call
+`consume(ticket)`. Until that succeeds, repeated `next` calls return the same
+event with zero input consumption, preserving parser workspace. Consume the
+reported input prefix exactly once and resubmit its tail. A stale/foreign ticket
+or a second consumption refuses without poisoning the current candidate.
+The source input may be released after each call; event bytes must not survive
+consumption followed by another parser call. Keep the caller-owned workspace
+exclusive for the candidate's entire lifetime.
+
+`pump(input, eof, work, sink)` is an optional push adapter. A sink implements
+`pub fn offer(self, event) !Candidate.Offered`, returning `consumed` only after
+using/copying the whole event, or `blocked` without consuming a prefix. One pump
+invokes the sink at most once and reports `progress` or `blocked` in addition to
+the input/verification states. The sink bounds its own work and output storage;
+the driver adds no queue or allocator. Sink errors, parser errors and late
+length/hash failure poison the candidate and preserve the first error in `cause`.
+Discard all private sink output on failure. Further calls return
+`DocumentCandidateFailed`; they cannot resume a partly failed parse.
+
+`verifiedPart` and `verifiedBinding` succeed only after every event is consumed
+and the reader verifies its final bytes. Root-end events, empty input and filled
+output windows do not establish verification. `cancel` invalidates even a locally
+verified candidate, drops its pending event and is idempotent; existing failures
+keep their original cause. Zero work and trailing input after verification remain
+caller errors with the same non-poisoning behavior as `Reader`.
+
+For semantic serialization, pass a pending event to `JsonWriter.beginEvent` or
+`XmlWriter.beginEvent`, drain bounded output windows, then consume its ticket.
+Generated output gets a new part ID and commitment. A completed writer or
+compound verifier cannot establish that the original source finished: require
+the source candidate's verified binding separately before using derived output.
+The driver owns constant state plus the existing parser workspace. It supplies
+no durable staging continuation, edit engine, graph resolver or publication
+operation; a binding cannot acquire a retention hold by itself.
 
 ## JSON construction and semantic serialization
 
@@ -240,3 +294,10 @@ tests under `test-components`, and standalone manifests under
 manifest fixture, sticky failures, changed parts/references, quotas and 100,000 streamed parts/relationships
 without a resident directory. These checks establish no disk durability, gateway
 exchange or remote-effect result.
+
+Candidate checks cover every input split with overwritten caller input, delayed
+event consumption, stale/foreign tickets, cancellation, sink errors, resource
+refusal and late hash failure after generated output is already complete. A
+100,000-value stream uses unchanged workspace. The independent Python/Expat
+probe checks both raw readers and candidate delivery against its own expected
+events/spans and routes semantic construction through the candidate handoff.
