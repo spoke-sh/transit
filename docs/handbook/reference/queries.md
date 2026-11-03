@@ -541,6 +541,14 @@ completed revision, row count, source position and common transaction decision.
 `EXPLAIN CREATE DATAFLOW ...` validates metadata and budgets without publishing,
 pinning a snapshot or running the SELECT.
 
+Recovery keeps the original declaration and admission identity. Replacement
+work records use one durable candidate reservation per operation; collection
+can reclaim superseded records after its normal fences while preserving the
+current record and any pending candidate. This does not expire completed results
+or make retirement a deletion request. See the
+[managed computation contract](../../../contracts/DATAFLOW_V1.md) for the record
+lifecycle and bounds.
+
 Once a revision has completed, `SHOW DATAFLOW projection REVISION 1` inspects
 that fixed revision. Its `dataflow_revision` column contains the exact computation,
 source and output definitions, schema commitment, source position, row count,

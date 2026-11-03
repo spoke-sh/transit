@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "1a81487b17b998cf1e5c89eaf621d7c97cbecb389f13fedfc3c0691125beb141"
+definition = "3981a6a977f356b8f1f1af39978b690fca425cd5926f5fb1dfa13507b5671079"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -738,6 +738,24 @@ invalid["action"]["record"]["stage_transaction"]["transaction"]["definition"] = 
 assert not validator.is_valid(invalid)
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-transaction-record-v1.json",
         (json.dumps({"request": owned_request, "public_key": public_key}, ensure_ascii=False, indent=2) + "\n").encode())
+
+# Owned progress binds the original token, expected revision and exact payload.
+progress_input = {**request_input, "action": {"client_progress": {"advance": {
+    "key": token_key, "expected": {"partition": 1, "next_lsn": 3},
+    "pending": True, "cancel": False, "format": 0x44465731,
+    "bytes": {"base64": base64.b64encode(b"work-fixture").decode()}}}}}
+progress_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(progress_input)).digest())}
+with tempfile.TemporaryDirectory(prefix="transit-progress-contract-") as directory:
+    signing_key = Key(Path(directory), "public-test-key", 9)
+    progress_request = {**progress_input, "proof": {"claim": progress_claim,
+        "signature": signing_key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(progress_claim)).digest())}}
+validator.validate(progress_request)
+for field in ("key", "expected", "pending", "cancel", "format", "bytes"):
+    invalid = copy.deepcopy(progress_request)
+    del invalid["action"]["client_progress"]["advance"][field]
+    assert not validator.is_valid(invalid), field
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-progress-record-v1.json",
+        (json.dumps({"request": progress_request, "public_key": public_key}, ensure_ascii=False, indent=2) + "\n").encode())
 
 # A log declaration token commits to its complete canonical saved body before
 # declaration admission. Content, account and the original binding are explicit.

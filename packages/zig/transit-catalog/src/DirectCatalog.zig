@@ -1429,6 +1429,7 @@ pub fn directRecord(self: *Self, allocator: std.mem.Allocator, request: c.Direct
         .stage_transaction => unreachable,
         .stage => |value| blk: {
             if (value.format == c.DirectTransactionRecord.format) return error.TransactionOperationRequired;
+            if (value.format == c.DirectProgressRecord.format) return error.InvalidDirectRecord;
             const bytes = try value.bytes.decode(allocator, c.DirectRecord.max_bytes);
             defer allocator.free(bytes);
             if (value.format & c.DirectRecord.guarded_bit != 0) {
@@ -1444,7 +1445,13 @@ pub fn directRecord(self: *Self, allocator: std.mem.Allocator, request: c.Direct
         .read => |value| blk: {
             const bytes = try c.DirectRecord.load(allocator, self.data_objects, value);
             defer allocator.free(bytes);
-            if (value.format == c.DirectTransactionRecord.format) {
+            if (value.format == c.DirectProgressRecord.format) {
+                const envelope = try p.Json.parseFromSlice(c.DirectProgressRecord.Envelope, allocator, bytes);
+                defer envelope.deinit();
+                try envelope.value.validate(value);
+                const state = (try self.clientProgress(.{ .inspect = envelope.value.advance.key }, policy)).state orelse return error.ClientOperationMissing;
+                if (!std.meta.eql(state.record, @as(?c.DirectRecord.Reference, value))) return error.ClientOperationConflict;
+            } else if (value.format == c.DirectTransactionRecord.format) {
                 const envelope = try p.Json.parseFromSlice(c.DirectTransactionRecord.Envelope, allocator, bytes);
                 defer envelope.deinit();
                 try envelope.value.validate(value);
@@ -1766,15 +1773,16 @@ pub fn clientProgressWithWorkloads(self: *Self, request: c.DirectClientToken.Pro
     var state = (switch (request) {
         .inspect => |key| try self.store.clientTokenState(key),
         .operation => |value| try self.store.clientOperation(value.scope, value.id),
-        .update => |value| try self.store.clientTokenState(value.key),
+        inline .update, .advance => |value| try self.store.clientTokenState(value.key),
         .list => unreachable,
     }) orelse {
-        if (request == .update) return error.ClientOperationMissing;
+        if (request == .update or request == .advance) return error.ClientOperationMissing;
         try check(database);
         return .{ .state = null };
     };
     const current = try self.intentGuard(arena.allocator(), state.receipt.binding.intent, policy);
     try check(current);
+    if (request == .advance) return .{ .state = try self.advanceProgress(arena.allocator(), state, request.advance, current) };
     if (request != .update) return .{ .state = state };
     // Transaction workspace, cancellation and settlement belong to the
     // transaction owner. Generic client bookkeeping cannot replace that state
@@ -1783,7 +1791,8 @@ pub fn clientProgressWithWorkloads(self: *Self, request: c.DirectClientToken.Pro
     if (state.receipt.binding.intent == .branch) return error.BranchOperationRequired;
     if (state.receipt.binding.intent == .transaction or state.receipt.binding.intent == .transaction_call) return error.TransactionOperationRequired;
     const value = request.update;
-    if (state.pending == value.pending and state.cancel == value.cancel and std.meta.eql(state.record, value.record)) return .{ .state = state };
+    if (value.record) |reference| if (reference.format == c.DirectProgressRecord.format) return error.InvalidDirectRecord;
+    if (state.staged == null and state.pending == value.pending and state.cancel == value.cancel and std.meta.eql(state.record, value.record)) return .{ .state = state };
     if (!std.meta.eql(state.revision, value.expected)) return error.ClientOperationConflict;
     if ((!state.pending and value.pending) or (state.cancel and !value.cancel)) return error.ClientOperationConflict;
     if (!value.pending) try self.requireClientTerminal(state.receipt.binding.intent, policy, workloads);
@@ -1791,20 +1800,63 @@ pub fn clientProgressWithWorkloads(self: *Self, request: c.DirectClientToken.Pro
         const bytes = try c.DirectRecord.load(self.allocator, self.data_objects, reference);
         defer self.allocator.free(bytes);
     }
-    var index_batch: s.TreeStore.Batch = .{};
-    try self.store.index.beginBatch(self.options.index_work_bytes, &index_batch);
-    defer self.store.index.end();
-    var next = self.store.root;
-    next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
-    state.revision = .{ .partition = self.config().partition, .next_lsn = next.next_lsn };
     state.pending = value.pending;
     state.cancel = value.cancel;
     state.record = value.record;
+    state.staged = null;
+    return .{ .state = try self.publishProgress(state, current) };
+}
+
+fn advanceProgress(self: *Self, allocator: std.mem.Allocator, previous: c.DirectClientToken.Progress, value: c.DirectProgressRecord.Advance, current: P.Guard) !c.DirectClientToken.Progress {
+    if (previous.receipt.binding.intent != .external) return error.InvalidDirectRecord;
+    try value.key.requireSame(previous.receipt.binding.key);
+    const bytes = try c.DirectProgressRecord.encode(allocator, value);
+    defer allocator.free(bytes);
+    if (bytes.len > previous.receipt.binding.budget.bytes) return error.ClientTokenBudget;
+    const reference = try c.DirectRecord.reference(value.key.scope(), c.DirectProgressRecord.format, bytes);
+    // A successful retry observes accepted bytes. It must never recreate them.
+    if (previous.staged == null and previous.pending == value.pending and previous.cancel == value.cancel and
+        std.meta.eql(previous.record, @as(?c.DirectRecord.Reference, reference)))
+    {
+        const retained = try c.DirectRecord.load(allocator, self.data_objects, reference);
+        defer allocator.free(retained);
+        try check(current);
+        return previous;
+    }
+    if (!previous.pending or (previous.cancel and !value.cancel)) return error.ClientOperationConflict;
+    const retained_bytes = if (previous.record) |retained| (if (retained.format == c.DirectProgressRecord.format) retained.content.bytes else 0) else 0;
+    if (try std.math.add(u64, bytes.len + 512, retained_bytes) > previous.receipt.binding.budget.bytes) return error.ClientTokenBudget;
+    var state = previous;
+    const reservation = c.DirectProgressRecord.Pending.init(value, reference);
+    if (!std.meta.eql(state.staged, @as(?c.DirectProgressRecord.Pending, reservation))) {
+        if (!std.meta.eql(state.revision, value.expected)) return error.ClientOperationConflict;
+        state.staged = reservation;
+        // Registration precedes physical creation, including on lost replies.
+        // The previous current record remains readable until readiness publishes.
+        state = try self.publishProgress(state, current);
+    }
+    try check(current);
+    try reference.requireSame(try c.DirectRecord.store(self.data_objects, value.key.scope(), c.DirectProgressRecord.format, bytes));
+    state.record = reference;
+    state.staged = null;
+    state.pending = value.pending;
+    state.cancel = value.cancel;
+    return self.publishProgress(state, current);
+}
+
+fn publishProgress(self: *Self, value: c.DirectClientToken.Progress, current: P.Guard) !c.DirectClientToken.Progress {
+    var index_batch: s.TreeStore.Batch = .{};
+    try self.store.index.beginBatch(self.options.index_work_bytes, &index_batch);
+    defer self.store.index.end();
+    var state = value;
+    var next = self.store.root;
+    next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
+    state.revision = .{ .partition = self.config().partition, .next_lsn = next.next_lsn };
     try state.validate();
     try self.store.clientIndices(&next, state);
     try self.store.publish(next, .{ .client_token = state }, current);
     try check(current);
-    return .{ .state = state };
+    return state;
 }
 fn requireClientTerminal(self: *Self, reference: c.DirectIntent.Reference, policy: Policy, workloads: ?c.DirectWorkloadIntent.Reader) anyerror!void {
     switch (reference) {

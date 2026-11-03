@@ -2892,3 +2892,77 @@ fn ownedRecordsDispatch(service: *@import("LocalTableService.zig"), owner_role: 
     try references[3].requireSame((try catalog.directRecord(allocator, requests[3], policy.policy())).reference);
     try t.expect(try data.objects().head(try c.DirectRecord.key(references[2], &name)) == null);
 }
+
+test "owned progress collection protects reservation creation and reclaims superseded records" {
+    typed_dispatch = false;
+    try dataSchedule(progressRecordsDispatch);
+    typed_dispatch = true;
+    try dataSchedule(progressRecordsDispatch);
+}
+
+fn progressRecordsDispatch(service: *@import("LocalTableService.zig"), _: u64) !void {
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const connection: c.DirectTableProtocol.Connection = .{ .scope = service.configuration.scope, .branch = 1, .audience = service.configuration.audience, .principal = 101, .role = null };
+    const token: c.DirectClientToken.Key = .{ .definition = g.current_definition, .connection = connection, .account = @splat(94), .token = @splat(1) };
+    const staged = try dispatch(service, .{ .record = .{ .stage = .{ .scope = token.scope(), .format = 17, .bytes = try c.DirectTableProtocol.Binary.encode(allocator, "original admission") } } });
+    defer staged.deinit();
+    const admission = staged.value.result.record.reference;
+    const bound = try dispatch(service, .{ .client_token = .{ .bind = .{ .key = token, .fingerprint = @splat(17), .intent = .{ .external = .{ .connection = connection, .namespace = 1, .operation = 130000, .record = admission } } } } });
+    defer bound.deinit();
+    var request: c.DirectProgressRecord.Advance = .{ .key = token, .expected = bound.value.result.client_token.?.position, .pending = true, .cancel = false, .format = 17, .bytes = try c.DirectTableProtocol.Binary.encode(allocator, "first progress") };
+    const first_reply = try dispatch(service, .{ .client_progress = .{ .advance = request } });
+    defer first_reply.deinit();
+    const first = first_reply.value.result.client_progress.state.?;
+    const digest: [32]u8 = @splat(17);
+    var policy = try Policy.init(service.engine, service.configuration, try proof(service.engine, digest), digest, null);
+    var control: backend.DataStore = .{ .backend = service.engine.journal.backend, .control = true };
+    var data: backend.DataStore = .{ .backend = service.engine.journal.backend };
+    var catalog = try D.init(t.allocator, service.configuration, control.log(), control.objects(), data.log(), data.objects(), .{ .resident_pages = 1 });
+    defer catalog.deinit();
+    try catalog.recover();
+    request.expected = first.revision;
+    request.bytes = try c.DirectTableProtocol.Binary.encode(allocator, "replacement progress");
+    catalog.store.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.clientProgress(.{ .advance = request }, policy.policy()));
+    catalog.store.lose_reply = false;
+    try catalog.recover();
+    const reserved = (try catalog.clientProgress(.{ .inspect = token }, policy.policy())).state.?;
+    const candidate = reserved.staged.?.reference;
+    var name: [96]u8 = undefined;
+    try t.expect(try data.objects().head(try c.DirectRecord.key(candidate, &name)) == null);
+    const CreateDuringGrace = struct {
+        catalog: *D,
+        policy: D.Policy,
+        request: c.DirectProgressRecord.Advance,
+        result: ?c.DirectClientToken.Progress = null,
+        fn run(raw: *anyopaque) !void {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            self.result = (try self.catalog.clientProgress(.{ .advance = self.request }, self.policy)).state.?;
+        }
+    };
+    var creation: CreateDuringGrace = .{ .catalog = &catalog, .policy = policy.policy(), .request = request };
+    try collectDirectBeforeSweep(service.engine, &catalog, .{ .context = &creation, .run = CreateDuringGrace.run });
+    try candidate.requireSame(creation.result.?.record.?);
+    try t.expect(try data.objects().head(try c.DirectRecord.key(first.record.?, &name)) != null);
+    try t.expect(try data.objects().head(try c.DirectRecord.key(candidate, &name)) != null);
+    // A later cut releases the superseded payload while preserving replay of
+    // every old catalog action, the current payload and original admission.
+    try collectDirect(service.engine, &catalog);
+    try t.expect(try data.objects().head(try c.DirectRecord.key(first.record.?, &name)) == null);
+    try t.expect(try data.objects().head(try c.DirectRecord.key(candidate, &name)) != null);
+    (try dispatch(service, .{ .record = .{ .read = candidate } })).deinit();
+    (try dispatch(service, .{ .record = .{ .read = admission } })).deinit();
+    const recovered = (try catalog.clientProgress(.{ .advance = request }, policy.policy())).state.?;
+    try t.expectEqualDeep(creation.result.?, recovered);
+    request.expected = recovered.revision;
+    request.pending = false;
+    request.bytes = try c.DirectTableProtocol.Binary.encode(allocator, "completed progress");
+    const terminal = (try catalog.clientProgress(.{ .advance = request }, policy.policy())).state.?;
+    try collectDirect(service.engine, &catalog);
+    try t.expect(try data.objects().head(try c.DirectRecord.key(candidate, &name)) == null);
+    try t.expect(try data.objects().head(try c.DirectRecord.key(terminal.record.?, &name)) != null);
+    (try dispatch(service, .{ .record = .{ .read = terminal.record.? } })).deinit();
+    try t.expectEqualDeep(terminal, (try catalog.clientProgress(.{ .advance = request }, policy.policy())).state.?);
+}

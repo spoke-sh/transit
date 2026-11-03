@@ -499,6 +499,15 @@ may be admitted and executed. Current original-operation rights apply on every
 disclosure. The [exact contract](../../../../contracts/DIRECT_TABLE_V1.md#durable-client-token-bindings)
 defines connection scope, racing proposals and lost-reply handling.
 
+External owners can replace recovery payloads with `DirectProgressRecord.advance`.
+One mandatory nullable candidate slot is reserved before physical creation, then
+readiness publishes its replacement. The current and candidate records share
+the token's original byte reservation. Generic staging and initial binding
+cannot adopt this collectible format. The
+[progress contract](../../../../contracts/DIRECT_TABLE_V1.md#durable-client-token-bindings)
+defines interrupted candidates, exact retries, scope and collection; format
+owners still interpret their own domain outcomes.
+
 `DirectCatalog.Options.client_token_quota` defaults to 1,000,000 bindings,
 independently of resident pages. Capacity refusal never expires identities or
 prevents authorized original-token lookup and retry. SQL's database runtime uses

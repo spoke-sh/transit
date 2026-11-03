@@ -97,7 +97,7 @@ fn exclusive(action: w.Action) bool {
         .historical_catalog => |value| value.mutation(),
         .kv_declaration => |value| value.mutation(),
         .client_token => |value| value == .bind,
-        .client_progress => |value| value == .update,
+        .client_progress => |value| value == .update or value == .advance,
         .initialize, .admit_ddl, .log_admit, .check_set, .name_assertion, .name_preview => true,
         .log_operation => |value| value.command != .inspect,
         .namespace_operation => |value| value.command != .inspect,

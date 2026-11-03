@@ -147,6 +147,13 @@ pub fn prepare(init: std.process.Init, client: c.DirectTableClient, path: []cons
     try t.expectError(error.DataflowRevisionNotFound, q.ManagedRevision.open(manager, declaration, 1, .{}));
     const pending = (try manager.start(declaration)).?;
     try t.expect(try manager.step(pending, init.io, .cwd(), null)); // Acquire.
+    const progress = (try c.DirectClientToken.inspect(client, pending)).?;
+    try t.expect(progress.pending and progress.staged == null);
+    try t.expectEqual(c.DirectProgressRecord.format, progress.record.?.format);
+    try t.expectEqual(M.work_format, progress.receipt.binding.intent.external.record.format);
+    const original_work = try manager.load(M.Work, progress.receipt.binding.intent.external.record, M.work_format);
+    defer original_work.deinit();
+    try t.expectEqual(.acquiring, original_work.value.phase);
     try t.expectError(error.AuthorityUnavailable, manager.step(pending, init.io, .cwd(), null));
     try t.expectEqualDeep(pending, (try pendingWork(manager, declaration)).?);
     try count(client, 0);

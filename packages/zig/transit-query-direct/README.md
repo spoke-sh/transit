@@ -65,6 +65,11 @@ source coverage and the committed transaction decision. The service drives
 a work token and retain it until completion. On activation, page pending tokens
 with `DirectClientToken.list(client, ManagedTable.workAccount(), after, true)`
 and resume their exact `step` calls before discovering new work with `start`.
+Subsequent `DFW1` progress uses Catalog-owned `CPR1` records, with one durable
+candidate reservation before byte creation. The current and candidate records
+share a 64 KiB token reservation. Superseded progress is collectible; declaration
+and initial work records remain original-admission evidence. A terminal work
+record stays retained, independently of result-page retention.
 A prepared control participant can refuse `inspect` or `start`; recovery must
 not depend on reading that participant to discover its pending transaction.
 

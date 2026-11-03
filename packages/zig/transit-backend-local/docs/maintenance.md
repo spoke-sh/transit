@@ -115,7 +115,11 @@ its paged catalog inventory protects active, uncertain and committed transaction
 records, and releases only payloads whose authoritative abort cleanup completed.
 Historical inventory pages remain replay evidence. Missing pending payloads are
 allowed before creation; missing ready payloads fail the pass. Later creation
-uses a newer allocation epoch. Generic `direct-records/` remains retained.
+uses a newer allocation epoch. `progress-records/` similarly retains the latest
+external token's current and candidate references at the cut. Superseded progress
+is collectible while historical catalog metadata remains replayable. Missing
+current bytes fail the pass; a reserved candidate may be absent before creation.
+Generic `direct-records/` remains retained.
 
 Stream roots retain their current and recovery directories, accepted checkpoint,
 exact declarations, producer/group progress, original receipts and live finite

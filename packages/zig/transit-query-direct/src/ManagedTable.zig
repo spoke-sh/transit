@@ -194,9 +194,19 @@ fn storeRevision(self: Self, declaration: Declaration, value: Revision) !c.Direc
 }
 pub fn load(self: Self, comptime T: type, reference: c.DirectRecord.Reference, format: u32) !std.json.Parsed(T) {
     const owned = format == page_format or format == revision_format;
-    if (reference.format != (if (owned) c.DirectTransactionRecord.format else format) or !std.meta.eql(reference.scope.connection, self.client.connection)) return error.InvalidManagedTableRecord;
+    const progress_owned = format == work_format and reference.format == c.DirectProgressRecord.format;
+    if ((!progress_owned and reference.format != (if (owned) c.DirectTransactionRecord.format else format)) or !std.meta.eql(reference.scope.connection, self.client.connection)) return error.InvalidManagedTableRecord;
     const bytes = try c.DirectRecord.read(self.client.allocator, self.client, reference);
     defer self.client.allocator.free(bytes);
+    if (progress_owned) {
+        const envelope = try p.Json.parseFromSlice(c.DirectProgressRecord.Envelope, self.client.allocator, bytes);
+        defer envelope.deinit();
+        try envelope.value.validate(reference);
+        if (envelope.value.advance.format != format) return error.InvalidManagedTableRecord;
+        const payload = try envelope.value.advance.bytes.decode(self.client.allocator, c.DirectRecord.max_bytes);
+        defer self.client.allocator.free(payload);
+        return p.Json.parseFromSliceOwned(T, self.client.allocator, payload);
+    }
     if (owned) {
         const envelope = try p.Json.parseFromSlice(c.DirectTransactionRecord.Envelope, self.client.allocator, bytes);
         defer envelope.deinit();
@@ -376,8 +386,11 @@ pub fn applyControl(self: Self, saved: []const u8) !c.storage.TablePartition.Evi
 }
 
 fn progressWork(self: Self, progress: c.DirectClientToken.Progress, work: Work) !void {
-    const reference = try self.store(progress.receipt.binding.key.account, work_format, work);
-    _ = try c.DirectClientToken.update(self.client, .{ .key = progress.receipt.binding.key, .expected = progress.revision, .pending = work.phase != .complete, .cancel = false, .record = reference });
+    const bytes = try p.Json.valueAllocBounded(self.client.allocator, work, c.DirectRecord.max_bytes);
+    defer self.client.allocator.free(bytes);
+    const binary = try c.DirectTableProtocol.Binary.encode(self.client.allocator, bytes);
+    defer self.client.allocator.free(binary.base64);
+    _ = try c.DirectProgressRecord.advance(self.client, .{ .key = progress.receipt.binding.key, .expected = progress.revision, .pending = work.phase != .complete, .cancel = false, .format = work_format, .bytes = binary });
 }
 
 /// Claim one complete successor under an exact current control/head. The work
@@ -406,7 +419,7 @@ fn startInner(self: Self, value: Declaration) !?c.DirectClientToken.Key {
         const reference = observed.head.pending_record orelse return error.InvalidManagedTableRecord;
         const original = try self.load(Work, reference, work_format);
         defer original.deinit();
-        _ = try c.DirectClientToken.bind(self.client, .{ .key = pending, .fingerprint = reference.content.sha256, .intent = .{ .external = .{ .connection = self.client.connection, .namespace = value.namespace, .operation = original.value.lease.owner.operation, .record = reference } } });
+        _ = try c.DirectClientToken.bind(self.client, .{ .key = pending, .budget = .{ .bytes = 64 * 1024 }, .fingerprint = reference.content.sha256, .intent = .{ .external = .{ .connection = self.client.connection, .namespace = value.namespace, .operation = original.value.lease.owner.operation, .record = reference } } });
         const progress = (try c.DirectClientToken.inspect(self.client, pending)).?;
         if (progress.pending) return pending;
         var next = observed.head;

@@ -4575,9 +4575,10 @@
         "CatalogObservationChanged": 2,
         "CatalogRegistrationRequired": 12,
         "CheckConstraintViolation": 1,
-        "ClientOperationConflict": 2,
-        "ClientOperationMissing": 26,
+        "ClientOperationConflict": 5,
+        "ClientOperationMissing": 27,
         "ClientOperationPending": 8,
+        "ClientTokenBudget": 2,
         "ClientTokenCapacity": 1,
         "ClientTokenConflict": 4,
         "ColumnReferencedByCheckConstraint": 1,
@@ -4623,6 +4624,7 @@
         "InvalidDirectCatalogName": 2,
         "InvalidDirectCatalogOperation": 28,
         "InvalidDirectCatalogTransition": 1,
+        "InvalidDirectRecord": 3,
         "InvalidHistoricalBinding": 4,
         "InvalidHistoricalState": 9,
         "InvalidKVOperation": 1,
@@ -4783,6 +4785,7 @@
         "admitTransactionStatement()": "<inferred>",
         "advanceBranch()": "<inferred>",
         "advanceHistory()": "<inferred>",
+        "advanceProgress()": "<inferred>",
         "advanceQueueTransfer()": "<inferred>",
         "altersReferencedColumn()": "<inferred>",
         "applyRows()": "<inferred>",
@@ -4944,6 +4947,7 @@
         "protectForeignColumn()": "<inferred>",
         "publishBranchState()": "<inferred>",
         "publishHistoryState()": "<inferred>",
+        "publishProgress()": "<inferred>",
         "publishTransactionCall()": "<inferred>",
         "publishTransactionControl()": "<inferred>",
         "publishTransactionRecord()": "<inferred>",
@@ -5051,7 +5055,7 @@
       },
       "open_error_set_uses": 11,
       "propagation": {
-        "try": 2264,
+        "try": 2279,
         "catch": 30
       },
       "imports": [
@@ -5667,7 +5671,7 @@
         "InvalidClientToken": 8,
         "InvalidDirectCatalogHistory": 8,
         "InvalidDirectCatalogOperation": 17,
-        "InvalidDirectCatalogTransition": 181,
+        "InvalidDirectCatalogTransition": 184,
         "InvalidHistoricalState": 4,
         "InvalidHistoricalTransition": 1,
         "InvalidLogCatalogOperation": 2,
@@ -5791,12 +5795,12 @@
     "packages/zig/transit-catalog/src/DirectClientToken.zig": {
       "errors": {
         "ClientBudgetConflict": 1,
-        "ClientTokenBudget": 2,
+        "ClientTokenBudget": 3,
         "ClientTokenCapacity": 1,
         "ClientTokenConflict": 3,
         "DataIdentityConflict": 4,
         "IncompatibleDefinition": 1,
-        "InvalidClientToken": 14,
+        "InvalidClientToken": 16,
         "InvalidTableResponse": 2,
         "TransactionAccountCapacity": 1
       },
@@ -5805,7 +5809,8 @@
           "inspect",
           "operation",
           "list",
-          "update"
+          "update",
+          "advance"
         ],
         "ProgressResult": [
           "state",
@@ -5846,7 +5851,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 46,
+        "try": 50,
         "catch": 0
       },
       "imports": [
@@ -6195,6 +6200,7 @@
         "ExternalOperationOwnerRequired": 2,
         "HistoricalOperationRequired": 2,
         "IncompatibleDefinition": 1,
+        "InvalidDirectRecord": 1,
         "InvalidGatewayIntent": 2,
         "TransactionOperationRequired": 2
       },
@@ -6888,6 +6894,30 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectProgressRecord.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidDirectRecord": 2,
+        "InvalidTableResponse": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Advance.validate()": "<inferred>",
+        "Envelope.validate()": "<inferred>",
+        "advance()": "<inferred>",
+        "encode()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 7,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DirectQueue.zig": {
       "errors": {
         "CatalogDenied": 2,
@@ -7332,7 +7362,7 @@
         "IncompleteBranchDirectory": 2,
         "InvalidBranchState": 2,
         "InvalidCatalogDescriptor": 1,
-        "InvalidClientToken": 2,
+        "InvalidClientToken": 4,
         "InvalidDataIndexObject": 1,
         "InvalidDirectCatalogHistory": 1,
         "InvalidDocumentStorageGraph": 16,
@@ -7479,7 +7509,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 595,
+        "try": 603,
         "catch": 1
       },
       "imports": [
@@ -8318,7 +8348,7 @@
         "DataIdentityConflict": 3,
         "IncompatibleDefinition": 1,
         "InvalidKVResponse": 1,
-        "InvalidTableResponse": 163
+        "InvalidTableResponse": 164
       },
       "outcomes": {},
       "error_sets": {},
@@ -8344,7 +8374,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 229,
+        "try": 232,
         "catch": 10
       },
       "imports": [
@@ -10349,6 +10379,7 @@
         "DirectLogProtocol.zig",
         "DirectMigration.zig",
         "DirectNamespace.zig",
+        "DirectProgressRecord.zig",
         "DirectQueue.zig",
         "DirectQueueClient.zig",
         "DirectQueueMutation.zig",
@@ -23207,7 +23238,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"1a81487b17b998cf1e5c89eaf621d7c97cbecb389f13fedfc3c0691125beb141\""
+          "@\"3981a6a977f356b8f1f1af39978b690fca425cd5926f5fb1dfa13507b5671079\""
         ],
         "Effect.phase": [
           "pending",
@@ -24874,7 +24905,7 @@
         "FailedRelationalQuery": 1,
         "IncompatibleDefinition": 1,
         "IncompleteDataflowCoverage": 7,
-        "InvalidManagedTableRecord": 15,
+        "InvalidManagedTableRecord": 16,
         "InvalidTransactionRead": 1,
         "KVBuildBudget": 1,
         "ManagedTableCleanupPending": 1,
@@ -24947,7 +24978,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 167,
+        "try": 171,
         "catch": 9
       },
       "imports": [

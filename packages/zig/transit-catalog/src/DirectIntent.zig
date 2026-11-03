@@ -17,6 +17,7 @@ pub const External = struct {
         try c.Model.nativeId(self.namespace);
         try self.identity().validate();
         try self.record.validate();
+        if (self.record.format == c.DirectProgressRecord.format) return error.InvalidDirectRecord;
         if (!std.meta.eql(self.connection, self.record.scope.connection)) return error.DataIdentityConflict;
     }
 };

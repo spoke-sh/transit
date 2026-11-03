@@ -158,7 +158,7 @@ pub fn collectible(key: []const u8) bool {
     // Saved staging references and permanent operation-to-target reservations
     // have independent lifetimes. Unknown generic object namespaces also remain
     // outside this collector's authority.
-    for ([_][]const u8{ "transaction-records/", "catalog-history/", "catalog-definitions/", "catalog-definition-intents/", "catalog-foreign/", "data-index/", "bitmap-containers/", "data-maintenance/", "catalog-intents/", "catalog-log-intents/", "log-definitions/", "log-evidence/", "log-reads/", "log-tx-sources/", "log-preparations/", "transaction-log-actions/", "transaction-log-payload/", "log-checkpoints/", "log-segments/", "log-segment-metadata/", "queue-selections/", "queue-time-buffers/", "queue-time-runs/", "document-definitions/", "document-evidence/", "document-reads/", "document-checkpoints/", "document-payloads/", "document-states/", "document-segment/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
+    for ([_][]const u8{ "transaction-records/", "progress-records/", "catalog-history/", "catalog-definitions/", "catalog-definition-intents/", "catalog-foreign/", "data-index/", "bitmap-containers/", "data-maintenance/", "catalog-intents/", "catalog-log-intents/", "log-definitions/", "log-evidence/", "log-reads/", "log-tx-sources/", "log-preparations/", "transaction-log-actions/", "transaction-log-payload/", "log-checkpoints/", "log-segments/", "log-segment-metadata/", "queue-selections/", "queue-time-buffers/", "queue-time-runs/", "document-definitions/", "document-evidence/", "document-reads/", "document-checkpoints/", "document-payloads/", "document-states/", "document-segment/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
         if (std.mem.startsWith(u8, key, prefix)) return true;
     }
     return false;
@@ -427,6 +427,23 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             if (record.action == .client_token and record.action.client_token.receipt.binding.intent == .transaction_call) {
                 const call = record.action.client_token.receipt.binding.intent.transaction_call;
                 if (call.work == .statement) try workspace.enqueue(.{ .transaction_intent = call.work.statement.request });
+            }
+            if (record.action == .client_token and record.action.client_token.receipt.binding.intent == .external) {
+                const progress = record.action.client_token;
+                var tree: s.TreeStore.pages.Tree(s.TreeStore) = .{ .store = index };
+                const latest = try tree.get(walk.cut.root.client_tokens, try s.TreeStore.pages.Key.init(&try progress.receipt.binding.key.digest())) orelse return error.InvalidClientToken;
+                if (latest.len != 8) return error.InvalidClientToken;
+                if (std.mem.readInt(u64, latest.data[0..8], .little) + 1 == progress.revision.next_lsn) {
+                    if (progress.record) |reference| if (reference.format == c.DirectProgressRecord.format)
+                        try markContent(workspace, try c.DirectRecord.key(reference, &key_buffer), reference.content);
+                    if (progress.staged) |staged| {
+                        const path = try c.DirectRecord.key(staged.reference, &key_buffer);
+                        // A reservation may have no bytes. Subsequent creation
+                        // receives a newer allocation epoch; current ready bytes
+                        // above must always exist and pass the mark validation.
+                        if (try index.store.head(path) != null) try markContent(workspace, path, staged.reference.content);
+                    }
+                }
             }
             if (record.action == .client_token and record.action.client_token.receipt.binding.intent == .transaction) {
                 // Replay retains historical catalog directories. Private workspace

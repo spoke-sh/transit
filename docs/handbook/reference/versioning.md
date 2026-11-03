@@ -108,8 +108,13 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`1a81487b17b998cf1e5c89eaf621d7c97cbecb389f13fedfc3c0691125beb141`.
-It binds an explicit nullable parent head in immutable Table branch creation,
+`3981a6a977f356b8f1f1af39978b690fca425cd5926f5fb1dfa13507b5671079`.
+It requires a mandatory nullable `staged` field in client-token progress and
+binds the `CPR1` owned-progress envelope and signed `client_progress.advance`
+operation. Reservation precedes byte creation; readiness replaces the current
+record, and collection preserves current/candidate references at its cut.
+Older progress cannot acquire inferred ownership through a default field.
+It also binds an explicit nullable parent head in immutable Table branch creation,
 independent retained-pin copying and accepted fork ancestry, as well as
 non-delegated current snapshot pin capture under an explicit Table
 interpretation and multi-row `DFP1` managed Table result pages (`sequence`,

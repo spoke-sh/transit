@@ -28,6 +28,16 @@ including raw record reads. Format and envelope bytes
 participate in the immutable key; changing either cannot unwrap an existing
 record. Plain caller-owned operation records retain their existing scope checks.
 
+`DirectProgressRecord` supplies replaceable external-owner recovery records.
+The signed `client_progress.advance` reserves one candidate in the original
+token before creating bytes, then publishes readiness and the replacement.
+Its `CPR1` envelope binds the expected revision and payload; stale proposals
+conflict, and exact ready retries verify bytes without recreating lost content.
+Current and staged records share the token's byte reservation. The direct
+collector preserves both at its cut and can reclaim superseded records while
+retaining catalog replay and the original admission record. Generic staging and
+binding cannot give a collectible progress record a permanent lifetime.
+
 ## Lifecycle owner
 
 `DirectQueue.apply` composes durable enqueue, exact original claims, fenced

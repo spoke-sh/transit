@@ -379,6 +379,43 @@ update conflicts; settled work cannot become pending and cancellation cannot be
 cleared. Table, log declaration, workload, name and namespace settlement requires
 an actual terminal owner observation. External bookkeeping is not evidence of external completion.
 
+`Progress.staged` is a mandatory nullable candidate reservation; omitted fields
+reject. External owners may replace progress with `client_progress.advance`,
+whose mandatory fields are `key`, `expected`, `pending`, `cancel`, nonzero plain
+inner `format` (high bit clear), and binary `bytes`. Save that request before
+submission. The Catalog wraps it as `CPR1` (`0x43505231`) with current `definition`
+and `advance`; the complete envelope and scope determine a `progress-records/`
+key. This is scoped recovery bookkeeping, not a computation or effect authority.
+
+An advance requires the original external token and current CONNECT. Its
+reservation stores the reference, expected revision and desired pending/cancel
+flags before byte creation, without replacing the current record or flags.
+Readiness replaces the current record/flags and clears the candidate in one
+catalog publication. Both publications advance the revision and request fence.
+A pending exact retry resumes its original reservation. A ready exact retry
+verifies existing bytes and returns the same state, even after settlement; it
+cannot recreate missing accepted storage. Changed work requires the current
+revision and a pending token. Sticky cancellation and permanent settlement still
+apply. Inspection may expose a reservation without bytes; that is not readiness
+or proof that the owner's work completed. The previous record remains readable.
+
+There is at most one candidate per token, regardless of history length. Current
+and candidate encoded `CPR1` bytes plus 512 bytes of bookkeeping must fit the
+original binding's byte reservation. A new proposal with the current revision
+may replace an interrupted candidate. Generic `update` may explicitly clear it,
+but cannot attach `CPR1` records. Initial external binding and generic
+`record.stage` also reject this reserved format. `record.read` discloses only
+the original token's current ready record under current scope/rights; superseded
+and unready candidates cannot be read or reattached.
+
+The direct collector retains current and candidate references at its accepted
+catalog cut. A candidate absent before creation uses the backend's newer epoch
+if created later; a missing current object fails graph validation. Superseded
+records become collectible after epoch/time/reader-grace fences. Catalog replay
+retains old progress metadata without loading superseded payloads. Original
+admission records have their own permanent retry lifetime. Settling a token does
+not itself release its current record, original identity or budget charge.
+
 `Binding.budget` declares account limits for operations, retained recovery bytes
 and pending operations, plus this operation's byte reservation. Defaults are
 1,000,000 operations, 4 GiB, 1024 pending and 4608 reserved bytes. Limits are fixed

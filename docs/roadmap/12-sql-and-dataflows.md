@@ -318,13 +318,34 @@ the stable `R0`–`R10` packages and the existing milestone scope. The
 [PR sequence](#proposed-pr-sequence) marks delivered mechanisms separately from
 remaining gates; the [next slice](#next-implementation-slice-owned-staging-and-finite-qualification)
 specifies the first changes. Milestone 12 remains **In Progress**; this planning
-change adds no runtime qualification.
+baseline adds no runtime qualification. The owned-progress increment below
+records the subsequent implementation scope.
 
 The immediate decisions are to reuse the owned-record and batched-page paths,
 finish their recovery/collection qualification before history activation, and
 start production analytical planning independently. M11 indexes, M7 Documents,
 M6 group SQL and the full Station migration are feature-specific gates; none
 requires rebuilding the installed single-Table owner or delaying its cleanup.
+
+### Owned progress implementation slice — 2026-11-03
+
+The next R1b increment adds Catalog-owned `CPR1` replacement work records and
+moves managed `progressWork` to the shared signed `client_progress.advance`
+operation. Each original token has one durable candidate slot. Reservation
+precedes byte creation; readiness replaces the current record, and exact retries
+never recreate missing accepted bytes. Current/candidate payloads share the
+work token's 64 KiB reservation. Collection marks both at its accepted cut and
+can reclaim superseded progress without loading obsolete payloads during catalog
+recovery. The current-v1 cutover makes the candidate slot mandatory, including
+explicit null, and migrates generated callers and signing fixtures together.
+
+This delivers replacement-record closure, not all R1b work. Generic `DFD1`
+declarations and initial `DFW1` admission records remain retained because the
+head and immutable original-token reservation still depend on them. Collecting
+abandoned pre-admission records requires its own admission/closure protocol.
+The combined installed fault/resource matrix, fair executor yielding, complete
+history consumers and R5 analytical execution remain separate gates. Current
+semantics and limits are in the [managed computation contract](../../contracts/DATAFLOW_V1.md).
 
 ### Installed Table implementation slice — 2026-11-01
 

@@ -425,7 +425,7 @@ pub const Request = struct {
             .transaction => |value| value.mutation(),
             .record => |value| value != .read,
             .client_token => |value| value == .bind,
-            .client_progress => |value| value == .update,
+            .client_progress => |value| value == .update or value == .advance,
             .initialize, .stage, .admit_saved, .commit_saved, .admit_ddl, .admit_rows, .admit_statement, .pin, .retain_history, .release, .flush => true,
             .operation => |value| value.command != .inspect,
             .name_assertion => |value| value.command != .inspect,
