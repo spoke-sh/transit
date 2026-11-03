@@ -13,6 +13,7 @@ and recovery. Read the [storage reference](../../docs/handbook/reference/storage
 | Local owner replacement and atomic state/block/version/intent recovery | [Recovery schedule](local/local_owner_recovery.py), [real-node fault wrapper](local/local_owner_fault_node.zig); `just test local-owner-recovery` |
 | Authenticated standalone payload lifecycle | [Local payload service](local/local_payload_service.py); `just test local-payload-service` |
 | Direct Table graph collection, expiry and retained pins | [Disk collection](local/direct_collection.zig), [collection process faults](local/local_native_collection_faults.py) |
+| Historical acquisition, abandonment and release through real collection and cold owner reopen | [Signed and typed local lifecycle schedules](../../apps/transit-node/local_catalog_policy_test.zig); `just test::local-catalog` |
 | Direct Table service, slow body/response pressure, reserved original-outcome recovery and restart | [Direct Table schedule](tables/direct_table_service.py) |
 | Fault-proxy request joining after a failed caller, including response-error reporting | [Cleanup controls](tables/test_direct_table_service.py); included in the fast check |
 | Table/KV/Stream/Queue common decision after lost statement and commit replies and two process replacements | [Signed transaction caller](../catalog/tables/direct_state_transaction.zig), [HTTP schedule](tables/direct_table_service.py); `just test::direct-mixed-transaction` |
@@ -35,6 +36,15 @@ not establish the backend. Performance drivers and budgets live in
 Physical disk, process death, injected failure and modeled power loss are
 distinct evidence. Automatic runner records identify completed commands; archived
 results do not qualify current source.
+
+The historical collection schedules lose replies after local service execution,
+then inspect the same saved acquisition or closure. They run the native collector
+with an orphan witness and reopen the complete local owner with a one-page cache.
+Unpublished history, abandonment, release and an independent private pin retain
+their separate obligations. This is signed JSON/typed dispatch and physical-disk
+coverage; it does not exercise HTTP disconnection or host power loss. Select these
+cases during iteration with `zig build test-local-catalog
+-Dlocal-catalog-filter=historical -Doptimize=ReleaseSafe` in the pinned shell.
 
 The local-owner recovery schedule publishes each fault selection atomically and
 requires its exact counter before treating a request as faulted. Fault delivery
