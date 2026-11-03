@@ -848,8 +848,9 @@ server-sql-package:
 [positional-arguments]
 release prefix:
     python3 -B tests/runner/test_version_build.py
-    # Profile provisioning uses a private host driver, outside the release prefix.
-    zig build test-operation-fixture -Doptimize=ReleaseSafe -Dsdk-examples=false -j2
+    # The private driver also runs in downloaded-artifact jobs without Nix.
+    # Keep it outside the release prefix and independent of the builder's loader.
+    zig build test-operation-fixture -Dtarget="$(uname -m)-linux-musl" -Dcpu=baseline -Doptimize=ReleaseSafe -Dsdk-examples=false -j2
     python3 -B tests/runner/launch.py tests/interfaces/installation/release.py "$1"
 
 # Verify the real installer against downloaded release artifacts, without building.
