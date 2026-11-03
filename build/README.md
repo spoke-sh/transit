@@ -135,8 +135,12 @@ all owned children and checks the retained rows and replacement generation.
 The same schedule applies to native x86_64 and ARM64 downloads.
 
 Board's authorization checks provision test profiles through the private
-`operation-fixture` driver. The native release build qualifies a musl-linked
-driver alongside its matching runtime and retains it as a separate CI artifact.
+`operation-fixture` driver. Use `nix develop .#release-checks --command just
+test::release PREFIX` to build it against the pinned static musl/OpenSSL inputs
+and qualify it alongside its matching runtime. The helper's musl target requires
+static linkage; the installed proof rejects an ELF interpreter or shared-library
+dependency in either runtime binaries or this helper. CI retains the qualified
+driver as a separate artifact.
 Downloaded and public-release checks restore that architecture's driver from the
 same workflow and select it explicitly through `TEST_TRANSIT_OPERATIONS`, so
 they require no Nix installation or inherited checkout build outputs. The driver

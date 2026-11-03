@@ -229,6 +229,21 @@
               DOTNET_SKIP_FIRST_TIME_EXPERIENCE = "1";
             };
         }
+        // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+          # Private release proof executables must run without the builder's
+          # loader or shared libraries, just like the downloaded runtime.
+          release-checks = (pkgs.mkShell.override { stdenv = pkgs.pkgsStatic.stdenv; }) {
+            buildInputs = [ pkgs.pkgsStatic.openssl ];
+            packages = [
+              pkgs.just
+              pkgs.git
+              pkgs.python3
+              pkgs.pkg-config
+              pkgs.binutils
+              zig
+            ];
+          };
+        }
       );
 
       checks = forAllSystems (

@@ -966,7 +966,12 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .link_libc = true,
         .imports = &.{ .{ .name = "cli_support", .module = cli_support }, .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "fixture_operations_application", .module = test_modules.get(.operations_application) }, .{ .name = "fixture_operations_authorization", .module = test_modules.get(.operations_authorization) }, .{ .name = "fixture_operations_diagnostic", .module = test_modules.get(.operations_diagnostic) }, .{ .name = "fixture_operations_direct_authorization", .module = test_modules.get(.operations_direct_authorization) }, .{ .name = "fixture_operations_file_diagnostic", .module = test_modules.get(.operations_file_diagnostic) }, .{ .name = "fixture_operations_file_query", .module = test_modules.get(.operations_file_query) }, .{ .name = "fixture_operations_recovery_tests", .module = test_modules.get(.operations_recovery_tests) }, .{ .name = "fixture_operations_unified", .module = test_modules.get(.operations_unified) } },
     });
-    const operations = b.addExecutable(.{ .name = "operation-fixture", .root_module = operation_module });
+    const operations = b.addExecutable(.{
+        .name = "operation-fixture",
+        .root_module = operation_module,
+        // A portable release fixture must refuse shared-library fallback.
+        .linkage = if (target.result.abi.isMusl()) .static else null,
+    });
     // Only this explicit test target copies the helper; it never enters bin/.
     const operation_install = b.addInstallArtifact(operations, .{ .dest_dir = .{ .override = .{ .custom = "tests" } } });
     b.step("test-operation-fixture", "Build private native operation test helpers").dependOn(&operation_install.step);

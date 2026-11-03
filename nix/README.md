@@ -13,6 +13,13 @@ thread creation and measurement markers; they do not record network payloads.
 This adds no input revision change to `flake.lock`. The toolchain check records
 the tracer version; actual tracing permission is checked by the allocation test.
 
+The Linux `nix develop .#release-checks` shell builds private installation-test
+helpers with the pinned static musl and OpenSSL inputs. A musl target alone does
+not prevent Zig from finding shared OpenSSL libraries in a development shell.
+Release helpers require static linkage and undergo the same ELF dependency
+checks as the installed runtime before CI transfers them to a runner without
+Nix. The generic development and experience shells retain their native libraries.
+
 The cached `kubectl-transit` package targets the architecture's baseline CPU,
 as the runtime packages do. Nix outputs can move between builders and runners;
 the builder's optional CPU instructions must not become package requirements.
