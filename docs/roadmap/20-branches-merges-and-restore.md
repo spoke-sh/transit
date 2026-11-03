@@ -1,6 +1,6 @@
 # 20. Branches, merges and restore
 
-[Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** In Progress ([implementation plan](#implementation-plan--2026-10-31); [foundation increment](#foundation-increment--2026-10-31); [earlier component evidence](#delivered-implementation-evidence--2026-10-30))
+[Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** In Progress ([remaining implementation plan](#implementation-plan--2026-11-02); [local Table branch increment](#local-table-branch-increment); [foundation increment](#foundation-increment--2026-10-31))
 
 Add isolated application-state branching, three-way merging and point-in-time
 restore built directly on the [immutable `.tseg` segment and Manifest architecture](02-storage-and-query-performance.md)
@@ -178,7 +178,7 @@ Never revive retired processes, restore revoked rights or redispatch historical
 effects. Independent exports, higher-level forks, cross-realm collaboration and
 live realm rollback require separate contracts.
 
-## Implementation plan — 2026-10-31
+## Implementation plan — 2026-11-02
 
 ### Outcome, baseline and delivery profile
 
@@ -189,12 +189,23 @@ caller recovers the original operation and its decision. Readers can identify
 the branch, definitions, source cut, completeness and current access basis.
 
 **Audited baseline:** fetched `origin/main` at
-`0e2fba44727ca858bd1e8e4a775b62fbcf1a665d`, 2026-10-31. This plan replaces the
-[October 30 implementation plan](#implementation-plan--2026-10-30), retaining its
-[component inventory](#delivered-implementation-evidence--2026-10-30) and the
-milestone's full scope. Source inspection establishes the gaps below; this
-planning change executes no runtime qualification and marks no work package
-complete. Milestone 20 remains **In Progress**.
+`5e00b53bfed8a552dc7306e1338394ec037ac9bb`, 2026-11-02, including the independent
+computation reader and Board integration in PRs #339/#340. This plan updates the
+[October 31 plan](#implementation-plan--2026-10-31), preserving its `R0`–`R10`
+work-package identities, completion gates and the milestone's full scope. The
+[local Table branch increment](#local-table-branch-increment) and
+[foundation increment](#foundation-increment--2026-10-31) remain delivered
+evidence at their recorded revisions. This source audit executes no runtime
+qualification and closes no remaining gate. Milestone 20 remains **In Progress**.
+
+The next implementation is an extension of the installed immutable Table branch
+owner, not a new branch service. Reuse M10's retained catalogs and transferred
+transaction cuts, M6's direct KV/mixed decision, and M12's retained computation
+revisions. The critical path is **coherent catalog/data publication → writable
+Table histories → complete diff/merge → fenced forward restore**. Bounded
+comparison of already retained immutable cuts can proceed before write exposure.
+Multi-model and remote delivery remain explicit later gates; neither M29 review
+nor M30 UI work is a prerequisite for the native local lifecycle.
 
 Start with one local catalog/database, one realm, a fenced authority and the
 existing disk-backed storage providers. Tables are the first executable data
@@ -202,9 +213,11 @@ profile. Extend KV, Documents and other declared objects only through their
 qualified owners. This is a delivery order, not removal of the multi-model or
 remote-sync completion criteria. A Table-only slice cannot close M20.
 
-Use [data lifecycle identities](../../contracts/DATA_LIFECYCLE_V1.md),
+Use the [branch contract](../../contracts/BRANCH_V1.md),
+[data lifecycle identities](../../contracts/DATA_LIFECYCLE_V1.md),
 [direct operations](../../contracts/DIRECT_TABLE_V1.md),
-[retained versions](../../contracts/READ_VERSIONS_V1.md),
+[historical catalog acquisition](../../contracts/HISTORICAL_CATALOG_V1.md),
+[native retained versions](../../contracts/READ_VERSIONS_V1.md),
 [current authorization](../../contracts/AUTHORIZATION_V1.md) and the
 [state model](../handbook/internals/state-model.md#schema-history-and-branches).
 The state-model branch sections are design analysis, not an executable contract.
@@ -216,15 +229,17 @@ coordinate through a Station resource turn.
 
 | Area | Evidence at the audited baseline | Implementation consequence |
 | --- | --- | --- |
-| Live branch selection | [`DataLifecycle.ResourceInitialization`](../../packages/zig/transit-protocol/src/DataLifecycle.zig), [`DirectCatalogRecords.Configuration`](../../packages/zig/transit-catalog/src/DirectCatalogRecords.zig) and [`DirectTableProtocol.Connection`](../../packages/zig/transit-catalog/src/DirectTableProtocol.zig) still require branch one. [`HistoricalTimeline.publishHeadConditional`](../../packages/zig/transit-catalog/src/HistoricalCatalog.zig) rejects multi-commit non-main branching. | Remove restrictions only with durable branch ownership, authorization, readers and publication wired together. A nonzero branch field alone cannot enable the feature. |
-| Branch lifecycle helper | [`BranchLifecycle`](../../packages/zig/transit-catalog/src/BranchLifecycle.zig) has a 128-entry branch array, 256-cut array, borrowed row/tail slices and calculated publication metrics. It models creation, ancestry, overlays and reachability. | Replace total-cardinality arrays with paged persistent directories; acquire real pins and WAL partitions. Its metrics are not measured publication latency or storage accounting. |
-| Diff helper | [`BranchDiff`](../../packages/zig/transit-fuze/src/BranchDiff.zig) implements finite segment/row/schema comparisons, five-state conflicts and spatial checks over supplied inputs. | Build retained-source iterators, complete schema/dependency comparison, typed result bindings and bounded spill. Prove skip eligibility against interpretation, visibility and tails as well as segment bytes. |
-| Merge helper | [`BranchMergeRestore`](../../packages/zig/transit-catalog/src/BranchMergeRestore.zig) uses at most eight candidate tables, 32 rows per table and a 64-entry token-only `MergeTokenJournal`; publication changes `BranchRegistry`. Candidate row slices originate in local work arrays. | Use immutable staged roots and owned batch lifetimes, durable account/token bindings, complete candidate membership and a real atomic decision. Audit escaping slices before reusing algorithms. Raising limits is not the solution. |
-| Restore helper | `restoreBranchForward` changes the in-memory registry and returns dataflow/outbox/discontinuity dispositions. | Persist the decision and disposition work; integrate actual computation, reader and effect owners. A returned enum does not suspend a running computation or prevent dispatch. |
-| Remote helper | `fetchIncrementalFromRemote` counts supplied segment IDs and returns a policy flag; `hydrateLazySegmentOnDemand` hashes supplied bytes. | Implement authenticated transfer, real egress policy, resumable storage and cache admission. Neither helper establishes network transfer, RLS filtering, mirroring or proposal publication. |
-| Existing durable owners | [`DirectCatalog`](../../packages/zig/transit-catalog/src/DirectCatalog.zig), [`DirectClientToken`](../../packages/zig/transit-catalog/src/DirectClientToken.zig), [`TableSnapshot`](../../packages/zig/transit-storage/src/TableSnapshot.zig), [`DirectStorageGraph`](../../packages/zig/transit-catalog/src/DirectStorageGraph.zig) and the [Table transaction profile](05-transactions-and-atomic-composition.md) supply paged ownership, original attempts, retained cuts and common decisions. | Extend these owners rather than installing a second branch registry, permission store or merge receipt authority. Branch heads must agree with ordinary DDL/DML and transaction visibility. |
-| Caller integration | The branch helpers are referenced by package exports/tests and each other; the audited live SQL [`Statement`](../../packages/zig/transit-sql/src/Statement.zig) and signed direct request dispatcher do not expose their lifecycle. | Add typed native operations and SQL lowering with capability reporting; parser acceptance cannot establish execution. There is no `transit-sql/src/Parser.zig` at this baseline. |
-| Evidence | [`branch_merge_restore.py`](../../tests/catalog/tables/branch_merge_restore.py) compares generated JSON fixtures and checks source-symbol presence. Zig component suites exist; no M20 end-to-end qualification record was found in the [ledger](../history/qualification/README.md). | Preserve the fixtures as contract examples. Add an independent executable oracle and disk/service fault schedules; do not count fixture booleans or symbol checks as executed recovery, GC, masking or scale evidence. |
+| Neutral branch contract | [`Branch`](../../packages/zig/transit-protocol/src/Branch.zig) and [BRANCH_V1](../../contracts/BRANCH_V1.md) already define committed content, ancestry, frozen attempts, validation and decisions. | Extend the existing definition for executable publication and dispositions; do not recreate R0 or treat pure validators as an accepted decision. |
+| Installed immutable branches | [`DirectBranch`](../../packages/zig/transit-catalog/src/DirectBranch.zig), `DirectCatalog.advanceBranch` and [`DirectCatalogRoots`](../../packages/zig/transit-catalog/src/DirectCatalogRoots.zig) implement original-token admission, paged branch/name/owner indexes, protected Table pins and atomic head/terminal-result publication. | Preserve this single-Table genesis profile. It has no published drop, fork, write, merge, restore or SQL adapter; inspection still requires the original principal and current source rights. |
+| Frozen artifacts and ancestry | [`BranchSnapshot`](../../packages/zig/transit-storage/src/BranchSnapshot.zig) stores paged Table directories and canonical manifests; [`BranchAncestry`](../../packages/zig/transit-storage/src/BranchAncestry.zig) bounds persistent traversal and distinguishes unique, unrelated and ambiguous bases. | Reuse them. Standalone staging neither pins dependencies nor roots them for collection. Extend Table-only entries to catalog interpretation and qualified kinds without losing exact-root pagination. |
+| Retained historical catalogs | [`DirectHistory`](../../packages/zig/transit-catalog/src/DirectHistory.zig), [`DirectHistoryDirectory`](../../packages/zig/transit-catalog/src/DirectHistoryDirectory.zig) and [historical SQL](../handbook/reference/sql/as-of.md) supply exact names/definitions, retained data, current disclosure and independent pin copies from acquired transactions. | Use these acquisition/transfer protocols. A selected directory is not whole-database coverage; `independent` and `common_transaction` cuts stay distinct. Common transfer currently requires Table-only selections even when the source transaction includes other participants. |
+| Ordinary branch selection | [`DataLifecycle.ResourceInitialization`](../../packages/zig/transit-protocol/src/DataLifecycle.zig), [`DirectCatalogRecords.Configuration`](../../packages/zig/transit-catalog/src/DirectCatalogRecords.zig) and [`DirectTableProtocol.Connection`](../../packages/zig/transit-catalog/src/DirectTableProtocol.zig) retain branch-one restrictions. [`HistoricalCatalog`](../../packages/zig/transit-catalog/src/HistoricalCatalog.zig) still rejects multi-commit non-main publication. | Remove guards only with branch-local catalog/data ownership and a coherent visibility decision. The existing direct branch read carries its head separately from the main connection. |
+| Decision and retention owners | [`DirectTransaction`](../../packages/zig/transit-catalog/src/DirectTransaction.zig), [`TransactionDecisionLog`](../../packages/zig/transit-storage/src/TransactionDecisionLog.zig), [`TableSnapshot`](../../packages/zig/transit-storage/src/TableSnapshot.zig) and [`DirectStorageGraph`](../../packages/zig/transit-catalog/src/DirectStorageGraph.zig) supply common decisions, pins and physical collection. Published immutable branches are already collector roots. | Extend the common decision to branch schema/data/head visibility and extend the graph for candidate/history/drop work. Ordinary Table acceptance remains independent of a branch head; a head-only CAS cannot fix that. |
+| Diff and merge models | [`BranchDiff`](../../packages/zig/transit-fuze/src/BranchDiff.zig), [`BranchLifecycle`](../../packages/zig/transit-catalog/src/BranchLifecycle.zig) and [`BranchMergeRestore`](../../packages/zig/transit-catalog/src/BranchMergeRestore.zig) remain finite supplied-input models. Merge rows now use explicit caller-owned storage and retries bind all request inputs; fabricated lifecycle metrics were removed. | Preserve useful algebra tests, but replace their runtime role with paged retained iterators, durable candidates and the existing token owner. Fixed model capacities are not production limits or a reason to raise constants. |
+| Restore and remotes | Restore returns modeled dispositions; remote helpers compare supplied content/IDs. | Implement actual consumer fencing, authorized transfer, verified dependency closure and recovery. No returned enum or policy flag establishes dispatch prevention, RLS/masking or mirroring. |
+| Computation observations | [`ManagedInspection`](../../packages/zig/transit-catalog/src/ManagedInspection.zig) and [`ManagedRevision`](../../packages/zig/transit-query-direct/src/ManagedRevision.zig) now expose independent-reader metadata and retained completed evidence; Board consumes it. | Reuse exact source/definition/decision attribution for invalidation and restore inspection. Inspection is not a scheduling fence. Do not impersonate a publisher to inspect its branch or computation. |
+| Caller integration | Signed `/table/v1` and `DirectBranch.call` expose immutable branch operations. [`Statement`](../../packages/zig/transit-sql/src/Statement.zig) exposes historical selection but no branch lifecycle or diff commands. | Extend typed operations first, then shared SQL/native clients and capability reporting. Keep branch merge distinct from relational `MERGE INTO`. |
+| Executed evidence | The [immutable branch qualification](../history/qualification/catalog.md#immutable-single-table-branches--2026-10-31) records disk/component/service checks, 137 branches with one resident page, physical collection and buffered-disclosure denial, alongside failed/incomplete broader runs. [`branch_merge_restore.py`](../../tests/catalog/tables/branch_merge_restore.py) remains a fixture/symbol check. | Retain scoped evidence without promoting it to writable/history/merge/restore qualification or a current-revision full pass. Add real caller/fault/oracle proofs for each new gate. |
 
 ### Recent foundations and upcoming milestone boundaries
 
@@ -236,18 +251,19 @@ when each dependent package starts; do not base delivery on unmerged worktrees.
 | --- | --- |
 | [M1](01-declarative-data-lifecycle.md), [M2](02-storage-and-query-performance.md), [M4](04-statement-results-and-consumption.md), [M5](05-transactions-and-atomic-composition.md) — Completed | Reuse neutral identities, local durability, logical statement results and the qualified local multi-Table decision domain. M5 completion does not qualify native KV/Document or log/lease participants. M20 must prove schema/data branch-head publication in that domain. |
 | [M3](03-live-storage-and-sql-cutover.md) — In Progress | Extend installed lifecycle, exact retained roots, current rights and resumable collection. Preserve accepted unflushed WAL rows and original receipts through archive/trim/reopen. |
-| [M6](06-streams-queues-and-durable-runtime.md) — In Progress | Recent direct Stream/Queue owners, shared bitmap storage and database-owned SQL recovery are reusable. Direct KV, mixed participants and the Station transaction cutover remain gates. Never turn copied consumer offsets, `.tack` claims, timers or outbox bytes into execution rights. |
-| [M7](07-document-storage-and-station-decoupling.md) — In Progress | Logical merge and `DocumentPartition` storage foundations exist; the plan still gates direct dispatch and consumer/transaction cutover. M20 branches and merges Documents through that owner, not old Station storage. |
-| [M8](08-gateway-architecture-and-protocol-ingress.md), [M9](09-client-foundation-and-language-apis.md) — In Progress | Reuse `DatabaseRuntime`, event-driven accepted-work recovery and shared callers. The latest main merge also delivers [declarative browser publications](../handbook/reference/reactive.md#declarative-browser-publications); add branch identity to their source/recovery bindings without confusing browser refresh with native reactive subscriptions. |
-| [M10](10-standards-and-catalogs.md) — In Progress | Exact historical catalog/data cuts, stable column lineage, collations and constraint semantics are prerequisites. Historical helper types alone do not supply durable cut acquisition or current-policy enforcement. Close shared gaps with this owner before branch exposure. |
+| [M6](06-streams-queues-and-durable-runtime.md) — In Progress | Direct KV, native Table/KV/Stream/Queue mixed transactions, retained workload outcomes and automatic DLQ recovery are delivered, with SQL NACK added on November 2. Reuse these owners; historical KV/log inclusion still needs explicit retention/branch contracts. Groups/waits/renewal SQL, full Station cutover and common-revision qualification remain open. Copied offsets, `.tack` claims, timers and outbox bytes never confer execution rights. |
+| [M7](07-document-storage-and-station-decoupling.md) — In Progress | A causal map-tree slice has fenced WAL acceptance and authenticated paging. Complete succinct/shredded storage, direct lifecycle, versioned merge and mixed participant/consumer integration remain gates. M20 must consume that owner rather than extend Station's old Document encoding. |
+| [M8](08-gateway-architecture-and-protocol-ingress.md), [M9](09-client-foundation-and-language-apis.md) — In Progress | Reuse co-hosted `DatabaseRuntime`, event-driven accepted-work recovery, shared Catalog/SQL callers and local recovery storage. Branch operations need deliberate recovery dispatch: the current SQL recovery path excludes branch work. Extend [declarative browser publications](../handbook/reference/reactive.md#declarative-browser-publications) separately from native subscriptions. Broader gateway and managed-handle work is not assumed complete. |
+| [M10](10-standards-and-catalogs.md) — In Progress | Delivered historical selection/SQL, transferred common cuts, stable column/default/collation interpretation, CHECK and staged FK definitions, and versioned view/graph/foreign metadata replace the old helper-only baseline. Reuse them; complete branch coverage, enforceable FK profiles and integrated proof remain explicit gates. Historical graph/foreign metadata is not executable query support. |
 | [M11](11-indexing-and-access-paths.md) — Planned | Branch-local index definitions, coverage and uniqueness integrate when the index owner qualifies them. Until then, use a qualified bounded complete scan where semantics exist, or refuse that profile; never assume copied indexes are ready. |
-| [M12](12-sql-and-dataflows.md) — In Progress | Bind copied definitions inactive; preserve result/source provenance. Merge/restore schedules owner-managed invalidation, suspension or recomputation. An in-memory disposition must not claim service activation or DBSP coverage. |
+| [M12](12-sql-and-dataflows.md) — In Progress | Service-owned finite single-Table computations, retained immutable result revisions and transaction-owned staging/collection are delivered. Bind copied definitions inactive and retain original results. Integrate actual pending work, owner fencing and recomputation with these owners; complete-commit WAL consumers and incremental/multi-source execution remain future handoffs. |
 | [M13](13-data-structures-and-performance.md), [M14](14-vectorized-strings-and-search.md) — In Progress; [M15](15-data-centric-compilation-and-specialization.md) — Planned | Share memory/IO budgets, measured compaction policy and qualified collation comparisons. Vectorization, string prefixes and compiled execution optimize the same oracle-tested semantics; none is a correctness prerequisite for the first branch path. |
-| [M16](16-document-profiles-and-gateway-exchange-lifecycle.md), [M17](17-geospatial-and-spatio-temporal-computing.md), [M18](18-multi-model-and-foreign-relations.md), [M19](19-game-asset-pipelines-and-simulation-streaming.md) — Planned | Gate profile-aware Document provenance, spatial/topological validation, graph endpoints, foreign manifests and cooked game/simulation asset DDC sharing on their exact owner contracts. Bound the first local slice independently, but keep these M20 integrations open until qualified. |
+| [M16](16-document-profiles-and-gateway-exchange-lifecycle.md), [M17](17-geospatial-and-spatio-temporal-computing.md) — In Progress; [M18](18-multi-model-and-foreign-relations.md), [M19](19-game-asset-pipelines-and-simulation-streaming.md) — Planned | Offline JSON/XML and compound commitments, plus a spatial reference/kernel foundation, are reusable; installed profile/geometry execution is not implied. Gate provenance, topology validation, graph endpoints, foreign manifests and DDC sharing on those owners. Preserve M19 asset/simulation integration as explicit remaining M20 scope. |
 | [M21](21-service-and-sdk-coverage.md), [M22](22-formal-semantics-and-correspondence.md) — In Progress | M20 supplies shared branch operations and migrates affected consumers; M21 broadens the installed adapter matrix. M22's T6 candidate is `BranchMerge.tla`, A4 is `BranchMergeAlgebra.lean`; these are proposed obligations, not existing `specs/lean` proofs. |
 | [M23](23-storage-providers-and-concurrency.md)–[M26](26-clustered-execution.md) — Planned | Local branch CAS is not distributed multi-writer qualification. Remote mirroring is not replication/failover. M25 owns complete installation backup/restore and upgrades; M20 restores selected application data forward under current authority. |
-| [M27](27-control-and-policy-plane.md), [M28](28-published-resources-and-investigations.md), [M30](30-board-reimplementation.md) — In Progress; [M29](29-reviewed-data-collaboration.md) — Planned | Use current native policy first, expose exact candidate/target bindings for later delegation, publication and review, and preserve read-only Board inspection and its initial workbench work. M29 owns proposal/approval lifecycle and human-only approval, avoiding a dependency cycle in local M20 completion. M20 owns remote candidate transfer; full `PROPOSE` review journeys close in M29. |
-| [M41](41-deductive-rules-datalog-and-equivalence-graphs.md), [M42](42-hardware-design-rtl-and-eda-verification.md) — Planned | Branch-isolated deductive hypothesis exploration (`M41`) and speculative engineering change orders (ECOs) / RTL-netlist-layout synthesis revisions (`M42`) reuse M20's copy-on-write snapshot/manifest forks and 3-way `DIFF` / `MERGE` gates. |
+| [M27](27-control-and-policy-plane.md), [M28](28-published-resources-and-investigations.md) — In Progress; [M29](29-reviewed-data-collaboration.md) — Planned | Agree native branch protection with M27 without introducing a second grant authority. M28 needs retained investigation bases and exact result provenance, not an indefinitely open transaction. M29 consumes frozen candidate/target/resolution evidence and adds approvals; M20 native publication and candidate transfer must not depend on that future review UI or claim to implement it. Egress requiring RLS/masking waits for actual enforcement. |
+| [M30](30-board-reimplementation.md) — In Progress | Operations/reactive ownership, readable retained storage and independent computation inspection have landed. Extend the public read owners for branch/history/conflict observations; keep publisher attribution and reader grants separate. Complete browser comparison/review remains M30/M29 work; Board inspection credentials cannot publish a branch. |
+| [M35](35-scientific-arrays-and-measurements.md)–[M42](42-hardware-design-rtl-and-eda-verification.md) — Planned | Later scientific/media/ML/robotics, software-evidence, planning, deductive and RTL/EDA consumers need immutable input/decoder/artifact commitments, reproducible alternatives and exact comparison provenance. They consume M20 rather than block its local implementation. In particular M41 hypotheses and M42 engineering-change candidates cannot mistake a branch/merge for valid computation or permission to deploy. |
 | [M44](44-qualification-and-benchmarks.md) — Planned | Combine later evidence at one revision; M20 must supply its own caller, failure, growth and benchmark evidence now rather than defer correctness to final qualification. |
 
 ### Contract decisions to settle before runtime exposure
@@ -263,8 +279,10 @@ branch-local object bindings and physical partitions. Preserve lineage on a fork
 allocate collision-free identities for independent additions. Drop/recreate of a
 branch or object name cannot retarget an old operation or cursor. Bind a statement
 to one resolved head; bind an explicit transaction to its admitted branch and cut.
-Prepared statements acquire a fresh execution cut while preserving their original
-metadata contract. Switching branch must not retarget an open transaction.
+Prepared statements using a live branch selector acquire a fresh execution cut
+while preserving their original metadata contract. An explicit retained selector
+keeps the same historical cut on every execution. Switching branch must not
+retarget an open transaction.
 
 **Publication and history.** One database decision publishes the complete
 candidate schema/data directory and branch head. Every ordinary write path must
@@ -309,6 +327,12 @@ create, read, write, drop, merge, restore and remote-disclosure actions. Specify
 branch inheritance and source-lifetime obligations; branch creation freezes neither
 grants nor source privileges. Recheck policy at admission, publication and every
 protected disclosure, including metadata, conflicts, receipts and empty terminals.
+The current original-principal branch profile must not be widened by replacing
+the request principal with its publisher. Define independent-reader inspection
+and branch-local write authorization explicitly, using M30's managed inspection
+as a boundary example, while keeping generic token control private. Define a
+least-privilege maintenance path for abandoned pins after creator revocation;
+cleanup authority must neither disclose data nor acquire publication rights.
 Merge-disabled installations reject merges; protected destinations reject equivalent
 DDL/DML, transaction, restore and import bypasses unless explicitly authorized by
 the same publication policy. Do not invent a second `GrantSet` authority.
@@ -338,6 +362,65 @@ Authenticated compaction lineage can justify a skip; a caller-supplied multiset
 hash cannot establish equivalence. Constraint checking may require the entire
 candidate and dependency closure even when the physical delta is small.
 
+### Publication boundary to implement first
+
+This is the main R0–R3 design decision. The installed branch owner can atomically
+publish a frozen head and its receipt, but ordinary Table DDL/DML becomes visible
+through the Table acceptance owner. M5/M6 common transaction decisions and M10
+retained cuts provide reusable mechanisms; they do not already make a branch's
+catalog, schema, data and head one atomic domain.
+
+Implement the following through `DirectCatalog` and the existing transaction
+decision owner. Exact encodings and transitions land in the owning contracts
+before runtime exposure:
+
+1. **Freeze scope and interpretation.** Resolve a branch ID, generation, exact
+   head and the selected application's complete object/dependency directory.
+   Distinguish a single-Table projection, a selected common cut and a complete
+   declared branch domain. For the first writable profile admit a closed Table
+   domain with supported dependencies; refuse unsupported kinds instead of
+   silently presenting a partial catalog as complete. Freeze names, stable
+   object/column lineage, definitions, constraints and per-partition cuts.
+2. **Acquire owner-backed retention.** Reuse M10's original-operation transfer
+   and pin-copy protocol for an acquired common transaction cut. Reserve source
+   cleanup until branch ownership is accepted or abandonment finishes. A
+   published historical selector alone is not a transferable pin grant. Never
+   reacquire a moved live frontier, steal the source's pin, or attach a descriptor
+   to a released cut. Retain accepted unflushed rows and all recovery decisions.
+3. **Prepare private successors.** Allocate independent branch-local partitions
+   and catalog bindings while sharing immutable content. Persist the mapping
+   from source lineage to destination bindings, including dependencies and
+   constraints. Prepare rows, schema/namespace changes and the complete candidate
+   directory under one original operation, with bounded resumable progress.
+   Fresh branch partitions must open retained base roots without scanning or
+   copying the whole dataset. Existing immutable genesis branches acquire no
+   invented main ancestry; a fork names an actual accepted parent manifest.
+4. **Accept one visibility decision.** Guard expected head/generation, current
+   policy epoch, participant conflict state and durable candidate coverage in
+   the database publication decision. Make the schema/data directory, new head
+   and original outcome refer to that same decision. Route ordinary DDL, point
+   and bulk writes, schema changes and transaction commits in the enabled domain
+   through this rule too. A per-Table acceptance followed by head CAS is unsafe.
+5. **Resolve visibility from the decision.** Readers and recovery must return
+   either the complete prior cut or the complete accepted successor even when
+   participant finalization or receipt observation is interrupted. An accepted
+   decision cannot be converted to rejection because finalization is delayed.
+   Keep payloads in per-partition logs and bound control records by directory
+   references; do not funnel bulk data through catalog records or actor turns.
+6. **Transfer roots and settle cleanup.** Accepted branch/history/candidate
+   records determine reachability. Release preparation holds only after the
+   replacement roots are durable. Drop retires live selection first and releases
+   pins incrementally, preserving exact readers, descendants, unresolved work
+   and historical outcomes. Reclamation still requires the complete fenced graph.
+
+Prove this boundary with two Tables whose definitions and values change together,
+a concurrent ordinary writer, a retained reader and failures before/after the
+common decision and each finalization. Include DDL versus DML, policy changes,
+lost acknowledgements and cold reopen. Do not lift branch-one guards until this
+test rejects mixed catalog/data cuts. Keep independent row writes' added control
+cost in the M13 scorecard; correctness cannot be traded for an unmeasured
+constant-time branch claim.
+
 ### Data-kind and execution disposition
 
 | Object or evidence | Create, merge and forward-restore rule |
@@ -353,36 +436,41 @@ candidate and dependency closure even when the physical delta is small.
 
 ### Work packages and delivery gates
 
-`R0`–`R10` name the remaining work, replacing the earlier `P0`–`P8` sequence.
+`R0`–`R10` retain the October 31 package identities. R0–R2 and R8 have delivered
+parts; none of those broad packages is complete. The table describes the next
+reviewable increment, followed by the full remaining obligations below.
 Each package includes owner documentation and focused executable checks. Add
 vertical typed-caller tests as each owner lands; R8 completes the cross-interface
 journeys rather than postponing all caller validation until the end.
 
 | Package | Depends on | Reviewable outcome |
 | --- | --- | --- |
-| R0 | M1/M4/M5 contracts; M10 coordination | Neutral branch/cut/candidate/decision and current-policy contracts, fixture and consumer migration inventory |
-| R1 | R0 | Durable paged branch directory, history and original-operation recovery |
-| R2 | R1; qualified retained-cut owners | Full-data/schema-only Table creation, protected unflushed tails and independent-copy equivalence |
+| R0 | M1/M4/M5 contracts; M6/M10 coordination | Extend delivered neutral types with the coherent visibility, pin-transfer, policy and disposition decisions; inventory the next current-v1 cutover |
+| R1 | R0 | Extend installed paged branch/token directories to list, retire, retain history and recover successor/drop operations |
+| R2 | R1; M10 retained-cut owner | Extend single-Table creation to exact selected/common catalog cuts and real fork ancestry, with protected transfer and independent-copy equivalence |
 | R3 | R2 | Isolated ordinary writes/transactions, branch-aware retention/GC and compaction |
-| R4 | R2–R3; M10 semantics | Bounded two-/three-way data and schema diffs with complete result evidence |
+| R4 | R0 and existing retained cuts for two-way work; R2–R3 for branch histories | Bounded two-way data/schema comparison first; three-way ancestry, conflict and complete result evidence over writable histories next |
 | R5 | R3–R4 | Whole-candidate constraint validation and atomic merge publication |
-| R6 | R3–R5; qualified M6/M7/M11/M16–M18 profiles | KV/Document and specialized model/index integration |
+| R6 | R3–R5; qualified M6/M7/M11/M12/M16–M19 profiles | KV/Document, derived-state, specialized model/index and asset integration |
 | R7 | R3–R5; execution disposition contracts | Durable forward restore and actual computation/subscription/effect fencing |
-| R8 | R0 onward; R4/R5/R7 for full journeys | Shared native/SQL client execution, installed recovery and read-only inspection |
-| R9 | R2–R8; qualified egress/capture contracts | Remote fetch/mirror, verified hydration and exact candidate transfer |
+| R8 | Delivered immutable native caller; R0 onward; R4/R5/R7 for full journeys | Extend native recovery, shared SQL execution, independent read-only inspection and installed journeys |
+| R9 | R2–R5/R8 for Table transfer; R6/R7 and qualified egress/capture owners for broader profiles | Remote fetch/mirror, verified hydration and exact candidate transfer |
 | R10 | All applicable gates | Disk/service faults, independent oracles, bounded scale, measured scorecard and public promotion |
 
 #### R0 — Contracts and one current-v1 cutover
 
-Extend `DataLifecycle`, transaction bindings and the direct request/result types
-with branch identity, immutable cut references, policy requirements, candidate
+Extend the delivered `Branch`/`DirectBranch`, `DataLifecycle`, transaction
+bindings and direct request/result types with branch identity, immutable cut
+references, policy requirements, candidate
 progress/conflicts, expected-head guards and original decisions. Define branch
 selection for ordinary reads/writes, prepared statements and transactions; define
 `DIFF`/`DIFF_SCHEMA` output schemas, terminal coverage and conflict attribution.
 Agree manifest encoding, definition commitments, parent edges, pin ownership,
 operation states and budgets before choosing new storage files.
 
-Update [DATA_LIFECYCLE_V1](../../contracts/DATA_LIFECYCLE_V1.md),
+Update [BRANCH_V1](../../contracts/BRANCH_V1.md),
+[HISTORICAL_CATALOG_V1](../../contracts/HISTORICAL_CATALOG_V1.md),
+[DATA_LIFECYCLE_V1](../../contracts/DATA_LIFECYCLE_V1.md),
 [DIRECT_TABLE_V1](../../contracts/DIRECT_TABLE_V1.md), affected retained-read and
 [SQL session](../../contracts/SQL_SESSION_V1.md)/[result](../../contracts/SQL_RESULTS_V1.md)
 contracts and the [reference grammar](../../contracts/sql/README.md).
@@ -399,12 +487,23 @@ compatibility or silently reset accepted state. Keep grammar-only and executable
 capabilities explicit. Exit with neutral fixtures for stale heads, wrong scopes,
 name reuse, incompatible definitions and altered-content token reuse.
 
+Preserve the record-domain separation introduced by `c2e50061f`: retained branch
+state uses `TBR1`, browser records use `BRC1`, and generic record APIs cannot
+mutate service-owned branch work. The earlier increment's definition hash is
+historical; generate against this change's actual shared definition. Inventory
+saved SQL work, retained selectors, host/ABI resources and independently authored
+signatures as well as live messages. Incompatible stored artifacts must reject;
+any offline migration needs its own explicit authority and verification. Never
+silently rebuild accepted state, fabricate ancestry or reinterpret an already
+accepted immutable branch as writable.
+
 #### R1 — Durable directory, ancestry and recovery
 
-Extend `DirectCatalogRecords`, `DirectCatalogRoots`, paged `TreeStore` directories
-and `HistoricalCatalog` through the existing catalog owner. Persist non-reused
-branch/object allocations, names, generations, parent edges and exact head roots.
-Replace the runtime role of fixed `BranchRegistry`/`MergeTokenJournal` arrays;
+Extend the existing `DirectCatalogRecords`, `DirectCatalogRoots` branch/name/owner
+indexes, paged `TreeStore` directories and history through the catalog owner.
+Retain delivered non-reused branch allocation and original-token recovery; add
+successor generations, parent edges, exact head roots and published retirement.
+Keep fixed `BranchRegistry`/`MergeTokenJournal` arrays outside the durable owner;
 small independent models may remain test-only. Retained manifest contents must
 outlive scratch buffers and may not retain function-local row slices.
 
@@ -416,18 +515,34 @@ corrupt parents and multiple merge bases explicitly. Exit with disk reopen,
 allocation interruption, duplicate-name races, branch-name reuse, and branch/cut/
 receipt cardinalities beyond resident caches and old helper capacities.
 
+Add an explicit branch recovery dispatcher: today `advance`/`cancel` are caller
+driven and SQL account recovery deliberately skips this work. Recovery must
+resume the stored owner-specific transition without spinning, re-admitting a
+token or impersonating its caller. Branch data reads and administrative cleanup
+need their own current permissions, distinct from generic private token reads.
+
 #### R2 — Exact cut preparation and branch creation
 
-Reuse Table snapshot acquisition, accepted archives and transaction cut guards.
+Preserve the delivered single-Table unflushed-cut path. Extend it using
+`DirectHistory` selection, common-cut transfer, exact Table pin copies, accepted
+archives and transaction cut guards instead of creating a second snapshot owner.
 Capture the catalog interpretation and all participating roots at the declared
 common decision. Persist `.tseg`/`.tdel`/metadata dependencies and exact retained
 WAL/archive tails before branch visibility. Transfer durable pin ownership from
 creation work to the published branch atomically, with recoverable abandonment;
 TTL expiry of a preparation cannot delete a published branch's dependencies.
+Common-cut inclusion must prove complete declared membership and dependency
+closure; an independent selection stays explicitly independent and cannot seed
+a purported atomic domain. Generalize catalog definitions alongside Table
+entries, including metadata-only dependencies. M10's current Table-only common
+transfer does not already cover every descriptor or KV/log participant.
 
 Full-data creation shares eligible immutable objects and allocates branch-local
 write ownership. Schema-only creation records separate schema/data inclusion,
 empty roots and inactive computations without treating omitted data as deletes.
+Reduce schema-only retention to its actual interpretation/dependency closure
+only after proving data pins are no longer needed; the installed profile
+currently retains its full source pin. Report that retained-byte cost meanwhile.
 Do not claim no-data-copy creation by first copying the whole database during
 unreported preparation. Exit through real typed callers with before-flush and
 concurrent-write tests, a bounded independent materialized-copy oracle, and kills
@@ -440,6 +555,15 @@ commits through isolated roots and partition identities. Extend the M5 visibilit
 protocol so source definitions, candidate roots and head movement agree; test
 concurrent ordinary writes against merge/restore rather than CAS in isolation.
 Preserve current policy checks and one selected atomic domain.
+
+Define branch-local partition initialization from a verified retained base plus
+new WAL/deletion overlays, including row identity, operation identity and
+constraint remapping. Data/catalog partition identity and object lineage are
+different: replaying a parent's row/token index as the child's acceptance log
+would revive work or alias mutations. Branch-local writes must preserve the
+shared base without depending on the parent remaining live or on recursive
+ancestor walks per row. Qualify the initial Table domain before extending the
+same decision protocol to KV, logs or Documents.
 
 Extend `TableStorageWalk`, `DirectStorageGraph`, catalog retention and local
 maintenance to enumerate every branch and preparation root with bounded work.
@@ -503,8 +627,10 @@ recovery. Verify unrelated target objects and metadata survive publication.
 #### R6 — Multi-model and derived-state integration
 
 Implement per-kind adapters through the direct owners. KV requires M6's qualified
-mutation/transaction participant; do not use a raw native resource clone as a
-shortcut. Documents require M7's public cutover: preserve causal history,
+mutation/transaction participant, which is now delivered; add its retained
+branch-base and merge adapter rather than waiting for unrelated Station work.
+Do not use a raw native resource clone as a shortcut. Documents require M7's
+public cutover: preserve causal history,
 tombstones and persisted fresh replica epochs, use the selected versioned/CRDT
 merge rules, and verify permutation/convergence and incompatible-history refusal.
 M16 profiles additionally retain container/part/tree identity and raw byte spans.
@@ -518,6 +644,14 @@ refusal. Integrate M11 index generations and M12 computations using exact source
 coverage and inactive/rebuild states. Exit each profile through its real storage,
 caller and constraint oracle; helper spatial booleans and Document labels cannot
 close these gates.
+
+M19 asset and simulation branches retain exact source, target-profile and cook
+commitments before reusing DDC, meshlet, texture, navigation or volume objects.
+Matching physical content alone cannot establish compatible derived coverage.
+Changes to inputs, topology, numerical rules or compiler/cook targets invalidate
+the appropriate results; recompute through M12/M19 owners. Share eligible bytes
+without activating a simulation, rendering subscription or external deployment.
+Keep this adapter separate from M17 geometry correctness and M18 foreign decoding.
 
 #### R7 — Forward restore and execution discontinuities
 
@@ -537,6 +671,14 @@ Recompute readiness requires completed new evidence, not an immediate `active`
 flag. Keep pending/unknown external outcomes in their existing reconciliation
 history; restoring data does not cancel an external action or redispatch it.
 
+Use M12's real managed control/work records and transaction-owned result staging.
+Restore must fence a computation already preparing a successor from the old
+branch generation; a late completion cannot overwrite the restored head. Keep
+the last completed revision inspectable at its original basis, with pending or
+blocked recomputation shown separately through the shared inspection owner.
+Copied managed control KV records are not branchable application state. Where
+an owner cannot enact the required disposition, refuse that restore profile.
+
 Fence executable consumers before the restored head is usable; resume through
 recorded owner actions, not a best-effort notification after publication. Extend
 native reactive and browser contracts separately with branch/generation
@@ -547,7 +689,8 @@ current-policy revocation and no lost original operation after restart.
 
 #### R8 — Native operations, SQL and existing consumers
 
-Add typed catalog operations/client recovery and node dispatch, then lower the
+Extend delivered `DirectBranch.call`, catalog operations/client recovery and
+node dispatch, then lower the
 agreed branch commands, selection and `DIFF` functions through the existing Fuze
 SQL compiler and `transit-sql/Statement`/`DatabaseRuntime`. Keep reference grammar,
 parser, binder, capability reporting and executable profile synchronized; branch
@@ -668,18 +811,42 @@ requires repository link/fence and whitespace checks; runtime evidence stays ope
 
 ### First implementation changes
 
-1. Land R0's identity/atomic-domain/disposition decisions and executable neutral
-   fixtures, with an inventory of every affected persisted/signed consumer.
-2. Implement R1/R2 as one vertical local Table slice: create from an unflushed cut,
-   inspect through a typed caller, restart, and compare the frozen branch to an
-   independent copy while the parent advances. Include durable pin cleanup.
-3. Complete R3 isolation and GC races before enabling writable branches generally;
-   then add R4 diff and R5 merge. Integrate R6 profiles as their owners qualify,
-   and R7 restore with real execution fences before exposing it in R8.
-4. Start R9 protocol/ownership design once exact cut commitments are settled;
-   qualify transfer only after local lifetime/recovery gates pass. Close R10 on
-   the resulting common revision, without treating M29's future approvals as an
-   existing authorization mechanism.
+These are review units within R0–R10, not new milestones. Each includes its
+owning contract/reference update and typed caller proof. Preserve the installed
+immutable branch behavior throughout the work; a partial unit does not enable
+general writes or close a broader gate.
+
+| Order | Concrete change and owners | Exit evidence |
+| --- | --- | --- |
+| 1 — Settle the publication contract (R0) | Extend `Branch`, `DirectBranch`, `DirectTransaction` and the branch/history/direct contracts with the selected atomic domain, partition/lineage mapping, expected-head guards, independent read/cleanup policy and durable dispositions. Inventory branch-one guards and incompatible consumers. | Executable neutral fixtures reject forged common cuts, incomplete membership, changed tokens, wrong definitions and generic-record substitution. A transition schedule describes every pre/post-decision crash outcome before live guards change. |
+| 2 — Complete retained creation and retirement (R1/R2/R8) | Extend `DirectCatalog` branch directories and `BranchSnapshot` using M10's transferred-cut/pin ownership. Add bounded listing, true parent references, published retirement and resumable release; preserve the existing single-Table genesis path. | Two selected Tables retain unflushed rows, exact names/defaults/collations and a verified common cut after source transaction completion. Lost pin-copy, publication and release replies recover the original identity. A child/read hold survives parent retirement, GC and reopen. |
+| 3 — Enable coherent Table histories (R2/R3/R8) | Implement branch-local Table base/overlay initialization and integrate schema/data/head publication with the common transaction decision. Wire ordinary point/bulk DML, DDL and transactions to that boundary before enabling branch selection. | Independent parent/child copies agree across writes/deletes and schema evolution. Concurrent DDL/DML, policy changes, stale writers, participant-finalization kills, compaction and trim never expose mixed cuts or mutate shared bytes. |
+| 4 — Deliver bounded comparison (R4/R8) | Build retained Table/history adapters around `BranchDiff` and shared Fuze result batches. Land two-way data/schema comparison over current immutable cuts after unit 1; add branch ancestry and three-way conflicts after units 2–3. | Full logical oracle agreement, correct stable-column/default/collation projection, empty and multi-batch completion, partial-preview labeling, revoked buffered disclosure and bounded spill. Equal data after compaction produces no spurious change. |
+| 5 — Publish a reviewed candidate natively (R5/R8) | Persist complete base/source/target membership, conflicts/resolutions, dependency/constraint validation and candidate roots through `DirectCatalog`; publish via unit 3's decision. Here reviewed means explicitly selected by an authorized caller, not M29 approval. | Source advance cannot expand the candidate; target advance rejects it. Cross-Table constraint violations, forged coverage and unresolved conflicts refuse. Lost decision replies recover once without recompilation or replaying SQL as new work. |
+| 6 — Restore forward with real fences (R7/R8) | Reuse candidate publication and retain restore provenance; integrate M12 managed work, existing captured jobs, M6 consumers and reactive/effect owners for every included execution profile. | Old reads keep their authorized cut; stale writers and late computation completions cannot replace restored data. Historical effects never dispatch, unknown external outcomes remain unresolved, and reboot resumes dispositions rather than inferring success. |
+
+The first useful independently reviewable change is unit 1 plus a narrowly
+scoped unit 2 lifecycle extension. Keep unit 3's catalog/data visibility work in
+one coordinated cutover; do not split it into separately enabled head and row
+paths. Unit 4's two-way comparison can be developed against delivered retained
+cuts without waiting for writable branches, but it cannot establish a merge base
+or publish anything.
+
+After the local Table path, deliver R6 in owner-sized increments: direct KV,
+qualified M7/M16 Documents, M11 indexes and M12 computations, then M17–M19 models
+and assets. Each keeps unsupported combinations explicit. Start R9's transfer
+and egress contracts after immutable cut commitments settle; eager fetch precedes
+lazy hydration/mirroring and exact upstream candidate transfer. Remote transfer
+needs two real instances and actual policy/effect enforcement before exposure.
+M27 policy and M29 review handoffs do not authorize interim bypasses.
+
+Close R10 at one committed revision with G1–G12 and the measured M13 scorecard.
+Carry earlier failed/incomplete branch, storage-growth, browser, session and
+installation attempts into the selected verification inventory; record new
+results separately. Later unrelated passing lanes do not retroactively close
+those runs. Publish supported profiles and remaining limits in the public owners,
+then update milestone/index status together. A local Table-only release still
+leaves multi-model, remote and execution-profile gates open.
 
 ## Local Table branch increment
 
@@ -731,6 +898,11 @@ R4–R10 retain their existing scope. This increment does not close the mileston
 
 ## Foundation increment — 2026-10-31
 
+This is the source-specific first increment, preceding the installed local Table
+slice above. Statements about missing catalog publication and collector roots
+below describe that increment; the November 2 source audit records their later
+integration and the remaining work.
+
 The first implementation increment adds these owners without enabling branch
 operations in the installed service:
 
@@ -773,6 +945,14 @@ R4–R9 still require streaming logical diffs, whole-candidate publication,
 multi-model integration, actual execution fencing, caller APIs and remote I/O.
 The new private artifacts are not storage-collector roots. Their authorization,
 retention and cleanup remain caller responsibilities until owner integration.
+
+## Implementation plan — 2026-10-31
+
+The [October 31 plan at this update's baseline](https://github.com/spoke-sh/transit/blob/5e00b53bfed8a552dc7306e1338394ec037ac9bb/docs/roadmap/20-branches-merges-and-restore.md#implementation-plan--2026-10-31)
+remains historical planning evidence. The [November 2 plan](#implementation-plan--2026-11-02)
+retains its R0–R10 packages and G1–G12 gates while replacing the pre-integration
+audit and next-work sequence. The delivered increments retain their original
+source attribution and qualification limits.
 
 ## Implementation plan — 2026-10-30
 
