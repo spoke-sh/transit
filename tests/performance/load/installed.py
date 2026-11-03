@@ -17,15 +17,18 @@ import sys
 import time
 
 from harness.local_installation import freeze_executables
-from harness.sql_placement import Probe
+from harness.sql_placement import Probe, call as deployment_call
 from interfaces.installation.server import Fixture
 from interfaces.sql_sessions.local import Client
 from interfaces.sql_sessions.storage import text
 from performance.console import resources
+from performance.console.console_latency import override
+from performance.load.report import OWNER_COUNTERS, UNAVAILABLE, owner_snapshot
 from runner.capture import directory, provenance
 from runner.paths import ROOT
 
 DRIVERS = ('performance/load/installed.py', 'performance/load/report.py',
+           'performance/console/console_latency.py',
            'performance/sdk/report.py', 'performance/console/resources.py',
            'harness/local_installation.py', 'harness/sql_placement.py', 'harness/processes.py',
            'harness/phases.py', 'harness/services.py', 'interfaces/installation/server.py',
@@ -38,6 +41,42 @@ DRIVERS = ('performance/load/installed.py', 'performance/load/report.py',
 def digest(path):
     with Path(path).open('rb') as file:
         return hashlib.file_digest(file, 'sha256').hexdigest()
+
+
+def host_limits(root):
+    # Include inherited cgroup-v2 limits, not just the current leaf's quota.
+    cgroup = next((line[3:] for line in Path('/proc/self/cgroup').read_text().splitlines() if line.startswith('0::')), None)
+    limits = []
+    if cgroup is not None:
+        base = Path('/sys/fs/cgroup')
+        current = base / cgroup.lstrip('/')
+        while current.is_relative_to(base):
+            limits.append({name: (current / name).read_text().strip() if (current / name).exists() else None
+                           for name in ('cpu.max', 'cpuset.cpus.effective', 'memory.max')})
+            current = current.parent
+    return dict(affinity=sorted(os.sched_getaffinity(0)), cgroup_v2=limits or None,
+                cpu_models=sorted({line.partition(':')[2].strip() for line in Path('/proc/cpuinfo').read_text().splitlines()
+                                   if line.startswith('model name') or line.startswith('Hardware')}),
+                filesystem=subprocess.check_output(['stat', '-f', '-c', '%T', str(root)], text=True).strip())
+
+
+class OwnerProbe:
+    def __init__(self, fixture):
+        self.fixture = fixture
+        self.previous = None
+
+    def snapshot(self):
+        status = deployment_call(self.fixture, dict(performance={}))
+        assert status['running'] is True, 'SQL host stopped during attribution'
+        value = status.get('performance')
+        instance, counts = owner_snapshot(value)
+        if self.previous is not None:
+            previous_instance, previous = owner_snapshot(self.previous)
+            assert instance == previous_instance, 'owner instance changed during attribution'
+            assert all(counts[owner][field] >= previous[owner][field]
+                       for owner, fields in OWNER_COUNTERS.items() for field in fields), 'owner counters reset'
+        self.previous = value
+        return value
 
 
 def read(client, sql, maximum=1000):
@@ -98,6 +137,7 @@ def cpu_snapshot(fixture):
 class Recorder:
     def __init__(self, file):
         self.file = file
+        self.owner_probe = None
 
     def emit(self, value):
         line = json.dumps(value)
@@ -109,26 +149,42 @@ class Recorder:
     def sample(self, case, index=0, fixture=None, probe=None):
         record = dict(phase='sample', case=case, index=index, outcome='incomplete')
         before = probe.snapshot() if probe else None
+        owner_before = self.owner_probe.snapshot() if self.owner_probe and fixture else None
+        if owner_before is not None:
+            record['owner_before'] = owner_before
         cpu = cpu_snapshot(fixture) if fixture else None
         started = time.perf_counter_ns()
         try:
             yield record
-            record['elapsed_ns'] = time.perf_counter_ns() - started
-            if probe:
-                record['local_attempts'] = probe.delta(before)
-            if fixture:
-                after = cpu_snapshot(fixture)
-                assert cpu.keys() == after.keys() and all(cpu[p][0] == after[p][0] for p in cpu), 'process changed during sample'
-                ticks = sum(after[p][1] - cpu[p][1] for p in cpu)
-                assert ticks >= 0
-                record['installation_cpu_ns'] = ticks * 1_000_000_000 // os.sysconf('SC_CLK_TCK')
             record['outcome'] = 'complete'
         except BaseException as error:
             record.update(outcome='failed', error_type=type(error).__name__)
             raise
         finally:
             record.setdefault('elapsed_ns', time.perf_counter_ns() - started)
-            self.emit(record)
+            # Preserve partial observations after a failed foreground operation.
+            # Inspection failure cannot replace its original exception.
+            try:
+                if probe:
+                    record['local_attempts'] = probe.delta(before)
+                if owner_before is not None:
+                    after = self.owner_probe.snapshot()
+                    record.update(owner_after=after,
+                        owner_counters={owner: {field: after[owner]['values'][field] - owner_before[owner]['values'][field]
+                            for field in fields} for owner, fields in OWNER_COUNTERS.items()})
+                if fixture:
+                    after = cpu_snapshot(fixture)
+                    assert cpu.keys() == after.keys() and all(cpu[p][0] == after[p][0] for p in cpu), 'process changed during sample'
+                    ticks = sum(after[p][1] - cpu[p][1] for p in cpu)
+                    assert ticks >= 0
+                    record['installation_cpu_ns'] = ticks * 1_000_000_000 // os.sysconf('SC_CLK_TCK')
+            except Exception as error:
+                failed = record['outcome'] == 'failed'
+                record.update(outcome='failed', observation_error=type(error).__name__)
+                if not failed:
+                    raise
+            finally:
+                self.emit(record)
 
 
 def head(client):
@@ -304,6 +360,7 @@ def main():
         parser.add_argument('--'+name, type=Path, required=True)
     parser.add_argument('--binary-revision', required=True)
     parser.add_argument('--profile', choices=('managed', 'connections'), required=True)
+    parser.add_argument('--attribution', action='store_true', help='opt into bounded owner counters; separate from timing controls')
     parser.add_argument('--repeat', type=int, choices=range(1, 101), metavar='1..100', default=3)
     parser.add_argument('--rows', type=int, choices=range(1, 901), metavar='1..900', default=16)
     parser.add_argument('--peers', type=int, choices=range(1, 17), metavar='1..16', default=4)
@@ -320,16 +377,20 @@ def main():
         try:
             fixture = Fixture(args.cli, args.node, args.host)
             freeze_executables(fixture)
+            binaries = dict(cli=fixture.cli, **fixture.config['executables'])
+            if args.attribution:
+                override(fixture, 'node', dict(request_metrics=True))
             configured = configure_connections(fixture, args) if args.profile == 'connections' else None
             fixture.path.write_text(json.dumps(fixture.config))
             version = subprocess.check_output([fixture.cli, '--version'], text=True).strip()
             assert args.binary_revision in version and 'dirty' not in version, 'build a clean attributed measurement binary'
             recorder.emit(dict(phase='manifest', profile=args.profile, rows=args.rows, repeat=args.repeat, peers=args.peers,
                 source=provenance(ROOT), binary_revision=args.binary_revision, cli_version=version,
-                binaries={role: digest(path) for role, path in dict(cli=fixture.cli, **fixture.config['executables']).items()},
+                binaries={role: digest(path) for role, path in binaries.items()},
                 drivers={path: digest(ROOT/'tests'/path) for path in DRIVERS},
                 system=platform.platform(), machine=platform.machine(), cpus=os.cpu_count(), load=os.getloadavg(),
                 host_id=digest('/proc/sys/kernel/random/boot_id'), storage_device=fixture.root.stat().st_dev,
+                host_limits=host_limits(fixture.root), attribution=args.attribution, unavailable=list(UNAVAILABLE),
                 toolchain=subprocess.check_output(['zig', 'version'], text=True).strip(),
                 maintenance='enabled', durability='native-local synchronous', cache='OS and server retained; no eviction',
                 build_mode='ReleaseSafe', tls='required; verified generated local CA' if configured else 'native Unix peer',
@@ -338,12 +399,14 @@ def main():
                     (('psycopg', 'mysql-connector-python') if configured else ())}),
                 sql_limits=dict(request_timeout_ms=5000, command_ms=30000, connections=64,
                                 connections_per_account=8, authentications=4),
-                instrumentation='typed attempt and procfs snapshots outside timers; includes background work',
+                instrumentation='typed attempts, optional owner counters and procfs outside timers; includes background work',
                 allocations=None, copies=None, bounds=dict(result_rows=1000, observation_seconds=180, polls=2000)))
             with recorder.sample('startup') as sample:
                 fixture.start()
                 fixture.ready()
                 sample.update(verified=True, definition=fixture.record()['definition'])
+            if args.attribution:
+                recorder.owner_probe = OwnerProbe(fixture)
             if args.profile == 'managed':
                 managed(fixture, args, recorder)
             else:

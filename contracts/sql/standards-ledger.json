@@ -435,7 +435,8 @@
       "evidence_sources": [
         "packages/zig/transit-fuze/src/table_constraints_test.zig",
         "packages/zig/transit-storage/src/table_partition_test.zig",
-        "tests/catalog/tables/table_schema.py"
+        "tests/catalog/tables/table_schema.py",
+        "tests/interfaces/sql_sessions/integrity.py"
       ]
     },
     {
@@ -462,7 +463,8 @@
       "profile": "production SQL entry points; only the selected scope described in deviations",
       "evidence_sources": [
         "packages/zig/transit-fuze/src/table_constraints_test.zig",
-        "packages/zig/transit-catalog/src/direct_catalog_test.zig"
+        "packages/zig/transit-catalog/src/direct_catalog_test.zig",
+        "tests/interfaces/sql_sessions/integrity.py"
       ]
     },
     {
@@ -523,7 +525,8 @@
         "packages/zig/transit-catalog/src/direct_history_directory_test.zig",
         "packages/zig/transit-catalog/src/direct_catalog_test.zig",
         "packages/zig/transit-sql/src/HistoricalSql.zig",
-        "tests/interfaces/sql_sessions/history.py"
+        "tests/interfaces/sql_sessions/history.py",
+        "tests/interfaces/installation/board_workbench.py"
       ]
     },
     {
@@ -1100,7 +1103,7 @@
       ]
     }
   ],
-  "sha256": "bf8922b4a28d128c34eb3ebcb672a14152ef346caf0c7d36fd968b94deab771d",
+  "sha256": "84547f69cee0e631f842f7ab05d242f83ecf378ceb8ca58a185ba89f139faaf5",
   "scope": "States describe public runtime entry points, not helper availability or ISO conformance. Physical codecs describe typed TableSchema admission; ENCODING syntax remains reference-only. An implemented feature covers only the stated deviations and fixtures.",
   "compiler_cases": [
     {
@@ -1297,5 +1300,348 @@
     "license": "MIT",
     "origin": "Transit-authored compiler examples; no standards text reproduced",
     "scope": "Compiler acceptance/refusal only; execution, recovery and transport require their owning suites"
+  },
+  "stage_checks": {
+    "scope": "Runnable ownership for admitted SQL features and text collations. Registration and source markers are consistency checks, not executed evidence or ISO conformance. Codec admission and layouts retain their separate typed TableSchema profile.",
+    "capabilities": [
+      "E021-E051",
+      "F031-F034",
+      "F491",
+      "F492",
+      "F111",
+      "T181-X003",
+      "X001-RANGE",
+      "X002-VECTOR",
+      "X006-EXPLAIN",
+      "X004-GERMAN-STRING",
+      "X010-DATAFLOW-LIFECYCLE",
+      "X-CATALOG-DEFINITIONS",
+      "X-HISTORICAL-VIEWS",
+      "UCS_BASIC",
+      "ASCII_CI",
+      "EBCDIC_037_NOPAD",
+      "EBCDIC_037_PAD",
+      "EBCDIC_1047_NOPAD"
+    ],
+    "checks": [
+      {
+        "id": "compiler-corpus",
+        "task": "test::fuze-types",
+        "boundary": "compiler",
+        "profile": "Production DDL, catalog DDL, relational and inspection compilers; positive cases and explicit exclusions, no publication.",
+        "claims": {
+          "E021-E051": [
+            "parse",
+            "lower"
+          ],
+          "F031-F034": [
+            "parse",
+            "lower"
+          ],
+          "F491": [
+            "parse",
+            "lower"
+          ],
+          "F492": [
+            "parse",
+            "lower"
+          ],
+          "X001-RANGE": [
+            "parse",
+            "lower"
+          ],
+          "X002-VECTOR": [
+            "parse",
+            "lower"
+          ],
+          "X006-EXPLAIN": [
+            "parse",
+            "lower"
+          ]
+        },
+        "cases": [
+          {
+            "source": "packages/zig/transit-fuze/src/operator_traits_test.zig",
+            "marker": "test \"standards ledger corpus exercises actual production compiler boundaries\""
+          }
+        ]
+      },
+      {
+        "id": "stored-collation-callers",
+        "task": "test::direct-table-service",
+        "boundary": "installed",
+        "profile": "Signed disk Table keys versus identity scans, prepared and captured predicates for ASCII_CI and both CP037 profiles and CP1047; exact stored definitions. Original pre-flush and sealed pins are observed and read after node restart, then explicitly released.",
+        "claims": {
+          "ASCII_CI": [
+            "parse",
+            "lower",
+            "execute",
+            "recover",
+            "transport"
+          ],
+          "EBCDIC_037_NOPAD": [
+            "parse",
+            "lower",
+            "execute",
+            "recover",
+            "transport"
+          ],
+          "EBCDIC_037_PAD": [
+            "parse",
+            "lower",
+            "execute",
+            "recover",
+            "transport"
+          ],
+          "EBCDIC_1047_NOPAD": [
+            "parse",
+            "lower",
+            "execute",
+            "recover",
+            "transport"
+          ]
+        },
+        "cases": [
+          {
+            "source": "tests/query/tables/direct_table_collations.zig",
+            "marker": "pub fn run(client: c.DirectTableClient)"
+          },
+          {
+            "source": "tests/query/tables/direct_table_collations.zig",
+            "marker": "pub fn recover(client: c.DirectTableClient)"
+          }
+        ]
+      },
+      {
+        "id": "scalar-and-encoded-paths",
+        "task": "test::fuze-types",
+        "boundary": "component",
+        "profile": "Scalar/batch/page comparison, compact strings and compressed predicates against independent masks; no installed recovery claim for compact strings.",
+        "claims": {
+          "UCS_BASIC": [
+            "parse",
+            "lower",
+            "execute"
+          ],
+          "X004-GERMAN-STRING": [
+            "parse",
+            "lower",
+            "execute"
+          ]
+        },
+        "cases": [
+          {
+            "source": "packages/zig/transit-fuze/src/query_collation_test.zig",
+            "marker": "test \"query collations preserve independent masks through saved scalar batch and page plans\""
+          },
+          {
+            "source": "packages/zig/transit-fuze/src/german_string_and_codecs_test.zig",
+            "marker": "test \"compressed collation predicates retain every byte-distinct equivalent dictionary code\""
+          }
+        ]
+      },
+      {
+        "id": "native-sql",
+        "task": "test::sql-sessions",
+        "boundary": "installed",
+        "profile": "Native TLS SQL values, DDL, prepared statements and metadata; EXPLAIN is session-local and has no recovery claim.",
+        "claims": {
+          "E021-E051": [
+            "execute",
+            "recover",
+            "transport"
+          ],
+          "F031-F034": [
+            "execute",
+            "recover",
+            "transport"
+          ],
+          "UCS_BASIC": [
+            "execute",
+            "recover",
+            "transport"
+          ],
+          "X006-EXPLAIN": [
+            "execute",
+            "transport"
+          ]
+        },
+        "cases": [
+          {
+            "source": "tests/interfaces/sql_sessions/native.py",
+            "marker": "def run("
+          }
+        ]
+      },
+      {
+        "id": "integrity-adapters",
+        "task": "test::sql-integrity",
+        "boundary": "installed",
+        "profile": "CHECK validation, defaults, rejected multi-row writes and restart through native/PostgreSQL/MySQL; NOT ENFORCED FK metadata is tested without advertising enforcement.",
+        "claims": {
+          "F491": [
+            "execute",
+            "recover",
+            "transport"
+          ]
+        },
+        "cases": [
+          {
+            "source": "tests/interfaces/sql_sessions/integrity.py",
+            "marker": "def run(root, port, postgres, mysql_options, restart):"
+          }
+        ]
+      },
+      {
+        "id": "history-and-companion-sessions",
+        "task": "test::sql-history",
+        "boundary": "installed",
+        "profile": "Exact AS OF selectors, retained Table projection, prepared/captured copies, independent pin release, scalar companion results and current rights after restart. Compound PostgreSQL/MySQL results remain unsupported.",
+        "claims": {
+          "T181-X003": [
+            "parse",
+            "lower",
+            "execute",
+            "recover",
+            "transport"
+          ],
+          "X001-RANGE": [
+            "parse",
+            "lower",
+            "execute",
+            "recover",
+            "transport"
+          ],
+          "X002-VECTOR": [
+            "parse",
+            "lower",
+            "execute",
+            "recover",
+            "transport"
+          ],
+          "X-HISTORICAL-VIEWS": [
+            "parse",
+            "lower",
+            "execute",
+            "recover",
+            "transport"
+          ],
+          "E021-E051": [
+            "execute",
+            "recover",
+            "transport"
+          ],
+          "X-CATALOG-DEFINITIONS": [
+            "lower",
+            "execute",
+            "recover",
+            "transport"
+          ]
+        },
+        "cases": [
+          {
+            "source": "tests/interfaces/sql_sessions/history.py",
+            "marker": "def companion_expressions("
+          },
+          {
+            "source": "tests/interfaces/sql_sessions/history.py",
+            "marker": "def captured_history("
+          },
+          {
+            "source": "tests/interfaces/sql_sessions/history.py",
+            "marker": "def historical_views("
+          }
+        ]
+      },
+      {
+        "id": "catalog-disk-faults",
+        "task": "check::core",
+        "boundary": "disk",
+        "profile": "Lost acquisition/publication replies, common-cut ownership, descriptor replacement, metadata-only foreign retention and current permission; component subjects do not replace installed native grants.",
+        "claims": {
+          "T181-X003": [
+            "lower",
+            "execute",
+            "recover"
+          ],
+          "X-CATALOG-DEFINITIONS": [
+            "lower",
+            "execute",
+            "recover"
+          ]
+        },
+        "cases": [
+          {
+            "source": "packages/zig/transit-catalog/src/direct_catalog_test.zig",
+            "marker": "test \"historical common transaction cut transfers retention through cleanup lost replies and rename\""
+          },
+          {
+            "source": "packages/zig/transit-catalog/src/direct_catalog_test.zig",
+            "marker": "test \"historical metadata-only foreign catalog retains decoder and captured bytes without inventing a Table source\""
+          }
+        ]
+      },
+      {
+        "id": "independent-board-placement",
+        "task": "transit-board::workbench-test",
+        "boundary": "installed",
+        "profile": "Different retained-source owner, SELECT-only Board caller and metadata-visible non-SELECT native caller; revoked repeated/continued/empty definition and placement pages, rename and disk reopen.",
+        "claims": {
+          "T181-X003": [
+            "execute",
+            "recover",
+            "transport"
+          ]
+        },
+        "cases": [
+          {
+            "source": "tests/interfaces/installation/board_workbench.py",
+            "marker": "def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False, profiles=True):"
+          }
+        ]
+      },
+      {
+        "id": "interactive-transactions",
+        "task": "test::sql-transactions",
+        "boundary": "installed",
+        "profile": "Existing local Table transaction profile and original-token recovery, not new FK enforcement or global atomic history.",
+        "claims": {
+          "F111": [
+            "parse",
+            "lower",
+            "execute",
+            "recover",
+            "transport"
+          ]
+        },
+        "cases": [
+          {
+            "source": "tests/interfaces/sql_sessions/transactions.py",
+            "marker": "def run(root, port, postgres, mysql_options, restart, faults, authority, console):"
+          }
+        ]
+      },
+      {
+        "id": "finite-managed-tables",
+        "task": "test::managed-tables",
+        "boundary": "installed",
+        "profile": "Existing native cohosted finite recomputation, publication, suspend/restart/resume and retirement; no incremental or temporal execution claim.",
+        "claims": {
+          "X010-DATAFLOW-LIFECYCLE": [
+            "parse",
+            "lower",
+            "execute",
+            "recover",
+            "transport"
+          ]
+        },
+        "cases": [
+          {
+            "source": "tests/interfaces/installation/server_managed_tables.py",
+            "marker": "def run(cli, node, host, board, gateway):"
+          }
+        ]
+      }
+    ]
   }
 }

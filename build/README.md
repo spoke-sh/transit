@@ -134,6 +134,14 @@ a clean retained restart, it accepts another row, kills the supervisor, joins
 all owned children and checks the retained rows and replacement generation.
 The same schedule applies to native x86_64 and ARM64 downloads.
 
+Board's authorization checks provision test profiles through the private
+`operation-fixture` driver. The native release build qualifies a musl-linked
+driver alongside its matching runtime and retains it as a separate CI artifact.
+Downloaded and public-release checks restore that architecture's driver from the
+same workflow and select it explicitly through `TEST_TRANSIT_OPERATIONS`, so
+they require no Nix installation or inherited checkout build outputs. The driver
+stays outside the distributed runtime archives and public release assets.
+
 ### Public registry setup and retry
 
 GHCR package visibility is separate from the public repository and the workflow's

@@ -14,6 +14,14 @@ strings must be compile-time vocabulary, never URLs, provider stderr or payloads
 `fail` classifies the attempt's error; it does not infer a durable rejection or
 external cancellation. The owning code sets `protocol_outcome` separately.
 
+`Counters(Values)` provides fixed-cardinality, opt-in process observations for a
+domain-owned struct of `u64` fields. Configure `enabled` before starting workers;
+never reset or reconfigure a live instance. Updates allocate nothing and perform
+one atomic addition, with a sticky overflow flag on wrap. Disabled timers do not
+read the clock. Snapshots are independent atomic loads, not an atomic cut. A host
+must supply instance identity and consumers must reject overflow and replacement.
+This helper has no sink and supplies no durable outcome or quota authority.
+
 | Event | Owner / meaning |
 | --- | --- |
 | `transit.http.request` | Node HTTP boundary; transport status/write outcome and separately known read/receipt/rejection |

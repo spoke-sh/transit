@@ -328,7 +328,8 @@ Feature IDs and edition/clause references are inventory labels. References
 marked unverified have not been audited for standards conformance.
 
 The [neutral ledger](../../../../contracts/sql/standards-ledger.json)
-records owners, evidence sources, dependencies and compiler cases.
+records owners, stage-specific runnable checks, evidence sources,
+dependencies and compiler cases. Check registration is not a passing result.
 Its compiler corpus is Transit-authored under MIT; it contains no copied
 standards text. Runtime and installed caller checks remain separate.
 

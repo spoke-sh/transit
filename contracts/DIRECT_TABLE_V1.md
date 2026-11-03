@@ -20,7 +20,7 @@ atomically in the catalog log. They allocate no data partition. See
 historical selection and execution profiles.
 
 The `branch` action and result use `DirectBranch.Request` and `DirectBranch.Result`
-for named immutable single-Table branches. Creation, publication, cancellation,
+for named immutable single-Table branches. Creation, publication, cancellation, retirement, bounded discovery,
 source reads and paged scans share this endpoint and the typed local owner.
 The [installed branch contract](BRANCH_V1.md#installed-immutable-table-branches)
 defines original-token recovery, exact source cuts, current authorization,

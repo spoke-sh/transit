@@ -11,6 +11,30 @@ const KV = c.DirectKVClient;
 const Tx = c.DirectTransactionClient;
 const w = c.DirectTableProtocol;
 const Self = @This();
+pub const Diagnostics = c.client.observability.Counters(struct {
+    acquire_calls: u64,
+    acquire_ns: u64,
+    evaluate_calls: u64,
+    evaluate_ns: u64,
+    prepare_calls: u64,
+    prepare_ns: u64,
+    execute_calls: u64,
+    execute_ns: u64,
+    checkpoint_prepare_calls: u64,
+    checkpoint_prepare_ns: u64,
+    checkpoint_execute_calls: u64,
+    checkpoint_execute_ns: u64,
+    decide_calls: u64,
+    decide_ns: u64,
+    abort_calls: u64,
+    abort_ns: u64,
+    failed_steps: u64,
+    result_rows: u64,
+    result_pages: u64,
+    result_record_bytes: u64,
+});
+pub var diagnostics: Diagnostics = .{};
+const MeasuredPhase = enum { acquire, evaluate, prepare, execute, checkpoint_prepare, checkpoint_execute, decide, abort };
 pub const declaration_format = c.ManagedTableRecords.declaration_format;
 pub const work_format = c.ManagedTableRecords.work_format;
 pub const page_format = c.ManagedTableRecords.page_format;
@@ -490,6 +514,23 @@ fn stepInner(self: Self, token: c.DirectClientToken.Key, io: std.Io, directory: 
     const tx: Tx = .{ .catalog = self.client };
     // A prepared participant can refuse ordinary head reads. Its original
     // decision must remain resumable without reading any participant first.
+    const measured: MeasuredPhase = switch (work.phase) {
+        .acquiring => .acquire,
+        .evaluating => .evaluate,
+        .staging => if (work.statement == null) .prepare else .execute,
+        .checkpoint => if (work.statement == null) .checkpoint_prepare else .checkpoint_execute,
+        .deciding => .decide,
+        .aborting => .abort,
+        .complete => unreachable,
+    };
+    switch (measured) {
+        inline else => |phase| diagnostics.add(@tagName(phase) ++ "_calls", 1),
+    }
+    const timer = diagnostics.timer(io);
+    defer switch (measured) {
+        inline else => |phase| timer.finish(@tagName(phase) ++ "_ns"),
+    };
+    errdefer diagnostics.add("failed_steps", 1);
     if (work.phase == .aborting) return self.abort(value, token, progress, work, work.failure orelse return error.InvalidManagedTableRecord);
     if (work.phase == .deciding) {
         const status = try tx.settle(work.transaction, self.operation(value, "commit", work.lease.epoch), .commit, 1);
@@ -687,6 +728,9 @@ fn evaluate(self: Self, value: Declaration, work: *Work, io: std.Io, directory: 
         retained_bytes = try std.math.add(u64, retained_bytes, owned.len);
         if (retained_bytes > value.options.budgets.result_bytes) return error.ManagedTableResultBudget;
         previous = try c.DirectTransactionRecord.stage(self.client, work.transaction, page_format, guarded);
+        diagnostics.add("result_rows", 1);
+        diagnostics.add("result_pages", 1);
+        diagnostics.add("result_record_bytes", owned.len);
         rows += 1;
         _ = scratch.reset(.retain_capacity);
     }

@@ -108,11 +108,14 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`fa88766ac95f2c156474b0c97eb9eaafcccc8c13a70009e574d09397d7ba3c72`.
-It includes original Queue-renewal result selections, bounded descriptor pages
-and one-row completion evidence across native, SQL and caller boundaries. The
-frozen settlement projection admits only a receipt handle; older definitions
-reject before interpreting the changed result contract or saved work.
+`28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573`.
+It binds immutable-branch discovery and the persisted `retiring`/`retired`
+lifecycle, preserving successful creation receipts while closing read access
+and releasing retention. The earlier shared definition rejects before saved
+requests or stored progress are interpreted; no implicit conversion is supplied.
+It also includes original Queue-renewal result selections, bounded descriptor
+pages and one-row completion evidence across native, SQL and caller boundaries.
+The frozen settlement projection admits only a receipt handle.
 It requires the catalog's paged transaction-record inventory and the `TXR1`
 owned result envelope. Managed pages/manifests bind their original transaction;
 earlier catalog roots and saved result formats reject without inferred ownership

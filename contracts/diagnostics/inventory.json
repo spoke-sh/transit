@@ -4423,11 +4423,14 @@
     },
     "packages/zig/transit-catalog/src/DirectBranch.zig": {
       "errors": {
-        "BranchIdentityConflict": 2,
+        "BranchIdentityConflict": 3,
+        "BranchRetired": 1,
+        "Conflict": 1,
         "IncompatibleDefinition": 1,
         "InvalidBranchCreation": 1,
-        "InvalidBranchResponse": 14,
-        "InvalidBranchState": 3,
+        "InvalidBranchCursor": 1,
+        "InvalidBranchResponse": 20,
+        "InvalidBranchState": 10,
         "InvalidTableReadBudget": 1
       },
       "outcomes": {
@@ -4435,38 +4438,45 @@
           "admitted",
           "published",
           "abandoning",
-          "cancelled"
+          "cancelled",
+          "retiring",
+          "retired"
         ],
         "Request": [
           "create",
           "inspect",
           "advance",
           "cancel",
+          "retire",
           "lookup",
+          "list",
           "source",
           "scan"
         ],
         "Result": [
           "status",
           "source",
-          "page"
+          "page",
+          "listing"
         ]
       },
       "error_sets": {},
       "error_returns": {
+        "Cursor.validate()": "<inferred>",
         "Intent.digest()": "<inferred>",
         "Intent.validate()": "<inferred>",
         "Request.validate()": "<inferred>",
         "State.load()": "<inferred>",
         "State.stage()": "<inferred>",
+        "State.transition()": "<inferred>",
         "State.validate()": "<inferred>",
         "call()": "<inferred>",
         "validateResult()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 47,
-        "catch": 0
+        "try": 62,
+        "catch": 1
       },
       "imports": [
         "root.zig",
@@ -4475,6 +4485,7 @@
     },
     "packages/zig/transit-catalog/src/DirectCallerCodes.zig": {
       "errors": {
+        "BranchRetired": 1,
         "CatalogDependencyOwned": 1,
         "CatalogDirectoryChanged": 1,
         "CatalogKindMismatch": 1,
@@ -4488,6 +4499,7 @@
         "HistoricalReadOnly": 1,
         "HistoricalSnapshotReleased": 1,
         "IncompatibleSchemaProjection": 1,
+        "InvalidBranchCursor": 1,
         "InvalidCatalogAssertion": 1,
         "InvalidCatalogCursor": 1,
         "InvalidCatalogDescriptor": 1,
@@ -4539,15 +4551,16 @@
     },
     "packages/zig/transit-catalog/src/DirectCatalog.zig": {
       "errors": {
-        "AccessDenied": 2,
+        "AccessDenied": 4,
         "BranchIdentityConflict": 1,
         "BranchNameConflict": 1,
         "BranchNotFound": 1,
-        "BranchNotPublished": 1,
+        "BranchNotPublished": 2,
         "BranchOperationRequired": 4,
         "BranchRetentionOwned": 1,
+        "BranchRetired": 1,
         "BranchSourceChanged": 2,
-        "CatalogDenied": 81,
+        "CatalogDenied": 83,
         "CatalogDependencyOwned": 1,
         "CatalogHistoryMissing": 1,
         "CatalogIdentityConflict": 9,
@@ -4558,11 +4571,11 @@
         "CatalogNotInitialized": 1,
         "CatalogObjectBusy": 2,
         "CatalogObjectMissing": 1,
-        "CatalogObservationChanged": 1,
+        "CatalogObservationChanged": 2,
         "CatalogRegistrationRequired": 12,
         "CheckConstraintViolation": 1,
         "ClientOperationConflict": 2,
-        "ClientOperationMissing": 25,
+        "ClientOperationMissing": 26,
         "ClientOperationPending": 8,
         "ClientTokenCapacity": 1,
         "ClientTokenConflict": 4,
@@ -4573,7 +4586,7 @@
         "DataflowIdentityConflict": 5,
         "DataflowRevisionNotFound": 1,
         "DuplicatePrimaryKey": 1,
-        "Forbidden": 7,
+        "Forbidden": 9,
         "ForeignKeyDefinitionRequired": 1,
         "ForeignKeyScopeUnsupported": 1,
         "ForeignKeySetNullRequiresNullableColumn": 1,
@@ -4598,7 +4611,7 @@
         "IncompleteDataflowCoverage": 1,
         "IncompleteHistoricalSelection": 4,
         "IncompleteTransactionCut": 3,
-        "InvalidBranchState": 5,
+        "InvalidBranchState": 7,
         "InvalidCatalogConfiguration": 1,
         "InvalidCatalogCursor": 3,
         "InvalidCatalogDependency": 11,
@@ -4858,6 +4871,7 @@
         "kvReady()": "<inferred>",
         "kvRequirements()": "<inferred>",
         "list()": "<inferred>",
+        "listBranches()": "<inferred>",
         "listDefinitions()": "<inferred>",
         "listHistory()": "<inferred>",
         "listKV()": "<inferred>",
@@ -4969,6 +4983,7 @@
         "resourceRequirements()": "<inferred>",
         "resumeTransaction()": "<inferred>",
         "retainHistory()": "<inferred>",
+        "retireBranch()": "<inferred>",
         "rowOperation()": "<inferred>",
         "rowStatus()": "<inferred>",
         "scanColumns()": "<inferred>",
@@ -5032,8 +5047,8 @@
       },
       "open_error_set_uses": 11,
       "propagation": {
-        "try": 2239,
-        "catch": 28
+        "try": 2257,
+        "catch": 30
       },
       "imports": [
         "DirectCatalogIntent.zig",
@@ -5726,7 +5741,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 380,
+        "try": 381,
         "catch": 1
       },
       "imports": [
@@ -7310,7 +7325,7 @@
         "CatalogHistoryMissing": 1,
         "DocumentHistoryUnavailable": 3,
         "DocumentStateObjectMissing": 1,
-        "IncompleteBranchDirectory": 1,
+        "IncompleteBranchDirectory": 2,
         "InvalidBranchState": 3,
         "InvalidCatalogDescriptor": 1,
         "InvalidClientToken": 2,
@@ -7460,7 +7475,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 592,
+        "try": 594,
         "catch": 1
       },
       "imports": [
@@ -7830,7 +7845,7 @@
       },
       "open_error_set_uses": 9,
       "propagation": {
-        "try": 246,
+        "try": 248,
         "catch": 0
       },
       "imports": [
@@ -11670,6 +11685,66 @@
         "transit_sql_client"
       ]
     },
+    "packages/zig/transit-document-profiles/src/Candidate.zig": {
+      "errors": {
+        "DocumentCandidateCancelled": 1,
+        "DocumentCandidateConflict": 2,
+        "DocumentCandidateFailed": 1,
+        "DocumentCandidateNoEvent": 1,
+        "DocumentNodeLimitExceeded": 1,
+        "DocumentParserComplete": 1,
+        "IncompleteDocumentFrame": 1,
+        "InvalidDocumentWorkBudget": 1,
+        "UnsupportedDocumentCandidateSource": 1
+      },
+      "outcomes": {
+        "Offered": [
+          "consumed",
+          "blocked"
+        ],
+        "PumpStep.result": [
+          "progress",
+          "blocked",
+          "need_input",
+          "yield",
+          "verified"
+        ],
+        "Step.result": [
+          "event",
+          "need_input",
+          "yield",
+          "verified"
+        ],
+        "state": [
+          "reading",
+          "verified",
+          "failed",
+          "cancelled"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "advance()": "<inferred>",
+        "consume()": "<inferred>",
+        "init()": "<inferred>",
+        "next()": "<inferred>",
+        "pump()": "<inferred>",
+        "requireUsable()": "<inferred>",
+        "verifiedBinding()": "<inferred>",
+        "verifiedPart()": "<inferred>"
+      },
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 15,
+        "catch": 3
+      },
+      "imports": [
+        "Event.zig",
+        "Profile.zig",
+        "Reader.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-document-profiles/src/Container.zig": {
       "errors": {
         "DocumentContainerComplete": 1,
@@ -11728,7 +11803,10 @@
           "attribute",
           "text",
           "comment",
-          "processing_instruction"
+          "processing_instruction",
+          "mime_field",
+          "mime_headers_end",
+          "mime_body"
         ],
         "Step.result": [
           "event",
@@ -11914,6 +11992,105 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-document-profiles/src/Mime.zig": {
+      "errors": {
+        "DocumentAttributeLimitExceeded": 1,
+        "DocumentParserComplete": 1,
+        "DocumentParserFailed": 1,
+        "DocumentTokenLimitExceeded": 1,
+        "DocumentWorkspaceTooSmall": 1,
+        "IncompleteDocumentFrame": 1,
+        "InvalidDocumentWorkBudget": 1,
+        "InvalidMimeField": 3,
+        "InvalidMimeFraming": 2,
+        "MimeLineLimitExceeded": 1
+      },
+      "outcomes": {
+        "State": [
+          "start",
+          "name",
+          "value",
+          "line_lf",
+          "after_line",
+          "separator_lf",
+          "body"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "advance()": "<inferred>",
+        "append()": "<inferred>",
+        "field()": "<inferred>",
+        "init()": "<inferred>",
+        "next()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 13,
+        "catch": 1
+      },
+      "imports": [
+        "Event.zig",
+        "Profile.zig"
+      ]
+    },
+    "packages/zig/transit-document-profiles/src/MimeWriter.zig": {
+      "errors": {
+        "DocumentAttributeLimitExceeded": 1,
+        "DocumentExpansionLimitExceeded": 1,
+        "DocumentInputLimitExceeded": 1,
+        "DocumentNodeLimitExceeded": 1,
+        "DocumentTokenLimitExceeded": 4,
+        "DocumentWorkLimitExceeded": 1,
+        "DocumentWorkspaceTooSmall": 1,
+        "DocumentWriterBusy": 3,
+        "DocumentWriterComplete": 1,
+        "DocumentWriterFailed": 2,
+        "DocumentWriterNoToken": 1,
+        "IncompleteDocumentFrame": 1,
+        "InvalidDocumentEvent": 4,
+        "InvalidDocumentWorkBudget": 1,
+        "InvalidMimeField": 3,
+        "InvalidMimeFraming": 3,
+        "MimeLineLimitExceeded": 2
+      },
+      "outcomes": {
+        "Token": [
+          "field",
+          "headers_end",
+          "body"
+        ],
+        "phase": [
+          "headers",
+          "body"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "append()": "<inferred>",
+        "begin()": "<inferred>",
+        "beginEvent()": "<inferred>",
+        "charge()": "<inferred>",
+        "drain()": "<inferred>",
+        "finish()": "<inferred>",
+        "init()": "<inferred>",
+        "node()": "<inferred>",
+        "prepare()": "<inferred>",
+        "requireActive()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 17,
+        "catch": 3
+      },
+      "imports": [
+        "Event.zig",
+        "Mime.zig",
+        "Profile.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-document-profiles/src/Profile.zig": {
       "errors": {
         "DocumentExpansionLimitExceeded": 1,
@@ -11929,12 +12106,13 @@
         "Budget.consume()": "<inferred>",
         "Budget.node()": "<inferred>",
         "Budget.output()": "<inferred>",
+        "capabilities()": "<inferred>",
         "descriptor()": "<inferred>",
         "require()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 3,
+        "try": 4,
         "catch": 0
       },
       "imports": [
@@ -11954,11 +12132,13 @@
       "outcomes": {
         "Parser": [
           "json",
-          "xml"
+          "xml",
+          "mime"
         ],
         "Workspace": [
           "json",
-          "xml"
+          "xml",
+          "mime"
         ]
       },
       "error_sets": {},
@@ -11970,12 +12150,13 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 5,
+        "try": 6,
         "catch": 1
       },
       "imports": [
         "Event.zig",
         "Json.zig",
+        "Mime.zig",
         "Profile.zig",
         "Xml.zig",
         "std"
@@ -12159,10 +12340,13 @@
         "catch": 0
       },
       "imports": [
+        "Candidate.zig",
         "Container.zig",
         "Event.zig",
         "Json.zig",
         "JsonWriter.zig",
+        "Mime.zig",
+        "MimeWriter.zig",
         "Profile.zig",
         "Reader.zig",
         "Xml.zig",
@@ -22595,7 +22779,7 @@
     },
     "packages/zig/transit-protocol/src/DocumentProfile.zig": {
       "errors": {
-        "DocumentProfileConflict": 1,
+        "DocumentProfileConflict": 2,
         "DocumentProfileCoverageGap": 1,
         "DocumentProfilePartConflict": 1,
         "DocumentProfileSpanConflict": 1,
@@ -22604,9 +22788,21 @@
         "InvalidDocumentProfileLimits": 1,
         "InvalidDocumentProfilePart": 1,
         "InvalidDocumentProfileSpan": 1,
-        "InvalidDocumentProfileValidation": 1
+        "InvalidDocumentProfileValidation": 1,
+        "UnsupportedDocumentProfileCapability": 1
       },
       "outcomes": {
+        "Capability": [
+          "parse",
+          "construct",
+          "validate_schema",
+          "edit",
+          "persist",
+          "query",
+          "search",
+          "branch",
+          "live_transport"
+        ],
         "Capture": [
           "preparing",
           "ready",
@@ -22685,6 +22881,7 @@
       },
       "error_sets": {},
       "error_returns": {
+        "Capabilities.require()": "<inferred>",
         "Descriptor.sealed()": "<inferred>",
         "Descriptor.validate()": "<inferred>",
         "Descriptor.validateFields()": "<inferred>",
@@ -22698,11 +22895,37 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 13,
+        "try": 15,
         "catch": 0
       },
       "imports": [
+        "DocumentProfileCandidate.zig",
         "DocumentProfileContainer.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-protocol/src/DocumentProfileCandidate.zig": {
+      "errors": {
+        "DocumentCandidateConflict": 3,
+        "DocumentProfileContainerLimitExceeded": 1,
+        "IncompatibleDefinition": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Binding.requireSame()": "<inferred>",
+        "Binding.sealed()": "<inferred>",
+        "Binding.validate()": "<inferred>",
+        "Binding.validateFields()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 9,
+        "catch": 0
+      },
+      "imports": [
+        "DocumentProfile.zig",
         "root.zig",
         "std"
       ]
@@ -22890,7 +23113,7 @@
           "deadline"
         ],
         "Definition": [
-          "fa88766ac95f2c156474b0c97eb9eaafcccc8c13a70009e574d09397d7ba3c72"
+          "@\"28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573\""
         ],
         "Effect.phase": [
           "pending",
@@ -24582,6 +24805,16 @@
         "WriteFailed": 3
       },
       "outcomes": {
+        "MeasuredPhase": [
+          "acquire",
+          "evaluate",
+          "prepare",
+          "execute",
+          "checkpoint_prepare",
+          "checkpoint_execute",
+          "decide",
+          "abort"
+        ],
         "Work.phase": [
           "acquiring",
           "evaluating",
@@ -30228,7 +30461,7 @@
     },
     "packages/zig/transit-sql-host/src/Deployment.zig": {
       "errors": {
-        "Canceled": 4,
+        "Canceled": 5,
         "IncompatibleDefinition": 1,
         "InvalidGatewayConfiguration": 1,
         "InvalidSqlDeploymentFrame": 1,
@@ -30248,13 +30481,21 @@
           "stopped",
           "running",
           "failed"
+        ],
+        "WireAction": [
+          "start",
+          "stop",
+          "status",
+          "performance"
         ]
       },
       "error_sets": {},
       "error_returns": {
         "apply()": "<inferred>",
         "call()": "<inferred>",
+        "callResponse()": "<inferred>",
         "fingerprint()": "<inferred>",
+        "inspectPerformance()": "<inferred>",
         "peer()": "<inferred>",
         "receive()": "<inferred>",
         "send()": "<inferred>",
@@ -30263,8 +30504,8 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 29,
-        "catch": 11
+        "try": 30,
+        "catch": 12
       },
       "imports": [
         "Placement.zig",
@@ -31823,6 +32064,100 @@
         "root.zig"
       ]
     },
+    "packages/zig/transit-sql-service/src/PgCatalog.zig": {
+      "errors": {
+        "AccessDenied": 1,
+        "CatalogDenied": 1,
+        "CatalogIdentityConflict": 3,
+        "PostgresCatalogBudget": 1,
+        "PostgresCatalogChanged": 3,
+        "TableDefinitionChanged": 1,
+        "TableNotFound": 2,
+        "UnsupportedPostgresCatalogQuery": 1,
+        "UnsupportedPostgresTableDescription": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Read.candidate()": "<inferred>",
+        "Read.next()": "<inferred>",
+        "Read.nextDatabase()": "<inferred>",
+        "Read.nextSchema()": "<inferred>",
+        "Read.nextTable()": "<inferred>",
+        "Read.observe()": "<inferred>",
+        "describe()": "<inferred>",
+        "prepare()": "<inferred>",
+        "quote()": "<inferred>",
+        "request()": "<inferred>",
+        "row()": "<inferred>",
+        "samePosition()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 67,
+        "catch": 1
+      },
+      "imports": [
+        "PgCatalogSql.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql-service/src/PgCatalogSql.zig": {
+      "errors": {
+        "InvalidCatalogName": 2,
+        "InvalidSqlSyntax": 3,
+        "UnsupportedPostgresCatalogPattern": 6,
+        "UnsupportedPostgresCatalogQuery": 9
+      },
+      "outcomes": {
+        "Kind": [
+          "relations",
+          "schemas",
+          "databases",
+          "schema_publications",
+          "resolve",
+          "relation",
+          "columns",
+          "indexes",
+          "foreign_keys",
+          "references",
+          "policies",
+          "statistics",
+          "publications",
+          "parents",
+          "children"
+        ],
+        "Token.kind": [
+          "word",
+          "string",
+          "quoted",
+          "symbol"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Lexer.next()": "<inferred>",
+        "Parser.finish()": "<inferred>",
+        "Parser.need()": "<inferred>",
+        "Parser.pattern()": "<inferred>",
+        "Parser.take()": "<inferred>",
+        "Pattern.decode()": "<inferred>",
+        "Pattern.matches()": "<inferred>",
+        "Pattern.matchesEscaped()": "<inferred>",
+        "Pattern.validate()": "<inferred>",
+        "parse()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 54,
+        "catch": 2
+      },
+      "imports": [
+        "std"
+      ]
+    },
     "packages/zig/transit-sql-service/src/ReadSources.zig": {
       "errors": {},
       "outcomes": {},
@@ -32011,6 +32346,8 @@
         "NullNotAllowed": 1,
         "NullWorkloadParameter": 1,
         "OutOfMemory": 1,
+        "PostgresCatalogBudget": 1,
+        "PostgresCatalogChanged": 1,
         "QueueClaimLimitExceeded": 1,
         "ReadOnlyTransaction": 1,
         "Rejected": 3,
@@ -32058,6 +32395,9 @@
         "UnsupportedLogPrimaryKey": 1,
         "UnsupportedLogRepartition": 1,
         "UnsupportedLogTimestampChange": 1,
+        "UnsupportedPostgresCatalogPattern": 1,
+        "UnsupportedPostgresCatalogQuery": 1,
+        "UnsupportedPostgresTableDescription": 1,
         "UnsupportedScalarFunction": 1,
         "UnsupportedTransactionIsolation": 1,
         "UnsupportedTransactionStatement": 1,
@@ -32175,10 +32515,11 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 111,
+        "try": 113,
         "catch": 3
       },
       "imports": [
+        "PgCatalog.zig",
         "SessionStorage.zig",
         "root.zig",
         "std"
@@ -37783,6 +38124,7 @@
         "contentOf()": "<inferred>",
         "cursor()": "<inferred>",
         "encode()": "<inferred>",
+        "entryContent()": "<inferred>",
         "entryKey()": "<inferred>",
         "get()": "<inferred>",
         "init()": "<inferred>",
@@ -37801,7 +38143,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 55,
+        "try": 59,
         "catch": 1
       },
       "imports": [

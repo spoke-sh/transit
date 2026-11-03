@@ -157,6 +157,11 @@ Historical metadata and rows use current native grants on the original object
 and its current authorization namespace. Historical grants and policy epochs
 provide no access. Metadata visibility is distinct from SELECT and row-location
 inspection. A recreated name's grants cannot authorize its former object.
+The current Table authority model makes metadata visible to the owner or a
+subject with any applicable Table privilege; it has no separate metadata-only
+grant. A non-SELECT writer can inspect definitions but cannot read rows or row
+locations. A SELECT-only reader can inspect both. Board's upstream subject must
+remain read-only; tests of non-SELECT visibility use a separate native caller.
 
 A published snapshot may be inspected by a different principal only through a
 historical operation that verifies its publication and current rights. Possessing

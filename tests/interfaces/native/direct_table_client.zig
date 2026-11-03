@@ -755,6 +755,8 @@ pub fn main(init: std.process.Init) !void {
             try @import("fixture_direct_table_projection").run(client, &admin, profile.role);
         } else if (std.mem.eql(u8, args[2], "collations")) {
             try @import("fixture_direct_table_collations").run(client);
+        } else if (std.mem.eql(u8, args[2], "collations-recover")) {
+            try @import("fixture_direct_table_collations").recover(client);
         } else if (std.mem.eql(u8, args[2], "count-ranges")) {
             try @import("fixture_direct_table_count_ranges").run(client, &admin, profile.role);
         } else if (std.mem.eql(u8, args[2], "resource-save")) {

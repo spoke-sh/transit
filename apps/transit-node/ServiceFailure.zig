@@ -13,7 +13,7 @@ pub fn table(err: anyerror) Refusal {
         error.HistoricalOperationRequired, error.EmptyHistoricalSelection, error.InvalidHistoricalCursor, error.InvalidHistoricalLimits, error.InvalidHistoricalSelector, error.HistoricalObjectNotSelected, error.UnsupportedHistoricalTransaction => .InvalidRequest,
         error.HistoricalIdentityConflict, error.HistoricalNameConflict, error.HistoricalNamespaceConflict, error.HistoricalNotPublished, error.HistoricalRetentionOwned, error.HistoricalRetentionPending, error.HistoricalSourceChanged => .Conflict,
         error.HistoricalAuthorityChanged => .AccessDenied,
-        error.HistoricalSnapshotReleased => .QueryExpired,
+        error.HistoricalSnapshotReleased, error.BranchRetired => .QueryExpired,
         error.HistoricalObjectLimit => .StorageQuota,
         error.InvalidKVOperation, error.InvalidKVKey, error.KVValueTooLarge, error.KVBatchTooLarge, error.UnsupportedKVAlter => .InvalidRequest,
         error.KVBuildBudget => .StorageQuota,

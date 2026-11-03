@@ -9,8 +9,8 @@ coverage and forward publication decisions. The `branch` group of the reflected
 
 These validators perform no I/O, authorization, retention, candidate computation
 or publication. The installed immutable single-Table profile below supplies a
-durable owner for creation and reads. Writable branches, SQL commands, remote
-transfer and branch transaction participation remain unavailable. Ordinary
+durable owner for creation, discovery, reads and retirement. Writable branches,
+SQL commands, remote transfer and branch transaction participation remain unavailable. Ordinary
 direct Table and transaction operations continue to require branch one. An
 alleged reference, validation result or decision is not evidence that its owner
 accepted or verified it.
@@ -18,9 +18,9 @@ accepted or verified it.
 ## Installed immutable Table branches
 
 [`DirectBranch`](../packages/zig/transit-catalog/src/DirectBranch.zig) exposes
-`create`, `inspect`, `advance`, `cancel`, `lookup`, `source` and `scan` through
-the signed direct Table service and typed local dispatch. `DirectBranch.call`
-uses `DirectTableClient`; returned schema/row bytes live until the parsed
+`create`, `inspect`, `advance`, `cancel`, `retire`, `lookup`, `list`, `source` and
+`scan` through the signed direct Table service and typed local dispatch.
+`DirectBranch.call` uses `DirectTableClient`; returned schema/row bytes live until the parsed
 response is deinitialized. All requests still address the configured main
 catalog connection. Branch reads supply an exact published `Head` separately.
 
@@ -38,7 +38,8 @@ source, mode, namespace and name. A paged catalog directory reserves the name
 and a nonreused branch ID derived from the catalog admission position. The
 operation is `admitted` before a head exists. A single catalog acceptance records
 both the immutable published head and the original operation's terminal result.
-Exact retries return that result. A changed intent cannot reuse the token.
+Exact retries retain that receipt and head, with current availability in `phase`.
+A changed intent cannot reuse the token.
 `lookup` returns only published heads; `inspect` observes the original operation.
 
 Loss of a pin or publication reply leaves the outcome uncertain. Inspect or
@@ -51,6 +52,29 @@ any original pin, then records `cancelled` and frees the name. Interrupted
 cleanup resumes with `advance` or `cancel`. Cancel after publication returns the
 original published result. Neither the operation identity nor the branch ID is
 reused; ordinary snapshot release cannot release a branch-owned pin.
+
+`retire` requires the original creation key and exact expected head. Its first
+acceptance records `retiring` before releasing any data. Lookup and listing then
+omit the branch; source and scan requests, including old continuations and
+schema-only reads, fail with `BranchRetired` (`QueryExpired` on the transport).
+There is no independent read hold in this profile. Retirement is irreversible;
+it does not cancel or erase the successful creation receipt or its head.
+Calling `retire` again or advancing the original token releases the original
+Table pin and records `retired`. Lost cleanup replies resume that same pin,
+without acquiring a replacement cut. The name stays reserved until `retired`,
+then can identify new work with a different token and branch ID. Retrying the
+old retirement cannot alter a replacement name. There is no background cleanup;
+current source access is required to resume it.
+
+`list` selects a namespace and scans at most eight branch IDs per request,
+returning only published branches owned by the current principal with current
+source SELECT. It returns names, heads, sources and modes, without operation
+tokens. Filtered pages can be empty with a continuation. Only a null continuation
+completes the traversal. The cursor binds the namespace, exact catalog position
+and last scanned ID; a changed catalog refuses continuation with
+`CatalogObservationChanged`. A caller may explicitly start another traversal,
+but cannot splice it into the old prefix. Every page rechecks current rights;
+the catalog observation is neither a data snapshot nor a retention pin.
 
 Creation/publication require current database CONNECT, namespace USAGE and
 CREATE, and source Table SELECT. Inspection, reads and cleanup require the
@@ -65,9 +89,12 @@ entire original cursor sequence, require unchanged head/source/total attribution
 across pages, and verify its terminal row count before claiming complete
 coverage. A missing page or failure is not completion.
 Catalog directories and source pins participate in physical collection;
-published branches have unlimited retention. There is no published branch drop,
-write, fork, merge, restore, SQL adapter or whole-catalog inclusion operation in
-this profile. The bounded in-memory branch models do not extend this service.
+published branches have unlimited retention until explicit retirement. Collection
+retains creation/retirement evidence, manifest, directory and entry metadata
+independently of live data pins; old publication history cannot resurrect a
+released pin. There is no write, fork, merge, restore, SQL adapter or whole-catalog
+inclusion operation in this profile. The bounded in-memory branch models do not
+extend this service.
 
 ## Identities and retained interpretation
 

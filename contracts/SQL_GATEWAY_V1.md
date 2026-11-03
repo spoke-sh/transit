@@ -75,6 +75,31 @@ native requests. Relational reads additionally bound resident/spill bytes to
 and lease rather than opening a new cut. These per-query budgets are subordinate
 to the session allocator and the native snapshot owner's lease/resource quotas.
 
+## PostgreSQL catalog inspection
+
+The service recognizes the complete PostgreSQL 18 psql SQL templates for Table
+listing (`\d`, `\dt`), Table description (`\d name`), schema listing (`\dn`)
+and configured database listing (`\l`). Whitespace/comments and unquoted-token
+case do not affect matching. Projection, predicates, ordering and all trailing
+input must match; unknown catalog queries fail with `0A000`, not a successful
+empty result or a generic uncertain-write diagnostic. Patterns admit anchored
+literal, single-character and arbitrary-character wildcard forms produced by
+psql; other regular expressions fail with `0A000`.
+
+The public [inspection profile](../docs/handbook/reference/database-protocols.md#psql-inspection-commands)
+owns display scope and unavailable fields. Catalog and namespace reads use the
+session's current native identity. Retained Table descriptions bind an exact
+definition; object references between psql queries preserve full-width Transit
+object IDs without truncation or reuse. They are adapter identifiers, not native
+PostgreSQL OIDs. Table/schema listings retain a single page and ordered candidate;
+catalog page reads and database-selection probes are limited to 10,000 per result,
+separately from mandatory current-authority validation. An observed directory/policy
+change returns `40001`, exhausted work returns `54000`. The result's observation
+is metadata with exact definitions for a Table and independent observations for
+listings, never a data snapshot. Buffered subjects remain protected by the shared
+disclosure checks. No preparation, read, cancellation or completion in this
+profile admits a durable SQL operation or dispatches a mutation.
+
 ## In-process connection and command continuations
 
 PostgreSQL/MySQL `StartupSession` engines use pure `Wire.Startup` events for

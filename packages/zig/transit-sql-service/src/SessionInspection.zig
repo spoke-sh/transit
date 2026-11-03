@@ -6,6 +6,8 @@ const f = g.fuze;
 const c = g.catalog;
 const Storage = @import("SessionStorage.zig");
 const Self = @This();
+const PgCatalog = @import("PgCatalog.zig");
+postgres: ?PgCatalog = null,
 arena: std.heap.ArenaAllocator,
 name: ?c.TableMetadata.Name = null,
 metadata: ?c.DirectTableBinding = null,
@@ -70,6 +72,7 @@ fn unsigned(value: u64) f.Types.Values.Cell {
     return .{ .value = .{ .atom = .{ .unsigned = value } } };
 }
 pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
+    if (try PgCatalog.prepare(host, sql)) |postgres| return .{ .arena = postgres.arena, .postgres = postgres, .metadata = postgres.binding, .rows = &.{}, .output = postgres.output() };
     // Inspect only this adapter's statements. SELECT (including MySQL's @@
     // probes) and writes belong to their own preparation/lexing boundaries.
     var lexer: f.Sql.Lexer = .{ .text = sql, .dialect = host.dialect };
@@ -251,6 +254,7 @@ fn describeRows(a: std.mem.Allocator, schema: f.TableSchema.Schema) ![]const []c
     return rows;
 }
 pub fn validate(self: *Self, host: *g.Session) !void {
+    if (self.postgres) |*postgres| return postgres.validate(host);
     if (self.historical_list) |snapshot| {
         const response = try c.DirectHistory.call(host.table, .{ .list = .{ .snapshot = snapshot, .namespace = self.historical_namespace orelse return error.CatalogIdentityConflict, .after = null } });
         defer response.deinit();
@@ -311,6 +315,7 @@ pub fn count(self: Self) usize {
     return if (self.storage or self.node_storage) 1 else self.rows.len;
 }
 pub const Read = struct {
+    postgres: ?PgCatalog.Read = null,
     host: *g.Session,
     prepared: *Self,
     index: usize = 0,
@@ -325,7 +330,11 @@ pub const Read = struct {
     historical_requests: u64 = 0,
     historical_row: [historical_list_fields.len]f.Types.Values.Cell = undefined,
     subject: ?g.BatchDisclosure.Subject = null,
+    pub fn deinit(self: *Read) void {
+        if (self.postgres) |*postgres| postgres.deinit();
+    }
     pub fn complete(self: *const Read) bool {
+        if (self.prepared.postgres != null) return if (self.postgres) |postgres| postgres.done else false;
         if (self.prepared.historical_list != null) return self.historical_loaded and self.historical_after == null and self.historical_index == self.historical_count;
         return self.index == self.prepared.count();
     }
@@ -353,6 +362,12 @@ pub const Read = struct {
         return &self.historical_row;
     }
     pub fn next(self: *Read) !?[]const f.Types.Values.Cell {
+        if (self.prepared.postgres) |*prepared| {
+            if (self.postgres == null) self.postgres = PgCatalog.Read.init(self.host, prepared);
+            const result = try self.postgres.?.next();
+            self.subject = self.postgres.?.subject;
+            return result;
+        }
         self.subject = null;
         try self.prepared.validate(self.host);
         if (self.prepared.historical_list) |snapshot| return self.historicalNext(snapshot);

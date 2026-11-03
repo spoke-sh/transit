@@ -998,7 +998,11 @@ def run(node, caller, mode="tables", *artifacts):
             if mode == "collations":
                 subprocess.run([caller, endpoint, "initialize", str(profile)], check=True, timeout=180)
                 subprocess.run([caller, endpoint, "collations", str(profile)], check=True, timeout=180)
-                print("Direct Table collation declarations, comparison paths and retained mutations passed.", flush=True)
+                stop(authority)
+                authority = None
+                authority = start()
+                subprocess.run([caller, endpoint, "collations-recover", str(profile)], check=True, timeout=180)
+                print("Direct Table collation declarations, comparison paths and original retained pins across disk restart passed.", flush=True)
                 return
             if mode == "count-ranges":
                 subprocess.run([caller, endpoint, "initialize", str(profile)], check=True, timeout=180)
@@ -1219,6 +1223,7 @@ def run(node, caller, mode="tables", *artifacts):
             stop(authority)
             authority = None
             authority = start()
+            subprocess.run([caller, endpoint, "collations-recover", str(profile)], check=True, timeout=180)
             subprocess.run([caller, endpoint, "delegated-closed", str(profile)], check=True, timeout=180)
             assert set(fault["commands"]) <= {"authorization"}, fault["commands"]
             assert fault["execute"] is not None

@@ -10349,6 +10349,20 @@
           "actions": [
             "correct_input"
           ]
+        },
+        "BranchRetired": {
+          "code": "catalog.branch_retired",
+          "category": "lifecycle",
+          "actions": [
+            "inspect_status"
+          ]
+        },
+        "InvalidBranchCursor": {
+          "code": "catalog.invalid_branch_cursor",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
         }
       },
       "mapping_boundary": "direct-catalog-caller"

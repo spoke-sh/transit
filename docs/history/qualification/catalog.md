@@ -9,6 +9,65 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Integrated standards ledger and retained collation cuts — 2026-11-02
+
+This increment checks whether the integrated capability claims have executable
+owners and whether retained Tables keep their original comparison semantics
+across a local disk restart. The fixture source is
+`887b37e3110c9adc9f6d4b7870baafc825656050`, based on `21a663fdb`; the only
+collation repair renames a duplicated local variable that prevented the new
+recovery fixture from compiling. Runtime implementation is unchanged. The
+current owners remain the [capability ledger](../../../contracts/sql/README.md),
+[Table reference](../../handbook/reference/tables.md) and
+[historical catalog contract](../../../contracts/HISTORICAL_CATALOG_V1.md).
+
+The pinned Nix environment uses Zig `0.17.0-dev.2267+48abf1a34` and ReleaseSafe
+artifacts. The shared definition is
+`c3cbdfe99cdb08a8a21cc2429783fd746b1311b096d9ca8371058e1abb037b64`;
+the Table schema definition remains
+`transit.table.schema.v1.2026-11-01.spatial-reference`. No compatibility cutover
+is introduced by these test changes.
+
+`just test::direct-table-service collations` passes against the signed local
+Table HTTP owner with a one-page resident cache and physical disk under
+`/var/tmp`. The four profiles are `ASCII_CI`, `EBCDIC_CP037`,
+`EBCDIC_037_PAD` and `EBCDIC_1047_NOPAD`. The fixture retains both the original
+pre-flush cut and a separately pinned sealed cut, then performs UPDATE, DELETE
+and punctuation-sensitive inserts. After node termination and restart, both
+original pin identities still return the independently expected five rows,
+range/full-scan counts and equality counts. The live Table has the separately
+expected later row count. Explicit release preserves each exact handle and
+reports it released. Prepared/captured plan bindings, neutral collation metadata
+and incompatible plan rejection also pass. This is local restart evidence;
+the fixture requests SIGTERM with a bounded SIGKILL fallback, not power loss.
+
+`just ci clean --check fast` passes all **65** checks at `887b37e31`. Its archived
+run record also passes artifact/completion verification. The ledger maps **83**
+implemented feature/stage pairs across **18** capabilities to **10** compiler,
+component, disk or installed checks. Negative controls reject missing recovery
+ownership, compiler-only runtime claims, unregistered tasks and stale case
+markers. These results establish mapping and generation consistency, not that
+every mapped behavioral check ran in this increment. The public handbook's
+formatting/lint, strict types, ten content tests and production build pass at
+`21a663fdb`; the subsequent changes affect test diagnostics and this evidence only.
+
+Private transcripts and source/binary hashes are retained in
+`transit-m10-plan/.cache/m10-resume/`, including `collations-fixed.log`,
+`source.json`, `results.json` and `docs-site.log`. The completed clean record is
+`.cache/ci/clean/887b37e3110c-transit-ci-q2cqzml4/`. Preserve the original
+`collations.log` compile failure. Two clean attempts could not start because an
+unrelated cleanup removed their temporary directory. An attempt with scratch
+under `.cache` failed the import-scanner controls because those paths are
+excluded; the passing run uses the separate
+`/var/tmp/m10-qualification-887b37e31/` parent. None of these earlier attempts is
+reclassified as passed.
+
+The [Board record](interfaces.md#independent-historical-board-readers--2026-11-02)
+owns the installed reader experiment and original-operation recovery. This
+increment does not complete the storage/query or installation/browser lanes,
+the remaining SDK schedules, common-revision qualification or
+[Milestone 10](../../roadmap/10-standards-and-catalogs.md).
+
 ## Offline Document construction and compound commitments — 2026-11-02
 
 This experiment asks whether applications can construct JSON/XML representations
@@ -192,6 +251,54 @@ They do not prove arbitrary Unicode/UCA, all physical codecs, general graph or
 foreign execution, whole-catalog branch atomicity, or refinement of every native
 path. Remaining qualification is tracked in the
 [milestone](../../roadmap/10-standards-and-catalogs.md#progress-pr-scope--2026-11-01).
+
+## Immutable branch discovery and retirement — 2026-11-02
+
+This run checks the [immutable Table branch lifecycle](../../../contracts/BRANCH_V1.md#installed-immutable-table-branches)
+on the modified `feat/m20-branch-lifecycle` worktree based on
+`3fd36f7d963c8917afc4254950d5e268f9b61676`, using the pinned Nix toolchain and
+definition `28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573`.
+It is working-tree evidence, not committed-source clean qualification.
+Raw logs and a source-diff snapshot are retained locally under
+`.cache/verification/m20-branch-lifecycle/`; the automated contract and fast
+reports remain in `.cache/checks/{contracts,fast}.json`.
+
+`zig build test -Dtest-filter="direct branch" --summary all` in
+`packages/zig/transit-catalog` passes 12 tests. The new disk schedule loses the
+retirement acceptance reply, the Table-pin release reply and the final closure
+reply, then reopens both stores and resumes the original identity. It checks
+unchanged creation receipts/heads, stale-head and revoked-access refusal,
+unavailable old scan continuations, reservation until cleanup, and safe name
+reuse without ID reuse. Discovery traverses 137 branches with one resident page,
+preserves empty filtered continuations and rejects a changed catalog observation.
+
+`zig build transit-node test-local-catalog -Dlocal-catalog-filter=branch -j2
+--summary all` passes all three tests. Signed and typed dispatch each complete
+three physical collection passes: 397, 4,622 and 5,487 bounded steps, reclaiming
+1, 1,643 and 1 confirmed allocations respectively. The final pass traverses
+retained publication evidence after released objects have been removed; exact
+creation retry still returns the retired receipt and the other live branch
+remains readable. Buffered listing, row, schema and empty-result disclosure
+reject after current authorization changes. The debug run takes 25 minutes;
+this is a local disk correctness schedule, not a latency measurement.
+
+Dependent checks pass: 122 protocol tests, 16 shared SQL tests, all 20
+`just check contracts` checks, all 65 `just check fast` checks, and
+`just transit-board::check` and `just transit-docs::check`. Diagnostic execution
+passes 3,773 projections across 24 declared surfaces and 680 compiler cases with
+1,013 grammar obligations. The cutover regenerates independent signatures,
+binary SQL fixtures, ABI resources and browser validators. The old definition
+remains only in historical records. These checks do not qualify installed SDKs,
+browser interaction, distributed ownership, remote storage or a full CI lane.
+
+The resumed generation initially failed on an unquoted digit-leading Zig enum
+tag, then on stale dependent Stream/Queue fixtures and an incomplete frontend
+install. Corrected syntax, ordered fixture regeneration and the locked install
+resolved those failures. Diagnostic validation also found the baseline's missing
+Board historical-cursor expectation; the reviewed mapping and outcome fixture
+now match its existing implementation. Shared `/tmp` inode exhaustion blocked
+two additional checks from starting; both ran successfully with worktree-local
+scratch. No earlier failed run is counted as a pass.
 
 ## Immutable single-Table branches — 2026-10-31
 

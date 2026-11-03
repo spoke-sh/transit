@@ -1483,6 +1483,8 @@ fn requireTransactionRecord(self: *Self, allocator: std.mem.Allocator, key: c.Di
 /// Serialized with transaction freeze and storage collection by the host.
 /// Inventory admission never changes the transaction's retained read revision.
 fn stageTransactionRecord(self: *Self, allocator: std.mem.Allocator, request: TransactionRecord.Request, policy: Policy, current: P.Guard) !c.DirectRecord.Result {
+    TransactionRecord.diagnostics.add("stage_calls", 1);
+    errdefer TransactionRecord.diagnostics.add("stage_failures", 1);
     const key = request.transaction;
     const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
     try key.requireSame(progress.receipt.binding.key);
@@ -1507,6 +1509,7 @@ fn stageTransactionRecord(self: *Self, allocator: std.mem.Allocator, request: Tr
         const retained = try c.DirectRecord.load(allocator, self.data_objects, reference);
         defer allocator.free(retained);
         try check(current);
+        TransactionRecord.diagnostics.add("reused_returns", 1);
         return .{ .reference = reference, .bytes = null };
     }
     const head = try TransactionWorkspace.recover(allocator, self.data_objects, progress);
@@ -1517,15 +1520,18 @@ fn stageTransactionRecord(self: *Self, allocator: std.mem.Allocator, request: Tr
         directory.bytes = try std.math.add(u64, directory.bytes, try std.math.add(u64, bytes.len, TransactionRecord.metadata_charge));
         if (try std.math.add(u64, head.charged_bytes, directory.bytes) > head.acquired.cut.begin.limits.workspace_bytes) return error.TransactionWorkspaceLimit;
         try self.publishTransactionRecord(key, &directory, .{ .content = reference.content, .ready = false }, current);
+        TransactionRecord.diagnostics.add("reservation_logical_bytes", bytes.len + TransactionRecord.metadata_charge);
     } else if (known.?.ready) {
         // Do not silently recreate a lost accepted object.
         const retained = try c.DirectRecord.load(allocator, self.data_objects, reference);
         defer allocator.free(retained);
         try check(current);
+        TransactionRecord.diagnostics.add("reused_returns", 1);
         return .{ .reference = reference, .bytes = null };
     }
     try check(current);
     try reference.requireSame(try c.DirectRecord.store(self.data_objects, key.scope(), TransactionRecord.format, bytes));
+    TransactionRecord.diagnostics.add("stored_bytes", bytes.len);
     directory.pending = try std.math.sub(u64, directory.pending, 1);
     try self.publishTransactionRecord(key, &directory, .{ .content = reference.content, .ready = true }, current);
     try check(current);
@@ -1533,6 +1539,7 @@ fn stageTransactionRecord(self: *Self, allocator: std.mem.Allocator, request: Tr
 }
 
 fn publishTransactionRecord(self: *Self, key: c.DirectClientToken.Key, directory: *TransactionRecord.Directory, owned: TransactionRecord.Entry, current: P.Guard) !void {
+    if (owned.ready) TransactionRecord.diagnostics.add("readiness_attempts", 1) else TransactionRecord.diagnostics.add("reservation_attempts", 1);
     var next = self.store.root;
     next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
     var batch: s.TreeStore.Batch = .{};
@@ -1542,6 +1549,7 @@ fn publishTransactionRecord(self: *Self, key: c.DirectClientToken.Key, directory
     try directory.validate();
     next.transaction_records = try self.store.tree().put(next.transaction_records, try TransactionRecord.ownerKey(key), try r.pageValue(directory.*));
     try self.store.publish(next, .{ .transaction_record = .{ .transaction = key, .entry = owned } }, current);
+    if (owned.ready) TransactionRecord.diagnostics.add("readiness_returns", 1) else TransactionRecord.diagnostics.add("reservation_returns", 1);
 }
 
 /// Read policy belongs to the storage owner, including raw record reads. A
@@ -5591,8 +5599,8 @@ fn publishBranchState(self: *Self, progress: *c.DirectClientToken.Progress, stat
     next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
     var updated = progress.*;
     updated.revision = .{ .partition = self.config().partition, .next_lsn = next.next_lsn };
-    updated.pending = state.phase == .admitted or state.phase == .abandoning;
-    updated.cancel = state.phase == .abandoning or state.phase == .cancelled;
+    updated.pending = state.pending();
+    updated.cancel = state.cancelled();
     updated.record = try state.stage(self.store.objects, updated);
     var batch: s.TreeStore.Batch = .{};
     try self.store.index.beginBatch(self.options.index_work_bytes, &batch);
@@ -5605,11 +5613,11 @@ fn publishBranchState(self: *Self, progress: *c.DirectClientToken.Progress, stat
 pub fn advanceBranch(self: *Self, key: c.DirectClientToken.Key, cancel_requested: bool, policy: Policy) !c.DirectBranch.Status {
     var progress = try self.branchProgress(key, policy) orelse return error.ClientOperationMissing;
     var state = (try self.branchStatus(progress)).state;
-    if (state.phase == .published or state.phase == .cancelled) return self.branchStatus(progress);
+    if (state.phase == .published or state.phase == .cancelled or state.phase == .retired) return self.branchStatus(progress);
     const intent = progress.receipt.binding.intent.branch;
     var scratch = std.heap.ArenaAllocator.init(self.allocator);
     defer scratch.deinit();
-    const current = try self.branchGuard(scratch.allocator(), intent, policy, !cancel_requested and state.phase != .abandoning);
+    const current = try self.branchGuard(scratch.allocator(), intent, policy, !cancel_requested and state.phase == .admitted);
     try check(current);
     if (cancel_requested and state.phase == .admitted) {
         state.phase = .abandoning;
@@ -5619,9 +5627,9 @@ pub fn advanceBranch(self: *Self, key: c.DirectClientToken.Key, cancel_requested
     defer access.view.deinit();
     const pin_state = try access.view.table.pinState(intent.identity(), access.current);
     access.view.table.lose_reply = self.lose_table_reply;
-    if (state.phase == .abandoning) {
+    if (state.phase == .abandoning or state.phase == .retiring) {
         if (pin_state.handle) |pin| if (!pin_state.released) try access.view.table.releaseSnapshot(pin, current);
-        state.phase = .cancelled;
+        state.phase = if (state.phase == .abandoning) .cancelled else .retired;
         try self.publishBranchState(&progress, state, current);
         try check(current);
         return self.branchStatus(progress);
@@ -5664,6 +5672,68 @@ pub fn advanceBranch(self: *Self, key: c.DirectClientToken.Key, cancel_requested
 pub fn inspectBranch(self: *Self, key: c.DirectClientToken.Key, policy: Policy) !?c.DirectBranch.Status {
     return try self.branchStatus(try self.branchProgress(key, policy) orelse return null);
 }
+/// Persist unavailability before releasing retention. The original creation
+/// remains successful, including when the retirement reply is lost.
+pub fn retireBranch(self: *Self, request: @FieldType(c.DirectBranch.Request, "retire"), policy: Policy) !c.DirectBranch.Status {
+    var progress = try self.branchProgress(request.key, policy) orelse return error.ClientOperationMissing;
+    var state = (try self.branchStatus(progress)).state;
+    try (state.head orelse return error.BranchNotPublished).requireSame(request.expected);
+    if (state.phase != .published) return self.advanceBranch(request.key, false, policy);
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    const current = try self.branchGuard(scratch.allocator(), progress.receipt.binding.intent.branch, policy, false);
+    try check(current);
+    state.phase = .retiring;
+    try self.publishBranchState(&progress, state, current);
+    try check(current);
+    return self.branchStatus(progress);
+}
+
+/// A bounded current-catalog traversal. A changed catalog rejects continuation;
+/// callers must not append a newly started traversal to an earlier prefix.
+pub fn listBranches(self: *Self, request: @FieldType(c.DirectBranch.Request, "list"), policy: Policy) !c.DirectBranch.Listing {
+    try self.requireInitialized();
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    const current = try self.guard(scratch.allocator(), policy, try self.authorizationSchema(request.namespace), null, .schema);
+    try check(current);
+    const position: d.Position = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn };
+    if (request.after) |cursor| {
+        try cursor.validate(request.namespace);
+        if (!std.meta.eql(cursor.catalog, position)) return error.CatalogObservationChanged;
+    }
+    const page = try self.store.tree().scan(self.store.root.branches, if (request.after) |cursor| try r.idKey(cursor.after) else null);
+    var result: c.DirectBranch.Listing = .{ .catalog = position, .namespace = request.namespace };
+    var guards: [pages.page_entries]?P.Guard = @splat(null);
+    var count: usize = 0;
+    var last: u64 = 0;
+    for (page.entries) |slot| {
+        const item = slot orelse break;
+        if (item.key.len != 8) return error.InvalidBranchState;
+        last = std.mem.readInt(u64, item.key.data[0..8], .big);
+        const progress = try self.store.branchByDigest(item.value);
+        if (progress.id() != last) return error.InvalidBranchState;
+        const intent = progress.receipt.binding.intent.branch;
+        if (intent.connection.principal != policy.subject.principal() or intent.namespace != request.namespace) continue;
+        const state = (try self.branchStatus(progress)).state;
+        if (state.phase != .published) continue;
+        const entry_guard = self.branchGuard(scratch.allocator(), intent, policy, false) catch |err| switch (err) {
+            error.CatalogDenied, error.AccessDenied, error.Forbidden => continue,
+            else => return err,
+        };
+        check(entry_guard) catch |err| switch (err) {
+            error.CatalogDenied, error.AccessDenied, error.Forbidden => continue,
+            else => return err,
+        };
+        guards[count] = entry_guard;
+        result.entries[count] = .{ .name = intent.name, .head = state.head.?, .source = intent.source, .mode = intent.mode };
+        count += 1;
+    }
+    if (page.next != null) result.next = .{ .catalog = position, .namespace = request.namespace, .after = last };
+    try check(current);
+    for (guards) |slot| if (slot) |entry_guard| try check(entry_guard);
+    return result;
+}
 pub fn lookupBranch(self: *Self, namespace: u64, name: a.Name, policy: Policy) !?c.DirectBranch.Status {
     try self.requireInitialized();
     var scratch = std.heap.ArenaAllocator.init(self.allocator);
@@ -5702,6 +5772,7 @@ pub fn openBranch(self: *Self, scratch: std.mem.Allocator, head: p.Branch.Head, 
     const checked = try self.branchProgress(progress.receipt.binding.key, policy) orelse return error.InvalidBranchState;
     const observed = try self.branchStatus(checked);
     try (observed.state.head orelse return error.BranchNotPublished).requireSame(head);
+    if (observed.state.phase != .published) return error.BranchRetired;
     const manifest = try s.BranchSnapshot.loadManifest(self.data_objects, head.reference);
     if (manifest.kind != .genesis or manifest.mode != intent.mode or !std.meta.eql(manifest.catalog, progress.receipt.position) or !std.meta.eql(manifest.retention_owner, intent.identity())) return error.InvalidBranchState;
     var directory = try s.BranchSnapshot.init(self.allocator, self.data_objects, observed.state.branch, intent.identity(), 1, self.options.resident_pages, self.options.index_work_bytes);
