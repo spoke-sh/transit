@@ -9,6 +9,276 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Current-definition managed staging and SDK baselines — 2026-11-02
+
+This is the first F0 implementation packet from the approved
+[next performance plan](../../roadmap/08-gateway-architecture-and-protocol-ingress.md#next-performance-implementation-after-milestones--2026-11-02).
+It asks which costs and failures remain after the owned-result, predicate,
+document and Board milestones, before changing snapshot or batching semantics.
+The timing source includes main `bfc0251b5` (PR #332). Runtime and measurement source is
+clean `ab6baf98fc091c619ba335846c438bf9ed97eaee`, with unchanged shared definition
+`c3cbdfe99cdb08a8a21cc2429783fd746b1311b096d9ca8371058e1abb037b64`.
+Installed native SDK libraries/packages are frozen at clean `1787c0b8f`; later
+changes concern private host inspection, its fixture and documentation, not SDK
+implementation or schemas. Native artifact records, package and executable hashes
+are retained separately; these are not claimed to have identical Git stamps.
+No old `afac2bd8…` installation was opened with these binaries. Later integration
+includes main `5f23092f2` (PR #338), whose Queue, storage-fencing and Board changes
+arrived after timing. These observations are not a performance score for that
+integrated tree. Final installed/native checks freeze
+`4d62eb5a91e836ff76797e7e00f758f52f64b122` in an isolated checkout. The original
+measurement and qualification commits remain reachable through the
+[frozen diagnostic source](https://github.com/spoke-sh/transit/tree/perf/owned-staging-diagnostic-source)
+branch; rebases do not change their recorded identities.
+
+The new instrumentation is opt-in through the existing node `request_metrics`
+option. Managed recovery phases and transaction-owned record publication counters
+use fixed arrays of atomics, with no allocation or log sink. A separate private
+`performance` inspection request preserves the ordinary lifecycle status shape.
+Counters include failed attempts and distinguish reservation/readiness attempts
+from observed returns. Lost replies can undercount durable publications; these
+observations supply no completion or cleanup authority. Current semantics are in
+[observability](../../handbook/reference/observability.md), and the
+[installed measurement guide](../../../tests/performance/load/installed.md)
+owns the method and unavailable measurements.
+
+### Conditions and acceptance
+
+All experiments use ReleaseSafe, native-local synchronous durability, ordinary
+timeouts, automatic maintenance, retained OS caches and independent value/count/
+terminal-coverage checks. Instrumented and uninstrumented profiles remain separate.
+Runs are serial, with no owned heavy build or fault proof overlapping measurement.
+Other jobs on the shared host remain uncontrolled. Installed-run starting load
+averages span 17.32–29.08 over one minute on a 48-logical-CPU Threadripper 3960X;
+affinity covers CPUs 0–47, observed cgroup CPU/memory limits are unlimited, and
+`stat` reports filesystem family `ext2/ext3`. These observations neither isolate
+host contention nor attribute failures to it.
+
+The installed matrix uses one repetition per case, separate 3/16-row fixtures and
+eight additional wire peers. Each SDK has its own fresh 70-row integer/text fixture,
+one warmup and one measured operation for each of 14 cases. The console uses three
+verified zero/one-row cycles; startup uses one fresh launch and two retained
+restarts for each of headless and ordinary embedded-role/Board profiles. These
+are diagnostic controls, not 50-sample latency budgets, a tail SLO or a speedup
+comparison. Instrumentation overhead remains unqualified. In particular, different
+definitions still cannot be compared by the ordinary reporters.
+
+### Managed work: observed amplification and failed successors
+
+All four managed campaigns verify their initial activation, then fail on the
+foreground point read during the successor interval. The strict reporter rejects
+all four complete-campaign reports. Idle and retained-restart cases therefore do
+not run; none supplies an accepted successor latency baseline.
+
+| Profile | Initial activation, verified prefix | Successor read failure | Private retained installation |
+| --- | ---: | --- | --- |
+| 3 rows, counters off | 8.886 s | `AuthorityTimeout`, `XX000` | `/var/tmp/transit-server-proof-tvhnz7p7` |
+| 3 rows, attributed | 7.311 s | `Conflict`, `55000` | `/var/tmp/transit-server-proof-ihgv0dys` |
+| 16 rows, counters off | 62.400 s | `Conflict`, `XX000` | `/var/tmp/transit-server-proof-sijba52h` |
+| 16 rows, attributed | 74.073 s | `Conflict`, `55000` | `/var/tmp/transit-server-proof-ez2ta5wa` |
+
+The attributed 16-row activation observes 16 one-row result pages plus one
+manifest: 17 reservation returns and 17 readiness returns. It stages 52,612 encoded
+result-page bytes and 60,068 owned-record bytes including the manifest. Observed
+logical reservation charges total 617,124 bytes, including 17 × 32 KiB metadata
+allowances. This is not physical storage occupancy or a sync count.
+
+That window contains 17 output-statement preparations and executions (delete plus
+16 inserts), followed by a separate checkpoint statement and six common-decision/
+cleanup steps. Inclusive phase observations are 9.737 s for evaluation, 9.242 s
+for output preparation, 30.040 s for output execution and 5.956 s for common
+decision/cleanup. The 3-row activation correspondingly observes four owned records
+and four output statements. These are different workloads, not optimization arms;
+phase times include nested owner I/O and cannot be added to foreground timings or
+subtracted to manufacture an exclusive breakdown.
+
+Available counters survive the failed successor observations. Missing, wrapped,
+reset or changed-instance snapshots reject, including replacement between sample
+windows. Heap allocations, live allocation bytes, peak workspace, physical object/
+log writes and syncs, retained bytes, reclaimable debt and copies remain explicitly
+unavailable. Failed work is preserved; no publication, grant, retention, timeout
+or exact-read assertion was relaxed to obtain a passing campaign.
+
+### Console, installed SDKs and startup
+
+The ordinary console completes all 51 statements, exact mutation counts/value
+checks and cleanup. With only three samples per mutation, INSERT median is 703 ms,
+UPDATE 796 ms and DELETE 898 ms. Unchanged empty/one-row reads have medians 35.0/
+32.5 ms (six samples each). Fresh reads after INSERT/UPDATE/DELETE have medians
+643/983/3,345 ms (three each); the first cold read is 3.633 s. Sparse, unpaired
+observations do not qualify the write or fresh-read budgets or establish a
+regression from an earlier definition.
+
+A separate debug run completes 15 verified statements but records 55 dropped and
+12,852 suppressed telemetry records. Its retained spans are partial observations,
+not a complete attribution or proof that absent spans did no work. The bounded
+sink was preserved rather than enlarged. This run does not use the new counter
+profile, whose accumulation is independent of log delivery.
+
+Python sync, Python async and Node each complete all 28 warmup/measured calls,
+resource inspection and joined closure. Their single measured consumer costs are:
+
+| Operation | Python sync | Python async | Node |
+| --- | ---: | ---: | ---: |
+| Point read, including retained lifecycle | 716 ms | 681 ms | 720 ms |
+| Full 70-row read | 2,027 ms | 1,566 ms | 1,623 ms |
+| One-row write | 679 ms | 595 ms | 593 ms |
+| Fresh read after that write | 389 ms | 400 ms | 367 ms |
+| Eight-row write | 772 ms | 815 ms | 786 ms |
+| Fresh read after that write | 552 ms | 540 ms | 483 ms |
+
+These are single observations per language/case, not language rankings. Caller
+request/reference persistence, query completion, exact values and original-pin
+release remain included. Node's fresh import/first verified metadata observations
+are 309/404 ms; the earlier 50-sample validator comparison retains its own source
+and definition and is not renewed by this one observation.
+
+Zig's full-read warmup passes, then its measured full read exits on exact snapshot
+acquisition `Conflict`. Diagnostic status reports `retained=false`,
+`released=false`, `retired=false`; absence of a retained capture is not permanent
+closure of the saved request. Consumer exit also fails joined-close qualification.
+The SDK reporter rejects the campaign, with original files retained at
+`/var/tmp/transit-server-proof-yobmtr5q`. The other languages' passes do not resolve
+this request or the older SDK/captured-read failures.
+
+Both startup profiles verify values, installation identity and complete phase
+logs after each graceful restart:
+
+| Profile | Fresh readiness / first verified result | Retained readiness (two observations) | Retained first verified result |
+| --- | --- | --- | --- |
+| Headless | 17.457 / 18.417 s | 2.079–2.292 s | 2.939–3.033 s |
+| Embedded roles + Board | 17.854 / 20.430 s | 2.092–2.238 s | 2.788–3.557 s |
+
+Fresh provisioning takes 10.57/10.42 s in those two runs; retained SQL setup takes
+0.97–1.00 s. These are tiny histories with one retained row. They do not qualify
+unclean recovery, large histories, managed-result restart or the startup budgets.
+Both profiles predate PR #335's automatic local Board data binding and PR #338's
+deferred feature loading. They do not measure the current default's first verified
+Board catalog/query result, one-time binding activation or browser feature latency.
+
+### Connection pressure and resource observations
+
+Both ordinary and attributed profiles pass independent PostgreSQL/MySQL TLS,
+value, native-control and joined-close checks. Each protocol admits seven of eight
+additional peers and refuses the eighth while the measured connection occupies
+one slot. The refusal code/diagnostic is preserved; it does not independently prove
+capacity as its cause. The two profiles are not compared for speed.
+
+In the ordinary profile, warm SELECT observations are 18.1/12.9 ms for PostgreSQL/
+MySQL; loaded observations are 17.6/17.6 ms. The stable process-tree snapshots count
+738–740 threads. PSS rises from 839 MiB before peers to 1,144 MiB with PostgreSQL
+peers, 1,736 MiB with MySQL peers and 1,769 MiB after closure. One snapshot cannot
+establish a leak or steady-state plateau. It distinguishes an observed resident
+high-water effect from unavailable allocator/workspace counters.
+
+### Executed checks and evidence
+
+All 64 then-current fast checks pass at frozen runtime source `ab6baf98f` and
+again at integrated source `6de0861f0`. After the later rebase, the fast gate at
+`4d62eb5a9` detects main's unrecorded `InvalidHistoricalCursor` inventory entry;
+recording it exposes the corresponding missing semantic mapping at `6bd18e71e`.
+The reviewed mapping now includes the existing native HTTP-response regression.
+All **65 current fast checks pass at `3bec56aed`**. These inventory/mapping changes
+alter no runtime behavior. The standalone observability suite executes all
+three tests, including disabled/overflow counter controls; all nine installed
+reporter tests pass, including in-window and between-window replacement/reset,
+missing-field, mixed-profile and original-error preservation controls. The
+focused disk-backed transaction-record reservation/reply-loss test passes with
+its observed-return and original durable inventory assertions. Final review at
+`663b74812` preserves the initial owner snapshot even if final inspection fails;
+all ten reporter tests pass, including that original-error/partial-evidence case.
+This later failure-recording change does not relabel the frozen diagnostic runs.
+
+The first clean `installation-ui` run at `ab6baf98f` passes eight tasks, including
+the complete direct and installed managed schedules. All five installed revisions,
+including suspend/restart/resume and empty successors, verify. This successful
+schedule does not explain the older #332 authorization failure or the separate
+failed foreground campaigns above. Task nine, `test::server-direct-faults`, fails
+to compile because the test-only SQL host wrapper does not expose the newly
+called `enablePerformance`. The remaining eight tasks do not run. The original
+checkout/logs remain at `/var/tmp/transit-ci-omuznsew`; `975c1d395` fixes the
+wrapper by forwarding the production initializer, without a stub or weaker proof.
+
+The clean `storage-query` lane at `ab6baf98f` passes all 33 tasks in 9,653 seconds,
+including disk-backed catalog/transaction, owned-record, Queue, Document, query,
+publication and collection checks. The growth/restart schedule verifies 139
+initialized KV/Document objects through bounded eight-entry directory pages and
+preserves original typed values and the first receipt after SIGKILL/restart.
+Copied clean evidence is under
+`.cache/ci/clean/ab6baf98fc09-transit-ci-v2vg5cvk/`. This qualifies that frozen
+source and selected lane, not all later main changes or the full repository suite.
+
+At `4d62eb5a9`, the final clean `installation-ui` lane **passes 16 of 17 tasks
+and fails the last task** after 4,219 seconds. Passed tasks include logging,
+single-executable defaults, direct Tables, all five managed revisions, the corrected
+real direct-fault host, SQL lifetimes/recovery, Board inspection/query/workbench
+and the Station launcher. The fault-host correction is therefore executed,
+including blocked work, caller death, abrupt restart, exact recovery and durable
+cancellation. The clean checkout and original task metadata remain at
+`/var/tmp/transit-ci-dub8gn4t/`.
+
+The final `test::declarative-browser` task fails during Google-provider provisioning,
+before its browser assertions. The saved `admin-3.json` remains at
+`/var/tmp/transit-browser-karqedae/`, with SHA-256
+`76bbfc63b7843331475d81dd6540922ab3b5d7360b5e2816eef0df35efe35b7b`.
+The client reports `HttpConnectionClosing` for `client_token` with an uncertain
+outcome. Contemporaneous node logs record a 2.029-second `RequestTimeout`,
+`response_written=false`, an uncertain protocol outcome and a canceled storage
+batch. The last recorded telemetry-loss totals are 23 dropped / 329 suppressed,
+so these are partial spans, not exclusive attribution. This does not establish
+whether the original mutation was accepted. No status inspection, replay or
+replacement mutation was performed; the original request, private fixture and
+failure logs remain intact. Its cause and durable outcome remain unresolved.
+This lane is not a pass, and the skipped browser assertions establish no guarantee.
+
+The focused transaction-record reservation/reply-loss test also passes on
+`4d62eb5a9` in 18.54 seconds. The focused signed-transaction
+policy test passes in 307.46 seconds, including storage fencing after buffering
+and between guards while preserving policy revision and original transaction
+status. The standalone Board API suite passes in 15.20 seconds, executing the
+historical-cursor HTTP-response regression linked by the reviewed diagnostic
+mapping. Both use the same frozen `4d62eb5a9` source.
+Full repository CI, release/platform profiles, instrumentation overhead and
+50-sample performance qualification were not completed by this packet.
+
+Ignored evidence is grouped under `.cache/performance/owned-staging/`:
+`diagnostic-commands.json` records commands, revisions, exit status, elapsed time
+and raw-output hashes; `runtime-final/`, `native.json`, `sdk-preparation.json`,
+`wheels/` and `node/` preserve selected artifacts/provenance separately from timing.
+`managed-*.jsonl`, `connections-*.jsonl`, `console.jsonl`, `console-trace.jsonl`,
+`startup*.jsonl` and `sdk-*.jsonl` retain observations. Strict `*-report.json` and
+`*-report.stderr` outputs preserve accepted and rejected reports respectively.
+`integrated-qualification.json`, `fast-final-mappings.json`,
+`board-native-final.json` and `browser-failure.json` preserve the later selections,
+source identities and failure attribution. Automatic canonical copies also remain
+under the installed/SDK runners' own
+ignored `runs/` directories. Credentials and raw private fixture logs are not published.
+
+The evidence supports R1/C4a next: qualify a shared fresh-read lifecycle and
+investigate foreground conflicts/timeouts under managed work before accepting
+latency budgets. M3a/M3b then reduce counted owned-record and statement work inside
+the original transaction. D5 needs worker/connection resident-memory measurements;
+S6 should target provisioning and SQL setup before large-history startup controls.
+Physical I/O/allocation attribution and the separate M14/M16 component baselines
+remain open. PR #333 adds verified Queue page/eligibility reuse; subsequent log
+profiles must distinguish readiness from first original-operation lookup and
+retained-page recovery, across all supported profiles and cache bounds. Its
+[profile-4 evidence](#queue-profile-4-recovery-gate-closure--2026-11-01) remains
+scoped to its own older definition and cannot be combined with these timings.
+The provider-provisioning failure adds original control-operation admission,
+publication and status-recovery costs to E7; it supplies no accepted browser
+latency sample. The newer Board observation scheduler adds hidden/visible/reconnect
+and admission-pressure controls to later UI measurements; this packet measures
+the earlier Board startup profile, not interactive Board performance. PR #334
+separates storage fencing from authorization failures and retains native SQL
+rejection diagnostics. Its focused guards do not by themselves explain or resolve
+the failed campaigns above; requalify those schedules before attributing current
+failures to the old classification. PR #336 adds receipt-bound SQL NACK: include
+settlement and original-outcome recovery, without replaying as fresh work. PR #338's
+bootstrap-byte reduction needs separate transfer, parse, first-result and heap
+measurements; byte counts establish no time-to-interactive gain. No 10× or 100×
+end-to-end gain is claimed here.
+
 ## SDK validator initialization and captured-read recovery — 2026-11-02
 
 This packet starts the approved [post-merge delivery plan](../../roadmap/08-gateway-architecture-and-protocol-ingress.md#post-merge-performance-delivery-plan--2026-11-01).
