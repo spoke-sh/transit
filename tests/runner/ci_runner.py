@@ -130,6 +130,12 @@ def release_workflow():
         assert 'build' in ancestors(job) and 'images' not in ancestors(job)
         assert any(step.get('with', {}).get('name') == 'runtime-${{ matrix.artifact }}'
                    for step in jobs[job]['steps'])
+    for job in ('installed', 'board', 'published'):
+        assert any(step.get('with', {}).get('name') == 'operation-fixture-${{ matrix.artifact }}'
+                   for step in jobs[job]['steps'])
+        assert any(step.get('env', {}).get('TEST_TRANSIT_OPERATIONS') ==
+                   '${{ github.workspace }}/.cache/operation-fixture/operation-fixture'
+                   for step in jobs[job]['steps'])
     assert 'sdk-build' not in ancestors('installed')
     # Independence during diagnosis must never weaken the publication gate.
     required = {'qualification', 'build', 'images', 'installed', 'board', 'sdk-build',

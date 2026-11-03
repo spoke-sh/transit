@@ -283,7 +283,10 @@ it does not qualify a Flight gateway or its C ABI interoperability.
 ## Vite+
 
 The shell includes a checksummed upstream `vp` binary and its matching JavaScript
-toolchain, built by Nix from `nix/vite-plus/package-lock.json`. Native binaries
+toolchain, built by Nix from `nix/vite-plus/package-lock.json`. Its fixed-output
+npm cache derivation retries `prefetch-npm-deps` across bounded attempts,
+recreating `$out` and falling back to single-core fetching on retry when the npm
+registry resets a concurrent HTTP/2 stream, without changing `npmDepsHash`. Native binaries
 are patched for Nix on Linux. First use creates settings and shims in
 `$PWD/.cache/vite-plus` as set when entering the shell, leaving the global Vite+
 installation and shell profiles alone. Node.js and package-manager preferences

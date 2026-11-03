@@ -269,8 +269,10 @@ also builds this helper with the pinned Nix tools, then runs the installed stati
 runtime from the checksummed formula archive. The separate fresh-runner
 `test::release-install` proof continues to run without Nix.
 A separate `test::release-board`
-job runs its Chromium scenarios against downloaded runtime artifacts on both
-Linux architectures. It checks paginated Catalog, exact previews, column
+job runs its Chromium scenarios against downloaded runtime artifacts and the
+retained `operation-fixture` helper on both
+Linux architectures (or builds the helper locally when `TEST_TRANSIT_OPERATIONS`
+is unset). It checks paginated Catalog, exact previews, column
 profiles, explicit Workbook submission and original-result recovery without
 external assets. The fixture qualifies explicit independent profiles and the
 managed local data connection; the inspection identity retains read-only inspection
