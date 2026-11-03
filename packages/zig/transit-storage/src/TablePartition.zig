@@ -3270,8 +3270,13 @@ pub fn scanSnapshotFiltered(self: *Self, allocator: std.mem.Allocator, handle: S
     const schema = frozen.schema.schema;
     const selected = try f.TableProjection.fromPlan(schema, plan);
     var instructions: [f.ColumnPredicate.Program.max_instructions]f.ColumnPredicate.Program.Instruction = undefined;
-    const program = try f.ColumnPredicate.Program.fromPlan(plan, &instructions);
-    try program.validate(schema);
+    const raw = try f.ColumnPredicate.Program.fromPlan(plan, &instructions);
+    var preparation_budget: f.MemoryBudget = .{ .parent = allocator, .limit = self.options.segment_predicate_bytes };
+    var prepared = f.ColumnPredicate.PreparedProgram.init(preparation_budget.allocator(), schema, raw) catch |err|
+        return if (preparation_budget.exhausted) error.SegmentReadBudgetExceeded else err;
+    defer prepared.deinit();
+    const program = &prepared;
+    const decision_budget = self.options.segment_predicate_bytes - preparation_budget.used;
     const source = try filteredCursorSource(handle, plan);
     const fingerprint = try plan.fingerprint();
     const cursor: ?pages.Key = if (after) |value| blk: {
@@ -3310,7 +3315,7 @@ pub fn scanSnapshotFiltered(self: *Self, allocator: std.mem.Allocator, handle: S
         // Historical physical indices cannot interpret logical column positions.
         // Mixed layouts use the same projected row evaluator as WAL rows.
         const decision = if (locator.kind == .segment and locator.schema_revision == schema.revision)
-            try self.segmentDecision(frozen.root, schema, locator, key, identity, program, fingerprint)
+            try self.segmentDecision(frozen.root, schema, locator, key, identity, program, fingerprint, decision_budget)
         else blk: {
             row = try self.readRowSchemaInto(scratch, frozen.root, schema, key, value, .point);
             if (!std.meta.eql(identity, row.?.row().identity)) return error.InvalidTableRowReference;
@@ -3363,7 +3368,7 @@ pub fn scanSnapshotFiltered(self: *Self, allocator: std.mem.Allocator, handle: S
     return result;
 }
 
-fn segmentDecision(self: *Self, basis: Root, schema: f.TableSchema.Schema, locator: r.Locator, key: pages.Key, identity: f.TableRow.Identity, program: f.ColumnPredicate.Program, fingerprint: [32]u8) !f.TSegReader.Decision {
+fn segmentDecision(self: *Self, basis: Root, schema: f.TableSchema.Schema, locator: r.Locator, key: pages.Key, identity: f.TableRow.Identity, program: *const f.ColumnPredicate.PreparedProgram, fingerprint: [32]u8, decision_budget: usize) !f.TSegReader.Decision {
     var physical: ?Declaration.Owned = null;
     defer if (physical) |*owned| owned.deinit();
     _ = try self.physicalSchema(self.allocator, basis, schema, locator.schema_revision, &physical);
@@ -3382,10 +3387,11 @@ fn segmentDecision(self: *Self, basis: Root, schema: f.TableSchema.Schema, locat
     };
     if (segment.decisions == null) {
         var source: SegmentSource = .{ .owner = self, .locator = locator };
-        const decisions = try segment.reader.decisions(self.allocator, source.source(), schema, entry.row_group, program, .{ .decoded_bytes = self.options.segment_predicate_bytes });
+        const decisions = try segment.reader.preparedDecisions(self.allocator, source.source(), schema, entry.row_group, program, .{ .decoded_bytes = decision_budget });
         segment.decisions = .{ .plan = fingerprint, .value = decisions };
         self.row_groups_filtered +|= 1;
     }
+    if (segment.decisions.?.value.allocatedBytes() > decision_budget) return error.SegmentReadBudgetExceeded;
     if (entry.row_in_group >= segment.decisions.?.value.rows.len) return error.InvalidTableRowReference;
     return segment.decisions.?.value.rows[entry.row_in_group];
 }

@@ -1012,8 +1012,20 @@ test "filtered Table encoded collation decisions reuse one group and preserve NU
         var changed = try table.scanSnapshotFiltered(t.allocator, handle, plan, null, .{}, access.guard());
         defer changed.deinit();
         try t.expectEqual(@as(u64, 2), table.row_groups_filtered);
-        table.options.segment_predicate_bytes = 1;
+        // A limit that fits preparation alone cannot disclose cached decisions
+        // or allocate a fresh group. Charge arena backing slack in both cases.
+        var preparation: f.MemoryBudget = .{ .parent = t.allocator, .limit = table.options.segment_predicate_bytes };
+        var instructions: [f.ColumnPredicate.Program.max_instructions]f.ColumnPredicate.Program.Instruction = undefined;
+        var prepared = try f.ColumnPredicate.PreparedProgram.init(preparation.allocator(), declaration.schema, try f.ColumnPredicate.Program.fromPlan(plan, &instructions));
+        table.options.segment_predicate_bytes = preparation.used;
+        prepared.deinit();
+        try t.expectEqual(@as(usize, 0), preparation.used);
+        try t.expectError(error.SegmentReadBudgetExceeded, table.scanSnapshotFiltered(t.allocator, handle, plan, null, .{}, access.guard()));
+        try t.expectEqual(@as(u64, 2), table.row_groups_filtered);
         plan.predicate.compare.value.bytes = "a";
+        try t.expectError(error.SegmentReadBudgetExceeded, table.scanSnapshotFiltered(t.allocator, handle, plan, null, .{}, access.guard()));
+        try t.expectEqual(@as(u64, 2), table.row_groups_filtered);
+        table.options.segment_predicate_bytes = 1;
         try t.expectError(error.SegmentReadBudgetExceeded, table.scanSnapshotFiltered(t.allocator, handle, plan, null, .{}, access.guard()));
         try t.expectEqualDeep(accepted, table.root);
         const Case = struct {

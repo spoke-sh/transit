@@ -81,10 +81,15 @@ pub fn main(init: std.process.Init) !void {
         const batched = try f.PhysicalCodecs.evaluateColumnPredicates(a, a, column, page, &predicates);
         var batched_outcomes: [6][]const Outcome = undefined;
         for (&batched_outcomes, 0..) |*row, i| row.* = batched.predicate(i);
+        var prepared_atoms: [6]f.ColumnPredicate.PreparedPredicate = undefined;
+        for (predicates, &prepared_atoms) |atom, *prepared| prepared.* = try f.ColumnPredicate.PreparedPredicate.init(a, column, atom);
+        const prepared = try f.PhysicalCodecs.evaluatePreparedColumnPredicates(a, a, column, page, &prepared_atoms);
+        var prepared_outcomes: [6][]const Outcome = undefined;
+        for (&prepared_outcomes, 0..) |*row, i| row.* = prepared.predicate(i);
         const materialized = try f.PhysicalCodecs.decodeColumnPageSelected(a, a, column, page, selected[0..count]);
         var selected_raw: [32][]const u8 = undefined;
         for (materialized.cells, 0..) |cell, i| selected_raw[i] = cell.value.atom.bytes;
-        try std.json.Stringify.value(.{ .id = case.id, .batch = outcomes[0..batch.len], .physical = physical.outcomes, .batched = batched_outcomes, .batched_visits = batched.evaluated_values, .single_visits = physical.evaluated_values, .batched_streamed = batched.streamed_strings, .batched_materialized = batched.materialized_strings, .raw = raw[0..batch.len], .selected = selected_raw[0..count], .streamed = physical.streamed_strings, .materialized = physical.materialized_strings }, .{}, &stdout.interface);
+        try std.json.Stringify.value(.{ .id = case.id, .batch = outcomes[0..batch.len], .physical = physical.outcomes, .batched = batched_outcomes, .prepared = prepared_outcomes, .prepared_visits = prepared.evaluated_values, .prepared_streamed = prepared.streamed_strings, .prepared_materialized = prepared.materialized_strings, .batched_visits = batched.evaluated_values, .single_visits = physical.evaluated_values, .batched_streamed = batched.streamed_strings, .batched_materialized = batched.materialized_strings, .raw = raw[0..batch.len], .selected = selected_raw[0..count], .streamed = physical.streamed_strings, .materialized = physical.materialized_strings }, .{}, &stdout.interface);
         try stdout.interface.writeByte('\n');
     }
     try stdout.interface.flush();

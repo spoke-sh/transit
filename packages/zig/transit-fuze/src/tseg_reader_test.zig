@@ -939,6 +939,18 @@ test "TSeg encoded programs read each distinct predicate column once" {
     try t.expectEqual(bytes_before + expected_bytes, input.read_bytes);
     try t.expect(!decisions.rows[0].selected and decisions.rows[0].failure == null);
     try t.expect(decisions.rows[1].selected and decisions.rows[1].failure == null);
+    var prepared = try ColumnPredicate.PreparedProgram.init(t.allocator, schema, .{ .instructions = &instructions });
+    defer prepared.deinit();
+    // A single owner survives group scratch destruction and repeated groups.
+    for (0..reader.footer.row_groups.len) |group| {
+        var raw = try reader.decisions(t.allocator, input.source(), schema, group, .{ .instructions = &instructions }, .{});
+        defer raw.deinit();
+        const calls = input.calls;
+        var owned = try reader.preparedDecisions(t.allocator, input.source(), schema, group, &prepared, .{});
+        defer owned.deinit();
+        try t.expectEqualDeep(raw.rows, owned.rows);
+        try t.expect(input.calls - calls <= 2);
+    }
     // Deferred outcomes own no page or caller literal storage.
     @memset(input.bytes, 0xaa);
     try t.expect(!decisions.rows[0].selected and decisions.rows[1].selected);

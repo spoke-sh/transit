@@ -1078,6 +1078,12 @@ vector-benchmark output:
     zig build vector-benchmark file-benchmark -Doptimize=ReleaseSafe
     python3 -B tests/runner/launch.py tests/performance/query/vector.py zig-out/bin/transit-fuze-vector-benchmark --engines scalar batch --output {{quote(output)}}
 
+# Owned predicate construction and warm codec reuse; explicit, without a latency gate.
+[positional-arguments]
+string-predicates *args:
+    zig build string-predicate-benchmark -Doptimize=ReleaseSafe
+    python3 -B tests/runner/launch.py tests/performance/query/string_predicates.py zig-out/bin/transit-string-predicate-benchmark "$@"
+
 # Real frozen-file pipeline sweep; preserves complete decoding and verification.
 vector-files output:
     zig build file-benchmark -Doptimize=ReleaseSafe

@@ -90,6 +90,11 @@ def main():
                 assert result[path] == wanted, (case, path, result[path], wanted)
             for op, outcomes in zip(("eq", "ne", "lt", "le", "gt", "ge"), result["batched"], strict=True):
                 assert outcomes == expected(dict(case, op=op)), (case, op, "batched", outcomes)
+            for op, outcomes in zip(("eq", "ne", "lt", "le", "gt", "ge"), result["prepared"], strict=True):
+                assert outcomes == expected(dict(case, op=op)), (case, op, "prepared", outcomes)
+            assert result["prepared_visits"] == result["single_visits"]
+            assert result["prepared_streamed"] == result["streamed"]
+            assert result["prepared_materialized"] == result["materialized"]
             assert result["batched_visits"] == result["single_visits"], (case["id"], "repeated physical visits")
             assert result["batched_streamed"] == result["streamed"]
             assert result["batched_materialized"] == result["materialized"]
@@ -102,7 +107,7 @@ def main():
                 assert result["materialized"] == 0
         record["completed"] = True
         record["rows"] = sum(len(case["rows"]) for case in corpus)
-        print(f"String execution: {len(corpus)} cases / {record['rows']} rows passed Batch, single/batched physical outcomes and lossless projections; evidence {run_dir}")
+        print(f"String execution: {len(corpus)} cases / {record['rows']} rows passed Batch, single/batched/prepared physical outcomes and lossless projections; evidence {run_dir}")
     finally:
         record["execution"] = execution
         capture.write_json(run_dir / "oracle.json", record)

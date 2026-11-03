@@ -14183,7 +14183,7 @@
         "InvalidKeyColumnCount": 1,
         "MissingPrimaryKey": 1,
         "UnorderedType": 4,
-        "UnsupportedColumnCollation": 5
+        "UnsupportedColumnCollation": 6
       },
       "outcomes": {
         "Profile": [
@@ -14198,6 +14198,9 @@
       },
       "error_sets": {},
       "error_returns": {
+        "PreparedBytes.compare()": "<inferred>",
+        "PreparedBytes.compareIterator()": "<inferred>",
+        "PreparedBytes.init()": "<inferred>",
         "appendSortKey()": "<inferred>",
         "appendSortKeyProfile()": "<inferred>",
         "canonicalByteLen()": "<inferred>",
@@ -14220,7 +14223,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 69,
+        "try": 78,
         "catch": 0
       },
       "imports": [
@@ -14237,9 +14240,10 @@
         "InvalidSegmentCoordinate": 1,
         "QueryConflict": 1,
         "QueryTypeError": 1,
-        "UnknownColumn": 3,
-        "UnsupportedComparison": 10,
-        "WriteFailed": 1
+        "TableSchemaChanged": 2,
+        "UnknownColumn": 5,
+        "UnsupportedComparison": 11,
+        "WriteFailed": 2
       },
       "outcomes": {
         "Outcome": [
@@ -14268,17 +14272,29 @@
         "Predicate.evaluate()": "<inferred>",
         "Predicate.evaluate().<struct>.order()": "<inferred>",
         "Predicate.possibilities()": "<inferred>",
+        "Predicate.possibilitiesWithKey()": "<inferred>",
         "Predicate.validate()": "<inferred>",
+        "PreparedPredicate.evaluate()": "<inferred>",
+        "PreparedPredicate.init()": "<inferred>",
+        "PreparedPredicate.possibilities()": "<inferred>",
+        "PreparedPredicate.validate()": "<inferred>",
+        "PreparedProgram.PreparedAtom.truth()": "<inferred>",
+        "PreparedProgram.PreparedAtom.validateShape()": "<inferred>",
+        "PreparedProgram.init()": "<inferred>",
+        "PreparedProgram.mayMatch()": "<inferred>",
+        "PreparedProgram.truth()": "<inferred>",
+        "PreparedProgram.validate()": "<inferred>",
         "Program.fromLogical()": "<inferred>",
         "Program.fromPlan()": "<inferred>",
         "Program.mayMatch()": "<inferred>",
         "Program.truth()": "<inferred>",
-        "Program.validate()": "<inferred>"
+        "Program.validate()": "<inferred>",
+        "programMayMatch()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 21,
-        "catch": 3
+        "try": 42,
+        "catch": 4
       },
       "imports": [
         "Collation.zig",
@@ -16087,7 +16103,7 @@
         "InvalidDictionaryCode": 3,
         "InvalidFsstStream": 9,
         "InvalidFsstTable": 2,
-        "InvalidPredicateProgram": 1,
+        "InvalidPredicateProgram": 2,
         "InvalidRlePage": 3,
         "InvalidUtf8": 3,
         "InvalidZonedLength": 1,
@@ -16132,6 +16148,8 @@
         "encodeZoned()": "<inferred>",
         "evaluateColumnPage()": "<inferred>",
         "evaluateColumnPredicates()": "<inferred>",
+        "evaluatePredicates()": "<inferred>",
+        "evaluatePreparedColumnPredicates()": "<inferred>",
         "readCanonicalValue()": "<inferred>",
         "streamFsstPredicates()": "<inferred>",
         "u64ToScalarCell()": "<inferred>",
@@ -16141,7 +16159,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 157,
+        "try": 159,
         "catch": 12
       },
       "imports": [
@@ -18650,12 +18668,14 @@
         "filteredProgram()": "<inferred>",
         "group()": "<inferred>",
         "open()": "<inferred>",
+        "preparedDecisions()": "<inferred>",
+        "programDecisions()": "<inferred>",
         "programRows()": "<inferred>",
         "selectedColumn()": "<inferred>"
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 50,
+        "try": 51,
         "catch": 15
       },
       "imports": [
@@ -41075,6 +41095,7 @@
         "PrivateTableWorkspace": 5,
         "QueryConflict": 1,
         "QueryTypeError": 2,
+        "SegmentReadBudgetExceeded": 2,
         "StorageCandidateTooLarge": 1,
         "TableAlreadyExists": 1,
         "TableBatchTooLarge": 4,
@@ -41292,8 +41313,8 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 759,
-        "catch": 18
+        "try": 758,
+        "catch": 19
       },
       "imports": [
         "OrderedKeyIndex.zig",

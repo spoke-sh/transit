@@ -141,6 +141,80 @@ pub fn compareBytes(left: []const u8, right: []const u8, collation: Collation) !
     return compareBytesProfile(left, right, Profile.fromCollation(collation));
 }
 
+/// An immutable literal's comparison weights. The supplied allocator owns the
+/// weights; raw spelling is retained separately by the predicate owner. These
+/// are unstuffed weights, not a stored sort key or a wire representation.
+pub const PreparedBytes = struct {
+    weights: []const u8,
+    profile: Profile,
+
+    pub fn init(allocator: std.mem.Allocator, bytes: []const u8, collation: Collation) !PreparedBytes {
+        const profile = Profile.fromCollation(collation);
+        try validateBytesProfile(bytes, profile);
+        const length = switch (profile) {
+            .ebcdic_cp037, .ebcdic_037_pad, .ebcdic_1047_nopad => try std.unicode.utf8CountCodepoints(bytes),
+            else => bytes.len,
+        };
+        const output = try allocator.alloc(u8, length);
+        errdefer allocator.free(output);
+        const weights = switch (profile) {
+            .none, .utf8_binary => blk: {
+                @memcpy(output, bytes);
+                break :blk output;
+            },
+            .ascii_ci => blk: {
+                for (bytes, output) |byte, *weight| weight.* = asciiLower(byte);
+                break :blk output;
+            },
+            .ebcdic_cp037, .ebcdic_037_pad => try Ebcdic.encode(bytes, output),
+            .ebcdic_1047_nopad => try Ebcdic1047.encode(bytes, output),
+            .icu_root => unreachable,
+        };
+        return .{ .weights = weights, .profile = profile };
+    }
+
+    /// Validate the complete candidate even when its first weight decides the
+    /// answer. In particular, a suffix outside an EBCDIC repertoire still fails.
+    pub fn compare(self: PreparedBytes, candidate: []const u8) !std.math.Order {
+        try validateBytesProfile(candidate, self.profile);
+        switch (self.profile) {
+            .none, .utf8_binary => return std.mem.order(u8, candidate, self.weights),
+            .ascii_ci => {
+                const count = @min(candidate.len, self.weights.len);
+                for (candidate[0..count], self.weights[0..count]) |byte, weight| {
+                    const order = std.math.order(asciiLower(byte), weight);
+                    if (order != .eq) return order;
+                }
+                return std.math.order(candidate.len, self.weights.len);
+            },
+            .ebcdic_cp037, .ebcdic_037_pad => {
+                var iterator = try Ebcdic.Iterator.init(candidate);
+                return self.compareIterator(&iterator, self.profile == .ebcdic_037_pad);
+            },
+            .ebcdic_1047_nopad => {
+                var iterator = try Ebcdic1047.Iterator.init(candidate);
+                return self.compareIterator(&iterator, false);
+            },
+            .icu_root => return error.UnsupportedColumnCollation,
+        }
+    }
+
+    fn compareIterator(self: PreparedBytes, iterator: anytype, pad: bool) !std.math.Order {
+        var index: usize = 0;
+        while (true) : (index += 1) {
+            const left = try iterator.next();
+            const right: ?u8 = if (index < self.weights.len) self.weights[index] else null;
+            if (left == null and right == null) return .eq;
+            if (!pad) {
+                if (left == null) return .lt;
+                if (right == null) return .gt;
+            }
+            const order = std.math.order(left orelse 0x40, right orelse 0x40);
+            if (order != .eq) return order;
+        }
+    }
+};
+
 /// Compare two UTF-8 / binary slices under any admitted Collation.Profile.
 pub fn compareBytesProfile(left: []const u8, right: []const u8, profile: Profile) !std.math.Order {
     try validateBytesProfile(left, profile);

@@ -218,6 +218,19 @@ scratch/output allocations. The complete encoded page is validated before
 success, including nonmatching values. Comparisons use the column's declared
 logical type and collation.
 
+`ColumnPredicate.PreparedProgram.init` copies the ordered instructions and raw
+literals into an owned arena, binds the exact schema fingerprint, and prepares
+comparison weights and bounded zone keys once. Release it with `deinit`; its
+backing allocator and memory budget must outlive it. `validate` checks schema
+binding before reuse; `truth` assumes that admission has already succeeded.
+`TSegReader.preparedDecisions` and
+`PhysicalCodecs.evaluatePreparedColumnPredicates` reuse those keys across pages.
+Binary, ASCII_CI, CP037, CP037 PAD SPACE and CP1047 comparisons retain the scalar
+ordering rules. FSST binary/ASCII comparisons consume prepared weights directly;
+other codecs compare fully validated values. Pattern fallbacks retain owned raw
+literals. Oversized zone keys conservatively disable pruning for that atom.
+Preparation neither owns source rows nor grants access, and has no stored format.
+
 For `k` active atoms and `n` rows, retained predicate outcomes use `k * n`
 bytes. Dictionary evaluation additionally caches `k * d` bytes for `d` physical
 entries while filling those outcomes. Both allocations count against the
@@ -225,6 +238,14 @@ reader's shared decoded-memory budget. Sharing traversal can therefore need more
 simultaneous dictionary scratch than evaluating atoms separately; exceeding the
 budget still refuses the read. These bounds exclude the independently bounded
 encoded page and the reader's other retained state.
+
+The direct Table scan charges preparation's actual arena backing bytes,
+including slack, against `segment_predicate_bytes`. Its active group receives
+the remaining allowance for outcomes and validation/dictionary scratch. Each
+bounded request prepares anew; cached decisions retain their existing source and
+plan checks. There is no cache of prepared programs across requests. Allocation
+tests seal the allocator around repeated prepared comparisons; that narrow
+zero-allocation claim does not cover complete storage requests or SQL results.
 
 `TableProjection` derives a canonical input-column set from a finite Table plan,
 including predicate inputs and all primary-key columns. Its projected schema

@@ -506,7 +506,22 @@ pub const EvaluatedPredicates = struct {
 pub fn evaluateColumnPredicates(scratch: std.mem.Allocator, arena: std.mem.Allocator, column: TableSchema.Column, bytes: []const u8, predicates: []const ColumnPredicate.Predicate) !EvaluatedPredicates {
     if (predicates.len == 0 or predicates.len > ColumnPredicate.Program.max_instructions) return error.InvalidPredicateProgram;
     for (predicates) |predicate| try predicate.validate(column);
-    var sink: PredicateSink = .{ .arena = arena, .column = column, .predicates = predicates };
+    return evaluatePredicates(scratch, arena, column, bytes, predicates, null);
+}
+
+/// Prepared literals belong to the request owner, independently of page scratch.
+pub fn evaluatePreparedColumnPredicates(scratch: std.mem.Allocator, arena: std.mem.Allocator, column: TableSchema.Column, bytes: []const u8, prepared: []const ColumnPredicate.PreparedPredicate) !EvaluatedPredicates {
+    if (prepared.len == 0 or prepared.len > ColumnPredicate.Program.max_instructions) return error.InvalidPredicateProgram;
+    var predicates: [ColumnPredicate.Program.max_instructions]ColumnPredicate.Predicate = undefined;
+    for (prepared, 0..) |predicate, i| {
+        try predicate.validate(column);
+        predicates[i] = predicate.predicate;
+    }
+    return evaluatePredicates(scratch, arena, column, bytes, predicates[0..prepared.len], prepared);
+}
+
+fn evaluatePredicates(scratch: std.mem.Allocator, arena: std.mem.Allocator, column: TableSchema.Column, bytes: []const u8, predicates: []const ColumnPredicate.Predicate, prepared: ?[]const ColumnPredicate.PreparedPredicate) !EvaluatedPredicates {
+    var sink: PredicateSink = .{ .arena = arena, .column = column, .predicates = predicates, .prepared = prepared };
     errdefer arena.free(sink.outcomes);
     const rows = try decodeInto(false, scratch, column, bytes, &sink);
     return .{ .outcomes = sink.outcomes, .row_count = rows, .predicate_count = predicates.len, .evaluated_values = sink.evaluated_values, .streamed_strings = sink.streamed_strings, .materialized_strings = sink.materialized_strings };
@@ -680,6 +695,7 @@ const PredicateSink = struct {
     arena: std.mem.Allocator,
     column: TableSchema.Column,
     predicates: []const ColumnPredicate.Predicate,
+    prepared: ?[]const ColumnPredicate.PreparedPredicate = null,
     tags: []const u8 = &.{},
     outcomes: []ColumnPredicate.Outcome = &.{},
     next_row: usize = 0,
@@ -698,7 +714,7 @@ const PredicateSink = struct {
         try validatePhysicalCell(self.column, cell);
         self.evaluated_values += 1;
         var result: Cached = undefined;
-        for (self.predicates, 0..) |predicate, i| result[i] = try predicate.evaluate(self.column, cell);
+        for (self.predicates, 0..) |predicate, i| result[i] = if (self.prepared) |prepared| try prepared[i].evaluate(self.column, cell) else try predicate.evaluate(self.column, cell);
         return result;
     }
     fn emit(self: *PredicateSink, cell: Values.Cell, repeat: usize) !void {
@@ -1023,7 +1039,7 @@ fn decodeFsstValues(temporary: *std.heap.ArenaAllocator, reader: *std.Io.Reader,
         if (decoded_len > (Types.Limits{}).value_bytes) return error.ValueBudgetExceeded;
         if (comptime @TypeOf(sink.*) == PredicateSink) {
             var cached: PredicateSink.Cached = undefined;
-            if (try streamFsstPredicates(symbols[0..symbol_count], tokens, decoded_len, sink.column, sink.predicates, &cached)) {
+            if (try streamFsstPredicates(symbols[0..symbol_count], tokens, decoded_len, sink.column, sink.predicates, sink.prepared, &cached)) {
                 try sink.emitCached(&cached, 1);
                 sink.evaluated_values += 1;
                 sink.streamed_strings += 1;
@@ -1069,13 +1085,13 @@ fn validatePhysicalCell(column: TableSchema.Column, cell: Values.Cell) !void {
 /// lexical decision. Even after a decision is known, consume and validate every
 /// token, scalar and decoded-length claim. CP037 and complex patterns use the
 /// shared bounded decoder until they have an equivalent streaming kernel.
-fn streamFsstPredicates(symbols: []const []const u8, tokens: []const u8, decoded_len: u32, column: TableSchema.Column, predicates: []const ColumnPredicate.Predicate, outcomes: *PredicateSink.Cached) !bool {
+fn streamFsstPredicates(symbols: []const []const u8, tokens: []const u8, decoded_len: u32, column: TableSchema.Column, predicates: []const ColumnPredicate.Predicate, prepared: ?[]const ColumnPredicate.PreparedPredicate, outcomes: *PredicateSink.Cached) !bool {
     if (column.collation != .none and column.collation != .utf8_binary and column.collation != .ascii_ci) return false;
     var targets: [ColumnPredicate.Program.max_instructions][]const u8 = undefined;
     var orders: [ColumnPredicate.Program.max_instructions]std.math.Order = @splat(.eq);
     for (predicates, 0..) |predicate, i| targets[i] = switch (predicate) {
-        .compare => |cmp| cmp.value.bytes,
-        .starts_with => |prefix| prefix,
+        .compare => |cmp| if (prepared) |owned| owned[i].comparison.?.weights else cmp.value.bytes,
+        .starts_with => |prefix| if (prepared) |owned| owned[i].comparison.?.weights else prefix,
         .all, .state, .null_compare => "",
         else => return false,
     };
@@ -1111,7 +1127,7 @@ fn streamFsstPredicates(symbols: []const []const u8, tokens: []const u8, decoded
             for (targets[0..predicates.len], orders[0..predicates.len]) |target, *order| {
                 if (order.* == .eq and position < target.len) {
                     const left = if (column.collation == .ascii_ci) Collation.asciiLower(byte) else byte;
-                    const right = if (column.collation == .ascii_ci) Collation.asciiLower(target[position]) else target[position];
+                    const right = if (column.collation == .ascii_ci and prepared == null) Collation.asciiLower(target[position]) else target[position];
                     order.* = std.math.order(left, right);
                 }
             }
