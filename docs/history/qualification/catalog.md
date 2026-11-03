@@ -9,6 +9,63 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Native historical obligations through disk collection — 2026-11-03
+
+This experiment checks whether uncertain historical acquisition and closure keep
+their original pins and outcomes through physical collection and a cold local
+owner reopen. The source is
+[`35b0fe983`](https://github.com/spoke-sh/transit/commit/35b0fe98378dac75e6041485e465de23017375b4),
+based on `0cfa0cec0`. It changes fixtures and coverage registration, not runtime
+semantics. The owners remain the
+[historical catalog contract](../../../contracts/HISTORICAL_CATALOG_V1.md) and
+[retention reference](../../handbook/reference/retention.md).
+
+In the pinned Zig `0.17.0-dev.2267+48abf1a34` environment,
+`zig build test-local-catalog -Dlocal-catalog-filter=historical -Doptimize=ReleaseSafe`
+passes both signed JSON and typed local dispatch schedules against native grants
+and the local disk backend with one-page caches. Each case creates two independent
+acquisitions of one Table and a separate private pin over the independently
+expected rows 10, 20 and 30. It loses seven replies after service
+execution/materialization, inspects the same saved keys, and advances the live
+Table with row 99 and a physical flush.
+
+Three collection passes cover unpublished retained state, concurrent
+abandonment/release and terminal replay. Each requires reclamation of a staged
+orphan, then closes and reopens the native page store, WAL and object owners in
+the original directory. The passes complete in 520, 6,142 and 8,028 steps,
+reclaiming 1, 2,199 and 2,810 confirmed allocations respectively in each dispatch
+mode. Only one history publishes; its paged rows match the original cut.
+Abandonment and release preserve their original outcomes and exact pin handles,
+and neither releases the independent private pin. Existing collection and
+operation bounds are unchanged. These counts are fixture observations, not a
+throughput qualification.
+
+`just ci clean --check fast` passes all **66** checks at the same committed
+source. The ledger registers this disk schedule under `test::local-catalog`;
+registration and fast checks do not establish execution of other mapped owners.
+The completed clean record is
+`.cache/ci/clean/35b0fe98378d-transit-ci-7hd0a5bn/`. Source/binary hashes, the
+captured focused exit status and complete diagnostics are retained in
+`transit-m10-plan/.cache/m10-retention/source.json`, `qualification.json` and
+`historical.log`. The broader storage/query lane and common-revision milestone
+qualification remain separate gates.
+
+Reply loss occurs after the local service operation completes. This does not
+model a lost Table-pin acknowledgement before the catalog records it. The
+fixture covers one selected Table, graceful owner close/reopen and an injected
+trusted collection clock. It does not establish multi-source/common-cut transfer,
+HTTP disconnect, process death, physical power loss or provider behavior.
+
+The earlier empty `history-collection.log` has no completion evidence. A
+four-pass draft run was deliberately interrupted to combine the two paused
+closures in one sweep; its private state and interruption record are retained,
+and it is not counted as passed. The previous clean storage/query run at
+`ad8cc5b19` completed twelve tasks, then was interrupted during
+`test::local-catalog` after the source changed. Its checkout remains at
+`/var/tmp/m10-qualification-887b37e31/transit-ci-cmxks7to/`, with the interruption
+record in `.cache/m10-resume/pr-clean-storage-query-interruption.json`. That run
+remains incomplete, not evidence of a diagnosed catalog failure or a lane pass.
+
 ## Integrated standards ledger and retained collation cuts — 2026-11-02
 
 This increment checks whether the integrated capability claims have executable

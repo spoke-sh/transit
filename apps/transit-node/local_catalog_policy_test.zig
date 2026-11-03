@@ -1859,30 +1859,59 @@ fn transactionSchedule() !void {
     try dataSchedule(transactionDispatch);
 }
 
+const NativeDataFixture = struct {
+    directory: std.Io.Dir,
+    owner: backend.Backend = undefined,
+    pages: backend.PageStore = undefined,
+    journal: backend.Store = undefined,
+    engine: Engine = undefined,
+    owner_open: bool = false,
+    pages_open: bool = false,
+
+    fn open(self: *@This(), fresh: bool) !void {
+        self.owner = try backend.Backend.open(t.allocator, t.io, self.directory, "native", .{});
+        self.owner_open = true;
+        errdefer self.close();
+        self.pages = try backend.PageStore.init(&self.owner, 1);
+        self.pages_open = true;
+        self.journal = .{ .backend = &self.owner };
+        const genesis: @FieldType(Engine, "genesis") = .{ .realm = 42, .root_key = (try key(17)).public_key.toBytes(), .max_clock_error_ms = 5 };
+        self.engine = if (fresh) try Engine.bootstrap(&self.journal, &self.pages, genesis) else try Engine.open(&self.journal, &self.pages, genesis);
+    }
+    fn close(self: *@This()) void {
+        if (self.pages_open) self.pages.deinit();
+        if (self.owner_open) self.owner.deinit();
+        self.pages_open = false;
+        self.owner_open = false;
+    }
+    fn reopen(self: *@This()) !void {
+        self.close();
+        try self.open(false);
+    }
+};
+
 fn dataSchedule(comptime run: anytype) !void {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
-    var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
-    defer owner.deinit();
-    var pages = try backend.PageStore.init(&owner, 1);
-    defer pages.deinit();
-    var journal: backend.Store = .{ .backend = &owner };
-    var engine = try Engine.bootstrap(&journal, &pages, .{ .realm = 42, .root_key = (try key(17)).public_key.toBytes(), .max_clock_error_ms = 5 });
-    const pid = try command(&engine, .{ .spawn = .{} });
-    const resource = try command(&engine, .{ .create_resource = .{ .writer = pid, .owned = false } });
-    const role = (try change(&engine, .{ .create_role = .{ .name = try p.Value.init("catalog-owner"), .login = true } })).?;
-    _ = try change(&engine, .{ .bind_credential = .{ .principal = 101, .role = role, .public_key = (try key(29)).public_key.toBytes() } });
-    const database_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.connect } })).?;
-    const schema_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.usage | c.TableAuthority.create } })).?;
-    const table_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.table_actions } })).?;
-    const stream_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.actions(.stream) } })).?;
-    const queue_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.actions(.queue) } })).?;
-    const kv_domain = (try change(&engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.actions(.kv) } })).?;
+    var fixture: NativeDataFixture = .{ .directory = tmp.dir };
+    try fixture.open(true);
+    defer fixture.close();
+    const engine = &fixture.engine;
+    const pid = try command(engine, .{ .spawn = .{} });
+    const resource = try command(engine, .{ .create_resource = .{ .writer = pid, .owned = false } });
+    const role = (try change(engine, .{ .create_role = .{ .name = try p.Value.init("catalog-owner"), .login = true } })).?;
+    _ = try change(engine, .{ .bind_credential = .{ .principal = 101, .role = role, .public_key = (try key(29)).public_key.toBytes() } });
+    const database_domain = (try change(engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.connect } })).?;
+    const schema_domain = (try change(engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.usage | c.TableAuthority.create } })).?;
+    const table_domain = (try change(engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.table_actions } })).?;
+    const stream_domain = (try change(engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.actions(.stream) } })).?;
+    const queue_domain = (try change(engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.actions(.queue) } })).?;
+    const kv_domain = (try change(engine, .{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.actions(.kv) } })).?;
     const scope: p.DataLifecycle.Scope = .{ .realm = 42, .resource = resource, .catalog = 1 };
-    const database = (try change(&engine, .{ .register_object = .{ .domain = database_domain, .owner = role, .binding = try c.TableAuthority.binding(scope, .database, 0) } })).?;
-    const namespace = (try change(&engine, .{ .register_object = .{ .domain = schema_domain, .owner = role, .schema = c.TableAuthority.reference(database), .binding = try c.TableAuthority.binding(scope, .schema, 1) } })).?;
+    const database = (try change(engine, .{ .register_object = .{ .domain = database_domain, .owner = role, .binding = try c.TableAuthority.binding(scope, .database, 0) } })).?;
+    const namespace = (try change(engine, .{ .register_object = .{ .domain = schema_domain, .owner = role, .schema = c.TableAuthority.reference(database), .binding = try c.TableAuthority.binding(scope, .schema, 1) } })).?;
     const config: D.Configuration = .{ .scope = scope, .branch = 1, .partition = 1, .audience = 100, .authority = .{ .database_domain = database_domain, .schema_domain = schema_domain, .table_domain = table_domain, .stream_domain = stream_domain, .queue_domain = queue_domain, .kv_domain = kv_domain, .database = database, .initial_schema = 1, .initial_schema_authority = namespace }, .database_name = try c.TableAuthority.Name.init("main"), .initial_schema_name = try c.TableAuthority.Name.init("public") };
-    var service: @import("LocalTableService.zig") = .{ .engine = &engine, .configuration = config, .registrar = .{ .principal = 0, .key = try key(17) }, .options = .{ .resident_pages = 1, .table = .{ .resident_pages = 1 } } };
+    var service: @import("LocalTableService.zig") = .{ .engine = engine, .configuration = config, .registrar = .{ .principal = 0, .key = try key(17) }, .options = .{ .resident_pages = 1, .table = .{ .resident_pages = 1 } } };
     const initialized = try dispatch(&service, .initialize);
     initialized.deinit();
     try run(&service, role);
@@ -2217,14 +2246,17 @@ fn streamPayloadDispatch(service: *@import("LocalTableService.zig"), declaration
 }
 
 fn branchInsert(service: *@import("LocalTableService.zig"), operation: u64, sql: []const u8) !void {
-    const metadata = try dispatch(service, .{ .lookup = .{ .namespace = 1, .name = "branch_source" } });
+    try insertTableRows(service, "branch_source", operation, sql);
+}
+fn insertTableRows(service: *@import("LocalTableService.zig"), name: []const u8, operation: u64, sql: []const u8) !void {
+    const metadata = try dispatch(service, .{ .lookup = .{ .namespace = 1, .name = name } });
     defer metadata.deinit();
     const definition = metadata.value.result.lookup.?;
     const bytes = try definition.schema.decode(t.allocator, c.fuze.TableSchema.max_bytes);
     defer t.allocator.free(bytes);
     var schema = try c.fuze.TableSchema.decode(t.allocator, bytes);
     defer schema.deinit();
-    var plan = try c.fuze.TableDml.compile(t.allocator, sql, "branch_source", schema.schema, null);
+    var plan = try c.fuze.TableDml.compile(t.allocator, sql, name, schema.schema, null);
     defer plan.deinit();
     const connection: c.DirectTableProtocol.Connection = .{ .scope = service.configuration.scope, .branch = 1, .audience = service.configuration.audience, .principal = 101, .role = null };
     var intent = try c.DirectTableIntent.fromDml(t.allocator, connection, definition, operation, plan.plan, .point);
@@ -2405,6 +2437,194 @@ test "typed branch reads survive collection and fence buffered disclosure" {
     typed_dispatch = true;
     defer typed_dispatch = false;
     try dataSchedule(branchDispatch);
+}
+
+const HistoricalCollection = struct {
+    const Service = @import("LocalTableService.zig");
+    const H = c.DirectHistory;
+    const P = c.storage.TablePartition;
+    const object_id = 110000;
+    const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
+    const schema: c.fuze.TableSchema.Schema = .{ .object = object_id, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
+
+    fn step(service: *Service, request: H.Request) !H.Status {
+        const response = try dispatch(service, .{ .historical_catalog = request });
+        defer response.deinit();
+        return response.value.result.historical_catalog.status.?;
+    }
+    fn lost(service: *Service, request: H.Request, original: c.DirectClientToken.Key) !H.Status {
+        const Loss = struct {
+            fn run(raw: *anyopaque, _: *Engine) !void {
+                const count: *usize = @ptrCast(@alignCast(raw));
+                count.* += 1;
+                return error.FixtureHistoryReplyLost;
+            }
+        };
+        var count: usize = 0;
+        service.before_reply = .{ .context = &count, .run = Loss.run };
+        defer service.before_reply = null;
+        try t.expectError(error.FixtureHistoryReplyLost, dispatch(service, .{ .historical_catalog = request }));
+        try t.expectEqual(@as(usize, 1), count);
+        service.before_reply = null;
+        return step(service, .{ .inspect = original });
+    }
+    fn finishHistory(service: *Service, original: c.DirectClientToken.Key, phase: H.Phase) !H.Status {
+        var status = try step(service, .{ .inspect = original });
+        for (0..16) |_| {
+            if (status.state.phase == phase) return status;
+            status = try step(service, .{ .advance = original });
+        }
+        return error.FixtureBudget;
+    }
+    fn collectAndReopen(service: *Service) !void {
+        {
+            var control: backend.DataStore = .{ .backend = service.engine.journal.backend, .control = true };
+            var data: backend.DataStore = .{ .backend = service.engine.journal.backend };
+            var catalog = try D.init(t.allocator, service.configuration, control.log(), control.objects(), data.log(), data.objects(), service.options);
+            defer catalog.deinit();
+            try catalog.recover();
+            // Uses the real allocation inventory, epoch/time fences and sweep;
+            // its orphan witness must disappear on every completed pass.
+            try collectDirect(service.engine, &catalog);
+        }
+        // Drop the native page cache, all WAL owners and object-store handles.
+        // Reopen only this fixture's original disk directory, with one page.
+        const fixture: *NativeDataFixture = @fieldParentPtr("engine", service.engine);
+        try fixture.reopen();
+    }
+    fn pinState(service: *Service, identity: p.DataLifecycle.Operation) !c.DirectTableProtocol.PinState {
+        const response = try dispatch(service, .{ .pin_status = .{ .object = .{ .scope = service.configuration.scope, .branch = 1, .object = object_id }, .owner = identity } });
+        defer response.deinit();
+        return response.value.result.pin_state;
+    }
+    fn expectRows(service: *Service, snapshot: p.DataLifecycle.Snapshot) !void {
+        var after: ?P.SnapshotCursor = null;
+        var rows: usize = 0;
+        const expected = [_]i64{ 10, 20, 30 };
+        for (0..4) |_| {
+            const response = try dispatch(service, .{ .historical_catalog = .{ .scan = .{ .snapshot = snapshot, .object = object_id, .after = after, .limits = .{ .rows = 1 } } } });
+            defer response.deinit();
+            const page = response.value.result.historical_catalog.page;
+            try t.expectEqualDeep(snapshot, page.snapshot);
+            try t.expectEqual(@as(u64, 3), page.total_rows);
+            try t.expectEqual(@as(usize, 1), page.rows.len);
+            const bytes = try page.rows[0].decode(t.allocator, c.fuze.TableRow.max_bytes);
+            defer t.allocator.free(bytes);
+            var decoded = try c.fuze.TableRow.decode(t.allocator, schema, bytes);
+            defer decoded.deinit();
+            try t.expect(rows < expected.len);
+            try t.expectEqual(expected[rows], decoded.row().cells[0].value.atom.signed);
+            rows += 1;
+            after = page.next orelse break;
+        } else return error.FixtureBudget;
+        try t.expectEqual(expected.len, rows);
+    }
+    fn run(service: *Service, owner_role: u64) !void {
+        const w = c.DirectTableProtocol;
+        const scope = service.configuration.scope;
+        const connection: w.Connection = .{ .scope = scope, .branch = 1, .audience = service.configuration.audience, .principal = 101, .role = null };
+        const intent: D.Intent = .{ .kind = .table, .namespace = 1, .name = try .init("history_source"), .action = .{ .create = .{ .schema = schema, .owner = owner_role } } };
+        const binding: p.DataLifecycle.Binding = .{ .definition = g.current_definition, .identity = .{ .scope = scope, .principal = 101, .operation = object_id }, .target = .{ .scope = scope, .branch = 1, .object = object_id }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(t.allocator) };
+        var encoded: [65536]u8 = undefined;
+        const binary = try w.Binary.encode(t.allocator, try schema.encode(&encoded));
+        defer t.allocator.free(binary.base64);
+        try dispatchWithoutOutput(service, .{ .admit_ddl = .{ .binding = binding, .namespace = 1, .name = "history_source", .action = .{ .create = .{ .owner = owner_role, .schema = binary } } } });
+        try dispatchWithoutOutput(service, .{ .operation = .{ .binding = binding, .command = .execute, .steps = 4 } });
+        try insertTableRows(service, "history_source", 110001, "INSERT INTO history_source VALUES (10), (20), (30)");
+        const metadata = try dispatch(service, .{ .lookup = .{ .namespace = 1, .name = "history_source" } });
+        defer metadata.deinit();
+        const private_owner: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 101, .operation = 110002 };
+        const pinned = try dispatch(service, .{ .pin = .{ .object = binding.target, .owner = private_owner, .expected = metadata.value.result.lookup.?.position } });
+        defer pinned.deinit();
+        const private_pin: w.Snapshot = .{ .object = binding.target, .handle = pinned.value.result.pin };
+
+        var requests: [2]@FieldType(H.Request, "acquire") = undefined;
+        var pending: [2]H.Status = undefined;
+        var pins: [2]P.SnapshotHandle = undefined;
+        for (&requests, &pending, &pins, 0..) |*request, *status, *pin, index| {
+            const identity: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 101, .operation = 110010 + index };
+            const selection = try dispatch(service, .{ .historical_catalog = .{ .select = .{ .selection = .{ .owner = identity, .branch = 1, .directory = null }, .namespace = 1, .name = try .init("history_source") } } });
+            defer selection.deinit();
+            request.* = .{ .key = .{ .definition = g.current_definition, .connection = connection, .account = @splat(90), .token = @splat(@as(u8, @intCast(91 + index))) }, .intent = .{ .connection = connection, .namespace = 1, .operation = identity.operation, .selection = selection.value.result.historical_catalog.selection.directory.?, .common = null } };
+            const admitted = try lost(service, .{ .acquire = request.* }, request.key);
+            try t.expect(admitted.state.inflight != null and admitted.state.snapshot == null);
+            status.* = try lost(service, .{ .advance = request.key }, request.key);
+            try t.expectEqual(H.Phase.acquiring, status.state.phase);
+            try t.expectEqual(@as(u64, 1), status.state.retained.?.count);
+            try t.expect(status.state.snapshot == null);
+            pin.* = (try pinState(service, identity)).handle.?;
+            try t.expectError(error.HistoricalRetentionOwned, dispatch(service, .{ .release = .{ .object = binding.target, .handle = pin.* } }));
+        }
+        try insertTableRows(service, "history_source", 110020, "INSERT INTO history_source VALUES (99)");
+        const latest = try dispatch(service, .{ .lookup = .{ .namespace = 1, .name = "history_source" } });
+        defer latest.deinit();
+        const target: D.FlushTarget = .{ .object = binding.target, .through = latest.value.result.lookup.?.position };
+        for (0..8) |_| {
+            const flushed = try dispatch(service, .{ .flush = target });
+            defer flushed.deinit();
+            if (flushed.value.result.flush.complete) break;
+        } else return error.FixtureBudget;
+        try collectAndReopen(service);
+        for (requests, pending, pins) |request, expected, pin| {
+            try t.expectEqualDeep(expected, try step(service, .{ .inspect = request.key }));
+            const retained = try pinState(service, request.intent.identity());
+            try t.expect(!retained.released);
+            try t.expectEqualDeep(pin, retained.handle.?);
+        }
+
+        const abandoning = try lost(service, .{ .abandon = requests[1].key }, requests[1].key);
+        try t.expectEqual(H.Phase.abandoning, abandoning.state.phase);
+        const published = try finishHistory(service, requests[0].key, .published);
+        const snapshot = published.state.snapshot.?;
+        try expectRows(service, snapshot);
+
+        const releasing = try lost(service, .{ .release = requests[0].key }, requests[0].key);
+        try t.expectEqual(H.Phase.releasing, releasing.state.phase);
+        try t.expectEqualDeep(snapshot, releasing.state.snapshot.?);
+        try t.expectError(error.HistoricalSnapshotReleased, dispatch(service, .{ .historical_catalog = .{ .source = .{ .snapshot = snapshot, .object = object_id } } }));
+        // Both closure owners are paused before releasing their pins. One
+        // sweep checks both obligations without repeating the same disk work.
+        try collectAndReopen(service);
+        try t.expectEqualDeep(abandoning, try step(service, .{ .inspect = requests[1].key }));
+        try t.expectEqualDeep(releasing, try step(service, .{ .inspect = requests[0].key }));
+        const cancelled = try finishHistory(service, requests[1].key, .cancelled);
+        try t.expect(cancelled.state.snapshot == null);
+        try t.expect((try pinState(service, requests[1].intent.identity())).released);
+        try t.expect(!(try pinState(service, requests[0].intent.identity())).released);
+        try t.expect(!(try pinState(service, private_owner)).released);
+        _ = try lost(service, .{ .advance = requests[0].key }, requests[0].key);
+        const released = try finishHistory(service, requests[0].key, .released);
+        try t.expectEqualDeep(snapshot, released.state.snapshot.?);
+        try t.expectEqualDeep(published.receipt, released.receipt);
+        try collectAndReopen(service);
+        // Collection must traverse retained terminal evidence without
+        // reopening a released pin, while the independent private pin survives.
+        try t.expectEqualDeep(released, try step(service, .{ .acquire = requests[0] }));
+        try t.expectEqualDeep(cancelled, try step(service, .{ .acquire = requests[1] }));
+        for (requests, pins) |request, pin| {
+            const closed = try pinState(service, request.intent.identity());
+            try t.expect(closed.released);
+            try t.expectEqualDeep(pin, closed.handle.?);
+        }
+        const independent = try pinState(service, private_owner);
+        try t.expect(!independent.released);
+        try t.expectEqualDeep(private_pin.handle, independent.handle.?);
+        const old = try dispatch(service, .{ .snapshot = private_pin });
+        defer old.deinit();
+        try t.expectEqual(@as(u64, 3), old.value.result.snapshot.row_count);
+        try dispatchWithoutOutput(service, .{ .release = private_pin });
+        std.debug.print("Historical disk collection: two original acquisitions, seven lost replies, three physical collections/reopens, exact three-row cut, abandonment and release, independent pin ownership passed ({s}).\n", .{if (typed_dispatch) "typed" else "signed JSON"});
+    }
+};
+
+test "signed historical acquisition and release survive physical collection and disk reopen" {
+    typed_dispatch = false;
+    try dataSchedule(HistoricalCollection.run);
+}
+test "typed historical acquisition and release survive physical collection and disk reopen" {
+    typed_dispatch = true;
+    defer typed_dispatch = false;
+    try dataSchedule(HistoricalCollection.run);
 }
 
 test "automatic Queue maintenance requires its database signer and resumes the original paired decision" {

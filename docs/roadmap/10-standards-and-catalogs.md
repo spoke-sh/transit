@@ -310,6 +310,16 @@ The complete ordinary workbench driver passes at `6eae861d4`, including all
 Request deadlines and 32-attempt bounds are unchanged. Earlier failed runs
 remain failed; a successful recovery or narrower schedule does not replace them.
 
+The [native historical collection record](../history/qualification/catalog.md#native-historical-obligations-through-disk-collection--2026-11-03)
+adds an R2 disk increment at `35b0fe983`: signed JSON and typed local dispatch
+both preserve original acquisition/closure identities through seven lost replies,
+three physical collections and three cold owner reopens per case. Unpublished
+retained state, concurrent abandonment/release, terminal replay and independent private
+pin ownership pass with exact original rows and an orphan reclamation witness.
+All 66 clean fast checks pass at that source. This is local service coverage for
+a single Table; it does not close common-cut transfer, installed process/transport
+faults or the full storage/query lane.
+
 M10 remains **In Progress**. R2's complete retention/collection matrix, R4's
 integrated work/allocation evidence, remaining consumer schedules and R5's
 common-revision clean lanes remain open. Use the records above for exact
