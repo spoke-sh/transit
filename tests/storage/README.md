@@ -14,6 +14,7 @@ and recovery. Read the [storage reference](../../docs/handbook/reference/storage
 | Authenticated standalone payload lifecycle | [Local payload service](local/local_payload_service.py); `just test local-payload-service` |
 | Direct Table graph collection, expiry and retained pins | [Disk collection](local/direct_collection.zig), [collection process faults](local/local_native_collection_faults.py) |
 | Direct Table service, slow body/response pressure, reserved original-outcome recovery and restart | [Direct Table schedule](tables/direct_table_service.py) |
+| Finite managed computation handoffs, original transaction/cut recovery and retained revisions | [Named crash boundaries](tables/managed_recovery.py), [signed assertions](../catalog/tables/managed_table.zig); `just test::managed-tables` |
 | Table/KV/Stream/Queue common decision after lost statement and commit replies and two process replacements | [Signed transaction caller](../catalog/tables/direct_state_transaction.zig), [HTTP schedule](tables/direct_table_service.py); `just test::direct-mixed-transaction` |
 | Original Stream/Queue declaration tokens across lost replies and two process replacements | [Signed declaration caller](../catalog/tables/direct_log_token.zig); `just test::direct-log-token` |
 | Original Stream/Queue workload tokens across lost replies, bounded cold replay and three process replacements | [Signed workload caller](../catalog/tables/direct_log_token.zig); `just test::direct-workload-token` |
@@ -34,6 +35,19 @@ not establish the backend. Performance drivers and budgets live in
 Physical disk, process death, injected failure and modeled power loss are
 distinct evidence. Automatic runner records identify completed commands; archived
 results do not qualify current source.
+
+The `managed-recovery` mode of the direct Table schedule withholds successful
+owner replies at 16 named handoffs, kills both caller and node, then verifies the
+original work token, lease, acquired cut, transaction decision and retained output.
+The schedule includes empty completion and fenced abort. It requires the named
+handoff to be reached; a timeout or an early caller exit fails and preserves the
+private fixture. Run it alone with `nix develop --command zig build
+test-direct-table-service -Doptimize=ReleaseSafe -- managed-recovery`.
+Automatic maintenance is enabled with a one-second interval and a two-second
+operation deadline. JSON records identify source, binaries, request allocation
+counts/peaks and whole-node CPU, RSS and I/O around replacement. These small
+finite runs do not establish capacity, latency, generic work-record collection
+or physical power-loss guarantees.
 
 The local-owner recovery schedule publishes each fault selection atomically and
 requires its exact counter before treating a request as faulted. Fault delivery

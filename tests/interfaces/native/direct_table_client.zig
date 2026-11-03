@@ -811,6 +811,18 @@ pub fn main(init: std.process.Init) !void {
         } else if (std.mem.eql(u8, args[2], "growth-maintenance")) {
             try Growth.maintenance(client, profile.growth.?, &output.interface);
             return output.interface.flush();
+        } else if (std.mem.eql(u8, args[2], "managed-crash-setup")) {
+            try @import("fixture_managed_table").crashSetup(init, client, args[3]);
+        } else if (std.mem.startsWith(u8, args[2], "managed-crash-arm-")) {
+            var parts = std.mem.splitScalar(u8, args[2]["managed-crash-arm-".len..], ':');
+            const index = try std.fmt.parseInt(u64, parts.next().?, 10);
+            const kind = parts.next() orelse return error.ExpectedCrashKind;
+            if (parts.next() != null) return error.ExpectedCrashKind;
+            try @import("fixture_managed_table").crashArm(init, client, args[3], index, std.mem.eql(u8, kind, "empty"), std.mem.eql(u8, kind, "abort"));
+        } else if (std.mem.eql(u8, args[2], "managed-crash-run")) {
+            try @import("fixture_managed_table").crashRun(init, client, args[3]);
+        } else if (std.mem.eql(u8, args[2], "managed-crash-verify")) {
+            try @import("fixture_managed_table").crashVerify(init, client, args[3]);
         } else if (std.mem.eql(u8, args[2], "managed-prepare")) {
             try @import("fixture_managed_table").prepare(init, client, try std.fmt.allocPrint(init.arena.allocator(), "{s}.managed", .{args[3]}));
         } else if (std.mem.eql(u8, args[2], "managed-recover")) {

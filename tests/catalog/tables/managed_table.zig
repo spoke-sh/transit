@@ -402,3 +402,167 @@ pub fn incomplete(init: std.process.Init, client: c.DirectTableClient, path: []c
     try t.expectError(error.FailedManagedRevision, reader.next(&output));
     try retained(manager, declaration.value, 1, &.{ 1, 2, 3 });
 }
+
+const CrashFixture = struct {
+    declaration: M.Declaration,
+    before: M.Observation,
+    publication: c.DirectClientToken.Receipt,
+    retained: c.DirectRecord.Reference,
+    tokens: u64,
+    rows: u64,
+    abort: bool,
+};
+const OriginalWork = struct { reference: c.DirectRecord.Reference, work: M.Work };
+
+fn workCount(manager: M) !u64 {
+    var after: ?u64 = null;
+    var found: u64 = 0;
+    while (true) {
+        const page = try c.DirectClientToken.list(manager.client, M.workAccount(), after, false);
+        for (page.entries) |slot| if (slot != null) {
+            found += 1;
+        };
+        after = page.next orelse return found;
+    }
+}
+fn retainedCount(manager: M, declaration: M.Declaration, revision: u64, rows: u64) !void {
+    const values = [_]i64{ 1, 2, 3, 4 };
+    try t.expect(rows <= values.len);
+    try retained(manager, declaration, revision, values[0..@intCast(rows)]);
+}
+fn readFixture(comptime T: type, init: std.process.Init, profile: []const u8, suffix: []const u8) !std.json.Parsed(T) {
+    const path = try std.fmt.allocPrint(init.arena.allocator(), "{s}{s}", .{ profile, suffix });
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, path, init.arena.allocator(), .limited(M.max_definition_bytes));
+    return c.protocol.Json.parseFromSlice(T, init.gpa, bytes);
+}
+fn saveFixture(init: std.process.Init, profile: []const u8, suffix: []const u8, value: anytype) !void {
+    const path = try std.fmt.allocPrint(init.arena.allocator(), "{s}{s}", .{ profile, suffix });
+    try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = path, .data = try c.protocol.Json.valueAlloc(init.arena.allocator(), value) });
+}
+
+/// Separate physical proof: one flow, successive refreshes and real lost replies.
+/// No worker fault flag or private storage mutation is needed by this fixture.
+pub fn crashSetup(init: std.process.Init, client: c.DirectTableClient, profile: []const u8) !void {
+    (try client.call(.initialize)).deinit();
+    try ddl(client, "CREATE TABLE managed_input (id BIGINT PRIMARY KEY)", 662001, 662010);
+    try ddl(client, "CREATE TABLE managed_output (id BIGINT PRIMARY KEY)", 662002, 662020);
+    try dml(client, "INSERT INTO managed_input (id) VALUES (1), (2), (3)", 662003);
+    const manager: M = .{ .client = client };
+    const declaration = try manager.prepare(1, "managed_crash", 660000, 662004, "managed_output", "SELECT id FROM managed_input", options);
+    try saveFixture(init, profile, ".managed", declaration);
+    _ = try manager.publish(declaration);
+    try control(manager, declaration, .authorize, 662005);
+    try control(manager, declaration, .activate, 662006);
+    try drain(manager, declaration, init.io, .cwd());
+    try t.expect(try manager.start(declaration) == null);
+    try count(client, 3);
+    try retainedCount(manager, declaration, 1, 3);
+}
+
+pub fn crashArm(init: std.process.Init, client: c.DirectTableClient, profile: []const u8, index: u64, empty: bool, abort_: bool) !void {
+    const loaded = try readFixture(M.Declaration, init, profile, ".managed");
+    defer loaded.deinit();
+    const declaration = loaded.value;
+    const manager: M = .{ .client = client };
+    const previous = try manager.inspect(declaration);
+    try t.expect(previous.head.pending == null);
+    try count(client, previous.head.rows);
+    const identity = 663000 + index * 10;
+    if (previous.head.control.state == .suspended) try control(manager, declaration, .resume_computation, identity);
+    const rows: u64 = if (empty) 0 else if (previous.head.rows == 4) 3 else 4;
+    try dml(client, "DELETE FROM managed_input", identity + 1);
+    if (rows != 0) try dml(client, if (rows == 3) "INSERT INTO managed_input (id) VALUES (1),(2),(3)" else "INSERT INTO managed_input (id) VALUES (1),(2),(3),(4)", identity + 2);
+    try control(manager, declaration, .refresh, identity + 3);
+    const fixture: CrashFixture = .{
+        .declaration = declaration,
+        .before = try manager.inspect(declaration),
+        .publication = (try c.DirectClientToken.lookup(client, manager.nameKey(declaration.namespace, declaration.name))).?,
+        .retained = try manager.revisionReference(declaration, previous.head.revision),
+        .tokens = try workCount(manager),
+        .rows = rows,
+        .abort = abort_,
+    };
+    try saveFixture(init, profile, ".managed-crash", fixture);
+    if (abort_) {
+        const key = (try manager.start(declaration)).?;
+        try t.expect(try manager.step(key, init.io, .cwd(), null));
+        try t.expect(try manager.step(key, init.io, .cwd(), null));
+        try control(manager, declaration, .suspend_computation, identity + 4);
+    }
+}
+
+pub fn crashRun(init: std.process.Init, client: c.DirectTableClient, profile: []const u8) !void {
+    const loaded = try readFixture(CrashFixture, init, profile, ".managed-crash");
+    defer loaded.deinit();
+    try drain(.{ .client = client }, loaded.value.declaration, init.io, .cwd());
+}
+
+pub fn crashVerify(init: std.process.Init, client: c.DirectTableClient, profile: []const u8) !void {
+    const loaded = try readFixture(CrashFixture, init, profile, ".managed-crash");
+    defer loaded.deinit();
+    const fixture = loaded.value;
+    const original = try readFixture(OriginalWork, init, profile, ".managed-original");
+    defer original.deinit();
+    const manager: M = .{ .client = client };
+    const declaration = fixture.declaration;
+    const key = original.value.work.previous.pending.?;
+    // If participant preparation permits a read, only a complete old or new
+    // relation may be visible. Conflict is a barrier, never an empty result.
+    const visible: ?std.json.Parsed(c.DirectTableProtocol.Response) = client.call(.{ .lookup = .{ .namespace = 1, .name = "managed_output" } }) catch |err| blk: {
+        try t.expectEqual(error.Conflict, err);
+        break :blk null;
+    };
+    if (visible) |result| {
+        defer result.deinit();
+        const rows = result.value.result.lookup.?.row_count;
+        try t.expect(rows == fixture.before.head.rows or (!fixture.abort and rows == fixture.rows));
+        try count(client, rows);
+    }
+    try drain(manager, declaration, init.io, .cwd());
+    try t.expect(try manager.start(declaration) == null);
+    const progress = (try c.DirectClientToken.inspect(client, key)).?;
+    try t.expect(!progress.pending);
+    try t.expectEqualDeep(original.value.reference, progress.receipt.binding.intent.external.record);
+    try t.expectEqualDeep(original.value.reference.content.sha256, progress.receipt.binding.fingerprint);
+    const first = try manager.load(M.Work, original.value.reference, M.work_format);
+    defer first.deinit();
+    try t.expectEqualDeep(original.value.work, first.value);
+    const last = try manager.load(M.Work, progress.record.?, M.work_format);
+    defer last.deinit();
+    try t.expectEqual(.complete, last.value.phase);
+    try t.expectEqualDeep(first.value.lease, last.value.lease);
+    try t.expectEqualDeep(first.value.transaction, last.value.transaction);
+    try t.expectEqual(fixture.tokens + 1, try workCount(manager));
+    try t.expectEqualDeep(fixture.publication, (try c.DirectClientToken.lookup(client, manager.nameKey(declaration.namespace, declaration.name))).?);
+    try t.expectEqualDeep(fixture.retained, try manager.revisionReference(declaration, fixture.before.head.revision));
+    const tx: c.DirectTransactionClient = .{ .catalog = client };
+    const status = try tx.inspect(first.value.transaction);
+    try t.expect(status.cleanup_complete);
+    try t.expectEqual(.decided, std.meta.activeTag(status.observation));
+    const cut = try readFixture(c.protocol.Transaction.Cut, init, profile, ".managed-cut");
+    defer cut.deinit();
+    try t.expectEqualDeep(cut.value, status.cut.?);
+    const observed = try manager.inspect(declaration);
+    try t.expect(observed.head.pending == null);
+    try t.expectEqual(.none, observed.head.blocked);
+    if (fixture.abort) {
+        try t.expectEqual(.aborted, status.observation.decided.outcome);
+        try t.expectEqual(.lease_fenced, last.value.failure.?);
+        try t.expectEqual(.suspended, observed.head.control.state);
+        try t.expectEqual(fixture.before.head.revision, observed.head.revision);
+        try t.expectEqualDeep(fixture.before.head.completed, observed.head.completed);
+        try count(client, fixture.before.head.rows);
+    } else {
+        try t.expectEqual(.committed, status.observation.decided.outcome);
+        try t.expect(last.value.failure == null);
+        try t.expectEqual(fixture.before.head.revision + 1, observed.head.revision);
+        try t.expectEqualDeep(first.value.transaction, observed.head.completed.?);
+        try t.expectEqual(fixture.rows, observed.head.rows);
+        try count(client, fixture.rows);
+        try retainedCount(manager, declaration, observed.head.revision, fixture.rows);
+        var reader = try q.ManagedRevision.open(manager, declaration, observed.head.revision, .{});
+        defer reader.deinit();
+        try t.expectEqualDeep(cut.value, reader.manifest.value.metadata.cut);
+    }
+    try retainedCount(manager, declaration, fixture.before.head.revision, fixture.before.head.rows);
+}

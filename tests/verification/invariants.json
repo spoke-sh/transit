@@ -2780,12 +2780,14 @@
       ],
       "scenarios": [
         "Disk-backed replacement after private output staging preserves original transaction and complete output",
+        "Named accepted work, claim, binding, cut, page, statement, checkpoint, prepare, decision, cleanup and completion handoffs kill caller and node before reply, then recover the original token, cut and transaction under automatic maintenance",
+        "Empty completion and fenced abort recover after lost replies; the prior retained revision and canonical publisher receipt remain unchanged",
         "Suspend fences pending work; resume and refresh publish complete successors including empty results",
         "Frozen control races settle by original receipt; dependency cycles are refused",
         "Cohosted publication wakes progress; settled active computation parks without storage polling",
         "Rejected duplicate output keys block without publishing a partial result or retrying forever"
       ],
-      "limits": "One Table input and predeclared Table output. Process-death schedules are not power-loss evidence. No ordered-change handoff, incremental algebra, historical output retention or abandoned-record collection claim.",
+      "limits": "One Table input and predeclared Table output, finite retained revisions and explicit row/request budgets. Process-death schedules are not power-loss evidence. Resource counters are attributed observations, not a throughput or zero-allocation guarantee. No ordered-change handoff, incremental algebra or abandoned generic work-record collection claim.",
       "qualification": "Executable typed and installed SQL scenarios; see their runner records for completion and source identity.",
       "model": null
     },

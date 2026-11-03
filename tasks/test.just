@@ -1094,4 +1094,5 @@ declarative-browser:
 # Managed computation recovery through the typed owner and cohosted SQL service.
 managed-tables:
     zig build test-direct-table-service -Doptimize=ReleaseSafe -- managed
+    zig build test-direct-table-service -Doptimize=ReleaseSafe -- managed-recovery
     zig build test-server-managed-tables -Doptimize=ReleaseSafe

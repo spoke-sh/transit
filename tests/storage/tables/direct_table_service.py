@@ -16,11 +16,11 @@ import urllib.request
 from harness.services import free_port, wait_ready
 from runner.capture import identity, provenance
 from runner.paths import ROOT
-from storage.tables import direct_table_maintenance
+from storage.tables import direct_table_maintenance, managed_recovery
 
 
 def run(node, caller, mode="tables", *artifacts):
-    if mode not in ("log-baseline", "tables", "managed", "managed-board", "managed-board-browser", "queues", "kv", "state-transaction", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "log-token", "workload-token", "workload-result", "maintenance", "stream-maintenance", "growth", "resource-growth", "dependency-growth", "prepared", "count-ranges", "collations", "projection", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
+    if mode not in ("log-baseline", "tables", "managed", "managed-recovery", "managed-board", "managed-board-browser", "queues", "kv", "state-transaction", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "log-token", "workload-token", "workload-result", "maintenance", "stream-maintenance", "growth", "resource-growth", "dependency-growth", "prepared", "count-ranges", "collations", "projection", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
         raise ValueError("Unknown direct service proof mode")
     assert len(artifacts) == (2 if mode in ("abi", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode in ("sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode in ("log-baseline", "managed-board", "managed-board-browser") else 0)
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
@@ -38,9 +38,11 @@ def run(node, caller, mode="tables", *artifacts):
             "local_directory": str(root / "native"),
             "port": port, "resident_pages": 1, "request_timeout_ms": 60000,
         }
-        request_memory = direct_table_maintenance.RequestMemory() if mode == "maintenance" else None
+        request_memory = direct_table_maintenance.RequestMemory() if mode in ("maintenance", "managed-recovery") else None
         if request_memory is not None or mode in ("tables", "state-transaction", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "log-token", "workload-token", "workload-result"):
             settings["request_metrics"] = True
+        if mode == "managed-recovery":
+            settings["maintenance"] = {"principal": 0, "seed_file": str(seed), "interval_ms": 1000, "operation_timeout_ms": 2000}
         if mode in ("log-baseline", "resources", "resource-growth", "queues", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "workload-token", "workload-result"):
             settings["genesis"]["max_clock_error_ms"] = 10000
         if mode == "resource-growth":
@@ -97,6 +99,7 @@ def run(node, caller, mode="tables", *artifacts):
         board_fault = {"next": None, "accepted": []}
         managed_fault = {"pages_before_failure": None, "failed": False, "staging_reply_lost": False}
         managed_pages = set()
+        managed_boundary = None
         computation_reads = []
         computation_inspecting = False
         growth_attempts = root / "growth-attempts" if mode == "growth" else None
@@ -184,6 +187,9 @@ def run(node, caller, mode="tables", *artifacts):
                     connection.request("POST", self.path, body, headers)
                     response = connection.getresponse()
                     data = response.read()
+                    if managed_boundary is not None and self.path == "/table/v1":
+                        if managed_boundary.observe(envelope, response.status, data):
+                            return
                     owned = record.get("stage_transaction") if record else None
                     if mode in ("managed", "managed-board", "managed-board-browser") and owned and response.status == 200:
                         reference = json.loads(data)["result"]["record"]["reference"]
@@ -744,6 +750,50 @@ def run(node, caller, mode="tables", *artifacts):
                                       passed=True)), flush=True)
                 print("Direct KV HTTP: pre-send store refusal, caller SIGKILL before accepted reply, store-only original mutation and receipt recovery, pin recovery after lost reply and node SIGKILL/restarts, retained reads after replacement and DROP, current read denial, rename and explicit pin release passed.", flush=True)
                 return
+            if mode == "managed-recovery":
+                source = provenance(ROOT)
+                binaries = [identity(Path(path)) for path in (node, caller)]
+                subprocess.run([caller, endpoint, "managed-crash-setup", str(profile)], check=True, timeout=600)
+                results = []
+                for index, boundary in enumerate(managed_recovery.CASES):
+                    managed_boundary = managed_recovery.Boundary(boundary, profile)
+                    request_memory.reset()
+                    started = time.monotonic()
+                    before = direct_table_maintenance.process_usage(authority)
+                    kind = "empty" if boundary == "empty-complete" else "abort" if boundary.startswith("abort-") else "rows"
+                    subprocess.run([caller, endpoint, f"managed-crash-arm-{index}:{kind}", str(profile)], check=True, timeout=600)
+                    managed_boundary.active = True
+                    interrupted = subprocess.Popen([caller, endpoint, "managed-crash-run", str(profile)])
+                    try:
+                        deadline = time.monotonic() + 600
+                        while not managed_boundary.reached.wait(timeout=.1):
+                            assert interrupted.poll() is None, f"{boundary}: caller exited before the named handoff"
+                            assert time.monotonic() < deadline, f"{boundary}: handoff was not reached"
+                        interrupted.kill()
+                        assert interrupted.wait(timeout=15) == -signal.SIGKILL
+                        at_crash = direct_table_maintenance.process_usage(authority)
+                        authority.kill()
+                        assert authority.wait(timeout=15) == -signal.SIGKILL
+                    finally:
+                        if interrupted.poll() is None:
+                            interrupted.kill()
+                            interrupted.wait(timeout=15)
+                        managed_boundary.release.set()
+                    authority = start()
+                    subprocess.run([caller, endpoint, "managed-crash-verify", str(profile)], check=True, timeout=600)
+                    results.append(dict(boundary=boundary, passed=True, caller_sigkill_before_reply=True,
+                                        node_sigkill=True, elapsed_seconds=time.monotonic() - started,
+                                        node_before=before, node_at_crash=at_crash,
+                                        replacement=direct_table_maintenance.process_usage(authority),
+                                        requests=managed_boundary.calls, request_memory=request_memory.snapshot()))
+                    print(json.dumps(dict(profile="managed_recovery_boundary", **results[-1])), flush=True)
+                assert source == provenance(ROOT), "Source changed during the recovery matrix"
+                assert binaries == [identity(Path(path)) for path in (node, caller)], "Proof binaries changed"
+                print(json.dumps(dict(profile="managed_recovery_matrix", source=source, binaries=binaries,
+                                      maintenance=settings["maintenance"] | {"seed_file": "private"},
+                                      resident_pages=settings["resident_pages"], boundaries=list(managed_recovery.CASES),
+                                      passed=len(results) == len(managed_recovery.CASES))), flush=True)
+                return
             if mode in ("managed", "managed-board", "managed-board-browser"):
                 subprocess.run([caller, endpoint, "managed-prepare", str(profile)], check=True, timeout=600)
                 assert managed_fault["staging_reply_lost"], managed_fault
@@ -1236,6 +1286,8 @@ def run(node, caller, mode="tables", *artifacts):
             sys.stderr.write(log.read()[-48000:])
             raise
         finally:
+            if managed_boundary is not None:
+                managed_boundary.release.set()
             if kv_caller is not None and kv_caller.poll() is None:
                 kv_caller.kill()
                 kv_caller.wait(timeout=15)
