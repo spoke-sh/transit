@@ -70,7 +70,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573"
+            "5878ef33ff46fb5c71724e4c1dd87303c39988d6822c0c4ba58734bd6956c8f7"
           ]
         },
         "T2": {
@@ -11313,7 +11313,7 @@
         "T406": {
           "type": "string",
           "enum": [
-            "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573"
+            "5878ef33ff46fb5c71724e4c1dd87303c39988d6822c0c4ba58734bd6956c8f7"
           ]
         },
         "T407": {
@@ -11768,7 +11768,8 @@
             "object",
             "owner",
             "expected",
-            "selection"
+            "selection",
+            "interpretation"
           ],
           "properties": {
             "object": {
@@ -11782,6 +11783,9 @@
             },
             "selection": {
               "$ref": "#/$defs/Request/$defs/T430"
+            },
+            "interpretation": {
+              "$ref": "#/$defs/Request/$defs/T71"
             }
           },
           "required": [
@@ -11790,7 +11794,8 @@
             "expected"
           ],
           "x-transit-defaults": {
-            "selection": "exact"
+            "selection": "exact",
+            "interpretation": null
           }
         },
         "T430": {
@@ -13553,7 +13558,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573"
+            "5878ef33ff46fb5c71724e4c1dd87303c39988d6822c0c4ba58734bd6956c8f7"
           ]
         },
         "T2": {
@@ -23973,7 +23978,7 @@
         "T391": {
           "type": "string",
           "enum": [
-            "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573"
+            "5878ef33ff46fb5c71724e4c1dd87303c39988d6822c0c4ba58734bd6956c8f7"
           ]
         },
         "T392": {
@@ -24304,7 +24309,7 @@
         "T411": {
           "type": "string",
           "enum": [
-            "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573"
+            "5878ef33ff46fb5c71724e4c1dd87303c39988d6822c0c4ba58734bd6956c8f7"
           ]
         },
         "T412": {
@@ -27559,7 +27564,7 @@
         "T545": {
           "type": "string",
           "enum": [
-            "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573"
+            "5878ef33ff46fb5c71724e4c1dd87303c39988d6822c0c4ba58734bd6956c8f7"
           ]
         },
         "T546": {
@@ -29200,7 +29205,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573"
+            "5878ef33ff46fb5c71724e4c1dd87303c39988d6822c0c4ba58734bd6956c8f7"
           ]
         },
         "T2": {
@@ -31797,7 +31802,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573"
+            "5878ef33ff46fb5c71724e4c1dd87303c39988d6822c0c4ba58734bd6956c8f7"
           ]
         },
         "T2": {
@@ -32813,7 +32818,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573"
+            "5878ef33ff46fb5c71724e4c1dd87303c39988d6822c0c4ba58734bd6956c8f7"
           ]
         },
         "T2": {
@@ -34661,7 +34666,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573"
+            "5878ef33ff46fb5c71724e4c1dd87303c39988d6822c0c4ba58734bd6956c8f7"
           ]
         },
         "T2": {
@@ -35262,7 +35267,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573"
+            "5878ef33ff46fb5c71724e4c1dd87303c39988d6822c0c4ba58734bd6956c8f7"
           ]
         },
         "T2": {
@@ -35792,7 +35797,7 @@
         "T6": {
           "type": "string",
           "enum": [
-            "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573"
+            "5878ef33ff46fb5c71724e4c1dd87303c39988d6822c0c4ba58734bd6956c8f7"
           ]
         },
         "T7": {
@@ -44382,7 +44387,7 @@
           ],
           "x-transit-defaults": {
             "version": 1,
-            "definition": "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573",
+            "definition": "5878ef33ff46fb5c71724e4c1dd87303c39988d6822c0c4ba58734bd6956c8f7",
             "max_columns": 128,
             "max_rows": 1024,
             "max_sql_bytes": 4096,
@@ -44402,7 +44407,7 @@
         "T4": {
           "type": "string",
           "enum": [
-            "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573"
+            "5878ef33ff46fb5c71724e4c1dd87303c39988d6822c0c4ba58734bd6956c8f7"
           ]
         },
         "T5": {
@@ -46409,7 +46414,7 @@
                 "definition": {
                   "type": "string",
                   "enum": [
-                    "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573"
+                    "5878ef33ff46fb5c71724e4c1dd87303c39988d6822c0c4ba58734bd6956c8f7"
                   ]
                 },
                 "realm": {
@@ -48486,7 +48491,7 @@
                                                     "definition": {
                                                       "type": "string",
                                                       "enum": [
-                                                        "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573"
+                                                        "5878ef33ff46fb5c71724e4c1dd87303c39988d6822c0c4ba58734bd6956c8f7"
                                                       ]
                                                     },
                                                     "realm": {
@@ -49820,7 +49825,7 @@
                                                         "definition": {
                                                           "type": "string",
                                                           "enum": [
-                                                            "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573"
+                                                            "5878ef33ff46fb5c71724e4c1dd87303c39988d6822c0c4ba58734bd6956c8f7"
                                                           ]
                                                         },
                                                         "realm": {
@@ -57821,7 +57826,7 @@
         "T316": {
           "type": "string",
           "enum": [
-            "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573"
+            "5878ef33ff46fb5c71724e4c1dd87303c39988d6822c0c4ba58734bd6956c8f7"
           ]
         },
         "T317": {
@@ -59994,7 +59999,7 @@
         "T2": {
           "type": "string",
           "enum": [
-            "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573"
+            "5878ef33ff46fb5c71724e4c1dd87303c39988d6822c0c4ba58734bd6956c8f7"
           ]
         },
         "T3": {

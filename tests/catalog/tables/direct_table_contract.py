@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573"
+definition = "5878ef33ff46fb5c71724e4c1dd87303c39988d6822c0c4ba58734bd6956c8f7"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -60,7 +60,7 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
     delegation_context = hashlib.sha256(b"transit.table.read-delegation.v1\0" + canonical(read_binding)).digest()
     delegated_claim = {**claim, "context": list(delegation_context)}
     delegated_proof = {"claim": delegated_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(delegated_claim)).digest())}
-    delegated_input = {**request_input, "action": {"pin": {"object": read_binding["interpretation"]["object"], "owner": read_binding["owner"], "expected": read_binding["expected"], "selection": "exact"}}, "delegation": {"binding": read_binding, "proof": delegated_proof}}
+    delegated_input = {**request_input, "action": {"pin": {"object": read_binding["interpretation"]["object"], "owner": read_binding["owner"], "expected": read_binding["expected"], "selection": "exact", "interpretation": None}}, "delegation": {"binding": read_binding, "proof": delegated_proof}}
     executor_context = hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(delegated_input)).digest()
     executor_claim = {**claim, "principal": 9, "context": list(executor_context)}
     executor = Key(Path(directory), "public-executor-key", 31)

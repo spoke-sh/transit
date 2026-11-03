@@ -4640,7 +4640,7 @@
         "InvalidTransactionCut": 13,
         "InvalidTransactionDirectory": 2,
         "InvalidTransactionPreparation": 1,
-        "InvalidTransactionRead": 5,
+        "InvalidTransactionRead": 6,
         "InvalidTransactionRecord": 2,
         "InvalidTransactionTransfer": 1,
         "InvalidTransactionWork": 8,
@@ -4676,7 +4676,7 @@
         "StorageBudgetExceeded": 1,
         "TableBuildBudget": 1,
         "TableDataChanged": 4,
-        "TableDefinitionChanged": 13,
+        "TableDefinitionChanged": 14,
         "TableDependencyOwned": 1,
         "TableNotCreated": 1,
         "TableRetired": 2,
@@ -5047,7 +5047,7 @@
       },
       "open_error_set_uses": 11,
       "propagation": {
-        "try": 2257,
+        "try": 2258,
         "catch": 30
       },
       "imports": [
@@ -7104,7 +7104,7 @@
       "errors": {
         "IncompatibleDefinition": 2,
         "InvalidTableDelegation": 17,
-        "TableDelegationDenied": 15
+        "TableDelegationDenied": 16
       },
       "outcomes": {},
       "error_sets": {},
@@ -7772,6 +7772,7 @@
         "Attempt.failure()": "<inferred>",
         "call()": "<inferred>",
         "closeOriginal()": "<inferred>",
+        "closeOriginalCapture()": "<inferred>",
         "closeOriginalHistory()": "<inferred>",
         "closeOriginalPin()": "<inferred>",
         "require()": "<inferred>",
@@ -7779,7 +7780,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 28,
+        "try": 29,
         "catch": 1
       },
       "imports": [
@@ -7845,7 +7846,7 @@
       },
       "open_error_set_uses": 9,
       "propagation": {
-        "try": 248,
+        "try": 250,
         "catch": 0
       },
       "imports": [
@@ -7985,7 +7986,7 @@
       "errors": {
         "CatalogDenied": 4,
         "CatalogIdentityConflict": 13,
-        "DataIdentityConflict": 4,
+        "DataIdentityConflict": 5,
         "IncompatibleDefinition": 1,
         "InvalidAuthorizationCredential": 1,
         "InvalidCatalogCursor": 3,
@@ -8233,7 +8234,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 181,
+        "try": 182,
         "catch": 3
       },
       "imports": [
@@ -23093,7 +23094,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573\""
+          "@\"5878ef33ff46fb5c71724e4c1dd87303c39988d6822c0c4ba58734bd6956c8f7\""
         ],
         "Effect.phase": [
           "pending",
@@ -24596,7 +24597,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 44,
+        "try": 43,
         "catch": 2
       },
       "imports": [
@@ -24759,7 +24760,7 @@
         "DataflowSourceChanged": 6,
         "FailedRelationalQuery": 1,
         "IncompatibleDefinition": 1,
-        "IncompleteDataflowCoverage": 5,
+        "IncompleteDataflowCoverage": 7,
         "InvalidManagedTableRecord": 15,
         "InvalidTransactionRead": 1,
         "KVBuildBudget": 1,
@@ -24767,7 +24768,7 @@
         "ManagedTableConflict": 3,
         "ManagedTableInitializationPending": 2,
         "ManagedTableNameConflict": 1,
-        "ManagedTableResultBudget": 6,
+        "ManagedTableResultBudget": 7,
         "ManagedTableSchemaMismatch": 2,
         "Overflow": 1,
         "QueryPageBudget": 1,
@@ -24782,7 +24783,7 @@
         "TableNotFound": 8,
         "TransactionMemoryLimit": 1,
         "TransactionWorkspaceLimit": 1,
-        "WriteFailed": 3
+        "WriteFailed": 4
       },
       "outcomes": {
         "MeasuredPhase": [
@@ -24811,6 +24812,7 @@
         "applyControl()": "<inferred>",
         "evaluate()": "<inferred>",
         "find()": "<inferred>",
+        "flushPage()": "<inferred>",
         "initialize()": "<inferred>",
         "inspect()": "<inferred>",
         "load()": "<inferred>",
@@ -24832,8 +24834,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 165,
-        "catch": 8
+        "try": 167,
+        "catch": 9
       },
       "imports": [
         "root.zig",
@@ -32992,13 +32994,13 @@
     "packages/zig/transit-sql/src/ReadCache.zig": {
       "errors": {
         "CatalogIdentityConflict": 2,
-        "Conflict": 2,
+        "Conflict": 1,
         "HistoricalRetentionOwned": 1,
         "IncompatibleDefinition": 1,
         "InvalidSqlReadRecovery": 9,
         "SqlReadLeaseCapacity": 1,
         "StaleGatewayCoordinator": 1,
-        "TableDefinitionChanged": 4,
+        "TableDefinitionChanged": 1,
         "TableSnapshotNotPinned": 1
       },
       "outcomes": {
@@ -33025,8 +33027,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 50,
-        "catch": 2
+        "try": 42,
+        "catch": 1
       },
       "imports": [
         "root.zig",

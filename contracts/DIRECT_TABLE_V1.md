@@ -1296,9 +1296,10 @@ after the original frontier. Its ordinary snapshot reads still address only
 the original cut. A snapshot grant cannot follow future history or upgrade an
 existing pin. Both the immutable lease kind and original cut must match the grant. It permits no name
 discovery, mutations, policy changes or further delegation. The `exact` selection requires the supplied frontier. The `current` selection
-is available only for delegated snapshot acquisition: the supplied frontier is
+is available for snapshot acquisition when either a delegation or an explicit
+Table `interpretation` is supplied: the supplied frontier is
 a lower bound in the same partition, and the first acquisition freezes the
-current root under the exact signed interpretation. A stale interpretation
+current root under that exact interpretation. A stale interpretation
 rejects. Neither selection may change its pin owner or selection on retry. An
 existing pin recovers its original cut after mutation, restart or definition
 changes; it never selects another root. Current rights still gate disclosure. Release is terminal and requires current rights. Lost replies

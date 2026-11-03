@@ -108,8 +108,11 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573`.
-It binds immutable-branch discovery and the persisted `retiring`/`retired`
+`5878ef33ff46fb5c71724e4c1dd87303c39988d6822c0c4ba58734bd6956c8f7`.
+It binds non-delegated current snapshot pin capture under an explicit Table
+interpretation and multi-row `DFP1` managed Table result pages (`sequence`,
+`first_ordinal`, `previous` and bounded `rows`) with per-page batched output
+staging. It also binds immutable-branch discovery and the persisted `retiring`/`retired`
 lifecycle, preserving successful creation receipts while closing read access
 and releasing retention. The earlier shared definition rejects before saved
 requests or stored progress are interpreted; no implicit conversion is supplied.
