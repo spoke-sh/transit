@@ -869,6 +869,92 @@ matching executable paths supplied explicitly. Raw output is
 This qualifies that driver against the recorded runtime; it is not evidence for
 the later protected-transfer definition or the entire browser lane.
 
+## Retained ordered Document topology inspection — 2026-11-02
+
+The ordered storage component can inspect parent, first child, next sibling,
+depth and the exclusive subtree boundary from persisted BP topology under an
+existing single-revision retained receipt. The [Document contract](../../../contracts/DOCUMENT_V1.md#integrated-ordered-versioned-storage-slice)
+and [partition guide](../../../packages/zig/transit-storage/docs/document-partitions.md#ordered-versioned-trees)
+own the interface and limits. Implementation source is
+`99508247b18f401cf7b5122f9aa003b85d9db08a`; the clean validation source
+`65208df4978deef1643838b7c139fcca4c21804b` also records its generated diagnostic
+inventory. The shared definition remains
+`46bc3058dffb3648d968d3e835f84968b784e4153d8fb059234d5453ceeed89a`:
+this library-only read adds no persisted layout, wire message or installed API.
+
+Focused checks in the pinned Nix shell pass all 19 `transit-document` tests,
+all 18 storage tests selected by `-Dtest-filter=document`, and the
+`test-ordered-documents` profile integration test. Independent literal-BP and
+preorder-depth oracles cover structural relations, malformed/truncated input,
+caller depth bounds, retained old revisions after edits, and owned results after
+scratch/cache reuse. The disk-backed 1,002-node fixture crosses topology chunks
+with one cached page, reopens its owner, checks exact and one-less byte/work
+budgets, and verifies forged receipts, revocation after buffering and released
+pins refuse. Inspection does not append to the WAL. The documentation lint,
+format, type checks, 10 site tests, production build and local link check pass.
+Focused raw output remains in `.cache/m7/document-navigation-rerun.log`,
+`.cache/m7/storage-navigation-rerun.log`,
+`.cache/m7/ordered-integration-navigation.log` and
+`.cache/m7/docs-navigation.log`.
+
+At `65208df4978deef1643838b7c139fcca4c21804b`, all 28 core tasks pass
+across the interrupted clean run and its separate continuation. The original
+record contains 18 completed tasks; its `core.meta.json` at
+`/var/tmp/transit-ci-44czszx7/src/.cache/ci/` has SHA-256
+`c2fb4be0d770e6885e4652f23b20705c4728d0bdb377bb656b4344e5cb38bd28`.
+The remaining ten tasks pass in 1,149.86 seconds in the same unchanged clean
+checkout and pinned default shell. Their record is
+`.cache/m7/runs/core-continuation-yt8jbckt/`; the corresponding
+`.cache/m7/core-continuation.meta.json` SHA-256 is
+`8410b92600a9d5deecbb0fc26aa0212c0e311c83fbcaccd6a3d1ec295e8489aa`.
+The continuation verifies with `tests/runner/capture.py`; a separate artifact
+and inventory audit confirms that the original and continuation results cover
+the exact 28-task core inventory with one successful result for each task. This
+establishes task coverage across two records, not an uninterrupted clean core lane.
+
+On the same source, `just ci clean --lane storage-query` passes all 33 tasks
+in 7,882.62 seconds. Its evidence bundle is
+`.cache/ci/clean/65208df4978d-transit-ci-ewpkoax1/`;
+`storage-query.meta.json` SHA-256 is
+`707371d88d4854d7f1604732bb8f394d10f11a589958cf2925a36a3764658061`.
+Preparation and every task completed successfully, and `tests/runner/capture.py`
+verifies the copied task artifacts. This includes all 190 file-query cases with
+the corrected gzip corruption fixture, local Document recovery, collection,
+and 139 initialized KV/Document resources with typed values and the original
+receipt verified before and after node SIGKILL/restart.
+
+The recovered session's SDK conformance validation is a separate source result:
+`just ci clean --lane sdks-conformance` passed all seven tasks at
+`c8552363e5c13452b825806d34f08fb3afeb7040` in 1,983.86 seconds. Its evidence is
+`.cache/ci/clean/c8552363e5c1-transit-ci-u9fvpo3r/`;
+`sdks-conformance.meta.json` SHA-256 is
+`0540646b02109ee53d54edb7504075005da6deb36b9c596d7c4bf4bc17026382`.
+It includes all ten SDK language-pair journeys. It qualifies the preceding
+ordered storage/cutover source, not the later structural inspection API.
+
+An earlier SDK run at `e28571fc2` stopped with `AuthorityTimeout`; the retained
+checkout is `/var/tmp/transit-ci-codp1_w8`. Its cause remains unestablished, and
+no runtime deadline was changed for the passing rerun. Earlier interrupted core
+and storage/query runs are not passes. Commit `c8552363e` fixes a negative gzip
+fixture that could leave the original checksum unchanged by replacing a byte
+with a literal; the fixture now flips a bit. The first clean core attempt at
+`99508247b` refused the stale generated diagnostic inventory, retained in
+`/var/tmp/transit-ci-2dtnno78`; `65208df4978` records the regenerated inventory.
+The clean core process at `65208df4978` also disappeared during the Station
+build after 18 completed tasks, without a recorded exit or established cause.
+Its checkpoint and raw evidence remain under `/var/tmp/transit-ci-44czszx7`;
+the separate continuation reruns the interrupted task and finishes the remaining
+inventory in that unchanged checkout. The original run remains incomplete.
+These failures and interruptions remain separate from the completed results above.
+
+This is bounded linear prefix traversal with one 240-byte topology chunk and a
+declaration-bounded ancestor stack, not persisted rank/select, constant-time
+navigation or an exhaustive topology scrub. It establishes component inspection,
+not installed Document lifecycle/SQL/SDK routes, versioned merges, adaptive
+shredding, transaction participation or Station migration. Milestone 7 remains
+in progress. Clean artifacts are local evidence paths, not portable download
+links; these lanes do not constitute full release qualification.
+
 ## Integrated causal Document map trees — 2026-11-01
 
 The first integrated storage slice connects canonical causal map changes to
