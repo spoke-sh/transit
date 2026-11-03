@@ -15,7 +15,6 @@ pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, namesp
     var scratch: std.heap.ArenaAllocator = .init(allocator);
     defer scratch.deinit();
     const target = try f.LogSettlementSql.target(scratch.allocator(), text, dialect, location);
-    if (target.kind == .extend) return error.UnsupportedConstruct;
     const response = try client.call(.{ .log_lookup = .{ .namespace = namespace, .name = target.source.name } });
     defer response.deinit();
     return init(allocator, client.connection, namespace, text, response.value.result.log_lookup orelse return error.CatalogNameNotFound, dialect, location);
@@ -34,9 +33,6 @@ pub fn init(allocator: std.mem.Allocator, connection: w.Connection, namespace: u
         return err;
     };
     errdefer compiled.deinit();
-    // Renewal must return a usable updated lease descriptor through the shared
-    // result contract before its SQL execution can be enabled.
-    if (compiled.target.kind == .extend) return error.UnsupportedConstruct;
     if (!std.mem.eql(u8, metadata.declaration.properties.name.slice(), compiled.target.source.name)) return error.CatalogDefinitionChanged;
     return .{ .connection = connection, .definition = metadata.declaration, .declaration = declaration, .compiled = compiled };
 }
@@ -79,5 +75,13 @@ pub fn freeze(self: *const Self, allocator: std.mem.Allocator, operation: u64, v
     defer scratch.deinit();
     var schema_buffer: [f.TableSchema.max_bytes]u8 = undefined;
     const metadata: c.DirectLogProtocol.Definition = .{ .declaration = self.definition, .schema = try w.Binary.encode(scratch.allocator(), try self.declaration.definition.schema.encode(&schema_buffer)) };
+    if (bound.action == .extend) {
+        const source: f.WorkloadProjection.Source = .{ .binding = try work.binding(scratch.allocator()), .schema = self.declaration.definition.schema };
+        const fields = &[_]f.WorkloadProjection.Field{.receipt_handle};
+        var projection = try f.WorkloadProjection.compile(scratch.allocator(), source, fields, "renewal", "SELECT _receipt_handle FROM renewal", null);
+        defer projection.deinit();
+        const bytes = try scratch.allocator().alloc(u8, f.LogicalPlanCodec.max_bytes);
+        return c.DirectWorkloadIntent.createProjected(allocator, self.connection, metadata, work, .{ .fields = fields, .plan = try w.Binary.encode(scratch.allocator(), try f.WorkloadProjection.encode(source, fields, projection.plan, scratch.allocator(), bytes)) });
+    }
     return c.DirectWorkloadIntent.create(allocator, self.connection, metadata, work);
 }

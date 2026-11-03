@@ -3538,6 +3538,10 @@
         "InvalidColumnSemantics": {
           "code": "query.invalid_column_semantics",
           "category": "binding"
+        },
+        "InvalidHistoricalCursor": {
+          "code": "inspection.invalid_cursor",
+          "category": "binding"
         }
       },
       "exceptions": [],
@@ -3545,6 +3549,10 @@
         {
           "source": "packages/zig/transit-board-api/src/InspectionDiagnostic.zig",
           "name": "every inspection cause preserves read evidence and native denial priority"
+        },
+        {
+          "source": "packages/zig/transit-board-api/src/FailureResponse.zig",
+          "name": "historical cursor mismatch remains invalid input with its original cause"
         }
       ]
     },

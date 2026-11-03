@@ -44,6 +44,10 @@ arrow-array = { version = "=59.1.0", optional = true, default-features = false }
     lock = target / package_text('vendor/transit-station-sdk-0.0.1/Cargo.lock', 'rust')
     shutil.copyfile(lock, target / 'Cargo.lock')
     environment = {k: v for k, v in os.environ.items() if k not in ('TRANSIT_LIBRARY_DIR', 'LD_LIBRARY_PATH', 'LIBRARY_PATH')}
+    # These disposable projects embed the native libraries in Rust constants.
+    # Incremental caches duplicate those bytes across checks and builds without
+    # surviving this invocation. Keep Debug and every feature/type check intact.
+    environment['CARGO_INCREMENTAL'] = '0'
     # Add the installed example and consumer to the SDK lock without changing
     # any registry dependency; then enforce that resulting lock for builds.
     subprocess.run(['cargo', 'check', '--offline'], cwd=target, env=environment, check=True)

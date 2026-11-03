@@ -56,7 +56,7 @@ multi-partition Stream requires a predicate that selects exactly one partition.
 Queue partition. Exact `_partition` equality routes multi-partition declarations;
 LIMIT bounds acquisition and never hides accepted result rows. Native FIFO,
 capacity and lease checks remain authoritative. Group consumption, WAIT, Queue
-payload predicates and lease renewal SQL remain unimplemented; group assignment
+payload predicates remain unimplemented; group assignment
 and read-release tokens stay with their native owners.
 
 Run `zig build test` or `zig build check` from this directory. The build graph
@@ -68,3 +68,9 @@ statement freezes the binary claim receipt, retains its original lease identity
 across compatible declaration changes, and completes from native settlement
 evidence without relational counts. NACK optionally freezes an absolute UTC
 visibility timestamp; native retry/FIFO/attempt policy still applies. See [SQL Queue settlement](../../../docs/handbook/reference/sql/streaming.md#acknowledge-queue-work).
+
+EXTEND LEASE uses the same settlement owner and returns one binary
+`_receipt_handle` row through `WorkloadRead`. The frozen result binds the original
+extension receipt, so retries and reopening preserve that exact updated expiry
+even after later lease changes. It requires current settle rights and makes no
+payload read or liveness claim. See [lease renewal](../../../docs/handbook/reference/sql/streaming.md#renew-a-queue-lease).

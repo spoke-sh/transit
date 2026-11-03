@@ -15,13 +15,14 @@ with a required lease duration, bounded acquisition maximum and complete origina
 result delivery and binary `_receipt_handle` projection. SQL
 [`ACK ON QUEUE ... RECEIPT` and `NACK ON QUEUE ... RECEIPT`](../docs/handbook/reference/sql/streaming.md#acknowledge-queue-work)
 freezes that exact lease in an independently identified native settlement.
-Other acquisition predicates, WAIT and EXTEND LEASE remain outside the SQL
+SQL EXTEND LEASE returns one renewed binary descriptor through the original
+settlement result. Other acquisition predicates and WAIT remain outside the SQL
 execution profile.
 Native [transactional log work](DIRECT_TABLE_V1.md#transactional-stream-and-queue-work)
 composes enqueue, fenced ACK and paired dead-letter transfer with Table/KV state.
 
 The signed [original-result action](DIRECT_TABLE_V1.md#original-workload-result-delivery)
-reopens accepted enqueue and claim results from frozen workload intents. Saved
+reopens accepted enqueue, claim and renewal results from frozen workload intents. Saved
 page positions address the original selection, with current lease liveness
 reported separately. Refetch and local cleanup cannot claim again, ACK, renew a
 lease or release the claim's shared durable payload dependency.
@@ -138,10 +139,17 @@ NACK returns command completion without relational counts, retains the claim's
 original payload-read dependency and is outside attached interactive transactions.
 Reasons and relative delay operands are not supported.
 
-`LogSettlementSql` also prepares EXTEND LEASE syntax and computes a proposed
+`LogSettlementSql` prepares EXTEND LEASE syntax and computes a proposed
 deadline from the original receipt's expiry plus the positive BY duration. This
-is pure preparation only: SQL execution must return a usable updated receipt
-through the shared result lifecycle before renewal can be enabled.
+is pure preparation; the native owner validates current rights, time and policy
+before settlement. SQL freezes a descriptor-only result plan and returns exactly
+one binary `_receipt_handle` row, reconstructed from the accepted settlement's
+original lease with its expiry replaced by `action.extend.expires_ms`. Every
+other lease field remains unchanged. Original-result delivery requires current
+settle rights and the same claimant, without payload READ privileges. Reopening
+never consults a newer lease to replace the original result and never renews
+again. The returned descriptor does not establish current liveness. Renewal is
+outside attached SQL transactions and carries no relational command counts.
 
 ## Lease identity and time
 

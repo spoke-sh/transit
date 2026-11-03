@@ -66,7 +66,8 @@ authority.
 exact lease. It checks the explicit current definition before decoding; it grants
 no authority and cannot establish acceptance or freshness. The
 [Queue contract](../../../contracts/QUEUE_V1.md#opaque-lease-descriptor-codec)
-defines its layout. SQL handle projection and settlement are not yet enabled.
+defines its layout. SQL CLAIM projects the original handle; EXTEND LEASE returns
+the updated handle from its original settlement receipt through `LogWorkloadResult`.
 
 [`LogWorkload`](src/LogWorkload.zig) supplies canonical Stream/Queue mutation
 requests, binding shapes and operation-kind tags. It computes the complete

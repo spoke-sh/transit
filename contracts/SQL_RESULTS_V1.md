@@ -106,7 +106,7 @@ Captured result reopening is explicit and begins a new consumption.
 The shared model also represents an original Stream/Queue workload through
 `Observation.data.workload`: the canonical saved intent content, frozen source
 schema and projection commitments, an explicit nullable logical output `limit`,
-and the native append, consume or claim receipt. Selection and delivery-position types are shared with the native result
+and the native append, consume, claim or renewal receipt. Selection and delivery-position types are shared with the native result
 owner. A descriptor establishes neither current rights nor continued retention.
 
 A workload result's terminal includes the same intent content and a position
@@ -121,7 +121,11 @@ returning exactly the frozen logical limit. In the latter case its cursor may
 remain partial: the original range and completeness are preserved. Zero is a
 valid Stream limit and can complete at the initial cursor. Output cannot exceed
 the limit or the cursor's traversed row count. Append and claim limits must be
-null. The result reader lowers each native page's row budget to the remaining
+null. Renewal also has a null limit: its selection is the exact extension
+settlement receipt, its position is zero or one, and completion requires position
+one and exactly one output row. That row contains only the original renewed
+binary lease handle; it does not assert current liveness or payload coverage.
+The result reader lowers each native page's row budget to the remaining
 output allowance; filters can reduce matches but cannot hide a fetched matching
 suffix beyond the limit. A display cap still establishes no query completion.
 
@@ -148,7 +152,7 @@ completion; rejected/cancelled outcomes have command shape. The shared client
 checks the returned intent and selection against settlement evidence. SQL text
 admission supports `PRODUCE INTO` and `ENQUEUE INTO`, including optional
 `RETURNING`, positional `CONSUME`, partition-routed `CLAIM` and receipt-bound
-`ACK`/`NACK`. Group progress, waits and renewal remain native-only.
+`ACK`/`NACK` and `EXTEND LEASE`. Group progress and waits remain native-only.
 
 ## Ownership and consumers
 

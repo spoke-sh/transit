@@ -109,13 +109,15 @@ Other selection predicates and WAIT refuse before admission. The native owner
 still checks eligibility, FIFO, capacity, current rights and trusted time.
 SQL sessions reuse the same workload token and original-result runtime.
 
-`DirectLogPreparedSettlement` binds ACK and NACK to the named Queue's stable object,
+`DirectLogPreparedSettlement` binds ACK, NACK and EXTEND LEASE to the named Queue's stable object,
 partition and claimant, preserving the original lease. Control intents can pair
 an older exact receipt with current preparation metadata for that same object.
 This permits compatible ALTER without rebinding the lease. Data operations still
 require the exact interpretation. Native current policy, time, live-lease and
 original-outcome checks remain authoritative. No result projection is attached
-to ACK and NACK; renewal SQL remains outside this adapter. NACK freezes the
+to ACK and NACK. Renewal freezes a one-column `_receipt_handle` projection and
+returns the exact accepted extension descriptor, without payload reads or
+substituting a newer lease. NACK freezes the
 optional absolute visibility request and leaves retry backoff to the native owner.
 
 `createProjected` additionally freezes a Fuze projection and ordered input layout
@@ -129,7 +131,7 @@ the original encoded rows.
 
 `DirectWorkloadResult` owns original-result reads for service composition.
 `DirectWorkloadResultProtocol` exposes `open` and `page` through the signed
-`workload_result` action. Its reference binds the frozen workload, actual append/consume/claim
+`workload_result` action. Its reference binds the frozen workload, actual append/consume/claim/renewal
 receipt and delivery limits. Append/enqueue rows come from the verified saved
 payload; consume and claim pages use the native retained selection. Opening,
 paging and empty completion recheck current original-operation and READ rights.

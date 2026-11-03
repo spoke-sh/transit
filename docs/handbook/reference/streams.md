@@ -65,20 +65,21 @@ lookup and settlement as well as execution. SQL workload syntax and result
 reopening are not enabled by this typed caller support.
 
 The signed `workload_result` action can reopen original append/enqueue rows,
-finite consumes and claims from a saved workload reference. It returns the
+finite consumes, claims and renewal descriptors from a saved workload reference. It returns the
 original receipt and source schema, then reads bounded pages using explicit
 delivery positions. Refetching retains the same selection and does not renew
 leases or repeat work. Current operation and READ rights are checked for each
-disclosure. Closing local delivery buffers does not release a shared durable
+disclosure; renewal descriptors need current settle rights without payload READ.
+Closing local delivery buffers does not release a shared durable
 read dependency or settle work; native read release is explicit. Grouped
 consumption can prepare a saved authenticated offset handoff for either the
 exhausted read or an interval between two issued cursors from that same read.
 Both interval boundaries are authenticated; the larger read can remain partial. See the [delivery contract](../../../contracts/DIRECT_TABLE_V1.md#original-workload-result-delivery)
 for budgets, empty results and unavailable retained history. SQL supports
 [append and positional consumption](sql/streaming.md#consume-a-finite-stream-cut);
-group consumption, waits and renewal retain their native interfaces.
-SQL ACK and NACK bind an original binary claim receipt through the shared native
-settlement owner.
+group consumption and waits retain their native interfaces.
+SQL ACK, NACK and [lease renewal](sql/streaming.md#renew-a-queue-lease) bind an
+original binary lease receipt through the shared native settlement owner.
 
 ## Cancelling original workload operations
 

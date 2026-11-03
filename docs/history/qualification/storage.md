@@ -646,6 +646,32 @@ The fresh pass does not resolve the earlier installation's maintenance-timeout
 failure. The final fixture convergence has this focused evidence; the complete
 selected clean-lane evidence remains attributed to `8c0657436`.
 
+### Preserved Queue fixture read-only recovery — 2026-11-02
+
+A private copy of `/var/tmp/transit-table-queues-qrund_41` reopens with the
+same clean `e8f5cf5c626cb2580d41d36439c0162ebffde6e7` node and caller.
+The diagnostic configuration changes the directory and port, disables maintenance
+and storage flush/archive, and starts without `--bootstrap`. It then runs only
+`queue-terminal-observe` against the copied saved profile. The node hash is
+`c6660c4ad5a1fa3af08ae5f1006953adedbe76d2509abce07bfc488682ca413b`;
+the caller hash is `faad6d80887f4ab7bca363c9d39d77753b6db2b1383d79295056624c21745c3f`.
+
+The observer exits zero with `{"ready":true}`. Its assertions verify the original
+enqueue and claim receipts, offset zero's payload value 42, the acquired state
+and unchanged retention frontier. No terminal ACK is dispatched. Before/after
+SHA-256 inventories confirm that every file in the original fixture is unchanged.
+The first diagnostic startup rejects an incorrectly shaped storage setting with
+`UnknownField`; the corrected configuration above is the executed observation.
+
+Raw evidence remains private at
+`/var/tmp/transit-m6-queue-diagnosis-fagqasst/evidence-corrected.json` (SHA-256
+`945990a8f236917adff41a84863d0d9701a5cc633d90dd4715dd62a50a798a25`),
+with `node-corrected.log` and `observer.stdout` alongside it. This establishes
+that these original records recover after reopening. It does **not** establish
+the cause of the maintenance timeout, the original terminal ACK outcome, or
+terminal-retention completion under the failing maintenance configuration.
+The earlier combined command remains a failure.
+
 ## Verified Queue eligibility prefixes across transitions — 2026-11-01
 
 Commit `41b371ff6` carries a bounded eligibility prefix across deterministic

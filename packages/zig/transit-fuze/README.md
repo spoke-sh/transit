@@ -59,6 +59,9 @@ and aggregates belong to other owners and are refused by this projection.
 `Projector` resolves stable IDs once and evaluates decoded rows in fixed input
 and output arrays without per-row allocation. It preserves the original claim's
 epoch and attempt and leaves native coverage independent of filtered output.
+A Queue renewal has a fixed one-column `_receipt_handle` projection and no
+payload cells. It encodes the original renewed descriptor in the projector's
+reusable buffer; arbitrary fields, aliases, predicates and limits are refused.
 The caller supplies verified frozen metadata and separately owns admission,
 selection, authority and completion. The SQL service owns workload admission
 and original-result delivery separately.
@@ -100,10 +103,11 @@ delivery. Generated lease epoch/attempt and binary receipt fields may be project
 select work before acquisition. The bound plan and field layout own their
 memory independently of the template. This helper does not acquire a lease,
 bind a native selector or admit SQL. `LogSettlementSql.Prepared` owns typed
-ACK/extension operands and decodes an exact lease by value without a clock or
-current authority. Catalog binds ACK; extension execution still needs an updated
-receipt result. Post-filtering an accepted claim is not
-an implementation of this preparation contract.
+ACK/NACK/extension operands and decodes an exact lease by value without a clock
+or current authority. Catalog binds those settlements; renewal freezes a
+receipt-only result projection, while ACK/NACK retain command completion.
+Post-filtering an accepted claim is not an implementation of this preparation
+contract.
 
 `TSegReader` reads one host-bound immutable segment through a synchronous range
 callback. Opening reads the 64-byte header, 16-byte trailer and bounded footer;

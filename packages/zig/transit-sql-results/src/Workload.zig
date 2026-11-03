@@ -83,6 +83,7 @@ pub const Evidence = struct {
             .append => |value| .{ .append = value },
             .consume => |value| .{ .consume = value },
             .claim => |value| .{ .claim = value },
+            .settle => |value| if (value.settlement.action == .extend) .{ .renewal = value } else return error.WorkloadResultUnavailable,
             else => return error.WorkloadResultUnavailable,
         };
         if (!std.meta.eql(selected, observation.selection)) return error.WorkloadResultConflict;
@@ -113,6 +114,7 @@ pub const Completion = struct {
         try self.intent.validate();
         switch (self.position) {
             .append => {},
+            .renewal => |ordinal| if (ordinal > 1) return error.WorkloadResultConflict,
             inline .consume, .claim => |cursor| try cursor.validate(),
         }
     }
@@ -127,6 +129,7 @@ pub const Completion = struct {
         } else if (!exhausted) return error.IncompleteWorkloadCoverage;
         switch (self.position) {
             .append => |ordinal| if (rows != ordinal) return error.InvalidWorkloadResultCount,
+            .renewal => |ordinal| if (rows != ordinal) return error.InvalidWorkloadResultCount,
             .claim => |cursor| if (rows != cursor.next) return error.InvalidWorkloadResultCount,
             // A Stream predicate may remove rows; gaps and timestamp filtering
             // also leave native coverage distinct from the offset interval.
@@ -147,6 +150,21 @@ test "settlement evidence binds the action and authenticated offset request" {
     try evidence.validate(.extend_lease);
     try t.expectEqual(null, evidence.counts(.extend_lease));
     try t.expectError(error.InvalidWorkloadEvidence, evidence.validate(.ack));
+    const observation: Observation = .{ .intent = content, .schema = @splat(3), .projection = @splat(4), .selection = .{ .renewal = evidence.receipt.settle }, .limit = null };
+    try evidence.requireObservation(observation);
+    const completed: Completion = .{ .intent = content, .position = .{ .renewal = 1 } };
+    try completed.validate(observation, 1);
+    try t.expectError(error.InvalidWorkloadResultCount, completed.validate(observation, 0));
+    try t.expectError(error.IncompleteWorkloadCoverage, (Completion{ .intent = content, .position = .{ .renewal = 0 } }).validate(observation, 0));
+    try t.expectError(error.WorkloadResultConflict, (Completion{ .intent = content, .position = .{ .renewal = 2 } }).validate(observation, 2));
+    var changed_observation = observation;
+    changed_observation.selection.renewal.settlement.action.extend.expires_ms += 1;
+    try t.expectError(error.WorkloadResultConflict, evidence.requireObservation(changed_observation));
+    changed_observation.selection.renewal.settlement.action = .ack;
+    try t.expectError(error.WorkloadResultUnavailable, changed_observation.validate());
+    var renewed = lease;
+    renewed.expires_ms = 2000;
+    try t.expectEqualDeep(renewed, try p.LogWorkloadResult.renewedLease(evidence.receipt.settle));
     evidence.receipt.settle.settlement.lease.epoch += 1;
     try t.expectError(error.DataIdentityConflict, evidence.validate(.extend_lease));
 
