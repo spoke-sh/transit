@@ -9,6 +9,76 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Catalog-owned managed progress — 2026-11-03
+
+This slice asks whether managed computations can replace their recovery progress
+and reclaim superseded payloads without losing the original accepted operation,
+recreating closed work or collecting a candidate created after the collector's
+cut. Current semantics belong to the [managed computation contract](../../../contracts/DATAFLOW_V1.md),
+[Direct Table contract](../../../contracts/DIRECT_TABLE_V1.md) and
+[retention reference](../../handbook/reference/retention.md). The shared current-v1
+definition is `3981a6a977f356b8f1f1af39978b690fca425cd5926f5fb1dfa13507b5671079`;
+this is a hard cutover, with no compatibility claim for older stores or requests.
+
+Implementation `c46c1890c1d6ac0c48b83a719f37a287502ebe80` adds a durable CPR1
+candidate slot to the original external-operation token. Reservation precedes
+creation; readiness replaces the current payload. The collector marks only the
+latest token's ready and present candidate payloads at its accepted cut. A missing
+reserved candidate is legal; a missing ready record fails. Later creation uses
+the backend's allocation epoch and grace fences. Catalog replay validates the
+transition metadata without reopening superseded payloads. Managed work reserves
+64 KiB for current/candidate records and bookkeeping; terminal settlement retains
+the token's quota charge and original admission evidence.
+
+The disk-backed catalog tests inject lost reservation and readiness replies,
+recover the original identity, and verify exact retry without another publication.
+They reject stale/oversized changes, generic adoption of CPR1, missing mandatory
+reservation fields and current denial. A terminal record survives cold reopen;
+deleting its bytes makes retry fail without recreating them. Hardening
+`b0c408e2a3d92d1a5aff224dab5d9c9e6b1c33f2` also rejects transaction-owned TXR1
+as an immutable external admission body, since its transaction may close that
+payload's lifetime. Test `d7fd6290d` replaces an interrupted candidate using the
+observed revision, preserves the previous readable record until readiness, and
+rejects a delayed candidate write without creating its bytes.
+
+The local-node collection test runs the same disk-backed schedule through JSON
+and typed dispatch, with a one-page cache. It reserves a candidate without bytes,
+marks the graph, creates the candidate during grace and verifies survival. Later
+collections reclaim the superseded ready record, then its successor after terminal
+replacement, while preserving the terminal and original admission records. These
+are real mark/grace/sweep passes, not a mock reachability check.
+
+Executed with the pinned Nix Zig `0.17.0-dev.2267+48abf1a34` toolchain:
+
+| Check and source | Outcome and boundary |
+| --- | --- |
+| Focused catalog `zig build test` filters `owned progress` and `transaction record`, implementation through `d7fd6290d` | Passed disk recovery, reservation replacement, admission lifetime and transaction-candidate cases |
+| `zig build test-local-catalog -Dlocal-catalog-filter='owned progress'`, `c46c1890c` | Passed both dispatch paths and all six collection passes |
+| `just check::fast`, `c46c1890c` worktree | All 66 checks passed; this precedes the later fixture/hardening commits |
+| `just ci clean --check contracts`, `a6bbe1f23a225d5a1af4dee56ead8a61b7541245` | All 20 checks passed |
+
+The first clean contract attempt at `c46c1890c` failed SQL workload-frame drift:
+native fixture regeneration changed definition-bearing frame inputs. Commit
+`a6bbe1f23` regenerated those frames after the native fixtures. The first clean
+installation attempt at that source passed Board/docs checks, then failed Node
+validator drift. Commit `5c20c5ff77f2cee327394a461ad47d10e0eab0f3` regenerated the
+Node validators; neither failure is relabeled as a pass. The development collector
+test also initially rejected an absent reserved candidate; the implemented
+creation-epoch handling above fixes that case, and its repeated schedule passes.
+
+Local focused logs remain in `.cache/checks/m12-owned-progress/` in the
+implementation worktree. Successful clean contract provenance and logs are at
+`.cache/ci/clean/a6bbe1f23a22-transit-ci-uf2_gqcj`; failed clean attempts remain at
+`/var/tmp/transit-ci-1ra4w46h` and `/var/tmp/transit-ci-ap405zjo`. These are local
+evidence paths, not portable public artifacts.
+
+This evidence does not establish complete Milestone 12 qualification. Generic
+DFD1 declarations and original DFW1 admission records remain retained; abandoned
+pre-admission work still needs an attachment/closure contract. The combined
+batched-output fault matrix, fair yielding, larger-than-memory growth, performance
+comparisons and history-consumer service remain open. No retention expiry,
+whole-request zero-allocation, full SDK suite or provider-scale result is claimed.
+
 ## SQL Queue renewal original results — 2026-11-02
 
 This review unit implements receipt-returning `EXTEND LEASE`. Current semantics
