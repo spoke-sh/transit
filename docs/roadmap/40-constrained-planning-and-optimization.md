@@ -69,6 +69,55 @@ recorded connector boundary.
    External actions have separately authorized recorded intents and outcomes.
    Later observations compare actual outcomes with the original prediction.
 
+## Transport and orbital planning
+
+[Issue #358](https://github.com/spoke-sh/transit/issues/358) adds FLIGHTPLAN
+intermodal/cold-chain transport and D.A.L.E cislunar/interplanetary logistics to
+this milestone's planned workload. Consume the exact
+[M18 TD-RCSP transition/search contract](18-multi-model-and-foreign-relations.md#time-dependent-resource-constrained-routing),
+[M17 frame/trajectory profile](17-geospatial-and-spatio-temporal-computing.md#celestial-frames-and-orbital-logistics--issue-358)
+and [M12 knowledge/propagation-time joins](12-sql-and-dataflows.md#propagation-delay-and-knowledge-time-joins).
+Generic route search does not depend on this whole milestone; coupled fleet,
+capacity, depot and mission optimization adds the candidate/bound lifecycle here.
+
+Freeze time-window and resource-transition definitions with the problem. Include
+branch-and-bound frontier/incumbent state, bound validity and original-run
+checkpoint recovery for time- and vehicle-state-dependent costs. Reuse M18's
+proved dominance conditions; replenishment, waiting and duty resets can invalidate
+simple resource ordering. Changed forecasts, ephemerides, vehicle mass, constraints
+or solver semantics create a successor problem instead of retargeting a run.
+
+Define shared deterministic numerical helper contracts before Fuze/solver
+adapters. Bind units, domains, rounding, overflow, accumulation and error rules
+for Tsiolkovsky burn
+`delta_m = m0 * (1 - exp(-delta_v / (Isp * g0)))`, cryogenic boil-off integration
+and cumulative degree-minute cold-chain excursions. Evaluate transcendental
+terms with a pinned, error-bounded method, then explicitly round to the declared
+integer/fixed-point ledger quantum. Preserve exact ledger balance
+`m_before = m_after + m_consumed`, nonnegative propellant and the dry-mass floor;
+fixed-point storage does not make the physical model or exponential exact.
+Specify residual handling across repeated burns, no-op burns, infeasible burns,
+signed-velocity versus nonnegative delta-v magnitude, and invalid `Isp`/time/rate.
+Boil-off and thermal integration bind the sampled/interpolated rate model,
+threshold, interval coverage and integration error, including gaps and resets.
+Near a feasibility threshold, refine or report unknown if error bounds straddle
+the constraint; rounding must not manufacture a feasible route.
+
+Qualify Hohmann/Lambert transfer-cost profiles with explicit central-body model,
+time of flight, solution branch, units and tolerances. Bound iterations and
+report absent/ambiguous/unconverged solutions. These are pure model evaluations
+in Fuze or qualified application workers, not kernel policy or external dispatch.
+Three-body and powered-flight models require their own declared evidence.
+
+Independently check small multimodal schedules and orbital depot/transfer plans,
+including waiting costs, HOS resets, boil-off, dry-mass exhaustion and cold-chain
+limits. Compare numerical helpers to high-precision independent calculations and
+route candidates to M18's exhaustive oracle; verify conservation after every
+transition. Kill/restart search before and after an incumbent, lose publication
+replies and race cancellation with completion. Preserve the original candidate,
+bound and termination evidence. Approval and publication never dispatch a flight,
+shipment or spacecraft; separately authorized effects retain their own outcomes.
+
 ## Acceptance and qualification
 
 An application captures machine availability and maintenance constraints, proposes

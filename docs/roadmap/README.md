@@ -177,6 +177,33 @@ storage, query execution, strings/search and compilation in milestones 13–15.
 Standards, multi-model and branching work is tracked in
 [issue #31](https://github.com/spoke-sh/transit/issues/31).
 
+## Terrestrial and orbital logistics — issue 358
+
+[Inbound request #358](https://github.com/spoke-sh/transit/issues/358) requires
+FLIGHTPLAN's terrestrial/intermodal transport and D.A.L.E's cislunar/interplanetary
+logistics to share versioned frame, trajectory, temporal and routing semantics,
+also consumed by SAGA. The request identifies FLIGHTPLAN FP4/FP8/FP9 and SAGA S7
+as consumer handoffs. The following additions are **planned acceptance work**;
+existing numeric types and offline spatial helpers do not establish application
+support. Preserve the numbered sequence and current milestone statuses.
+
+| Requirement | Delivery owner and gate |
+| --- | --- |
+| Celestial/planetary and parent-relative frames; canonical mm-to-AU unit scaling and explicit epoch transforms | [M17 S0/S1](17-geospatial-and-spatio-temporal-computing.md#reference-contract-and-transform-gates): frame/time/model identities, independent fixtures and current-v1 cutover before persistence/adapters |
+| Linear, cubic Hermite and Keplerian trajectories; velocity, radial bounds and conservative conjunction screening | [M17 S9](17-geospatial-and-spatio-temporal-computing.md#s9--implement-finite-trajectories-and-kinematics): bounded evaluation, explicit numerical error and independent orbital/conjunction oracles |
+| Propagation delay and bitemporal observation visibility | [M12 R6/P4](12-sql-and-dataflows.md#propagation-delay-and-knowledge-time-joins), composed with M17 S9: emission/reception versus knowledge time, pinned clocks/ephemerides and no future-knowledge leakage |
+| Time-dependent resource-constrained shortest paths | [M18 graph delivery](18-multi-model-and-foreign-relations.md#time-dependent-resource-constrained-routing): time windows, waiting/resource resets, sound FIFO/non-FIFO search and complete/incomplete outcomes |
+| Fuel/propellant, boil-off and cold-chain numerical rules; coupled logistics optimization | [M40](40-constrained-planning-and-optimization.md#transport-and-orbital-planning): conservative feasibility, exact ledger balance, recoverable candidates/bounds and separately reviewed publication |
+| Installed terrestrial and orbital workload parity, recovery and resource evidence | [M44](44-qualification-and-benchmarks.md#terrestrial-and-orbital-logistics-qualification): both journeys at one revision after each owner's focused gates |
+
+Start with the shared frame/unit/time and transition contracts and independent
+fixtures. Then deliver finite M17 motion and M12 temporal composition, M18 route
+search, and M40 numerical/solver integration. M18 can qualify generic finite
+transitions before M40; the complete logistics workload requires their combined
+evidence. Keep application vehicle/mission policy and dispatch outside the
+database kernel. Do not infer nanometer coordinate accuracy, constant-time orbital
+solves or operational flight safety from these planned capabilities.
+
 ## Delivery checkpoints
 
 This is the execution plan within the [delivery phases](#delivery-phases). Work

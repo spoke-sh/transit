@@ -36,6 +36,74 @@ codecs or maintained queries. S0 still needs the full type/consumer cutover;
 S1 still needs exact constructions, additional planar operations, transforms,
 geodesic kernels and executed cross-target qualification. S2–S11 remain planned.
 
+## Celestial frames and orbital logistics — issue 358
+
+[Request #358](https://github.com/spoke-sh/transit/issues/358) adds terrestrial,
+cislunar and interplanetary workloads for FLIGHTPLAN and D.A.L.E, with SAGA
+consuming the same frame/trajectory interpretation. This is remaining S0/S1/S9
+scope, with S11 qualification; it does not establish an executable spatial SQL
+profile. At the request's source revision `5ea3b70bb2848d25bf74c1ca3fafb3f2b0ee9770`,
+[`Reference`](../../packages/zig/transit-spatial/src/Reference.zig) admits only
+SRIDs 0/3857/4326/4979. Its `linear_unit_nm: u64` encodes nanometers **per
+coordinate unit**, not coordinate magnitude: its maximum is about 0.123 AU per
+unit, so it cannot encode an AU-sized unit. This is not a 0.123 AU distance limit
+for meter coordinates; coordinate range, numerical precision and kernel-domain
+limits require separate qualification. Existing descriptor/type helpers do not
+qualify the terrestrial application workload either.
+
+### Reference contract and transform gates
+
+Extend the single [spatial contract](../../contracts/SPATIAL_V1.md) before
+adapters or persisted values. Keep shape/manifold, reference frame, time scale,
+units and codec independent, with these required decisions and fixtures:
+
+- **Frame identity and dependencies:** bind origin/central-body identity,
+  orientation convention, handedness, axes, epoch, validity interval and exact
+  model/ephemeris revisions. Cover GCRF geocentric inertial, ICRF barycentric
+  orientation with an explicit J2000 convention, Moon/Mars body-fixed frames,
+  parent-trajectory-bound LVLH/Hill frames, and two-primary rotating synodic
+  frames for CR3BP/L1/L2 work. Specify planetary sphere/ellipsoid parameters
+  independently. Pin parent object and definition/revision identities, reject
+  dependency cycles and missing coverage, and retain dependencies with results.
+  A frame declaration alone does not implement three-body propagation.
+- **Units and precision:** select a canonical mantissa plus signed base-10 or
+  base-2 scale exponent (or an equally exact scaled representation), with one
+  normalization/equality/fingerprint rule. Prove millimeter and AU unit fixtures,
+  exponent/range/overflow rejection and round-trip fidelity. Scaling does not
+  restore millimeter precision to a distant floating-point coordinate; qualify
+  local-origin transforms, coordinate representations and error budgets together.
+- **Time and transforms:** bind UTC/TAI/TT/TDB interpretation and epoch conversion
+  rules, pin leap-second and applicable Earth/body-orientation and ephemeris
+  artifacts, and keep these distinct from civil time-zone rules. Require an
+  explicit epoch-parameterized transform for mixed frames; otherwise preserve
+  `SpatialReferenceMismatch`. Position/velocity transforms include origin motion
+  and rotation-rate terms, with explicit validity and uncertainty. No wall-clock
+  or network lookup may silently change a frozen computation's interpretation.
+- **Compatibility:** an incompatible `SPR1` layout or semantic change replaces
+  the shared `Growth.Definition` through the current-v1 hard cutover, including
+  schema metadata, plans, codecs, bindings and independent fixtures. The two
+  reserved zero bytes do not authorize a compatible extension. Reject earlier,
+  missing and foreign definitions before execution; no v2 or fallback decoder.
+
+Use pinned [NAIF frame semantics](https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/frames.html)
+and [time-system semantics](https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/time.html)
+as independent references. Qualify each admitted transform and time conversion;
+these references do not add a SPICE runtime dependency or make all named frames
+interchangeable.
+
+### Workload handoffs
+
+S9 below owns finite motion evaluation and conservative conjunction screening.
+[M12](12-sql-and-dataflows.md#propagation-delay-and-knowledge-time-joins) owns
+temporal selection and knowledge cuts, composing S9 for light-time predicates.
+[M18](18-multi-model-and-foreign-relations.md#time-dependent-resource-constrained-routing)
+owns graph traversal over time/resource transitions;
+[M40](40-constrained-planning-and-optimization.md#transport-and-orbital-planning)
+owns planning candidates, numerical resource helpers and solver termination.
+Independent finite spatial and graph profiles can land before M40; full logistics
+qualification requires all of these gates. Flight rules, vehicle models, mission
+objectives and dispatch authority remain application policy.
+
 ## Implementation plan — 2026-11-01
 
 **Source basis:** fetched `origin/main` at
@@ -278,13 +346,14 @@ Partial delivery keeps the remaining capability rows explicit.
 | S6 | Shared-arc/face topology and cell-covering codecs | S1–S4 | Lossless logical reconstruction and qualified covering/union fast paths |
 | S7 | Mesh/solid storage and exact finite 3D kernels | S1–S3/S6 | Mesh/solid oracle, validity, CSG and bounded large-value execution |
 | S8 | Scenes, point clouds, scientific fields/arrays and progressive output | S4/S7; S6 topology for fields | Retained prototypes/meshes, numeric error bounds, pose changes, streaming LOD/tile and resource proofs |
-| S9 | Temporal/kinematic types and finite queries | S2/S3/S8 for poses; M6/M10/M12 source/time gates | Retained Stream/Table equivalence, late corrections and temporal joins |
+| S9 | Temporal/kinematic types, Hermite/Keplerian arcs and finite queries | S0/S1 celestial/time contracts; S2/S3/S8 for poses; M6/M10/M12 source/time gates | Independent state/velocity and conservative conjunction oracles, retained Stream/Table equivalence, late corrections and causal temporal joins |
 | S10 | Durable incremental spatial computation | Relevant S3/S6–S9 operators; M12 P5/P6 | Finite equivalence at every completed basis through faults and spill |
 | S11 | Common-revision qualification and promotion | All declared scope and prerequisite gates | Installed caller, recovery, resource and benchmark evidence; full scope disposition |
 
 ### S0 — Define contracts, fixtures and the cutover
 
 Extend the owning contracts:
+[`SPATIAL_V1`](../../contracts/SPATIAL_V1.md),
 [`FUZE_TYPES_V1`](../../contracts/FUZE_TYPES_V1.md),
 [`TABLE_SCHEMA_V1`](../../contracts/TABLE_SCHEMA_V1.md),
 [`TRANSIT_STORAGE_V1`](../../contracts/TRANSIT_STORAGE_V1.md),
@@ -294,8 +363,8 @@ Extend the owning contracts:
 Reuse [direct lifecycle operations](../../contracts/DIRECT_TABLE_V1.md),
 [statement results](../../contracts/SQL_RESULTS_V1.md) and
 [sessions](../../contracts/SQL_SESSION_V1.md).
-Add a dedicated spatial contract only if it has a distinct shared owner; avoid
-copies of the same descriptor in storage, SQL and SDKs.
+Keep the spatial descriptor in its existing shared owner; avoid copies in
+storage, SQL and SDKs. Include the celestial frame/unit/time inventory above.
 
 Specify canonical value/descriptor bytes, empty geometry, malformed input,
 dimensions, exact versus approximate traits, five-state diagnostics with bounded
@@ -323,6 +392,8 @@ face, intersection, expansion and refinement budgets.
 Define registry coverage for local SRID 0, WGS84 4326/4979, Web Mercator 3857,
 selected UTM/national grids and explicitly pinned vertical transforms. Admit
 each transformation only with its coordinate-domain and grid-artifact evidence.
+Extend the same pure kernel boundary with the celestial frame and state-transform
+profiles above; scalar/oracle checks precede S2/S3 exposure.
 Implement orientation/incircle/insphere, coordinate and ring validation,
 canonical precision conversion, envelope construction, scalar planar predicates
 and distance, then geodesic kernels and explicit transforms. Define axis/unit
@@ -487,12 +558,40 @@ M18; interactive rendering remains M30.
 Bind TRAJECTORY to spatial/time descriptors, interpolation, spatial/angular
 tolerances and an explicit temporal interval. Coordinate RANGE/TIMESTAMPTZ
 integration with M10 instead of treating standalone helpers as stored types.
-Support piecewise linear position and selected quaternion interpolation with
-defined duplicate-timestamp, discontinuity and antipodal/quaternion-sign rules.
+Define segment modes independently of physical compression:
+
+- `piecewise_linear` positions and declared slerp/nlerp quaternion rules for
+  terrestrial waypoints and poses;
+- `cubic_hermite` endpoint states `(t, r, v)`, with duration-scaled tangents,
+  analytic position/velocity evaluation and interpolation-error bounds;
+- `keplerian_conic` two-body arcs with epoch, central body, positive gravitational
+  parameter, units and initial state or canonical elements, separated by explicit
+  impulsive burn nodes. Define elliptic/parabolic/hyperbolic coverage, singular
+  element handling and refusal outside the admitted numeric domain.
+
+Specify duplicate timestamps, gaps, left/right evaluation at burns, discontinuous
+velocity and quaternion sign/antipodal behavior. Hermite interpolation is not a
+force model or a conservation guarantee. Keplerian arcs model two-body motion;
+thrust, drag, third-body perturbations and CR3BP require separately qualified
+models or captured state-vector segments.
 
 Read finite Table/Stream cuts through actual authorized paged sources. Implement
-value-at-time, locate-along, closest approach and the qualified spatiotemporal
-AS OF join. Connect Document layout spans only after M7/M16 supply exact part,
+`ST_ValueAtTime`, `ST_VelocityAtTime`, `ST_LocateAlong`, `ST_ClosestApproach`
+and the qualified spatiotemporal AS OF join; these are planned operator names,
+not executable SQL. Separate bounded segment lookup from evaluation. Hermite
+evaluation has fixed work once the segment is selected; Kepler propagation
+must specify numerical method, convergence/error criteria, iteration budget
+and typed nonconvergence. Do not promise unconditional O(1) analytical solutions.
+
+Compute periapsis/apoapsis bounds where defined (open conics have no finite
+apoapsis) and conservative interval-specific 4D swept tubes/bounding shells and
+`OCT_CELL` candidates. Include interpolation, transform and numeric errors in
+outward bounds. Refine closest approach over the whole requested interval;
+endpoint sampling cannot establish clearance. Return unresolved intervals on
+budget exhaustion, never a false safe-separation result. Coordinate light-time
+selection with M12's explicit emission/reception and knowledge-time rules.
+
+Connect Document layout spans only after M7/M16 supply exact part,
 page, revision and coordinate evidence. Compression retains the declared
 reconstruction/error contract; event-time ordering is separate from acceptance
 order and source progress.
@@ -501,6 +600,14 @@ Test late/out-of-order corrections and gaps, time-zone interpretation, stationar
 and near-boundary motion, rotation/scale and source expiry. Retained results keep
 their original basis; missing history stops advancement explicitly. Queue/Station
 effects are not implied by a geofence result.
+
+Compare state/velocity and two-body energy/angular momentum against independent
+[NAIF two-body propagation](https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/cspice/prop2b_c.html)
+and high-precision fixtures within declared tolerances. Include circular,
+high-eccentricity, near-parabolic and hyperbolic arcs, impulses, interior Hermite
+extrema, docking-scale offsets and interplanetary coordinates. Use an independent
+interval/root-isolation oracle for conjunctions; dense sampling alone is not a
+no-missed-conjunction proof. Report lookup, solve and refinement costs separately.
 
 ### S10 — Maintain spatial results over durable changes
 
@@ -560,7 +667,7 @@ M17.
 | Constructive operations | Intersection/union/difference/symmetric difference, buffer, convex hull, simplify, snap-to-grid, Delaunay triangles and Voronoi polygons; 3D union/intersection/difference/convex hull, tetrahedralization, cross-section and quadric-error mesh simplification | S6/S7; general overlays and approximate simplification have separate profiles |
 | 3D predicates and grids | `ST_3DIntersects`, `ST_3DContains`, `ST_3DWithin`, `ST_3DDWithin`, `ST_3DClearance`, `ST_RayIntersects`; S2 point/cell/covering, H3 lat-lng/cell/polygon/grid-disk and OCT point/box/covering/parent/children | S4/S6/S7; grid-specific hierarchy and boundary rules |
 | Access paths | 2D/3D box operators `&&`/`&&&`/`@>`/`<@`, metric `<->`/`<<->>`, zone maps, RTREE/S2/H3/OCTREE, Hilbert/Morton clustering and spatial SSI | S4/S5; syntax remains proposed until checked and executable |
-| Output and motion | `ST_AsText/Binary/GeoJSON`, `ST_AsMVTGeom`/`ST_AsMVT`, `ST_AsGlTF`/`ST_As3DTiles`, `ST_LOD`; `ST_ValueAtTimestamp`, `ST_LocateAlong`, 2D/3D closest approach and temporal joins | S8/S9; bounded complete output, explicit LOD/tolerance |
+| Output and motion | `ST_AsText/Binary/GeoJSON`, `ST_AsMVTGeom`/`ST_AsMVT`, `ST_AsGlTF`/`ST_As3DTiles`, `ST_LOD`; `ST_ValueAtTime`, `ST_VelocityAtTime`, `ST_LocateAlong`, `ST_ClosestApproach`, Hermite/Keplerian segments and temporal joins | S8/S9; bounded complete output, explicit LOD/tolerance, convergence and conservative interval bounds |
 | Maintained computation | Union, moment and boundary aggregates, 2D spatial/3D clash joins, pose updates and trajectory geofencing | S10; same finite semantics and source evidence at every completed basis |
 | Scientific arrays and domains | `COCHAIN_FIELD`, `RASTER2D`/`GRID3D`, `SPARSE_MATRIX`; `.float_zfp`, `.raster_morton`, `.sparse_bcsr`, `.layout_manhattan`; field flux conservation, raster/volume algebra, sparse reductions, DRC/LVS spatial participation and structural-biology/omics operators | S0–S3/S6–S11 as mapped in the scientific scope table; M18/M19 own external adapters and simulation/asset extensions |
 
@@ -583,6 +690,8 @@ All rows below are **planned checks**, not executed spatial evidence.
 | Preserve serializability | Disjoint regions/octants can commit under qualified fine guards; overlapping phantom/write-skew, empty-range, k-NN and movement schedules abort when required; lost decisions recover exactly |
 | Exercise topology and 3D | Adjacent and overlapping polygons/solids, duplicates, opposite orientation, cavities and non-manifold inputs; union differs correctly from bag sums; exact finite result matches independent oracle |
 | Exercise scenes and trajectories | Shared prototypes, cyclic DAG refusal, deep assemblies, pose-bound changes, point-cloud outliers, late events and within-cell predicate changes; approximate LOD/tubes never masquerade as exact results |
+| Exercise celestial frames and orbital motion (#358) | Canonical mm/AU descriptors, explicit epoch/state transforms and pinned artifacts; frame/clock/definition mismatch refusal, parent changes and missing ephemeris; independent Hermite/Keplerian states and conservative conjunction bounds across terrestrial, docking, cislunar and interplanetary regimes |
+| Preserve physical and knowledge-time causality (#358) | M12 emission/reception joins match an independent light-time oracle; late corrections cannot leak into earlier knowledge cuts; unavailable history or unconverged propagation stays incomplete |
 | Exercise scientific fields and arrays | Mesh/field basis mismatches, oriented flux cancellation, remeshing and retained dependencies; lossless/fixed-rate/tolerance codec oracles; conservative progressive summaries; patient-frame/nodata raster cases; sparse duplicates/shape and repeated-layout edits; finite equivalence and explicit approximation bounds |
 | Preserve incremental results | Insert/delete/retract/both-input updates, topology edits and pose changes match finite recomputation at each completed basis; restart/checkpoint/spill preserve multiplicities and exact source frontiers |
 | Enforce current permission | Denied declaration/build/read/inspect, revocation after buffering, metadata/empty/terminal results, spill reads and worker replacement; no coordinate or diagnostic disclosure under stale `policy_epoch` |

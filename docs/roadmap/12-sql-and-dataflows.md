@@ -218,6 +218,38 @@ another job authority. SQL completion, solver optimality, model accuracy and
 physical consequences remain different facts. These later extensions do not
 defer this milestone's existing finite/incremental equivalence gates.
 
+## Propagation delay and knowledge-time joins
+
+[Issue #358](https://github.com/spoke-sh/transit/issues/358) adds a planned
+R6/P4 temporal composition gate for terrestrial ADS-B/AIS observations and
+cislunar/interplanetary telemetry. Define emission time, reception time,
+application validity and system-time knowledge cut separately. Support declared
+fixed/measured latency windows and model-derived propagation predicates using
+[M17's frame/trajectory profile](17-geospatial-and-spatio-temporal-computing.md#celestial-frames-and-orbital-logistics--issue-358).
+The light-time model solves
+`t_recv - t_emit = norm(r_receiver(t_recv) - r_emitter(t_emit)) / c`
+with both positions expressed in the declared common inertial frame and time
+scale. Pin the propagation model, speed/units, ephemeris and transform revisions,
+tolerance, iteration budget and transmission/reception convention; a constant
+timestamp subtraction cannot implement the moving-endpoint case.
+
+Select only observations available at the requested knowledge cut and physically
+eligible at reception, with explicit ties, endpoint inclusivity and unmatched
+rows. Late corrections create a new result basis without rewriting earlier
+knowledge. Geometric state, light-time-corrected apparent state and optional
+aberration/relativistic corrections are distinct profiles. Use pinned
+[NAIF reception/transmission light-time semantics](https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/cspice/spkezr_c.html)
+as a reference, not an implicit default or runtime dependency.
+
+Qualify missing ephemeris, clock mismatch, nonconvergence, late/out-of-order
+telemetry, latency-window boundaries and revocation after buffering through
+finite SQL and shared typed callers. Unknown propagation or missing history
+cannot become a complete negative match. A variable delay can break ordering;
+prove monotonicity before reusing a merge sweep, otherwise use bounded candidate
+search/refinement and account for its work. This does not inherit the simple
+ordered AS OF join's O(N + M) bound. M12 can deliver ordinary temporal joins
+first; celestial evaluation waits for M17 S9 and their composed oracle gate.
+
 ## Formal model follow-through
 
 Own the [T5/T8 dataflow lifecycle and DDL interaction models and A3 incremental delta proofs](22-formal-semantics-and-correspondence.md#t8-catalog-ddl-evolution-and-dataflow-lifecycle-state-machines)
@@ -790,6 +822,8 @@ selection with ordered AS OF execution with defined ties, nulls, tolerance,
 period endpoints and unmatched rows. Include sorting/spill cost in measurements.
 Backfilled corrections must remain invisible at earlier knowledge cuts.
 M17 supplies trajectory interpolation later; a callback does not qualify it.
+The [propagation-delay profile](#propagation-delay-and-knowledge-time-joins)
+adds explicit physical-causality predicates when those operators are qualified.
 
 Implement SQL MERGE through the existing transaction workspace: freeze source
 and target definitions, evaluate predicates/cardinality/constraints, stage all

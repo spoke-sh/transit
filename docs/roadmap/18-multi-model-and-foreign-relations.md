@@ -81,6 +81,8 @@ retrieval, streaming CDC ingestion and import/export costs.
    heuristics)—so triangle and cyclic graph patterns avoid quadratic intermediate
    blowups while preserving parallel edges, self-loops, endpoint validity and
    multiplicity.
+   Extend finite routing through the [time/resource profile](#time-dependent-resource-constrained-routing)
+   below; static geometric weights and heuristics do not qualify that profile.
 3. **Compose segment-backed lexical/structural search, 2D/3D spatial coverings and Vector / Hybrid Retrieval across Tables, Documents, 3D Scenes and Graph projections:**
    build on [Milestone 14's](14-vectorized-strings-and-search.md) declarative
    search boundary, 256-document Block-Max posting blocks, vectorized
@@ -256,6 +258,62 @@ retrieval, streaming CDC ingestion and import/export costs.
    include updates/deletes, graph changes, 2D/3D spatial and scene-graph pose updates, full-text/vector index catch-up,
    streaming CDC watermarks, captured foreign-manifest refresh and backfill.
    Completed source bases must equal finite recomputation.
+
+## Time-dependent resource-constrained routing
+
+[Issue #358](https://github.com/spoke-sh/transit/issues/358) extends the graph
+work in delivery item 2 with Time-Dependent Resource-Constrained Shortest Path
+(TD-RCSP). This file is the current M18 owner; the request's
+`18-graph-storage-and-analytics.md` / S5 reference is not a separate milestone.
+Keep `SHORTEST PATH`/`A*` spellings proposed until shared typed plans, checked
+grammar and execution agree. Follow the [query contract](../handbook/reference/queries.md),
+[SQL grammar](../../contracts/sql/README.md) and
+[result lifecycle](../../contracts/SQL_RESULTS_V1.md); no console-only route API.
+
+1. **Freeze a route problem.** Bind graph/edge identities and source cuts,
+   departure time and finite horizon, destination, objective/tie rules, vehicle
+   state, units, constraints and exact edge-transition definitions. Evaluate
+   `c(e, t_entry, s_vehicle)` as a deterministic, budgeted transition returning
+   exit time, successor resource state, cost and feasibility evidence. Separate
+   graph adjacency from these semantics; a CSR or `.tseg` access path supplies
+   neither resource policy nor current permission.
+2. **Represent time and resources.** Compose M10 RANGE/MULTIRANGE time windows
+   with M12 knowledge cuts and M17 trajectories/weather fields. Cover runway
+   EDCT/berth and synodic launch windows, mode transfers, wind-dependent travel,
+   fuel/propellant and payload mass, battery/thermal state, HOS duty/rest resets,
+   refueling/charging and cold-chain excursions. Declare waiting locations and
+   duration choices, including waiting's resource cost and reset behavior.
+   Applications supply regulations, vehicle models and mission constraints;
+   Transit does not choose them. M40 owns the numerical helper and candidate
+   lifecycle extensions used by the full logistics workload.
+3. **Qualify search assumptions.** State whether each arrival function is FIFO
+   (later entry cannot arrive earlier) and prove dominance for the full retained
+   state, including reset/mode history needed for future feasibility. Do not
+   retain only the earliest label per vertex. For non-FIFO profiles use a bounded
+   label-correcting or time-expanded search with declared exactness/discretization
+   error; do not apply FIFO label-setting or naive componentwise dominance.
+   Waiting, recharge and HOS resets require counterexamples to unsafe pruning.
+   A* requires an admissible bound for the selected objective and transition
+   model; straight-line distance is not automatically a fuel or time bound.
+4. **Bound and expose outcomes.** Meter frontier/label count, transitions,
+   refinement, resident/scratch/spill bytes and horizon. Use shared paged/spill
+   owners where admitted; a fixed label cap must yield incomplete/unknown when
+   exhausted. Distinguish a feasible route, proved optimum/no feasible route for
+   the admitted model, and incomplete search, with path, per-edge times/resource
+   trace, objective/bound and source evidence. Cancellation or a partial frontier
+   cannot certify infeasibility or optimality. M40 handles recoverable solver
+   candidates and reviewed publication without changing finite query semantics.
+
+Acceptance requires independent exhaustive enumeration on small finite graphs
+and a separately implemented time-expanded oracle where its discretization is
+exact or error-bounded. Include FIFO and non-FIFO overtaking, waiting-only routes,
+parallel modes, disjoint windows, reset-dependent feasibility, refueling cycles,
+zero/negative transition anomalies and unreachable destinations. Compare pruned
+and unpruned results and replay each returned resource trace independently.
+Exercise graph/weather/ephemeris revisions, denied reads, revoked buffered
+results, cancellation, missing history and beyond-RAM frontier recovery.
+Terrestrial and orbital examples share the same typed transition contract;
+their numeric and end-to-end gates are owned by M40 and M44.
 
 ## Completion evidence
 

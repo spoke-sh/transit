@@ -153,6 +153,39 @@ output, complete-result latency, catch-up and control progress under mixed load.
 Report a supported-profile matrix and failed/unexecuted cases; no aggregate
 score establishes universal speed, accuracy, codec coverage or physical safety.
 
+## Terrestrial and orbital logistics qualification
+
+Close [issue #358's workload coverage](https://github.com/spoke-sh/transit/issues/358)
+only with composed evidence from M12, M17, M18 and M40 at one committed revision.
+These are planned checks. Each owner must first pass its local contract, numerical,
+caller and recovery gates; component helpers alone do not qualify either journey.
+
+| Journey | Required independent evidence |
+| --- | --- |
+| FLIGHTPLAN terrestrial/intermodal cold chain | Declare SRID 4979 airways and SRID 0 yard/docking frames; capture weather and delayed ADS-B/AIS observations at a knowledge cut; route across runway/berth windows, air/road transfers, fuel/battery, HOS resets and thermal limits; inspect each transition and a verified candidate/bound/termination outcome. Compare small routes with exhaustive enumeration and numerical resource traces with an independent high-precision oracle. |
+| D.A.L.E cislunar/interplanetary logistics, sharing SAGA interpretation | Declare inertial, Moon/Mars body-fixed, parent-relative and synodic frames with pinned time/model artifacts; combine Hermite states and two-body arcs, impulsive burns, conservative conjunction screening and light-time visibility; route through launch windows and fuel depots with dry-mass and boil-off constraints. Compare frame/state/light-time results with pinned independent reference kernels and conjunctions with interval/root-isolation fixtures; prove small-route parity with independent enumeration. |
+
+Execute through installed SQL and typed callers for each admitted operation;
+bind definitions, source cuts, ephemerides, time conversions, transition models
+and solver versions in the result evidence. Exercise wrong frames/units/clocks,
+expired model coverage, malformed/foreign definitions, impulse boundaries,
+non-FIFO overtaking, waiting/reset-dependent feasibility and late telemetry.
+Distinguish finite results from maintained successors and feasible candidates
+from certified optima; incomplete search/refinement must not become no-route or
+safe-separation evidence.
+
+Lose admission/publication replies, kill and resume workers, revoke access after
+buffering, change a parent trajectory/forecast and remove required retained
+history. Preserve original accepted identities and prior complete results; replay
+dispatches no physical effects. Run beyond-RAM inputs/frontiers under fixed
+scratch/resident/spill quotas, check heap leaks on success/failure/cancellation
+and steady-state allocation attempts after declared warmup. Report time to first
+feasible candidate, verified completion, labels/refinements, numerical error,
+conservation residuals, peak memory, spill and recovery cost. Freeze numeric
+performance targets from these baselines rather than inheriting O(1) claims.
+Publish failed, unsupported and unexecuted cells; this evidence is scoped
+computation qualification, not certification of real-world flight safety.
+
 ## Observation and consequence evidence
 
 Qualify the product thesis behind the
