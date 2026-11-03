@@ -276,3 +276,11 @@ external assets. The fixture qualifies explicit independent profiles and the
 managed local data connection; the inspection identity retains read-only inspection
 authority without data access. Private
 failed installations remain local; only synthetic browser evidence is uploaded.
+
+The `transit-board::computations-test` and `transit-board::computations-browser`
+schedules extend the existing disk-backed managed Table fixture with a separate
+signed read principal and real Board HTTP adapter. They retain the original
+prepare/restart/recover/retained-prefix schedule. The browser variant checks the
+deferred diagram/grid/Inspector, exact revision selection, empty and missing
+results, known-denial clearing and keyboard/accessibility behavior. The recorded
+upstream requests exclude result pages, pins, mutations and SQL submissions.

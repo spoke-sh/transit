@@ -22,3 +22,11 @@ pub fn catalog(arena: *std.heap.ArenaAllocator, wire: *q.wire.Client, config: Co
     const caller: q.catalog.DirectTableClient = .{ .allocator = arena.allocator(), .authority = wire, .service = wire, .connection = try selected.connection.native(), .key = key };
     return q.catalog.DirectCatalogRead.apply(arena, caller, request);
 }
+
+pub fn computation(arena: *std.heap.ArenaAllocator, wire: *q.wire.Client, config: Config, request: q.direct.ManagedInspection.Request) !q.direct.ManagedInspection.Response {
+    const selected = config.catalog orelse return error.QueryDisabled;
+    var key = try q.wire.readKey(arena.allocator(), wire.http.io, selected.seed_file);
+    defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
+    const caller: q.catalog.DirectTableClient = .{ .allocator = arena.allocator(), .authority = wire, .service = wire, .connection = try selected.connection.native(), .key = key };
+    return q.direct.ManagedInspection.apply(arena.allocator(), caller, request);
+}

@@ -48,6 +48,25 @@ const Server = struct {
     relational: ?*RelationalRuntime = null,
     workbench: ?*workbench.Runtime = null,
 
+    fn computationRequest(self: *Server, req: *std.http.Server.Request, body: []const u8) !void {
+        const config = self.config.workbench orelse return self.failure(req, .not_found, .QueryDisabled);
+        if (config.catalog == null) return self.failure(req, .not_found, .QueryDisabled);
+        if (req.head.method != .POST) return self.failure(req, .not_found, .NotFound);
+        var arena: std.heap.ArenaAllocator = .init(self.allocator);
+        defer arena.deinit();
+        const parsed = query_api.Values.parse(api.ComputationRequest, arena.allocator(), body) catch return self.failure(req, .bad_request, .InvalidQuery);
+        var wire = client.Client.init(arena.allocator(), self.io, self.config.upstream);
+        defer wire.deinit();
+        wire.timeout_ms = self.config.upstream_timeout_ms;
+        const result = workbench.computation(&arena, &wire, config, parsed.value) catch |err| switch (err) {
+            error.NotFound => return self.failure(req, .not_found, .NotFound),
+            error.Conflict, error.TableDefinitionChanged => return self.failure(req, .conflict, .QueryConflict),
+            error.InvalidRequest, error.InvalidDataflowRevision, error.InvalidCatalogName, error.InvalidCatalogInteger, error.InvalidCatalogIdentity, error.CatalogIdentityConflict, error.InvalidTableConnection, error.IncompatibleDefinition => return self.failure(req, .bad_request, .InvalidQuery),
+            else => return self.queryFailure(req, &wire, err),
+        };
+        const encoded = client.protocol.Json.valueAllocBounded(arena.allocator(), result, 256 * 1024) catch return self.failure(req, .service_unavailable, .IncompleteResult);
+        return self.respond(req, .ok, encoded, "application/json");
+    }
     fn workbenchRequest(self: *Server, req: *std.http.Server.Request, body: []const u8, catalog_route: bool) !void {
         const runtime = self.workbench orelse return self.failure(req, .not_found, .QueryDisabled);
         if (req.head.method != .POST) return self.failure(req, .not_found, .NotFound);
@@ -344,9 +363,10 @@ const Server = struct {
         const application_route = std.mem.eql(u8, target, "/api/v1/application");
         const query_route = std.mem.eql(u8, target, "/api/v1/query");
         const relational_route = std.mem.eql(u8, target, "/api/v1/relational");
+        const computation_route = std.mem.eql(u8, target, "/api/v1/computations");
         const catalog_route = std.mem.eql(u8, target, "/api/v1/catalog");
         const sql_read_route = std.mem.eql(u8, target, "/api/v1/sql-read");
-        if (query_route or application_route or relational_route or catalog_route or sql_read_route) {
+        if (query_route or application_route or relational_route or catalog_route or sql_read_route or computation_route) {
             if (origin == null) return self.failure(&req, .forbidden, .InvalidOrigin);
             if (!std.mem.eql(u8, (try header(&req, "content-type")) orelse "", "application/json")) return self.failure(&req, .bad_request, .InvalidQuery);
         }
@@ -355,6 +375,7 @@ const Server = struct {
         if (application_route) return self.applicationRequest(&req, body);
         if (query_route) return self.unifiedQueryRequest(&req, body);
         if (relational_route) return self.relationalRequest(&req, body);
+        if (computation_route) return self.computationRequest(&req, body);
         if (catalog_route or sql_read_route) return self.workbenchRequest(&req, body, catalog_route);
         if (body.len != 0) return self.failure(&req, .bad_request, .InvalidQuery);
         // Host/origin and bounded HTTP admission above still apply. This read
@@ -411,6 +432,7 @@ fn logRoute(target: []const u8) []const u8 {
     if (std.mem.eql(u8, target, "/api/v1/application")) return "/api/v1/application";
     if (std.mem.eql(u8, target, "/api/v1/query")) return "/api/v1/query";
     if (std.mem.eql(u8, target, "/api/v1/relational")) return "/api/v1/relational";
+    if (std.mem.eql(u8, target, "/api/v1/computations")) return "/api/v1/computations";
     if (std.mem.eql(u8, target, "/api/v1/catalog")) return "/api/v1/catalog";
     if (std.mem.eql(u8, target, "/api/v1/sql-read")) return "/api/v1/sql-read";
     if (std.mem.eql(u8, target, "/api/v1/storage")) return "/api/v1/storage";

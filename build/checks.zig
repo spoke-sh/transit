@@ -1670,6 +1670,17 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     direct_board.stdio = .inherit;
     b.step("test-direct-board", "Prove direct Board reads, original pin recovery and current authorization").dependOn(&direct_board.step);
 
+    const managed_board = b.addSystemCommand(&.{ "python3", "-B" });
+    managed_board.addFileArg(b.path("tests/runner/launch.py"));
+    managed_board.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
+    managed_board.addArtifactArg(node_artifact);
+    managed_board.addArtifactArg(direct_table_client);
+    managed_board.addArg(if (b.option(bool, "computation-browser", "Qualify managed computation inspection in Chromium") orelse false) "managed-board-browser" else "managed-board");
+    managed_board.addArtifactArg(board);
+    managed_board.has_side_effects = true;
+    managed_board.stdio = .inherit;
+    b.step("test-board-computations", "Prove independent read-only Board computation inspection").dependOn(&managed_board.step);
+
     const direct_dependencies = b.addSystemCommand(&.{ "python3", "-B" });
     direct_dependencies.addFileArg(b.path("tests/runner/launch.py"));
     direct_dependencies.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));

@@ -10,7 +10,8 @@ export async function request<T>(
     body?:
       | UnifiedQueryRequest
       | import("./types").RelationalRequest
-      | import("./types").CatalogRequest;
+      | import("./types").CatalogRequest
+      | import("./types").ComputationRequest;
   },
 ): Promise<T> {
   if (!path.startsWith("/api/v1/")) throw new BoardError(0, "InvalidPath");
