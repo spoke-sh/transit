@@ -586,7 +586,7 @@ defines this separate workload.
 **Status: In Progress; implementation sequence approved.** The first F0 packet
 implements bounded owner attribution and diagnostic controls. The initial audit
 followed PR #330 at `095544060e2cdf99fa7088210610255cdc3ab024`; integration now
-includes `origin/main` at `3df8a63da` (PR #341). It retains the F0/R1/M3/C4/D5/S6/E7/Q8
+includes `origin/main` at `444cd1e85` (through PRs #342–#346). It retains the F0/R1/M3/C4/D5/S6/E7/Q8
 work packages below, the existing numerical goals and issue
 [#211](https://github.com/spoke-sh/transit/issues/211), coordinated with
 [#76](https://github.com/spoke-sh/transit/issues/76). M8 remains In Progress.
@@ -620,13 +620,17 @@ complete revision, current permissions and cleanup ownership throughout.
 | [#338](https://github.com/spoke-sh/transit/pull/338), Board storage and deferred features | Readable retained-storage evidence, split public clients/validators and deferred feature imports, with bundle guards | Measure cold bootstrap, first Catalog/Workbook result, deferred transfer/parse time and browser heap separately. The recorded bootstrap-byte reduction is not time-to-interactive or an SDK latency gain. |
 | [#339](https://github.com/spoke-sh/transit/pull/339), [#340](https://github.com/spoke-sh/transit/pull/340), computation inspection | Shared persisted-record codecs and signed independent-reader metadata inspection, reused by SQL SHOW and Board Computations | Measure current/retained metadata observation separately from retained-row consumption and execution. Include independent-reader rights, after-buffer revocation and visible/hidden polling under active work. The F0 SHOW timings predate this owner; absence of pending work is not proof of source freshness. |
 | [#341](https://github.com/spoke-sh/transit/pull/341), SQL Queue renewal results | Receipt-returning `EXTEND LEASE`, exact original renewal-result recovery and a shared-definition cutover | Measure settlement, original-handle recovery and verified terminal delivery separately from current lease liveness. Use fresh installations and matching regenerated SDKs; the `c3cbdfe9…` F0 diagnostics do not qualify this definition. |
+| [#342](https://github.com/spoke-sh/transit/pull/342), [#345](https://github.com/spoke-sh/transit/pull/345), qualification ownership | Joined fault-proxy handlers, independent signing files, original retained-cut/flush recovery and independent-reader Board checks | Retain these assertions in affected checks. Measure original settlement and after-buffer authorization separately from steady reads; a later passing schedule does not explain a prior timeout or watch cancellation. |
+| [#343](https://github.com/spoke-sh/transit/pull/343), [#346](https://github.com/spoke-sh/transit/pull/346), Document profile composition | Bounded offline candidate commitments and incremental MIME entity framing | Extend M16 component cases to candidate verification and chunked MIME framing, including caller workspace and exact source/coverage checks. These do not measure installed Document publication or gateway exchange. |
+| [#344](https://github.com/spoke-sh/transit/pull/344), immutable Table branches | Paged discovery and explicit retiring/retired lifecycle, preserving creation receipts while closing reads and releasing retention | Measure discovery growth, retirement progress, restart and retention release separately from physical reclamation. Preserve current authorization and original identities; branch merge/restore remains outside this implemented boundary. |
 
 PR #337 repairs release prerequisites without supplying a new performance baseline.
 The F0 diagnostic matrix predates these integrations. Preserve its frozen sources
 and failed requests; final integration checks do not renew its timing claims.
 
 The current shared definition is
-`fa88766ac95f2c156474b0c97eb9eaafcccc8c13a70009e574d09397d7ba3c72`.
+`28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573`.
+The preceding integrated checks used `fa88766a…` and cannot qualify this cutover.
 The first F0 diagnostics used `c3cbdfe9…`; the prior SDK performance campaign used
 `afac2bd8…`. Keep each campaign's frozen binaries for original-outcome inspection;
 never open those failed installations with this new
@@ -798,7 +802,7 @@ do not combine its older-definition observations with the current Table timings.
 | Encoded strings | Plain/dictionary/FSST; 1/2/4/6 atoms; same/multiple columns; filter-only versus projecting the predicate column; cardinality, selectivity, long strings, five admitted collations; WAL-only/flushed/mixed/historical cuts | M14 independent string oracle and real direct/SQL readers; count range reads, checksum/decode work, copy/allocation bytes and total completion. Preserve malformed-suffix failures and lossless spelling. |
 | JSON/XML construction and compound commitments | Parse versus construct/drain/hash, one-byte and practical output windows, nesting, long scalars, part count and external references; cold setup and warmed reuse | M16 pure package and independent Python/Expat oracle. Fixed workspace and exact bytes/commitments; no installed ingestion, external-part availability or SIMD claim. |
 | Catalog/history and Stream/Queue | Object/column/history growth, retained selection/release, empty/terminal reads; hot/sealed/cold logs, key skew, waits, lease expiry/redelivery and original settlement | M10/M6 public owners and existing log-runtime/Station-turn runners; report actual supported caller surfaces separately from pending SQL/Station composition |
-| Board and published watches | Polling/reconnect/freshness, empty tables, active watches, policy-progress delay, admission refusal, grant/revoke latency, idle CPU and foreground interference | Existing read-only Board and real HTTP/WebSocket fixtures. Observer requests are counted separately; no pin, mutation or additional policy authority is added. |
+| Board and published watches | Polling/reconnect/freshness, empty tables, active watches, policy-progress delay, admission refusal, grant/revoke latency, idle CPU and foreground interference; first verified read after retained restart for independent and combined catalog/SQL profiles | Existing read-only Board and real HTTP/WebSocket fixtures. Preserve the failed combined-profile read at `bf1ad51fa` with its two-second request budget and the separate watch closure (`1011` / `Canceled`) before verified changed-row delivery. Readiness and console success do not establish watch delivery. Observer requests are counted separately; no pin, mutation or additional policy authority is added. |
 | Original control operations | Declaration/provider publication, native admission/work time, deadline failures and original-outcome inspection under background observation; distinguish accepted mutation, response delivery and pending-quota settlement | The retained F0 browser-provisioning failure supplies an original request, not a successful latency sample. Use the real administrative/native owners; preserve its mutation and ordinary budgets. Do not replay as new work or infer rejection from transport timeout. |
 
 After M14's baseline, choose plan-owned literal preparation and shared

@@ -22,7 +22,8 @@ Installed native SDK libraries/packages are frozen at clean `1787c0b8f` under th
 same definition. Native artifact records, package and executable hashes
 are retained separately; these are not claimed to have identical Git stamps.
 No old `afac2bd8…` installation was opened with these binaries. Later integration
-includes main `3df8a63da` (PR #341), whose Queue, storage-fencing and Board changes
+includes main `444cd1e85` (through PRs #342–#346), whose Queue, storage-fencing, Board,
+Document-profile and branch-lifecycle changes
 arrived after timing. These observations are not a performance score for that
 integrated tree. The first integrated installed/native checks freeze
 `4d62eb5a91e836ff76797e7e00f758f52f64b122` in an isolated checkout. The original
@@ -311,6 +312,72 @@ their original binaries; rebased qualification uses fresh fixtures. Include
 renewal settlement, exact original-handle recovery and terminal delivery in
 subsequent Queue measurements, distinguishing a returned descriptor from current
 lease liveness. No source identity or saved request is rewritten by the rebase.
+
+At rebased `bf1ad51faf496f39b3946d0f6ddcc0f9df514b3c`, all **65 clean fast
+checks pass**. The clean `installation-ui` lane **passes its first 15 tasks and
+fails task 16**, `transit-board::workbench-test`, after 3,154 seconds. Passed
+tasks include all five installed managed revisions, direct-fault recovery,
+SQL lifetimes, installed/local SQL, Board inspection/query and the Station
+launcher. The computation and declarative-browser tasks do not run in this lane.
+Its original metadata and logs remain in `/var/tmp/transit-ci-62s2f4dh/`.
+
+The workbench failure is in the combined catalog-and-SQL connection profile,
+after inspection-only, catalog-only and SQL-only profiles pass. The first
+`SELECT id FROM metrics LIMIT 1` returns HTTP 503, `IncompleteResult`, with
+native cause `SqlRequestTimeout` under the fixture's existing 2,000 ms request
+budget. Its final retained restart records 15.983 seconds of SQL readiness and
+19.405 seconds of total startup. These contextual timings do not attribute the
+timeout to an owner or establish its cause. Owner counters are disabled by the
+default configuration. The later workbench and automatic-binding assertions are
+unrun, as are the optional rendered-browser schedules. The private fixture remains
+at `/var/tmp/transit-server-proof-6ll61dik/`; `workbench-failure.json` preserves
+source, configuration facts and log hashes. Request facts come from the executed
+source and failure stack, not a saved raw wire request. Only files/source were
+inspected afterward: no restart, replay, replacement request or timeout increase.
+The cause remains unresolved, and this lane is not a pass.
+
+The focused disk-backed owned-record reservation/reply-loss test passes on the
+same `bf1ad51fa` source in 25.74 seconds, as does the standalone observability
+suite in 5.97 seconds. `rebased-qualification.json` records each command, source,
+outcome and duration. These checks qualify their selected boundaries under the
+new definition; they establish no new performance baseline or full-suite result.
+
+The two tasks left unattempted by that lane run separately from its same clean
+checkout and pinned `ci-experience` shell. `transit-board::computations-test`
+passes in 728.15 seconds: independent-reader current/retained nonempty and empty
+metadata, exact identity, missing revisions, read-only requests and managed
+recovery/denial controls execute. Its optional rendered-browser profile is not
+selected. `test::declarative-browser` fails in 621.70 seconds. Local provider
+profiles, callback/claim recovery, secret rotation, key retirement and native
+grant/watch revocation pass before a later published-watch update fails. After
+the console UPDATE exits successfully, the existing socket returns close code
+1011 with reason `Canceled`, instead of the required changed row and advancing
+watermark. This establishes neither verified delivery nor its root cause.
+Subsequent logout, restart, withdrawal and remaining assertions are unrun.
+
+The new browser fixture remains at `/var/tmp/transit-browser-39ya52e0/`. Its logs
+also contain `WalRecoveryRequired`, timeout and recovery-blocked observations
+near termination, with final telemetry-loss totals of 31 dropped / 19,122
+suppressed. These partial logs do not establish causal ordering between storage
+recovery, watch cancellation and fixture shutdown. Only retained files/source
+were inspected; no restart, replay or replacement UPDATE was performed. The
+successful console subprocess output was not retained by this fixture, so its
+exit status alone supplies no independently inspected original mutation result.
+This failure differs from the earlier provider-provisioning failure; neither
+resolves the other. `rebased-remaining.json` and `rebased-browser-failure.json`
+record commands, source, observations and hashes. The separate tasks do not turn
+the failed clean lane into a pass.
+
+A further requested rebase integrates main `444cd1e85` after these checks.
+PRs #343/#346 add bounded offline Document candidates/MIME framing; #344 adds
+immutable branch discovery and retirement, with shared definition
+`28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573`.
+PRs #342/#345 repair qualification shutdown, signing isolation and original-flush
+recovery. They do not explain the failures recorded above. The tested
+`bf1ad51fa` source remains on
+[its frozen qualification branch](https://github.com/spoke-sh/transit/tree/perf/owned-staging-pre-watch-qualification).
+Earlier `fa88766a…` checks cannot qualify this new definition; matching fresh
+fixtures are required, and failed installations retain their original binaries.
 
 ## SDK validator initialization and captured-read recovery — 2026-11-02
 
