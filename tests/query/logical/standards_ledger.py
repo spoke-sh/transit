@@ -67,9 +67,45 @@ def validate(ledger):
         assert isinstance(case['accept'], bool) and case['sql'], case['id']
         if case['accept']:
             assert feature['states']['parse'] == 'implemented', case['id']
+    validate_stage_checks(ledger)
     assert ledger['fixture_provenance']['license'] == 'MIT'
     payload = {k: v for k, v in ledger.items() if k != 'sha256'}
     return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+
+
+def validate_stage_checks(ledger):
+    """Check runnable ownership, not whether a check has passed at this source."""
+    entries = {entry['id']: entry for group in ('features', 'collations', 'physical_codecs')
+               for entry in ledger[group]}
+    suite = json.loads((ROOT / 'tests/runner/suite.json').read_text())
+    tasks = {task for lane in suite['lanes'].values() for task in lane}
+    coverage = ledger['stage_checks']
+    assert coverage['scope']
+    scope = coverage['capabilities']
+    required_scope = {entry['id'] for group in ('features', 'collations') for entry in ledger[group]
+                      if 'implemented' in entry['states'].values()}
+    assert len(scope) == len(set(scope)) and set(scope) == required_scope
+    covered, identifiers = set(), set()
+    for check in coverage['checks']:
+        assert check['id'] not in identifiers, check['id']
+        identifiers.add(check['id'])
+        assert check['task'] in tasks, check['task']
+        assert check['boundary'] in ('compiler', 'component', 'disk', 'installed'), check['id']
+        assert check['profile'] and check['cases'] and check['claims'], check['id']
+        for case in check['cases']:
+            source = ROOT / case['source']
+            assert case['marker'] and source.is_file() and source.read_text().count(case['marker']) == 1, case
+        for capability, stages in check['claims'].items():
+            assert capability in scope and stages and len(stages) == len(set(stages)), check['id']
+            assert set(stages) <= STAGES, check['id']
+            if check['boundary'] == 'compiler':
+                assert set(stages) <= {'parse', 'lower'}, check['id']
+            for stage in stages:
+                assert entries[capability]['states'][stage] == 'implemented', (check['id'], capability, stage)
+                covered.add((capability, stage))
+    required = {(capability, stage) for capability in scope
+                for stage, state in entries[capability]['states'].items() if state == 'implemented'}
+    assert required <= covered, f'Implemented stages without a runnable owner: {sorted(required - covered)}'
 
 
 def string(value):
@@ -126,7 +162,8 @@ def public_projection(ledger):
              'Feature IDs and edition/clause references are inventory labels. References',
              'marked unverified have not been audited for standards conformance.', '',
              'The [neutral ledger](../../../../contracts/sql/standards-ledger.json)',
-             'records owners, evidence sources, dependencies and compiler cases.',
+             'records owners, stage-specific runnable checks, evidence sources,',
+             'dependencies and compiler cases. Check registration is not a passing result.',
              'Its compiler corpus is Transit-authored under MIT; it contains no copied',
              'standards text. Runtime and installed caller checks remain separate.', '',
              '| Feature | Parse | Lower | Execute | Recover | Transport | Reference | Scope and limits |',
@@ -158,6 +195,29 @@ def negative_controls(ledger):
         pass
     else:
         raise AssertionError('Compiler expectation contradicting capability accepted')
+    def remove_recovery(value):
+        for check in value['stage_checks']['checks']:
+            for stages in check['claims'].values():
+                if 'recover' in stages:
+                    stages.remove('recover')
+
+    def compiler_only(value):
+        for check in value['stage_checks']['checks']:
+            check['boundary'] = 'compiler'
+
+    for label, mutate in (
+            ('missing recovery owner', remove_recovery),
+            ('compiler-only runtime claim', compiler_only),
+            ('unregistered task', lambda value: value['stage_checks']['checks'][0].update(task='test::absent')),
+            ('stale case', lambda value: value['stage_checks']['checks'][0]['cases'][0].update(marker='absent case marker'))):
+        invalid = copy.deepcopy(ledger)
+        mutate(invalid)
+        try:
+            validate(invalid)
+        except AssertionError:
+            pass
+        else:
+            raise AssertionError(f'Capability coverage accepted {label}')
 
 
 def main():

@@ -205,7 +205,7 @@ pub const features = [_]l.FeatureDescriptor{
         .states = .{ .parse = .implemented, .lower = .implemented, .execute = .implemented, .recover = .implemented, .transport = .implemented },
         .reference_verified = false,
         .profile = "production SQL entry points; only the selected scope described in deviations",
-        .evidence_sources = &.{ "packages/zig/transit-fuze/src/table_constraints_test.zig", "packages/zig/transit-storage/src/table_partition_test.zig", "tests/catalog/tables/table_schema.py" },
+        .evidence_sources = &.{ "packages/zig/transit-fuze/src/table_constraints_test.zig", "packages/zig/transit-storage/src/table_partition_test.zig", "tests/catalog/tables/table_schema.py", "tests/interfaces/sql_sessions/integrity.py" },
     },
     .{
         .id = "F492",
@@ -219,7 +219,7 @@ pub const features = [_]l.FeatureDescriptor{
         .states = .{ .parse = .implemented, .lower = .implemented, .execute = .staged, .recover = .staged, .transport = .staged },
         .reference_verified = false,
         .profile = "production SQL entry points; only the selected scope described in deviations",
-        .evidence_sources = &.{ "packages/zig/transit-fuze/src/table_constraints_test.zig", "packages/zig/transit-catalog/src/direct_catalog_test.zig" },
+        .evidence_sources = &.{ "packages/zig/transit-fuze/src/table_constraints_test.zig", "packages/zig/transit-catalog/src/direct_catalog_test.zig", "tests/interfaces/sql_sessions/integrity.py" },
     },
     .{
         .id = "F111",
@@ -247,7 +247,7 @@ pub const features = [_]l.FeatureDescriptor{
         .states = .{ .parse = .implemented, .lower = .implemented, .execute = .implemented, .recover = .implemented, .transport = .implemented },
         .reference_verified = false,
         .profile = "Public Zig historical catalog operations, read-only SQL sessions and explicit Table source descriptors under current authority. Captured queries retain an independently owned copy of the selected source and freeze explicit projection targets.",
-        .evidence_sources = &.{ "packages/zig/transit-catalog/src/direct_history_directory_test.zig", "packages/zig/transit-catalog/src/direct_catalog_test.zig", "packages/zig/transit-sql/src/HistoricalSql.zig", "tests/interfaces/sql_sessions/history.py" },
+        .evidence_sources = &.{ "packages/zig/transit-catalog/src/direct_history_directory_test.zig", "packages/zig/transit-catalog/src/direct_catalog_test.zig", "packages/zig/transit-sql/src/HistoricalSql.zig", "tests/interfaces/sql_sessions/history.py", "tests/interfaces/installation/board_workbench.py" },
     },
     .{
         .id = "X001-RANGE",

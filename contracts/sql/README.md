@@ -240,6 +240,15 @@ and contradictory positive expectations, and verifies the generated public summa
 check. Actual compiler tests and installed SQL session tests establish behavior;
 file presence and fixture regeneration do not establish execution or recovery.
 
+The ledger's `stage_checks` maps every implemented feature and text-collation
+stage to a registered CI task, named source case, boundary and admitted profile.
+Compiler checks can cover only parse/lower; execution, recovery and transport
+have separate owners. The validator rejects missing stage owners, stale case
+markers and unregistered tasks, with negative controls for each. Physical codecs
+retain their separate typed TableSchema admission profile. This map identifies
+what to run; exact-source passing and failed results belong in the
+[qualification history](../../docs/history/qualification/README.md).
+
 ## Reproducible reference checks
 
 From the pinned development shell:
