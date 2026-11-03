@@ -2,6 +2,7 @@
   lib,
   stdenv,
   buildNpmPackage,
+  fetchNpmDeps,
   fetchurl,
   autoPatchelfHook,
   makeWrapper,
@@ -10,6 +11,7 @@
 }:
 let
   version = "0.3.3";
+  npmDepsHash = "sha256-RhBTHjdimsGh3ItwCvKgLmKknmVz2mJgQssGYfiHqYY=";
   # Upstream release assets and vp-checksums.txt:
   # https://github.com/voidzero-dev/vite-plus/releases/tag/v0.3.3
   releases = {
@@ -31,6 +33,35 @@ let
     };
   };
   release = releases.${stdenv.hostPlatform.system};
+  npmDeps =
+    (fetchNpmDeps {
+      name = "vite-plus-${version}-npm-deps";
+      src = ./vite-plus;
+      hash = npmDepsHash;
+    }).overrideAttrs
+      {
+        # prefetch-npm-deps treats HTTP/2 stream resets (curl 92) and mid-stream
+        # body errors from registry.npmjs.org as permanent, and cacache appends
+        # to index-v5 files in place. Recreate $out on each bounded attempt.
+        buildPhase = ''
+          runHook preBuild
+          for attempt in 1 2 3 4 5; do
+            rm -rf "$out"
+            cores="''${NIX_BUILD_CORES:-1}"
+            if [ "$attempt" -gt 1 ]; then
+              cores=1
+            fi
+            if NIX_BUILD_CORES="$cores" outputHash="$outputHash" prefetch-npm-deps package-lock.json "$out"; then
+              break
+            fi
+            if [ "$attempt" -eq 5 ]; then
+              exit 1
+            fi
+            sleep "$attempt"
+          done
+          runHook postBuild
+        '';
+      };
 in
 buildNpmPackage {
   pname = "vite-plus";
@@ -38,7 +69,7 @@ buildNpmPackage {
 
   src = ./vite-plus;
   nodejs = nodejs_24;
-  npmDepsHash = "sha256-RhBTHjdimsGh3ItwCvKgLmKknmVz2mJgQssGYfiHqYY=";
+  inherit npmDeps npmDepsHash;
   npmFlags = [ "--ignore-scripts" ];
   npmInstallFlags = lib.optionals stdenv.hostPlatform.isLinux [ "--libc=glibc" ];
   dontNpmBuild = true;

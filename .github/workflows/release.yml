@@ -465,6 +465,13 @@ jobs:
         with:
           name: runtime-${{ matrix.artifact }}
           path: dist/release
+      - name: Restore the matching private operation fixture
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: operation-fixture-${{ matrix.artifact }}
+          path: .cache/operation-fixture
+      - name: Restore the fixture executable mode
+        run: chmod 755 .cache/operation-fixture/operation-fixture
       - name: Install the exact downloaded runtime
         run: |
           cd dist/release
@@ -476,6 +483,8 @@ jobs:
       - name: Install Chromium and host dependencies
         run: nix develop .#ci-experience --command vp exec --filter @transit/board-web playwright install --with-deps chromium
       - name: Qualify installed catalog, previews and workbook
+        env:
+          TEST_TRANSIT_OPERATIONS: ${{ github.workspace }}/.cache/operation-fixture/operation-fixture
         run: nix develop .#ci-experience --command just test::release-board .cache/runtime
       - name: Preserve browser failure evidence
         if: failure()

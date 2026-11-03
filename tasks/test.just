@@ -861,7 +861,7 @@ release-install artifacts version revision:
 # Browser onboarding against the installed release's embedded runtime and assets.
 [positional-arguments]
 release-board prefix:
-    zig build test-operation-fixture -Doptimize=ReleaseSafe -Dsdk-examples=false -j2
+    if [ -z "${TEST_TRANSIT_OPERATIONS:-}" ]; then zig build test-operation-fixture -Doptimize=ReleaseSafe -Dsdk-examples=false -j2; fi
     python3 -B tests/runner/launch.py tests/interfaces/installation/board_workbench.py --installed "$1" --browser
 
 # Linux/Docker: real ENOSPC inside one newly allocated ext4 image.
