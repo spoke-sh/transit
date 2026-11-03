@@ -113,6 +113,9 @@ It binds immutable-branch discovery and the persisted `retiring`/`retired`
 lifecycle, preserving successful creation receipts while closing read access
 and releasing retention. The earlier shared definition rejects before saved
 requests or stored progress are interpreted; no implicit conversion is supplied.
+It also includes original Queue-renewal result selections, bounded descriptor
+pages and one-row completion evidence across native, SQL and caller boundaries.
+The frozen settlement projection admits only a receipt handle.
 It requires the catalog's paged transaction-record inventory and the `TXR1`
 owned result envelope. Managed pages/manifests bind their original transaction;
 earlier catalog roots and saved result formats reject without inferred ownership
@@ -201,13 +204,14 @@ replacement definition rejects earlier frame layouts before interpretation.
 SQL operation messages also distinguish workload command completion from retained
 rows and carry original native receipt/closure evidence. The session service can
 inspect/recover these tokens and open their frozen projections. SQL append,
-positional consumption, routed claim and ACK admission use these shared workload
-operations. Missing native evidence cannot establish a terminal
+positional consumption, routed claim, ACK/NACK and renewal admission use these
+shared workload operations. Missing native evidence cannot establish a terminal
 workload operation.
 
 The signed direct service also exposes original workload result opening and
 paging. Mandatory references bind the frozen intent, accepted selection and
-delivery limits; positions retain the same original append, consume or claim.
+delivery limits; positions retain the same original append, consume, claim or
+renewal.
 These messages never repeat a mutation or implicitly release its retained read
 dependency. Earlier result definitions reject rather than acquiring inferred
 selection or completion fields.

@@ -3,7 +3,7 @@
 Transit has durable streams, application materialization and recorded connector
 effects. SQL executes finite reads, Table DDL/DML and Stream/Queue declarations
 and appends, positional Stream consumption, partition-routed Queue claims and
-receipt-bound ACK/NACK. The transport of a result in
+receipt-bound ACK/NACK and lease renewal. The transport of a result in
 several batches does not make that query continuous.
 
 ## Operations and SQL coverage
@@ -14,6 +14,7 @@ several batches does not make that query continuous.
 | Append schema-bound events or work | Stream/Queue native owner with Catalog operation identity | `PRODUCE INTO`, `ENQUEUE INTO`, optional `RETURNING` below |
 | Consume a finite Stream cut | Native read with retained identity and bounded Fuze projection | Positional `CONSUME`, typed predicates and logical `LIMIT` below |
 | Acquire Queue work | Native fenced leases and retained original selection | `CLAIM ... WITH LEASE`, one partition and an acquisition maximum below |
+| Settle or renew Queue work | Native settlement of an exact lease | `ACK`, `NACK` and `EXTEND LEASE` below |
 | Read an explicit state projection | Fuze over declared KV, Table or accepted Document state | Finite `SELECT` |
 | Configure an external connector | HTTP/gRPC connector configuration and credential references | `CREATE CONNECTION` is grammar only |
 | Read captured observations | Connector capture and application decoding | `CREATE SOURCE` is grammar only; no executable connector source binding |
@@ -93,9 +94,9 @@ history. Deployment memory and storage quotas still apply.
 
 ALTER cannot change schema, partitioning, routing keys, ordering, compaction
 keys or timestamp identity. `IF EXISTS`, `IF NOT EXISTS` and schema evolution
-are outside this SQL profile. Group consumption, waits, `COMMIT OFFSET` and
-`EXTEND LEASE` still require typed native callers. The admitted
-partition-routed CLAIM and receipt-bound ACK/NACK profiles are described below.
+are outside this SQL profile. Group consumption, waits and `COMMIT OFFSET`
+require typed native callers. The admitted partition-routed CLAIM and
+receipt-bound settlement profiles are described below.
 
 Named `SHOW` returns the published object identity, definition revision,
 partition count, configuration and limits. `DESCRIBE` returns typed columns
@@ -237,9 +238,8 @@ Original payload delivery may outlive the lease; the returned epoch and attempt
 are original attribution, not proof of current settlement authority. Current
 read and acquire rights are rechecked before disclosure.
 
-CLAIM is outside attached interactive transactions. EXTEND LEASE is
-not admitted by SQL. Native settlement retains its existing owner and current
-lease checks.
+CLAIM is outside attached interactive transactions. Native settlement retains
+its existing owner and current lease checks.
 
 ## Acknowledge Queue work
 
@@ -297,6 +297,35 @@ Current rights still govern recovery. Missing responses remain unresolved until
 the original operation is inspected; stopping a wait does not settle the lease.
 NACK does not release the original claim's payload-read pin and cannot execute
 inside an attached interactive transaction.
+
+## Renew a Queue lease
+
+```sql
+EXTEND LEASE ON QUEUE jobs RECEIPT $1 BY '5s';
+```
+
+Bind the exact binary handle from CLAIM or a previous renewal. BY accepts a
+positive duration in whole `ms`, `s` or `m` units, either literally or as a UTF-8
+parameter. The proposed deadline is the supplied handle's expiry plus that
+duration, with checked arithmetic. It is not measured from the time the result
+is fetched. Current settle rights, claimant identity, live-lease fencing, trusted
+time and the Queue's maximum lease policy govern acceptance.
+
+The statement requires its own native SQL client token and returns exactly one
+binary `_receipt_handle` column and one row after verified acceptance. PostgreSQL
+emits `EXTEND LEASE` after the result; there are no relational matched/changed
+counts. Use the returned handle for subsequent ACK, NACK or renewal. A fresh
+operation using the old expiry-bearing handle is fenced.
+
+Retry uncertainty with the original token, SQL and parameters. Result reopening
+and repeated fetches derive the same handle from that operation's accepted
+settlement receipt, including after another renewal, expiry, settlement or
+restart. Delivery does not renew again or establish that the handle remains live.
+Current settle rights are rechecked before metadata, buffered rows and terminal
+responses are disclosed; payload READ rights are not required for this
+descriptor-only result. Compatible ALTER preserves the original lease's
+interpretation. Renewal does not release the claim's payload-read pin and is
+outside attached interactive transactions.
 
 ## Connections, sources and sinks
 

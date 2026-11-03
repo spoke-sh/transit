@@ -2755,5 +2755,1307 @@
       246,
       24
     ]
+  },
+  {
+    "request": {
+      "definition": "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573",
+      "connection": {
+        "scope": {
+          "realm": 42,
+          "resource": 3,
+          "catalog": 18446744073709551615
+        },
+        "branch": 1,
+        "audience": 5,
+        "principal": 4,
+        "role": null
+      },
+      "nonce": [
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7
+      ],
+      "action": {
+        "workload_result": {
+          "page": {
+            "reference": {
+              "intent": {
+                "connection": {
+                  "scope": {
+                    "realm": 42,
+                    "resource": 3,
+                    "catalog": 18446744073709551615
+                  },
+                  "branch": 1,
+                  "audience": 5,
+                  "principal": 4,
+                  "role": null
+                },
+                "namespace": 1,
+                "binding": {
+                  "queue": {
+                    "definition": "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573",
+                    "operation": {
+                      "scope": {
+                        "realm": 42,
+                        "resource": 3,
+                        "catalog": 18446744073709551615
+                      },
+                      "principal": 4,
+                      "operation": 18446744073709551614
+                    },
+                    "target": {
+                      "definition": "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573",
+                      "interpretation": {
+                        "object": {
+                          "scope": {
+                            "realm": 42,
+                            "resource": 3,
+                            "catalog": 18446744073709551615
+                          },
+                          "branch": 1,
+                          "object": 18446744073709551614
+                        },
+                        "revision": 18446744073709551613,
+                        "digest": [
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3
+                        ]
+                      },
+                      "partition": 1
+                    },
+                    "kind": "settle",
+                    "intent": [
+                      200,
+                      191,
+                      27,
+                      204,
+                      180,
+                      212,
+                      200,
+                      176,
+                      230,
+                      204,
+                      131,
+                      218,
+                      113,
+                      94,
+                      126,
+                      137,
+                      94,
+                      34,
+                      84,
+                      219,
+                      182,
+                      251,
+                      137,
+                      63,
+                      176,
+                      71,
+                      102,
+                      96,
+                      11,
+                      61,
+                      191,
+                      147
+                    ]
+                  }
+                },
+                "source": {
+                  "declaration": {
+                    "definition": "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573",
+                    "interpretation": {
+                      "object": {
+                        "scope": {
+                          "realm": 42,
+                          "resource": 3,
+                          "catalog": 18446744073709551615
+                        },
+                        "branch": 1,
+                        "object": 18446744073709551614
+                      },
+                      "revision": 18446744073709551613,
+                      "digest": [
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3
+                      ]
+                    },
+                    "schema": {
+                      "bytes": 128,
+                      "sha256": [
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29
+                      ]
+                    },
+                    "configuration": {
+                      "partitioning": {
+                        "count": 2,
+                        "key_column": null,
+                        "hash": "sha256_64"
+                      },
+                      "retention": {
+                        "max_age_ms": null
+                      },
+                      "policy": {
+                        "queue": {
+                          "ordering": "unordered",
+                          "key_column": null,
+                          "lease_ms": 1000,
+                          "maximum_lease_ms": 10000,
+                          "maximum_attempts": 5,
+                          "backoff": {
+                            "initial_ms": 1,
+                            "maximum_ms": 100,
+                            "multiplier": 2
+                          },
+                          "dead_letter": null
+                        }
+                      }
+                    },
+                    "limits": {
+                      "append_rows": 128,
+                      "append_bytes": 1048576,
+                      "claim_rows": 16,
+                      "read_rows": 256,
+                      "read_bytes": 1048576,
+                      "active_leases": 64,
+                      "waiters": 64,
+                      "timer_steps": 64
+                    }
+                  },
+                  "content": {
+                    "bytes": 1024,
+                    "sha256": [
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3
+                    ]
+                  },
+                  "retired": false
+                },
+                "record": {
+                  "scope": {
+                    "definition": "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573",
+                    "connection": {
+                      "scope": {
+                        "realm": 42,
+                        "resource": 3,
+                        "catalog": 18446744073709551615
+                      },
+                      "branch": 1,
+                      "audience": 5,
+                      "principal": 4,
+                      "role": null
+                    },
+                    "account": [
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11
+                    ]
+                  },
+                  "format": 1464617265,
+                  "content": {
+                    "bytes": 2048,
+                    "sha256": [
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31
+                    ]
+                  }
+                }
+              },
+              "selection": {
+                "renewal": {
+                  "settlement": {
+                    "operation": {
+                      "scope": {
+                        "realm": 42,
+                        "resource": 3,
+                        "catalog": 18446744073709551615
+                      },
+                      "principal": 4,
+                      "operation": 18446744073709551614
+                    },
+                    "lease": {
+                      "target": {
+                        "definition": "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573",
+                        "interpretation": {
+                          "object": {
+                            "scope": {
+                              "realm": 42,
+                              "resource": 3,
+                              "catalog": 18446744073709551615
+                            },
+                            "branch": 1,
+                            "object": 18446744073709551614
+                          },
+                          "revision": 18446744073709551613,
+                          "digest": [
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3
+                          ]
+                        },
+                        "partition": 1
+                      },
+                      "claim": {
+                        "scope": {
+                          "realm": 42,
+                          "resource": 3,
+                          "catalog": 18446744073709551615
+                        },
+                        "principal": 4,
+                        "operation": 18446744073709551615
+                      },
+                      "offset": 0,
+                      "epoch": 1,
+                      "attempt": 1,
+                      "expires_ms": 1100
+                    },
+                    "action": {
+                      "extend": {
+                        "expires_ms": 2100
+                      }
+                    }
+                  },
+                  "accepted": {
+                    "partition": 91,
+                    "next_lsn": 12
+                  }
+                }
+              },
+              "limits": {
+                "rows": 2,
+                "encoded_bytes": 4096,
+                "scanned_rows": 16
+              }
+            },
+            "position": {
+              "renewal": 0
+            },
+            "rows": 1
+          }
+        }
+      },
+      "delegation": null,
+      "closure": null,
+      "borrow": null,
+      "lease": null,
+      "transaction": null,
+      "proof": {
+        "claim": {
+          "definition": "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573",
+          "realm": 42,
+          "principal": 4,
+          "credential_epoch": 1,
+          "role": null,
+          "audience": 5,
+          "context": [
+            238,
+            88,
+            107,
+            191,
+            230,
+            36,
+            232,
+            55,
+            67,
+            222,
+            0,
+            76,
+            179,
+            31,
+            56,
+            211,
+            67,
+            79,
+            33,
+            73,
+            90,
+            161,
+            124,
+            218,
+            0,
+            229,
+            165,
+            132,
+            8,
+            223,
+            133,
+            254
+          ]
+        },
+        "signature": [
+          83,
+          249,
+          146,
+          179,
+          182,
+          239,
+          246,
+          197,
+          246,
+          73,
+          143,
+          35,
+          157,
+          107,
+          230,
+          161,
+          220,
+          2,
+          55,
+          9,
+          7,
+          181,
+          237,
+          198,
+          73,
+          130,
+          207,
+          240,
+          132,
+          92,
+          81,
+          31,
+          119,
+          134,
+          122,
+          176,
+          58,
+          163,
+          210,
+          95,
+          202,
+          207,
+          119,
+          136,
+          102,
+          246,
+          156,
+          57,
+          137,
+          246,
+          253,
+          127,
+          113,
+          105,
+          49,
+          129,
+          91,
+          73,
+          222,
+          27,
+          31,
+          218,
+          80,
+          1
+        ]
+      }
+    },
+    "public_key": [
+      253,
+      23,
+      36,
+      56,
+      90,
+      160,
+      199,
+      91,
+      100,
+      251,
+      120,
+      205,
+      96,
+      47,
+      161,
+      217,
+      145,
+      253,
+      235,
+      247,
+      107,
+      19,
+      197,
+      142,
+      215,
+      2,
+      234,
+      200,
+      53,
+      233,
+      246,
+      24
+    ]
+  },
+  {
+    "request": {
+      "definition": "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573",
+      "connection": {
+        "scope": {
+          "realm": 42,
+          "resource": 3,
+          "catalog": 18446744073709551615
+        },
+        "branch": 1,
+        "audience": 5,
+        "principal": 4,
+        "role": null
+      },
+      "nonce": [
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7
+      ],
+      "action": {
+        "workload_result": {
+          "page": {
+            "reference": {
+              "intent": {
+                "connection": {
+                  "scope": {
+                    "realm": 42,
+                    "resource": 3,
+                    "catalog": 18446744073709551615
+                  },
+                  "branch": 1,
+                  "audience": 5,
+                  "principal": 4,
+                  "role": null
+                },
+                "namespace": 1,
+                "binding": {
+                  "queue": {
+                    "definition": "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573",
+                    "operation": {
+                      "scope": {
+                        "realm": 42,
+                        "resource": 3,
+                        "catalog": 18446744073709551615
+                      },
+                      "principal": 4,
+                      "operation": 18446744073709551614
+                    },
+                    "target": {
+                      "definition": "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573",
+                      "interpretation": {
+                        "object": {
+                          "scope": {
+                            "realm": 42,
+                            "resource": 3,
+                            "catalog": 18446744073709551615
+                          },
+                          "branch": 1,
+                          "object": 18446744073709551614
+                        },
+                        "revision": 18446744073709551613,
+                        "digest": [
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3,
+                          3
+                        ]
+                      },
+                      "partition": 1
+                    },
+                    "kind": "settle",
+                    "intent": [
+                      200,
+                      191,
+                      27,
+                      204,
+                      180,
+                      212,
+                      200,
+                      176,
+                      230,
+                      204,
+                      131,
+                      218,
+                      113,
+                      94,
+                      126,
+                      137,
+                      94,
+                      34,
+                      84,
+                      219,
+                      182,
+                      251,
+                      137,
+                      63,
+                      176,
+                      71,
+                      102,
+                      96,
+                      11,
+                      61,
+                      191,
+                      147
+                    ]
+                  }
+                },
+                "source": {
+                  "declaration": {
+                    "definition": "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573",
+                    "interpretation": {
+                      "object": {
+                        "scope": {
+                          "realm": 42,
+                          "resource": 3,
+                          "catalog": 18446744073709551615
+                        },
+                        "branch": 1,
+                        "object": 18446744073709551614
+                      },
+                      "revision": 18446744073709551613,
+                      "digest": [
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3,
+                        3
+                      ]
+                    },
+                    "schema": {
+                      "bytes": 128,
+                      "sha256": [
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29,
+                        29
+                      ]
+                    },
+                    "configuration": {
+                      "partitioning": {
+                        "count": 2,
+                        "key_column": null,
+                        "hash": "sha256_64"
+                      },
+                      "retention": {
+                        "max_age_ms": null
+                      },
+                      "policy": {
+                        "queue": {
+                          "ordering": "unordered",
+                          "key_column": null,
+                          "lease_ms": 1000,
+                          "maximum_lease_ms": 10000,
+                          "maximum_attempts": 5,
+                          "backoff": {
+                            "initial_ms": 1,
+                            "maximum_ms": 100,
+                            "multiplier": 2
+                          },
+                          "dead_letter": null
+                        }
+                      }
+                    },
+                    "limits": {
+                      "append_rows": 128,
+                      "append_bytes": 1048576,
+                      "claim_rows": 16,
+                      "read_rows": 256,
+                      "read_bytes": 1048576,
+                      "active_leases": 64,
+                      "waiters": 64,
+                      "timer_steps": 64
+                    }
+                  },
+                  "content": {
+                    "bytes": 1024,
+                    "sha256": [
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3,
+                      3
+                    ]
+                  },
+                  "retired": false
+                },
+                "record": {
+                  "scope": {
+                    "definition": "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573",
+                    "connection": {
+                      "scope": {
+                        "realm": 42,
+                        "resource": 3,
+                        "catalog": 18446744073709551615
+                      },
+                      "branch": 1,
+                      "audience": 5,
+                      "principal": 4,
+                      "role": null
+                    },
+                    "account": [
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11,
+                      11
+                    ]
+                  },
+                  "format": 1464617265,
+                  "content": {
+                    "bytes": 2048,
+                    "sha256": [
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31,
+                      31
+                    ]
+                  }
+                }
+              },
+              "selection": {
+                "renewal": {
+                  "settlement": {
+                    "operation": {
+                      "scope": {
+                        "realm": 42,
+                        "resource": 3,
+                        "catalog": 18446744073709551615
+                      },
+                      "principal": 4,
+                      "operation": 18446744073709551614
+                    },
+                    "lease": {
+                      "target": {
+                        "definition": "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573",
+                        "interpretation": {
+                          "object": {
+                            "scope": {
+                              "realm": 42,
+                              "resource": 3,
+                              "catalog": 18446744073709551615
+                            },
+                            "branch": 1,
+                            "object": 18446744073709551614
+                          },
+                          "revision": 18446744073709551613,
+                          "digest": [
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3,
+                            3
+                          ]
+                        },
+                        "partition": 1
+                      },
+                      "claim": {
+                        "scope": {
+                          "realm": 42,
+                          "resource": 3,
+                          "catalog": 18446744073709551615
+                        },
+                        "principal": 4,
+                        "operation": 18446744073709551615
+                      },
+                      "offset": 0,
+                      "epoch": 1,
+                      "attempt": 1,
+                      "expires_ms": 1100
+                    },
+                    "action": {
+                      "extend": {
+                        "expires_ms": 2100
+                      }
+                    }
+                  },
+                  "accepted": {
+                    "partition": 91,
+                    "next_lsn": 12
+                  }
+                }
+              },
+              "limits": {
+                "rows": 2,
+                "encoded_bytes": 4096,
+                "scanned_rows": 16
+              }
+            },
+            "position": {
+              "renewal": 1
+            },
+            "rows": 1
+          }
+        }
+      },
+      "delegation": null,
+      "closure": null,
+      "borrow": null,
+      "lease": null,
+      "transaction": null,
+      "proof": {
+        "claim": {
+          "definition": "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573",
+          "realm": 42,
+          "principal": 4,
+          "credential_epoch": 1,
+          "role": null,
+          "audience": 5,
+          "context": [
+            65,
+            154,
+            31,
+            73,
+            21,
+            85,
+            229,
+            131,
+            206,
+            197,
+            138,
+            88,
+            149,
+            117,
+            195,
+            145,
+            82,
+            49,
+            147,
+            199,
+            8,
+            76,
+            123,
+            127,
+            79,
+            89,
+            102,
+            71,
+            4,
+            97,
+            12,
+            83
+          ]
+        },
+        "signature": [
+          251,
+          27,
+          17,
+          127,
+          34,
+          68,
+          230,
+          45,
+          14,
+          39,
+          93,
+          88,
+          143,
+          210,
+          199,
+          158,
+          245,
+          75,
+          59,
+          219,
+          155,
+          91,
+          254,
+          225,
+          70,
+          210,
+          151,
+          114,
+          0,
+          179,
+          248,
+          39,
+          121,
+          5,
+          143,
+          215,
+          40,
+          205,
+          195,
+          26,
+          141,
+          18,
+          71,
+          192,
+          120,
+          185,
+          72,
+          159,
+          141,
+          50,
+          207,
+          113,
+          14,
+          211,
+          70,
+          124,
+          29,
+          149,
+          94,
+          204,
+          101,
+          133,
+          221,
+          0
+        ]
+      }
+    },
+    "public_key": [
+      253,
+      23,
+      36,
+      56,
+      90,
+      160,
+      199,
+      91,
+      100,
+      251,
+      120,
+      205,
+      96,
+      47,
+      161,
+      217,
+      145,
+      253,
+      235,
+      247,
+      107,
+      19,
+      197,
+      142,
+      215,
+      2,
+      234,
+      200,
+      53,
+      233,
+      246,
+      24
+    ]
   }
 ]

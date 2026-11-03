@@ -130,7 +130,7 @@ assignment and explicit native read-release tokens are outside this SQL profile.
 
 `result_kind` specifies command or retained rows. `result` accepts a workload
 operation in the same account, selects its original authorized database route,
-and opens its frozen projection against the original append/consume/claim.
+and opens its frozen projection against the original append/consume/claim/renewal.
 Post-buffer disclosure, repeat fetch and empty/terminal responses recheck current
 rights. A new result cursor starts a new consumption of that same selection;
 it cannot renew a lease, ACK, NACK, commit an offset or release native retention.
@@ -158,9 +158,15 @@ retains the original interpretation. NACK optionally binds an absolute UTC
 `WITH (visible_at = ...)` timestamp at whole-millisecond precision; omission
 freezes zero. Native retry/backoff, FIFO and exhaustion policy remain authoritative.
 Original recovery never recalculates that visibility request or releases the
-claim payload pin. Data appends, consumption and acquisition
+claim payload pin. `EXTEND LEASE ON QUEUE ... RECEIPT ... BY ...` freezes an
+extension of the supplied expiry and a descriptor-only result plan. On accepted
+settlement it returns one binary `_receipt_handle` row, with original renewal
+selection and completion evidence. Reopening preserves that exact renewed handle
+even after later lease changes; it does not assert current liveness. Disclosure
+requires current settle rights, including repeated and terminal batches, without
+additional payload READ rights. Data appends, consumption and acquisition
 still require their exact preparation interpretation. GROUP, WAIT, Queue payload
-predicates, EXTEND LEASE and attached-transaction workloads remain outside
+predicates and attached-transaction workloads remain outside
 the SQL execution profile.
 
 Prepared descriptions always include `schema`. It is null when the statement

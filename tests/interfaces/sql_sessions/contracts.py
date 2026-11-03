@@ -42,10 +42,13 @@ else:
     intent = dict(bytes=4096, sha256=[71]*32)
     claim_position = copy.deepcopy(native['queue_cursor'])
     claim_position['next'] = native['claim']['rows']
+    renewal = copy.deepcopy(native['settlement'])
+    renewal['settlement']['action'] = {'extend': {'expires_ms': renewal['settlement']['lease']['expires_ms'] + 1000}}
     for label, kind, receipt, position, count, limit in (
         ('append', 'append', native['append'], native['append']['append']['rows'], 4, None),
         ('consume', 'consume', native['read'], native['read_cursor'], 1, None),
         ('claim', 'claim', native['claim'], claim_position, 2, None),
+        ('renewal', 'renewal', renewal, 1, 1, None),
         ('consume-limit', 'consume', native['read'], native['read_progress']['interval']['last'], 1, 1),
         ('consume-zero', 'consume', native['read'], native['read_progress']['interval']['first'], 0, 0),
     ):

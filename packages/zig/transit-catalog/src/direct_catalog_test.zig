@@ -7482,6 +7482,7 @@ const WorkloadOwners = struct {
     steps: u16 = 256,
     revoke_after: ?u64 = null,
     revoke_page_only: bool = false,
+    revoke_mask: u64 = c.LogAuthority.read,
     fn deinit(self: *@This()) void {
         if (self.stream) |*value| value.deinit();
         if (self.queue) |*value| value.deinit();
@@ -7499,7 +7500,7 @@ const WorkloadOwners = struct {
         defer scratch.deinit();
         const result = try c.DirectStream.apply(scratch.allocator(), output, catalog, &self.stream, options, .{ .authority = try s.LogRead.Authority.init(@splat(4)), .clock = null, .recovery_steps = self.steps }, request, policy);
         if (self.revoke_after) |id| if (!self.revoke_page_only or request == .page) {
-            self.access.denied_privileges = .{ .id = id, .mask = c.LogAuthority.read };
+            self.access.denied_privileges = .{ .id = id, .mask = self.revoke_mask };
         };
         return result;
     }
@@ -7509,7 +7510,7 @@ const WorkloadOwners = struct {
         defer scratch.deinit();
         const result = try c.DirectQueue.apply(scratch.allocator(), output, catalog, &self.queue, options, .{ .clock = self.clock.source(), .recovery_steps = self.steps }, request, policy);
         if (self.revoke_after) |id| if (!self.revoke_page_only or request == .page) {
-            self.access.denied_privileges = .{ .id = id, .mask = c.LogAuthority.read };
+            self.access.denied_privileges = .{ .id = id, .mask = self.revoke_mask };
         };
         return result;
     }
@@ -7520,6 +7521,101 @@ const WorkloadOwners = struct {
         };
     }
 };
+
+test "workload renewal returns the original descriptor across later renewal restart and unavailable time" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{ .exclusive = true };
+    var reference: c.DirectWorkloadResult.Reference = undefined;
+    var authorization: u64 = undefined;
+    var renewed: p.StreamQueue.Lease = undefined;
+    const api = c.DirectWorkloadResultProtocol;
+    for (0..2) |restart| {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        var owners: WorkloadOwners = .{ .access = &access };
+        defer owners.deinit();
+        const native = owners.native();
+        if (restart == 0) {
+            try catalog.initialize(access.policy());
+            const create = try logCreation(.queue, 10, 1, "renewals", 1);
+            _ = try catalog.admitLog(create, access.policy());
+            _ = try catalog.logOperation(create.binding, .execute, access.policy());
+            const definition = (try catalog.logOperation(create.binding, .execute, access.policy())).operation.resulting.?;
+            authorization = definition.properties.authorization;
+            const target: p.StreamQueue.Partition = .{ .definition = p.Growth.current_definition, .interpretation = definition.stored.declaration.interpretation, .partition = 0 };
+            const operation: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 100 };
+            var bytes: [8192]u8 = undefined;
+            const payload = try s.LogBatch.encode(create.intent.action.create.schema, operation, .queue, &.{.{ .cells = &.{.{ .value = .{ .atom = .{ .signed = 42 } } }} }}, &bytes);
+            const binary = try c.DirectTableProtocol.Binary.encode(t.allocator, payload);
+            defer t.allocator.free(binary.base64);
+            (try native.queue(native.context, t.allocator, &catalog, access.policy(), .{ .mutate = .{ .work = .{ .enqueue = .{ .target = target, .operation = operation, .kind = .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(payload) } }, .payload = binary } })).deinit(t.allocator);
+            const claim = try native.queue(native.context, t.allocator, &catalog, access.policy(), .{ .mutate = .{ .work = .{ .claim = .{ .target = target, .operation = .{ .scope = scope, .principal = 1, .operation = 101 }, .maximum = 1, .lease_ms = 100 } }, .payload = null } });
+            defer claim.deinit(t.allocator);
+            const page = try native.queue(native.context, t.allocator, &catalog, access.policy(), .{ .page = .{ .cursor = .{ .receipt = claim.operation.?.claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } });
+            defer page.deinit(t.allocator);
+            const lease = page.page.rows[0].lease.original;
+            const settlement: p.StreamQueue.Settlement = .{ .operation = .{ .scope = scope, .principal = 1, .operation = 102 }, .lease = lease, .action = .{ .extend = .{ .expires_ms = lease.expires_ms + 100 } } };
+            var schema_bytes: [c.fuze.TableSchema.max_bytes]u8 = undefined;
+            const schema = try c.DirectTableProtocol.Binary.encode(t.allocator, try create.intent.action.create.schema.encode(&schema_bytes));
+            defer t.allocator.free(schema.base64);
+            var intent = try c.DirectWorkloadIntent.create(t.allocator, .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null }, .{ .declaration = definition, .schema = schema }, .{ .queue = .{ .work = .{ .settle = settlement }, .payload = null } });
+            defer intent.deinit();
+            const frozen = try intent.reference(@splat(7));
+            _ = try c.DirectRecord.store(objects.objectStore(), frozen.record.scope, c.DirectWorkloadIntent.format, intent.bytes);
+            (try native.queue(native.context, t.allocator, &catalog, access.policy(), .{ .mutate = intent.parsed.value.work.queue })).deinit(t.allocator);
+            const opened = try api.apply(t.allocator, &catalog, access.policy(), .{ .open = .{ .intent = frozen, .limits = .{ .rows = 1, .encoded_bytes = 168, .scanned_rows = 1 } } }, native);
+            defer opened.deinit(t.allocator);
+            reference = opened.opened.reference;
+            renewed = lease;
+            renewed.expires_ms += 100;
+            // A later accepted renewal must never replace the first result.
+            (try native.queue(native.context, t.allocator, &catalog, access.policy(), .{ .mutate = .{ .work = .{ .settle = .{ .operation = .{ .scope = scope, .principal = 1, .operation = 103 }, .lease = renewed, .action = .{ .extend = .{ .expires_ms = renewed.expires_ms + 100 } } } }, .payload = null } })).deinit(t.allocator);
+        }
+        owners.clock.now = null;
+        access.denied_privileges = .{ .id = authorization, .mask = c.LogAuthority.read | c.LogAuthority.acquire };
+        const before = try wal.log().tail(reference.selection.renewal.accepted.partition);
+        const request: api.Request = .{ .page = .{ .reference = reference, .position = .{ .renewal = 0 }, .rows = 1 } };
+        const response = try api.apply(t.allocator, &catalog, access.policy(), request, native);
+        defer response.deinit(t.allocator);
+        try api.validate(t.allocator, reference.intent.connection, request, response);
+        try t.expectEqualDeep(renewed, response.page.page.renewal.rows[0]);
+        var tiny = request;
+        tiny.page.reference.limits.encoded_bytes = p.QueueLeaseHandle.encoded_bytes - 1;
+        try t.expectError(error.WorkloadResultRowTooLarge, api.apply(t.allocator, &catalog, access.policy(), tiny, native));
+        var corrupt = response;
+        var altered = [_]p.StreamQueue.Lease{renewed};
+        altered[0].expires_ms += 100;
+        corrupt.page.page.renewal.rows = &altered;
+        try t.expectError(error.InvalidWorkloadResultResponse, api.validate(t.allocator, reference.intent.connection, request, corrupt));
+        var terminal = request;
+        terminal.page.position = .{ .renewal = 1 };
+        const empty = try api.apply(t.allocator, &catalog, access.policy(), terminal, native);
+        defer empty.deinit(t.allocator);
+        try api.validate(t.allocator, reference.intent.connection, terminal, empty);
+        try t.expectEqual(@as(usize, 0), empty.page.page.renewal.rows.len);
+        try t.expectEqual(before, try wal.log().tail(reference.selection.renewal.accepted.partition));
+        // Denial after observing the receipt must suppress rows and empty completion.
+        var buffered = try c.DirectWorkloadResult.reopen(t.allocator, &catalog, reference, access.policy(), native);
+        defer buffered.deinit();
+        var scratch: std.heap.ArenaAllocator = .init(t.allocator);
+        defer scratch.deinit();
+        owners.revoke_mask = c.LogAuthority.settle;
+        owners.revoke_after = authorization;
+        try t.expectError(error.CatalogDenied, buffered.next(&scratch, t.allocator, &catalog, access.policy(), native));
+        try t.expectEqual(@as(u32, 0), buffered.position().renewal);
+        access.denied_privileges = null;
+        try buffered.seek(.{ .renewal = 1 });
+        try t.expectError(error.CatalogDenied, buffered.next(&scratch, t.allocator, &catalog, access.policy(), native));
+        try t.expectError(error.CatalogDenied, api.apply(t.allocator, &catalog, access.policy(), request, native));
+        try t.expectError(error.CatalogDenied, api.apply(t.allocator, &catalog, access.policy(), terminal, native));
+        access.denied_privileges = null;
+    }
+}
 
 test "workload token settlement requires original native evidence across lost disk replies" {
     inline for (.{ c.DirectLog.Kind.stream, c.DirectLog.Kind.queue }) |kind| {
@@ -7834,6 +7930,7 @@ test "workload results reopen original payload and selections without mutation a
                     try expectWorkloadPage(second, 1, false, .live);
                     try expectWorkloadPage(page, 0, false, .live);
                     const first_encoded = switch (page) {
+                        .renewal => unreachable,
                         inline else => |value| value.rows[0].encoded,
                     };
                     const first_bytes = try first_encoded.decode(scratch.allocator(), c.fuze.TableRow.max_bytes);
@@ -7880,7 +7977,7 @@ test "workload results reopen original payload and selections without mutation a
                     defer two.deinit(t.allocator);
                     try api.validate(t.allocator, reference.intent.connection, wider, two);
                     try t.expectError(switch (two.page.page) {
-                        .append => error.InvalidWorkloadResultResponse,
+                        .append, .renewal => error.InvalidWorkloadResultResponse,
                         .consume => error.InvalidStreamResponse,
                         .claim => error.InvalidQueueResponse,
                     }, api.validate(t.allocator, reference.intent.connection, page_request, two));
@@ -7889,7 +7986,7 @@ test "workload results reopen original payload and selections without mutation a
                     try t.expectError(error.DataIdentityConflict, api.validate(t.allocator, reference.intent.connection, open_request, malformed));
                     var wrong_position = first;
                     switch (wrong_position.page.position) {
-                        .append => |*ordinal| ordinal.* += 1,
+                        .append, .renewal => |*ordinal| ordinal.* += 1,
                         .consume => |*cursor| cursor.authentication[0] ^= 1,
                         .claim => |*cursor| cursor.next += 1,
                     }
@@ -7925,6 +8022,7 @@ test "workload results reopen original payload and selections without mutation a
                         _ = scratch.reset(.retain_capacity);
                         try expectWorkloadPage(page, index, index == 2, .expired);
                         const encoded = switch (page) {
+                            .renewal => unreachable,
                             inline else => |value| value.rows[0].encoded,
                         };
                         const row_bytes = try encoded.decode(scratch.allocator(), c.fuze.TableRow.max_bytes);
@@ -7951,6 +8049,7 @@ test "workload results reopen original payload and selections without mutation a
                     const terminal = try result.next(&scratch, t.allocator, &catalog, access.policy(), native);
                     defer terminal.deinit(t.allocator);
                     switch (terminal) {
+                        .renewal => unreachable,
                         .append => |page| try t.expect(page.complete and page.rows.len == 0),
                         .consume => |page| try t.expect(page.cursor.coverage.complete and page.rows.len == 0),
                         .claim => |page| try t.expect(page.cursor.complete() and page.rows.len == 0),
@@ -7960,6 +8059,7 @@ test "workload results reopen original payload and selections without mutation a
                     access.denied_privileges = null;
                     var changed = reference;
                     switch (changed.selection) {
+                        .renewal => unreachable,
                         .append => |*receipt| receipt.accepted.next_lsn += 1,
                         .consume => |*receipt| receipt.source.sha256[0] ^= 1,
                         .claim => |*receipt| receipt.leases.?.sha256[0] ^= 1,
@@ -7979,7 +8079,7 @@ test "workload results reopen original payload and selections without mutation a
                 defer empty_result.deinit();
                 const empty_page = try empty_result.next(&scratch, output.allocator(), &catalog, access.policy(), native);
                 switch (empty_page) {
-                    .append => return error.TestUnexpectedResult,
+                    .append, .renewal => return error.TestUnexpectedResult,
                     .consume => |page| try t.expect(page.cursor.coverage.complete and page.cursor.coverage.rows == 0 and page.rows.len == 0),
                     .claim => |page| try t.expect(page.cursor.complete() and page.cursor.receipt.rows == 0 and page.rows.len == 0),
                 }
@@ -8020,6 +8120,7 @@ test "workload results reopen original payload and selections without mutation a
 
 fn expectWorkloadPage(page: c.DirectWorkloadResult.Page, ordinal: usize, complete: bool, liveness: p.QueueRead.Liveness) !void {
     switch (page) {
+        .renewal => return error.TestUnexpectedResult,
         .append => |value| {
             try t.expectEqual(@as(usize, 1), value.rows.len);
             try t.expectEqual(ordinal, value.rows[0].offset);

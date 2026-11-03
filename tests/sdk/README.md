@@ -55,6 +55,12 @@ copies those immutable executables into a fresh private installation; no service
 configuration, durable state or test outcome is reused. The temporary compiled
 programs disappear when the invocation finishes.
 
+Rust raw-client and Station consumer builds disable Cargo incremental caches in
+their disposable projects. Embedded native-library constants otherwise duplicate
+large byte arrays across compilation caches. Debug compilation, core/Arrow
+feature coverage, installed example binaries and negative type checks remain
+enabled; this setting changes no distributed SDK or native library.
+
 Query/storage and interface fixtures own their semantic assertions. The SDK
 installers expose those same schedules to language callers; a codec-only check
 does not establish live authorization, uncertain-call recovery or disk behavior.

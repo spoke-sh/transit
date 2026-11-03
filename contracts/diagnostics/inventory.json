@@ -6576,7 +6576,8 @@
         "InvalidWorkloadIntent": 4,
         "LogPartitionRequired": 1,
         "QueueClaimLimitExceeded": 1,
-        "UnsupportedConstruct": 3
+        "UnsupportedConstruct": 3,
+        "WorkloadProjectionUnavailable": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -6593,7 +6594,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 63,
+        "try": 73,
         "catch": 0
       },
       "imports": [
@@ -6667,8 +6668,7 @@
         "CatalogIdentityConflict": 2,
         "CatalogKindMismatch": 1,
         "CatalogNameNotFound": 1,
-        "InvalidQueueLeaseHandle": 1,
-        "UnsupportedConstruct": 2
+        "InvalidQueueLeaseHandle": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -6682,7 +6682,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 12,
+        "try": 17,
         "catch": 1
       },
       "imports": [
@@ -8952,7 +8952,7 @@
         "DataIdentityConflict": 1,
         "IncompatibleDefinition": 1,
         "InvalidWorkloadIntent": 6,
-        "InvalidWorkloadProjection": 1,
+        "InvalidWorkloadProjection": 2,
         "OutOfMemory": 1,
         "SourceChanged": 1,
         "WorkloadProjectionSourceChanged": 1,
@@ -9012,19 +9012,21 @@
         "WorkloadResultConflict": 4,
         "WorkloadResultGroupRequired": 1,
         "WorkloadResultIncomplete": 1,
-        "WorkloadResultRowTooLarge": 1,
-        "WorkloadResultUnavailable": 4
+        "WorkloadResultRowTooLarge": 2,
+        "WorkloadResultUnavailable": 5
       },
       "outcomes": {
         "Page": [
           "append",
           "consume",
-          "claim"
+          "claim",
+          "renewal"
         ],
         "cursor": [
           "append",
           "consume",
-          "claim"
+          "claim",
+          "renewal"
         ]
       },
       "error_sets": {},
@@ -9048,7 +9050,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 50,
+        "try": 53,
         "catch": 0
       },
       "imports": [
@@ -9060,7 +9062,7 @@
       "errors": {
         "CatalogIdentityConflict": 1,
         "InvalidWorkloadResultBudget": 2,
-        "InvalidWorkloadResultResponse": 14,
+        "InvalidWorkloadResultResponse": 17,
         "WorkloadResultConflict": 2
       },
       "outcomes": {
@@ -9082,7 +9084,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 26,
+        "try": 27,
         "catch": 1
       },
       "imports": [
@@ -20289,10 +20291,10 @@
     "packages/zig/transit-fuze/src/WorkloadProjection.zig": {
       "errors": {
         "DuplicateColumn": 1,
-        "InvalidWorkloadProjection": 4,
-        "InvalidWorkloadProjectionRow": 3,
-        "WorkloadProjectionSourceChanged": 4,
-        "WorkloadProjectionUnavailable": 4
+        "InvalidWorkloadProjection": 6,
+        "InvalidWorkloadProjectionRow": 4,
+        "WorkloadProjectionSourceChanged": 5,
+        "WorkloadProjectionUnavailable": 5
       },
       "outcomes": {
         "Field": [
@@ -20323,7 +20325,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 33,
+        "try": 34,
         "catch": 0
       },
       "imports": [
@@ -23248,18 +23250,21 @@
     },
     "packages/zig/transit-protocol/src/LogWorkloadResult.zig": {
       "errors": {
-        "WorkloadResultConflict": 2
+        "WorkloadResultConflict": 3,
+        "WorkloadResultUnavailable": 1
       },
       "outcomes": {
         "Position": [
           "append",
           "consume",
-          "claim"
+          "claim",
+          "renewal"
         ],
         "Selection": [
           "append",
           "consume",
-          "claim"
+          "claim",
+          "renewal"
         ]
       },
       "error_sets": {},
@@ -23267,11 +23272,12 @@
         "Position.complete()": "<inferred>",
         "Position.validate()": "<inferred>",
         "Selection.binding()": "<inferred>",
-        "Selection.validate()": "<inferred>"
+        "Selection.validate()": "<inferred>",
+        "renewedLease()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 10,
+        "try": 13,
         "catch": 0
       },
       "imports": [
@@ -31443,9 +31449,9 @@
         "IncompleteWorkloadCoverage": 2,
         "InvalidWorkloadEvidence": 3,
         "InvalidWorkloadObservation": 2,
-        "InvalidWorkloadResultCount": 4,
-        "WorkloadResultConflict": 3,
-        "WorkloadResultUnavailable": 1
+        "InvalidWorkloadResultCount": 5,
+        "WorkloadResultConflict": 4,
+        "WorkloadResultUnavailable": 2
       },
       "outcomes": {
         "Evidence.receipt": [
@@ -32799,7 +32805,8 @@
           "consume",
           "claim",
           "ack",
-          "nack"
+          "nack",
+          "extend_lease"
         ],
         "Profile": [
           "native",

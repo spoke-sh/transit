@@ -103,6 +103,7 @@ pub fn validate(allocator: std.mem.Allocator, connection: w.Connection, request:
             try opened.position.validate(opened.reference.selection);
             switch (opened.position) {
                 .append => |ordinal| if (ordinal != 0) return error.InvalidWorkloadResultResponse,
+                .renewal => |ordinal| if (ordinal != 0) return error.InvalidWorkloadResultResponse,
                 .consume => |cursor| if (cursor.coverage.rows != 0 or cursor.coverage.through != cursor.coverage.from) return error.InvalidWorkloadResultResponse,
                 .claim => |cursor| if (cursor.next != 0) return error.InvalidWorkloadResultResponse,
             }
@@ -120,6 +121,12 @@ pub fn validate(allocator: std.mem.Allocator, connection: w.Connection, request:
             var limits = page.reference.limits;
             limits.rows = value.rows;
             switch (page.page) {
+                .renewal => |body| {
+                    const count: usize = if (value.position.renewal == 0) 1 else 0;
+                    if (body.next != 1 or page.position.renewal != 1 or body.rows.len != count or
+                        count > limits.rows or count * p.QueueLeaseHandle.encoded_bytes > limits.encoded_bytes) return error.InvalidWorkloadResultResponse;
+                    if (count != 0 and !std.meta.eql(body.rows[0], try p.LogWorkloadResult.renewedLease(page.reference.selection.renewal))) return error.InvalidWorkloadResultResponse;
+                },
                 .consume => |body| {
                     if (!std.meta.eql(page.position.consume, body.cursor)) return error.InvalidWorkloadResultResponse;
                     try c.DirectStreamResponse.validate(allocator, connection, .{ .page = .{ .cursor = value.position.consume, .limits = .{ .rows = limits.rows, .encoded_bytes = limits.encoded_bytes, .scanned_rows = limits.scanned_rows } } }, .{ .page = body });
@@ -161,7 +168,7 @@ pub fn validate(allocator: std.mem.Allocator, connection: w.Connection, request:
 test "workload result requests verify independent signatures and original positions" {
     const t = std.testing;
     const Fixture = struct { request: w.Request, public_key: [32]u8 };
-    const parsed = try p.Json.parseFromSlice([4]Fixture, t.allocator, @embedFile("fixtures/direct-workload-result-v1.json"));
+    const parsed = try p.Json.parseFromSlice([6]Fixture, t.allocator, @embedFile("fixtures/direct-workload-result-v1.json"));
     defer parsed.deinit();
     for (parsed.value) |fixture| {
         try fixture.request.validate(t.allocator);
@@ -174,6 +181,7 @@ test "workload result requests verify independent signatures and original positi
             .open => |*value| value.limits.rows += 1,
             .page => |*value| switch (value.position) {
                 .append => unreachable,
+                .renewal => |*ordinal| ordinal.* = 1 - ordinal.*,
                 .consume => |*cursor| cursor.authentication[0] ^= 1,
                 .claim => |*cursor| cursor.next -= 1,
             },

@@ -197,7 +197,7 @@ test "compact Fuze string lanes cross SQL result encoding with detached raw byte
 
 test "independent workload frames preserve original selection and terminal coverage" {
     const t = std.testing;
-    inline for (.{ "append", "consume", "claim", "consume-limit", "consume-zero" }) |kind| {
+    inline for (.{ "append", "consume", "claim", "renewal", "consume-limit", "consume-zero" }) |kind| {
         const text = std.mem.trim(u8, @embedFile("fixtures/workload-" ++ kind ++ "-frame.hex"), "\n");
         const bytes = try t.allocator.alignedAlloc(u8, .fromByteUnits(64), text.len / 2);
         defer t.allocator.free(bytes);
@@ -214,12 +214,14 @@ test "independent workload frames preserve original selection and terminal cover
                 .append => |value| .{ .append = value },
                 .consume => |value| .{ .consume = value },
                 .claim => |value| .{ .claim = value },
+                .renewal => |value| .{ .settle = value },
             },
         };
         const command: r.Command = switch (workload.selection) {
             .append => .produce,
             .consume => .consume,
             .claim => .claim,
+            .renewal => .extend_lease,
         };
         const counts = evidence.counts(command);
         var operation: api.Operation = .{
@@ -277,7 +279,7 @@ test "independent workload frames preserve original selection and terminal cover
             try t.expectError(error.IncompleteWorkloadCoverage, completion.validate(unsatisfied));
         } else {
             switch (completion.workload.?.position) {
-                .append => |*ordinal| ordinal.* -= 1,
+                .append, .renewal => |*ordinal| ordinal.* -= 1,
                 .consume => |*cursor| {
                     try t.expectEqual(1, completion.rows);
                     try t.expectEqual(2, cursor.coverage.rows);

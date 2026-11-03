@@ -177,6 +177,10 @@ class Decoder:
                 assert limit is None
                 assert position['claim']['receipt'] == selection['claim']
                 assert total == position['claim']['next'] == selection['claim']['rows']
+            elif 'renewal' in selection:
+                assert limit is None and total == position['renewal'] == 1
+                settlement = selection['renewal']['settlement']
+                assert settlement['action']['extend']['expires_ms'] > settlement['lease']['expires_ms']
             else:
                 assert limit is None
                 assert total == position['append'] == selection['append']['append']['rows']

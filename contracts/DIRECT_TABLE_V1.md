@@ -445,7 +445,7 @@ shared owner. SQL workload text admission remains unavailable.
 ### Original workload result delivery
 
 The signed read-only `workload_result` action opens and pages the original
-accepted append/enqueue, consume or claim. `open` takes the complete workload
+accepted append/enqueue, consume, claim or renewal. `open` takes the complete workload
 intent reference and explicit row/byte/scan budgets. It returns `opened` with
 the original native success receipt, frozen source/schema, delivery limits and
 initial position. A staged body or absent receipt is not an accepted result;
@@ -467,12 +467,23 @@ A page request also requires an explicit positive `rows` budget no greater
 than the frozen delivery limit. Lowering it controls this page alone and cannot
 change the original selection, source or retained reference.
 
+A `renewal` selection contains the original successful extension
+`SettlementReceipt`; ACK/NACK receipts cannot select rows. Its position is an
+ordinal from zero through one. A renewal page owns `source`, `rows` (zero or one
+exact `Lease` descriptors) and `next`. Position zero returns the original lease
+with only its expiry replaced by the accepted extension deadline, and next one.
+Position one returns an empty terminal page with next one. The descriptor costs
+168 encoded bytes against the page budget. Responses validate the entire lease
+against the selected settlement; neither a newer renewal nor current time may
+change it. This result does not read message payloads or assert lease liveness.
+
 One delivery page has at most 128 rows and 1 MiB of encoded row bytes, also within
 the frozen source's read limits; Stream scan work is bounded to 65,536 examined
 rows. A single row that exceeds the byte budget fails without advancing delivery.
 Encoded row bytes exclude base64 and schema overhead. The workload's existing
 4 MiB complete-body limit remains separate. Each read requires current
-original-operation rights plus READ and rechecks disclosure after buffering,
+original-operation rights plus READ (settle rights alone for renewal descriptors)
+and rechecks disclosure after buffering,
 including empty and repeated responses. Descriptors and cursor possession grant
 no permission. The service uses its normal bounded native owners and preserves
 verified replay progress when an original-result probe remains pending.
