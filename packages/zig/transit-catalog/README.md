@@ -216,8 +216,11 @@ Table through signed or typed direct calls. `DirectCatalog` reserves the name
 and original client token, acquires the exact Table pin and publishes the head
 and terminal result together. Reads retain unflushed rows and the original
 schema while the source advances; current source authorization still applies.
-Cancellation durably releases unpublished preparation. See the
-[installed branch contract](../../../contracts/BRANCH_V1.md#installed-immutable-table-branches)
+Cancellation durably releases unpublished preparation. Bounded `list` calls
+discover the caller's published branches under current source rights. Explicit
+`retire` first makes a branch unavailable, then resumably releases its original
+pin; it preserves the successful creation receipt and never reuses the branch ID.
+See the [installed branch contract](../../../contracts/BRANCH_V1.md#installed-immutable-table-branches)
 for recovery, retention, caller ownership and profile limits.
 
 `BranchLifecycle` and `BranchMergeRestore` are bounded in-memory models outside

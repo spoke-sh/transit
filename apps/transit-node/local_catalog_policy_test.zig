@@ -2353,6 +2353,7 @@ fn branchDispatch(service: *@import("LocalTableService.zig"), owner_role: u64) !
         .{ .scan = .{ .head = head, .after = null, .limits = .{} } },
         .{ .scan = .{ .head = empty_head, .after = null, .limits = .{} } },
         .{ .source = head },
+        .{ .list = .{ .namespace = 1, .after = null } },
     }) |read| {
         service.before_reply = .{ .context = &revoked, .run = Revoke.run };
         defer service.before_reply = null;
@@ -2364,6 +2365,36 @@ fn branchDispatch(service: *@import("LocalTableService.zig"), owner_role: u64) !
     defer empty_rows.deinit();
     try t.expectEqual(0, empty_rows.value.result.branch.page.total_rows);
     try t.expect(empty_rows.value.result.branch.page.next == null);
+    const listing = try c.DirectBranch.call(caller, .{ .list = .{ .namespace = 1, .after = null } });
+    defer listing.deinit();
+    try t.expectEqualDeep(head, listing.value.result.branch.listing.entries[0].?.head);
+    try t.expectEqualDeep(empty_head, listing.value.result.branch.listing.entries[1].?.head);
+    try t.expect(listing.value.result.branch.listing.next == null);
+    const retire: c.DirectBranch.Request = .{ .retire = .{ .key = request.key, .expected = head } };
+    const retiring = try dispatch(service, .{ .branch = retire });
+    defer retiring.deinit();
+    try t.expectEqual(c.DirectBranch.Phase.retiring, retiring.value.result.branch.status.?.state.phase);
+    try t.expectError(error.BranchRetired, c.DirectBranch.call(caller, .{ .source = head }));
+    const retired = try c.DirectBranch.call(caller, retire);
+    defer retired.deinit();
+    try t.expectEqual(c.DirectBranch.Phase.retired, retired.value.result.branch.status.?.state.phase);
+    try t.expectEqualDeep(published.value.result.branch.status.?.receipt, retired.value.result.branch.status.?.receipt);
+    try t.expectEqualDeep(head, retired.value.result.branch.status.?.state.head.?);
+    // First collection can delete released data; the next must traverse the
+    // retained publication evidence without reopening that released snapshot.
+    try catalog.recover();
+    try collectDirect(service.engine, &catalog);
+    try collectDirect(service.engine, &catalog);
+    const after_collection = try c.DirectBranch.call(caller, .{ .create = request });
+    defer after_collection.deinit();
+    try t.expectEqualDeep(retired.value.result, after_collection.value.result);
+    const still_live = try c.DirectBranch.call(caller, .{ .source = empty_head });
+    defer still_live.deinit();
+    try t.expectEqual(0, still_live.value.result.branch.source.rows);
+    const remaining = try c.DirectBranch.call(caller, .{ .list = .{ .namespace = 1, .after = null } });
+    defer remaining.deinit();
+    try t.expectEqualDeep(empty_head, remaining.value.result.branch.listing.entries[0].?.head);
+    try t.expect(remaining.value.result.branch.listing.entries[1] == null);
 }
 
 test "signed branch reads survive collection and fence buffered disclosure" {

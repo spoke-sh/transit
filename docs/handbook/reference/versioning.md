@@ -108,7 +108,11 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`c3cbdfe99cdb08a8a21cc2429783fd746b1311b096d9ca8371058e1abb037b64`.
+`28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573`.
+It binds immutable-branch discovery and the persisted `retiring`/`retired`
+lifecycle, preserving successful creation receipts while closing read access
+and releasing retention. The earlier shared definition rejects before saved
+requests or stored progress are interpreted; no implicit conversion is supplied.
 It requires the catalog's paged transaction-record inventory and the `TXR1`
 owned result envelope. Managed pages/manifests bind their original transaction;
 earlier catalog roots and saved result formats reject without inferred ownership

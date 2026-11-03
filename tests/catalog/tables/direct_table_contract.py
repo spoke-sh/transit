@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "c3cbdfe99cdb08a8a21cc2429783fd746b1311b096d9ca8371058e1abb037b64"
+definition = "28dd54cfe806369cb6a6d8ed5bb87fed380afb08c79af9812b5bebe2f123b573"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -288,6 +288,15 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
     branch_request = {**branch_input, "proof": {"claim": branch_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(branch_claim)).digest())}}
     branch_fixture = {"request": branch_request, "public_key": public_key,
                       "intent_digest": list(hashlib.sha256(b"transit.catalog.table-branch.v1\0" + canonical(branch_intent)).digest())}
+    branch_head = {"reference": {"identity": {"scope": request_input["connection"]["scope"], "branch": 2**64 - 2},
+                                 "version": 1, "content": {"bytes": 512, "sha256": [27] * 32}}, "generation": 1}
+    for label, action in (
+        ("retire", {"retire": {"key": branch_key, "expected": branch_head}}),
+        ("list", {"list": {"namespace": 1, "after": {"catalog": {"partition": 9, "next_lsn": 2**64 - 1}, "namespace": 1, "after": 2**64 - 2}}}),
+    ):
+        branch_control = {**request_input, "action": {"branch": action}}
+        branch_control_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(branch_control)).digest())}
+        branch_fixture[label] = {**branch_control, "proof": {"claim": branch_control_claim, "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(branch_control_claim)).digest())}}
 
     history_intent = {
         "connection": request_input["connection"], "namespace": 1, "operation": 2**64 - 1,
@@ -389,6 +398,12 @@ fixture = {
 validator = jsonschema.Draft202012Validator({**schema, "$ref": "#/$defs/Request"})
 validator.validate(request)
 validator.validate(branch_request)
+validator.validate(branch_fixture["retire"])
+validator.validate(branch_fixture["list"])
+for field in ("key", "expected"):
+    incomplete = copy.deepcopy(branch_fixture["retire"])
+    del incomplete["action"]["branch"]["retire"][field]
+    assert not validator.is_valid(incomplete), field
 validator.validate(history_request)
 validator.validate(common_request)
 validator.validate(metadata_request)

@@ -54,10 +54,10 @@ token through the `DirectBranch.Request.create` action. The shared Zig caller us
 `DirectBranch.call(client, request)` and the existing signed `/table/v1` endpoint.
 SQL branch commands and additional language convenience wrappers are unavailable.
 
-Inspect the original token to observe `admitted`, `published`, `abandoning` or
-`cancelled`. A published head identifies immutable schema and data, including
-rows accepted before flushing. Parent writes and later physical collection do
-not change its rows. Use `source` to inspect schema and `scan` to read bounded
+Inspect the original token to observe `admitted`, `published`, `abandoning`,
+`cancelled`, `retiring` or `retired`. A published head identifies immutable schema
+and data, including rows accepted before flushing. Parent writes and later
+physical collection do not change its rows. Use `source` to inspect schema and `scan` to read bounded
 pages; retain each response until its bytes have been consumed. Complete coverage
 requires the original cursor sequence and its terminal row count.
 
@@ -68,12 +68,26 @@ before freeing its name; it cannot remove a published branch. Published branches
 have unlimited retention. Schema-only branches return zero rows but currently
 retain the full source pin as well as its schema.
 
+Use `list` with a namespace to discover your published branches under current
+source access. Pages examine at most eight branch IDs and can be empty with a
+continuation when entries are filtered. Consume through a null continuation.
+The cursor binds the exact catalog position; catalog changes refuse continuation
+instead of silently combining different listings.
+
+To retire a published branch, send `retire` with its original creation key and
+exact head. The first step records `retiring`, making lookup and reads unavailable,
+including existing scan continuations. Repeat `retire` or advance the original
+token to release its pin and record `retired`. Current source access remains
+required for cleanup. The original creation stays successful and inspectable;
+retirement cannot be undone. After cleanup, the name can be reused with a new
+token and branch ID. No background sweeper resumes interrupted work.
+
 Creation requires source SELECT and namespace CREATE; later inspection and
 reads still require the original principal's current source access. A branch
 name or retained head grants no access. See the
 [installed branch contract](../../../contracts/BRANCH_V1.md#installed-immutable-table-branches)
 for exact recovery and lifetime rules. Writable branches, whole-catalog cuts,
-merge, restore and published branch deletion remain unavailable.
+merge and restore remain unavailable.
 
 ## Schemas and identities
 

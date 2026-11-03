@@ -2,6 +2,8 @@
 const common = @import("CallerCodes.zig");
 pub const Entry = common.Entry;
 pub const entries = [_]Entry{
+    .{ .cause = error.BranchRetired, .code = "catalog.branch_retired", .category = .lifecycle, .message = "This branch has been retired. Its original creation remains successful, but its retained source and read continuations are unavailable." },
+    .{ .cause = error.InvalidBranchCursor, .code = "catalog.invalid_branch_cursor", .category = .binding, .message = "The branch cursor must preserve its original namespace, catalog position and continuation identity." },
     .{ .cause = error.UnsupportedHistoricalKind, .code = "catalog.unsupported_historical_kind", .category = .unsupported, .message = "This caller profile cannot preserve the selected historical or view binding. Use the qualified historical SQL or catalog read operation." },
     .{ .cause = error.CatalogKindMismatch, .code = "catalog.kind_mismatch", .category = .binding, .message = "The proposal's object kind differs from its typed body. Correct the original declaration before dispatch." },
     .{ .cause = error.CatalogRecordTooLarge, .code = "catalog.record_too_large", .category = .limit, .message = "The catalog declaration exceeds the bounded record size. Reduce the declaration before dispatch; this failure does not change accepted work." },

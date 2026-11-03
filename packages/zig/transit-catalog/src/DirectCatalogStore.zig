@@ -973,7 +973,7 @@ fn branchIndices(self: *Self, next: *r.Root, progress: c.DirectClientToken.Progr
         next.branches = try self.tree().put(next.branches, try r.idKey(progress.id()), digest);
         next.branch_owners = try self.tree().put(next.branch_owners, try r.operationKey(intent.identity()), digest);
         next.branch_names = try self.tree().put(next.branch_names, name, digest);
-    } else if (state.phase == .cancelled) {
+    } else if (state.phase == .cancelled or state.phase == .retired) {
         next.branch_names = try self.tree().remove(next.branch_names, name);
     }
 }
@@ -990,20 +990,16 @@ fn branchTransition(self: *Self, before: r.Root, record: r.Record) !void {
     const owner = try r.operationKey(intent.identity());
     if (prior) |old| {
         const known = try c.DirectBranch.State.load(self.allocator, self.objects, old);
-        const valid = switch (known.phase) {
-            .admitted => state.phase == .published or state.phase == .abandoning,
-            .abandoning => state.phase == .cancelled,
-            .published, .cancelled => false,
-        };
-        if (!valid or !std.meta.eql(before.branches, record.root.branches) or !std.meta.eql(before.branch_owners, record.root.branch_owners)) return error.InvalidDirectCatalogTransition;
-        if (state.phase != .cancelled and !std.meta.eql(before.branch_names, record.root.branch_names)) return error.InvalidDirectCatalogTransition;
+        try c.DirectBranch.State.transition(known, state);
+        if (!std.meta.eql(before.branches, record.root.branches) or !std.meta.eql(before.branch_owners, record.root.branch_owners)) return error.InvalidDirectCatalogTransition;
+        if (state.phase != .cancelled and state.phase != .retired and !std.meta.eql(before.branch_names, record.root.branch_names)) return error.InvalidDirectCatalogTransition;
     } else {
         if (state.phase != .admitted or try self.tree().get(before.branch_names, name) != null or try self.tree().get(before.branch_owners, owner) != null or try self.tree().get(before.branches, try r.idKey(progress.id())) != null) return error.InvalidDirectCatalogTransition;
     }
     const expected = try pages.Value.init(&try progress.receipt.binding.key.digest());
     if (!std.meta.eql(@as(?pages.Value, expected), try self.tree().get(record.root.branches, try r.idKey(progress.id()))) or !std.meta.eql(@as(?pages.Value, expected), try self.tree().get(record.root.branch_owners, owner))) return error.InvalidDirectCatalogTransition;
     const named = try self.tree().get(record.root.branch_names, name);
-    if (state.phase == .cancelled) {
+    if (state.phase == .cancelled or state.phase == .retired) {
         if (named != null) return error.InvalidDirectCatalogTransition;
     } else if (!std.meta.eql(@as(?pages.Value, expected), named)) return error.InvalidDirectCatalogTransition;
 }

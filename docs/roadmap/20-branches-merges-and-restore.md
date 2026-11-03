@@ -848,6 +848,27 @@ those runs. Publish supported profiles and remaining limits in the public owners
 then update milestone/index status together. A local Table-only release still
 leaves multi-model, remote and execution-profile gates open.
 
+## Immutable branch discovery and retirement — 2026-11-02
+
+This extension of the installed single-Table profile adds bounded `list` and
+explicit published retirement through the existing `DirectBranch` owner.
+Discovery examines at most eight branch IDs per call, filters under current
+source rights and refuses continuation after a catalog change. Retirement
+records unavailability before releasing the original pin; interrupted cleanup
+resumes the original creation identity. Successful creation receipts and heads
+survive retirement and name reuse, while storage traversal retains their
+manifest/directory/entry evidence independently of released data pins.
+
+The [Table reference](../handbook/reference/tables.md#immutable-table-branches)
+and [branch contract](../../contracts/BRANCH_V1.md#installed-immutable-table-branches)
+own the supported operations and current-v1 cutover. This is a partial R1/R2/R8
+lifecycle extension. It supplies no independent reader hold, child branch,
+whole-catalog cut, writable history, merge, restore or background cleanup after
+creator revocation. The remaining publication and concurrent-lifetime gates
+above stay open; this increment does not complete M20.
+Executed checks and their scope are recorded in
+[qualification history](../history/qualification/catalog.md#immutable-branch-discovery-and-retirement--2026-11-02).
+
 ## Local Table branch increment
 
 Implemented on top of `b60f12154`, this R1/R2 slice delivers a named,

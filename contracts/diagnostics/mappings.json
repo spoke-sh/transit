@@ -3534,6 +3534,10 @@
         "InvalidColumnSemantics": {
           "code": "query.invalid_column_semantics",
           "category": "binding"
+        },
+        "InvalidHistoricalCursor": {
+          "code": "inspection.invalid_cursor",
+          "category": "binding"
         }
       },
       "exceptions": [],
@@ -5424,6 +5428,14 @@
         "UnsupportedHistoricalKind": {
           "code": "catalog.unsupported_historical_kind",
           "category": "unsupported"
+        },
+        "BranchRetired": {
+          "code": "catalog.branch_retired",
+          "category": "lifecycle"
+        },
+        "InvalidBranchCursor": {
+          "code": "catalog.invalid_branch_cursor",
+          "category": "binding"
         }
       },
       "exceptions": [

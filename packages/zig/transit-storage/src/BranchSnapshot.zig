@@ -171,6 +171,14 @@ pub fn get(self: *Self, object: u64) !?Entry {
     return try self.loadEntry(key, try self.tree().get(self.root.entries, key) orelse return null);
 }
 
+/// Immutable entry metadata is retained independently of its live data pin.
+pub fn entryContent(self: *Self, object: u64) !?d.Content {
+    const key = try entryKey(object);
+    const value = try self.tree().get(self.root.entries, key) orelse return null;
+    _ = try self.loadEntry(key, value);
+    return try contentOf(value);
+}
+
 /// Immutable exact retry. A failed put leaves the private root unchanged;
 /// already staged objects remain unreferenced until the owner cleans them up.
 pub fn put(self: *Self, entry: Entry) !void {
