@@ -4,6 +4,12 @@ const q = @import("transit_query");
 const c = q.catalog;
 const f = q.fuze;
 const t = std.testing;
+const cases = [_]struct { name: []const u8, collation: []const u8, range_count: u64, equality_count: u64, literal: []const u8 = "ALPHA" }{
+    .{ .name = "folded_rows", .collation = "ASCII_CI", .range_count = 2, .equality_count = 1 },
+    .{ .name = "cp037_rows", .collation = "EBCDIC_CP037", .range_count = 3, .equality_count = 0 },
+    .{ .name = "cp037_pad_rows", .collation = "EBCDIC_037_PAD", .range_count = 3, .equality_count = 1, .literal = "Alpha   " },
+    .{ .name = "cp1047_rows", .collation = "EBCDIC_1047_NOPAD", .range_count = 3, .equality_count = 0, .literal = "Alpha   " },
+};
 fn execute(intent: *const c.DirectTableIntent, client: c.DirectTableClient) !void {
     const admitted = try intent.admit(client);
     defer admitted.deinit();
@@ -39,12 +45,7 @@ fn count(client: c.DirectTableClient, snapshot: c.DirectTableProtocol.Snapshot, 
     try t.expectEqual(@as(u128, expected), rows.rows[0].?.cells[0].value.atom.unsigned);
 }
 pub fn run(client: c.DirectTableClient) !void {
-    for ([_]struct { name: []const u8, collation: []const u8, range_count: u64, equality_count: u64, literal: []const u8 = "ALPHA" }{
-        .{ .name = "folded_rows", .collation = "ASCII_CI", .range_count = 2, .equality_count = 1 },
-        .{ .name = "cp037_rows", .collation = "EBCDIC_CP037", .range_count = 3, .equality_count = 0 },
-        .{ .name = "cp037_pad_rows", .collation = "EBCDIC_037_PAD", .range_count = 3, .equality_count = 1, .literal = "Alpha   " },
-        .{ .name = "cp1047_rows", .collation = "EBCDIC_1047_NOPAD", .range_count = 3, .equality_count = 0, .literal = "Alpha   " },
-    }, 0..) |case, i| {
+    for (cases, 0..) |case, i| {
         var arena: std.heap.ArenaAllocator = .init(client.allocator);
         defer arena.deinit();
         const a = arena.allocator();
@@ -57,7 +58,18 @@ pub fn run(client: c.DirectTableClient) !void {
         try execute(&creation.table, client);
         try mutate(client, base + 1, try std.fmt.allocPrint(a, "INSERT INTO {s} VALUES ('a','Alpha'),('B','Bravo'),('0','Zero'),('z','Zulu'),('c','Charlie')", .{case.name}));
         const snapshot = try pin(client, base + 2, case.name);
-        defer (client.call(.{ .release = snapshot }) catch unreachable).deinit();
+        // Retain this original pin across the fixture's node restart. The
+        // recovery phase observes its owner identity; it cannot acquire a
+        // replacement snapshot to stand in for the old comparison basis.
+        const source = try client.call(.{ .snapshot = snapshot });
+        defer source.deinit();
+        for (0..32) |_| {
+            const progress = try client.call(.{ .flush = .{ .object = snapshot.object, .through = source.value.result.snapshot.accepted } });
+            defer progress.deinit();
+            if (progress.value.result.flush.complete) break;
+        } else return error.IncompleteCollationFlush;
+        const sealed = try pin(client, base + 9, case.name);
+        try t.expect(!std.meta.eql(snapshot.handle.content, sealed.handle.content));
         // The index path and identity scan must use the same declared order.
         try count(client, snapshot, case.name, try std.fmt.allocPrint(a, "SELECT COUNT(*) FROM {s} WHERE k < 'B'", .{case.name}), case.range_count);
         try count(client, snapshot, case.name, try std.fmt.allocPrint(a, "SELECT COUNT(*) FROM {s} WHERE k < 'B' AND k IS NOT NULL", .{case.name}), case.range_count);
@@ -122,4 +134,41 @@ pub fn run(client: c.DirectTableClient) !void {
         }
     }
     std.debug.print("Table collations: ASCII_CI/CP037/CP037 PAD/CP1047, range/scan controls, prepared and captured plans, UPDATE/DELETE and retained snapshots passed.\n", .{});
+}
+
+pub fn recover(client: c.DirectTableClient) !void {
+    var arena: std.heap.ArenaAllocator = .init(client.allocator);
+    defer arena.deinit();
+    for (cases, 0..) |case, i| {
+        _ = arena.reset(.retain_capacity);
+        const a = arena.allocator();
+        const base: u64 = 97000 + i * 100;
+        const lookup = try client.call(.{ .lookup = .{ .namespace = 1, .name = case.name } });
+        defer lookup.deinit();
+        const object = lookup.value.result.lookup.?.interpretation.interpretation.object;
+        for ([_]u64{ 2, 9 }) |offset| {
+            const state = try client.call(.{ .pin_status = .{ .object = object, .owner = .{
+                .scope = client.connection.scope,
+                .principal = client.connection.principal,
+                .operation = base + offset,
+            } } });
+            defer state.deinit();
+            try t.expect(!state.value.result.pin_state.released);
+            const snapshot: c.DirectTableProtocol.Snapshot = .{ .object = object, .handle = state.value.result.pin_state.handle.? };
+            try count(client, snapshot, case.name, try std.fmt.allocPrint(a, "SELECT COUNT(*) FROM {s}", .{case.name}), 5);
+            try count(client, snapshot, case.name, try std.fmt.allocPrint(a, "SELECT COUNT(*) FROM {s} WHERE k < 'B'", .{case.name}), case.range_count);
+            try count(client, snapshot, case.name, try std.fmt.allocPrint(a, "SELECT COUNT(*) FROM {s} WHERE k < 'B' AND k IS NOT NULL", .{case.name}), case.range_count);
+            try count(client, snapshot, case.name, try std.fmt.allocPrint(a, "SELECT COUNT(*) FROM {s} WHERE label = '{s}'", .{ case.name, case.literal }), case.equality_count);
+            const released = try client.call(.{ .release = snapshot });
+            released.deinit();
+            const closed = try client.call(.{ .pin_status = .{ .object = object, .owner = snapshot.handle.owner } });
+            defer closed.deinit();
+            try t.expect(closed.value.result.pin_state.released);
+            try t.expectEqualDeep(snapshot.handle, closed.value.result.pin_state.handle.?);
+        }
+        const current = try pin(client, base + 10, case.name);
+        defer (client.call(.{ .release = current }) catch unreachable).deinit();
+        try count(client, current, case.name, try std.fmt.allocPrint(a, "SELECT COUNT(*) FROM {s}", .{case.name}), if (i == 0) 3 else 4);
+    }
+    std.debug.print("Table collation recovery: original pre-flush and sealed pins, independent range/scan/equality expectations, later mutations and exact release after node restart passed.\n", .{});
 }
