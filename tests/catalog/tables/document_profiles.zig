@@ -44,8 +44,9 @@ pub fn main(init: std.process.Init) !void {
     const write_json = std.mem.eql(u8, args[1], "json-write");
     const candidate_json = std.mem.eql(u8, args[1], "json-candidate");
     const candidate_xml = std.mem.eql(u8, args[1], "xml-candidate");
-    const use_candidate = candidate_json or candidate_xml or write_json or write_xml;
-    const format: profiles.Profile.contract.Format = if (write_json or candidate_json or std.mem.eql(u8, args[1], "json")) .json else if (write_xml or candidate_xml or std.mem.eql(u8, args[1], "xml")) .xml else return error.InvalidArguments;
+    const candidate_mime = std.mem.eql(u8, args[1], "mime-candidate");
+    const use_candidate = candidate_json or candidate_xml or candidate_mime or write_json or write_xml;
+    const format: profiles.Profile.contract.Format = if (write_json or candidate_json or std.mem.eql(u8, args[1], "json")) .json else if (write_xml or candidate_xml or std.mem.eql(u8, args[1], "xml")) .xml else if (candidate_mime or std.mem.eql(u8, args[1], "mime")) .mime else return error.InvalidArguments;
     const descriptor = try profiles.Profile.descriptor(format, limits);
     var json_frames: [32]profiles.Json.Frame = undefined;
     var xml_frames: [32]profiles.Xml.Frame = undefined;
@@ -55,6 +56,7 @@ pub fn main(init: std.process.Init) !void {
     const workspace: profiles.Reader.Workspace = switch (format) {
         .json => .{ .json = .{ .frames = &json_frames, .token = &token } },
         .xml => .{ .xml = .{ .frames = &xml_frames, .names = &names, .attributes = &attributes, .raw = &token, .decoded = &decoded } },
+        .mime => .{ .mime = .{ .raw = &token, .unfolded = &decoded } },
         else => unreachable,
     };
     const source_part: profiles.Profile.contract.Part = .{
