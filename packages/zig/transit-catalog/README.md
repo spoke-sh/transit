@@ -36,7 +36,8 @@ conflict, and exact ready retries verify bytes without recreating lost content.
 Current and staged records share the token's byte reservation. The direct
 collector preserves both at its cut and can reclaim superseded records while
 retaining catalog replay and the original admission record. Generic staging and
-binding cannot give a collectible progress record a permanent lifetime.
+binding cannot give a collectible progress record a permanent lifetime. Initial
+external bindings also reject transaction-owned `TXR1` candidates.
 
 ## Lifecycle owner
 

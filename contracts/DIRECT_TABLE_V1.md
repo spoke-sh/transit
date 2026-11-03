@@ -131,6 +131,8 @@ SQL database sessions use these same public operations. The intent is a tagged
 `DirectIntent.Reference`: Table, log declaration, conditional name, namespace change, transaction or external
 owner. External records fix their connection, namespace, operation and immutable
 `DirectRecord` content; the external owner establishes its domain outcome.
+Initial external bindings reject collectible `TXR1` and `CPR1` records: another
+owner's closure must not remove the original admission body.
 
 Record formats with bit `0x80000000` set carry a `DirectRecord.Guarded` JSON
 envelope: mandatory current `definition`, `objects` (a compact array of up to

@@ -9665,6 +9665,16 @@ test "transaction record reservation retry quota disclosure and abort closure su
     catalog.deinit();
     catalog = try owner(&wal, &objects);
     try reference.requireSame((try catalog.directRecord(allocator, request, access.policy())).reference);
+    var external_key = key;
+    external_key.token[0] ^= 1;
+    const before_adoption = catalog.store.root;
+    try t.expectError(error.InvalidDirectRecord, catalog.clientToken(.{ .bind = .{
+        .key = external_key,
+        .fingerprint = reference.content.sha256,
+        .intent = .{ .external = .{ .connection = key.connection, .namespace = 1, .operation = 9601, .record = reference } },
+    } }, access.policy()));
+    try t.expectEqualDeep(before_adoption, catalog.store.root);
+    try t.expect(try catalog.clientToken(.{ .lookup = external_key }, access.policy()) == null);
     // Two lost acknowledgements are attempts, not observed publication returns.
     // Recovery proves the durable inventory below independently of telemetry.
     const measured = metrics.snapshot().?.values;
