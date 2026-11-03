@@ -11,9 +11,36 @@ import performance.query.budgets as budgets
 import performance.query.compare as compare
 import performance.query.pipeline_gates as pipeline_gates
 import performance.query.pipelines as pipelines
+import performance.query.string_predicates as string_predicates
 
 
 class Evidence(unittest.TestCase):
+    def test_string_predicate_samples_reject_wrong_work_and_hidden_allocations(self):
+        for collation in string_predicates.COLLATIONS:
+            wanted = string_predicates.oracle(collation)
+            for encoding in string_predicates.ENCODINGS:
+                for mode in ("raw", "prepared"):
+                    sample = dict(wanted, mode=mode, collation=collation, encoding=encoding,
+                        rows=4096, repeats=30, constructions=100, budget_bytes=2 * 1024 * 1024,
+                        visits=30 * (256 if encoding == "dictionary" else 4096),
+                        warm_allocations=0, warm_resizes=0, warm_remaps=0, warm_allocated_bytes=0,
+                        end_live_bytes=0, build_mode="safe", elapsed_ns=100, cpu_ns=90, cold_ns=1,
+                        encoded_bytes=100, prepared_bytes=512 if mode == "prepared" else 0,
+                        peak_bytes=1024, compiler="test", cpu="test")
+                    string_predicates.checked(sample, mode, collation, encoding, wanted)
+                    for field, value in (("checksum", -1), ("outcomes_sha256", "wrong"),
+                            ("visits", 0), ("rows", 1), ("repeats", 0), ("constructions", 1),
+                            ("mode", "other"), ("collation", "other"), ("encoding", "other"),
+                            ("budget_bytes", 4 * 1024 * 1024), ("peak_bytes", 3 * 1024 * 1024),
+                            ("warm_allocations", 1), ("warm_resizes", 1), ("warm_remaps", 1),
+                            ("warm_allocated_bytes", 1), ("end_live_bytes", 1),
+                            ("build_mode", "debug"), ("elapsed_ns", 0), ("cpu_ns", -1),
+                            ("cold_ns", 0), ("compiler", ""), ("cpu", "")):
+                        with self.subTest(mode=mode, collation=collation, encoding=encoding, field=field), self.assertRaises(ValueError):
+                            string_predicates.checked(dict(sample, **{field: value}), mode, collation, encoding, wanted)
+                    with self.assertRaises(ValueError):
+                        string_predicates.checked({}, mode, collation, encoding, wanted)
+
     def test_pipeline_gate_rejects_false_results_incomplete_dispatch_and_regressions(self):
         limits = json.loads((Path(__file__).parent / 'budgets/2026-10-13-pipelines/budgets.json').read_text())
         report = dict(status='passed', completed=True, tracked_dirty=False, samples=[])

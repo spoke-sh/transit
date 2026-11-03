@@ -556,13 +556,22 @@ entire ordered-index program, M12's general incremental engine or M15's compiler
 
 ### First implementation slice: owned predicate preparation
 
-**Proposed R0/R3 unit:** existing finite text SELECTs prepare literals at the
+**Implemented R0/R3 mechanism; qualification scoped below:** existing finite text SELECTs prepare literals at the
 bound execution/scan entry and reuse them within that owner's bounded lifetime.
 Preparation must preserve scalar answers, original failure order
 and projected bytes while avoiding repeated literal validation/normalization
 where the admitted comparison permits it. The current shared traversal remains
 the control. This unit introduces no SQL syntax, persisted index or new result
 protocol; it does not implement R1 membership by bypassing M12 admission.
+
+Commits `55497142b` and `d5c1de2c9` add owned preparation and its bounded
+`scanSnapshotFiltered` integration. Preparation binds the exact schema;
+continuations and cached decisions retain their separate source/plan checks.
+The [component guide](../../packages/zig/transit-fuze/README.md) owns the API and
+memory contract. The [page experiment](../../tests/performance/query/README.md#owned-predicate-preparation)
+measures construction and repeated codec evaluation; it does not establish
+installed SELECT performance or whole-request zero allocation. The review gates
+below remain the scope for qualification, including installed performance.
 
 | Review step | Owning implementation | Deliverable and exit condition |
 | --- | --- | --- |

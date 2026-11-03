@@ -712,6 +712,14 @@ owner uses that projection. `scanSnapshotFiltered` also supplies bounded encoded
 predicate decisions over live identities, with explicit skipped-row coverage
 and deferred failures. Signed filtered reads bind those decisions to the retained
 source and plan; finite SQL preserves coverage, LIMIT and original error positions.
+Each bounded filtered request owns prepared predicate instructions, original
+literals, collation weights and zone keys until it returns. Preparation is
+bound to the retained schema and reused by WAL evaluation and encoded row-group
+decisions. Its real arena allocations reduce the existing
+`segment_predicate_bytes` allowance available to active group work; exhaustion
+returns `SegmentReadBudgetExceeded`. Continuations prepare from their canonical
+plan again. Preparation adds no persisted state, source pin or authorization;
+the final disclosure gate still covers rows, empty pages and deferred failures.
 
 `inspectProjection` reports one retained physical definition and its stable
 column mappings per call. Frozen ADD-time definitions supply absent columns;

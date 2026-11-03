@@ -1,5 +1,41 @@
 # File discovery and execution measurements
 
+## Owned predicate preparation
+
+The separate page experiment compares the raw and prepared production codec
+entry points in one ReleaseSafe binary:
+
+```sh
+just test::string-predicates
+```
+
+The frozen workload has 4,096 rows, 256 distinct 45-byte spellings, six comparison
+atoms, dictionary/FSST encodings and all five admitted collations. Each process
+measures 100 fresh constructions (raw mode measures validation) separately from
+30 page evaluations after one unmeasured warmup and arena consolidation. The
+2 MiB allowance includes prepared state and reusable page scratch/output. A
+sealed allocator below both arenas rejects warm allocation, growing resize and
+remap attempts; cleanup must return its live bytes to zero. Input construction,
+encoded page storage and the outcome-check buffer are outside that allowance.
+Python independently checks the SHA-256 digest of every ordered outcome, the
+weighted checksum and exact physical visit counts before reporting timings.
+Checksums, arena resets and cleanup are outside the measured codec interval.
+Five repetitions alternate raw/prepared order on one pinned CPU; elapsed and
+process CPU times are recorded separately, with elapsed median/min/max summaries.
+Raw samples, binary/source/toolchain identity, host load, budgets and incomplete
+runs remain in `.cache/verification/string-predicates/`. The driver rejects
+changed binary/source inputs during a run. Run from committed source for an
+attributable comparison; rebuild through the task before measuring.
+There is no disk I/O or durability work in this experiment. It measures codec
+reuse, not installed SQL throughput or request-level zero allocation. The
+installed signed Table scenarios separately prove retained results and disclosure.
+This experiment has no latency acceptance threshold; successful completion
+establishes checked outcomes and allocation bounds, including slower samples.
+The fast runner controls reject altered outcomes, profiles, work counts,
+allocation attempts, leaks and budget violations.
+
+## File discovery and execution
+
 These Linux x86_64 probes ask which costs belong to acquisition, schema discovery, decoding,
 query execution and export, and whether retained input size changes resident
 memory. They exercise the real `FileCapture`, `FileSource`, `FileQuery` and

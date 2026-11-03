@@ -151,6 +151,14 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
     }) });
     b.step("six-benchmark", "Build the specialized six-type execution control").dependOn(&b.addInstallArtifact(six_benchmark, .{}).step);
+    const string_predicate_benchmark = b.addExecutable(.{ .name = "transit-string-predicate-benchmark", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/performance/query/string_predicates.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
+    }) });
+    string_predicate_benchmark.root_module.addImport("transit_memory", b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory"));
+    b.step("string-predicate-benchmark", "Build owned predicate construction and page reuse measurements").dependOn(&b.addInstallArtifact(string_predicate_benchmark, .{}).step);
     const vector_benchmark = b.addExecutable(.{ .name = "transit-fuze-vector-benchmark", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/performance/query/vector.zig"),
         .target = target,

@@ -1170,8 +1170,21 @@ selected raw values; its memory budget includes unselected validation scratch.
 The decoder reports streamed/materialized predicate-value counts. These counters
 describe kernel work, not storage I/O or end-to-end speed. The independent
 [string execution oracle](../../../tests/query/logical/string_execution.py)
-compares real Batch, single/batched codec outcomes and projections against Python byte and EBCDIC
-ordering; separate reader tests preserve page, budget and eager-failure gates.
+compares real Batch, single/batched/prepared codec outcomes and projections
+against Python byte and EBCDIC ordering; separate reader tests preserve page,
+budget and eager-failure gates.
+
+At each bounded retained Table scan request, an owned prepared predicate copies
+the original literals and builds collation comparison weights and bounded zone
+keys. The exact schema binds their interpretation. WAL rows and encoded groups
+reuse the preparation within that request; continuations reconstruct it from the
+canonical plan. Actual arena backing allocations count against the existing
+predicate memory allowance, leaving the remainder for active group outcomes and
+scratch. Preparation preserves raw spellings, eager failure order and full
+value validation. It adds no persisted representation or cross-request cache,
+and the current authorization check still precedes disclosure of buffered rows,
+empty results and failure evidence. Filter and projection page reuse remains a
+separate optimization.
 
 For valid text in an admitted collation, the implementation must establish
 $u \preceq_\kappa v$ if and only if
