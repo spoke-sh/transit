@@ -22,7 +22,8 @@ kind: Kind,
 nullable: bool,
 pub const Operation = enum { declaration, result, parameter };
 pub const Failure = struct {
-    bytes: [768]u8 = undefined,
+    // Both database error-frame encoders admit at most 512 message bytes.
+    bytes: [512]u8 = undefined,
     len: usize = 0,
     pub fn message(self: *const Failure) []const u8 {
         return self.bytes[0..self.len];
@@ -153,6 +154,10 @@ test "wire scalar admission retains descriptors and rejects unsupported declarat
     try t.expect(std.mem.indexOf(u8, failure.message(), "38") != null);
     try t.expectError(error.UnsupportedWireType, admit(.{ .name = "bad\nname", .type = .int128 }, .transit, .result, &failure));
     try t.expect(std.mem.indexOfScalar(u8, failure.message(), '\n') == null);
+    const nested: [40]f.Types.Field = @splat(.{ .name = "long_nested_column", .type = .int128 });
+    try t.expectError(error.UnsupportedWireType, admit(.{ .name = "wide", .type = .{ .structure = &nested } }, .mysql, .result, &failure));
+    try t.expect(failure.len <= 512);
+    try t.expect(std.unicode.utf8ValidateSlice(failure.message()));
     try t.expectError(error.WireValueOutOfRange, validate(.int8, .{ .signed = 128 }));
     try t.expectError(error.WireValueOutOfRange, validate(.uint16, .{ .unsigned = 65536 }));
     try t.expectError(error.InexactDecimalRounding, decimalParse("1.001", .{ .precision = 10, .scale = 2 }));
