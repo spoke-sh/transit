@@ -24965,7 +24965,7 @@
         "FailedRelationalQuery": 1,
         "IncompatibleDefinition": 1,
         "IncompleteDataflowCoverage": 7,
-        "InvalidManagedTableRecord": 27,
+        "InvalidManagedTableRecord": 28,
         "InvalidTransactionRead": 1,
         "KVBuildBudget": 1,
         "ManagedTableCleanupPending": 1,

@@ -79,6 +79,11 @@ retirement settlement helper for individual boundary-test commands. It preserves
 the original account, instance, operation and token and retains the existing
 deadlines. The unknown result is neither rejection nor a completed boundary proof.
 
+The later clean fast attempt at `7d6639a55` found one stale diagnostic-inventory
+count after `ec60e03d7` added malformed pending-head rejection. Regenerating the
+owning inventory updates that count from 27 to 28 `InvalidManagedTableRecord`
+sites; it does not change a runtime mapping or certify additional proof coverage.
+
 Retained declarations (including initialization already marked retained),
 completed revisions, identity receipts and quota charges remain indefinite.
 Neither 18 token identities nor 65 output rows proves the full R3a cardinality,
