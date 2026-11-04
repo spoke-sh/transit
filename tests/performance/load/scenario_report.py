@@ -69,6 +69,10 @@ def summarize(records):
             raise ValueError('unexpected scenario sample: ' + case)
         if (case, index) in identifiers:
             raise ValueError('duplicate scenario sample')
+        if case in ('effect_observed', 'effect_unknown'):
+            expected = 'observed' if case == 'effect_observed' else 'closed_unknown'
+            if record.get('outcome_phase') != expected or positive(record.get('sends')) != 1:
+                raise ValueError('missing independent effect outcome evidence')
         identifiers.add((case, index))
         samples[case].append(positive(record['elapsed_ns']))
     for case, count in exact.items():

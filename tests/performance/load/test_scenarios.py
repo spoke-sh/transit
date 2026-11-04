@@ -27,6 +27,33 @@ def campaign():
 
 
 class ScenarioReportTest(unittest.TestCase):
+    def test_webhook_requires_the_unknown_and_retained_replay_schedules(self):
+        records = campaign()[:2]
+        records[1].update(scenario='webhook', repeat=1)
+        cases = dict(startup=1, retained_restart=1, console_after_restart=1,
+            webhook_initial=1, webhook_denied=1, webhook_accept=2, webhook_duplicate=2,
+            webhook_derived=2, webhook_refreshed=1, effect_prepare=2, effect_observed=1,
+            effect_unknown=1, console_during_http=2, recorded_outcomes=2,
+            effect_replay_after_restart=2, outcomes_after_restart=1,
+            webhook_to_observed_outcome=1, webhook_to_unknown_outcome=1, derived_result=4, setup=1)
+        for case, count in cases.items():
+            for index in range(count):
+                record = dict(phase='sample', case=case, index=index, outcome='complete', verified=True, elapsed_ns=1000)
+                if case == 'startup':
+                    record['definition'] = 'e' * 64
+                if case in ('effect_observed', 'effect_unknown'):
+                    record.update(outcome_phase='observed' if case == 'effect_observed' else 'closed_unknown', sends=1)
+                records.append(record)
+        records.append(dict(phase='campaign', outcome='complete'))
+        summarize(records)
+        for case in ('webhook_duplicate', 'effect_unknown', 'effect_replay_after_restart', 'webhook_refreshed'):
+            with self.assertRaisesRegex(ValueError, 'missing scenario coverage'):
+                summarize([record for record in records if record.get('case') != case])
+        changed = copy.deepcopy(records)
+        next(record for record in changed if record.get('case') == 'effect_unknown')['outcome_phase'] = 'observed'
+        with self.assertRaisesRegex(ValueError, 'effect outcome evidence'):
+            summarize(changed)
+
     def test_complete_results_have_measured_not_invented_tails(self):
         report = summarize(campaign())
         observed = report['distributions']['console_insert']
