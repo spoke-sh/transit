@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "definition": "transit.console.latency-budgets.v1",
+  "calibrated_revision": "e40d9cb264700f91c74855c62f6b559449807c24",
+  "calibration_runs": 3,
+  "max_regression_pct": 20.0,
+  "fast_read_threshold_ms": 50.0,
+  "fast_read_noise_floor_ms": 15.0,
+  "workload": {
+    "startup_restarts": 2,
+    "startup_default": true,
+    "repeat": 1,
+    "cycles": 5,
+    "warm_reads": 2,
+    "worker_interval_ms": 10,
+    "cpus": 4
+  },
+  "startup": {
+    "fresh_ready_ms": 35182.35,
+    "fresh_first_verified_result_ms": 36051.633,
+    "restart_ready_p50_ms": 2950.792,
+    "restart_first_verified_result_p50_ms": 3582.473
+  },
+  "statement_classes": {
+    "warm_read": 32.0,
+    "refresh_read": 682.0,
+    "dml_write": 836.0
+  },
+  "statements": {
+    "select_cold": 902.0,
+    "select_empty": 31.0,
+    "select_empty_warm": 30.0,
+    "insert": 1059.0,
+    "select_after_write": 902.0,
+    "select_one_warm": 31.0,
+    "select_json_after_insert": 33.0,
+    "update": 1059.0,
+    "select_after_update": 902.0,
+    "update_noop": 1059.0,
+    "update_empty": 1059.0,
+    "select_json_after_update": 33.0,
+    "delete": 1059.0,
+    "select_after_delete": 902.0,
+    "delete_empty": 1059.0,
+    "select_json_after_delete": 33.0
+  },
+  "resources": {
+    "process_count": 7,
+    "threads_max": 219,
+    "pss_bytes_max": 1044362240,
+    "cycle_pss_growth_ratio": 1.0673,
+    "cycle_pss_growth_ratio_max": 1.15
+  }
+}

@@ -339,6 +339,7 @@
       "bindings::relational-python",
       "transit-board::relational-browser",
       "bindings::authorization",
+      "test::console-latency-gate",
       "test::console-latency-tls",
       "test::release",
       "test::release-install",

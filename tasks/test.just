@@ -773,6 +773,12 @@ console-latency *args:
     zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release
     python3 -B tests/runner/launch.py tests/performance/console/console_latency.py .cache/transit-latency/release/bin/transit .cache/transit-latency/release/bin/transit-node .cache/transit-latency/release/bin/transit-query-host {{args}}
 
+# Enforce startup, statement and resource regression budgets for the local console.
+[positional-arguments]
+console-latency-gate *args:
+    zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release
+    python3 -B tests/runner/launch.py tests/performance/console/gate.py --cli .cache/transit-latency/release/bin/transit --node .cache/transit-latency/release/bin/transit-node --host .cache/transit-latency/release/bin/transit-query-host "$@"
+
 # Installed Catalog/Query SDK costs; enter nix develop .#bindings first.
 # Packages and optimized native clients must already be prepared before timing.
 [positional-arguments]

@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 import pyarrow as pa
 from performance.console.console_latency import representation_sample, local_trace
-from performance.console import resources
+from performance.console import gate, resources
 from performance.console.startup import timings as startup_timings, run as startup_run
 
 
@@ -220,6 +220,130 @@ class Representations(unittest.TestCase):
         with patch('pyarrow.decompress', return_value=pa.py_buffer(b'corrupt')):
             with self.assertRaisesRegex(AssertionError, 'codec changed'):
                 representation_sample(dict(schema='00', observation={}, rows=[['01']]))
+
+
+class ConsoleLatencyGate(unittest.TestCase):
+    def sample_transcripts(self, budgets):
+        workload = budgets['workload']
+        startup_records = [
+            dict(source_revision='rev-1', startup_restarts=workload['startup_restarts'],
+                 startup_default=workload['startup_default'], startup_debug=False, instrumented=False),
+            dict(phase='startup', index=0, profile='fresh', ui=True, outcome='ok', verified_rows=0,
+                 ready_ns=int(budgets['startup']['fresh_ready_ms'] * 1_000_000),
+                 first_verified_result_ns=int(budgets['startup']['fresh_first_verified_result_ms'] * 1_000_000),
+                 verification_ns=500_000_000,
+                 losses=dict(dropped=0, suppressed=0, sink_errors=0)),
+            dict(phase='startup', index=1, profile='restart', ui=True, outcome='ok', verified_rows=1,
+                 ready_ns=int(budgets['startup']['restart_ready_p50_ms'] * 1_000_000),
+                 first_verified_result_ns=int(budgets['startup']['restart_first_verified_result_p50_ms'] * 1_000_000),
+                 verification_ns=400_000_000,
+                 losses=dict(dropped=0, suppressed=0, sink_errors=0)),
+            dict(phase='startup', index=2, profile='restart', ui=True, outcome='ok', verified_rows=1,
+                 ready_ns=int(budgets['startup']['restart_ready_p50_ms'] * 1_000_000),
+                 first_verified_result_ns=int(budgets['startup']['restart_first_verified_result_p50_ms'] * 1_000_000),
+                 verification_ns=400_000_000,
+                 losses=dict(dropped=0, suppressed=0, sink_errors=0)),
+        ]
+        statement_records = [
+            dict(source_revision='rev-1', repeat=workload['repeat'], cycles=workload['cycles'],
+                 warm_reads=workload['warm_reads'], resource_snapshots=True,
+                 instrumented=False, local_trace=False, historical_result_profile=False,
+                 overrides=dict(worker_interval_ms=workload['worker_interval_ms'])),
+            dict(phase='idle'),
+        ]
+        counts = gate.expected_statement_samples(workload)
+        distributions = {}
+        class_by_case = {
+            case: class_name
+            for class_name, cases in gate.STATEMENT_CLASSES.items()
+            for case in cases
+        }
+        for cycle in range(workload['cycles']):
+            for case in gate.STATEMENT_CASES:
+                repeats = (1 if cycle == 0 else 0) if case == 'select_cold' else (
+                    (0 if cycle == 0 else 1) if case == 'select_empty' else (
+                        workload['warm_reads'] if case in ('select_empty_warm', 'select_one_warm') else 1
+                    )
+                )
+                timer_ms = int(budgets['statement_classes'][class_by_case[case]])
+                for index in range(repeats):
+                    statement_records.append(dict(phase='statement', cycle=cycle, case=case,
+                                                  index=index, timer_ms=timer_ms))
+                    statement_records.append(dict(
+                        phase='client_resources',
+                        cycle=cycle,
+                        case=case,
+                        index=index,
+                        process_count=7,
+                        threads=budgets['resources']['threads_max'],
+                        pss_bytes=budgets['resources']['pss_bytes_max'],
+                    ))
+        for case, samples in counts.items():
+            ms = float(int(budgets['statement_classes'][class_by_case[case]]))
+            distributions[case] = dict(samples=samples, min_ms=ms, p50_ms=ms, p95_ms=ms, max_ms=ms)
+        statement_records.append(dict(phase='statement_summary', distributions=distributions))
+        statement_records.append(dict(phase='idle_after_statements'))
+        return startup_records, statement_records
+
+    def test_checked_in_budgets_and_threshold_math(self):
+        budgets = json.loads(gate.BUDGETS.read_text())
+        self.assertEqual(budgets['version'], 1)
+        self.assertEqual(budgets['definition'], gate.DEFINITION)
+        self.assertEqual(budgets['max_regression_pct'], 20.0)
+        self.assertEqual(budgets['fast_read_threshold_ms'], 50.0)
+        self.assertEqual(budgets['fast_read_noise_floor_ms'], 15.0)
+        self.assertEqual(budgets['workload'], gate.DEFAULT_WORKLOAD)
+        self.assertEqual(set(budgets['statement_classes']), set(gate.STATEMENT_CLASSES))
+        self.assertEqual(set(budgets['statements']), set(gate.STATEMENT_CASES))
+        self.assertEqual(gate.limit_ms(30.0, budgets), 51.0)
+        self.assertEqual(gate.limit_ms(600.0, budgets), 720.0)
+
+    def test_baseline_passes_and_freezes_cleanly(self):
+        budgets = json.loads(gate.BUDGETS.read_text())
+        startup_records, statement_records = self.sample_transcripts(budgets)
+        evaluation = gate.assess(startup_records, statement_records, budgets)
+        self.assertEqual(evaluation['status'], 'passed')
+        self.assertEqual(evaluation['violations'], [])
+        frozen = gate.freeze_budgets([(startup_records, statement_records)], workload=budgets['workload'])
+        self.assertEqual(frozen['calibrated_revision'], 'rev-1')
+        self.assertEqual(gate.assess(startup_records, statement_records, frozen)['status'], 'passed')
+
+    def test_regressions_and_incomplete_runs_fail(self):
+        budgets = json.loads(gate.BUDGETS.read_text())
+        startup_records, statement_records = self.sample_transcripts(budgets)
+        startup_records[1]['ready_ns'] = int(gate.limit_ms(budgets['startup']['fresh_ready_ms'], budgets) * 1_000_000) + 10_000_000
+        statement_records[-2]['distributions']['select_empty_warm']['p50_ms'] = (
+            gate.limit_ms(budgets['statements']['select_empty_warm'], budgets) + 1.0
+        )
+        for row in statement_records[1:]:
+            if row.get('phase') == 'statement' and row.get('case') == 'insert':
+                row['timer_ms'] = int(gate.limit_ms(budgets['statement_classes']['dml_write'], budgets)) + 50
+            if row.get('phase') == 'client_resources' and row.get('cycle') == 4:
+                row['threads'] = budgets['resources']['threads_max'] * 2
+                row['pss_bytes'] = int(budgets['resources']['pss_bytes_max'] * 1.3)
+        evaluation = gate.assess(startup_records, statement_records, budgets)
+        self.assertEqual(evaluation['status'], 'failed')
+        violated = {(row['category'], row['metric']) for row in evaluation['violations']}
+        self.assertIn(('startup', 'fresh_ready_ms'), violated)
+        self.assertIn(('statements', 'select_empty_warm'), violated)
+        self.assertIn(('resources', 'threads_max'), violated)
+        self.assertIn(('resources', 'pss_bytes_max'), violated)
+        self.assertIn(('resources', 'cycle_pss_growth_ratio'), violated)
+
+        for invalid in ('instrumented', 'loss', 'statement_failure', 'missing_idle', 'process_count'):
+            s_records, st_records = self.sample_transcripts(budgets)
+            if invalid == 'instrumented':
+                s_records[0]['instrumented'] = True
+            elif invalid == 'loss':
+                s_records[1]['losses']['dropped'] = 1
+            elif invalid == 'statement_failure':
+                st_records.insert(2, dict(phase='statement_failure', error='timeout'))
+            elif invalid == 'missing_idle':
+                st_records.pop()
+            else:
+                st_records[3]['process_count'] = 6
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                gate.assess(s_records, st_records, budgets)
 
 
 if __name__ == '__main__':

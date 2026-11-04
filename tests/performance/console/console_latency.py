@@ -458,6 +458,12 @@ def main():
             for probe in probes.values():
                 probe.close()
             if success:
+                runtime = Path(f'/tmp/transit-{os.geteuid()}')
+                prefix = hashlib.sha256(str(fixture.installation).encode()).hexdigest()[:32] + '.'
+                if runtime.is_dir():
+                    for entry in runtime.iterdir():
+                        if entry.name.startswith(prefix):
+                            entry.unlink(missing_ok=True)
                 shutil.rmtree(fixture.root)
             else:
                 print(f'Latency fixture retained at {fixture.root}', file=sys.stderr)
