@@ -48,8 +48,22 @@ Executed with the pinned Nix Zig `0.17.0-dev.2267+48abf1a34` toolchain:
 | Focused catalog `zig build test` filters `owned original` and `owned progress`, `e63cbabb4` | All 11 tests passed, including missing-ready-byte refusal, disk reopen, attachment fencing and terminal retry after original deletion |
 | `zig build test-local-catalog -Dlocal-catalog-filter='owned original'`, implementation through `fbc648ac8` | Both signed/typed cases passed; each executed 101- and 817-step collections, reclaiming 2 and 186 allocations respectively |
 | `just ci clean --check fast`, `e525714e0` | All 66 checks passed |
+| `just ci clean --check fast`, `7a3fd2201` | All 66 checks passed after the saved-command fixture and malformed-head inventory correction |
+| `just ci clean --check fast`, `2c511bb6c` | All 66 checks passed, including the owned runtime-directory fixture controls |
 | `just ci clean --check contracts`, `e525714e0` | All 20 checks passed |
 | Typed managed proof in the retained clean installation checkout, `ec60e03d7` | Preparation, node replacement, recovery, retained complete/empty revisions, incomplete-prefix refusal and current authorization passed, including two withheld pre-head attachments |
+| `just ci clean --lane sdks-conformance`, `ec60e03d7` | All seven targets passed: binding checks, native ABI, logical values, all ten public-language pairs, SQL, gRPC faults and connector preparation |
+
+The successful clean records are local artifacts at
+`.cache/ci/clean/e525714e057a-transit-ci-i1okjdpa` (contracts),
+`.cache/ci/clean/7a3fd2201f3b-transit-ci-28gpbrgu` and
+`.cache/ci/clean/2c511bb6c492-transit-ci-frhnp_27` (fast checks), and
+`.cache/ci/clean/ec60e03d70a2-transit-ci-qn4ah9wp` (SDK conformance).
+`tests/runner/capture.py` verified each record's complete task inventory and
+artifact hashes. Focused raw logs are `/tmp/m12-owner-committed.log` and
+`/tmp/m12-local-original-final.log`; the first clean installation attempt and
+its follow-ups remain in `/var/tmp/transit-ci-obdja84d`. These paths are local
+evidence, not portable published artifacts.
 
 The first expanded managed fixture incorrectly expected a work token to remain
 the next discovery result after suspend/resume, although both controls advance
@@ -83,6 +97,44 @@ The later clean fast attempt at `7d6639a55` found one stale diagnostic-inventory
 count after `ec60e03d7` added malformed pending-head rejection. Regenerating the
 owning inventory updates that count from 27 to 28 `InvalidManagedTableRecord`
 sites; it does not change a runtime mapping or certify additional proof coverage.
+
+The clean installation rerun at `0fc4d56a1` passed its first seven targets and
+all four typed managed stages. Installed managed startup then failed before
+SQL admission: the node reported `NoSpaceLeft` while the shared `/tmp` filesystem
+had zero free inodes. Its configured local SQL control socket was under
+`/tmp/transit-1000`; the fixture's persistent data and compiler temporary files
+were already under `/var/tmp`. Replaying the exact node launch for diagnosis
+confirmed the error. The managed fixture now explicitly selects an owned
+`XDG_RUNTIME_DIR`; its server and console share that directory across restart.
+Other fixture profiles and all existing deadlines remain unchanged.
+
+The first isolated-runtime follow-up (`2c511bb6c` fixture, unchanged `0fc4d56a1`
+binaries) passed 63/64/65-row successors and retained revision metadata, then
+failed the wide declaration. Its literal projection was outside the maintained
+compiler's profile. Read-only EXPLAIN reproduced `UnsupportedStatement`, SHOW
+found no declaration, and original-operation inspection ended at the preceding
+Table creation. The fixture now projects one stored 200-byte text column into
+twelve distinct aliases; bounded ten-row INSERTs populate the 63-row source.
+The settlement helper also preserves the original command diagnostic when stdout
+contains no unresolved-operation JSON. No accepted declaration was resubmitted.
+
+The `storage-query` clean attempt at `e63cbabb4` passed its first 12 targets,
+through local-payload-service. The aggregate local-catalog target ran for over
+80 minutes without reporting an assertion failure before deliberate interruption
+to end this optional broad attempt and remove its concurrent disk work. Its test
+process and then the waiting build wrapper received SIGTERM; the runner exited
+143. The remaining 20 targets did not run. This is an incomplete storage lane,
+not a pass or a reproduced runtime defect. The capture remains in
+`/var/tmp/transit-ci-1gfhyloa`; the exact interruption is recorded locally in
+`.cache/ci/m12-storage-interruption.json`. The separately completed focused
+Catalog and collection cases above do not replace this aggregate.
+
+Neither clean installation attempt completed the whole lane. In the second
+attempt, the ten targets following managed Tables did not run: direct faults,
+SQL lifetimes, HTTP/local SQL, Board/Board query, Station, workbench, computation
+inspection and declarative browser. Separate SDK family, Chromium and reference
+runtime lanes were not selected. Selected follow-ups retain their own source
+and outcome rather than replacing the original failed lane records.
 
 Retained declarations (including initialization already marked retained),
 completed revisions, identity receipts and quota charges remain indefinite.
