@@ -112,12 +112,12 @@ def await_revision(fixture, revision, expected):
     return current
 
 
-def retire(fixture, name):
+def dataflow_command(fixture, sql):
     # The CLI may preserve an accepted identity when an observation fails.
     # Settle that exact command through the public control surface; never
-    # resubmit RETIRE under another token or infer success from transport loss.
+    # resubmit under another token or infer success from transport loss.
     try:
-        fixture.console(f'RETIRE DATAFLOW {name};\n')
+        fixture.console(sql + ';\n')
         return
     except AssertionError as failure:
         result = failure.args[0] if failure.args else None
@@ -139,13 +139,17 @@ def retire(fixture, name):
                 assert operation['identity'] == identity and operation['token'] == unresolved['token']
                 if operation['phase'] == 'terminal':
                     assert operation['outcome'] == 'applied', operation
-                    print(f'Managed SQL: original retirement {identity["id"]} settled.', flush=True)
+                    print(f'Managed SQL: original dataflow command {identity["id"]} settled.', flush=True)
                     return
             assert time.monotonic() < deadline, observed
             time.sleep(.1)
     finally:
         client.http.close()
         client.close()
+
+
+def retire(fixture, name):
+    dataflow_command(fixture, f'RETIRE DATAFLOW {name}')
 
 
 def run(cli, node, host, board, gateway):
@@ -219,8 +223,10 @@ def run(cli, node, host, board, gateway):
         # Exercise both physical page limits through installed SQL. Each
         # successor is independently verified and prior revisions stay readable.
         fixture.console('CREATE TABLE batch_input (id BIGINT PRIMARY KEY);\nCREATE TABLE batch_output (id BIGINT PRIMARY KEY);\n'
-                        + 'INSERT INTO batch_input (id) VALUES ' + ','.join(f'({i})' for i in range(63)) + ';\n'
-                        + 'CREATE DATAFLOW batch_projection INTO batch_output AS SELECT id FROM batch_input;\nAUTHORIZE DATAFLOW batch_projection;\nACTIVATE DATAFLOW batch_projection;\n')
+                        + 'INSERT INTO batch_input (id) VALUES ' + ','.join(f'({i})' for i in range(63)) + ';\n')
+        dataflow_command(fixture, 'CREATE DATAFLOW batch_projection INTO batch_output AS SELECT id FROM batch_input')
+        dataflow_command(fixture, 'AUTHORIZE DATAFLOW batch_projection')
+        dataflow_command(fixture, 'ACTIVATE DATAFLOW batch_projection')
         for number, total in enumerate((63, 64, 65), 1):
             if total > 63:
                 fixture.console(f'INSERT INTO batch_input (id) VALUES ({total - 1});\n')
@@ -236,7 +242,9 @@ def run(cli, node, host, board, gateway):
         # complete rows reach the page byte budget before its 64-row budget.
         payload = 'x' * 200
         projection = ', '.join(f"'{payload}' AS {name}" for name in columns)
-        fixture.console(f"CREATE DATAFLOW bytes_projection INTO bytes_output AS SELECT id, {projection} FROM batch_input WHERE id < 63;\nAUTHORIZE DATAFLOW bytes_projection;\nACTIVATE DATAFLOW bytes_projection;\n")
+        dataflow_command(fixture, f"CREATE DATAFLOW bytes_projection INTO bytes_output AS SELECT id, {projection} FROM batch_input WHERE id < 63")
+        dataflow_command(fixture, 'AUTHORIZE DATAFLOW bytes_projection')
+        dataflow_command(fixture, 'ACTIVATE DATAFLOW bytes_projection')
         await_head(fixture, 'bytes_projection', lambda head: head['revision'] == 1 and head['pending'] is None)
         actual = records(fixture.console('SELECT * FROM bytes_output;\n')[-1])
         assert sorted(int(row['id']) for row in actual) == list(range(63))
