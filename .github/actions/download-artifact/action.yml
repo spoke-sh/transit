@@ -1,0 +1,45 @@
+name: Download release artifact
+description: Download one artifact from this run with bounded retries for service failures.
+inputs:
+  name:
+    description: Exact artifact name from this workflow run.
+    required: true
+  path:
+    description: Destination directory.
+    required: true
+runs:
+  using: composite
+  steps:
+    # Retry the complete download: failures can occur before the upstream
+    # action's blob-download retries, including GetSignedArtifactURL.
+    - name: Download artifact (attempt 1)
+      id: first
+      continue-on-error: true
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      with:
+        name: ${{ inputs.name }}
+        path: ${{ inputs.path }}
+    - name: Wait before attempt 2
+      if: steps.first.outcome == 'failure'
+      shell: bash
+      run: sleep 5
+    - name: Download artifact (attempt 2)
+      id: second
+      if: steps.first.outcome == 'failure'
+      continue-on-error: true
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      with:
+        name: ${{ inputs.name }}
+        path: ${{ inputs.path }}
+    - name: Wait before attempt 3
+      if: steps.second.outcome == 'failure'
+      shell: bash
+      run: sleep 15
+    # The final failure propagates to the caller and blocks publication.
+    # Default success() conditions also prevent retries after cancellation.
+    - name: Download artifact (attempt 3)
+      if: steps.second.outcome == 'failure'
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      with:
+        name: ${{ inputs.name }}
+        path: ${{ inputs.path }}
