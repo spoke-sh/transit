@@ -9,6 +9,125 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Accordion plane and finite workbook relations — 2026-11-03
+
+This account tests the shared folding shell and temporary reactive SQL relations
+introduced after design PR #363. Current behavior and bounds belong to the
+[workbench guide](../../../apps/transit-board/docs/workbench.md),
+[Board API](../../handbook/reference/board-api.md) and
+[shared SQL client](../../../packages/zig/transit-sql-client/README.md#temporary-workbook-relations).
+The delivered graph has four cells, single-input chains and branching, 32 cell
+evaluations, a five-minute lifetime, 10,000 rows per complete relation and 16 MiB
+of retained relation storage. These checks do not qualify multi-input joins,
+source-follow, durable saving, assistant execution or the full Milestone 30 scope.
+
+Implementation starts at merged `bf78566a8`; the session implementation reaches
+`695590139`. Merge `b7a22c5d1` incorporates `origin/main`'s fixture corrections
+from `e40d9cb26`. The following committed-source checks use `b7a22c5d1`, pinned
+Nix environments and lock file
+`865faed173c5a710f77c231ce13c427bfe9eeaf3900e7edc7fa7e9d6233b1264`:
+
+- `just test::packages-build` passes all 45 independent package manifests;
+  `just check contracts` passes all 20 reflected-contract, signing-fixture and
+  binding checks. These are package/contract checks, not installed qualification.
+- `just ci clean --lane interfaces-sql` passes all eight tasks without inherited
+  workspace build outputs: TLS, result allocations, wire gateway, sessions,
+  integrity, history, stream/queue declarations and transactions.
+- `just ci clean --lane installation-ui` passes Board, documentation, Node
+  bindings, observability, server logging, the default executable workflow and
+  installed direct Tables. Board's check includes 148 Board tests, 73 query-client
+  tests, 13 application tests and seven diagnostic tests, strict types,
+  formatting/lint and generated API agreement. The documentation site builds.
+  The eighth task, managed Tables, fails as described below; the lane is incomplete.
+
+The focused `just transit-board::computations-browser` run at `b7a22c5d1`
+passes both Chromium cases and its native fixture: independent-reader metadata,
+retained nonempty/empty revisions, exact identity, missing revisions, original
+recovery, bounded reads, early close, incomplete-prefix refusal and current
+source/output/control denial. The browser checks diagram/grid/Inspector agreement,
+keyboard selection, focus return and clearing after denial. This is a separate
+successful task, not completion of the stopped installation/UI lane.
+
+The final `just transit-board::workbench-browser` run at clean committed source
+`6264d221b`, with ReleaseSafe binaries and the private `/tmp` mount described
+below, passes all **13 Chromium cases**: four connection profiles, eight
+workbench cases and retained storage. The reactive journey checks affected-cell
+recalculation, complete upstream inputs, retained drafts, inactive observation,
+blocked dependencies, narrow/zoomed layouts, focus return and Axe accessibility.
+Native assertions also pass exact 145-row traversal, dependent counts, original
+evaluation identity, exhaustion of the 32-evaluation allowance, derived-result
+revocation (including an invalid retained offset), empty/metadata results,
+read-only admission, capacity and retained placement across rename/reopen.
+Real grant revocation and restart checks complete. Fixture data is retained at
+`/var/tmp/transit-server-proof-5ee0y07_`; the final log and five runtime binary
+hashes are `m30-workbench-landmarks.log` and
+`m30-runtime-provenance-6264d221b.json` in the private evidence directory below.
+The captured dataset and reactive-workbook layouts are also visually inspected.
+
+Shared SQL-client unit tests also pass after `c1e10d769`, including owned copies
+of 145 rows from reused fetch scratch, complete derived inputs, row and
+allocation refusals, incomplete-prefix rejection and authorization before retained
+row-bound checks. At `695590139`, the client tests cover closing during pending
+open/evaluation, original-identity cleanup after a lost admission reply and
+preservation of an uncertain cleanup result. Ten focused shell/workbook owner
+tests pass, including coalescing, IME, queued Run, inactive observation and denial.
+
+The earlier isolated browser inventory at `638937b0c` passes seven tasks: core
+Board (including direct relational recovery), query workspace, HTTP capture,
+gRPC capture, reactive browser, reactive views and reactive-view lifecycle.
+It stops at workbook fixture startup and does not execute computation inspection.
+This is per-task evidence at that source, not a completed browser lane or a
+qualification of later workbook changes.
+
+Failures and environment changes remain part of this account:
+
+- Standard clean browser preparation at `79064f5d1` cannot install Chromium's OS
+  dependencies because sudo authentication is unavailable. No browser task runs.
+  A separate local clone installs the pinned Chromium without that OS-install
+  step and runs the unchanged browser inventory; it is not a standard clean-lane
+  pass. Earlier attempts also retain a native snapshot-pin timeout, an Axe region
+  failure and a folded density-control test failure. The accessibility and
+  selector defects are corrected before the seven-task run above.
+- The `638937b0c` workbook attempt exits during node startup. At `695590139`,
+  another node startup failure is diagnosed as `NoSpaceLeft`: the shared `/tmp`
+  has exhausted all 1,048,576 inodes despite available bytes. Subsequent checks
+  use a private mount of an owned disk directory at `/tmp`, via
+  `bwrap --bind / / --dev-bind /dev /dev --bind OWNED_TMP /tmp -- COMMAND`.
+  Other workspaces and their fixtures are untouched. Runtime data remains on
+  physical disk under `/var/tmp`.
+- Under that mount at `695590139`, workbook provisioning reaches an
+  `AuthorityTimeout` and exhausts the fixture's existing readiness window before
+  Board assertions. Computation inspection passes provisioning and preparation,
+  then its native `managed-recover` process exceeds 600 seconds before browser
+  cases begin. Neither run passes; the timeouts are unchanged.
+- The clean installation/UI run at `b7a22c5d1` passes direct managed preparation,
+  recovery, verification and incomplete-prefix checks. Its subsequent installed
+  managed-Table fixture verifies revisions with 3, 4, 5 and 0 rows, then fails
+  opening the local SQL socket while retiring `failed_projection`
+  (`FileNotFoundError`). Later lane tasks are not executed. This account does
+  not establish the socket loss's cause or treat the partial run as passed.
+- The focused workbook run at `b7a22c5d1` passes all four connection profiles,
+  the native graph and budget assertions and seven of eight workbench cases.
+  The reactive journey reaches its final Axe check, which rejects duplicate
+  result/table landmark names across cells. `6264d221b` names those landmarks
+  for their owning cell or dataset; formatting, lint and TypeScript checks pass.
+  This failed run does not reach the subsequent retained-storage and real
+  grant-revocation assertions.
+
+Private raw records are retained in `transit-m30-implementation/.cache/`, including
+`m30-final-qualification.json`, `m30-*.log`, `checks/packages-build.json`,
+`m30-board-final.json`, `checks/contracts.json` and
+`ci/clean/b7a22c5d1751-transit-ci-9ygpblkp/`. The failed clean installation
+checkout and its lane metadata remain at `/var/tmp/transit-ci-bvtnq7bn`;
+the earlier browser inventory remains at `/var/tmp/transit-board-browser-t6ohbkam`.
+The failed installed managed fixture is `/var/tmp/transit-server-proof-bsn5o7qd`.
+Credentials and retained recovery state stay private. Reproduction owners are the
+[workbook driver](../../../tests/interfaces/installation/board_workbench.py),
+[browser journey](../../../apps/transit-board-web/browser/workbench.spec.ts) and
+[computation driver](../../../tests/storage/tables/direct_table_service.py).
+Selected checks do not complete the full CI suite, reference deployment,
+installed performance gates or all cancellation/revocation interleavings.
+
 ## Independent historical Board readers — 2026-11-02
 
 This experiment checks whether Board can inspect a separately retained Table

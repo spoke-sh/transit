@@ -29,7 +29,7 @@ permission authority.
 
 ## Accordion and reactive workbook design — 2026-11-03
 
-**Status: accepted design; bounded implementation under qualification.** Design
+**Status: bounded implementation delivered; full milestone qualification remains open.** Design
 source basis: `796599b58`; implementation starts at merged `bf78566a8`. The reviewer retains Catalog's overall direction and Operations'
 data, requests a folding root layout, removes the long temporary-session paragraph,
 and wants SQL cells to recalculate their dependents as the draft changes. They
@@ -71,6 +71,8 @@ Current behavior and exact limits are owned by the
 [workbench guide](../../apps/transit-board/docs/workbench.md),
 [Board API](../handbook/reference/board-api.md) and
 [shared SQL client](../../packages/zig/transit-sql-client/README.md#temporary-workbook-relations).
+Executed coverage, source revisions and retained failures are recorded in the
+[qualification account](../history/qualification/interfaces.md#accordion-plane-and-finite-workbook-relations--2026-11-03).
 
 ### Delivery slices and remaining gates
 
