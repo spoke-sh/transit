@@ -195,7 +195,10 @@ function WorkbookPageContent({ active }: { active: boolean }) {
                 </p>
                 {graph.validation?.issue && (
                   <p role="status" className="workbench-notice problem">
-                    Draft blocked · {graph.validation.issue.code}
+                    Draft blocked ·{" "}
+                    {cells.find((cell) => cell.id === graph.validation?.issue?.cell)?.name ??
+                      "Cell"}{" "}
+                    · {graph.validation.issue.code}
                     {graph.validation.issue.path.length > 0 &&
                       ` · ${graph.validation.issue.path.map((id) => cells.find((cell) => cell.id === id)?.name ?? id).join(" → ")}`}
                   </p>
@@ -330,7 +333,9 @@ function WorkbookCell({
     if (relation) void graph.flush(cell.id);
     else void statement.run(cell.sql);
   };
-  const runBusy = relation ? graph.busy && !graph.validating : result.busy;
+  const runDisabled = relation
+    ? (graph.busy && !graph.validating) || graph.unresolved || graph.remaining === 0
+    : result.busy;
   const selection = `workbook/${cell.id}`;
   useEffect(() => () => inspector.release(selection), [inspector.release, selection]);
   const dependency = graph.validation?.bindings.find((binding) => binding.cell === cell.id)?.input;
@@ -409,13 +414,13 @@ function WorkbookCell({
               !event.nativeEvent.isComposing
             ) {
               event.preventDefault();
-              if (!runBusy && cell.sql.trim()) run();
+              if (!runDisabled && cell.sql.trim()) run();
             }
           }}
         />
       </label>
       <div className="workbench-toolbar">
-        <button className="primary" disabled={runBusy || !cell.sql.trim()} onClick={run}>
+        <button className="primary" disabled={runDisabled || !cell.sql.trim()} onClick={run}>
           Run cell {index + 1}
         </button>
         <span className="muted">
@@ -451,9 +456,13 @@ function WorkbookCell({
         >
           <p>{relation ? "Temporary relation" : "Standalone statement"}</p>
           <p>
-            {dependency
-              ? `Input: ${graph.cells.find((value) => value.id === dependency)?.name ?? dependency}`
-              : "Input: configured SQL source"}
+            {relation && !graph.validation
+              ? "Input: awaiting draft validation."
+              : relation && graph.validation?.issue
+                ? "Input: unresolved while the draft is blocked."
+                : dependency
+                  ? `Input: ${graph.cells.find((value) => value.id === dependency)?.name ?? dependency}`
+                  : "Input: configured SQL source"}
           </p>
           <p>
             {relation && graph.current(cell.id)

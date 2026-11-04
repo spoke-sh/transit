@@ -759,6 +759,21 @@ test("reactive workbook retains drafts, complete inputs and independent results 
   await cell(2).getByRole("button", { name: "Move cell 2 down" }).click();
   await expect(cell(3).getByRole("textbox", { name: "Relation name" })).toHaveValue("filtered");
   expect(evaluations).toHaveLength(3);
+  const reorderedSql = cell(3).getByRole("textbox", { name: "SQL", exact: true });
+  await reorderedSql.fill('SELECT id FROM "workbook.missing"');
+  await cell(3).getByRole("button", { name: "Inspect cell", exact: true }).click();
+  const blocked = page.getByRole("status").filter({ hasText: "Draft blocked" });
+  await expect(blocked).toContainText("filtered");
+  await expect(blocked).toContainText("MissingCellInput");
+  await expect(page.getByRole("complementary", { name: "Inspector", exact: true })).toContainText(
+    "Input: unresolved while the draft is blocked.",
+  );
+  await expect(cell(2).getByText("Earlier result", { exact: true })).toBeVisible();
+  await reorderedSql.fill('SELECT id FROM "workbook.source" WHERE id >= 120');
+  await cell(3).getByRole("textbox", { name: "Investigation notes" }).focus();
+  await expect(blocked).toHaveCount(0);
+  await expect(cell(2).getByText("Current draft", { exact: true })).toBeVisible();
+  expect(evaluations).toHaveLength(3);
   await page.emulateMedia({ reducedMotion: "reduce" });
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   if (process.env.BOARD_SCREENSHOT) {
