@@ -682,7 +682,7 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False, 
         denied_result = next(value for value in denied_status['results'] if value['cell'] == denied_cells[1]['id'])
         fixture.revoke({'revoke': account['principals']['table']})
         assert request('sql-read', dict(observe=f'{20:032x}'), 403)['err'] == 'Forbidden'
-        assert request('workbook', dict(observe=dict(id=denied_book, cell=denied_result['cell'], result=denied_result['result'], offset=0)), 403)['err'] == 'Forbidden'
+        assert request('workbook', dict(observe=dict(id=denied_book, cell=denied_result['cell'], result=denied_result['result'], offset=2)), 403)['err'] == 'Forbidden'
         assert request('workbook', dict(status=dict(id=denied_book, sequence=1)))['status']['results'] == []
         request('workbook', dict(close=denied_book))
         request('catalog', dict(tables=dict(namespace=1, cursor=None)), 403)

@@ -356,8 +356,9 @@ const Output = struct {
         return .{ .cell = self.cell.id, .result = try hex(allocator, self.identity), .sql = self.cell.sql, .name = self.cell.name, .input = if (self.input) |input| try hex(allocator, input.identity) else null };
     }
     fn view(self: *Output, allocator: std.mem.Allocator, offset: u32) !s.ReadView.View {
-        if (offset > self.rows.items.len) return error.InvalidReadPosition;
+        // Even a bounds refusal must not reveal retained cardinality after denial.
         try self.validate();
+        if (offset > self.rows.items.len) return error.InvalidReadPosition;
         const end = @min(self.rows.items.len, offset + s.ReadView.max_rows);
         const rows = try allocator.alloc([]const f.LogicalJson.Cell, end - offset);
         for (self.rows.items[offset..end], rows) |row, *out| {
@@ -451,8 +452,10 @@ test "complete owned inputs outlive reused fetch scratch; chains exceed display 
     const view = try input.view(arena.allocator(), 0);
     try t.expectEqual(@as(usize, 100), view.rows.len);
     try t.expectEqualStrings("145", view.complete_rows.?);
+    try t.expectError(error.InvalidReadPosition, counted.view(arena.allocator(), 2));
     oracle.denied = true;
     try t.expectError(error.SqlObservationDenied, counted.view(arena.allocator(), 0));
+    try t.expectError(error.SqlObservationDenied, counted.view(arena.allocator(), 2));
     try t.expectError(error.SqlObservationDenied, Output.derive(session, .{ .id = "00000000000000000000000000000004", .name = "copy", .sql = "SELECT * FROM \"workbook.counted\"" }, "workbook.counted", counted));
 }
 test "incomplete prefixes and row or allocation budgets never produce reusable inputs" {
