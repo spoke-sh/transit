@@ -7,6 +7,15 @@ import {
 } from "./workbook";
 import { readDefinition } from "./read-types";
 const id = "a".repeat(32);
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: Error) => void;
+  const promise = new Promise<T>((accept, fail) => {
+    resolve = accept;
+    reject = fail;
+  });
+  return { promise, resolve, reject };
+}
 const status = (sequence = 0): WorkbookStatus => ({
   id,
   sequence,
@@ -15,6 +24,44 @@ const status = (sequence = 0): WorkbookStatus => ({
   failure: null,
 });
 describe("temporary workbook session", () => {
+  test.each(["open", "evaluate"] as const)("close waits for pending %s", async (action) => {
+    const pending = deferred<Awaited<ReturnType<WorkbookTransport>>>();
+    const transport = vi.fn<WorkbookTransport>();
+    const session = new WorkbookSession(transport, id);
+    if (action === "evaluate") {
+      transport.mockResolvedValueOnce({ status: status() });
+      await session.open();
+    }
+    transport.mockReturnValueOnce(pending.promise).mockResolvedValueOnce({ closed: {} });
+    const admission = action === "open" ? session.open() : session.evaluate([], [], false, false);
+    const closing = session.close();
+    const repeated = session.close();
+    await Promise.resolve();
+    expect(transport.mock.calls.some(([request]) => "close" in request.action)).toBe(false);
+    pending.resolve({ status: status(action === "open" ? 0 : 1) });
+    await Promise.all([admission, closing, repeated]);
+    expect(transport.mock.calls.filter(([request]) => "close" in request.action)).toHaveLength(1);
+    await expect(session.evaluate([], [], false, false)).rejects.toMatchObject({
+      code: "InvalidTransition",
+    });
+  });
+  test("failed admission still closes the original identity and preserves cleanup uncertainty", async () => {
+    const pending = deferred<Awaited<ReturnType<WorkbookTransport>>>();
+    const transport = vi
+      .fn<WorkbookTransport>()
+      .mockReturnValueOnce(pending.promise)
+      .mockRejectedValueOnce(new Error("close reply lost"));
+    const session = new WorkbookSession(transport, id);
+    const opening = expect(session.open()).rejects.toThrow("open reply lost");
+    const closing = expect(session.close()).rejects.toThrow("close reply lost");
+    pending.reject(new Error("open reply lost"));
+    await Promise.all([opening, closing]);
+    await expect(session.close()).rejects.toThrow("close reply lost");
+    expect(transport.mock.calls.map(([request]) => request.action)).toEqual([
+      { open: id },
+      { close: id },
+    ]);
+  });
   test("a lost evaluation can only observe its original sequence", async () => {
     const transport = vi
       .fn<WorkbookTransport>()

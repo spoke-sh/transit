@@ -77,6 +77,8 @@ export class WorkbookSession {
   unresolved = false;
   private opened = false;
   private closed = false;
+  private admission: Promise<WorkbookStatus> | null = null;
+  private closing: Promise<void> | null = null;
   constructor(
     private readonly transport = workbookTransport,
     id = crypto.randomUUID().replaceAll("-", ""),
@@ -93,21 +95,26 @@ export class WorkbookSession {
     this.unresolved = false;
     return response.status;
   }
+  private track(response: Promise<WorkbookResponse>): Promise<WorkbookStatus> {
+    const pending = response.then((value) => this.statusReply(value));
+    this.admission = pending;
+    return pending.finally(() => {
+      if (this.admission === pending) this.admission = null;
+    });
+  }
   async open() {
     if (this.closed || this.opened) throw new QueryError(0, "InvalidTransition");
     this.opened = true;
     this.unresolved = true;
-    return this.statusReply(
-      await this.transport({ definition: readDefinition, action: { open: this.id } }),
-    );
+    return this.track(this.transport({ definition: readDefinition, action: { open: this.id } }));
   }
   async evaluate(cells: WorkbookCell[], targets: string[], affected: boolean, force: boolean) {
     if (!this.opened || this.closed || this.unresolved)
       throw new QueryError(0, "InvalidTransition");
     this.sequence++;
     this.unresolved = true;
-    return this.statusReply(
-      await this.transport({
+    return this.track(
+      this.transport({
         definition: readDefinition,
         action: {
           evaluate: { id: this.id, sequence: this.sequence, cells, targets, affected, force },
@@ -146,8 +153,15 @@ export class WorkbookSession {
     return response.result;
   }
   async close() {
-    if (this.closed) return;
+    if (this.closing) return this.closing;
     this.closed = true;
+    this.closing = this.release();
+    return this.closing;
+  }
+  private async release() {
+    // Do not let cleanup overtake the original open/evaluation request.
+    // Even a failed admission may have been accepted; close its original identity.
+    await this.admission?.catch(() => undefined);
     if (!this.opened) return;
     const response = await this.transport({
       definition: readDefinition,
