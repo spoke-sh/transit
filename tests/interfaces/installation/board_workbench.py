@@ -439,6 +439,55 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False, 
         for index in range(10, 14):
             close(index)
         request('sql-read', dict(observe=f'{1:032x}'), 410)
+        # Session relations consume the complete shared reader, including rows
+        # outside Board's first display window. Expected values are independent.
+        workbook = f'{500:032x}'
+        cells = [dict(id=f'{index:032x}', name=name, sql=statement) for index, name, statement in (
+            (501, 'source', 'SELECT id, label FROM metrics'),
+            (502, 'filtered', 'SELECT id FROM "workbook.source" WHERE id >= 100'),
+            (503, 'counted', 'SELECT COUNT(*) AS n FROM "workbook.filtered"'),
+            (504, 'independent', 'SELECT COUNT(*) AS n FROM metrics'))]
+        validation = request('workbook', dict(validate=dict(cells=cells)))['validation']
+        assert validation['issue'] is None
+        assert validation['bindings'][2]['input'] == cells[1]['id']
+        assert request('workbook', dict(open=workbook))['status']['remaining'] == 32
+        evaluation = dict(id=workbook, sequence=1, cells=cells,
+                          targets=[cells[2]['id'], cells[3]['id']], affected=False, force=False)
+        first_graph = request('workbook', dict(evaluate=evaluation))['status']
+        assert first_graph['failure'] is None, first_graph
+        assert first_graph['remaining'] == 28 and len(first_graph['results']) == 4
+        original = {value['cell']: value for value in first_graph['results']}
+        assert request('workbook', dict(evaluate=evaluation))['status'] == first_graph
+        assert request('workbook', dict(status=dict(id=workbook, sequence=1)))['status'] == first_graph
+        def graph_view(binding, offset=0):
+            return request('workbook', dict(observe=dict(id=workbook, cell=binding['cell'], result=binding['result'], offset=offset)))['result']['view']
+        source_window = graph_view(original[cells[0]['id']])
+        assert len(source_window['rows']) == 100 and source_window['complete_rows'] == '145'
+        assert len(graph_view(original[cells[0]['id']], 100)['rows']) == 45
+        assert graph_view(original[cells[2]['id']])['rows'][0][0]['value']['atom']['unsigned'] == '45'
+        assert graph_view(original[cells[3]['id']])['rows'][0][0]['value']['atom']['unsigned'] == '145'
+        cells[1]['sql'] = 'SELECT id FROM "workbook.source" WHERE id >= 120'
+        changed = request('workbook', dict(evaluate=dict(id=workbook, sequence=2, cells=list(reversed(cells)), targets=[cells[1]['id']], affected=True, force=False)))['status']
+        assert changed['failure'] is None and changed['remaining'] == 26, changed
+        current = {value['cell']: value for value in changed['results']}
+        assert current[cells[0]['id']]['result'] == original[cells[0]['id']]['result']
+        assert current[cells[3]['id']]['result'] == original[cells[3]['id']]['result']
+        assert graph_view(current[cells[2]['id']])['rows'][0][0]['value']['atom']['unsigned'] == '25'
+        cells[1]['sql'] = 'SELECT id FROM "workbook.source" WHERE id >= 1000'
+        empty_graph = request('workbook', dict(evaluate=dict(id=workbook, sequence=3, cells=cells, targets=[cells[1]['id']], affected=True, force=False)))['status']
+        assert empty_graph['failure'] is None and empty_graph['remaining'] == 24
+        empty_bindings = {value['cell']: value for value in empty_graph['results']}
+        assert graph_view(empty_bindings[cells[1]['id']])['rows'] == []
+        assert graph_view(empty_bindings[cells[2]['id']])['rows'][0][0]['value']['atom']['unsigned'] == '0'
+        cells[0]['sql'] = 'SELECT * FROM "workbook.filtered"'
+        cycle = request('workbook', dict(validate=dict(cells=cells)))['validation']['issue']
+        assert cycle['code'] == 'WorkbookCycle' and cycle['path'][0] == cycle['path'][-1]
+        request('workbook', dict(evaluate=dict(id=workbook, sequence=4, cells=cells, targets=[cells[0]['id']], affected=True, force=False)), 400)
+        assert request('workbook', dict(status=dict(id=workbook, sequence=3)))['status']['remaining'] == 24
+        cells[0]['name'] = 'renamed'
+        assert request('workbook', dict(validate=dict(cells=cells)))['validation']['issue']['code'] == 'MissingCellInput'
+        request('workbook', dict(close=workbook))
+        request('workbook', dict(status=dict(id=workbook, sequence=3)), 410)
         if browser:
             screenshots = ROOT / '.cache/board-workbench'
             screenshots.mkdir(parents=True, exist_ok=True)
@@ -624,8 +673,18 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False, 
         # A completed buffered result is not a continuing grant. Revoke its SQL
         # principal through the current public owner, then require no disclosure.
         run_sql(20, 'SELECT * FROM empty_metrics')
+        denied_book = f'{600:032x}'
+        denied_cells = [dict(id=f'{601:032x}', name='empty', sql='SELECT * FROM empty_metrics'),
+                        dict(id=f'{602:032x}', name='count', sql='SELECT COUNT(*) AS n FROM "workbook.empty"')]
+        request('workbook', dict(open=denied_book))
+        denied_status = request('workbook', dict(evaluate=dict(id=denied_book, sequence=1, cells=denied_cells, targets=[denied_cells[1]['id']], affected=False, force=False)))['status']
+        assert denied_status['failure'] is None
+        denied_result = next(value for value in denied_status['results'] if value['cell'] == denied_cells[1]['id'])
         fixture.revoke({'revoke': account['principals']['table']})
         assert request('sql-read', dict(observe=f'{20:032x}'), 403)['err'] == 'Forbidden'
+        assert request('workbook', dict(observe=dict(id=denied_book, cell=denied_result['cell'], result=denied_result['result'], offset=0)), 403)['err'] == 'Forbidden'
+        assert request('workbook', dict(status=dict(id=denied_book, sequence=1)))['status']['results'] == []
+        request('workbook', dict(close=denied_book))
         request('catalog', dict(tables=dict(namespace=1, cursor=None)), 403)
         request('catalog', dict(storage=table['metadata']['binding']), 403)
         history(dict(source=dict(selector=selector, object=historical_object)), 403)
@@ -655,7 +714,7 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False, 
         assert fixture.record()['board_receipts'] == receipts
         fixture.stop()
         success = True
-        print('Board workbench: exact 145-row traversal, empty/metadata results, definition guards, read-only admission, capacity, retained definitions/placement automatic local access, disabled local SQL and revocation across restart passed.', flush=True)
+        print('Board workbench: exact 145-row traversal, dependent relation closure/full-input counts, original evaluation identity, derived revocation, empty/metadata results, definition guards, read-only admission, capacity, retained definitions/placement automatic local access, disabled local SQL and revocation across restart passed.', flush=True)
     finally:
         fixture.cleanup()
         if success:

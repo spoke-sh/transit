@@ -17,7 +17,7 @@ assert "/api/v1/session" not in spec["paths"] and "/api/v1/logout" not in spec["
 for path, methods in spec["paths"].items():
     assert path.startswith("/api/v1/")
     requests = {'/api/v1/query': 'UnifiedQueryRequest', '/api/v1/relational': 'RelationalRequest',
-                '/api/v1/computations': 'ComputationRequest', '/api/v1/catalog': 'CatalogRequest', '/api/v1/sql-read': 'SqlReadRequest'}
+                '/api/v1/computations': 'ComputationRequest', '/api/v1/catalog': 'CatalogRequest', '/api/v1/sql-read': 'SqlReadRequest', '/api/v1/workbook': 'WorkbookRequest'}
     query = path in requests
     assert set(methods) == ({"post"} if query else {"get"})
     if query:

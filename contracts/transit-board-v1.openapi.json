@@ -323,6 +323,114 @@
         }
       }
     },
+    "/api/v1/workbook": {
+      "post": {
+        "summary": "WorkbookResponse",
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Must exactly match the configured public_origin. Query capability must be explicitly configured."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkbookRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "WorkbookResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkbookResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sql-read": {
       "post": {
         "summary": "SqlReadResponse",
@@ -36976,6 +37084,2499 @@
             ]
           },
           "T61": {
+            "type": "string",
+            "enum": [
+              "complete",
+              "row_limit",
+              "metadata_window"
+            ]
+          }
+        }
+      },
+      "WorkbookRequest": {
+        "$ref": "#/components/schemas/WorkbookRequest/$defs/T0",
+        "$defs": {
+          "T0": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "definition",
+              "action"
+            ],
+            "properties": {
+              "definition": {
+                "$ref": "#/components/schemas/WorkbookRequest/$defs/T1"
+              },
+              "action": {
+                "$ref": "#/components/schemas/WorkbookRequest/$defs/T2"
+              }
+            },
+            "required": [
+              "definition",
+              "action"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T1": {
+            "type": "string",
+            "enum": [
+              "3981a6a977f356b8f1f1af39978b690fca425cd5926f5fb1dfa13507b5671079"
+            ]
+          },
+          "T2": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "describe"
+                ],
+                "properties": {
+                  "describe": {
+                    "$ref": "#/components/schemas/WorkbookRequest/$defs/T3"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "validate"
+                ],
+                "properties": {
+                  "validate": {
+                    "$ref": "#/components/schemas/WorkbookRequest/$defs/T4"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "open"
+                ],
+                "properties": {
+                  "open": {
+                    "$ref": "#/components/schemas/WorkbookRequest/$defs/T8"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "evaluate"
+                ],
+                "properties": {
+                  "evaluate": {
+                    "$ref": "#/components/schemas/WorkbookRequest/$defs/T9"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "status"
+                ],
+                "properties": {
+                  "status": {
+                    "$ref": "#/components/schemas/WorkbookRequest/$defs/T13"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "observe"
+                ],
+                "properties": {
+                  "observe": {
+                    "$ref": "#/components/schemas/WorkbookRequest/$defs/T14"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "close"
+                ],
+                "properties": {
+                  "close": {
+                    "$ref": "#/components/schemas/WorkbookRequest/$defs/T8"
+                  }
+                }
+              }
+            ]
+          },
+          "T3": {
+            "type": "object",
+            "maxProperties": 0
+          },
+          "T4": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "cells"
+            ],
+            "properties": {
+              "cells": {
+                "$ref": "#/components/schemas/WorkbookRequest/$defs/T5"
+              }
+            },
+            "required": [
+              "cells"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T5": {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/components/schemas/WorkbookRequest/$defs/T6"
+            }
+          },
+          "T6": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "id",
+              "name",
+              "sql"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/components/schemas/WorkbookRequest/$defs/T7"
+              },
+              "name": {
+                "$ref": "#/components/schemas/WorkbookRequest/$defs/T7"
+              },
+              "sql": {
+                "$ref": "#/components/schemas/WorkbookRequest/$defs/T7"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "sql"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T7": {
+            "type": "string",
+            "maxLength": 262144
+          },
+          "T8": {
+            "type": "string",
+            "maxLength": 262144
+          },
+          "T9": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "id",
+              "sequence",
+              "cells",
+              "targets",
+              "affected",
+              "force"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/components/schemas/WorkbookRequest/$defs/T8"
+              },
+              "sequence": {
+                "$ref": "#/components/schemas/WorkbookRequest/$defs/T10"
+              },
+              "cells": {
+                "$ref": "#/components/schemas/WorkbookRequest/$defs/T5"
+              },
+              "targets": {
+                "$ref": "#/components/schemas/WorkbookRequest/$defs/T11"
+              },
+              "affected": {
+                "$ref": "#/components/schemas/WorkbookRequest/$defs/T12"
+              },
+              "force": {
+                "$ref": "#/components/schemas/WorkbookRequest/$defs/T12"
+              }
+            },
+            "required": [
+              "id",
+              "sequence",
+              "cells",
+              "targets",
+              "affected",
+              "force"
+            ],
+            "x-transit-defaults": {
+              "affected": false,
+              "force": false
+            }
+          },
+          "T10": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295,
+            "x-transit-bits": 32,
+            "x-transit-signed": false
+          },
+          "T11": {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/components/schemas/WorkbookRequest/$defs/T7"
+            }
+          },
+          "T12": {
+            "type": "boolean"
+          },
+          "T13": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "id",
+              "sequence"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/components/schemas/WorkbookRequest/$defs/T8"
+              },
+              "sequence": {
+                "$ref": "#/components/schemas/WorkbookRequest/$defs/T10"
+              }
+            },
+            "required": [
+              "id",
+              "sequence"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T14": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "id",
+              "cell",
+              "result",
+              "offset"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/components/schemas/WorkbookRequest/$defs/T8"
+              },
+              "cell": {
+                "$ref": "#/components/schemas/WorkbookRequest/$defs/T8"
+              },
+              "result": {
+                "$ref": "#/components/schemas/WorkbookRequest/$defs/T8"
+              },
+              "offset": {
+                "$ref": "#/components/schemas/WorkbookRequest/$defs/T10"
+              }
+            },
+            "required": [
+              "id",
+              "cell",
+              "result",
+              "offset"
+            ],
+            "x-transit-defaults": {
+              "offset": 0
+            }
+          }
+        }
+      },
+      "WorkbookResponse": {
+        "$ref": "#/components/schemas/WorkbookResponse/$defs/T0",
+        "$defs": {
+          "T0": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "description"
+                ],
+                "properties": {
+                  "description": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T1"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "validation"
+                ],
+                "properties": {
+                  "validation": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T6"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "status"
+                ],
+                "properties": {
+                  "status": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T14"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "result"
+                ],
+                "properties": {
+                  "result": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T19"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "closed"
+                ],
+                "properties": {
+                  "closed": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T26"
+                  }
+                }
+              }
+            ]
+          },
+          "T1": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "definition",
+              "cells",
+              "rows",
+              "value_bytes",
+              "evaluations",
+              "lifetime_ms",
+              "namespace"
+            ],
+            "properties": {
+              "definition": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T2"
+              },
+              "cells": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T3"
+              },
+              "rows": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T4"
+              },
+              "value_bytes": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T4"
+              },
+              "evaluations": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T3"
+              },
+              "lifetime_ms": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T4"
+              },
+              "namespace": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T5"
+              }
+            },
+            "required": [
+              "definition",
+              "cells",
+              "rows",
+              "value_bytes",
+              "evaluations",
+              "lifetime_ms",
+              "namespace"
+            ],
+            "x-transit-defaults": {
+              "definition": "3981a6a977f356b8f1f1af39978b690fca425cd5926f5fb1dfa13507b5671079",
+              "cells": 4,
+              "rows": 10000,
+              "value_bytes": 16777216,
+              "evaluations": 32,
+              "lifetime_ms": 300000,
+              "namespace": "workbook."
+            }
+          },
+          "T2": {
+            "type": "string",
+            "enum": [
+              "3981a6a977f356b8f1f1af39978b690fca425cd5926f5fb1dfa13507b5671079"
+            ]
+          },
+          "T3": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255,
+            "x-transit-bits": 8,
+            "x-transit-signed": false
+          },
+          "T4": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295,
+            "x-transit-bits": 32,
+            "x-transit-signed": false
+          },
+          "T5": {
+            "type": "string",
+            "maxLength": 262144
+          },
+          "T6": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "bindings",
+              "issue"
+            ],
+            "properties": {
+              "bindings": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T7"
+              },
+              "issue": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T11"
+              }
+            },
+            "required": [
+              "bindings",
+              "issue"
+            ],
+            "x-transit-defaults": {
+              "issue": null
+            }
+          },
+          "T7": {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/components/schemas/WorkbookResponse/$defs/T8"
+            }
+          },
+          "T8": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "cell",
+              "input"
+            ],
+            "properties": {
+              "cell": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T9"
+              },
+              "input": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T10"
+              }
+            },
+            "required": [
+              "cell",
+              "input"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T9": {
+            "type": "string",
+            "maxLength": 262144
+          },
+          "T10": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T9"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "T11": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T12"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "T12": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "cell",
+              "code",
+              "path"
+            ],
+            "properties": {
+              "cell": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T5"
+              },
+              "code": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T5"
+              },
+              "path": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T13"
+              }
+            },
+            "required": [
+              "cell",
+              "code",
+              "path"
+            ],
+            "x-transit-defaults": {
+              "path": []
+            }
+          },
+          "T13": {
+            "type": "array",
+            "maxItems": 256,
+            "items": {
+              "$ref": "#/components/schemas/WorkbookResponse/$defs/T5"
+            }
+          },
+          "T14": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "id",
+              "sequence",
+              "remaining",
+              "results",
+              "failure"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T5"
+              },
+              "sequence": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T4"
+              },
+              "remaining": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T3"
+              },
+              "results": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T15"
+              },
+              "failure": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T17"
+              }
+            },
+            "required": [
+              "id",
+              "sequence",
+              "remaining",
+              "results",
+              "failure"
+            ],
+            "x-transit-defaults": {
+              "failure": null
+            }
+          },
+          "T15": {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/components/schemas/WorkbookResponse/$defs/T16"
+            }
+          },
+          "T16": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "cell",
+              "result",
+              "sql",
+              "name",
+              "input"
+            ],
+            "properties": {
+              "cell": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T9"
+              },
+              "result": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T9"
+              },
+              "sql": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T9"
+              },
+              "name": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T9"
+              },
+              "input": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T10"
+              }
+            },
+            "required": [
+              "cell",
+              "result",
+              "sql",
+              "name",
+              "input"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T17": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T18"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "T18": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "cell",
+              "code"
+            ],
+            "properties": {
+              "cell": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T5"
+              },
+              "code": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T5"
+              }
+            },
+            "required": [
+              "cell",
+              "code"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T19": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "id",
+              "cell",
+              "sequence",
+              "binding",
+              "view"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T5"
+              },
+              "cell": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T5"
+              },
+              "sequence": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T4"
+              },
+              "binding": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T20"
+              },
+              "view": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T22"
+              }
+            },
+            "required": [
+              "id",
+              "cell",
+              "sequence",
+              "binding",
+              "view"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T20": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "cell",
+              "result",
+              "sql",
+              "name",
+              "input"
+            ],
+            "properties": {
+              "cell": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T5"
+              },
+              "result": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T5"
+              },
+              "sql": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T5"
+              },
+              "name": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T5"
+              },
+              "input": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T21"
+              }
+            },
+            "required": [
+              "cell",
+              "result",
+              "sql",
+              "name",
+              "input"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T21": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T5"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "T22": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "definition",
+              "result",
+              "columns",
+              "rows",
+              "observation",
+              "observation_kind",
+              "start",
+              "delivered",
+              "complete_rows",
+              "stopped"
+            ],
+            "properties": {
+              "definition": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T2"
+              },
+              "result": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T5"
+              },
+              "columns": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T23"
+              },
+              "rows": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T36"
+              },
+              "observation": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T5"
+              },
+              "observation_kind": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T73"
+              },
+              "start": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T5"
+              },
+              "delivered": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T5"
+              },
+              "complete_rows": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T21"
+              },
+              "stopped": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T74"
+              }
+            },
+            "required": [
+              "definition",
+              "result",
+              "columns",
+              "rows",
+              "observation",
+              "observation_kind",
+              "start",
+              "delivered",
+              "complete_rows",
+              "stopped"
+            ],
+            "x-transit-defaults": {
+              "definition": "3981a6a977f356b8f1f1af39978b690fca425cd5926f5fb1dfa13507b5671079"
+            }
+          },
+          "T23": {
+            "type": "array",
+            "maxItems": 256,
+            "items": {
+              "$ref": "#/components/schemas/WorkbookResponse/$defs/T24"
+            }
+          },
+          "T24": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "name",
+              "type",
+              "nullable",
+              "optional"
+            ],
+            "properties": {
+              "name": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T5"
+              },
+              "type": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T25"
+              },
+              "nullable": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T31"
+              },
+              "optional": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T31"
+              }
+            },
+            "required": [
+              "name",
+              "type",
+              "nullable",
+              "optional"
+            ],
+            "x-transit-defaults": {
+              "nullable": false,
+              "optional": false
+            }
+          },
+          "T25": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "int64"
+                ],
+                "properties": {
+                  "int64": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T26"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "uint64"
+                ],
+                "properties": {
+                  "uint64": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T26"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "float64"
+                ],
+                "properties": {
+                  "float64": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T26"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "boolean"
+                ],
+                "properties": {
+                  "boolean": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T26"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "utf8"
+                ],
+                "properties": {
+                  "utf8": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T26"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "binary"
+                ],
+                "properties": {
+                  "binary": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T26"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "int8"
+                ],
+                "properties": {
+                  "int8": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T26"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "int16"
+                ],
+                "properties": {
+                  "int16": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T26"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "int32"
+                ],
+                "properties": {
+                  "int32": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T26"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "int128"
+                ],
+                "properties": {
+                  "int128": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T26"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "uint8"
+                ],
+                "properties": {
+                  "uint8": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T26"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "uint16"
+                ],
+                "properties": {
+                  "uint16": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T26"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "uint32"
+                ],
+                "properties": {
+                  "uint32": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T26"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "uint128"
+                ],
+                "properties": {
+                  "uint128": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T26"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "float32"
+                ],
+                "properties": {
+                  "float32": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T26"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "decimal"
+                ],
+                "properties": {
+                  "decimal": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T27"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "date"
+                ],
+                "properties": {
+                  "date": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T26"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "time"
+                ],
+                "properties": {
+                  "time": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T26"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "timestamp"
+                ],
+                "properties": {
+                  "timestamp": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T28"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "interval"
+                ],
+                "properties": {
+                  "interval": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T26"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "uuid"
+                ],
+                "properties": {
+                  "uuid": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T26"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "structure"
+                ],
+                "properties": {
+                  "structure": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T23"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "list"
+                ],
+                "properties": {
+                  "list": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T29"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "array"
+                ],
+                "properties": {
+                  "array": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T32"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "map"
+                ],
+                "properties": {
+                  "map": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T33"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "tagged_union"
+                ],
+                "properties": {
+                  "tagged_union": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T23"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "json"
+                ],
+                "properties": {
+                  "json": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T26"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "range"
+                ],
+                "properties": {
+                  "range": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T30"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "multirange"
+                ],
+                "properties": {
+                  "multirange": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T30"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "vector"
+                ],
+                "properties": {
+                  "vector": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T34"
+                  }
+                }
+              }
+            ]
+          },
+          "T26": {
+            "type": "object",
+            "maxProperties": 0
+          },
+          "T27": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "precision",
+              "scale"
+            ],
+            "properties": {
+              "precision": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T3"
+              },
+              "scale": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T3"
+              }
+            },
+            "required": [
+              "precision",
+              "scale"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T28": {
+            "type": "string",
+            "enum": [
+              "civil",
+              "utc"
+            ]
+          },
+          "T29": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "type",
+              "nullable"
+            ],
+            "properties": {
+              "type": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T30"
+              },
+              "nullable": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T31"
+              }
+            },
+            "required": [
+              "type",
+              "nullable"
+            ],
+            "x-transit-defaults": {
+              "nullable": false
+            }
+          },
+          "T30": {
+            "$ref": "#/components/schemas/WorkbookResponse/$defs/T25"
+          },
+          "T31": {
+            "type": "boolean"
+          },
+          "T32": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "element",
+              "length"
+            ],
+            "properties": {
+              "element": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T29"
+              },
+              "length": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T4"
+              }
+            },
+            "required": [
+              "element",
+              "length"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T33": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "key",
+              "value"
+            ],
+            "properties": {
+              "key": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T30"
+              },
+              "value": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T29"
+              }
+            },
+            "required": [
+              "key",
+              "value"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T34": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "dimensions",
+              "element"
+            ],
+            "properties": {
+              "dimensions": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T4"
+              },
+              "element": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T35"
+              }
+            },
+            "required": [
+              "dimensions",
+              "element"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T35": {
+            "type": "string",
+            "enum": [
+              "float32",
+              "float16",
+              "bfloat16",
+              "int8",
+              "binary"
+            ]
+          },
+          "T36": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/WorkbookResponse/$defs/T37"
+            }
+          },
+          "T37": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/WorkbookResponse/$defs/T38"
+            }
+          },
+          "T38": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "missing"
+                ],
+                "properties": {
+                  "missing": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T39"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "null"
+                ],
+                "properties": {
+                  "null": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T39"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "type_error"
+                ],
+                "properties": {
+                  "type_error": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T40"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "value"
+                ],
+                "properties": {
+                  "value": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T41"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "conflict"
+                ],
+                "properties": {
+                  "conflict": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T64"
+                  }
+                }
+              }
+            ]
+          },
+          "T39": {
+            "type": "object",
+            "maxProperties": 0
+          },
+          "T40": {
+            "type": "string",
+            "enum": [
+              "unknown",
+              "int64",
+              "uint64",
+              "float64",
+              "boolean",
+              "utf8",
+              "binary",
+              "int8",
+              "int16",
+              "int32",
+              "int128",
+              "uint8",
+              "uint16",
+              "uint32",
+              "uint128",
+              "float32",
+              "decimal",
+              "date",
+              "time",
+              "timestamp",
+              "interval",
+              "uuid",
+              "structure",
+              "list",
+              "array",
+              "map",
+              "tagged_union",
+              "json",
+              "range",
+              "multirange",
+              "vector",
+              "null_value",
+              "text",
+              "character"
+            ]
+          },
+          "T41": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "atom"
+                ],
+                "properties": {
+                  "atom": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T42"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "structure"
+                ],
+                "properties": {
+                  "structure": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T46"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "list"
+                ],
+                "properties": {
+                  "list": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T46"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "array"
+                ],
+                "properties": {
+                  "array": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T46"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "map"
+                ],
+                "properties": {
+                  "map": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T55"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "tagged_union"
+                ],
+                "properties": {
+                  "tagged_union": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T67"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "json"
+                ],
+                "properties": {
+                  "json": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T43"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "range"
+                ],
+                "properties": {
+                  "range": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T70"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "multirange"
+                ],
+                "properties": {
+                  "multirange": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T63"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "vector"
+                ],
+                "properties": {
+                  "vector": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T43"
+                  }
+                }
+              }
+            ]
+          },
+          "T42": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "signed"
+                ],
+                "properties": {
+                  "signed": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T43"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "unsigned"
+                ],
+                "properties": {
+                  "unsigned": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T43"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "decimal"
+                ],
+                "properties": {
+                  "decimal": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T43"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "float_bits"
+                ],
+                "properties": {
+                  "float_bits": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T43"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "boolean"
+                ],
+                "properties": {
+                  "boolean": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T44"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "utf8"
+                ],
+                "properties": {
+                  "utf8": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T43"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "binary"
+                ],
+                "properties": {
+                  "binary": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T43"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "date_days"
+                ],
+                "properties": {
+                  "date_days": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T43"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "time_nanos"
+                ],
+                "properties": {
+                  "time_nanos": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T43"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "timestamp_micros"
+                ],
+                "properties": {
+                  "timestamp_micros": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T43"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "interval"
+                ],
+                "properties": {
+                  "interval": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T45"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "uuid"
+                ],
+                "properties": {
+                  "uuid": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T43"
+                  }
+                }
+              }
+            ]
+          },
+          "T43": {
+            "type": "string",
+            "maxLength": 262144
+          },
+          "T44": {
+            "type": "boolean"
+          },
+          "T45": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "months",
+              "days",
+              "nanos"
+            ],
+            "properties": {
+              "months": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T43"
+              },
+              "days": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T43"
+              },
+              "nanos": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T43"
+              }
+            },
+            "required": [
+              "months",
+              "days",
+              "nanos"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T46": {
+            "type": "array",
+            "maxItems": 65536,
+            "items": {
+              "$ref": "#/components/schemas/WorkbookResponse/$defs/T47"
+            }
+          },
+          "T47": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "missing"
+                ],
+                "properties": {
+                  "missing": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T48"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "null"
+                ],
+                "properties": {
+                  "null": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T48"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "type_error"
+                ],
+                "properties": {
+                  "type_error": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T49"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "value"
+                ],
+                "properties": {
+                  "value": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T50"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "conflict"
+                ],
+                "properties": {
+                  "conflict": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T64"
+                  }
+                }
+              }
+            ]
+          },
+          "T48": {
+            "type": "object",
+            "maxProperties": 0
+          },
+          "T49": {
+            "type": "string",
+            "enum": [
+              "unknown",
+              "int64",
+              "uint64",
+              "float64",
+              "boolean",
+              "utf8",
+              "binary",
+              "int8",
+              "int16",
+              "int32",
+              "int128",
+              "uint8",
+              "uint16",
+              "uint32",
+              "uint128",
+              "float32",
+              "decimal",
+              "date",
+              "time",
+              "timestamp",
+              "interval",
+              "uuid",
+              "structure",
+              "list",
+              "array",
+              "map",
+              "tagged_union",
+              "json",
+              "range",
+              "multirange",
+              "vector",
+              "null_value",
+              "text",
+              "character"
+            ]
+          },
+          "T50": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "atom"
+                ],
+                "properties": {
+                  "atom": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T51"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "structure"
+                ],
+                "properties": {
+                  "structure": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T46"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "list"
+                ],
+                "properties": {
+                  "list": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T46"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "array"
+                ],
+                "properties": {
+                  "array": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T46"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "map"
+                ],
+                "properties": {
+                  "map": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T55"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "tagged_union"
+                ],
+                "properties": {
+                  "tagged_union": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T57"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "json"
+                ],
+                "properties": {
+                  "json": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T52"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "range"
+                ],
+                "properties": {
+                  "range": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T60"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "multirange"
+                ],
+                "properties": {
+                  "multirange": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T63"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "vector"
+                ],
+                "properties": {
+                  "vector": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T52"
+                  }
+                }
+              }
+            ]
+          },
+          "T51": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "signed"
+                ],
+                "properties": {
+                  "signed": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T52"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "unsigned"
+                ],
+                "properties": {
+                  "unsigned": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T52"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "decimal"
+                ],
+                "properties": {
+                  "decimal": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T52"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "float_bits"
+                ],
+                "properties": {
+                  "float_bits": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T52"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "boolean"
+                ],
+                "properties": {
+                  "boolean": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T53"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "utf8"
+                ],
+                "properties": {
+                  "utf8": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T52"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "binary"
+                ],
+                "properties": {
+                  "binary": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T52"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "date_days"
+                ],
+                "properties": {
+                  "date_days": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T52"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "time_nanos"
+                ],
+                "properties": {
+                  "time_nanos": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T52"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "timestamp_micros"
+                ],
+                "properties": {
+                  "timestamp_micros": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T52"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "interval"
+                ],
+                "properties": {
+                  "interval": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T54"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "uuid"
+                ],
+                "properties": {
+                  "uuid": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T52"
+                  }
+                }
+              }
+            ]
+          },
+          "T52": {
+            "type": "string",
+            "maxLength": 262144
+          },
+          "T53": {
+            "type": "boolean"
+          },
+          "T54": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "months",
+              "days",
+              "nanos"
+            ],
+            "properties": {
+              "months": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T52"
+              },
+              "days": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T52"
+              },
+              "nanos": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T52"
+              }
+            },
+            "required": [
+              "months",
+              "days",
+              "nanos"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T55": {
+            "type": "array",
+            "maxItems": 65536,
+            "items": {
+              "$ref": "#/components/schemas/WorkbookResponse/$defs/T56"
+            }
+          },
+          "T56": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "key",
+              "value"
+            ],
+            "properties": {
+              "key": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T51"
+              },
+              "value": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T47"
+              }
+            },
+            "required": [
+              "key",
+              "value"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T57": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "index",
+              "value"
+            ],
+            "properties": {
+              "index": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T58"
+              },
+              "value": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T59"
+              }
+            },
+            "required": [
+              "index",
+              "value"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T58": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255,
+            "x-transit-bits": 8,
+            "x-transit-signed": false
+          },
+          "T59": {
+            "$ref": "#/components/schemas/WorkbookResponse/$defs/T47"
+          },
+          "T60": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "is_empty",
+              "lower",
+              "upper"
+            ],
+            "properties": {
+              "is_empty": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T53"
+              },
+              "lower": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T61"
+              },
+              "upper": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T61"
+              }
+            },
+            "required": [
+              "is_empty",
+              "lower",
+              "upper"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T61": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T62"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "T62": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "value",
+              "inclusive"
+            ],
+            "properties": {
+              "value": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T51"
+              },
+              "inclusive": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T53"
+              }
+            },
+            "required": [
+              "value",
+              "inclusive"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T63": {
+            "type": "array",
+            "maxItems": 65536,
+            "items": {
+              "$ref": "#/components/schemas/WorkbookResponse/$defs/T60"
+            }
+          },
+          "T64": {
+            "type": "array",
+            "maxItems": 65536,
+            "items": {
+              "$ref": "#/components/schemas/WorkbookResponse/$defs/T65"
+            }
+          },
+          "T65": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "counter",
+              "replica",
+              "value"
+            ],
+            "properties": {
+              "counter": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T52"
+              },
+              "replica": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T52"
+              },
+              "value": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T66"
+              }
+            },
+            "required": [
+              "counter",
+              "replica",
+              "value"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T66": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "null"
+                ],
+                "properties": {
+                  "null": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T48"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "type_error"
+                ],
+                "properties": {
+                  "type_error": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T49"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "value"
+                ],
+                "properties": {
+                  "value": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T50"
+                  }
+                }
+              }
+            ]
+          },
+          "T67": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "index",
+              "value"
+            ],
+            "properties": {
+              "index": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T68"
+              },
+              "value": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T69"
+              }
+            },
+            "required": [
+              "index",
+              "value"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T68": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255,
+            "x-transit-bits": 8,
+            "x-transit-signed": false
+          },
+          "T69": {
+            "$ref": "#/components/schemas/WorkbookResponse/$defs/T38"
+          },
+          "T70": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "is_empty",
+              "lower",
+              "upper"
+            ],
+            "properties": {
+              "is_empty": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T44"
+              },
+              "lower": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T71"
+              },
+              "upper": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T71"
+              }
+            },
+            "required": [
+              "is_empty",
+              "lower",
+              "upper"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T71": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T72"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "T72": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "value",
+              "inclusive"
+            ],
+            "properties": {
+              "value": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T42"
+              },
+              "inclusive": {
+                "$ref": "#/components/schemas/WorkbookResponse/$defs/T44"
+              }
+            },
+            "required": [
+              "value",
+              "inclusive"
+            ],
+            "x-transit-defaults": {}
+          },
+          "T73": {
+            "type": "string",
+            "enum": [
+              "data",
+              "metadata"
+            ]
+          },
+          "T74": {
             "type": "string",
             "enum": [
               "complete",

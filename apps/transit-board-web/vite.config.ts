@@ -32,7 +32,7 @@ function bundleBudget(): Plugin {
           .reduce((sum, item) => sum + bytes(item.code), 0);
         if (initial.size > 4 || initialBytes >= 800_000)
           this.error(
-            `Board bootstrap exceeds four scripts / 800 kB (${initial.size} scripts, ${initialBytes} bytes)`,
+            `Board bootstrap exceeds four scripts / 800 kB (${initial.size} scripts, ${initialBytes} bytes: ${[...initial].join(", ")})`,
           );
         const featureRoot =
           /transit-board-web\/src\/(?:catalog|dataset|workbook|operations|computations|activity|atlas|process-evidence|definition|unified-workspace|relational-workspace|live-table)\.tsx$/;
@@ -92,7 +92,7 @@ export default defineConfig({
             { name: "workbook", test: /transit-board-web\/src\/workbook\.tsx$/ },
             {
               name: "statements",
-              test: /transit-board-web\/src\/(?:workbench-result|result-profile|statement-owner|statement-state)\.tsx?$|transit-query-client\/src\/read(?:-validators)?\.(?:ts|js)$/,
+              test: /transit-board-web\/src\/(?:workbench-result|result-profile|statement-owner|statement-state|workbook-owner)\.tsx?$|transit-query-client\/src\/(?:read(?:-validators|-http)?|workbook)\.(?:ts|js)$/,
             },
             {
               name: "inspection",
@@ -104,7 +104,7 @@ export default defineConfig({
             },
             {
               name: "query-workspace",
-              test: /transit-board-web\/src\/(?:unified-workspace|unified-result|query-(?:live|profile|inspection|recovery|candidates)|draft-controls|sql-editor|workspace-tasks|binding|follow-recovery)\.tsx?$|transit-query-client\/src\/(?!(?:error|logical|diagnostics|read-types|read|read-validators)\.(?:ts|js)$)|transit-board-client\/src\/(?:query|unified)\.ts$/,
+              test: /transit-board-web\/src\/(?:unified-workspace|unified-result|query-(?:live|profile|inspection|recovery|candidates)|draft-controls|sql-editor|workspace-tasks|binding|follow-recovery)\.tsx?$|transit-query-client\/src\/(?!(?:error|logical|diagnostics|read-types|read|read-http|read-validators|workbook)\.(?:ts|js)$)|transit-board-client\/src\/(?:query|unified)\.ts$/,
             },
             {
               name: "live",
@@ -112,7 +112,7 @@ export default defineConfig({
             },
             {
               name: "shell",
-              test: /transit-board-web\/src\/(?:routes\/|(?:state|plane-state|interface|declared|features|feature-status|feature-access|data-route|data-metadata|dataset-selection|use-observation|observation|observation-owner|read-status|request-scheduler|workbench-layout|quantity|quantities|query-diagnostic|process-tabs|routeTree.gen)\.tsx?$)|transit-board-client\/src\/(?:deployment|request|host-validators)\.(?:ts|js)$|transit-application\/src\/(?:interface|definition|error|validators)\.(?:ts|js)$|transit-query-client\/src\/(?:error|logical|diagnostics|read-types)\.ts$|transit-reactive-client\/src\/(?:caller-gate|request-scheduling|error)\.ts$|transit-diagnostics\/src\/|ajv\/dist\/runtime\//,
+              test: /transit-board-web\/src\/(?:routes\/|(?:state|plane-state|interface|declared|features|feature-status|feature-access|data-route|data-metadata|dataset-selection|use-observation|observation|observation-owner|read-status|request-scheduler|workbench-layout|quantity|quantities|query-diagnostic|process-tabs|routeTree.gen)\.tsx?$)|transit-board-client\/src\/(?:deployment|request|host-validators)\.(?:ts|js)$|transit-application\/src\/(?:interface|definition|error|validators)\.(?:ts|js)$|transit-query-client\/src\/(?:error|logical|diagnostics|read-types)\.ts$|transit-reactive-client\/src\/(?:caller-gate|request-scheduling|error)\.ts$|transit-diagnostics\/src\/|ajv\/dist\/runtime\/|preload-helper/,
             },
           ],
         },

@@ -8,11 +8,13 @@ pub const Config = struct {
 };
 pub const Runtime = struct {
     sql: ?sql.ReadWorkspace,
+    workbook: ?sql.WorkbookWorkspace,
     pub fn init(allocator: std.mem.Allocator, io: std.Io, config: Config) Runtime {
-        return .{ .sql = if (config.sql) |selected| .{ .allocator = allocator, .io = io, .config = selected } else null };
+        return .{ .sql = if (config.sql) |selected| .{ .allocator = allocator, .io = io, .config = selected } else null, .workbook = if (config.sql) |selected| .{ .allocator = allocator, .io = io, .config = selected } else null };
     }
     pub fn deinit(self: *Runtime) void {
         if (self.sql) |*reader| reader.deinit();
+        if (self.workbook) |*book| book.deinit();
     }
 };
 pub fn catalog(arena: *std.heap.ArenaAllocator, wire: *q.wire.Client, config: Config, request: q.catalog.DirectCatalogRead.Request) !q.catalog.DirectCatalogRead.Response {

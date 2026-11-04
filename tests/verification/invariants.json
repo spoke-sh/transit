@@ -2446,6 +2446,10 @@
       "owner": "docs/handbook/reference/board-api.md",
       "implementation": [
         "packages/zig/transit-sql-client/src/ReadWorkspace.zig",
+        "packages/zig/transit-sql-client/src/WorkbookWorkspace.zig",
+        "packages/zig/transit-sql-client/src/WorkbookGraph.zig",
+        "apps/transit-board-web/src/workbook-owner.ts",
+        "apps/transit-board-web/src/plane-state.ts",
         "packages/zig/transit-sql-client/src/ReadView.zig",
         "apps/transit-board/Workbench.zig"
       ],
@@ -2459,9 +2463,12 @@
         "145 rows across native batches and two bounded windows, exact repeat and empty terminal",
         "Strong configured account cannot mutate through read admission",
         "Expected source definition mismatch, bounded reader capacity, terminal revocation",
-        "Keyboard Run, no edit execution, lost reply original observation, denial clearing and accessibility"
+        "Standalone keyboard Run, no execution without enabled Live, lost reply original observation, denial clearing and accessibility",
+        "Complete typed relation chains beyond a display window, affected closure with unchanged independent identities, cycle/missing input rejection and stable reorder",
+        "Finite session memory/row/evaluation bounds, retained scratch ownership and derived-result revocation",
+        "Accordion geometry and tabs never execute; activity changes retain drafts, pause Live and restore disclosure only after revalidation"
       ],
-      "limits": "Session-local four-reader host; no durable workbook, transaction snapshot or whole-source statistics.",
+      "limits": "Four explicit readers plus two bounded temporary workbook sessions. Named relations support single-input finite SELECT, chains and branching; no multi-input joins, durable workbook, transaction snapshot or whole-source statistics.",
       "model": null,
       "qualification": "Executable scenarios; executed evidence is recorded in the qualification owner."
     },

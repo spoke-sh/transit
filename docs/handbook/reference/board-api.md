@@ -85,6 +85,27 @@ complete coverage. Reader IDs do not create per-viewer sessions.
 diagnostic; when no structured diagnostic exists, Board includes the SQLSTATE.
 This evidence does not authorize retrying or restarting the statement.
 
+`POST /api/v1/workbook` adapts the shared SQL client's `WorkbookWorkspace` and
+its generated `WorkbookRequest`/`WorkbookResponse`. Actions describe limits,
+validate a draft without executing, open a finite session, evaluate selected or
+affected cells, inspect the original sequence, observe an exact result window,
+and close. Two sessions each admit four single-input SELECT cells, 32 cell
+evaluations, five minutes, 10,000 rows per relation and 16 MiB of retained relation
+allocations. Eight source readers per session bound current/earlier input
+lifetimes separately from explicit SQL readers and their native client reserves.
+Requests remain 64 KiB and responses 4 MiB. Work uses complete typed relations,
+never displayed rows. Cycles and missing inputs block admission. The reserved
+quoted relation identifier `"workbook.name"` cannot fall back to the catalog.
+
+The shared owner supplies exact input bindings and original source observations;
+independent cell evaluations are not an atomic snapshot. It revalidates current
+rights before cached reuse or disclosure, including terminal and empty outputs.
+Denial clears retained outputs. Increasing sequence numbers fence original
+attempts; a lost reply permits status observation, not implicit resubmission.
+There are no durable catalog mutations, source-follow or assistant requests.
+See the [shared workbook owner](../../../packages/zig/transit-sql-client/README.md#temporary-workbook-relations)
+for syntax, allocation ownership, retry and cleanup contracts.
+
 See [data workbench configuration and lifecycle](../../../apps/transit-board/docs/workbench.md)
 for source-definition checks, expiry and cleanup. Existing query, Live and
 relational contracts below remain separately configured operations.

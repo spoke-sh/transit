@@ -106,9 +106,7 @@ const Reader = struct {
     id: [32]u8,
     sql: []const u8,
     expected: ?[]const u8,
-    client: s.Client,
-    control: s.Client,
-    executor: s.Executor,
+    session: *s.ReadSession,
     view: s.ReadView,
     failed: bool = false,
     fn create(host: *Self, id: []const u8, sql: []const u8, expected: ?[]const u8) !*Reader {
@@ -118,23 +116,9 @@ const Reader = struct {
         errdefer host.allocator.free(statement);
         const expected_copy = if (expected) |value| try host.allocator.dupe(u8, value) else null;
         errdefer if (expected_copy) |value| host.allocator.free(value);
-        self.* = .{ .allocator = host.allocator, .opened = std.Io.Clock.awake.now(host.io), .id = id[0..32].*, .sql = statement, .expected = expected_copy, .client = try s.Client.init(host.allocator, host.io, host.config), .control = undefined, .executor = undefined, .view = undefined };
-        errdefer self.client.deinit();
-        var password: ?[]u8 = null;
-        defer if (password) |bytes| {
-            std.crypto.secureZero(u8, bytes);
-            host.allocator.free(bytes);
-        };
-        if (host.config.password_file) |path| password = try std.Io.Dir.cwd().readFileAlloc(host.io, path, host.allocator, .limited(4096));
-        try self.client.open(host.config, if (password) |bytes| std.mem.trim(u8, bytes, "\r\n") else null);
-        errdefer if (self.client.call(.close)) |reply| reply.deinit() else |_| {};
-        self.control = try self.client.observationClient(host.config);
-        errdefer self.control.deinit();
-        self.control.session = self.client.session;
-        self.control.instance = self.client.instance;
-        self.control.account = self.client.account;
-        self.executor = .{ .client = &self.client, .control = &self.control, .config = host.config };
-        const outcome = try self.executor.read(sql, .{});
+        self.* = .{ .allocator = host.allocator, .opened = std.Io.Clock.awake.now(host.io), .id = id[0..32].*, .sql = statement, .expected = expected_copy, .session = try s.ReadSession.open(host.allocator, host.io, host.config), .view = undefined };
+        errdefer self.session.close();
+        const outcome = try self.session.executor.read(sql, .{});
         errdefer outcome.deinit();
         if (outcome.value == .failure) {
             const failure = outcome.value.failure;
@@ -155,9 +139,7 @@ const Reader = struct {
     }
     fn destroy(self: *Reader) void {
         self.view.deinit();
-        self.executor.release(.close);
-        self.control.deinit();
-        self.client.deinit();
+        self.session.close();
         self.allocator.free(self.sql);
         if (self.expected) |value| self.allocator.free(value);
         self.allocator.destroy(self);
