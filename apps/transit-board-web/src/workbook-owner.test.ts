@@ -177,6 +177,23 @@ describe("workbook scheduling and disclosure", () => {
     expect(owner.current(source)).toBe(false);
     await owner.dispose();
   });
+  test("removing an input drops its presentation and blocks its dependent without rerunning", async () => {
+    const { owner, validate, runs } = setup();
+    owner.enable();
+    await vi.advanceTimersByTimeAsync(300);
+    validate.mockResolvedValue({
+      bindings: [{ cell: count, input: null }],
+      issue: { cell: count, code: "MissingCellInput", path: [] },
+    });
+    owner.edit([cells[1]!], source);
+    expect(owner.views.has(source)).toBe(false);
+    expect(owner.views.has(count)).toBe(true);
+    expect(owner.current(count)).toBe(false);
+    await vi.advanceTimersByTimeAsync(300);
+    expect(owner.validation?.issue?.code).toBe("MissingCellInput");
+    expect(runs()).toHaveLength(1);
+    await owner.dispose();
+  });
   test("denial clears all relation disclosure and protected drafts", async () => {
     const { owner, transport, denied } = setup();
     owner.enable();

@@ -49,12 +49,17 @@ export class WorkbookOwner {
     this.cells = cells.map((cell) => ({ ...cell }));
     this.revision++;
     this.validation = null;
+    const present = new Set(this.cells.map((cell) => cell.id));
+    for (const id of this.pending) if (!present.has(id)) this.pending.delete(id);
+    for (const id of this.hidden) if (!present.has(id)) this.hidden.delete(id);
+    for (const id of this.views.keys()) if (!present.has(id)) this.views.delete(id);
     this.dirty.add(changed);
-    this.pending.add(changed);
+    if (present.has(changed)) this.pending.add(changed);
     for (let pass = 0; pass < 4; pass++)
       for (const binding of this.dependencies) {
         if (binding.input && this.dirty.has(binding.input)) this.dirty.add(binding.cell);
       }
+    for (const id of this.dirty) if (!present.has(id)) this.dirty.delete(id);
     this.schedule();
     this.notify();
   }
