@@ -170,9 +170,14 @@ def page_boundaries(fixture):
         assert batch['observation']['head']['rows'] == total
         actual = records(fixture.console('SELECT id FROM batch_output;\n')[-1])
         assert sorted(int(row['id']) for row in actual) == list(range(total))
+        print(f'Managed SQL: boundary revision {number} ({total} rows) verified.', flush=True)
     assert json.loads(records(fixture.console('SHOW DATAFLOW batch_projection REVISION 1;\n')[-1])[0]['dataflow_revision'])['revision']['rows'] == 63
     retire(fixture, 'batch_projection')
     print('Managed SQL: 63/64/65-row successors and retained revision metadata verified.', flush=True)
+    byte_boundary(fixture)
+
+
+def byte_boundary(fixture):
     columns = [f'body{i}' for i in range(12)]
     fixture.console('CREATE TABLE bytes_input (id BIGINT PRIMARY KEY, body UTF8 NOT NULL);\n'
                     + 'CREATE TABLE bytes_output (id BIGINT PRIMARY KEY, ' + ', '.join(f'{name} UTF8' for name in columns) + ');\n')
@@ -192,7 +197,8 @@ def page_boundaries(fixture):
     assert sorted(int(row['id']) for row in actual) == list(range(63))
     assert all(row[name] == payload for row in actual for name in columns)
     retire(fixture, 'bytes_projection')
-    print('Managed SQL: 63/64/65-row successors and byte-boundary pages verified.', flush=True)
+    print('Managed SQL: byte-boundary pages and all 63 wide output rows verified.', flush=True)
+
 
 def run(cli, node, host, board, gateway):
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
