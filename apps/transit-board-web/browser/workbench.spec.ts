@@ -643,6 +643,58 @@ test("retained catalog inspection is bounded and clears revoked coverage", async
   ).toBe(true);
 });
 
+test("workbook validation settling during a pointer click preserves Run", async ({ page }) => {
+  const validating = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  let evaluations = 0;
+  page.on("request", (request) => {
+    if (request.url().endsWith("/api/v1/workbook") && request.postDataJSON()?.action.evaluate)
+      evaluations++;
+  });
+  await page.route("**/api/v1/workbook", async (route) => {
+    if (!route.request().postDataJSON().action.validate) return route.fallback();
+    const response = await route.fetch();
+    validating.resolve();
+    await release.promise;
+    await route.fulfill({ response });
+  });
+  await page.goto("/workbook");
+  const cell = page.getByRole("region", { name: "SQL cell 1", exact: true });
+  await cell
+    .getByRole("textbox", { name: "SQL", exact: true })
+    .fill("SELECT COUNT(*) AS n FROM metrics");
+  await cell.getByRole("textbox", { name: "Relation name", exact: true }).fill("counted");
+  await cell.getByRole("textbox", { name: "Investigation notes" }).focus();
+  await validating.promise;
+  const checking = page.getByRole("status").filter({ hasText: "Checking workbook…" });
+  await expect(checking).toBeVisible();
+  const run = cell.getByRole("button", { name: "Run cell 1" });
+  await run.scrollIntoViewIfNeeded();
+  const box = (await run.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  try {
+    await page.mouse.down();
+    release.resolve();
+    await expect(checking).toHaveCount(0);
+    expect(await run.boundingBox()).toEqual(box);
+    expect(evaluations).toBe(0);
+  } finally {
+    release.resolve();
+    await page.mouse.up();
+  }
+  await expect(cell.getByRole("cell", { name: "145", exact: true })).toBeVisible();
+  expect(evaluations).toBe(1);
+  const closed = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/v1/workbook") &&
+      Boolean(response.request().postDataJSON()?.action.close) &&
+      response.ok(),
+  );
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Close workbook", exact: true }).click();
+  await closed;
+});
+
 test("reactive workbook retains drafts, complete inputs and independent results through the accordion plane", async ({
   page,
 }) => {

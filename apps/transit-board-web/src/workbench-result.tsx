@@ -56,6 +56,7 @@ export function ResultPanel({
   parent,
   earlierResult = false,
   closeLabel = "Close result",
+  showProgress = true,
 }: {
   state: ReturnType<typeof useStatement>;
   draft?: string;
@@ -63,6 +64,7 @@ export function ResultPanel({
   parent: string;
   earlierResult?: boolean;
   closeLabel?: string;
+  showProgress?: boolean;
 }) {
   const owner = useId();
   const inspector = useInspector();
@@ -92,7 +94,7 @@ export function ResultPanel({
         </p>
       )}
       {state.cleanup && <p role="status">{state.cleanup}</p>}
-      {state.busy && <p role="status">Reading authorized results…</p>}
+      {showProgress && state.busy && <p role="status">Reading authorized results…</p>}
       {state.error && (
         <div role="alert" className="workbench-notice problem">
           <p>{state.error}</p>
