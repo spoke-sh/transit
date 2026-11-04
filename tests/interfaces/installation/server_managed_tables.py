@@ -157,6 +157,7 @@ def run(cli, node, host, board, gateway):
     os.environ['TEST_TRANSIT_BOARD_BINARY'] = str(Path(board).resolve())
     os.environ['TEST_TRANSIT_SQL_GATEWAY_BINARY'] = str(Path(gateway).resolve())
     fixture = Fixture(cli, node, host)
+    fixture.use_private_runtime()
     # Use the installed direct-Table correctness profile that LifecycleFixture
     # expects; its CLI budget must agree with the configured server commands.
     fixture.config['sql'].update(command_ms=120000, request_timeout_ms=30000)
