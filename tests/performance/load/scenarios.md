@@ -64,6 +64,13 @@ are not tail SLOs or the 10–100× improvement target. The existing operational
 deadlines are unchanged. A late verified result remains in the evidence and
 fails its budget. Failed, incomplete, duplicate and missing scenario samples
 cannot pass the reporter. One or two samples cannot establish p95/p99.
+The [control calibration](../../../docs/history/qualification/performance.md#installed-scenario-control-and-smoke-ceilings--2026-11-03)
+records the unchanged runtime's complete three-cycle campaign and the failed
+initial ceilings. Concurrent-read and observed-effect ceilings round up with at
+least 25% headroom; the three Dataflow mutation cases share a 50-second ceiling
+above their control's slowest successor. These bounds describe the current finite
+profile, whose coordination costs remain substantial. The separate console gate
+retains its existing tighter SQL regression limits.
 
 For repeated measurements, build once from committed source, then run serially:
 

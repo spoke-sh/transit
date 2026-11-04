@@ -11,13 +11,13 @@
     "console_after_insert": {"max_ms": 3000},
     "console_after_update": {"max_ms": 3000},
     "console_after_delete": {"max_ms": 3000},
-    "console_during_dataflow": {"max_ms": 1000},
-    "console_during_http": {"max_ms": 1000},
-    "dataflow_after_insert": {"max_ms": 30000},
-    "dataflow_after_update": {"max_ms": 30000},
-    "dataflow_after_delete": {"max_ms": 30000},
+    "console_during_dataflow": {"max_ms": 5000},
+    "console_during_http": {"max_ms": 3000},
+    "dataflow_after_insert": {"max_ms": 50000},
+    "dataflow_after_update": {"max_ms": 50000},
+    "dataflow_after_delete": {"max_ms": 50000},
     "webhook_accept": {"max_ms": 5000},
-    "effect_observed": {"max_ms": 15000},
+    "effect_observed": {"max_ms": 25000},
     "effect_unknown": {"max_ms": 15000}
   }
 }

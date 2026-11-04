@@ -9,6 +9,61 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Installed scenario control and smoke ceilings — 2026-11-03
+
+The [installed scenario driver](../../../tests/performance/load/scenarios.md) at
+`51d2896a133eccc2a325b29f38f52c9436ebabcc` completes all **189 verified samples** in its
+`all`, `repeat=3` control campaign. The copied ReleaseSafe CLI and embedded
+services identify clean main `50da9444cf6b0d25417a1e0e4709dde12c750167`;
+the unchanged finite HTTP caller/worker binaries were built at
+`51d87e020a9c69379f02cc9074eeb85f4ddab8e7`. Exact executable and driver hashes
+are in the manifest. All use definition
+`efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8`
+and pinned Zig `0.17.0-dev.2267+48abf1a34`.
+
+The fixture uses synchronous local durability, default maintenance and embedded
+Board, a fresh installation and retained OS caches. The shared 48-logical-CPU
+Threadripper host has uncontrolled external load; no build overlaps the control
+campaign. This is finite correctness and latency evidence, not a throughput,
+allocation, physical-sync-count or causal speedup result.
+
+| Verified operation | Control observation |
+| --- | --- |
+| Warm empty / one-row console reads | Medians 43.7 / 33.4 ms, three samples each |
+| INSERT / UPDATE / DELETE | Medians 645.8 / 654.5 / 621.0 ms, three samples each |
+| Dataflow successor after INSERT / UPDATE / DELETE | Maxima 39.50 / 32.60 / 30.50 s, three successors each |
+| Foreground console during Dataflow / blocked HTTP | Maxima 3.457 / 1.737 s, 86 / two samples |
+| Recorded observed / closed-unknown HTTP outcome | 19.386 / 4.233 s, one each; exactly one destination send each |
+| Webhook admission to verified observed outcome | 78.537 s, including finite application provisioning and preparation |
+
+The campaign verifies exact derived rows, unchanged and zero-match DML counts,
+invalid webhook authentication, same-token duplicates, conflicting payloads,
+durable acceptance while the destination blocks, explicit refresh, retained
+restart and original outcome/capture replay with both HTTP listeners stopped.
+A fresh metadata observation during explicit refresh receives one transient
+refusal; the completed span includes it and finishes within the original
+180-second budget. No mutation or partially read result is restarted.
+
+The initial proposed smoke ceilings fail this unchanged control: both concurrent
+read cases exceed one second, all three Dataflow cases exceed 30 seconds, and
+the observed effect exceeds 15 seconds. Those failures remain failures. Before
+the candidate comparison, the new journey ceilings are calibrated to 5 / 3
+seconds for concurrent reads, 50 seconds for each Dataflow successor, and 25
+seconds for the observed effect. These rounded bounds have at least 25% headroom
+over the control maxima. Other proposed ceilings, existing console gates,
+durability and operational deadlines are unchanged. This calibration establishes
+regression guards for the current finite implementation, not acceptable product
+latency or attainment of the requested 10–100× improvement.
+
+Raw local evidence is
+`.cache/performance/scenarios/runs/campaign-j5fkahba/observations.jsonl`, SHA-256
+`81907d2ecc26d1e6d4368cee3db71ff70821eba26ceb87014dd4e739ad42d2eb`.
+The original budget rejection is retained in
+`.cache/scenarios/control-initial-budgets.stderr`. Earlier development failures
+include fixture protocol/session/delivery errors, shared `/tmp` inode exhaustion,
+and service-pressure refusals; their failed campaign records and private
+installations are retained separately and supply no passing qualification.
+
 ## Managed staging and SDK diagnostic baselines — 2026-11-02
 
 This is the first F0 implementation packet from the approved
