@@ -763,11 +763,13 @@ test("reactive workbook retains drafts, complete inputs and independent results 
     (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze())
       .violations,
   ).toEqual([]);
-  if (process.env.BOARD_SCREENSHOT)
+  if (process.env.BOARD_SCREENSHOT) {
+    await page.evaluate(() => window.scrollTo(0, 0));
     await page.screenshot({
       path: process.env.BOARD_SCREENSHOT.replace(/\.png$/, "-reactive.png"),
       fullPage: true,
     });
+  }
   page.once("dialog", (dialog) => dialog.dismiss());
   await page.getByRole("button", { name: "Close workbook", exact: true }).click();
   await expect(cell(1)).toBeVisible();
