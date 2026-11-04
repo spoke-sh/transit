@@ -4,6 +4,37 @@ const c = @import("root.zig");
 const w = c.DirectTableProtocol;
 const p = c.protocol;
 
+test "private reader and staging mutations preserve uncertainty without waking computations" {
+    // These payloads are not submitted: classification cannot inspect or grant
+    // authority from them. Exercise the same SELECT acquisition/release and
+    // private write preparation sequence used by the installed SQL service.
+    var request: w.Request = undefined;
+    request.transaction = null;
+    const private = [_]w.Action{
+        .{ .pin = undefined },
+        .{ .retain_history = undefined },
+        .{ .release = undefined },
+        .{ .stage = undefined },
+        .{ .record = .{ .stage = undefined } },
+        .{ .record = .{ .stage_transaction = undefined } },
+    };
+    for (private) |action| {
+        request.action = action;
+        try t.expect(request.transport().mutation);
+        try t.expect(!request.publicationHint());
+    }
+    // Durable readiness/progress and original operation execution still wake
+    // discovery. A failed attempt is conservatively a hint, never completion.
+    request.action = .{ .client_progress = .{ .update = undefined } };
+    try t.expect(request.publicationHint());
+    request.action = .{ .commit_saved = undefined };
+    try t.expect(request.publicationHint());
+    request.action = .{ .operation = .{ .binding = undefined, .command = .execute, .steps = 1 } };
+    try t.expect(request.publicationHint());
+    request.action.operation.command = .inspect;
+    try t.expect(!request.publicationHint());
+}
+
 const ResourceFixture = struct { request: w.Request, public_key: [32]u8, resource: c.DirectResource.Definition, digest: [32]u8 };
 
 test "direct storage responses bind physical coverage to the original Table and flush cut" {

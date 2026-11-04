@@ -303,7 +303,7 @@ pub fn Host(comptime Provider: type) type {
                 self.read_only = !parsed.value.transport().mutation;
                 self.uncertain_mutation = !self.read_only;
                 self.observation.protocol_outcome = if (self.read_only) .read else .uncertain;
-                defer if (!self.read_only) self.context.database_changes.notify(self.io);
+                defer if (parsed.value.publicationHint()) self.context.database_changes.notify(self.io);
                 self.observation.realm = parsed.value.connection.scope.realm;
                 self.observation.operation = parsed.value.transport().operation;
                 self.beginWork();
@@ -558,7 +558,7 @@ pub fn Host(comptime Provider: type) type {
                     if (comptime @hasDecl(Provider, "TableHost")) {
                         const owner = lane.table orelse return error.LocalRouteMissing;
                         const request = try invocation.requestPtr(Provider.TableHost.Protocol.Request);
-                        defer if (request.transport().mutation) self.database_changes.notify(io);
+                        defer if (request.publicationHint()) self.database_changes.notify(io);
                         var budget = self.table_memory.request(self.server.allocator, control);
                         defer std.debug.assert(budget.used == 0);
                         var scratch: std.heap.ArenaAllocator = .init(budget.allocator());

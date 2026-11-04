@@ -142,5 +142,10 @@ common decision cleanup advance separately. Coalesced local publication hints
 wake reconciliation after Table/KV/catalog or policy mutations. Hints carry no
 authority or cursor and may be duplicated; restart discovery uses durable heads.
 Settled computations park without polling, and shutdown joins the hint waiter.
+Private record/intent staging and reader pin acquisition/release do not publish
+source changes and do not emit those hints. They remain durable mutations with
+their original uncertainty and recovery rules. Ready client progress, operation
+execution and policy changes still conservatively wake discovery, including an
+uncertain publication attempt. Both HTTP and local calls use this classification.
 The [managed Table profile](../../../../docs/handbook/reference/queries.md#managed-table-computations)
 distinguishes control acceptance, first result, blocked work and retirement.
