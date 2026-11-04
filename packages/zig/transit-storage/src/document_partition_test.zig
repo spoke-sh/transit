@@ -1016,3 +1016,219 @@ fn expectOrderedNavigation(owner: *s.DocumentPartition, receipt: doc.Read.Receip
         try t.expectEqual(receipt.through_revision, observed.revision);
     }
 }
+
+test "document collection disk cuts preserve empty and paged membership across live edits recovery and release" {
+    try collectionDisk(false);
+    try collectionDisk(true);
+}
+
+fn collectionDisk(comptime ordered: bool) !void {
+    const C = doc.Read.Collection;
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var definition = sampleDefinition();
+    definition.configuration.profile = if (ordered) .versioned else .causal_crdt;
+    var declared = try s.DocumentDeclaration.prepare(t.allocator, definition);
+    defer declared.deinit();
+    const initialization: s.DocumentInitialization.Request = .{
+        .definition = p.Growth.current_definition,
+        .declared = try s.DocumentDeclaration.stage(objects.objectStore(), &declared),
+        .operation = operation(1),
+        .ordinal = 0,
+        .partition = 111,
+    };
+    var policy: Policy = .{};
+    _ = try s.DocumentInitialization.initialize(t.allocator, wal.log(), objects.objectStore(), initialization, policy.guard());
+    var fault: Fault = .{ .underlying = wal.log() };
+    const options: s.DocumentPartition.Options = .{ .read_secret = @splat(7), .resident_pages = 1, .recovery_records = 1 };
+    var owner = try s.DocumentPartition.open(t.allocator, fault.log(), objects.objectStore(), initialization, policy.guard(), options);
+    defer owner.deinit();
+    const empty_request: C.Request = .{
+        .target = initialization.target(),
+        .operation = operation(2),
+        .max_steps = 4096,
+        .max_bytes = 262144,
+        .page_heads = 3,
+        .page_bytes = 8192,
+    };
+    const empty = try owner.beginCollectionRead(empty_request, policy.guard());
+    const empty_cursor = try owner.collectionCursor(empty, 7, policy.guard());
+    const empty_page = try owner.readCollectionPage(empty_cursor, 7, policy.guard());
+    try t.expectEqual(@as(u8, 0), empty_page.count);
+    try t.expect(empty_page.cursor.coverage.complete);
+    try t.expectEqual(@as(u32, 1), empty_page.cursor.coverage.steps);
+    try t.expectEqual(@as(u64, 1), empty.cut.changed_next_lsn);
+    try t.expect(empty.cut.heads_digest == null);
+
+    // Forty heads need several immutable directory pages, with only one resident.
+    var original: [40]doc.MutationReceipt = undefined;
+    for (&original, 0..) |*receipt, i| {
+        var id: [16]u8 = @splat(0);
+        id[15] = @intCast(i + 1);
+        var bytes: [2048]u8 = undefined;
+        const payload = if (ordered)
+            try s.OrderedDocumentChange.encode(.{ .definition = p.Growth.definition_bytes, .document = id, .epoch = 1, .expected_revision = 0, .nodes = 1, .parts = 0 }, &.{}, &.{.{ .depth = 0, .kind = .string, .value = "original" }}, &bytes)
+        else
+            try s.LogicalDocumentChange.encode(.{ .definition = p.Growth.definition_bytes, .document = id, .replica = @splat(9), .epoch = 1, .sequence = 1, .preceding_sequence = 0, .operations = 1 }, &.{.{ .field = "body", .value = .{ .kind = .string, .bytes = "original" } }}, &bytes);
+        var mutation = orderedMutation(.{ .partition = initialization.target(), .document = id }, 10 + i, 0, payload);
+        if (!ordered) {
+            mutation.lineage.profile = .causal_crdt;
+            mutation.lineage.replica = .{ .id = @splat(9), .epoch = 1, .sequence = 1, .preceding_sequence = 0 };
+        }
+        receipt.* = if (ordered) try owner.applyOrdered(mutation, payload, policy.guard()) else try owner.applyCausal(mutation, payload, policy.guard());
+        if (!ordered and i == original.len - 1) {
+            const changed = owner.root.changed_next_lsn;
+            mutation.operation = operation(60);
+            _ = try owner.applyCausal(mutation, payload, policy.guard());
+            try t.expectEqual(changed, owner.root.changed_next_lsn);
+        }
+    }
+    const head_page = try owner.store.load(owner.root.documents_root.?);
+    try t.expect(head_page.height > 0);
+    const data_frontier = original[39].accepted.next_lsn;
+    try t.expectEqual(data_frontier, owner.root.changed_next_lsn);
+    var request = empty_request;
+    request.operation = operation(70);
+    fault.lose_reply = true;
+    try t.expectError(error.DocumentAppendUncertain, owner.beginCollectionRead(request, policy.guard()));
+    try t.expectError(error.DocumentRecoveryRequired, owner.readCollectionPage(empty_cursor, 7, policy.guard()));
+    owner.deinit();
+    owner = try s.DocumentPartition.open(t.allocator, fault.log(), objects.objectStore(), initialization, policy.guard(), options);
+    while (!owner.ready) _ = try owner.recoverStep(policy.guard(), 1);
+    const tail = try wal.log().tail(111);
+    const receipt = try owner.beginCollectionRead(request, policy.guard());
+    try t.expectEqual(tail, try wal.log().tail(111));
+    try t.expectEqual(data_frontier, receipt.cut.changed_next_lsn);
+    var cursor = try owner.collectionCursor(receipt, 7, policy.guard());
+    const first = try owner.readCollectionPage(cursor, 7, policy.guard());
+    try t.expectEqual(@as(u8, 3), first.count);
+    try t.expectEqualDeep(first, try owner.readCollectionPage(cursor, 7, policy.guard()));
+    try t.expectError(error.PermissionDenied, owner.readCollectionPage(cursor, 8, policy.guard()));
+    try t.expectError(error.PermissionDenied, owner.collectionCursor(receipt, 8, policy.guard()));
+    var forged = cursor;
+    forged.coverage.complete = true;
+    forged.coverage.steps = 1;
+    try t.expectError(error.InvalidDocumentCursor, owner.readCollectionPage(forged, 7, policy.guard()));
+    policy.deny_at = policy.calls + 2;
+    try t.expectError(error.PermissionDenied, owner.readCollectionPage(cursor, 7, policy.guard()));
+    policy.deny_at = std.math.maxInt(usize);
+
+    // Exact cumulative work/byte boundaries admit a full page, then refuse
+    // further disclosure. The pin appends do not alter the retained directory.
+    for (0..2) |budget_kind| {
+        var bounded = request;
+        bounded.operation = operation(76 + budget_kind);
+        if (budget_kind == 0) bounded.max_steps = first.cursor.coverage.steps else {
+            bounded.max_bytes = first.cursor.coverage.bytes;
+            bounded.page_bytes = bounded.max_bytes;
+        }
+        const pinned = try owner.beginCollectionRead(bounded, policy.guard());
+        const page = try owner.readCollectionPage(try owner.collectionCursor(pinned, 7, policy.guard()), 7, policy.guard());
+        try t.expectEqualDeep(first.heads, page.heads);
+        try t.expect(!page.cursor.coverage.complete);
+        try t.expectError(error.DocumentReadLimitExceeded, owner.readCollectionPage(page.cursor, 7, policy.guard()));
+    }
+
+    // Later membership and revisions cannot change the retained directory.
+    var added: [16]u8 = @splat(0);
+    added[15] = 41;
+    var buffer: [2048]u8 = undefined;
+    const bytes = if (ordered)
+        try s.OrderedDocumentChange.encode(.{ .definition = p.Growth.definition_bytes, .document = added, .epoch = 1, .expected_revision = 0, .nodes = 1, .parts = 0 }, &.{}, &.{.{ .depth = 0, .kind = .string, .value = "later" }}, &buffer)
+    else
+        try s.LogicalDocumentChange.encode(.{ .definition = p.Growth.definition_bytes, .document = added, .replica = @splat(9), .epoch = 1, .sequence = 1, .preceding_sequence = 0, .operations = 1 }, &.{.{ .field = "body", .value = .{ .kind = .string, .bytes = "later" } }}, &buffer);
+    var add = orderedMutation(.{ .partition = initialization.target(), .document = added }, 71, 0, bytes);
+    if (!ordered) {
+        add.lineage.profile = .causal_crdt;
+        add.lineage.replica = .{ .id = @splat(9), .epoch = 1, .sequence = 1, .preceding_sequence = 0 };
+    }
+    _ = if (ordered) try owner.applyOrdered(add, bytes, policy.guard()) else try owner.applyCausal(add, bytes, policy.guard());
+    const replaced_id = original[0].mutation.target.document;
+    const replacement = if (ordered)
+        try s.OrderedDocumentChange.encode(.{ .definition = p.Growth.definition_bytes, .document = replaced_id, .epoch = 1, .expected_revision = 1, .nodes = 1, .parts = 0 }, &.{}, &.{.{ .depth = 0, .kind = .string, .value = "replacement" }}, &buffer)
+    else
+        try s.LogicalDocumentChange.encode(.{ .definition = p.Growth.definition_bytes, .document = replaced_id, .replica = @splat(9), .epoch = 1, .sequence = 2, .preceding_sequence = 1, .operations = 1 }, &.{.{ .field = "body", .value = .{ .kind = .string, .bytes = "replacement" } }}, &buffer);
+    var update = orderedMutation(.{ .partition = initialization.target(), .document = replaced_id }, 75, 1, replacement);
+    if (!ordered) {
+        update.lineage.profile = .causal_crdt;
+        update.lineage.replica = .{ .id = @splat(9), .epoch = 1, .sequence = 2, .preceding_sequence = 1 };
+    }
+    const updated = if (ordered) try owner.applyOrdered(update, replacement, policy.guard()) else try owner.applyCausal(update, replacement, policy.guard());
+    try t.expectEqual(@as(u64, 2), updated.accepted_revision);
+    try t.expectEqual(updated.accepted.next_lsn, owner.root.changed_next_lsn);
+    try t.expectEqualDeep(empty_page, try owner.readCollectionPage(empty_cursor, 7, policy.guard()));
+    try t.expectEqualDeep(first, try owner.readCollectionPage(cursor, 7, policy.guard()));
+
+    var too_small = request;
+    too_small.operation = operation(72);
+    too_small.max_steps = 1;
+    const short = try owner.beginCollectionRead(too_small, policy.guard());
+    try t.expectError(error.DocumentReadLimitExceeded, owner.readCollectionPage(try owner.collectionCursor(short, 7, policy.guard()), 7, policy.guard()));
+    too_small = request;
+    too_small.operation = operation(73);
+    too_small.max_bytes = 1;
+    too_small.page_bytes = 1;
+    const short_bytes = try owner.beginCollectionRead(too_small, policy.guard());
+    try t.expectError(error.DocumentReadLimitExceeded, owner.readCollectionPage(try owner.collectionCursor(short_bytes, 7, policy.guard()), 7, policy.guard()));
+
+    _ = try owner.archive(owner.root.position(), .{}, policy.guard());
+    _ = try owner.checkpointRecovery(owner.root.position(), policy.guard());
+    _ = try owner.trimArchived(policy.guard());
+    owner.deinit();
+    owner = try s.DocumentPartition.open(t.allocator, fault.log(), objects.objectStore(), initialization, policy.guard(), options);
+    while (!owner.ready) _ = try owner.recoverStep(policy.guard(), 1);
+    var seen: usize = 0;
+    while (true) {
+        const page = try owner.readCollectionPage(cursor, 7, policy.guard());
+        for (page.heads[0..page.count]) |head| {
+            try t.expect(seen < original.len);
+            try t.expectEqualDeep(original[seen].mutation.target, head.?.cut.target);
+            try t.expectEqualDeep(original[seen].state, head.?.cut.state);
+            try t.expectEqual(@as(u64, 1), head.?.cut.accepted_revision);
+            seen += 1;
+        }
+        cursor = page.cursor;
+        if (cursor.coverage.complete) break;
+    }
+    try t.expectEqual(original.len, seen);
+    const appends = wal.appends;
+    try t.expectEqual(@as(u8, 0), (try owner.readCollectionPage(cursor, 7, policy.guard())).count);
+    try t.expectEqual(appends, wal.appends);
+    policy.deny_at = policy.calls + 2;
+    try t.expectError(error.PermissionDenied, owner.readCollectionPage(cursor, 7, policy.guard()));
+    policy.deny_at = std.math.maxInt(usize);
+    const release: C.Release = .{ .target = request.target, .operation = operation(74), .read = receipt.handle() };
+    const release_frontier = owner.root.changed_next_lsn;
+    fault.lose_reply = true;
+    try t.expectError(error.DocumentAppendUncertain, owner.releaseCollectionRead(release, policy.guard()));
+    owner.deinit();
+    owner = try s.DocumentPartition.open(t.allocator, fault.log(), objects.objectStore(), initialization, policy.guard(), options);
+    while (!owner.ready) _ = try owner.recoverStep(policy.guard(), 1);
+    const release_tail = try wal.log().tail(111);
+    const released = try owner.releaseCollectionRead(release, policy.guard());
+    try t.expectEqual(release_tail, try wal.log().tail(111));
+    try t.expectEqual(release_frontier, owner.root.changed_next_lsn);
+    try t.expectEqualDeep(released, try owner.releaseCollectionRead(release, policy.guard()));
+    try t.expectError(error.DocumentReadReleased, owner.readCollectionPage(cursor, 7, policy.guard()));
+    try t.expectEqualDeep(receipt, try owner.beginCollectionRead(request, policy.guard()));
+    try t.expectError(error.DocumentReadReleased, owner.collectionCursor(receipt, 7, policy.guard()));
+
+    // A missing retained directory must not be mistaken for an empty cut. Use
+    // another live pin and reopen to remove any warm page-cache influence.
+    var bounded = request;
+    bounded.operation = operation(76);
+    bounded.max_steps = first.cursor.coverage.steps;
+    const still_live = try owner.beginCollectionRead(bounded, policy.guard());
+    const retained = try s.DocumentCollection.load(t.allocator, objects.objectStore(), still_live.source);
+    var name: [96]u8 = undefined;
+    try objects.objectStore().delete(try s.TreeStore.key(retained.heads_root.?.location, &name));
+    owner.deinit();
+    owner = try s.DocumentPartition.open(t.allocator, fault.log(), objects.objectStore(), initialization, policy.guard(), options);
+    while (!owner.ready) _ = try owner.recoverStep(policy.guard(), 1);
+    const unavailable = try owner.collectionCursor(still_live, 7, policy.guard());
+    try t.expectError(error.MissingDataIndexObject, owner.readCollectionPage(unavailable, 7, policy.guard()));
+}

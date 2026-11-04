@@ -2094,14 +2094,16 @@ residual topologies.
 ## Direct Document partition records, evidence, retained reads, and recovery
 
 `DocumentPartition` serializes direct Document mutations, finite merge-window
-checkpoints, retained revision reads, and archival/recovery over `TransitLog`
+checkpoints, retained revision and partition-membership reads, and archival/recovery over `TransitLog`
 and `TransitObjectStore`:
 
 - `DocumentPartitionRecord` (`DOCPART1`) encodes a 40-byte header (`"DOCPART1"`
   + 32-byte definition) followed by canonical JSON binding the preceding record
   commitment, successor `Root` (`documents_root`, `revisions_root`,
-  `replicas_root`, `operations_root`, `reads_root`, `archive`, `recovery`),
-  action (`mutation`, `checkpoint`, `read`, `read_release`, `declaration`,
+  `replicas_root`, `operations_root`, `reads_root`, mandatory `changed_next_lsn`,
+  `archive`, `recovery`),
+  action (`mutation`, `checkpoint`, `read`, `read_release`, `collection_read`,
+  `collection_release`, `declaration`,
   `archive`, `recovery_checkpoint`), and optional `DocumentEvidence` content.
   Mutations use `row_delta` frames; control transitions use `manifest_checkpoint`
   frames.
@@ -2117,6 +2119,18 @@ and `TransitObjectStore`:
   revision budgets before allocating a whole revision's state, and reauthorize
   before disclosing data or terminal completion. Budget exhaustion refuses with
   `DocumentReadLimitExceeded`; it does not establish complete coverage.
+- `DocumentCollection` (`DCOLL001`) stores a 40-byte magic/definition header and
+  canonical JSON `Source` (mandatory definition, request, partition cut and
+  nullable `heads_root`) in `document-collections/{sha256}.data`, at most 16 KiB.
+  The source digest binds the exact immutable directory reference; its digest
+  must match the public cut. Cursor MACs use
+  `HMAC-SHA256(secret, "transit.document.collection.coverage.v1\x00" || definition_bytes || canonical_json({read, coverage}))`.
+  `PinEntry` requires a `kind` (`revision` or `collection`) alongside source and
+  release status; one read kind cannot consume the other kind's pin. Recovery
+  preserves the head-change frontier and verifies its transition against the
+  replayed directory roots. The shared graph follows live collection sources
+  into retained heads, logical states and `.tseg` segments. Older stored roots
+  or pins missing these mandatory fields are incompatible, without defaults.
 - `DocumentRecovery` (`DCHECK01`) stages immutable recovery baselines in
   `document-checkpoints/{sha256}.data`. `trimArchived` requires both accepted
   `LogHistory` archive coverage and an accepted `DocumentRecovery` checkpoint,

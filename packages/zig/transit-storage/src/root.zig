@@ -50,6 +50,7 @@ pub const DocumentDeclaration = @import("DocumentDeclaration.zig");
 pub const DocumentInitialization = @import("DocumentInitialization.zig");
 pub const DocumentShredder = @import("DocumentShredder.zig");
 pub const DocumentEvidence = @import("DocumentEvidence.zig");
+pub const DocumentCollection = @import("DocumentCollection.zig");
 pub const DocumentRead = @import("DocumentRead.zig");
 pub const DocumentPartitionRecord = @import("DocumentPartitionRecord.zig");
 pub const DocumentRecovery = @import("DocumentRecovery.zig");
@@ -125,6 +126,7 @@ test {
     _ = @import("document_initialization_test.zig");
     _ = @import("document_shredder_test.zig");
     _ = @import("document_partition_test.zig");
+    _ = @import("document_collection_test.zig");
     _ = @import("table_partition_test.zig");
     _ = @import("table_storage_walk_test.zig");
     _ = @import("table_dml_intent_test.zig");

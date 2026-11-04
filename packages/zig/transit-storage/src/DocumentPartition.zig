@@ -14,6 +14,8 @@ const Declaration = @import("DocumentDeclaration.zig");
 const Initialization = @import("DocumentInitialization.zig");
 const Evidence = @import("DocumentEvidence.zig");
 const Read = @import("DocumentRead.zig");
+const Collection = @import("DocumentCollection.zig");
+const collection = doc.Read.Collection;
 const History = @import("LogHistory.zig");
 const Recovery = @import("DocumentRecovery.zig");
 const TreeStore = @import("TreeStore.zig");
@@ -44,10 +46,7 @@ pub const RecoveryProgress = struct {
     complete: bool,
 };
 
-pub const DocumentHead = struct {
-    cut: doc.Cut,
-    unresolved_conflicts: u16,
-};
+pub const DocumentHead = collection.Head;
 
 pub const RevisionEntry = struct {
     state: d.Content,
@@ -58,6 +57,7 @@ pub const RevisionEntry = struct {
 };
 
 pub const PinEntry = struct {
+    kind: enum { revision, collection },
     released: bool,
     source: d.Content,
 };
@@ -113,6 +113,7 @@ pub fn open(
             .initialization = request,
             .declared = request.declared,
             .next_lsn = 1,
+            .changed_next_lsn = 1,
             .documents_root = null,
             .revisions_root = null,
             .replicas_root = null,
@@ -172,6 +173,9 @@ pub fn recoverStep(self: *Self, guard: Guard, budget: u16) !RecoveryProgress {
         if (!std.mem.eql(u8, &decoded.record.previous_commitment, &self.commitment)) {
             return error.InvalidDocumentPartitionRecord;
         }
+        const changed = !std.meta.eql(self.root.documents_root, decoded.record.root.documents_root);
+        if (decoded.record.root.changed_next_lsn != (if (changed) decoded.record.root.next_lsn else self.root.changed_next_lsn))
+            return error.InvalidDocumentPartitionRecord;
         if (decoded.record.evidence) |ev| {
             _ = try Evidence.load(self.scratch.allocator(), self.objects, ev);
         }
@@ -488,6 +492,7 @@ fn acceptMutation(
     defer self.store.end();
     var next_root = self.root;
     next_root.next_lsn = accepted_pos.next_lsn;
+    next_root.changed_next_lsn = accepted_pos.next_lsn;
     next_root.documents_root = try self.tree().put(
         next_root.documents_root,
         try docKey(mutation.target.document),
@@ -582,6 +587,7 @@ pub fn publishCheckpoint(
     defer self.store.end();
     var next_root = self.root;
     next_root.next_lsn = accepted_pos.next_lsn;
+    next_root.changed_next_lsn = accepted_pos.next_lsn;
     next_root.documents_root = try self.tree().put(
         next_root.documents_root,
         try docKey(checkpoint.target.document),
@@ -648,7 +654,7 @@ pub fn beginRead(
     };
     try receipt.validate();
     const evidence_content = try Evidence.stage(self.objects, .{ .read = receipt });
-    const pin: PinEntry = .{ .released = false, .source = source_content };
+    const pin: PinEntry = .{ .kind = .revision, .released = false, .source = source_content };
 
     try self.store.begin(self.options.index_work_bytes);
     defer self.store.end();
@@ -1095,7 +1101,7 @@ pub fn releaseRead(
     };
     try receipt.validate();
     const evidence_content = try Evidence.stage(self.objects, .{ .read_release = receipt });
-    const released_pin: PinEntry = .{ .released = true, .source = pin.source };
+    const released_pin: PinEntry = .{ .kind = .revision, .released = true, .source = pin.source };
 
     try self.store.begin(self.options.index_work_bytes);
     defer self.store.end();
@@ -1118,6 +1124,198 @@ pub fn releaseRead(
         .root = next_root,
         .action = .{ .read_release = receipt },
         .evidence = evidence_content,
+    }, .manifest_checkpoint, guard);
+    return receipt;
+}
+
+/// Retain one exact partition-head directory, including the accepted empty set.
+/// The host supplies current partition read authority for request.operation.
+pub fn beginCollectionRead(self: *Self, request: collection.Request, guard: Guard) !collection.Receipt {
+    defer _ = self.scratch.reset(.retain_capacity);
+    try request.validate();
+    try self.requirePartition(request.target);
+    try authorize(guard);
+    try self.requireReady();
+    if (try self.findOutcome(request.operation)) |existing| {
+        if (existing != .collection_read) return error.DocumentOperationConflict;
+        try existing.collection_read.requireRequest(request);
+        try authorize(guard);
+        return existing.collection_read;
+    }
+    if (!std.meta.eql(request.target.interpretation, self.root.declared.declaration.interpretation)) return error.DocumentPartitionConflict;
+    const limits = self.root.declared.declaration.limits;
+    if (request.max_steps > limits.read_steps or request.max_bytes > limits.read_bytes) return error.InvalidDocumentRead;
+    const source: Collection.Source = .{
+        .definition = p.Growth.current_definition,
+        .request = request,
+        .cut = .{
+            .target = request.target,
+            .observed = self.root.position(),
+            .changed_next_lsn = self.root.changed_next_lsn,
+            .heads_digest = if (self.root.documents_root) |r| r.digest else null,
+        },
+        .heads_root = self.root.documents_root,
+    };
+    const content = try Collection.stage(self.objects, source);
+    const accepted_pos = try self.nextPosition();
+    const receipt: collection.Receipt = .{ .request = request, .cut = source.cut, .source = content, .accepted = accepted_pos };
+    try receipt.validate();
+    const evidence = try Evidence.stage(self.objects, .{ .collection_read = receipt });
+    try self.store.begin(self.options.index_work_bytes);
+    defer self.store.end();
+    var root = self.root;
+    root.next_lsn = accepted_pos.next_lsn;
+    root.reads_root = try self.tree().put(root.reads_root, try operationKey(request.operation), try self.encodeValue(PinEntry{
+        .kind = .collection,
+        .released = false,
+        .source = content,
+    }));
+    root.operations_root = try self.tree().put(root.operations_root, try operationKey(request.operation), try self.encodeValue(evidence));
+    try self.publishRecord(.{
+        .definition = p.Growth.current_definition,
+        .previous_commitment = self.commitment,
+        .root = root,
+        .action = .{ .collection_read = receipt },
+        .evidence = evidence,
+    }, .manifest_checkpoint, guard);
+    return receipt;
+}
+
+/// Caller identity is trusted host context, not a field taken from the cursor.
+pub fn collectionCursor(self: *Self, receipt: collection.Receipt, principal: u64, guard: Guard) !collection.Cursor {
+    defer _ = self.scratch.reset(.retain_capacity);
+    try receipt.validate();
+    if (principal != receipt.request.operation.principal) return error.PermissionDenied;
+    try self.requirePartition(receipt.request.target);
+    try authorize(guard);
+    try self.requireReady();
+    _ = try self.requirePin(receipt.handle(), .collection);
+    const outcome = (try self.findOutcome(receipt.request.operation)) orelse return error.DocumentReadMissing;
+    if (outcome != .collection_read or !std.meta.eql(outcome.collection_read, receipt)) return error.DocumentReadConflict;
+    const cursor = try Collection.sign(self.authority.secret, receipt.handle(), .{
+        .after = null,
+        .heads = 0,
+        .steps = 0,
+        .bytes = 0,
+        .complete = false,
+    });
+    try authorize(guard);
+    return cursor;
+}
+
+const CollectionStore = struct {
+    store: *TreeStore,
+    steps: u32,
+    maximum: u32,
+    fn charge(self: *@This()) !void {
+        if (self.steps >= self.maximum) return error.DocumentReadLimitExceeded;
+        self.steps += 1;
+    }
+    pub fn load(self: *@This(), reference: pages.Reference) !pages.Page {
+        try self.charge();
+        return self.store.load(reference);
+    }
+};
+
+/// At most 16 owned heads. Charge every scan and directory-page visit, including
+/// cache hits, against cumulative work. Byte accounting is canonical head JSON.
+/// A failed call discloses no prefix; retrying the input cursor is deterministic.
+pub fn readCollectionPage(self: *Self, cursor: collection.Cursor, principal: u64, guard: Guard) !collection.Page {
+    defer _ = self.scratch.reset(.retain_capacity);
+    if (principal != cursor.read.owner.principal) return error.PermissionDenied;
+    try authorize(guard);
+    try self.requireReady();
+    try Collection.verify(self.authority.secret, cursor);
+    const pin = try self.requirePin(cursor.read, .collection);
+    const source = try Collection.load(self.scratch.allocator(), self.objects, pin.source);
+    try self.requirePartition(source.cut.target);
+    if (!std.meta.eql(source.request.operation, cursor.read.owner) or
+        cursor.coverage.steps > source.request.max_steps or cursor.coverage.bytes > source.request.max_bytes)
+        return error.DocumentReadConflict;
+    var result: collection.Page = .{ .heads = @splat(null), .count = 0, .cursor = cursor };
+    if (cursor.coverage.complete) {
+        try authorize(guard);
+        return result;
+    }
+    var counted: CollectionStore = .{ .store = &self.store, .steps = cursor.coverage.steps, .maximum = source.request.max_steps };
+    const reader: pages.Tree(CollectionStore) = .{ .store = &counted };
+    var page_bytes: u32 = 0;
+    var coverage = cursor.coverage;
+    scan: while (true) {
+        try counted.charge();
+        const batch = try reader.scan(source.heads_root, if (coverage.after) |id| try docKey(id) else null);
+        for (batch.entries) |slot| {
+            const entry = slot orelse break;
+            if (result.count == source.request.page_heads) break :scan;
+            if (entry.key.len != 16) return error.InvalidDocumentCollection;
+            const head = try self.decodeValue(DocumentHead, entry.value);
+            try head.cut.validate();
+            try source.cut.target.requireSame(head.cut.target.partition);
+            if (!std.mem.eql(u8, entry.key.slice(), &head.cut.target.document) or
+                head.cut.accepted.partition != source.cut.observed.partition or
+                head.cut.accepted.next_lsn > source.cut.changed_next_lsn)
+                return error.InvalidDocumentCollection;
+            const size: u32 = entry.value.len;
+            if (size > source.request.page_bytes - page_bytes) {
+                if (result.count == 0) return error.DocumentReadLimitExceeded;
+                break :scan;
+            }
+            if (size > source.request.max_bytes - coverage.bytes) return error.DocumentReadLimitExceeded;
+            result.heads[result.count] = head;
+            result.count += 1;
+            page_bytes += size;
+            coverage.bytes += size;
+            coverage.heads = std.math.add(u64, coverage.heads, 1) catch return error.DocumentReadLimitExceeded;
+            coverage.after = head.cut.target.document;
+        }
+        if (batch.next == null) {
+            coverage.complete = true;
+            break;
+        }
+        if (result.count == source.request.page_heads) break;
+    }
+    coverage.steps = counted.steps;
+    result.cursor = try Collection.sign(self.authority.secret, cursor.read, coverage);
+    try result.validate();
+    try authorize(guard);
+    return result;
+}
+
+pub fn releaseCollectionRead(self: *Self, release: collection.Release, guard: Guard) !collection.ReleaseReceipt {
+    defer _ = self.scratch.reset(.retain_capacity);
+    try release.validate();
+    try self.requirePartition(release.target);
+    try authorize(guard);
+    try self.requireReady();
+    if (try self.findOutcome(release.operation)) |existing| {
+        if (existing != .collection_release) return error.DocumentOperationConflict;
+        try existing.collection_release.requireRelease(release);
+        try authorize(guard);
+        return existing.collection_release;
+    }
+    const pin = try self.requirePin(release.read, .collection);
+    const source = try Collection.load(self.scratch.allocator(), self.objects, pin.source);
+    try source.request.target.requireSame(release.target);
+    if (!std.meta.eql(source.request.operation, release.read.owner)) return error.DocumentReadConflict;
+    const receipt: collection.ReleaseReceipt = .{ .release = release, .accepted = try self.nextPosition() };
+    try receipt.validate();
+    const evidence = try Evidence.stage(self.objects, .{ .collection_release = receipt });
+    try self.store.begin(self.options.index_work_bytes);
+    defer self.store.end();
+    var root = self.root;
+    root.next_lsn = receipt.accepted.next_lsn;
+    root.reads_root = try self.tree().put(root.reads_root, try operationKey(release.read.owner), try self.encodeValue(PinEntry{
+        .kind = .collection,
+        .released = true,
+        .source = pin.source,
+    }));
+    root.operations_root = try self.tree().put(root.operations_root, try operationKey(release.operation), try self.encodeValue(evidence));
+    try self.publishRecord(.{
+        .definition = p.Growth.current_definition,
+        .previous_commitment = self.commitment,
+        .root = root,
+        .action = .{ .collection_release = receipt },
+        .evidence = evidence,
     }, .manifest_checkpoint, guard);
     return receipt;
 }
@@ -1352,10 +1550,14 @@ fn findOutcome(self: *Self, op: d.Operation) !?Evidence.Outcome {
 }
 
 fn requireLivePin(self: *Self, handle: doc.Read.Handle) !PinEntry {
+    return self.requirePin(handle, .revision);
+}
+
+fn requirePin(self: *Self, handle: doc.Read.Handle, kind: @FieldType(PinEntry, "kind")) !PinEntry {
     try handle.validate();
     const val = (try self.tree().get(self.root.reads_root, try operationKey(handle.owner))) orelse return error.DocumentReadMissing;
     const pin = try self.decodeValue(PinEntry, val);
-    if (!std.meta.eql(pin.source, handle.source)) return error.DocumentReadConflict;
+    if (pin.kind != kind or !std.meta.eql(pin.source, handle.source)) return error.DocumentReadConflict;
     if (pin.released) return error.DocumentReadReleased;
     return pin;
 }

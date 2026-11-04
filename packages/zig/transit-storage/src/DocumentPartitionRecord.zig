@@ -33,6 +33,7 @@ pub const Root = struct {
     initialization: Initialization.Request,
     declared: Declaration.Stored,
     next_lsn: u64,
+    changed_next_lsn: u64,
     documents_root: ?pages.Reference,
     revisions_root: ?pages.Reference,
     replicas_root: ?pages.Reference,
@@ -49,7 +50,8 @@ pub const Root = struct {
         if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
         try self.initialization.validate();
         try self.declared.validate();
-        if (self.next_lsn <= 1) return error.InvalidDocumentPartitionRecord;
+        if (self.next_lsn <= 1 or self.changed_next_lsn == 0 or self.changed_next_lsn > self.next_lsn) return error.InvalidDocumentPartitionRecord;
+        if (self.documents_root != null and self.changed_next_lsn <= 1) return error.InvalidDocumentPartitionRecord;
         if (!std.meta.eql(
             self.initialization.declared.declaration.interpretation.object,
             self.declared.declaration.interpretation.object,
@@ -83,6 +85,8 @@ pub const Action = union(enum) {
     checkpoint: doc.CheckpointReceipt,
     read: doc.Read.Receipt,
     read_release: doc.Read.ReleaseReceipt,
+    collection_read: doc.Read.Collection.Receipt,
+    collection_release: doc.Read.Collection.ReleaseReceipt,
     declaration: Declaration.Stored,
     archive: History.Coverage,
     recovery_checkpoint: RecoveryReference,
@@ -120,7 +124,7 @@ pub const Record = struct {
                     return error.InvalidDocumentPartitionRecord;
                 }
             },
-            .read => |v| {
+            inline .read, .collection_read => |v| {
                 try v.validate();
                 if (self.evidence == null or
                     v.accepted.partition != self.root.initialization.partition or
@@ -129,7 +133,7 @@ pub const Record = struct {
                     return error.InvalidDocumentPartitionRecord;
                 }
             },
-            .read_release => |v| {
+            inline .read_release, .collection_release => |v| {
                 try v.validate();
                 if (self.evidence == null or
                     v.accepted.partition != self.root.initialization.partition or
@@ -198,7 +202,7 @@ pub fn decode(
     }
     const expected_kind: Log.FrameKind = switch (parsed.value.action) {
         .mutation => .row_delta,
-        .checkpoint, .read, .read_release, .declaration, .archive, .recovery_checkpoint => .manifest_checkpoint,
+        .checkpoint, .read, .read_release, .collection_read, .collection_release, .declaration, .archive, .recovery_checkpoint => .manifest_checkpoint,
     };
     if (frame.header.kind != expected_kind or
         frame.header.partition_id != partition or

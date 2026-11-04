@@ -141,6 +141,7 @@ pub const Work = union(enum) {
     document_root: struct { root: s.DocumentPartitionRecord.Root, archive: s.LogHistory.Coverage, slot: u8 = 0 },
     document_index: struct { context: DocumentContext, reference: s.TreeStore.pages.Reference, kind: DocumentIndexKind, height: ?u8 = null, slot: u8 = 0, marked: bool = false },
     document_read: struct { context: DocumentContext, handle: c.protocol.DocumentOperation.Read.Handle },
+    document_collection: struct { context: DocumentContext, handle: c.protocol.DocumentOperation.Read.Handle },
     document_wal: struct { context: DocumentContext, lsn: u64 },
     table_history: s.TableStorageRoots,
     table_root: struct { root: s.TablePartition.Root, archive: s.TableArchive.Coverage, role: Role, slot: u8 = 0 },
@@ -158,7 +159,7 @@ pub fn collectible(key: []const u8) bool {
     // Saved staging references and permanent operation-to-target reservations
     // have independent lifetimes. Unknown generic object namespaces also remain
     // outside this collector's authority.
-    for ([_][]const u8{ "transaction-records/", "progress-records/", "owned-records/", "catalog-history/", "catalog-definitions/", "catalog-definition-intents/", "catalog-foreign/", "data-index/", "bitmap-containers/", "data-maintenance/", "catalog-intents/", "catalog-log-intents/", "log-definitions/", "log-evidence/", "log-reads/", "log-tx-sources/", "log-preparations/", "transaction-log-actions/", "transaction-log-payload/", "log-checkpoints/", "log-segments/", "log-segment-metadata/", "queue-selections/", "queue-time-buffers/", "queue-time-runs/", "document-definitions/", "document-evidence/", "document-reads/", "document-checkpoints/", "document-payloads/", "document-states/", "document-segment/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
+    for ([_][]const u8{ "transaction-records/", "progress-records/", "owned-records/", "catalog-history/", "catalog-definitions/", "catalog-definition-intents/", "catalog-foreign/", "data-index/", "bitmap-containers/", "data-maintenance/", "catalog-intents/", "catalog-log-intents/", "log-definitions/", "log-evidence/", "log-reads/", "log-tx-sources/", "log-preparations/", "transaction-log-actions/", "transaction-log-payload/", "log-checkpoints/", "log-segments/", "log-segment-metadata/", "queue-selections/", "queue-time-buffers/", "queue-time-runs/", "document-definitions/", "document-evidence/", "document-reads/", "document-collections/", "document-checkpoints/", "document-payloads/", "document-states/", "document-segment/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
         if (std.mem.startsWith(u8, key, prefix)) return true;
     }
     return false;
@@ -354,7 +355,9 @@ fn documentEntry(allocator: std.mem.Allocator, index: *s.TreeStore, workspace: a
             defer parsed.deinit();
             try parsed.value.cut.validate();
             try context.requireTarget(parsed.value.cut.target.partition);
-            if (entry.key.len != 16 or !std.mem.eql(u8, entry.key.data[0..16], &parsed.value.cut.target.document)) return error.InvalidDocumentStorageGraph;
+            if (entry.key.len != 16 or !std.mem.eql(u8, entry.key.data[0..16], &parsed.value.cut.target.document) or
+                parsed.value.cut.accepted.partition != context.partition or
+                parsed.value.cut.accepted.next_lsn > context.next_lsn) return error.InvalidDocumentStorageGraph;
             try markDocumentBlob(allocator, context, index.store, workspace, "document-states", parsed.value.cut.state);
         },
         .revisions => {
@@ -380,12 +383,7 @@ fn documentEntry(allocator: std.mem.Allocator, index: *s.TreeStore, workspace: a
             const parsed = try c.protocol.Json.parseFromSlice(d.Content, allocator, entry.value.slice());
             defer parsed.deinit();
             const outcome = try s.DocumentEvidence.load(allocator, index.store, parsed.value);
-            const expected_op: d.Operation = switch (outcome) {
-                .mutation => |v| v.mutation.operation,
-                .checkpoint => |v| v.checkpoint.operation,
-                .read => |v| v.request.operation,
-                .read_release => |v| v.release.operation,
-            };
+            const expected_op = outcome.operation();
             if (!std.meta.eql(try context.owner(entry.key), expected_op)) return error.InvalidDocumentStorageGraph;
             var name: [96]u8 = undefined;
             try markContent(workspace, try s.DocumentEvidence.key(parsed.value, &name), parsed.value);
@@ -396,7 +394,10 @@ fn documentEntry(allocator: std.mem.Allocator, index: *s.TreeStore, workspace: a
             defer parsed.deinit();
             try parsed.value.source.validate();
             if (!parsed.value.released) {
-                try workspace.enqueue(.{ .document_read = .{ .context = context, .handle = .{ .owner = owner, .source = parsed.value.source } } });
+                switch (parsed.value.kind) {
+                    .revision => try workspace.enqueue(.{ .document_read = .{ .context = context, .handle = .{ .owner = owner, .source = parsed.value.source } } }),
+                    .collection => try workspace.enqueue(.{ .document_collection = .{ .context = context, .handle = .{ .owner = owner, .source = parsed.value.source } } }),
+                }
             }
         },
     }
@@ -407,7 +408,7 @@ fn documentEntry(allocator: std.mem.Allocator, index: *s.TreeStore, workspace: a
 /// any error discards all private cursor/root changes from this step.
 pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog.Log, work: *Work, workspace: anytype) !bool {
     switch (work.*) {
-        .declaration, .evidence, .intent, .snapshot, .wal, .segment, .catalog_intent, .workload_intent, .descriptor_operation, .descriptor, .foreign_input, .log_operation, .log_declaration, .queue_destination, .log_initialization, .log_segment, .log_wal, .document_declaration, .document_initialization, .document_read, .document_wal => if (try workspace.visited(try scope(work.*))) return true,
+        .declaration, .evidence, .intent, .snapshot, .wal, .segment, .catalog_intent, .workload_intent, .descriptor_operation, .descriptor, .foreign_input, .log_operation, .log_declaration, .queue_destination, .log_initialization, .log_segment, .log_wal, .document_declaration, .document_initialization, .document_read, .document_collection, .document_wal => if (try workspace.visited(try scope(work.*))) return true,
         else => {},
     }
     var key_buffer: [96]u8 = undefined;
@@ -1387,6 +1388,20 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
                 return error.InvalidDocumentStorageGraph;
             }
             try markContent(workspace, try s.DocumentRead.key(value.handle.source, &key_buffer), value.handle.source);
+        },
+        .document_collection => |value| {
+            const source = try s.DocumentCollection.load(allocator, index.store, value.handle.source);
+            try value.context.requireTarget(source.cut.target);
+            if (!std.meta.eql(source.request.operation, value.handle.owner) or
+                source.cut.observed.partition != value.context.partition or
+                source.cut.observed.next_lsn >= value.context.next_lsn) return error.InvalidDocumentStorageGraph;
+            try markContent(workspace, try s.DocumentCollection.key(value.handle.source, &key_buffer), value.handle.source);
+            if (source.heads_root) |root| {
+                var retained = value.context;
+                retained.interpretation = source.cut.target.interpretation;
+                retained.next_lsn = source.cut.observed.next_lsn;
+                try workspace.enqueue(.{ .document_index = .{ .context = retained, .reference = root, .kind = .documents } });
+            }
         },
         .document_wal => |value| {
             if (value.lsn >= value.context.next_lsn) return error.InvalidDocumentStorageGraph;

@@ -4,6 +4,7 @@ const std = @import("std");
 const p = @import("root.zig");
 const d = p.DataLifecycle;
 const doc = @import("DocumentOperation.zig");
+pub const Collection = @import("DocumentCollection.zig");
 
 pub const Request = struct {
     target: doc.Target,

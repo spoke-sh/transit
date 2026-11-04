@@ -129,6 +129,60 @@ same logical target as the retained source, as well as its owning principal.
 Every fetch checks current authorization before reading and before disclosure,
 including repeated cursors and empty terminal observations.
 
+## Retained partition membership
+
+`DocumentRead.Collection` defines a storage-component read of one exact logical
+head directory. Its `Cut` binds the declaration/partition target, observed WAL
+position, `changed_next_lsn`, and nullable head-directory digest. The data frontier
+is the next LSN after the last head change, initially 1; read pins, receipt aliases
+and archival/recovery maintenance do not advance it. A null directory denotes an
+accepted empty partition. Missing directory storage is an error. Independent
+partition cuts form a vector; they do not establish an atomic collection snapshot
+or a serializable transaction guard.
+
+`Request` binds the owning operation, cumulative `max_steps`/`max_bytes`, and
+per-fetch `page_heads` (1–16) and `page_bytes` (positive, no larger than
+`max_bytes`). Cumulative limits must fit the declaration's read limits. `Receipt`
+binds the original request, cut, immutable source and pin acceptance position,
+exactly one WAL record after the observation. Exact retries recover this receipt;
+changed request budgets or targets conflict. Retrying acquisition after release
+does not reactivate the pin. These pins have no implicit expiry.
+
+`Cursor` authenticates the retained handle and cumulative coverage: exclusive
+`after` document ID, returned `heads`, consumed `steps`/`bytes`, and `complete`.
+Each `Page` owns an inline array of at most 16 nullable heads, a count and a
+successor cursor. Entries before `count` are present and strictly ordered by the
+16-byte document ID; all remaining entries are null. Each head contains its exact
+revision cut and unresolved-conflict count. A page does not materialize logical
+values. Prior pages survive scratch resets and later fetches.
+
+A scan charges one step plus every visited directory page, including cache hits
+and bounded lookahead. Bytes count canonical encoded head values, excluding
+fixed cursor/source overhead. These are logical work budgets, not physical I/O
+measurements. A page stops at its row/byte budget; cumulative exhaustion or a
+single head exceeding the page byte budget yields `DocumentReadLimitExceeded`.
+A failed fetch discloses no partial page and establishes no completion. Repeating
+the input cursor repeats the same traversal. Only directory exhaustion establishes
+`complete`; repeating a terminal cursor returns an empty, complete page.
+
+The host supplies a trusted current principal separately from the cursor. It must
+match the pin owner. Every fetch validates authentication and the live collection
+pin and checks current scoped read authority before reading and after buffering,
+including empty and repeated terminal pages. `Release` uses a distinct operation
+of that principal and the exact original target. Lost acquisition/release replies
+require recovery of the original operation, never another logical read. A changed
+signing key invalidates old cursors; a currently authorized owner can obtain a new
+cursor from the original receipt without changing its retained basis.
+
+Collection pins retain their immutable directory and its referenced revision
+states, logical indexes and segments through the shared storage graph. Release
+removes this dependency, but other accepted history, checkpoints or pins can
+still retain the same objects. Missing/corrupt sources or pages fail closed.
+There is no logical-document deletion operation in this component profile;
+absence means no head at this cut, not an invented deletion revision. Catalog
+DROP, staged-candidate ownership, operation discovery and Document transaction
+preparation are separate contracts not enabled by enumeration.
+
 ## Integrated causal map-tree storage slice
 
 `DocumentPartition.applyCausal` is a storage-component operation, not an installed

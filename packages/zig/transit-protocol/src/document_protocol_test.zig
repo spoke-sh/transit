@@ -160,3 +160,44 @@ test "document persisted binding has no missing or foreign definition fallback" 
     foreign[at] = if (foreign[at] == '0') '1' else '0';
     try t.expectError(error.InvalidJsonShape, p.Json.parseFromSlice(doc.Partition, t.allocator, foreign));
 }
+
+test "document collection fixture validates exact cuts bounded owned pages and terminal coverage" {
+    const C = doc.Read.Collection;
+    const parsed = try p.Json.parseFromSlice(C.SchemaTypes, t.allocator, @embedFile("fixtures/document-collection-v1.json"));
+    defer parsed.deinit();
+    const v = parsed.value;
+    try v.receipt.validate();
+    try v.cursor.validate();
+    try v.page.validate();
+    try v.release.validate();
+    try v.receipt.requireRequest(v.receipt.request);
+    const encoded = try p.Json.valueAlloc(t.allocator, v);
+    defer t.allocator.free(encoded);
+    const decoded = try p.Json.parseFromSlice(C.SchemaTypes, t.allocator, encoded);
+    defer decoded.deinit();
+    try t.expectEqualDeep(v, decoded.value);
+    var receipt = v.receipt;
+    receipt.cut.changed_next_lsn = receipt.cut.observed.next_lsn + 1;
+    try t.expectError(error.InvalidDocumentCollection, receipt.validate());
+    receipt = v.receipt;
+    receipt.accepted.next_lsn += 1;
+    try t.expectError(error.InvalidDocumentCollection, receipt.validate());
+    var request = v.receipt.request;
+    request.page_heads = C.max_page_heads + 1;
+    try t.expectError(error.InvalidDocumentCollection, request.validate());
+    request = v.receipt.request;
+    request.page_bytes -= 1;
+    try t.expectError(error.DocumentReadConflict, v.receipt.requireRequest(request));
+    var page = v.page;
+    page.heads[0] = null;
+    try t.expectError(error.InvalidDocumentCollection, page.validate());
+    page = v.page;
+    page.heads[1] = page.heads[0];
+    try t.expectError(error.InvalidDocumentCollection, page.validate());
+    page = v.page;
+    page.cursor.coverage.after.?[0] ^= 1;
+    try t.expectError(error.InvalidDocumentCollection, page.validate());
+    var release = v.release.release;
+    release.operation.principal -= 1;
+    try t.expectError(error.InvalidDocumentRelease, release.validate());
+}

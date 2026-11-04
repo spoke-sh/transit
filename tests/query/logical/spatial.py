@@ -13,7 +13,7 @@ from runner import capture
 from runner.paths import ROOT
 
 SEED = 0x17002026
-DEFINITION = bytes.fromhex("efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8")
+DEFINITION = bytes.fromhex("c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97")
 
 
 def bits(value):
