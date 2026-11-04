@@ -437,8 +437,9 @@ fn startInner(self: Self, value: Declaration) !?c.DirectClientToken.Key {
     const observed = try self.inspect(value);
     if (observed.head.pending) |pending| {
         const progress = (try c.DirectClientToken.inspect(self.client, pending)) orelse return error.InvalidManagedTableRecord;
+        const original = progress.original orelse return error.InvalidManagedTableRecord;
         if (progress.pending) return pending;
-        if (progress.original.?.phase != .closed) _ = try self.closeOriginal(progress);
+        if (original.phase != .closed) _ = try self.closeOriginal(progress);
         var next = observed.head;
         next.pending = null;
         // The identity includes the exact head position. Concurrent controls may
