@@ -18,7 +18,6 @@ import threading
 import time
 
 from interfaces.installation.server_application_faults import ExistingKey, native, post
-from interfaces.sql_sessions.local import Client
 from performance.load.installed import read
 
 
@@ -58,17 +57,17 @@ class Exchange:
             seed.chmod(0o600)
             key = ExistingKey(home, seed)
             principal = 1024 + event * 2 + index
-            pid = self.command(dict(spawn={}))
-            resource = self.command(dict(create_resource=dict(writer=pid, owned=role == 'caller')))
-            self.command(dict(grant=dict(subject=principal, public_key=key.public,
+            pid = self.command(dict(spawn=dict(allow_collection=False, code=1, work_before_ms=None, settle_before_ms=None)))
+            resource = self.command(dict(create_resource=dict(writer=pid, owned=role == 'caller', deadline_ms=None, history_ms=None)))
+            self.command(dict(create_principal=dict(subject=principal, public_key=key.public,
                 permissions=4 | 8 | 16 | 64 | (32 if role == 'connector' else 0), pid=pid)))
             for subject in (0, principal):
                 self.command(dict(grant_resource=dict(resource=resource, subject=subject, permissions=7)))
-            self.command(dict(associate=dict(pid=pid, name=b'state'.hex(), resource=resource)))
+            self.command(dict(associate=dict(pid=pid, name=b'state'.hex(), expected_revision=0, resource=resource, required=True)))
             self.roles[role] = dict(pid=pid, resource=resource, principal=principal, seed=seed)
         for role, other, name in (('caller', 'connector', 'capture'), ('connector', 'caller', 'request')):
             current, peer = self.roles[role], self.roles[other]
-            self.command(dict(associate=dict(pid=current['pid'], name=name.encode().hex(), resource=peer['resource'], required=False)))
+            self.command(dict(associate=dict(pid=current['pid'], name=name.encode().hex(), expected_revision=0, resource=peer['resource'], required=False)))
             self.command(dict(grant_resource=dict(resource=peer['resource'], subject=current['principal'], permissions=3)))
         deadline = int(time.time() * 1000) + 240000
         caller, connector = self.roles['caller'], self.roles['connector']
@@ -114,16 +113,27 @@ class Exchange:
         return json.loads(result.stdout)
 
     def deliver(self):
-        after = None
+        # The installed courier owns delivery. Observe its actual outcome;
+        # racing it with a second operator delivery would test a different path.
+        deadline = time.monotonic() + 30
         while True:
+            after, pending, seen = None, False, 0
             position = self.query(dict(capabilities={}))['position']
-            page = self.query(dict(outputs=dict(after=after, position=position)))['body']['outputs']
-            for entry in page['entries']:
-                if entry and entry['phase'] == 'pending' and entry['source'] in {r['pid'] for r in self.roles.values()}:
-                    self.command(dict(deliver=entry['id']))
-            after = page['next']
-            if after is None:
+            while True:
+                page = self.query(dict(outputs=dict(after=after, position=position)))['body']['outputs']
+                for entry in page['entries']:
+                    if entry and entry['source'] in {r['pid'] for r in self.roles.values()}:
+                        assert entry['phase'] in ('pending', 'delivered'), entry['phase']
+                        seen += 1
+                        pending |= entry['phase'] == 'pending'
+                after = page['next']
+                if after is None:
+                    break
+            assert seen, 'missing published call/outcome'
+            if not pending:
                 return
+            assert time.monotonic() < deadline, 'courier did not settle published outputs'
+            time.sleep(.05)
 
 
 def run(journey, binaries):
@@ -142,7 +152,6 @@ def run(journey, binaries):
         journey.command('setup', sql)
     revision = journey.settle('webhook_projection', 1, 'webhook_intents', [], 'webhook_initial')
     secret = secrets.token_bytes(32)
-    ingress = Client(fixture.console_config(), fixture.record()['definition']).open()
     errors = []
 
     class Webhook(BaseHTTPRequestHandler):
@@ -176,8 +185,9 @@ def run(journey, binaries):
                 saved.write_text(json.dumps(dict(sql=sql, token=original_token)))
                 saved.chmod(0o600)
                 try:
-                    operation = ingress.execute(sql, original_token)['operation']
-                    operation = ingress.terminal(operation)
+                    with journey.client() as ingress:
+                        operation = ingress.execute(sql, original_token)['operation']
+                        operation = ingress.terminal(operation)
                 except AssertionError as error:
                     detail = error.args[0] if error.args else None
                     if isinstance(detail, dict) and detail.get('err', {}).get('code') == 'SqlTokenConflict':
@@ -193,129 +203,130 @@ def run(journey, binaries):
     exchanges = []
     admitted = {}
     received_at = {}
-    try:
-        with listener(Webhook) as inbound:
-            def submit(event, value, signature=True):
-                body = json.dumps(dict(id=event, value=value)).encode()
-                peer = HTTPConnection('127.0.0.1', inbound, timeout=100)
-                try:
-                    peer.request('POST', '/webhook', body, headers={
-                        'Content-Type': 'application/json',
-                        'X-Signature': hmac.digest(secret, body, 'sha256').hex() if signature else 'invalid'})
-                    response = peer.getresponse()
-                    return response.status, json.loads(response.read())
-                finally:
-                    peer.close()
+    with listener(Webhook) as inbound:
+        def submit(event, value, signature=True):
+            body = json.dumps(dict(id=event, value=value)).encode()
+            peer = HTTPConnection('127.0.0.1', inbound, timeout=100)
+            try:
+                peer.request('POST', '/webhook', body, headers={
+                    'Content-Type': 'application/json',
+                    'X-Signature': hmac.digest(secret, body, 'sha256').hex() if signature else 'invalid'})
+                response = peer.getresponse()
+                return response.status, json.loads(response.read())
+            finally:
+                peer.close()
 
-            assert submit(7, 70, False)[0] == 403
-            journey.rows('webhook_denied', 'SELECT * FROM webhook_events;', [])
-            for event, lost_response in ((7, False), (8, True)):
-                if event not in admitted:
-                    with journey.sample('webhook_accept') as sample:
-                        received_at[event] = time.perf_counter_ns()
-                        admitted[event] = submit(event, event * 10)
-                        assert admitted[event][0] == 202 and not errors, errors
-                        sample.update(verified=True, event=event)
-                status, receipt = admitted[event]
-                with journey.sample('webhook_duplicate') as sample:
-                    assert submit(event, event * 10) == (status, receipt)
-                    assert submit(event, event * 10 + 1)[0] == 409
+        assert submit(7, 70, False)[0] == 403
+        journey.rows('webhook_denied', 'SELECT * FROM webhook_events;', [])
+        for event, lost_response in ((7, False), (8, True)):
+            if event not in admitted:
+                with journey.sample('webhook_accept') as sample:
+                    received_at[event] = time.perf_counter_ns()
+                    admitted[event] = submit(event, event * 10)
+                    assert admitted[event][0] == 202 and not errors, errors
                     sample.update(verified=True, event=event)
-                expected.append((event, event * 10))
-                revision = journey.settle('webhook_projection', revision + 1, 'webhook_intents', expected, 'webhook_derived', [])
-                # Read the committed intent through the public SQL result owner.
-                intent = read(journey.observer, f'SELECT id, value FROM webhook_intents WHERE id = {event}', 1)
-                assert len(intent) == 1
-                values = [int.from_bytes(bytes.fromhex(cell)[1:], 'little', signed=True) for cell in intent[0]]
-                assert values == [event, event * 10]
-                body = json.dumps(dict(id=values[0], value=values[1]), separators=(',', ':')).encode()
-                accepted, release = threading.Event(), threading.Event()
-                received, peer_errors = [], []
-                response_body = b'{"accepted":true}'
+            status, receipt = admitted[event]
+            with journey.sample('webhook_duplicate') as sample:
+                duplicate = submit(event, event * 10)
+                assert duplicate == (status, receipt), (duplicate, errors)
+                assert submit(event, event * 10 + 1)[0] == 409
+                sample.update(verified=True, event=event)
+            expected.append((event, event * 10))
+            revision = journey.settle('webhook_projection', revision + 1, 'webhook_intents', expected, 'webhook_derived', [])
+            # Read the committed intent through the public SQL result owner.
+            with journey.client() as peer:
+                intent = read(peer, f'SELECT id, value FROM webhook_intents WHERE id = {event}', 1)
+            assert len(intent) == 1
+            values = [int.from_bytes(bytes.fromhex(cell)[1:], 'little', signed=True) for cell in intent[0]]
+            assert values == [event, event * 10]
+            body = json.dumps(dict(id=values[0], value=values[1]), separators=(',', ':')).encode()
+            accepted, release = threading.Event(), threading.Event()
+            received, peer_errors = [], []
+            response_body = b'{"accepted":true}'
 
-                class Destination(BaseHTTPRequestHandler):
-                    def log_message(self, *_):
-                        pass
+            class Destination(BaseHTTPRequestHandler):
+                def log_message(self, *_):
+                    pass
 
-                    def do_POST(self):
-                        try:
-                            actual = self.rfile.read(int(self.headers['Content-Length']))
-                            assert self.path == '/effect' and actual == body
-                            assert self.headers['Idempotency-Key'] == f'scenario-event-{event}'
-                            received.append(actual)
-                            accepted.set()
-                            assert release.wait(20), 'foreground console did not finish while HTTP was blocked'
-                            if lost_response:
-                                self.close_connection = True
-                                return
-                            self.send_response(200)
-                            self.send_header('Content-Length', str(len(response_body)))
-                            self.end_headers()
-                            self.wfile.write(response_body)
-                        except Exception as error:
-                            peer_errors.append(error)
-                            accepted.set()
+                def do_POST(self):
+                    try:
+                        actual = self.rfile.read(int(self.headers['Content-Length']))
+                        assert self.path == '/effect' and actual == body
+                        assert self.headers['Idempotency-Key'] == f'scenario-event-{event}'
+                        received.append(actual)
+                        accepted.set()
+                        assert release.wait(20), 'foreground console did not finish while HTTP was blocked'
+                        if lost_response:
+                            self.close_connection = True
+                            return
+                        self.send_response(200)
+                        self.send_header('Content-Length', str(len(response_body)))
+                        self.end_headers()
+                        self.wfile.write(response_body)
+                    except Exception as error:
+                        peer_errors.append(error)
+                        accepted.set()
 
-                with listener(Destination) as destination:
-                    exchange = Exchange(fixture, binaries, event, body, destination)
-                    with journey.sample('effect_prepare') as sample:
-                        original = exchange.activate('caller', 'publish')
-                        assert original['phase'] == 'called'
-                        assert exchange.activate('caller', 'publish') == original
-                        exchange.deliver()
-                        assert exchange.activate('connector', 'accept')['phase'] == 'ready'
-                        sample['verified'] = True
-                    with journey.sample('effect_unknown' if lost_response else 'effect_observed') as sample:
-                        with ThreadPoolExecutor(max_workers=1) as workers:
-                            dispatched = workers.submit(exchange.activate, 'connector', 'execute')
-                            try:
-                                assert accepted.wait(30), 'connector did not reach the destination'
-                                assert not peer_errors, peer_errors
-                                if not lost_response:
-                                    # The application has one active dispatch
-                                    # slot. Another accepted input remains in
-                                    # the database while the destination stalls.
-                                    with journey.sample('webhook_accept') as incoming:
-                                        received_at[8] = time.perf_counter_ns()
-                                        admitted[8] = submit(8, 80)
-                                        assert admitted[8][0] == 202 and not errors, errors
-                                        incoming.update(verified=True, event=8)
-                                journey.rows('console_during_http', 'SELECT * FROM items;', [])
-                            finally:
-                                release.set()
-                            dispatched.result(timeout=120)
-                        exchange.deliver()
-                        outcome = exchange.activate('caller', 'receive')
-                        assert outcome['phase'] == ('closed_unknown' if lost_response else 'observed'), outcome
-                        if not lost_response:
-                            assert outcome['status'] == 200
-                        assert len(received) == 1 and not peer_errors, peer_errors
-                        sample.update(verified=True, event=event, outcome_phase=outcome['phase'], sends=len(received))
-                    # This projection is application state; the connector's
-                    # durable outcome remains authoritative across this write.
-                    phase = outcome['phase']
-                    status = 0 if lost_response else outcome['status']
-                    sql = (f"INSERT INTO webhook_outcomes VALUES ({event}, {status}, '{phase}', "
-                           f"{outcome['effect']}, {outcome['attempt']})")
-                    outcome_token = token(b'scenario.webhook.outcome\0', event)
-                    operation = journey.observer.terminal(journey.observer.execute(sql, outcome_token)['operation'])
-                    completed.append((event, status))
-                    journey.rows('recorded_outcomes', 'SELECT id, value FROM webhook_outcomes;', completed)
-                    journey.elapsed('webhook_to_unknown_outcome' if lost_response else 'webhook_to_observed_outcome',
-                                    received_at[event], event=event)
-                    # Publication recovery and SQL outcome retry reuse their
-                    # original identities; neither dispatches a second request.
+            with listener(Destination) as destination:
+                exchange = Exchange(fixture, binaries, event, body, destination)
+                with journey.sample('effect_prepare') as sample:
+                    original = exchange.activate('caller', 'publish')
+                    assert original['phase'] == 'called'
                     assert exchange.activate('caller', 'publish') == original
-                    duplicate = journey.observer.terminal(journey.observer.execute(sql, outcome_token)['operation'])
-                    assert duplicate['identity'] == operation['identity']
+                    exchange.deliver()
+                    assert exchange.activate('connector', 'accept')['phase'] == 'ready'
+                    sample['verified'] = True
+                with journey.sample('effect_unknown' if lost_response else 'effect_observed') as sample:
+                    with ThreadPoolExecutor(max_workers=1) as workers:
+                        dispatched = workers.submit(exchange.activate, 'connector', 'execute')
+                        try:
+                            assert accepted.wait(30), 'connector did not reach the destination'
+                            assert not peer_errors, peer_errors
+                            if not lost_response:
+                                # The application has one active dispatch
+                                # slot. Another accepted input remains in
+                                # the database while the destination stalls.
+                                with journey.sample('webhook_accept') as incoming:
+                                    received_at[8] = time.perf_counter_ns()
+                                    admitted[8] = submit(8, 80)
+                                    assert admitted[8][0] == 202 and not errors, errors
+                                    incoming.update(verified=True, event=8)
+                            journey.rows('console_during_http', 'SELECT * FROM items;', [])
+                        finally:
+                            release.set()
+                        dispatched.result(timeout=120)
+                    exchange.deliver()
+                    outcome = exchange.activate('caller', 'receive')
+                    assert outcome['phase'] == ('closed_unknown' if lost_response else 'observed'), outcome
                     if not lost_response:
-                        replay = exchange.activate('caller', 'replay')
-                        assert replay['sha256'] == hashlib.sha256(response_body).hexdigest()
-                    assert len(received) == 1
-                    exchanges.append((exchange, outcome, lost_response, response_body, original))
-        assert not errors, errors
-    finally:
-        ingress.close()
+                        assert outcome['status'] == 200
+                    assert len(received) == 1 and not peer_errors, peer_errors
+                    sample.update(verified=True, event=event, outcome_phase=outcome['phase'], sends=len(received))
+                # This projection is application state; the connector's
+                # durable outcome remains authoritative across this write.
+                phase = outcome['phase']
+                status = 0 if lost_response else outcome['status']
+                sql = (f"INSERT INTO webhook_outcomes VALUES ({event}, {status}, '{phase}', "
+                       f"{outcome['effect']}, {outcome['attempt']})")
+                outcome_token = token(b'scenario.webhook.outcome\0', event)
+                with journey.client() as peer:
+                    operation = peer.terminal(peer.execute(sql, outcome_token)['operation'])
+                completed.append((event, status))
+                journey.rows('recorded_outcomes', 'SELECT id, value FROM webhook_outcomes;', completed)
+                journey.elapsed('webhook_to_unknown_outcome' if lost_response else 'webhook_to_observed_outcome',
+                                received_at[event], event=event)
+                # Publication recovery and SQL outcome retry reuse their
+                # original identities; neither dispatches a second request.
+                assert exchange.activate('caller', 'publish') == original
+                with journey.client() as peer:
+                    duplicate = peer.terminal(peer.execute(sql, outcome_token)['operation'])
+                assert duplicate['identity'] == operation['identity']
+                if not lost_response:
+                    replay = exchange.activate('caller', 'replay')
+                    assert replay['sha256'] == hashlib.sha256(response_body).hexdigest()
+                assert len(received) == 1
+                exchanges.append((exchange, outcome, lost_response, response_body, original))
+    assert not errors, errors
     journey.command('setup', 'REFRESH DATAFLOW webhook_projection;')
     journey.settle('webhook_projection', revision + 1, 'webhook_intents', expected, 'webhook_refreshed')
     for exchange, _, _, _, original in exchanges:

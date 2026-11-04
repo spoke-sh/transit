@@ -30,14 +30,20 @@ class Journey:
         path.write_text(json.dumps(connection))
         path.chmod(0o600)
         self.shell = Console(fixture, config=path, mode='table')
-        self.observer = Client(connection, fixture.record()['definition']).open()
         self.counts = {}
 
     def close(self):
+        self.shell.close()
+
+    @contextmanager
+    def client(self):
+        # Independent finite metadata/application work need not retain an idle
+        # session while the connector runs. Tokens belong to durable work.
+        peer = Client(self.fixture.console_config(), self.fixture.record()['definition']).open()
         try:
-            self.shell.close()
+            yield peer
         finally:
-            self.observer.close()
+            peer.close()
 
     @contextmanager
     def sample(self, case):
@@ -68,7 +74,8 @@ class Journey:
             record.update(verified=True, rows=len(expected), **measured)
 
     def head(self, name):
-        values = read(self.observer, f'SHOW DATAFLOW {name}', 1)
+        with self.client() as peer:
+            values = read(peer, f'SHOW DATAFLOW {name}', 1)
         assert len(values) == 1 and len(values[0]) == 1
         return json.loads(text(values[0][0]))['observation']['head']
 
@@ -77,11 +84,24 @@ class Journey:
         # gate. A complete but late result is retained and fails that gate.
         deadline = time.monotonic() + 180
         with self.sample(case) as sample:
-            polls = 0
+            polls, refusals = 0, 0
             while True:
                 assert time.monotonic() < deadline and polls < 2000, 'dataflow completion deadline'
-                observed = self.head(name)
                 polls += 1
+                try:
+                    observed = self.head(name)
+                except AssertionError as failure:
+                    detail = failure.args[0] if failure.args else None
+                    error = detail.get('err', {}) if isinstance(detail, dict) else {}
+                    if (error.get('code') not in ('AuthorityTimeout', 'AuthorityUnavailable', 'Conflict', 'Canceled')
+                            or error.get('operation') is not None):
+                        raise
+                    # SHOW is a fresh metadata observation, with no returned
+                    # result prefix or accepted mutation to replay. Refusals
+                    # consume the original span and completion budget.
+                    refusals += 1
+                    time.sleep(.05)
+                    continue
                 assert observed['blocked'] == 'none', observed
                 if foreground is not None:
                     self.rows('console_during_dataflow', 'SELECT * FROM items;', foreground)
@@ -89,7 +109,8 @@ class Journey:
                     self.rows('derived_result', f'SELECT * FROM {table};', expected)
                     assert observed['rows'] == len(expected), observed
                     assert time.monotonic() < deadline, 'late dataflow verification'
-                    sample.update(verified=True, revision=observed['revision'], rows=len(expected), polls=polls)
+                    sample.update(verified=True, revision=observed['revision'], rows=len(expected), polls=polls,
+                                  observation_refusals=refusals)
                     return observed['revision']
                 time.sleep(.05)
 

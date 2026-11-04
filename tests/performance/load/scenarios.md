@@ -4,6 +4,9 @@
 embedded node, SQL, application manager and Board, synchronous local durability
 and automatic maintenance. It owns a fresh private installation and joins its
 processes and HTTP listeners. The installation CI lane runs this check.
+The separate [console latency gate](../console/gate.py) owns the early CI/release
+SQL latency and process-resource check; these scenarios add computation and
+effect lifecycle coverage to that baseline.
 
 | Scenario | Independent checks |
 | --- | --- |
@@ -23,7 +26,8 @@ dispatcher binds each selected event to a provisioned finite caller/connector
 pair. Their existing recorded call, request commitment and effect identity own
 dispatch/recovery. Source ingestion and Dataflow computation do not use Station
 turns. Root authority is used only by the fixture operator for provisioning,
-ownership and delivery; the caller and connector use scoped identities.
+ownership and inspection; the caller and connector use scoped identities and
+the installed courier delivers their recorded outputs.
 
 This is two finite exchanges, not a multi-exchange connector scheduler, arbitrary
 webhook payload profile, transactional SQL sink, ordered change consumer or
@@ -50,6 +54,9 @@ They begin immediately before the inbound HTTP request and end after SQL verifie
 the recorded outcome. CPU ticks include the owned installation
 tree, including Board, but exclude the separately launched connector; counters unavailable at this boundary remain explicitly
 unavailable. No zero-allocation or physical-sync-count claim follows from timing.
+Transient refusals of fresh `SHOW DATAFLOW` observations consume the original
+completion deadline and elapsed span and are counted in `observation_refusals`.
+They do not authorize replaying a mutation or restarting a partially read result.
 
 [`scenario_budgets.json`](scenario_budgets.json) supplies executable maximum
 latency ceilings for the finite smoke workload. These generous regression guards
@@ -83,3 +90,11 @@ The [installed managed/connection campaign](installed.md) retains its larger
 finite and connection-pressure workloads. [Connector fault tests](../../runtime/README.md)
 own the broader revocation, credential and process-death schedules. Passing this
 scenario does not replace either suite.
+
+The next performance work remains with the existing owners: reduce fresh-read
+and write coordination in [M8](../../../docs/roadmap/08-gateway-architecture-and-protocol-ingress.md),
+then qualify retained change consumption, incremental execution and governed
+effect outboxes in [M12](../../../docs/roadmap/12-sql-and-dataflows.md), using
+[M6's mixed transactions](../../../docs/roadmap/06-streams-queues-and-durable-runtime.md).
+The finite adapter supplies a measurable journey for that work; it does not
+establish a 10–100× speedup or replace those contracts.
