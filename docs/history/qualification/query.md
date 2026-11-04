@@ -41,6 +41,44 @@ attempts found table-source fixture drift, diagnostic inventory drift and an
 enum-formatting difference; the owning generators/formatter corrected those
 artifacts. These attempts are not a clean common-revision qualification.
 
+Executed with the pinned Nix Zig `0.17.0-dev.2267+48abf1a34` toolchain:
+
+| Check and source | Outcome and boundary |
+| --- | --- |
+| Focused catalog `zig build test` filters `owned original` and `owned progress`, `e63cbabb4` | All 11 tests passed, including missing-ready-byte refusal, disk reopen, attachment fencing and terminal retry after original deletion |
+| `zig build test-local-catalog -Dlocal-catalog-filter='owned original'`, implementation through `fbc648ac8` | Both signed/typed cases passed; each executed 101- and 817-step collections, reclaiming 2 and 186 allocations respectively |
+| `just ci clean --check fast`, `e525714e0` | All 66 checks passed |
+| `just ci clean --check contracts`, `e525714e0` | All 20 checks passed |
+| Typed managed proof in the retained clean installation checkout, `ec60e03d7` | Preparation, node replacement, recovery, retained complete/empty revisions, incomplete-prefix refusal and current authorization passed, including two withheld pre-head attachments |
+
+The first expanded managed fixture incorrectly expected a work token to remain
+the next discovery result after suspend/resume, although both controls advance
+the attempt epoch. The corrected fixture separately proves saved-token discovery
+before controls and recovery of the abandoned token afterward. Its next run
+passed preparation/recovery but incorrectly unwrapped a CPR1 record on an
+original closed before attachment. The final fixture distinguishes two abandoned
+originals from completed work and passed all four typed stages. Neither failed
+test oracle is recorded as a passing run.
+
+The first clean `installation-ui` attempt at `ec60e03d7` passed Board/docs,
+generated Node validators, observability and server logging, then failed packaged
+installation recovery. A two-second `rotate_worker` authority timeout consumed
+an extra automatic restart and exhausted that fixture's restart budget. An
+unchanged retry of `test::server-single-executable` in the same checkout passed
+the full role-death, manager-replacement and retained-identity sequence. The
+initial failure's cause is unestablished; no baseline attribution is claimed.
+
+The subsequent direct-Table target passed. The managed target passed the typed
+proof and installed revisions 1–5, replacement, suspension, empty refresh,
+retained inspection, retirement and output edits. It then stopped at the new
+batch-flow declaration with an unresolved accepted SQL operation, before the
+63/64/65-row and byte-boundary assertions. Observing that same operation after
+restarting the retained installation showed `ready`, then terminal `applied`;
+the declaration was not resubmitted. Commit `0fc4d56a1` generalizes the existing
+retirement settlement helper for individual boundary-test commands. It preserves
+the original account, instance, operation and token and retains the existing
+deadlines. The unknown result is neither rejection nor a completed boundary proof.
+
 Retained declarations (including initialization already marked retained),
 completed revisions, identity receipts and quota charges remain indefinite.
 Neither 18 token identities nor 65 output rows proves the full R3a cardinality,
