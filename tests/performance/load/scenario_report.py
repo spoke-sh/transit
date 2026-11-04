@@ -41,6 +41,7 @@ def inventory(manifest):
     if derived:
         exact['derived_result'] = derived
         variable['setup'] = 1
+        variable['console_during_dataflow'] = 1
     return exact, variable
 
 

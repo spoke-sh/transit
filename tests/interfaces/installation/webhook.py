@@ -132,6 +132,9 @@ def run(journey, binaries):
         'CREATE TABLE webhook_events (id BIGINT PRIMARY KEY, value BIGINT)',
         'CREATE TABLE webhook_intents (id BIGINT PRIMARY KEY, value BIGINT)',
         'CREATE TABLE webhook_outcomes (id BIGINT PRIMARY KEY, value BIGINT, phase UTF8, effect BIGINT, attempt BIGINT)',
+    ):
+        journey.command('setup', sql, (0, 0))
+    for sql in (
         'CREATE DATAFLOW webhook_projection INTO webhook_intents AS SELECT id, value FROM webhook_events',
         'AUTHORIZE DATAFLOW webhook_projection',
         'ACTIVATE DATAFLOW webhook_projection',
@@ -323,6 +326,8 @@ def run(journey, binaries):
         # use retained capture/outcome evidence, never a new network attempt.
         for exchange, original, unknown, payload, _ in exchanges:
             with restarted.sample('effect_replay_after_restart') as sample:
+                settled = exchange.activate('connector', 'execute')
+                assert settled['outcome'] == original['phase'], settled
                 assert exchange.activate('caller', 'receive') == original
                 if not unknown:
                     replay = exchange.activate('caller', 'replay')

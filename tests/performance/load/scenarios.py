@@ -25,8 +25,12 @@ from runner.paths import ROOT
 class Journey:
     def __init__(self, fixture, recorder):
         self.fixture, self.recorder = fixture, recorder
-        self.shell = Console(fixture, mode='table')
-        self.observer = Client(fixture.console_config(), fixture.record()['definition']).open()
+        connection = fixture.console_config()
+        path = fixture.root / 'scenario-console.json'
+        path.write_text(json.dumps(connection))
+        path.chmod(0o600)
+        self.shell = Console(fixture, config=path, mode='table')
+        self.observer = Client(connection, fixture.record()['definition']).open()
         self.counts = {}
 
     def close(self):
@@ -106,7 +110,7 @@ def console(journey, repeat):
 
 
 def dataflow(journey, repeat):
-    journey.command('setup', 'CREATE TABLE scenario_output (id BIGINT PRIMARY KEY, value BIGINT);')
+    journey.command('setup', 'CREATE TABLE scenario_output (id BIGINT PRIMARY KEY, value BIGINT);', (0, 0))
     journey.command('setup', 'CREATE DATAFLOW scenario_projection INTO scenario_output AS SELECT id, value FROM items;')
     journey.command('setup', 'AUTHORIZE DATAFLOW scenario_projection;')
     journey.command('setup', 'ACTIVATE DATAFLOW scenario_projection;')
@@ -137,6 +141,9 @@ def main():
     parser.add_argument('--binary-revision')
     parser.add_argument('--budgets', type=Path)
     args = parser.parse_args()
+    if args.binary_revision is not None and (len(args.binary_revision) != 40
+            or any(c not in '0123456789abcdef' for c in args.binary_revision)):
+        parser.error('--binary-revision must be the full committed Git revision')
     if args.scenario in ('webhook', 'all') and (args.http_caller is None or args.http_worker is None):
         parser.error('the webhook scenario requires --http-caller and --http-worker')
     budgets = json.loads(args.budgets.read_text()) if args.budgets else None
@@ -150,6 +157,7 @@ def main():
         recorder.emit(dict(phase='campaign', outcome='started'))
         try:
             fixture = Fixture(args.cli, args.cli, args.cli)
+            fixture.use_private_runtime()
             # Exercise the default embedded node/SQL/Board composition. Artifact
             # inputs remain explicit; no sibling executable discovery is needed.
             fixture.config.pop('executables')

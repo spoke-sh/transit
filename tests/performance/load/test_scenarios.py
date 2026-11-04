@@ -33,7 +33,7 @@ class ScenarioReportTest(unittest.TestCase):
         cases = dict(startup=1, retained_restart=1, console_after_restart=1,
             webhook_initial=1, webhook_denied=1, webhook_accept=2, webhook_duplicate=2,
             webhook_derived=2, webhook_refreshed=1, effect_prepare=2, effect_observed=1,
-            effect_unknown=1, console_during_http=2, recorded_outcomes=2,
+            effect_unknown=1, console_during_http=2, console_during_dataflow=2, recorded_outcomes=2,
             effect_replay_after_restart=2, outcomes_after_restart=1,
             webhook_to_observed_outcome=1, webhook_to_unknown_outcome=1, derived_result=4, setup=1)
         for case, count in cases.items():
