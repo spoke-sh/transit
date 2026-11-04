@@ -4,7 +4,9 @@
 
 The current design revision is [accordion layout and reactive workbook state](#accordion-and-reactive-workbook-design--2026-11-03),
 with [board-data D5](../design/board-data/D5.md) and its interactive study.
-The reviewer requested design-first delivery; no UI or runtime change is included.
+The reviewer accepted and merged the design study in PR #363, then requested
+implementation. The shared plane and bounded reactive workbook profile are
+implemented; the broader workbench completion gates remain open.
 
 The existing [R3 implementation plan](#r3--explain-completed-and-pending-computation) covers
 public read-only computation evidence, then linked source → computation → output
@@ -27,22 +29,22 @@ permission authority.
 
 ## Accordion and reactive workbook design — 2026-11-03
 
-**Status: design in review; no implementation or new runtime evidence.** Source
-basis: `796599b58`. The reviewer retains Catalog's overall direction and Operations'
+**Status: bounded implementation delivered; full milestone qualification remains open.** Design
+source basis: `796599b58`; implementation starts at merged `bf78566a8`. The reviewer retains Catalog's overall direction and Operations'
 data, requests a folding root layout, removes the long temporary-session paragraph,
 and wants SQL cells to recalculate their dependents as the draft changes. They
 selected an interactive design study before production changes and separate
 Inspector/Assistant tabs in the right pane. [D5](../design/board-data/D5.md) owns
 the interaction model, figures, alternatives and open decisions.
 
-The proposed root has an expandable left activity/object rail, one persistent
+The implemented root has an expandable left activity/object rail, one persistent
 central surface and an independently expandable right context pane. Catalog,
 Workbook and Operations remain first-class destinations. The same observation
 owners supply their grids, diagrams and Inspector. Folding, selecting a tab and
 resizing are presentation transitions, not execution events. Operations' original
 inspection and recovery paths remain reachable.
 
-The proposed workbook is a temporary graph with stable cell identities, compiler-
+The implemented workbook is a temporary graph with stable cell identities, compiler-
 resolved relation dependencies and distinct draft, execution and output state.
 An edit invalidates the changed cell and its descendants immediately. In a visible,
 enabled finite Live session, debounce/blur coalesce into one evaluation of the
@@ -51,13 +53,28 @@ unrelated cells do not rerun. Previous completed output remains visibly earlier.
 No display window is substituted for a complete relation or independent source
 vector relabeled as an atomic snapshot.
 
-Replace the notice with compact Unsaved/lifetime detail and real discard handling.
-The target shell retains a temporary workbook across activity navigation and pauses
-its evaluation while inactive. This is not current route-local behavior; removing
-copy must not falsely claim navigation persistence. Saving drafts through Documents
-remains the separate L2–L5 scope below. Saved work does not execute on Open.
+The long notice is replaced with compact Unsaved/lifetime detail and explicit
+discard handling. The shell retains temporary drafts across activity navigation,
+pauses Live while inactive and revalidates original results on return. Closing the
+workbook discards its drafts and releases its session; reload remains unsaved.
+Saving drafts through Documents remains the separate L2–L5 scope below.
 
-### Contract prerequisites and reviewable slices
+The delivered relation profile uses the shared SQL client and Fuze parser: named
+single-input SELECT cells, chains and branching, projection/scalars/predicates,
+LIMIT, COUNT and SUM. Each downstream input is a verified complete typed relation,
+with 10,000 rows per relation, 16 MiB retained value storage per session, four cells,
+32 cell evaluations and a five-minute lifetime. Multi-input joins/diamonds, grouping,
+source-follow and durable computation promotion remain outside this profile.
+Quoted `"workbook.name"` references are resolved by the shared owner; no hidden
+Tables, browser SQL rewriting or JavaScript query execution is introduced.
+Current behavior and exact limits are owned by the
+[workbench guide](../../apps/transit-board/docs/workbench.md),
+[Board API](../handbook/reference/board-api.md) and
+[shared SQL client](../../packages/zig/transit-sql-client/README.md#temporary-workbook-relations).
+Executed coverage, source revisions and retained failures are recorded in the
+[qualification account](../history/qualification/interfaces.md#accordion-plane-and-finite-workbook-relations--2026-11-03).
+
+### Delivery slices and remaining gates
 
 | Slice | Outcome | Required owner and gate |
 | --- | --- | --- |
@@ -82,11 +99,12 @@ application/connector owners. Selection does not send data. A suggested edit onl
 changes the draft; its subsequent evaluation follows the visible workbook mode.
 Inspection gains no administrative power through the context pane.
 
-### Required acceptance beyond the study
+### Acceptance and remaining extension gates
 
 - Edit bursts, IME composition and blur admit the same latest revision once;
-  obsolete completions cannot replace a newer draft's output. A→B→C and diamond
-  graphs use exact complete input revisions; unrelated cells remain untouched.
+  obsolete completions cannot replace a newer draft's output. A→B→C
+  and branching use exact complete input revisions; unrelated cells remain untouched.
+  Multi-input diamond execution remains an extension gate.
 - Reject cycles, missing/deleted inputs, duplicate names, shadowing and type changes
   with attributable diagnostics. Prove rename/reorder preserves stable bindings.
 - Exercise complete empty inputs, multi-batch relations larger than the display
@@ -101,7 +119,7 @@ Inspection gains no administrative power through the context pane.
   workbook closure/discard is separate from folding the plane.
 
 Earlier dated explicit-Run delivery/checklists describe their original profiles
-and remain evidence. D5 revises the next workbook target; it does not invalidate
+and remain evidence. D5 revises the workbook target; it does not invalidate
 their proved safety gates or complete R4/R5, persistence, or this milestone.
 
 ## Local connections and Document persistence plan — 2026-11-02

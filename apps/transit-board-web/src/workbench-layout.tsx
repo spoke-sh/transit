@@ -3,16 +3,24 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useId,
+  useReducer,
   useRef,
   useState,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import {
+  initialPlane,
+  planeLayout,
+  planeTransition,
+  type Plane,
+  type PlaneEvent,
+  type Side,
+} from "./plane-state";
 
 export type Inspection = {
   owner: string;
-  kind: "dataset" | "column" | "result" | "storage" | "computation";
+  kind: "dataset" | "column" | "result" | "storage" | "computation" | "cell";
   metric?: string;
   dimension: "definition" | "profile" | "evidence";
   result?: string;
@@ -23,22 +31,131 @@ type InspectorState = {
   select: (selection: Inspection, trigger: HTMLButtonElement) => void;
   dimension: (dimension: Inspection["dimension"]) => void;
   release: (owner: string) => void;
+  clear: () => void;
   close: () => void;
   expanded: boolean;
   expand: () => void;
   host: HTMLElement | null;
   setHost: (element: HTMLDivElement | null) => void;
+  scopeHost: HTMLElement | null;
+  setScopeHost: (element: HTMLDivElement | null) => void;
+  navigationHost: HTMLElement | null;
+  setNavigationHost: (element: HTMLDivElement | null) => void;
   navigation: boolean;
   toggleNavigation: () => void;
+  plane: Plane;
+  layout: ReturnType<typeof planeLayout>;
+  dispatch: (event: PlaneEvent) => void;
+  fold: (side: Side) => void;
 };
 const Context = createContext<InspectorState | null>(null);
 export function useInspector() {
   const state = useContext(Context);
-  if (!state) throw new Error("Workbench inspection requires its layout");
+  if (!state) throw new Error("Workbench inspection requires its shell");
   return state;
 }
 
-/** Retain only selection identities, never a second copy of authorized data. */
+/** Selection holds identities only. Authorized evidence remains with its owner. */
+export function WorkbenchPlane({ children, route }: { children: ReactNode; route: string }) {
+  const [plane, dispatch] = useReducer(
+    planeTransition,
+    document.documentElement.clientWidth,
+    initialPlane,
+  );
+  const [selection, setSelection] = useState<Inspection | null>(null);
+  const [host, setHost] = useState<HTMLDivElement | null>(null);
+  const [scopeHost, setScopeHost] = useState<HTMLDivElement | null>(null);
+  const [navigationHost, setNavigationHost] = useState<HTMLDivElement | null>(null);
+  const triggers = useRef<Record<Side, HTMLElement | null>>({ left: null, right: null });
+  const frame = useRef<number | null>(null);
+  const layout = planeLayout(plane);
+  const focus = useCallback((read: () => HTMLElement | null) => {
+    if (frame.current !== null) cancelAnimationFrame(frame.current);
+    frame.current = requestAnimationFrame(() => {
+      frame.current = null;
+      read()?.focus({ preventScroll: true });
+    });
+  }, []);
+  const clear = useCallback(() => setSelection(null), []);
+  useEffect(clear, [route, clear]);
+  useEffect(() => {
+    const resize = () => dispatch({ type: "resize", width: document.documentElement.clientWidth });
+    window.addEventListener("resize", resize);
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) dispatch({ type: "resize", width: entry.contentRect.width });
+    });
+    observer.observe(document.documentElement);
+    return () => {
+      window.removeEventListener("resize", resize);
+      observer.disconnect();
+      if (frame.current !== null) cancelAnimationFrame(frame.current);
+    };
+  }, []);
+  const fold = useCallback(
+    (side: Side) => {
+      dispatch({ type: "fold", side });
+      focus(() =>
+        triggers.current[side]?.isConnected && triggers.current[side].getClientRects().length
+          ? triggers.current[side]
+          : document.querySelector(`[data-plane-toggle="${side}"]`),
+      );
+    },
+    [focus],
+  );
+  useEffect(() => {
+    if (!layout.takeover) return;
+    focus(() => document.querySelector(`[data-plane-back="${layout.takeover}"]`));
+  }, [layout.takeover, focus]);
+  useEffect(() => {
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented || (!layout.left && !layout.right))
+        return;
+      event.preventDefault();
+      fold(
+        layout.takeover ??
+          (plane.last === "left" && layout.left ? "left" : layout.right ? "right" : "left"),
+      );
+    };
+    document.addEventListener("keydown", escape);
+    return () => document.removeEventListener("keydown", escape);
+  }, [layout.left, layout.right, layout.takeover, plane.last, fold]);
+  const release = useCallback((owner: string) => {
+    setSelection((previous) => (previous?.owner === owner ? null : previous));
+  }, []);
+  const value: InspectorState = {
+    selection,
+    clear,
+    release,
+    plane,
+    layout,
+    dispatch,
+    fold,
+    select: (next, element) => {
+      triggers.current.right = element;
+      setSelection(next);
+      dispatch({ type: "tab", tab: "inspector" });
+    },
+    dimension: (dimension) =>
+      setSelection((previous) => (previous ? { ...previous, dimension } : null)),
+    close: () => fold("right"),
+    expanded: plane.detail,
+    expand: () => dispatch({ type: "detail" }),
+    host,
+    setHost,
+    scopeHost,
+    setScopeHost,
+    navigationHost,
+    setNavigationHost,
+    navigation: layout.left,
+    toggleNavigation: () => {
+      triggers.current.left =
+        document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      dispatch({ type: "toggle", side: "left" });
+    },
+  };
+  return <Context.Provider value={value}>{children}</Context.Provider>;
+}
+
 export function Workbench({
   children,
   available = true,
@@ -48,113 +165,24 @@ export function Workbench({
   available?: boolean;
   className?: string;
 }) {
-  const [selection, setSelection] = useState<Inspection | null>(null);
-  const [expanded, setExpanded] = useState(false);
-  const [navigation, setNavigation] = useState(false);
-  const [host, setHost] = useState<HTMLDivElement | null>(null);
-  const trigger = useRef<HTMLButtonElement | null>(null);
-  const root = useRef<HTMLElement | null>(null);
-  const frame = useRef<number | null>(null);
-  const focus = useCallback((read: () => HTMLElement | null) => {
-    if (frame.current !== null) cancelAnimationFrame(frame.current);
-    frame.current = requestAnimationFrame(() => {
-      frame.current = null;
-      read()?.focus({ preventScroll: true });
-    });
-  }, []);
-  useEffect(
-    () => () => {
-      if (frame.current !== null) cancelAnimationFrame(frame.current);
-    },
-    [],
-  );
-  const close = useCallback(() => {
-    setSelection(null);
-    setExpanded(false);
-    focus(() =>
-      trigger.current?.isConnected && trigger.current.getClientRects().length
-        ? trigger.current
-        : (root.current?.querySelector("button") ?? null),
-    );
-  }, [focus]);
-  const release = useCallback((owner: string) => {
-    setSelection((previous) => (previous?.owner === owner ? null : previous));
-  }, []);
+  const { clear } = useInspector();
   useEffect(() => {
-    if (!available) {
-      setSelection(null);
-      setExpanded(false);
-    }
-  }, [available]);
-  useEffect(() => {
-    if (!selection) return;
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !event.defaultPrevented) {
-        event.preventDefault();
-        close();
-      }
-    };
-    document.addEventListener("keydown", escape);
-    return () => document.removeEventListener("keydown", escape);
-  }, [selection, close]);
-  useEffect(() => {
-    if (!selection) return;
-    const narrow = window.matchMedia("(max-width: 1000px)");
-    const resize = () => {
-      if (narrow.matches) focus(() => root.current?.querySelector(".inspector-close") ?? null);
-    };
-    narrow.addEventListener("change", resize);
-    return () => narrow.removeEventListener("change", resize);
-  }, [selection, focus]);
-  const value: InspectorState = {
-    selection: available ? selection : null,
-    select: (next, element) => {
-      trigger.current = element;
-      setSelection(next);
-      setExpanded(false);
-      setNavigation(false);
-      if (window.matchMedia("(max-width: 1000px)").matches)
-        focus(() => root.current?.querySelector(".inspector-close") ?? null);
-    },
-    dimension: (next) =>
-      setSelection((previous) => (previous ? { ...previous, dimension: next } : null)),
-    release,
-    close,
-    expanded,
-    expand: () => {
-      setExpanded((previous) => !previous);
-      focus(() => root.current?.querySelector(".inspector-expand") ?? null);
-    },
-    host: available ? host : null,
-    setHost,
-    navigation,
-    toggleNavigation: () => {
-      setExpanded(false);
-      setNavigation((previous) => !previous);
-      if (window.matchMedia("(max-width: 1350px)").matches) {
-        setSelection(null);
-        setExpanded(false);
-      }
-    },
-  };
-  return (
-    <Context.Provider value={value}>
-      <main ref={root} className={"data-workbench " + className}>
-        {children}
-      </main>
-    </Context.Provider>
-  );
+    if (!available) clear();
+  }, [available, clear]);
+  return <main className={"data-workbench " + className}>{children}</main>;
 }
-
 export function NavigatorToggle({ label = "Objects" }: { label?: string }) {
   const inspector = useInspector();
   return (
-    <button aria-expanded={inspector.navigation} onClick={inspector.toggleNavigation}>
+    <button
+      aria-expanded={inspector.navigation}
+      aria-controls="shell-navigation"
+      onClick={inspector.toggleNavigation}
+    >
       {label}
     </button>
   );
 }
-
 export function WorkbenchBody({
   children,
   navigator,
@@ -163,36 +191,17 @@ export function WorkbenchBody({
   navigator?: ReactNode;
 }) {
   const state = useInspector();
-  const title = useId();
   return (
-    <div
-      className="workbench-body"
-      data-inspecting={Boolean(state.selection)}
-      data-expanded={state.expanded}
-      data-navigation={state.navigation && Boolean(navigator)}
-    >
-      {navigator && (
-        <nav
-          className="workbench-navigator"
-          aria-label="Object navigator"
-          hidden={!state.navigation}
-        >
-          {navigator}
-        </nav>
-      )}
+    <div className="workbench-body">
+      {navigator &&
+        state.navigationHost &&
+        createPortal(
+          <nav className="workbench-navigator" aria-label="Object navigator">
+            {navigator}
+          </nav>,
+          state.navigationHost,
+        )}
       <div className="workbench-canvas">{children}</div>
-      <aside className="workbench-inspector" aria-labelledby={title} hidden={!state.selection}>
-        <div className="inspector-controls">
-          <h2 id={title}>Inspector</h2>
-          <button className="inspector-close" onClick={state.close}>
-            Close inspector
-          </button>
-        </div>
-        <div ref={state.setHost} />
-        <button className="inspector-expand" onClick={state.expand}>
-          {state.expanded ? "Return to workspace" : "Open detail in workspace"}
-        </button>
-      </aside>
     </div>
   );
 }
@@ -234,4 +243,17 @@ export function InspectorPanel({
     </>,
     inspector.host,
   );
+}
+
+export function WorkbenchScope({
+  children,
+  active = true,
+}: {
+  children: ReactNode;
+  active?: boolean;
+}) {
+  const { scopeHost } = useInspector();
+  return scopeHost && active
+    ? createPortal(<div className="workbench-scope">{children}</div>, scopeHost)
+    : null;
 }

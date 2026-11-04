@@ -25,21 +25,35 @@ select a namespace and Table, inspect its schema, then choose **Preview rows**. 
 filtering covers the current page. Dataset previews and column profiles are
 bounded windows with explicit coverage and source evidence.
 
-Use the horizontal **Data**, **Workbooks** and **Operations** activities to move
-between exploration and operational evidence. Dataset details, schema columns,
-received-window profiles and result evidence share one contextual **Inspector**.
-It can expand into the workspace; Close inspector or Escape returns to the
-selected control. Inspection never submits SQL.
+Use the left **Catalog**, **Workbook** and **Operations** rail to move between
+exploration and operational evidence. Expand it for activity views and current
+objects or cells. The right pane has separate **Inspector** and **Assistant**
+tabs. Dataset details, schema columns, received-window profiles and result
+evidence share the Inspector. It can expand into the workspace; folding it or
+pressing Escape returns focus to the selected control. Narrow screens show one
+pane with **Back to workspace**. Pane changes never submit SQL. Assistant is
+unavailable until a connector exists; selecting data attaches or sends nothing.
 
-Use **Workbooks** for temporary notes and SQL cells. **Run** explicitly submits a
-read; editing only changes its draft. SHOW, DESCRIBE, EXPLAIN and SELECT share the
-same typed result surface. Each result has its own observation basis and terminal
-count. Leaving the workbook discards its cells. The
-[workbench guide](../../../apps/transit-board/docs/workbench.md) explains connection
-setup and limits. An unconfigured workspace explains which service connection
-is missing and offers **Check availability** after setup/restart. It does not
-continually retry a disabled read. SSH forwarding changes how you reach Board;
-it does not provision a catalog/SQL identity or bypass Host/Origin checks.
+Workbook keeps up to four notes/SQL cells in memory across activity navigation.
+**Close workbook** asks before discarding edits; browser exit also warns about
+unsaved work. There is no durable saving or browser storage. Unnamed cells use
+explicit **Run** or Ctrl/Command+Enter for SELECT, SHOW, DESCRIBE and EXPLAIN.
+Name SELECT cells to compose temporary relations, using references such as
+`FROM "workbook.filtered"`. **Enable Live** permits recalculation after a 300-ms
+typing pause or blur, under a finite session budget. Only the changed dependency
+closure runs; notes and reordering do not execute. Invalid drafts block dependent
+work. Earlier results remain labeled with their submitted draft and inputs.
+Leaving the activity or hiding the browser pauses Live and clears disclosure;
+returning revalidates original results without running SQL. Explicitly enable
+Live again to continue. Each result retains its own observation and completion;
+cell evaluations do not establish an atomic snapshot. The
+[workbench guide](../../../apps/transit-board/docs/workbench.md) explains the
+single-input SELECT profile, connection setup and bounds.
+
+An unconfigured workspace explains which service connection is missing and
+offers **Check availability** after setup/restart. It does not continually retry
+a disabled read. SSH forwarding changes how you reach Board; it does not
+provision an identity or bypass Host/Origin checks.
 
 Operations pairs current capacity/allocation diagrams with data grids.
 Byte quantities use binary units such as KiB, MiB and GiB; ≈ marks rounding.

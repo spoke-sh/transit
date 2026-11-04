@@ -15,8 +15,10 @@ opened from navigation. Loading a module starts no query or maintenance action.
 
 ## Activities and contextual inspection
 
-The horizontal activity bar opens **Data**, **Workbooks** and the declared
-**Operations** screen. Published interfaces retain their application entry and
+The left accordion rail opens **Catalog**, **Workbook** and the declared
+**Operations** screen. It expands from 64 to 232 CSS pixels. The right 48-pixel
+rail expands to a 360-pixel context pane with separate **Inspector** and
+**Assistant** tabs. Assistant has no configured connector and sends no requests. Published interfaces retain their application entry and
 navigation. **Definition recovery** remains directly available. Missing catalog
 or SQL configuration is explained inside its workspace; navigation grants no
 additional access. The deployment-discovery route reports safe configuration
@@ -36,18 +38,22 @@ names the selected dataset or workbook cell. A different selection replaces its
 contents instead of opening another panel. Result schemas do not supply source
 codec or collation metadata.
 
-**Dataset navigation** and **Cells** open optional local navigation. Dataset
+**Dataset navigation** and **Cells** expand the root rail with the current objects
+or cells; there is no additional permanent object sidebar. Dataset
 branch/object/definition context and workbook connection scope stay above the
 workspace. These are the actual configured or observed identities; Board does
 not infer one branch or atomic snapshot shared by every workbook cell.
 
 **Open detail in workspace** expands the selected inspection without closing its
 result or discarding SQL drafts. **Return to workspace** restores the layout.
-At widths of 1000 CSS pixels or less, inspection replaces the central content;
+Below 1232 CSS pixels the last opened side wins while requested expansion is
+remembered for wider screens. Below 800 CSS pixels an open side replaces the
+center and provides **Back to workspace**;
 its result status, window bounds, observation kind and earlier-draft warning
 remain visible. **Close inspector** or Escape restores the workspace and returns
-keyboard focus to the selection control, or an available page control if it has
-been removed. Selecting, changing dimensions and expanding details never run SQL.
+keyboard focus to the selection control, or the corresponding rail control if it has
+been removed. Folding retains selection; changing activity clears it. Switching
+to Assistant preserves Inspector selection without attaching it. Selecting, changing dimensions and expanding details never run SQL.
 
 The inspector reads the current authorized view, without retaining a separate
 data copy. Closing or replacing a result, removing its cell, hiding the document
@@ -122,8 +128,9 @@ original result identity, paging and cleanup remain owned by the shared
 clears rows on hiding/unavailable connection and observes the original identity
 on return. An unconfirmed close is labeled; bounded server lifetime still applies.
 Query, finite Live and definition publication retain their shared settlement
-owners and use the same scheduled transports. Workbook drafts stay local to the page;
-this change adds no durable workbook storage or automatic Run.
+owners and use the same scheduled transports. Workbook drafts stay in the shell
+for its lifetime. Its separate finite evaluation owner schedules only explicitly
+enabled Live relations; standalone statement cells keep explicit Run.
 
 The separately configured relational UI is at `/recovery/relational`, including
 its existing query controls and interrupted-query cleanup. Moving the view does
@@ -242,11 +249,53 @@ retention and never runs SQL.
 
 ## Workbook and results
 
-A workbook is temporary in-memory presentation: up to four narrative/SQL cells,
-explicit Run or Ctrl/Command+Enter, and one attached result per cell. Leaving the
-route discards the workbook and closes results. There is no browser persistence,
-sharing or durable workbook identity. Editing never executes a statement; an
-earlier result stays visibly attached to its submitted SQL until the next Run.
+A workbook holds up to four narrative/SQL cells in memory across activity changes.
+Its compact **Unsaved** label explains the lifetime. **Close workbook** asks before
+discarding edits and releases its readers; browser exit also warns. No SQL, rows
+or credentials enter local/session storage or URLs. Scope replacement removes the
+workbook. Returning to a retained workbook revalidates original results and leaves
+Live paused; it does not reset budgets or run queries.
+
+An empty **Relation name** keeps a standalone cell with explicit Run or
+Ctrl/Command+Enter. Give a SELECT cell a distinct name to use its complete result
+as a temporary relation. For example, a `source` cell can select rows from an
+existing Table; a `filtered` cell can use `SELECT id FROM "workbook.source" WHERE
+id >= 100`, and a `counted` cell can use `SELECT COUNT(*) AS n FROM
+"workbook.filtered"`. These references are resolved only by the workbook owner,
+not installed as SQL catalog objects. Changing display order preserves IDs and
+bindings. Rename a cell and its references together; missing/deleted inputs,
+duplicate names and cycles block the graph, with the cycle path shown.
+
+**Enable Live** permits one active evaluation and one replaceable latest draft.
+A 300-ms quiet period and editor blur coalesce; IME composition waits until it
+ends. SQL edits immediately mark affected results earlier. Notes, reorder, folds,
+tabs and selection schedule no SQL. The shared parser validates the graph;
+read admission still comes from the SQL service. Live evaluates the changed
+cell and descendants, reusing unchanged exact inputs. Explicit **Run cell**
+evaluates that cell and its required ancestors. Older completed results remain
+attributed to their submitted SQL and input identities while work is pending or
+blocked. **Derivation and source basis** exposes those bindings; the canonical
+observation remains the original source evidence, not a new atomic snapshot.
+
+The relation profile supports finite single-input SELECT projections, scalar
+expressions, predicates, LIMIT, COUNT and SUM, including chains and branching.
+Joins between cells, grouped multi-input plans, metadata as input, parameters,
+source-follow, durable publication and saving are unavailable. Logical UTF8
+result columns use binary comparison; source Table codec/collation metadata is
+not inferred from a result schema. No `CREATE DATAFLOW` or hidden Table is issued.
+
+Two workbook sessions are shared by the deployment. Each has 32 cell evaluations
+and a five-minute absolute lifetime, four cells, 60,000 SQL bytes, 10,000 rows per
+complete relation and 16 MiB of retained relation allocations. Up to eight source
+readers retain exact current/earlier inputs, with the native client's separate
+connection and response budgets. Hitting a row/memory bound fails; it never
+truncates a dependency to its displayed rows. There is no spill. **Pause**, leaving
+the activity, unavailable connection metadata or hiding the tab stops new
+scheduling. Accepted work retains its identity and settles through the owner.
+**New evaluation session** explicitly releases old results and creates a fresh
+paused session; it does not run SQL. Lost evaluation replies expose **Check
+original evaluation**, which observes the original sequence. **Hide result**
+changes presentation; the graph retains inputs until replacement/session closure.
 
 The read adapter prepares through the SQL service, checks typed non-mutating,
 row-returning semantics, and executes that same prepared handle. SELECT, SHOW,

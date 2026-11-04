@@ -6,9 +6,11 @@ import { profileResult, states } from "./result-profile";
 import { StatementOwner } from "./statement-owner";
 import { statementBusy } from "./statement-state";
 
-export function useStatement(onDenied?: () => void, available = true) {
+export function useStatement(onDenied?: () => void, available = true, active = true) {
   const owner = useRef<StatementOwner | null>(null);
   const [, render] = useState(0);
+  const activeRef = useRef(active);
+  activeRef.current = active;
   const denial = useRef(onDenied);
   denial.current = onDenied;
   useEffect(() => {
@@ -17,7 +19,8 @@ export function useStatement(onDenied?: () => void, available = true) {
       () => denial.current?.(),
     );
     owner.current = current;
-    const visibility = () => current.send({ type: "visibility", value: !document.hidden });
+    const visibility = () =>
+      current.send({ type: "visibility", value: activeRef.current && !document.hidden });
     visibility();
     document.addEventListener("visibilitychange", visibility);
     return () => {
@@ -29,9 +32,12 @@ export function useStatement(onDenied?: () => void, available = true) {
   useEffect(() => {
     owner.current?.send({ type: "availability", value: available });
   }, [available]);
+  useEffect(() => {
+    owner.current?.send({ type: "visibility", value: active && !document.hidden });
+  }, [active]);
   const current = owner.current;
   return {
-    view: available ? (current?.view ?? null) : null,
+    view: available && active ? (current?.view ?? null) : null,
     error: current?.state.failure?.code ?? "",
     cleanup: current?.cleanup ?? "",
     busy: current ? statementBusy(current.state) : false,
@@ -48,11 +54,15 @@ export function ResultPanel({
   draft,
   preview = false,
   parent,
+  earlierResult = false,
+  closeLabel = "Close result",
 }: {
   state: ReturnType<typeof useStatement>;
   draft?: string;
   preview?: boolean;
   parent: string;
+  earlierResult?: boolean;
+  closeLabel?: string;
 }) {
   const owner = useId();
   const inspector = useInspector();
@@ -66,18 +76,19 @@ export function ResultPanel({
   const field = view?.columns[index];
   const profile =
     view && selected?.dimension === "profile" && field ? profileResult(view, index) : null;
-  const earlier = draft !== undefined && state.submitted && draft !== state.submitted;
+  const earlier =
+    earlierResult || (draft !== undefined && state.submitted && draft !== state.submitted);
   // Replacing, hiding or removing the result must also clear its inspection.
   useEffect(() => () => release(owner), [release, owner, view?.result]);
   return (
     <section
       className="workbench-result"
-      aria-label={preview ? "Dataset preview" : "Statement result"}
+      aria-label={`${parent} ${preview ? "preview" : "result"}`}
     >
       {earlier && (
         <p className="workbench-notice">
-          Earlier result · The displayed result belongs to the submitted SQL. Your edited draft has
-          not run.
+          Earlier result · The displayed result belongs to its submitted SQL and inputs. Your draft
+          or its inputs have changed.
         </p>
       )}
       {state.cleanup && <p role="status">{state.cleanup}</p>}
@@ -131,7 +142,7 @@ export function ResultPanel({
                 Next window
               </button>
             )}
-            <button onClick={state.close}>Close result</button>
+            <button onClick={state.close}>{closeLabel}</button>
           </div>
           {preview && (
             <p className="muted">
@@ -144,7 +155,7 @@ export function ResultPanel({
             className="workbench-grid"
             tabIndex={0}
             role="region"
-            aria-label="Scrollable result table"
+            aria-label={`${parent}: scrollable result table`}
           >
             <table>
               <caption>

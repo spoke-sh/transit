@@ -1,4 +1,4 @@
-import { scheduleRequest } from "@transit/reactive-client/request-scheduling";
+import { boundedReadTransport } from "./read-http";
 import { readDefinition, type ReadRequest, type ReadResponse } from "./read-types";
 import { ReadRequest as validRequest, ReadResponse as validResponse } from "./read-validators.js";
 import { boundedQueryJson, logicalCellValid, logicalColumnsValid, logicalInteger } from "./logical";
@@ -38,83 +38,12 @@ export function validateReadResponse(value: unknown): value is ReadResponse {
   );
 }
 
-/** Retry only explicit pre-dispatch throttling with the exact same request. */
-export const readTransport: ReadTransport = async (request, signal) => {
-  if (!boundedQueryJson(request) || !validRequest(request))
-    throw new QueryError(0, "InvalidRequest");
-  const body = JSON.stringify(request);
-  if (new TextEncoder().encode(body).length > 65536) throw new QueryError(0, "RequestTooLarge");
-  const deadline = signal
-    ? AbortSignal.any([signal, AbortSignal.timeout(6000)])
-    : AbortSignal.timeout(6000);
-  for (let attempt = 0; ; attempt++) {
-    deadline.throwIfAborted();
-    try {
-      return await scheduleRequest(
-        "run" in request.action || "close" in request.action ? "control" : "read",
-        () => readAttempt(body, deadline),
-        deadline,
-      );
-    } catch (cause) {
-      if (
-        !(cause instanceof QueryError) ||
-        cause.status !== 429 ||
-        cause.code !== "RateLimited" ||
-        attempt >= 3 ||
-        deadline.aborted
-      )
-        throw cause;
-      await new Promise((resolve) => setTimeout(resolve, 250));
-    }
-  }
-};
-
-/** One bounded attempt; unknown outcomes never cause implicit SQL replay. */
-async function readAttempt(body: string, signal: AbortSignal): Promise<ReadResponse> {
-  const response = await fetch("/api/v1/sql-read", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body,
-    credentials: "same-origin",
-    cache: "no-store",
-    redirect: "error",
-    signal,
-  });
-  const reader = response.body?.getReader();
-  if (!reader) throw new QueryError(0, "InvalidResponse");
-  const bytes = new Uint8Array(4194304);
-  let size = 0;
-  try {
-    while (true) {
-      const chunk = await reader.read();
-      if (chunk.done) break;
-      if (chunk.value.length > bytes.length - size) throw new QueryError(0, "ResponseTooLarge");
-      bytes.set(chunk.value, size);
-      size += chunk.value.length;
-    }
-  } finally {
-    await reader.cancel();
-  }
-  let value: unknown;
-  try {
-    value = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(0, size)));
-  } catch {
-    throw new QueryError(response.ok ? 0 : response.status, "InvalidResponse");
-  }
-  if (!response.ok) {
-    const code =
-      typeof value === "object" &&
-      value !== null &&
-      "err" in value &&
-      typeof value.err === "string" &&
-      /^[A-Za-z][A-Za-z0-9_]{0,127}$/.test(value.err)
-        ? value.err
-        : "InvalidResponse";
-    throw new QueryError(response.status, code);
-  }
-  if (!validateReadResponse(value)) throw new QueryError(0, "InvalidResponse");
-  return value;
-}
+export const readTransport: ReadTransport = boundedReadTransport<ReadRequest, ReadResponse>(
+  "/api/v1/sql-read",
+  validRequest,
+  validateReadResponse,
+  (request) => "run" in request.action || "close" in request.action,
+);
 
 export async function describeReads(
   signal?: AbortSignal,

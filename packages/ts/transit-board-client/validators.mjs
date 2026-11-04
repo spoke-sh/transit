@@ -15,7 +15,9 @@ const ajv = new Ajv2020({
   strict: true,
 });
 ajv.addSchema(shareValidatorSchemas(ajv, { root: schemas }).root);
-const names = Object.keys(schemas.$defs).filter((name) => !name.startsWith("SqlRead"));
+const names = Object.keys(schemas.$defs).filter(
+  (name) => !name.startsWith("SqlRead") && !name.startsWith("Workbook"),
+);
 const catalog = ["CatalogRequest", "CatalogResponse"];
 const relational = ["RelationalRequest", "RelationalResponse"];
 const groups = [

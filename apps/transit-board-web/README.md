@@ -134,9 +134,12 @@ excluded. Only the selected metadata records are verified; this view makes no
 claim to have replayed the full body. It follows the same current-grant refresh
 and clearing rules as the records view.
 
-The data workbench uses horizontal activities and one contextual Inspector over
-current authorized metadata or result views. Optional dataset/cell navigation,
-expanded inspection and narrow layouts retain the underlying worksheet. See the
+The data workbench uses a shared accordion plane with a left activity/object
+rail and separate Inspector/Assistant tabs on the right. `plane-state.ts` keeps
+requested geometry independent of execution. The shell retains a temporary
+workbook across routes; `workbook-owner.ts` schedules finite named SELECT
+relations through the shared SQL client, while standalone statements retain
+explicit Run. Narrow panes have a focus-restoring return path. See the
 [workbench guide](../transit-board/docs/workbench.md#activities-and-contextual-inspection)
 for interaction, evidence and clearing behavior.
 
@@ -237,7 +240,7 @@ The scheduler supplies neither authorization nor retries.
 | HTTP/gRPC/Document metadata            | Resource, record and Document cursor                               | Same owner; current denial or failure clears evidence                                                                                                                                                                                          |
 | Catalog, dataset, storage              | Exact namespace/definition/selector and coverage cursor            | Same owner; selection holds keys, views derive from the current page                                                                                                                                                                           |
 | Published interface                    | Realm and source contract                                          | Same owner; only the built-in interface survives hiding; failed published reads never disclose an earlier definition                                                                                                                           |
-| Workbook result                        | Original shared `StatementReader` identity and submitted SQL       | Statement presentation owner; serial Run/observe/next, five-second current-window validation, bounded transient backoff; hide/config loss clears rows and cancels; restoration observes the original reader; close reports unconfirmed release |
+| Standalone workbook result             | Original shared `StatementReader` identity and submitted SQL       | Statement presentation owner; serial Run/observe/next, five-second current-window validation, bounded transient backoff; hide/config loss clears rows and cancels; restoration observes the original reader; close reports unconfirmed release |
 | Unified resource query                 | Retained query namespace, frozen pending request and source basis  | Shared query/Live owners retain their recovery semantics; tab hide aborts reads and pauses finite Live; original controls may settle; no implicit Run                                                                                          |
 | Live Table metadata                    | Shared `Session` and exact pending control                         | `LiveView` owns finite events/renewal and pause cleanup; hiding/unmount pauses, showing does not implicitly Follow                                                                                                                             |
 | Relational recovery                    | Original query identity, retained pin and pending intent           | Serialized owner; one five-second current-page timer, hidden reads aborted, controls recover the original identity                                                                                                                             |

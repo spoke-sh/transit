@@ -148,6 +148,8 @@ pub const ComputationRequest = @import("transit_query").direct.ManagedInspection
 pub const ComputationResponse = @import("transit_query").direct.ManagedInspection.Response;
 pub const CatalogRequest = @import("transit_query").catalog.DirectCatalogRead.Request;
 pub const CatalogResponse = @import("transit_query").catalog.DirectCatalogRead.Response;
+pub const WorkbookRequest = @import("transit_sql_client").WorkbookWorkspace.Request;
+pub const WorkbookResponse = @import("transit_sql_client").WorkbookWorkspace.Response;
 pub const SqlReadRequest = @import("transit_sql_client").ReadWorkspace.Request;
 pub const SqlReadResponse = @import("transit_sql_client").ReadWorkspace.Response;
 

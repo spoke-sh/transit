@@ -1,3 +1,4 @@
+import { WorkbenchScope } from "./workbench-layout";
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { DataCatalog } from "@transit/board-client/catalog";
@@ -58,12 +59,12 @@ function CatalogPageContent() {
           <Unavailable error={state.error} retry={state.retry} />
         ) : (
           <>
-            <div className="workbench-scope">
+            <WorkbenchScope>
               <strong>{data.description.configuration.database_name}</strong>
               <span>Catalog {data.description.configuration.scope.catalog}</span>
               <span>Branch {data.description.configuration.branch}</span>
               <span>Current authorized metadata</span>
-            </div>
+            </WorkbenchScope>
             <div className="workbench-toolbar">
               <label>
                 Namespace

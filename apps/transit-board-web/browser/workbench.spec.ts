@@ -36,7 +36,7 @@ test("deferred view loading and failed downloads preserve shell navigation", asy
     (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze())
       .violations,
   ).toEqual([]);
-  await navigation.getByRole("link", { name: "Data", exact: true }).click();
+  await navigation.getByRole("link", { name: "Catalog", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Catalog", exact: true })).toBeVisible();
   await navigation.getByRole("link", { name: "Operations", exact: true }).click();
   await expect(page.getByRole("heading", { name: "View unavailable", exact: true })).toBeVisible();
@@ -182,7 +182,7 @@ test("Table storage links visual, grid and inspector without executing SQL", asy
     timeout: 10000,
   });
   await expect(table).toHaveCount(0);
-  await expect(inspector).toBeHidden();
+  await expect(inspector.locator(".inspector-subject")).toHaveCount(0);
   await expect(
     page.getByRole("region", { name: "Capacity and allocation", exact: true }),
   ).toBeVisible();
@@ -206,7 +206,7 @@ test("installed catalog, exact preview, profiles and session workbook", async ({
   });
   const inspector = page.getByRole("complementary", { name: "Inspector", exact: true });
   await page.goto("/");
-  await expect(page.getByRole("navigation", { name: "Activities" })).toContainText("Workbooks");
+  await expect(page.getByRole("navigation", { name: "Activities" })).toContainText("Workbook");
   await expect(page.getByRole("heading", { name: "Catalog", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "items", exact: true })).toBeVisible();
   const loaded = (group: string) =>
@@ -304,10 +304,10 @@ test("installed catalog, exact preview, profiles and session workbook", async ({
   await inspector.getByRole("button", { name: "Return to workspace", exact: true }).click();
   await expect(page.getByRole("table")).toBeVisible();
   await inspector.getByRole("button", { name: "Open detail in workspace", exact: true }).click();
-  await page.getByRole("button", { name: "Dataset navigation", exact: true }).click();
+  await page.getByRole("button", { name: "Open navigation", exact: true }).click();
   await expect(page.getByRole("navigation", { name: "Object navigator" })).toBeVisible();
   await expect(page.getByRole("table")).toBeVisible();
-  await page.getByRole("button", { name: "Dataset navigation", exact: true }).click();
+  await page.getByRole("button", { name: "Fold navigation", exact: true }).click();
   await inspector.getByRole("button", { name: "Profile", exact: true }).click();
   expect(runs).toBe(1);
   expect(
@@ -322,7 +322,7 @@ test("installed catalog, exact preview, profiles and session workbook", async ({
   await expect(page.getByRole("table")).toBeHidden();
   await expect(page.getByText("Branch 1", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await expect(inspector.getByRole("button", { name: "Close inspector" })).toBeFocused();
+  await expect(page.getByRole("button", { name: "Back to workspace" })).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("button", { name: "Column profile", exact: true })).toBeFocused();
   await page.setViewportSize({ width: 1440, height: 1050 });
@@ -336,7 +336,9 @@ test("installed catalog, exact preview, profiles and session workbook", async ({
   await expect(page.getByText(/Earlier result ·/)).toBeVisible();
   expect(runs).toBe(2);
   await page.getByRole("button", { name: "Run cell 1", exact: true }).click();
-  await expect(page.getByRole("region", { name: "Statement result" })).toContainText("metrics");
+  await expect(page.getByRole("region", { name: "Cell 1 result", exact: true })).toContainText(
+    "metrics",
+  );
   await expect(page.getByRole("heading", { name: "Workbook", exact: true })).toBeVisible();
   expect(
     (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze())
@@ -364,11 +366,12 @@ test("installed catalog, exact preview, profiles and session workbook", async ({
     "SHOW TABLES",
   );
   await secondCell.getByRole("button", { name: "Remove cell", exact: true }).click();
-  await expect(inspector).toBeHidden();
+  await expect(inspector.locator(".inspector-subject")).toHaveCount(0);
   await firstCell.getByRole("button", { name: "Result evidence", exact: true }).click();
   await expect(inspector.locator("code")).toHaveText(firstResult);
   await firstCell.getByRole("button", { name: "Close result", exact: true }).click();
-  await expect(inspector).toBeHidden();
+  await expect(inspector.locator(".inspector-subject")).toHaveCount(0);
+  await page.getByRole("button", { name: "Close inspector", exact: true }).click();
   await page.setViewportSize({ width: 720, height: 900 });
   await page.getByRole("button", { name: "Cells", exact: true }).click();
   await page
@@ -430,7 +433,9 @@ test("lost reply keeps one statement and failed observation clears its presentat
   deny = true;
   await expect(page.getByRole("alert")).toContainText("Forbidden", { timeout: 12000 });
   await expect(page.getByRole("table")).toHaveCount(0);
-  await expect(page.getByRole("complementary", { name: "Inspector" })).toBeHidden();
+  await expect(
+    page.getByRole("complementary", { name: "Inspector" }).locator(".inspector-subject"),
+  ).toHaveCount(0);
   await expect(page.getByText(/Population:/)).toHaveCount(0);
   await expect(page.getByRole("textbox", { name: "SQL", exact: true })).toHaveValue("");
   expect(runs).toBe(1);
@@ -468,14 +473,15 @@ test("unavailable workbook metadata removes inspector disclosure without rerunni
   await expect(page.getByRole("heading", { name: "Data connection unavailable" })).toBeVisible({
     timeout: 12000,
   });
-  await expect(inspector).toBeHidden();
+  await expect(page.locator(".shell-scope .workbench-scope")).toHaveCount(0);
+  await expect(inspector.locator(".inspector-subject")).toHaveCount(0);
   await expect(page.getByText(/Population:/)).toHaveCount(0);
   await expect(page.getByRole("table", { includeHidden: true })).toHaveCount(0);
   unavailable = false;
   throttleRetry = true;
   await page.getByRole("button", { name: "Retry read", exact: true }).click();
   await expect(page.getByRole("table")).toBeVisible();
-  await expect(inspector).toBeHidden();
+  await expect(inspector.locator(".inspector-subject")).toHaveCount(0);
   expect(runs).toBe(1);
   expect(throttles).toBe(1);
 });
@@ -554,10 +560,11 @@ test("retained catalog inspection is bounded and clears revoked coverage", async
     .poll(async () => (await rows().allTextContents()).filter((row) => before.includes(row)).length)
     .toBe(0);
   await expect(rows()).toHaveCount(8);
-  await expect(inspector).toBeHidden();
+  await expect(inspector.locator(".inspector-subject")).toHaveCount(0);
+  await page.getByRole("button", { name: "Close inspector", exact: true }).click();
   await page.setViewportSize({ width: 780, height: 900 });
   await placementGrid.getByRole("button").first().click();
-  await expect(inspector.getByRole("button", { name: "Close inspector" })).toBeFocused();
+  await expect(page.getByRole("button", { name: "Back to workspace" })).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(placementGrid.getByRole("button").first()).toBeFocused();
   await page.setViewportSize({ width: 1440, height: 1000 });
@@ -634,4 +641,156 @@ test("retained catalog inspection is bounded and clears revoked coverage", async
       ].includes(action),
     ),
   ).toBe(true);
+});
+
+test("reactive workbook retains drafts, complete inputs and independent results through the accordion plane", async ({
+  page,
+}) => {
+  const evaluations: {
+    remaining: number;
+    results: { cell: string; name: string; result: string }[];
+  }[] = [];
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("response", async (response) => {
+    if (
+      response.url().endsWith("/api/v1/workbook") &&
+      response.request().postDataJSON()?.action.evaluate &&
+      response.ok()
+    )
+      evaluations.push((await response.json()).status);
+  });
+  await page.goto("/workbook");
+  await expect(page.getByRole("heading", { name: "Workbook", exact: true })).toBeVisible();
+  await expect(page.getByText(/Temporary session\. Leaving this page/)).toHaveCount(0);
+  const cell = (number: number) =>
+    page.getByRole("region", { name: `SQL cell ${number}`, exact: true });
+  const specifications = [
+    ["source", "SELECT id, label FROM metrics"],
+    ["filtered", 'SELECT id FROM "workbook.source" WHERE id >= 100'],
+    ["counted", 'SELECT COUNT(*) AS n FROM "workbook.filtered"'],
+    ["independent", "SELECT COUNT(*) AS n FROM metrics"],
+  ] as const;
+  for (const [index, [name, sql]] of specifications.entries()) {
+    if (index) await page.getByRole("button", { name: "Add SQL cell", exact: true }).click();
+    await cell(index + 1)
+      .getByRole("textbox", { name: "Relation name", exact: true })
+      .fill(name);
+    await cell(index + 1)
+      .getByRole("textbox", { name: "SQL", exact: true })
+      .fill(sql);
+  }
+  expect(evaluations).toHaveLength(0);
+  await expect(cell(3).getByRole("button", { name: "Run cell 3" })).toBeEnabled();
+  await cell(3).getByRole("button", { name: "Run cell 3" }).click();
+  await expect(cell(3).getByRole("cell", { name: "45", exact: true })).toBeVisible();
+  await cell(4).getByRole("button", { name: "Run cell 4" }).click();
+  await expect(cell(4).getByRole("cell", { name: "145", exact: true })).toBeVisible();
+  await expect.poll(() => evaluations.length).toBe(2);
+  const original = evaluations[1]!;
+  expect(original.remaining).toBe(28);
+  await page.getByRole("button", { name: "Enable Live", exact: true }).click();
+  const sql = cell(2).getByRole("textbox", { name: "SQL", exact: true });
+  await sql.fill('SELECT id FROM "workbook.source" WHERE id >= 120');
+  await expect(cell(3).getByText("Earlier result", { exact: true })).toBeVisible();
+  await cell(2).getByRole("textbox", { name: "Investigation notes" }).focus();
+  await expect(cell(3).getByRole("cell", { name: "25", exact: true })).toBeVisible();
+  await expect.poll(() => evaluations.length).toBe(3);
+  const revised = evaluations[2]!;
+  expect(revised.remaining).toBe(26);
+  for (const name of ["source", "independent"])
+    expect(revised.results.find((value) => value.name === name)?.result).toBe(
+      original.results.find((value) => value.name === name)?.result,
+    );
+  await cell(2)
+    .getByRole("textbox", { name: "Investigation notes" })
+    .fill("Only the filter and its dependent changed.");
+  await page.getByRole("button", { name: "Open navigation", exact: true }).click();
+  await cell(3).getByRole("button", { name: "Inspect cell", exact: true }).click();
+  await expect(page.locator(".transit-shell")).toHaveAttribute("data-left", "true");
+  await expect(page.locator(".transit-shell")).toHaveAttribute("data-right", "true");
+  await page.getByRole("tab", { name: "Assistant", exact: true }).click();
+  await expect(page.getByRole("complementary", { name: "Assistant", exact: true })).toContainText(
+    "No context attached",
+  );
+  await expect(page.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
+  await page.getByRole("tab", { name: "Inspector", exact: true }).click();
+  await expect(page.getByRole("complementary", { name: "Inspector", exact: true })).toContainText(
+    "counted",
+  );
+  for (const width of [1000, 390, 720, 1200, 1440, 1920]) {
+    await page.setViewportSize({ width, height: 1000 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await expect(page.locator(".transit-shell")).toHaveAttribute(
+      "data-left",
+      String(width >= 1232),
+    );
+    if (width < 800)
+      await expect(page.getByRole("button", { name: "Back to workspace" })).toBeFocused();
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.evaluate(() => {
+    document.documentElement.style.zoom = "2";
+  });
+  await expect(page.getByRole("button", { name: "Back to workspace" })).toBeFocused();
+  await expect(page.locator(".transit-shell")).toHaveAttribute("data-left", "false");
+  await page.evaluate(() => {
+    document.documentElement.style.zoom = "1";
+  });
+  await expect(page.locator(".transit-shell")).toHaveAttribute("data-left", "true");
+  await page.keyboard.press("Escape");
+  await expect(cell(3).getByRole("button", { name: "Inspect cell", exact: true })).toBeFocused();
+  await page
+    .getByRole("navigation", { name: "Activities" })
+    .getByRole("link", { name: "Catalog", exact: true })
+    .click();
+  await expect(page.getByRole("heading", { name: "Catalog", exact: true })).toBeVisible();
+  await page
+    .getByRole("navigation", { name: "Activities" })
+    .getByRole("link", { name: "Workbook", exact: true })
+    .click();
+  await expect(sql).toHaveValue('SELECT id FROM "workbook.source" WHERE id >= 120');
+  await expect(cell(2).getByRole("textbox", { name: "Investigation notes" })).toHaveValue(
+    "Only the filter and its dependent changed.",
+  );
+  await expect(page.getByRole("button", { name: "Enable Live", exact: true })).toBeVisible();
+  await expect(cell(3).getByRole("cell", { name: "25", exact: true })).toBeVisible();
+  expect(evaluations).toHaveLength(3);
+  await cell(2).getByRole("button", { name: "Move cell 2 down" }).click();
+  await expect(cell(3).getByRole("textbox", { name: "Relation name" })).toHaveValue("filtered");
+  expect(evaluations).toHaveLength(3);
+  const reorderedSql = cell(3).getByRole("textbox", { name: "SQL", exact: true });
+  await reorderedSql.fill('SELECT id FROM "workbook.missing"');
+  await cell(3).getByRole("button", { name: "Inspect cell", exact: true }).click();
+  const blocked = page.getByRole("status").filter({ hasText: "Draft blocked" });
+  await expect(blocked).toContainText("filtered");
+  await expect(blocked).toContainText("MissingCellInput");
+  await expect(page.getByRole("complementary", { name: "Inspector", exact: true })).toContainText(
+    "Input: unresolved while the draft is blocked.",
+  );
+  await expect(cell(2).getByText("Earlier result", { exact: true })).toBeVisible();
+  await reorderedSql.fill('SELECT id FROM "workbook.source" WHERE id >= 120');
+  await cell(3).getByRole("textbox", { name: "Investigation notes" }).focus();
+  await expect(blocked).toHaveCount(0);
+  await expect(cell(2).getByText("Current draft", { exact: true })).toBeVisible();
+  expect(evaluations).toHaveLength(3);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  if (process.env.BOARD_SCREENSHOT) {
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({
+      path: process.env.BOARD_SCREENSHOT.replace(/\.png$/, "-reactive.png"),
+      fullPage: true,
+    });
+  }
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await page.getByRole("button", { name: "Close workbook", exact: true }).click();
+  await expect(cell(1)).toBeVisible();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Close workbook", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Workbook closed", exact: true })).toBeVisible();
+  expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
+  expect(errors).toEqual([]);
 });

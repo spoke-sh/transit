@@ -1,3 +1,4 @@
+import { WorkbenchScope } from "./workbench-layout";
 import { useEffect, useId, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { DataCatalog } from "@transit/board-client/catalog";
@@ -79,13 +80,13 @@ function DatasetPageContent({ object, search }: { object: string; search: Datase
         <Unavailable error={state.error} retry={state.retry} />
       ) : (
         <>
-          <div className="workbench-scope">
+          <WorkbenchScope>
             <span>Branch {table.metadata.binding.interpretation.interpretation.object.branch}</span>
             <span>Object {table.metadata.schema.object}</span>
             <span>Definition {table.metadata.schema.revision}</span>
             <span>{table.metadata.row_count} rows at metadata observation</span>
             <span>Namespace {table.metadata.binding.namespace}</span>
-          </div>
+          </WorkbenchScope>
           <WorkbenchBody
             navigator={
               <>

@@ -127,7 +127,7 @@ test("retained diagram and grid match the public caller across evolution, rename
   });
   await page.setViewportSize({ width: 390, height: 844 });
   await placement.getByRole("table").getByRole("button", { name: /^Row / }).first().click();
-  await expect(inspector.getByRole("button", { name: "Close inspector" })).toBeFocused();
+  await expect(page.getByRole("button", { name: "Back to workspace" })).toBeFocused();
   expect(
     (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze())
       .violations,
@@ -161,7 +161,7 @@ test("retained diagram and grid match the public caller across evolution, rename
     page.getByRole("heading", { name: /Data.*expired|Data.*changed|Data.*retained/i }).first(),
   ).toBeVisible({ timeout: 12000 });
   await expect(placement).toHaveCount(0);
-  await expect(inspector).toBeHidden();
+  await expect(inspector.locator(".inspector-subject")).toHaveCount(0);
   await expect(
     page.getByRole("region", { name: "Capacity and allocation", exact: true }),
   ).toBeVisible();

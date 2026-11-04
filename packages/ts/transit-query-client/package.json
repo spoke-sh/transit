@@ -8,6 +8,7 @@
     "./error": "./src/error.ts",
     "./definition": "./src/read-types.ts",
     "./read": "./src/read.ts",
+    "./workbook": "./src/workbook.ts",
     "./logical": "./src/logical.ts",
     "./diagnostics": "./src/diagnostics.ts",
     "./transport": "./src/transport.ts",

@@ -112,6 +112,28 @@ const Server = struct {
         return self.respond(req, .ok, bytes, "application/json");
     }
 
+    fn workbookGraphRequest(self: *Server, req: *std.http.Server.Request, body: []const u8) !void {
+        const runtime = self.workbench orelse return self.failure(req, .not_found, .QueryDisabled);
+        const owner = if (runtime.workbook) |*value| value else return self.failure(req, .not_found, .QueryDisabled);
+        if (req.head.method != .POST) return self.failure(req, .not_found, .NotFound);
+        if (!self.query_lock.tryLock()) return self.failure(req, .too_many_requests, .RateLimited);
+        defer self.query_lock.unlock(self.io);
+        var memory: sql_client.results.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = 32 * 1024 * 1024 };
+        var arena: std.heap.ArenaAllocator = .init(memory.allocator());
+        defer arena.deinit();
+        const parsed = query_api.Values.parse(api.WorkbookRequest, arena.allocator(), body) catch return self.failure(req, .bad_request, .InvalidQuery);
+        const result = owner.apply(arena.allocator(), parsed.value) catch |err| return switch (err) {
+            error.SqlObservationDenied, error.AuthenticationFailed => self.failure(req, .forbidden, .Forbidden),
+            error.WorkbookExpired => self.failure(req, .gone, .ReadWorkspaceExpired),
+            error.WorkbookCapacity => self.failure(req, .too_many_requests, .ReadWorkspaceCapacity),
+            error.WorkbookSequenceConflict, error.WorkbookResultChanged, error.WorkbookResultUnavailable => self.failure(req, .conflict, .QueryConflict),
+            error.IncompatibleSqlDefinition, error.InvalidWorkbookGraph, error.InvalidWorkbookSize, error.InvalidWorkbookIdentity, error.InvalidWorkbookTargets, error.InvalidReadPosition => self.failure(req, .bad_request, .InvalidQuery),
+            else => self.failureDiagnostic(req, .service_unavailable, .IncompleteResult, api.InspectionDiagnostic.project(err, null) catch null),
+        };
+        const bytes = client.protocol.Json.valueAllocBounded(arena.allocator(), result, sql_client.ReadView.max_response_bytes) catch return self.failure(req, .bad_request, .QueryRequestTooLarge);
+        return self.respond(req, .ok, bytes, "application/json");
+    }
+
     fn now(self: *Server) i64 {
         return std.Io.Clock.boot.now(self.io).toMilliseconds();
     }
@@ -365,17 +387,19 @@ const Server = struct {
         const relational_route = std.mem.eql(u8, target, "/api/v1/relational");
         const computation_route = std.mem.eql(u8, target, "/api/v1/computations");
         const catalog_route = std.mem.eql(u8, target, "/api/v1/catalog");
+        const workbook_route = std.mem.eql(u8, target, "/api/v1/workbook");
         const sql_read_route = std.mem.eql(u8, target, "/api/v1/sql-read");
-        if (query_route or application_route or relational_route or catalog_route or sql_read_route or computation_route) {
+        if (query_route or application_route or relational_route or catalog_route or sql_read_route or workbook_route or computation_route) {
             if (origin == null) return self.failure(&req, .forbidden, .InvalidOrigin);
             if (!std.mem.eql(u8, (try header(&req, "content-type")) orelse "", "application/json")) return self.failure(&req, .bad_request, .InvalidQuery);
         }
-        const body = req.readerExpectNone(&.{}).allocRemaining(self.allocator, .limited(if (application_route) application.Host.max_body_bytes else if (catalog_route or sql_read_route) sql_client.ReadWorkspace.max_request_bytes else if (relational_route) query_api.RelationalWorkspace.max_request_bytes else if (query_route) query_api.Workspace.max_request_bytes else 4096)) catch return self.failure(&req, .bad_request, .InvalidQuery);
+        const body = req.readerExpectNone(&.{}).allocRemaining(self.allocator, .limited(if (application_route) application.Host.max_body_bytes else if (catalog_route or sql_read_route or workbook_route) sql_client.ReadWorkspace.max_request_bytes else if (relational_route) query_api.RelationalWorkspace.max_request_bytes else if (query_route) query_api.Workspace.max_request_bytes else 4096)) catch return self.failure(&req, .bad_request, .InvalidQuery);
         defer self.allocator.free(body);
         if (application_route) return self.applicationRequest(&req, body);
         if (query_route) return self.unifiedQueryRequest(&req, body);
         if (relational_route) return self.relationalRequest(&req, body);
         if (computation_route) return self.computationRequest(&req, body);
+        if (workbook_route) return self.workbookGraphRequest(&req, body);
         if (catalog_route or sql_read_route) return self.workbenchRequest(&req, body, catalog_route);
         if (body.len != 0) return self.failure(&req, .bad_request, .InvalidQuery);
         // Host/origin and bounded HTTP admission above still apply. This read
@@ -434,6 +458,7 @@ fn logRoute(target: []const u8) []const u8 {
     if (std.mem.eql(u8, target, "/api/v1/relational")) return "/api/v1/relational";
     if (std.mem.eql(u8, target, "/api/v1/computations")) return "/api/v1/computations";
     if (std.mem.eql(u8, target, "/api/v1/catalog")) return "/api/v1/catalog";
+    if (std.mem.eql(u8, target, "/api/v1/workbook")) return "/api/v1/workbook";
     if (std.mem.eql(u8, target, "/api/v1/sql-read")) return "/api/v1/sql-read";
     if (std.mem.eql(u8, target, "/api/v1/storage")) return "/api/v1/storage";
     if (std.mem.startsWith(u8, target, "/api/v1/atlas")) return "/api/v1/atlas";

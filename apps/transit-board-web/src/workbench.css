@@ -181,12 +181,12 @@
   min-width: 0;
 }
 .workbench-navigator {
-  flex: 0 0 176px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 20px 16px 20px 0;
-  border-right: 1px solid #e4e7ea;
+  gap: 12px;
+  padding: 20px 8px;
+  margin-top: 20px;
+  border-top: 1px solid #e4e7ea;
   overflow-wrap: anywhere;
   font-size: 12px;
 }
@@ -194,28 +194,13 @@
   text-align: left;
 }
 .workbench-inspector {
-  flex: 0 0 352px;
   min-width: 0;
-  padding: 20px;
-  border-left: 1px solid #e4e7ea;
-  background: #fafbfc;
+  padding: 20px 16px;
   font-size: 12px;
   overflow-wrap: anywhere;
 }
 .workbench-body [hidden] {
   display: none;
-}
-.inspector-controls {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-.inspector-controls h2 {
-  margin: 0;
-}
-.inspector-controls button {
-  padding: 6px 8px;
 }
 .inspector-subject {
   font-size: 18px;
@@ -247,13 +232,6 @@
 .workbench-inspector code {
   font-size: 11px;
   overflow-wrap: anywhere;
-}
-.workbench-body[data-inspecting="true"][data-expanded="true"] > .workbench-canvas,
-.workbench-body[data-inspecting="true"][data-expanded="true"] > .workbench-navigator {
-  display: none;
-}
-.workbench-body[data-expanded="true"] > .workbench-inspector {
-  flex: 1;
 }
 .histogram-bin {
   display: flex;
@@ -374,34 +352,6 @@
 .workbook-cell .workbench-toolbar h2 {
   margin-right: auto;
 }
-@media (max-width: 1350px) {
-  .workbench-inspector {
-    flex-basis: 320px;
-  }
-  .workbench-body[data-inspecting="true"] > .workbench-navigator {
-    display: none;
-  }
-}
-@media (max-width: 1000px) {
-  .workbench-body[data-inspecting="true"] > .workbench-canvas {
-    display: none;
-  }
-  .workbench-inspector {
-    flex: 1;
-    border-left: 0;
-    border-top: 1px solid #e4e7ea;
-  }
-  .workbench-body[data-navigation="true"] > .workbench-canvas {
-    display: none;
-  }
-  .workbench-navigator {
-    flex: 1;
-    border-right: 0;
-  }
-  .inspector-expand {
-    display: none;
-  }
-}
 @media (max-width: 760px) {
   .workbench-search {
     margin-left: 0;
@@ -416,4 +366,35 @@
   .workbench-grid td {
     padding: 10px;
   }
+}
+
+.workbook-evaluation {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px 0;
+  border-block: 1px solid var(--line);
+}
+.workbook-evaluation > div {
+  flex: 1;
+  min-width: 160px;
+}
+.workbook-evaluation strong,
+.workbook-evaluation span {
+  display: block;
+  margin: 4px 0;
+}
+.workbook-cell > label input {
+  display: block;
+  margin-top: 8px;
+  max-width: 100%;
+  padding: 8px;
+}
+.workbook-cell .workbench-toolbar {
+  gap: 8px;
+}
+.workbench-inspector pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }

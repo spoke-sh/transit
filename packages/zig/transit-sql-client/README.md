@@ -194,6 +194,67 @@ must clear displayed values on failed validation, hide them while inactive, and
 close the reader on departure. A result can retain verified completion while
 only part of it has been displayed.
 
+## Temporary workbook relations
+
+`WorkbookWorkspace.apply` owns finite, session-local SELECT graphs. The
+[generated neutral schema](api/read.schema.json) exports `WorkbookRequest` and
+`WorkbookResponse`; hosts serialize access. `WorkbookGraph.analyze` resolves
+inputs with the Fuze parser, without running SQL. Each cell supplies a stable
+32-character lowercase hexadecimal ID, a distinct ASCII identifier of at most
+40 characters, and SQL. Display order is immaterial. References use one quoted
+identifier, for example `FROM "workbook.filtered"`. The `workbook.` prefix is
+reserved: a missing local name never falls back to a same-named catalog object.
+Cycles include their path; missing inputs and duplicate names block admission.
+A rename changes the draft graph atomically at validation; references must be
+updated in that same graph. The owner does not rewrite SQL text.
+
+The admitted graph profile is Fuze's finite single-input SELECT: projection,
+scalar expressions, predicates, LIMIT, COUNT and SUM. Chains and branching are
+supported; joins between cells, grouped multi-input plans, metadata inputs,
+parameters, source-follow and effects are excluded. Catalog leaves use
+`Executor.read` and its typed read-only admission. Local relations use logical
+result fields; source codecs and Table collation metadata are not carried by
+result schemas. UTF8 cells use binary comparison; explicit logical text types
+retain their declared type semantics. These are result-relation semantics, not
+inheritance of an unreported source Table's collation.
+
+`open` reserves a session with 32 cell evaluations and a five-minute absolute
+lifetime. `evaluate` binds an increasing sequence, the exact draft, selected
+cells, affected-closure mode and optional explicit force. It recursively supplies
+needed inputs, reusing only exact SQL/name/input bindings. Automatic affected
+mode evaluates changed cells and their descendants; explicit selected mode
+limits work to the requested cells and needed ancestors. A newly attempted cell
+consumes one evaluation, including a failed cell. Cached reuse and observation
+consume none. A rejected graph consumes none. At most 128 sequences are admitted.
+The last sequence is repeatable only with identical content; older or changed
+requests conflict. Lost replies use `status` for the original sequence, never a
+new evaluation. A failure retains earlier completed outputs and identifies the
+failed cell; it cannot manufacture a partial reusable relation.
+
+The host admits two workbook sessions, each with four cells, 60,000 total SQL
+bytes, 10,000 rows per complete relation, and a 16 MiB allocation budget for all
+retained relation versions, schemas and plans. Up to eight original source
+readers cover current and earlier input lifetimes per session; their native
+client/transport reservations remain separately bounded by `Client`. These
+reservations are separate from `ReadWorkspace`'s four explicit readers. There is
+no spill or truncation fallback. Full typed rows are copied before advancing a
+borrowed native batch, and only verified completion permits downstream use.
+Each dependent retains its exact input owner until replacement or close. The
+same Fuze counters, predicates and scalar programs perform local evaluation;
+there is no browser query engine, temporary catalog Table or durable DATAFLOW.
+
+`observe` binds the cell and exact result identity plus an absolute display
+offset. It returns the existing `ReadView.View` shape, at most 100 rows, together
+with the submitted cell and exact input result binding. Its canonical observation
+is the original source evidence; the binding records the local derivation. A
+common evaluation sequence is not a common database snapshot. Every disclosure,
+including status metadata, empty/terminal windows and cached input reuse,
+revalidates original source rights. Denial clears all retained session outputs.
+Source expiry cannot be repaired by replacing its query. Result replies remain
+bounded to 4 MiB. `close` releases the graph and source owners; an aborted HTTP
+wait does not confirm cleanup. Expiry is checked on requests, while upstream
+session leases independently bound abandoned remote readers.
+
 ## Low-level connection controls
 
 `Client.init` validates endpoint/trust configuration. `open` negotiates the current

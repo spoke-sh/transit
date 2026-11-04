@@ -11,7 +11,7 @@ pub fn main(init: std.process.Init) !void {
     try json.write(s.protocol.native.current_definition);
     try json.objectField("$defs");
     try json.beginObject();
-    inline for (.{ "ReadRequest", "ReadResponse" }, .{ s.ReadWorkspace.Request, s.ReadWorkspace.Response }) |name, T| {
+    inline for (.{ "ReadRequest", "ReadResponse", "WorkbookRequest", "WorkbookResponse" }, .{ s.ReadWorkspace.Request, s.ReadWorkspace.Response, s.WorkbookWorkspace.Request, s.WorkbookWorkspace.Response }) |name, T| {
         try json.objectField(name);
         try s.results.protocol.Schema.writeRecursiveAt(T, &json, .{ .output = true, .safe_integers = true, .sequence_max_length = 256, .text_max_length = 262144 }, "/$defs/" ++ name);
     }

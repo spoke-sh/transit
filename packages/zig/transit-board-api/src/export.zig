@@ -43,7 +43,7 @@ fn route(out: *std.json.Stringify, path: []const u8, method: []const u8, name: [
     try out.endArray();
     if (std.mem.eql(u8, method, "post")) {
         try out.objectField("requestBody");
-        try out.write(.{ .required = true, .content = .{ .@"application/json" = .{ .schema = .{ .@"$ref" = if (std.mem.eql(u8, name, "ComputationResponse")) "#/components/schemas/ComputationRequest" else if (std.mem.eql(u8, name, "CatalogResponse")) "#/components/schemas/CatalogRequest" else if (std.mem.eql(u8, name, "SqlReadResponse")) "#/components/schemas/SqlReadRequest" else if (std.mem.eql(u8, name, "RelationalResponse")) "#/components/schemas/RelationalRequest" else "#/components/schemas/UnifiedQueryRequest" } } } });
+        try out.write(.{ .required = true, .content = .{ .@"application/json" = .{ .schema = .{ .@"$ref" = if (std.mem.eql(u8, name, "WorkbookResponse")) "#/components/schemas/WorkbookRequest" else if (std.mem.eql(u8, name, "ComputationResponse")) "#/components/schemas/ComputationRequest" else if (std.mem.eql(u8, name, "CatalogResponse")) "#/components/schemas/CatalogRequest" else if (std.mem.eql(u8, name, "SqlReadResponse")) "#/components/schemas/SqlReadRequest" else if (std.mem.eql(u8, name, "RelationalResponse")) "#/components/schemas/RelationalRequest" else "#/components/schemas/UnifiedQueryRequest" } } } });
     }
     try out.objectField("responses");
     try out.beginObject();
@@ -67,6 +67,7 @@ pub fn main(init: std.process.Init) !void {
     try route(&out, "/api/v1/resources/{resource}/participation", "get", "ParticipationResponse", true, false);
     try route(&out, "/api/v1/computations", "post", "ComputationResponse", false, false);
     try route(&out, "/api/v1/catalog", "post", "CatalogResponse", false, false);
+    try route(&out, "/api/v1/workbook", "post", "WorkbookResponse", false, false);
     try route(&out, "/api/v1/sql-read", "post", "SqlReadResponse", false, false);
     try route(&out, "/api/v1/atlas", "get", "AtlasResponse", false, false);
     try route(&out, "/api/v1/query", "post", "UnifiedQueryResponse", false, false);
@@ -93,9 +94,9 @@ pub fn main(init: std.process.Init) !void {
     try out.beginObject();
     try out.objectField("schemas");
     try out.beginObject();
-    inline for (.{ "Response", "StateResponse", "Capabilities", "Error", "AtlasResponse", "ParticipationResponse", "RecordsResponse", "HttpResponse", "GrpcResponse", "DocumentResponse", "UnifiedQueryRequest", "UnifiedQueryResponse", "RelationalRequest", "RelationalResponse", "CatalogRequest", "CatalogResponse", "ComputationRequest", "ComputationResponse", "SqlReadRequest", "SqlReadResponse" }, .{ api.Response, api.StateResponse, api.Capabilities, api.Error, api.AtlasResponse, api.ParticipationResponse, api.RecordsResponse, api.HttpResponse, api.GrpcResponse, api.DocumentResponse, api.UnifiedQueryRequest, api.UnifiedQueryResponse, api.RelationalRequest, api.RelationalResponse, api.CatalogRequest, api.CatalogResponse, api.ComputationRequest, api.ComputationResponse, api.SqlReadRequest, api.SqlReadResponse }) |name, T| {
+    inline for (.{ "Response", "StateResponse", "Capabilities", "Error", "AtlasResponse", "ParticipationResponse", "RecordsResponse", "HttpResponse", "GrpcResponse", "DocumentResponse", "UnifiedQueryRequest", "UnifiedQueryResponse", "RelationalRequest", "RelationalResponse", "CatalogRequest", "CatalogResponse", "ComputationRequest", "ComputationResponse", "SqlReadRequest", "SqlReadResponse", "WorkbookRequest", "WorkbookResponse" }, .{ api.Response, api.StateResponse, api.Capabilities, api.Error, api.AtlasResponse, api.ParticipationResponse, api.RecordsResponse, api.HttpResponse, api.GrpcResponse, api.DocumentResponse, api.UnifiedQueryRequest, api.UnifiedQueryResponse, api.RelationalRequest, api.RelationalResponse, api.CatalogRequest, api.CatalogResponse, api.ComputationRequest, api.ComputationResponse, api.SqlReadRequest, api.SqlReadResponse, api.WorkbookRequest, api.WorkbookResponse }) |name, T| {
         try out.objectField(name);
-        if (T == api.ComputationRequest or T == api.ComputationResponse or T == api.CatalogRequest or T == api.CatalogResponse or T == api.SqlReadRequest or T == api.SqlReadResponse)
+        if (T == api.WorkbookRequest or T == api.WorkbookResponse or T == api.ComputationRequest or T == api.ComputationResponse or T == api.CatalogRequest or T == api.CatalogResponse or T == api.SqlReadRequest or T == api.SqlReadResponse)
             try s.writeRecursiveAt(T, &out, .{ .output = true, .safe_integers = true, .sequence_max_length = 256, .text_max_length = 262144 }, "/components/schemas/" ++ name)
         else if (T == api.UnifiedQueryRequest or T == api.UnifiedQueryResponse)
             try s.writeRecursiveAt(T, &out, if (T == api.UnifiedQueryRequest) api.unified_query_request_schema_options else api.unified_query_schema_options, "/components/schemas/" ++ name)
