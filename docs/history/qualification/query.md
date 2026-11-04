@@ -9,6 +9,45 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Owned original staging and closure — 2026-11-03
+
+The R1b original-staging implementation starts from `origin/main` at
+`2f8be4bae`, including CPR1 progress ownership (#361) and the adjacent local SQL
+lane fix (#362). SOR1 reserves original declaration/work identity and quota in
+the existing paged client-token owner before creating bytes. Protected native
+KV attachment and permanent closure prevent late head claims and payload
+resurrection. Current semantics belong to [DATAFLOW_V1](../../../contracts/DATAFLOW_V1.md),
+[DIRECT_TABLE_V1](../../../contracts/DIRECT_TABLE_V1.md) and the
+[retention reference](../../handbook/reference/retention.md). The shared current-v1
+definition is `efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8`.
+
+Disk owner tests cover lost reservation/readiness/attachment/closure replies,
+cold reopen around uncertain attachment, protected ordinary-KV rejection,
+terminal CPR1 retry after original deletion, denial, permanent retained
+publication and 18 closed token identities across pages with a one-page cache.
+The local collection fixture uses signed JSON and typed dispatch, protecting
+reserved creation during grace and retained declarations while reclaiming
+closed originals. The managed caller adds a withheld pre-head attachment,
+control change, exact saved-work recovery and permanent closure followed by a
+new attempt. The installed SQL fixture adds 63/64/65-row successors and a
+63-row wide projection that crosses the page byte budget before its row budget.
+These describe test coverage; completed executions are recorded below.
+
+The development baseline managed proof passed preparation, node replacement,
+recovery, retained nonempty/empty results, incomplete-prefix refusal and current
+source/output/control denial. That run preceded the final saved-work retry
+refinement. The first contract check passed all 20 checks. Iterative fast-check
+attempts found table-source fixture drift, diagnostic inventory drift and an
+enum-formatting difference; the owning generators/formatter corrected those
+artifacts. These attempts are not a clean common-revision qualification.
+
+Retained declarations (including initialization already marked retained),
+completed revisions, identity receipts and quota charges remain indefinite.
+Neither 18 token identities nor 65 output rows proves the full R3a cardinality,
+fairness or resource gates. The combined process-death/collector/revocation
+matrix, performance measurements, persistent history consumers and final R10
+common-revision qualification remain separate work.
+
 ## Catalog-owned managed progress — 2026-11-03
 
 This slice asks whether managed computations can replace their recovery progress
