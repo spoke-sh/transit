@@ -112,19 +112,19 @@ pub fn checkValues(self: *const Self, allocator: std.mem.Allocator, values: []co
 /// explicit catalog connection. SQL names never select another configured account.
 pub const Profile = enum { native, wire, inspection };
 pub fn prepare(allocator: std.mem.Allocator, client: *c.DirectTableClient, namespace: u64, text: []const u8, dialect: f.Sql.Dialect, profile: Profile, options: g.direct.DirectRelationalQuery.Options) !Self {
-    return prepareDiagnostic(allocator, client, namespace, text, dialect, profile, options, null);
+    return prepareDiagnostic(allocator, client, namespace, text, dialect, profile, options, null, null);
 }
-pub fn prepareDiagnostic(allocator: std.mem.Allocator, client: *c.DirectTableClient, namespace: u64, text: []const u8, dialect: f.Sql.Dialect, profile: Profile, options: g.direct.DirectRelationalQuery.Options, detail: ?*f.Sql.Binding) !Self {
+pub fn prepareDiagnostic(allocator: std.mem.Allocator, client: *c.DirectTableClient, namespace: u64, text: []const u8, dialect: f.Sql.Dialect, profile: Profile, options: g.direct.DirectRelationalQuery.Options, detail: ?*f.Sql.Binding, wire_failure: ?*g.Type.Failure) !Self {
     if (detail) |value| value.* = .{};
     var location: f.Sql.Location = .{};
-    return prepareInner(allocator, client, namespace, text, dialect, profile, options, detail, &location) catch |err| {
+    return prepareInner(allocator, client, namespace, text, dialect, profile, options, detail, &location, wire_failure) catch |err| {
         if (detail) |value| if (value.location == null and (location.offset != 0 or location.expected != null)) {
             value.location = location;
         };
         return err;
     };
 }
-fn prepareInner(allocator: std.mem.Allocator, client: *c.DirectTableClient, namespace: u64, original_text: []const u8, dialect: f.Sql.Dialect, profile: Profile, options: g.direct.DirectRelationalQuery.Options, detail: ?*f.Sql.Binding, location: *f.Sql.Location) !Self {
+fn prepareInner(allocator: std.mem.Allocator, client: *c.DirectTableClient, namespace: u64, original_text: []const u8, dialect: f.Sql.Dialect, profile: Profile, options: g.direct.DirectRelationalQuery.Options, detail: ?*f.Sql.Binding, location: *f.Sql.Location, wire_failure: ?*g.Type.Failure) !Self {
     const selected_catalog = try g.HistoricalSql.select(original_text, dialect);
     const text = selected_catalog.statement;
     if (selected_catalog.snapshot != null and client.transaction != null) return error.UnsupportedHistoricalTransaction;
@@ -198,14 +198,20 @@ fn prepareInner(allocator: std.mem.Allocator, client: *c.DirectTableClient, name
         else => null,
     };
     if (profile == .wire) {
+        if (plan == .ddl and plan.ddl.compiled.statement == .create) {
+            for (plan.ddl.compiled.statement.create.columns) |column| {
+                _ = try g.Type.admit(.{ .name = column.name, .type = column.type, .nullable = column.nullable }, dialect, .declaration, wire_failure);
+            }
+        }
         if (output) |schema| for (schema.structure) |field| {
-            _ = try g.Type.from(field);
+            _ = try g.Type.admit(field, dialect, .result, wire_failure);
         };
     }
     var result: Self = .{ .allocator = allocator, .text = owned, .connection = client.connection, .namespace = namespace, .dialect = dialect, .inspection = profile == .inspection, .plan = plan, .output = if (output) |schema| try schema.clone(allocator) else null };
     errdefer if (result.output) |*schema| schema.deinit();
-    if (profile == .wire) for (result.parameters()) |parameter| {
-        _ = try g.Type.from(.{ .name = "", .type = parameter, .nullable = true });
+    if (profile == .wire) for (result.parameters(), 1..) |parameter, index| {
+        var buffer: [20]u8 = undefined;
+        _ = try g.Type.admit(.{ .name = try std.fmt.bufPrint(&buffer, "{d}", .{index}), .type = parameter, .nullable = true }, dialect, .parameter, wire_failure);
     };
     return result;
 }

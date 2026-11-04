@@ -38,6 +38,7 @@ diagnostics: ?*telemetry.Runtime = null,
 sql_diagnostic: ?f.SqlDiagnostic = null,
 execution_diagnostic: ?q.protocol.Diagnostic = null,
 compile_binding: f.Sql.Binding = .{},
+wire_failure: g.Type.Failure = .{},
 fresh_current: bool = false,
 fresh_prepared: ?*const Prepared = null,
 transaction: g.SessionTransaction.State = .{},
@@ -569,6 +570,7 @@ pub fn readOptions(self: *const Self) g.direct.DirectRelationalQuery.Options {
 pub fn prepare(self: *Self, sql: []const u8) !*Prepared {
     self.sql_diagnostic = null;
     self.compile_binding = .{};
+    self.wire_failure = .{};
     return self.prepareInner(sql) catch |err| {
         self.sql_diagnostic = f.SqlDiagnostic.bound(sql, err, true, self.compile_binding);
         return err;
@@ -584,7 +586,8 @@ fn prepareInner(self: *Self, sql: []const u8) !*Prepared {
     const control = try g.database.TransactionSql.parse(sql, self.dialect);
     if (control == null) try g.SessionTransaction.refresh(self);
     const result = try self.allocator.create(Prepared);
-    errdefer self.allocator.destroy(result);
+    var owned = false;
+    errdefer if (!owned) self.allocator.destroy(result);
     if (control) |value| {
         result.* = .{ .transaction = value };
         try g.SessionTransaction.require(self, result);
@@ -603,7 +606,16 @@ fn prepareInner(self: *Self, sql: []const u8) !*Prepared {
         self.fresh_prepared = result;
         return result;
     }
-    if (try g.Probe.parse(sql, self.dialect)) |probe| result.* = .{ .probe = probe } else if (try self.freshOn(.settings, Settings.prepare, .{ self, sql })) |settings| result.* = .{ .settings = settings } else if (self.source) |source| result.* = .{ .source = try self.fresh(g.SourceSession.prepare, .{ source, sql }) } else result.* = .{ .native = try self.fresh(g.Statement.prepareDiagnostic, .{ self.allocator, &self.table, self.namespace, sql, self.dialect, if (self.native_profile) g.Statement.Profile.native else g.Statement.Profile.wire, self.readOptions(), &self.compile_binding }) };
+    if (try g.Probe.parse(sql, self.dialect)) |probe| result.* = .{ .probe = probe } else if (try self.freshOn(.settings, Settings.prepare, .{ self, sql })) |settings| result.* = .{ .settings = settings } else if (self.source) |source| result.* = .{ .source = try self.fresh(g.SourceSession.prepare, .{ source, sql }) } else result.* = .{ .native = try self.fresh(g.Statement.prepareDiagnostic, .{ self.allocator, &self.table, self.namespace, sql, self.dialect, if (self.native_profile) g.Statement.Profile.native else g.Statement.Profile.wire, self.readOptions(), &self.compile_binding, &self.wire_failure }) };
+    owned = true;
+    errdefer self.destroy(result);
+    if (!self.native_profile) {
+        for (result.fields()) |field| _ = try g.Type.admit(field, self.dialect, .result, &self.wire_failure);
+        for (result.parameters(), 1..) |parameter, index| {
+            var buffer: [20]u8 = undefined;
+            _ = try g.Type.admit(.{ .name = try std.fmt.bufPrint(&buffer, "{d}", .{index}), .type = parameter, .nullable = true }, self.dialect, .parameter, &self.wire_failure);
+        }
+    }
     self.fresh_prepared = result;
     return result;
 }
@@ -980,7 +992,9 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
         error.UnsupportedPostgresTableDescription => .{ "0A000".*, "This Table has integrity constraints outside psql description support; use native DESCRIBE" },
         error.PostgresCatalogChanged => .{ "40001".*, "Catalog changed during inspection; discard partial results and repeat the read" },
         error.PostgresCatalogBudget => .{ "54000".*, "PostgreSQL catalog inspection request budget exceeded" },
-        error.UnsupportedGatewayStatement, error.UnsupportedExecutionCycle, error.UnsupportedWireType => .{ "0A000".*, "Operation is outside the selected SQL profile" },
+        error.UnsupportedWireType => .{ "0A000".*, if (self.wire_failure.len != 0) self.wire_failure.message() else "Logical type is unsupported by this database protocol" },
+        error.UnsupportedGatewayStatement => .{ "0A000".*, "Statement is outside the selected SQL profile" },
+        error.UnsupportedExecutionCycle => .{ "0A000".*, "Execution cycle is outside the selected SQL profile" },
         error.InvalidSqlSyntax, error.ExpectedIdentifier, error.UnexpectedToken => .{ "42601".*, "SQL syntax rejected" },
         error.TableNotFound => .{ "42P01".*, "Table does not exist" },
         error.CatalogNameNotFound => .{ "42P01".*, "Catalog object does not exist" },
