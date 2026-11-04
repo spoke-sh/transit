@@ -59,12 +59,6 @@ def run_cli(root,sql_port,mysql_port,mutations=True):
 
 def run(root,sql_port,mysql_port):
     options,mysql_options = connection_options(root,sql_port,mysql_port)
-    clients = []
-    for library in ('libpq', 'libmysqlclient'):
-        binary = root/library
-        flags = subprocess.check_output(['pkg-config', '--cflags', '--libs', 'mysqlclient' if library == 'libmysqlclient' else library], text=True)
-        subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', str(Path(__file__).with_name(library+'.c')), *shlex.split(flags), '-o', str(binary)], check=True, timeout=30)
-        clients.append(binary)
     with psycopg.connect(**options) as connection:
         assert connection.execute('SELECT 1').fetchone() == (1,)
         connection.execute('CREATE TABLE wire_rows (id BIGINT PRIMARY KEY, n UINT64, f FLOAT64, b BOOLEAN, label UTF8, payload BINARY)')
@@ -116,6 +110,17 @@ def run(root,sql_port,mysql_port):
         cursor.execute('DELETE FROM mysql_rows WHERE id=%s', (1,))
         assert cursor.rowcount == 1
         cursor.close()
+    run_c(root,sql_port,mysql_port)
+    return options,mysql_options
+
+
+def run_c(root,sql_port,mysql_port,types=False):
+    clients = []
+    for library in ('libpq', 'libmysqlclient'):
+        binary = root/library
+        flags = subprocess.check_output(['pkg-config', '--cflags', '--libs', 'mysqlclient' if library == 'libmysqlclient' else library], text=True)
+        subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', str(Path(__file__).with_name(library+'.c')), *shlex.split(flags), '-o', str(binary)], check=True, timeout=30)
+        clients.append(binary)
     env = os.environ.copy()
     env.update(PGPASSWORD='proof-password', PGSSLMODE='verify-full', PGSSLROOTCERT=str(root/'certificate.pem'), PGHOSTADDR='127.0.0.1')
     env.update(PGHOST='localhost', PGPORT=str(sql_port), PGUSER='proof', PGDATABASE='data', MYSQL_TCP_PORT=str(mysql_port))
@@ -124,8 +129,7 @@ def run(root,sql_port,mysql_port):
         # This deadline covers a whole no-retry client workload, including DDL,
         # writes and reads through the current authorization boundary. Individual
         # gateway statements retain their own configured admission/work limits.
-        result = subprocess.run([str(binary)], env=env, text=True, timeout=600)
+        result = subprocess.run([str(binary), *(['types'] if types else [])], env=env, text=True, timeout=600)
         assert result.returncode == 0, f'{Path(binary).name} exited {result.returncode}'
         print(json.dumps(dict(profile='database_wire_client', client=Path(binary).name,
                               seconds=round(time.monotonic() - started, 3), deadline_seconds=600)), flush=True)
-    return options,mysql_options

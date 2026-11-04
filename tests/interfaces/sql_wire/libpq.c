@@ -16,12 +16,45 @@ static PGresult *expect(PGconn *c, PGresult *r, ExecStatusType status) {
 static void command(PGconn *c, const char *sql) {
     PQclear(expect(c, PQexec(c, sql), PGRES_COMMAND_OK));
 }
-int main(void) {
+static void scalar_types(PGconn *c) {
+    command(c, "CREATE TABLE c_pg_scalars (id INT NOT NULL, f REAL, salary DECIMAL(10,2))");
+    PQclear(expect(c, PQprepare(c, "scalar_insert", "INSERT INTO c_pg_scalars VALUES ($1,$2,$3)", 0, NULL), PGRES_COMMAND_OK));
+    PGresult *r = expect(c, PQdescribePrepared(c, "scalar_insert"), PGRES_COMMAND_OK);
+    const Oid types[] = {23,700,1700};
+    assert(PQnparams(r) == 3);
+    for (int i=0; i<3; i++) assert(PQparamtype(r,i) == types[i]);
+    PQclear(r);
+    r = expect(c, PQexec(c, "SELECT * FROM c_pg_scalars"), PGRES_TUPLES_OK);
+    assert(PQntuples(r) == 0 && PQnfields(r) == 3);
+    assert(PQfmod(r,2) == (10<<16)+2+4);
+    PQclear(r);
+    const char *values[] = {"-2147483648","-1.25","-123.45"};
+    PQclear(expect(c,PQexecPrepared(c,"scalar_insert",3,values,NULL,NULL,0),PGRES_COMMAND_OK));
+    const unsigned char id[] = {128,0,0,0}, f[] = {191,160,0,0};
+    const unsigned char numeric[] = {0,2,0,0,64,0,0,2,0,123,17,148};
+    const char *binary[] = {(const char *)id,(const char *)f,(const char *)numeric};
+    const int lengths[] = {4,4,12}, formats[] = {1,1,1};
+    PQclear(expect(c,PQexecPrepared(c,"scalar_insert",3,binary,lengths,formats,0),PGRES_COMMAND_OK));
+    for (int mode=0; mode<2; mode++) {
+        r = expect(c,PQexecParams(c,"SELECT * FROM c_pg_scalars",0,NULL,NULL,NULL,NULL,mode),PGRES_TUPLES_OK);
+        assert(PQntuples(r) == 2);
+        for (int row=0; row<2; row++) for (int col=0; col<3; col++) {
+            assert(PQftype(r,col) == types[col] && PQfformat(r,col) == mode);
+            if (mode) assert(PQgetlength(r,row,col) == lengths[col] && !memcmp(PQgetvalue(r,row,col),binary[col],lengths[col]));
+            else assert(!strcmp(PQgetvalue(r,row,col),values[col]));
+        }
+        PQclear(r);
+    }
+    puts("libpq: int32/float32/decimal inferred parameters, empty metadata and exact text/binary input/output passed");
+}
+int main(int argc, char **argv) {
     PGconn *c = PQconnectdb(""); /* Credentials/verified TLS via private environment. */
     assert(PQstatus(c) == CONNECTION_OK);
     assert(PQsslInUse(c));
     fprintf(stderr, "libpq phase: connected\n");
     assert(PQlibVersion() == 180006);
+    scalar_types(c);
+    if (argc == 2 && !strcmp(argv[1], "types")) { PQfinish(c); return 0; }
     command(c, "CREATE TABLE c_pg_rows (id BIGINT PRIMARY KEY, n UINT64, f FLOAT64, b BOOLEAN, label UTF8, payload BINARY)");
     fprintf(stderr, "libpq phase: created\n");
     PGresult *r = expect(c, PQprepare(c, "insert", "INSERT INTO c_pg_rows (id,n,f,b,label,payload) VALUES ($1,$2,$3,$4,$5,$6)", 0, NULL), PGRES_COMMAND_OK);

@@ -15,6 +15,7 @@ semantics; these drivers add protocol, presentation and installation boundaries.
 | Declarative browser providers, sessions and publications | [Real listener and provider peers](http/declarative_browser.py), [buffered-read fault host](http/browser_fault_host.zig), [generated contract check](http/browser_contract.py), [runnable example](../../examples/declarative-browser/README.md) |
 | gRPC and Arrow Flight | [grpc/](grpc/), [Flight guide](flight/README.md) |
 | Installed server lifecycle and configuration | [installation/](installation/), [server schedule](installation/server.py), [data workbench](installation/board_workbench.py), [retained-history recovery controls](installation/board_history_test.py), [shared process/setup mechanics](../harness/local_installation.py) |
+| Installed scalar parity | [Console/psql/mysql smoke](installation/server_sql_types.py), [shared corpus and deeper driver loop](sql_wire/README.md) |
 | Installed webhook/Dataflow/HTTP journey | [Application adapter](installation/webhook.py), [scenario runner and limits](../performance/load/scenarios.md) |
 | Launchers and reference deployment | [deployment/](deployment/), [launcher tasks](../../tasks/launchers.just) |
 

@@ -1190,6 +1190,15 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     single_server_test.has_side_effects = true;
     single_server_test.stdio = .inherit;
     b.step("test-server-single-executable", "Prove default server, console and Board from one copied executable").dependOn(&single_server_test.step);
+    const sql_types_test = b.addSystemCommand(&.{ "python3", "-B" });
+    sql_types_test.addFileArg(b.path("tests/runner/launch.py"));
+    sql_types_test.addFileArg(b.path("tests/interfaces/installation/server_sql_types.py"));
+    sql_types_test.addArg("--cli");
+    sql_types_test.addArtifactArg(transit_cli);
+    sql_types_test.addPassthruArgs();
+    sql_types_test.has_side_effects = true;
+    sql_types_test.stdio = .inherit;
+    b.step("test-server-sql-types", "Prove scalar CRUD across installed console, psql and MySQL clients").dependOn(&sql_types_test.step);
     const scenario_test = b.addSystemCommand(&.{ "python3", "-B" });
     scenario_test.addFileArg(b.path("tests/runner/launch.py"));
     scenario_test.addFileArg(b.path("tests/performance/load/scenarios.py"));

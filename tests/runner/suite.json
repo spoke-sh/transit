@@ -90,6 +90,7 @@
       "test::observability",
       "test::server-logging",
       "test::server-single-executable",
+      "test::server-sql-types",
       "test::server-scenarios",
       "test::server-direct-tables",
       "test::managed-tables",
@@ -361,7 +362,8 @@
       "test::local-data-collection"
     ],
     "test::sql-wire-gateway": [
-      "test::sql-wire-encoding"
+      "test::sql-wire-encoding",
+      "test::sql-wire-types"
     ],
     "check::core": [
       "check::fast",
@@ -1192,6 +1194,7 @@
           "test::observability",
           "test::server-logging",
           "test::server-single-executable",
+          "test::server-sql-types",
           "test::server-scenarios",
           "test::server-direct-tables",
           "test::managed-tables",

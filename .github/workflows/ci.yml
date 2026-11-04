@@ -82,7 +82,7 @@ jobs:
       - name: Build and check the documentation site
         run: nix develop .#docs --command just transit-docs::check
   console-latency:
-    name: Console latency gate
+    name: Console latency and SQL interfaces
     needs: plan
     if: needs.plan.outputs.checks == 'true'
     runs-on: ${{ vars.TRANSIT_CI_RUNNER || 'ubuntu-24.04' }}
@@ -135,6 +135,9 @@ jobs:
       - name: Qualify console startup and statement latency budgets
         timeout-minutes: 10
         run: nix develop .#ci-experience --command python3 -B tests/runner/launch.py tests/performance/console/gate.py --cli .cache/transit-latency/release/bin/transit --node .cache/transit-latency/release/bin/transit-node --host .cache/transit-latency/release/bin/transit-query-host
+      - name: Qualify installed SQL scalar interfaces
+        timeout-minutes: 5
+        run: nix develop .#ci-experience --command python3 -B tests/runner/launch.py tests/interfaces/installation/server_sql_types.py --cli .cache/transit-latency/release/bin/transit
       - name: Preserve console latency gate evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -143,6 +146,7 @@ jobs:
           path: |
             .cache/transit-latency/gate/*.json
             .cache/transit-latency/gate/*.jsonl
+            .cache/sql-types/*.json
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 14

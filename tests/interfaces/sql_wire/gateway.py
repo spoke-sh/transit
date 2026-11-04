@@ -47,7 +47,7 @@ def directory(binaries):
 
 
 def run(node, catalog, ledger, host, gateway, configuration_host, console, slice="all", repeat="5", instrumentation=""):
-    assert slice in ("all","faults","controls","cli","settings","lifecycle","benchmark","schema","sessions","sessions-basic","sessions-log","sessions-kv","sessions-table","sessions-integrity","sessions-history","transactions","console-statements")
+    assert slice in ("all","types","faults","controls","cli","settings","lifecycle","benchmark","schema","sessions","sessions-basic","sessions-log","sessions-kv","sessions-table","sessions-integrity","sessions-history","transactions","console-statements")
     assert instrumentation in ('', '--instrument')
     instrumented = instrumentation == '--instrument'
     assert not instrumented or slice == 'console-statements'
@@ -302,6 +302,17 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                 options,mysql_options = client_options(root,sql_port,mysql_port)
                 with psycopg.connect(**options) as connection:
                     connection.execute('CREATE TABLE wire_rows (id BIGINT PRIMARY KEY, n UINT64, f FLOAT64, b BOOLEAN, label UTF8, payload BINARY)')
+            if slice == 'types':
+                from interfaces.sql_wire.types import run as type_matrix
+                external = lambda operation,sql:call(catalog,'external-ddl-admin',operation,sql)
+                type_matrix(options, mysql_options, inventory, external)
+                from interfaces.sql_wire.clients import run_c
+                run_c(root,sql_port,mysql_port,types=True)
+                from interfaces.sql_wire.schema import run as schema
+                schema(options,mysql_options,external,scalar_types=True)
+                print(json.dumps(dict(profile='database_wire_types',completed=True,source=provenance(ROOT),
+                                      binaries={role:identity(Path(path)) for role,path in binaries.items()})),flush=True)
+                return
             if slice == 'schema':
                 from interfaces.sql_wire.schema import run as schema
                 schema(options,mysql_options,lambda operation,sql:call(catalog,'external-ddl-admin',operation,sql))
@@ -461,6 +472,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
         # the existing wide-row measurement's retained state or observation bound.
         # Both schedules must pass for the complete gateway task to succeed.
         run(node,catalog,ledger,host,gateway,configuration_host,console,'cli')
+        run(node,catalog,ledger,host,gateway,configuration_host,console,'types')
 
 
 if __name__ == '__main__':

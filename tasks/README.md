@@ -146,6 +146,7 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just test::sql-wire-reference`, `just test::sql-wire-tls` | Use the pinned SQL-wire shell to qualify upstream driver exchanges and the standalone Zig TLS transport |
 | `just test::sql-gateway` | Exercise signed gateway controls and direct Table outcome recovery through local durable owners; included in interfaces CI |
 | `just test::sql-wire-gateway` | Exercise the real TLS gateway with pinned PostgreSQL/MySQL CLI, C and Python clients, signed controls, socket faults and fenced restart; included in interfaces CI |
+| `just test::sql-wire-types` | Focus the gateway proof on scalar aliases, exact prepared values, empty metadata, C drivers and unsupported DDL; included in the full gateway task |
 | `just test::sql-wire-encoding` | Measure scalar validation and framed-row construction separately from TLS/native/storage work; also runs before the gateway proof |
 | `just test::sql-result-allocations` | Enforce warmed shared-client and I/O allocation bounds against independent Unix, HTTP and TLS peers, including retries and connection replacement |
 | `just test::flight` | Qualify native TLS Flight SQL through pinned PyArrow and ADBC Python/C consumers |
@@ -166,6 +167,7 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just test::console-latency [--single --resident-pages N --worker-interval-ms N]` | Measure idle CPU and empty-Table SQL with frozen ReleaseSafe executables and isolated disk providers; optional cache/polling controls, no latency threshold |
 | `just test::console-latency-tls [REPEAT]` | Run persistent console SELECT/INSERT/UPDATE/DELETE through the matching TLS component fixture, with exact values/counts and timer phases |
 | `just test::server-single-executable` | Copy only `transit`; exercise bare server/console, Table lifecycle, automatic flush, restart persistence, default Board and owned role recovery without runtime PATH tools |
+| `just test::server-sql-types` | Build/copy ReleaseSafe Transit and qualify scalar CRUD through console, psql and MySQL, including restart; required immediately after console latency in CI/release |
 | `just test::server-scenarios` | Default installed console SQL, Dataflow interference, authenticated webhook-to-HTTP effects, unknown outcomes and retained replay, with executable latency ceilings |
 | `just test::server-board`, `just test::server-board-package` | Qualify default embedded Board, explicit headless operation, retained inspection grants, recovery and the single-executable Nix package |
 | `just test::server-faults` | Add interrupted provisioning, native gateway denial/capacity and negative provider-rollback checks |
