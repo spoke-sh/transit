@@ -64,6 +64,10 @@ class ScenarioReportTest(unittest.TestCase):
         for changes in (dict(scenario='all'), dict(minimum_repeat=3), dict(minimum_repeat=True), dict(limits_ms={})):
             with self.assertRaises(ValueError):
                 check_budgets(report, dict(budgets, **changes))
+        records = campaign()
+        records[1]['budgets'] = dict(budgets, limits_ms={'console_insert': {'max_ms': 1.9}})
+        with self.assertRaisesRegex(ValueError, 'budget exceeded'):
+            summarize(records)
 
     def test_comparison_preserves_definition_driver_and_durability(self):
         control = summarize(campaign())

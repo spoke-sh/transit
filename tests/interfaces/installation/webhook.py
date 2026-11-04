@@ -93,6 +93,9 @@ class Exchange:
     def command(self, command):
         sequence = self.query(dict(capabilities={}))['principal_sequence'] + 1
         saved = native(self.operator, self.realm, 0, command, sequence)
+        path = self.root / f'operator-command-{sequence}.json'
+        path.write_text(json.dumps(saved))
+        path.chmod(0o600)
         # Retry only these exact signed bytes. Never allocate a new sequence
         # after an uncertain reply to this administrative command.
         return post(self.port, '/v1/command', saved, retry_unavailable=True)['position']
@@ -165,8 +168,12 @@ def run(journey, binaries):
                         or not 0 < value['id'] < 1000 or not -1000000 < value['value'] < 1000000):
                     return self.reply(400, dict(error='invalid_payload'))
                 sql = f"INSERT INTO webhook_events VALUES ({value['id']}, {value['value']})"
+                original_token = token(b'scenario.webhook.input\0', value['id'])
+                saved = fixture.root / f"webhook-{value['id']}-{hashlib.sha256(body).hexdigest()}.json"
+                saved.write_text(json.dumps(dict(sql=sql, token=original_token)))
+                saved.chmod(0o600)
                 try:
-                    operation = ingress.execute(sql, token(b'scenario.webhook.input\0', value['id']))['operation']
+                    operation = ingress.execute(sql, original_token)['operation']
                     operation = ingress.terminal(operation)
                 except AssertionError as error:
                     detail = error.args[0] if error.args else None
@@ -181,6 +188,8 @@ def run(journey, binaries):
     expected = []
     completed = []
     exchanges = []
+    admitted = {}
+    received_at = {}
     try:
         with listener(Webhook) as inbound:
             def submit(event, value, signature=True):
@@ -198,10 +207,13 @@ def run(journey, binaries):
             assert submit(7, 70, False)[0] == 403
             journey.rows('webhook_denied', 'SELECT * FROM webhook_events;', [])
             for event, lost_response in ((7, False), (8, True)):
-                with journey.sample('webhook_accept') as sample:
-                    status, receipt = submit(event, event * 10)
-                    assert status == 202 and not errors, errors
-                    sample.update(verified=True, event=event)
+                if event not in admitted:
+                    with journey.sample('webhook_accept') as sample:
+                        received_at[event] = time.perf_counter_ns()
+                        admitted[event] = submit(event, event * 10)
+                        assert admitted[event][0] == 202 and not errors, errors
+                        sample.update(verified=True, event=event)
+                status, receipt = admitted[event]
                 with journey.sample('webhook_duplicate') as sample:
                     assert submit(event, event * 10) == (status, receipt)
                     assert submit(event, event * 10 + 1)[0] == 409
@@ -256,6 +268,15 @@ def run(journey, binaries):
                             try:
                                 assert accepted.wait(30), 'connector did not reach the destination'
                                 assert not peer_errors, peer_errors
+                                if not lost_response:
+                                    # The application has one active dispatch
+                                    # slot. Another accepted input remains in
+                                    # the database while the destination stalls.
+                                    with journey.sample('webhook_accept') as incoming:
+                                        received_at[8] = time.perf_counter_ns()
+                                        admitted[8] = submit(8, 80)
+                                        assert admitted[8][0] == 202 and not errors, errors
+                                        incoming.update(verified=True, event=8)
                                 journey.rows('console_during_http', 'SELECT * FROM items;', [])
                             finally:
                                 release.set()
@@ -277,6 +298,8 @@ def run(journey, binaries):
                     operation = journey.observer.terminal(journey.observer.execute(sql, outcome_token)['operation'])
                     completed.append((event, status))
                     journey.rows('recorded_outcomes', 'SELECT id, value FROM webhook_outcomes;', completed)
+                    journey.elapsed('webhook_to_unknown_outcome' if lost_response else 'webhook_to_observed_outcome',
+                                    received_at[event], event=event)
                     # Publication recovery and SQL outcome retry reuse their
                     # original identities; neither dispatches a second request.
                     assert exchange.activate('caller', 'publish') == original
@@ -286,15 +309,19 @@ def run(journey, binaries):
                         replay = exchange.activate('caller', 'replay')
                         assert replay['sha256'] == hashlib.sha256(response_body).hexdigest()
                     assert len(received) == 1
-                    exchanges.append((exchange, outcome, lost_response, response_body))
+                    exchanges.append((exchange, outcome, lost_response, response_body, original))
         assert not errors, errors
     finally:
         ingress.close()
+    journey.command('setup', 'REFRESH DATAFLOW webhook_projection;')
+    journey.settle('webhook_projection', revision + 1, 'webhook_intents', expected, 'webhook_refreshed')
+    for exchange, _, _, _, original in exchanges:
+        assert exchange.activate('caller', 'publish') == original
     journey.command('setup', 'RETIRE DATAFLOW webhook_projection;')
     def retained(restarted):
         # Both listeners are closed. Replay after actual node replacement must
         # use retained capture/outcome evidence, never a new network attempt.
-        for exchange, original, unknown, payload in exchanges:
+        for exchange, original, unknown, payload, _ in exchanges:
             with restarted.sample('effect_replay_after_restart') as sample:
                 assert exchange.activate('caller', 'receive') == original
                 if not unknown:

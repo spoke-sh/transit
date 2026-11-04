@@ -42,6 +42,12 @@ class Journey:
         with self.recorder.sample(case, index, self.fixture) as record:
             yield record
 
+    def elapsed(self, case, began, **fields):
+        index = self.counts.get(case, 0)
+        self.counts[case] = index + 1
+        self.recorder.emit(dict(phase='sample', case=case, index=index, outcome='complete', verified=True,
+                                elapsed_ns=time.perf_counter_ns() - began, **fields))
+
     def command(self, case, sql, counts=None):
         with self.sample(case) as record:
             output, measured = self.shell.call(sql)
@@ -133,6 +139,7 @@ def main():
     args = parser.parse_args()
     if args.scenario in ('webhook', 'all') and (args.http_caller is None or args.http_worker is None):
         parser.error('the webhook scenario requires --http-caller and --http-worker')
+    budgets = json.loads(args.budgets.read_text()) if args.budgets else None
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
     evidence = directory(ROOT / '.cache/performance/scenarios/campaign.json') / 'observations.jsonl'
     print(f'Scenario evidence: {evidence}', file=sys.stderr, flush=True)
@@ -162,6 +169,7 @@ def main():
             if args.binary_revision:
                 assert args.binary_revision in version and 'dirty' not in version
             recorder.emit(dict(phase='manifest', scenario=args.scenario, repeat=args.repeat,
+                budgets=budgets,
                 source=provenance(ROOT), binary_revision=args.binary_revision, cli_version=version,
                 binaries={role: digest(path) for role, path in binaries.items()},
                 drivers={name: digest(ROOT/'tests'/name) for name in (*DRIVERS,
@@ -173,7 +181,7 @@ def main():
                 system=platform.platform(), cpus=os.cpu_count(), load=os.getloadavg(),
                 host_limits=host_limits(fixture.root), toolchain=subprocess.check_output(['zig', 'version'], text=True).strip(),
                 durability='native-local synchronous', maintenance='enabled', build_mode='ReleaseSafe',
-                cache='new installation; OS caches retained', unavailable=list(UNAVAILABLE)))
+                cache='new installation; OS caches retained', unavailable=[*UNAVAILABLE, 'connector_cpu_ns']))
             with recorder.sample('startup') as sample:
                 fixture.start()
                 fixture.ready()
@@ -215,10 +223,8 @@ def main():
                         shutil.rmtree(fixture.root)
                     else:
                         print(f'Failed scenario installation retained at {fixture.root}', file=sys.stderr)
-    from performance.load.scenario_report import summarize, check_budgets
+    from performance.load.scenario_report import summarize
     report = summarize([json.loads(line) for line in evidence.read_text().splitlines()])
-    if args.budgets:
-        check_budgets(report, json.loads(args.budgets.read_text()))
     print(json.dumps(report), flush=True)
 
 

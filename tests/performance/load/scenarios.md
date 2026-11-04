@@ -10,7 +10,7 @@ processes and HTTP listeners. The installation CI lane runs this check.
 | Persistent console | Empty/one-row reads, INSERT/UPDATE/DELETE, unchanged/zero-match counts, immediate fresh reads and retained restart |
 | SQL → Dataflow → Table | Empty initial result, inserted/updated/deleted output, exact values and complete coverage, foreground console reads during refresh, settled revision and retirement |
 | Webhook → Dataflow → HTTP → outcome | Authenticated inbound HTTP, stable SQL token deduplication, conflicting payload rejection, committed Table intent, real finite Station caller and HTTP connector, recorded outcome and SQL projection |
-| Slow destination | Hold the actual HTTP response while an independent console read completes; release and verify capture |
+| Slow destination | Hold the actual HTTP response while another webhook is durably accepted and an independent console read completes; release and verify capture |
 | Lost response and recovery | Destination accepts then disconnects; preserve `closed_unknown`, original call identity and one send; restart the installed node and read/replay with both HTTP listeners stopped |
 
 The webhook listener is a finite **test application adapter**, not a new public
@@ -32,6 +32,9 @@ the authoritative connector outcome; it is not atomic with remote execution.
 The unknown case records its explicit phase rather than treating an absent HTTP
 status as failure or retry permission. Duplicate delivery and result reads never
 create another effect. The test does not claim external exactly-once delivery.
+An explicit Dataflow refresh republishes the same event intents and recovers the
+same application calls. Trigger identity follows the immutable event, not each
+finite recomputation's revision number.
 
 ## Measurements and gates
 
@@ -41,8 +44,11 @@ samples also retain the actual console phase timings. Freshness is measured from
 the first observation after source completion to verified output; it is not an
 inferred WAL commit timestamp. Connector dispatch time includes the deliberately
 blocked receiver and concurrent console check. Provisioning/preparation, startup
-and retained restart are separate stages. CPU ticks include the owned installation
-tree, including Board; counters unavailable at this boundary remain explicitly
+and retained restart are separate stages. Input-to-recorded-outcome spans include
+the finite application's provisioning and any wait behind the first exchange.
+They begin immediately before the inbound HTTP request and end after SQL verifies
+the recorded outcome. CPU ticks include the owned installation
+tree, including Board, but exclude the separately launched connector; counters unavailable at this boundary remain explicitly
 unavailable. No zero-allocation or physical-sync-count claim follows from timing.
 
 [`scenario_budgets.json`](scenario_budgets.json) supplies executable maximum

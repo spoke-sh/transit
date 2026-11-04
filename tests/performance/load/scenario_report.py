@@ -32,11 +32,12 @@ def inventory(manifest):
         exact.update(dataflow_initial=1, dataflow_idle=1, **dict.fromkeys(DATAFLOW, count))
         variable['console_during_dataflow'] = 1
     if manifest['scenario'] in ('webhook', 'all'):
-        exact.update(webhook_initial=1, webhook_denied=1, webhook_accept=2, webhook_duplicate=2,
+        exact.update(webhook_initial=1, webhook_denied=1, webhook_accept=2, webhook_duplicate=2, webhook_refreshed=1,
                      webhook_derived=2, effect_prepare=2, effect_observed=1, effect_unknown=1,
                      console_during_http=2, recorded_outcomes=2, effect_replay_after_restart=2, outcomes_after_restart=1)
+        exact.update(webhook_to_observed_outcome=1, webhook_to_unknown_outcome=1)
     derived = (1 + count * 3 if manifest['scenario'] in ('dataflow', 'all') else 0)
-    derived += 3 if manifest['scenario'] in ('webhook', 'all') else 0
+    derived += 4 if manifest['scenario'] in ('webhook', 'all') else 0
     if derived:
         exact['derived_result'] = derived
         variable['setup'] = 1
@@ -84,7 +85,10 @@ def summarize(records):
     if not isinstance(definition, str) or len(definition) != 64 or any(c not in '0123456789abcdef' for c in definition):
         raise ValueError('missing executed definition')
     manifest = dict(manifest, definition=definition)
-    return dict(manifest=manifest, distributions={case: distribution(values) for case, values in samples.items()})
+    report = dict(manifest=manifest, distributions={case: distribution(values) for case, values in samples.items()})
+    if manifest.get('budgets') is not None:
+        check_budgets(report, manifest['budgets'])
+    return report
 
 
 def check_budgets(report, budgets):
@@ -120,6 +124,8 @@ def compare(control, candidate, maximum_ratio):
             raise ValueError('incomparable scenario reports: ' + field)
     if not math.isfinite(maximum_ratio) or maximum_ratio <= 0:
         raise ValueError('invalid regression ratio')
+    if control['manifest'].get('budgets') != candidate['manifest'].get('budgets'):
+        raise ValueError('incomparable scenario reports: budgets')
     ratios = {}
     for case in control['distributions']:
         before, after = control['distributions'][case], candidate['distributions'][case]
