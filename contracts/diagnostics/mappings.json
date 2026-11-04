@@ -802,10 +802,6 @@
           "code": "sql.invalid_log_consume_operand",
           "category": "binding"
         },
-        "InvalidLogGroupName": {
-          "code": "sql.invalid_log_group_name",
-          "category": "binding"
-        },
         "InvalidLogWait": {
           "code": "sql.invalid_log_wait",
           "category": "binding"
@@ -1077,6 +1073,14 @@
         "TimezoneCoverageUnavailable": {
           "code": "sql.timezone_coverage_unavailable",
           "category": "unsupported"
+        },
+        "InvalidStreamHandle": {
+          "code": "sql.invalid_stream_handle",
+          "category": "binding"
+        },
+        "InvalidStreamProgress": {
+          "code": "sql.invalid_stream_progress",
+          "category": "binding"
         }
       }
     },

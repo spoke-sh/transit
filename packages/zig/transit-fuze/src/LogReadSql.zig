@@ -11,13 +11,16 @@ pub const Operand = union(enum) {
     literal: struct { bytes: []const u8, offset: usize },
     parameter: f.Sql.Parameter,
     pub fn parse(parser: *Parser, parameters: *std.ArrayList(f.LogicalPrepared.Parameter), comptime invalid: anyerror) !Operand {
+        return parseBytes(parser, parameters, .utf8, invalid);
+    }
+    pub fn parseBytes(parser: *Parser, parameters: *std.ArrayList(f.LogicalPrepared.Parameter), comptime kind: f.Types.Type, comptime invalid: anyerror) !Operand {
         if (try parser.parameter()) |site| {
-            try parameters.append(parser.allocator, .{ .site = site, .type = .utf8 });
+            try parameters.append(parser.allocator, .{ .site = site, .type = kind });
             return .{ .parameter = site };
         }
-        const literal = try parser.literal(.utf8);
+        const literal = try parser.literal(kind);
         var failure: ?Parser.Literal.Span = null;
-        const cell = literal.bind(parser.allocator, .utf8, &failure) catch |err| {
+        const cell = literal.bind(parser.allocator, kind, &failure) catch |err| {
             if (parser.location) |location| location.* = .{ .offset = (failure orelse literal.span).start };
             return err;
         };
@@ -111,3 +114,45 @@ pub fn input(allocator: std.mem.Allocator, schema: f.TableSchema.Schema, syntax:
     };
     return fields.items;
 }
+
+pub const TypedOperand = struct {
+    kind: f.Types.Type,
+    value: union(enum) { literal: struct { atom: Atom, offset: usize }, parameter: f.Sql.Parameter },
+    pub fn parse(parser: *Parser, kind: f.Types.Type) !TypedOperand {
+        if (try parser.parameter()) |site| return .{ .kind = kind, .value = .{ .parameter = site } };
+        const literal = try parser.literal(kind);
+        var failure: ?Parser.Literal.Span = null;
+        const cell = literal.bind(parser.allocator, kind, &failure) catch |err| {
+            if (parser.location) |where| where.* = .{ .offset = (failure orelse literal.span).start };
+            return err;
+        };
+        if (cell != .value or cell.value != .atom) return error.InvalidLogSettlementOperand;
+        return .{ .kind = kind, .value = .{ .literal = .{ .atom = cell.value.atom, .offset = literal.span.start } } };
+    }
+    pub fn at(self: TypedOperand, diagnostic: ?*f.Sql.Binding) void {
+        const detail = diagnostic orelse return;
+        detail.expected = @tagName(self.kind);
+        switch (self.value) {
+            .literal => |value| detail.location = .{ .offset = value.offset },
+            .parameter => |site| {
+                detail.location = .{ .offset = site.offset };
+                detail.parameter = site.index;
+                detail.parameter_sites[0] = site.offset;
+            },
+        }
+    }
+    pub fn bind(self: TypedOperand, values: []const ?Atom, diagnostic: ?*f.Sql.Binding) !Atom {
+        errdefer self.at(diagnostic);
+        return switch (self.value) {
+            .literal => |value| value.atom,
+            .parameter => |site| blk: {
+                const value = values[site.index - 1] orelse return error.NullWorkloadParameter;
+                f.LogicalPrepared.validate(value, self.kind) catch |err| {
+                    if (diagnostic) |detail| detail.actual = @tagName(value);
+                    return err;
+                };
+                break :blk value;
+            },
+        };
+    }
+};

@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "scope": "Pure authenticated progress descriptor preparation; native owners retain assignment, MAC, live-pin and settlement authority.",
+  "cases": [
+    {
+      "sql": "COMMIT OFFSET ON STREAM items RECEIPT X'{receipt}'",
+      "expected": {
+        "name": "items",
+        "group": 42,
+        "generation": 7,
+        "expected_next": 18446744073709551611,
+        "next": 18446744073709551613,
+        "rows": 1,
+        "complete": true
+      }
+    },
+    {
+      "sql": "COMMIT OFFSET ON STREAM items RECEIPT X'{receipt}';",
+      "exhausted": true,
+      "expected": {
+        "name": "items",
+        "group": 42,
+        "generation": 7,
+        "expected_next": 18446744073709551611,
+        "next": 18446744073709551615,
+        "rows": 2,
+        "complete": true
+      }
+    },
+    {
+      "sql": "COMMIT OFFSET ON STREAM items RECEIPT X'{receipt}'",
+      "foreign_definition": true,
+      "error": "IncompatibleDefinition"
+    },
+    {
+      "sql": "COMMIT OFFSET ON STREAM items RECEIPT X'{receipt}'",
+      "reversed_rows": true,
+      "error": "InvalidStreamProgress"
+    },
+    {
+      "sql": "COMMIT OFFSET ON STREAM items RECEIPT NULL",
+      "error": "InvalidLogSettlementOperand"
+    },
+    {
+      "sql": "COMMIT OFFSET ON STREAM items RECEIPT X''",
+      "error": "InvalidStreamHandle"
+    },
+    {
+      "sql": "COMMIT OFFSET ON STREAM items RECEIPT $2",
+      "error": "ParameterGap"
+    },
+    {
+      "sql": "COMMIT OFFSET 8 ON STREAM items",
+      "syntax_error": true,
+      "error": "InvalidSqlSyntax"
+    },
+    {
+      "sql": "COMMIT OFFSET ON QUEUE items RECEIPT X'{receipt}'",
+      "syntax_error": true,
+      "error": "InvalidSqlSyntax"
+    }
+  ]
+}

@@ -155,6 +155,7 @@ pub fn complete(self: *Self, kind: Completion, count: u64) ![]const u8 {
         .ack => "ACK",
         .nack => "NACK",
         .extend_lease => "EXTEND LEASE",
+        .commit_offset => "COMMIT OFFSET",
         .create_table => "CREATE TABLE",
         .create_schema => "CREATE SCHEMA",
         .alter_schema => "ALTER SCHEMA",
@@ -176,7 +177,7 @@ pub fn complete(self: *Self, kind: Completion, count: u64) ![]const u8 {
         .rollback, .rollback_to_savepoint => "ROLLBACK",
         .savepoint => "SAVEPOINT",
         .release_savepoint => "RELEASE",
-        .empty, .reload, .capture, .commit_offset => return error.UnsupportedWireCompletion,
+        .empty, .reload, .capture => return error.UnsupportedWireCompletion,
     };
     try self.string(value, buffer.len);
     return self.finish();

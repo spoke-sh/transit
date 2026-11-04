@@ -5,6 +5,7 @@ canonical JSON and SHA-256; OpenSSL supplies Ed25519 using public test seeds.
 This generator never decodes or converts a user's saved operations or state.
 """
 from runner.paths import ROOT
+from interfaces.native.stream_handles import encode as stream_handle
 import argparse
 import copy
 import hashlib
@@ -278,6 +279,10 @@ def generated():
         middle_coverage = dict(coverage, through=coverage['from']+2, rows=1, complete=False)
         stream_queue['read_progress'] = dict(interval=dict(first=read_cursor(first_coverage), last=read_cursor(middle_coverage)))
         stream_queue['read_progress_complete'] = dict(exhausted=stream_queue['read_cursor'])
+        stream_queue['group_handle'] = dict(definition=definition, group=stream_queue['group_progress'])
+        stream_queue['progress_handle'] = dict(definition=definition, receipt=stream_queue['read'], progress=stream_queue['read_progress'])
+        results[FIXTURES / 'stream-handle-group.json'] = stream_handle(stream_queue['group_handle']).hex()
+        results[FIXTURES / 'stream-handle-progress.json'] = stream_handle(stream_queue['progress_handle']).hex()
         results[ROOT / 'packages/zig/transit-storage/src/stream_read_fixture.json'] = stream_queue['read_cursor']
         results[ROOT / 'packages/zig/transit-storage/src/stream_progress_fixture.json'] = stream_queue['read_progress']
         stream_queue['read_release'] = dict(

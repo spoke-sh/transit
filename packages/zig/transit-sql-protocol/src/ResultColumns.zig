@@ -269,6 +269,11 @@ test "independent workload frames preserve original selection and terminal cover
         completion = frame.completion.?;
         completion.rows += 10;
         try t.expectError(error.InvalidWorkloadResultCount, completion.validate(observation));
+        if (workload.selection == .consume and workload.selection.consume.request.group != null) {
+            completion = frame.completion.?;
+            completion.workload.?.progress = null;
+            try t.expectError(error.IncompleteWorkloadCoverage, completion.validate(observation));
+        }
         completion = frame.completion.?;
         if (workload.limit != null) {
             var unlimited = observation;
@@ -285,6 +290,14 @@ test "independent workload frames preserve original selection and terminal cover
                     try t.expectEqual(2, cursor.coverage.rows);
                     cursor.coverage.through -= 1;
                     cursor.coverage.complete = false;
+                    if (completion.workload.?.progress != null) {
+                        try t.expectError(error.WorkloadResultConflict, completion.validate(observation));
+                        // Keep the witness shape consistent to test incomplete
+                        // coverage separately from a mismatched terminal cursor.
+                        var first = cursor.*;
+                        first.coverage = try workload.selection.consume.initialCoverage();
+                        completion.workload.?.progress = .{ .interval = .{ .first = first, .last = cursor.* } };
+                    }
                 },
                 .claim => |*cursor| cursor.next -= 1,
             }

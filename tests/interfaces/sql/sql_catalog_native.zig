@@ -183,6 +183,55 @@ pub fn main(init: std.process.Init) !void {
     }
     const config = try support.load(Config, init, directory, "catalog.json");
     var client = try caller(init, &wire, config);
+    if (std.mem.eql(u8, mode, "stream-release")) {
+        if (args.len != 6) return error.Usage;
+        const bytes = try support.loadBytes(init, directory, args[4], p.StreamHandle.max_bytes);
+        defer init.gpa.free(bytes);
+        const receipt = (try p.StreamHandle.decode(p.StreamHandle.Progress, init.gpa, bytes)).receipt;
+        var external = client;
+        external.connection.principal = 1235;
+        external.connection.role = (try admin.query(.{ .authorization = .{ .kind = .{ .resolve = try .init("gateway-caller") } } })).body.authorization.body.resolve.id;
+        external.key = try support.key(11);
+        const request: p.StreamRead.Release = .{ .target = receipt.request.target, .read = receipt.handle(), .operation = .{ .scope = external.connection.scope, .principal = external.connection.principal, .operation = try std.fmt.parseInt(u64, args[5], 10) } };
+        const response = try external.call(.{ .stream = .{ .mutate = .{ .work = .{ .release = request }, .payload = null } } });
+        defer response.deinit();
+        return support.print(init, response.value.result.stream.operation.?.release);
+    }
+    if (std.mem.eql(u8, mode, "stream-assign")) {
+        if (args.len != 7) return error.Usage;
+        // SQL-created logs belong to the explicit gateway role. The native
+        // administrator has SET membership, not implicit log-owner privileges.
+        client.connection.role = (try admin.query(.{ .authorization = .{ .kind = .{ .resolve = try .init("gateway-caller") } } })).body.authorization.body.resolve.id;
+        const id = try std.fmt.parseInt(u64, args[5], 10);
+        const operation = try std.fmt.parseInt(u64, args[6], 10);
+        const filename = try std.fmt.allocPrint(init.arena.allocator(), "stream-assignment-{d}.json", .{operation});
+        const work = support.load(p.StreamQueue.GroupAssignment, init, directory, filename) catch |err| blk: {
+            if (err != error.FileNotFound) return err;
+            const lookup = try client.call(.{ .log_lookup = .{ .namespace = 1, .name = args[4] } });
+            defer lookup.deinit();
+            const metadata = lookup.value.result.log_lookup orelse return error.CatalogNameNotFound;
+            const target: p.StreamQueue.Partition = .{ .definition = p.Growth.current_definition, .interpretation = metadata.declaration.stored.declaration.interpretation, .partition = 0 };
+            const observed = try client.call(.{ .stream = .{ .observe = target } });
+            defer observed.deinit();
+            const existing = try client.call(.{ .stream = .{ .group = .{ .target = target, .id = id } } });
+            defer existing.deinit();
+            const expected = existing.value.result.stream.group;
+            const assignment: p.StreamQueue.GroupAssignment = .{
+                .operation = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = operation },
+                .cut = observed.value.result.stream.cut,
+                .expected = expected,
+                .group = .{ .id = id, .generation = if (expected) |previous| previous.group.generation + 1 else 1, .principal = 1235 },
+                .next = if (expected) |previous| previous.next else 0,
+            };
+            try support.save(init, directory, filename, assignment);
+            break :blk assignment;
+        };
+        const assigned = try client.call(.{ .stream = .{ .mutate = .{ .work = .{ .assign = work }, .payload = null } } });
+        defer assigned.deinit();
+        const receipt = assigned.value.result.stream.operation.?.assign;
+        try receipt.requireAssignment(work);
+        return support.print(init, p.StreamHandle.Group{ .definition = p.Growth.current_definition, .group = .{ .target = work.cut.target, .group = work.group, .next = work.next } });
+    }
     if (std.mem.startsWith(u8, mode, "definition-")) return definitionProof(init, client, config, directory, mode, args[4..]);
     if (std.mem.startsWith(u8, mode, "history-")) return history(init, client, directory, mode, args[4..]);
     if (std.mem.eql(u8, mode, "namespace-admin")) {

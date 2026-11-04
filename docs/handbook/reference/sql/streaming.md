@@ -12,7 +12,8 @@ several batches does not make that query continuous.
 | --- | --- | --- |
 | Declare and inspect a Stream or Queue | Shared Catalog declaration owner | `CREATE`, policy `ALTER`, `RENAME`, `DROP`, named `SHOW` and `DESCRIBE` below |
 | Append schema-bound events or work | Stream/Queue native owner with Catalog operation identity | `PRODUCE INTO`, `ENQUEUE INTO`, optional `RETURNING` below |
-| Consume a finite Stream cut | Native read with retained identity and bounded Fuze projection | Positional `CONSUME`, typed predicates and logical `LIMIT` below |
+| Consume a finite Stream cut | Native read with retained identity and bounded Fuze projection | Positional or explicitly grouped `CONSUME`, typed predicates and logical `LIMIT` below |
+| Settle Stream progress | Native group checkpoint owner with authenticated read boundaries | `COMMIT OFFSET ... RECEIPT` below |
 | Acquire Queue work | Native fenced leases and retained original selection | `CLAIM ... WITH LEASE`, one partition and an acquisition maximum below |
 | Settle or renew Queue work | Native settlement of an exact lease | `ACK`, `NACK` and `EXTEND LEASE` below |
 | Read an explicit state projection | Fuze over declared KV, Table or accepted Document state | Finite `SELECT` |
@@ -94,8 +95,8 @@ history. Deployment memory and storage quotas still apply.
 
 ALTER cannot change schema, partitioning, routing keys, ordering, compaction
 keys or timestamp identity. `IF EXISTS`, `IF NOT EXISTS` and schema evolution
-are outside this SQL profile. Group consumption, waits and `COMMIT OFFSET`
-require typed native callers. The admitted partition-routed CLAIM and
+are outside this SQL profile. Group assignment and waits require typed native
+callers. SQL group reads and offset settlement use their native descriptors. The admitted partition-routed CLAIM and
 receipt-bound settlement profiles are described below.
 
 Named `SHOW` returns the published object identity, definition revision,
@@ -200,10 +201,39 @@ after uncertainty. Current read rights and exact definitions are rechecked for
 buffered and terminal responses, including empty results. Native read release
 remains explicit and is separate from closing local result buffers.
 
-GROUP and WAIT can be parsed by the dedicated compiler but are refused by SQL
-admission. Consumption cannot run inside an attached interactive transaction
-in this profile. Group assignment and offset settlement retain their native
-owners; positional consumption does not advance a group checkpoint.
+### Consume and settle an assigned group
+
+Bind the binary `StreamHandle.Group` returned from an explicitly managed native
+assignment to `CONSUME ... GROUP $1` (MySQL uses `?`). This descriptor carries the
+exact target, group ID, generation, principal and checkpoint. It selects the
+partition and starting checkpoint; offset predicates filter rows without skipping
+input. Current rights and the native assignment remain authoritative.
+
+Grouped completion includes authenticated `progress`, separately from returned
+row count. The shared result model's `Workload.Completion.streamProgress` combines
+it with the original observation into a `StreamHandle.Progress`. Encode that
+bounded descriptor and bind it to:
+
+```sql
+COMMIT OFFSET ON STREAM events RECEIPT $1
+```
+
+The native SQL result API exposes this completion metadata, including empty
+results and partial LIMITs. PostgreSQL/MySQL and the console accept the same
+binary descriptors; their row counts and command tags cannot construct a
+progress proof. Callers using those transports obtain progress through the native
+result API. Group assignments use the 152-byte `SGH1` encoding; progress uses
+`SPH1`, at most 357 bytes. Both require the current definition.
+
+Offset settlement returns command completion without relational row counts.
+Native verification rejects forged boundaries, stale assignments/checkpoints and
+released reads. Preserve the original token after lost replies; retries recover
+the same settlement even after reassignment. Reassignment fences further delivery
+of the old grouped read, including buffered and reopened results; the original
+operation and accepted settlement remain recoverable. Closing results advances
+no offset and releases no native pin. Group assignment and read release remain native
+operations. WAIT and attached interactive workload transactions remain outside
+this SQL profile.
 
 ## Acquire Queue work
 

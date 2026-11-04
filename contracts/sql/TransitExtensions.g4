@@ -3,7 +3,7 @@
 grammar TransitExtensions;
 options { caseInsensitive = true; }
 
-statement: (historicalStatement | selectStatement | mutationStatement | logAppendCommand | logConsumeCommand | logClaimCommand | logSettlementCommand | extensionStatement | transactionStatement | managedCommand) SEMI? EOF;
+statement: (historicalStatement | selectStatement | mutationStatement | logAppendCommand | logConsumeCommand | logClaimCommand | logSettlementCommand | logOffsetCommand | extensionStatement | transactionStatement | managedCommand) SEMI? EOF;
 // The SQL service binds this exact catalog before compiling the inner query.
 historicalStatement: (selectStatement | DESCRIBE identifier | EXPLAIN selectStatement) snapshotClause projectionClause? | SHOW TABLES snapshotClause;
 snapshotClause: AS OF SNAPSHOT STRING (IN SCHEMA identifier)?;
@@ -156,7 +156,7 @@ logAppendOperand: literal | PARAMETER;
 // Grammar covers group/wait preparation; execution validates its narrower profile.
 logConsumeStatement: logConsumeCommand SEMI? EOF;
 logConsumeCommand: CONSUME projection FROM identifier sourceAlias?
-    (GROUP workloadTextOperand)? workloadWhereClause? templateLimitClause?
+    (GROUP workloadReceiptOperand)? workloadWhereClause? templateLimitClause?
     (WAIT workloadTextOperand)?;
 // Native admission validates the supported partition routing and wait profile.
 logClaimStatement: logClaimCommand SEMI? EOF;
@@ -167,6 +167,8 @@ logSettlementStatement: logSettlementCommand SEMI? EOF;
 logSettlementCommand: ACK ON QUEUE identifier RECEIPT workloadReceiptOperand
     | NACK ON QUEUE identifier RECEIPT workloadReceiptOperand (WITH LPAREN VISIBLE_AT EQ workloadTimestampOperand RPAREN)?
     | EXTEND LEASE ON QUEUE identifier RECEIPT workloadReceiptOperand BY workloadTextOperand;
+logOffsetStatement: logOffsetCommand SEMI? EOF;
+logOffsetCommand: COMMIT OFFSET ON STREAM identifier RECEIPT workloadReceiptOperand;
 workloadReceiptOperand: X STRING | PARAMETER | NULL_;
 workloadTimestampOperand: TIMESTAMP STRING | PARAMETER | NULL_;
 workloadTextOperand: STRING | PARAMETER | NULL_;
@@ -388,7 +390,7 @@ legacyIdentifier
     | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION
     | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES
     | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN
-    | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | ROLLBACK | SAVEPOINT | RELEASE
+    | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | OFFSET | ROLLBACK | SAVEPOINT | RELEASE
     | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE
     | STREAM | QUEUE | PARTITION | PARTITIONS | HASH
     | PRODUCE | ENQUEUE | PRODUCER | ID | EPOCH | SEQUENCE | VISIBLE_AT | RETURNING
@@ -462,6 +464,7 @@ READ: 'READ';
 ONLY: 'ONLY';
 WRITE: 'WRITE';
 COMMIT: 'COMMIT';
+OFFSET: 'OFFSET';
 ROLLBACK: 'ROLLBACK';
 SAVEPOINT: 'SAVEPOINT';
 RELEASE: 'RELEASE';

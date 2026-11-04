@@ -6644,6 +6644,7 @@
         "CatalogNameNotFound": 1,
         "InvalidLogPartitioning": 2,
         "InvalidWorkloadProjection": 1,
+        "LogGroupFenced": 1,
         "LogPartitionRequired": 1,
         "QueryTypeError": 1,
         "UnsupportedConstruct": 2
@@ -6662,7 +6663,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 46,
+        "try": 47,
         "catch": 0
       },
       "imports": [
@@ -6689,6 +6690,34 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 18,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectLogPreparedOffset.zig": {
+      "errors": {
+        "CatalogDefinitionChanged": 2,
+        "CatalogIdentityConflict": 2,
+        "CatalogKindMismatch": 1,
+        "CatalogNameNotFound": 1,
+        "InvalidStreamHandle": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "bindPrepared()": "<inferred>",
+        "checkValues()": "<inferred>",
+        "freeze()": "<inferred>",
+        "init()": "<inferred>",
+        "prepare()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 13,
         "catch": 0
       },
       "imports": [
@@ -10444,6 +10473,7 @@
         "DirectLogPreparedClaim.zig",
         "DirectLogPreparedConsume.zig",
         "DirectLogPreparedDdl.zig",
+        "DirectLogPreparedOffset.zig",
         "DirectLogPreparedSettlement.zig",
         "DirectLogProtocol.zig",
         "DirectMigration.zig",
@@ -15358,7 +15388,6 @@
     "packages/zig/transit-fuze/src/LogConsumeSql.zig": {
       "errors": {
         "InvalidLogConsumeOperand": 2,
-        "InvalidLogGroupName": 1,
         "InvalidSqlSyntax": 1,
         "LiteralOutOfRange": 1,
         "UnsupportedConstruct": 1
@@ -15374,7 +15403,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 40,
+        "try": 41,
         "catch": 2
       },
       "imports": [
@@ -15382,7 +15411,8 @@
         "SqlLogicalPredicate.zig",
         "SqlReference.zig",
         "root.zig",
-        "std"
+        "std",
+        "transit_protocol"
       ]
     },
     "packages/zig/transit-fuze/src/LogDdl.zig": {
@@ -15469,13 +15499,40 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-fuze/src/LogOffsetSql.zig": {
+      "errors": {
+        "ParameterCountMismatch": 1,
+        "ParameterGap": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Prepared.bind()": "<inferred>",
+        "Prepared.init()": "<inferred>",
+        "header()": "<inferred>",
+        "target()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 13,
+        "catch": 0
+      },
+      "imports": [
+        "LogReadSql.zig",
+        "SqlReference.zig",
+        "root.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-fuze/src/LogReadSql.zig": {
       "errors": {
         "InvalidLogClaimPredicate": 1,
         "InvalidLogLeaseDuration": 1,
+        "InvalidLogSettlementOperand": 1,
         "InvalidLogWait": 1,
         "InvalidProjection": 1,
-        "NullWorkloadParameter": 1
+        "NullWorkloadParameter": 2
       },
       "outcomes": {
         "Operand": [
@@ -15485,12 +15542,19 @@
         "Profile": [
           "stream",
           "queue"
+        ],
+        "TypedOperand.value": [
+          "literal",
+          "parameter"
         ]
       },
       "error_sets": {},
       "error_returns": {
         "Operand.bind()": "<inferred>",
         "Operand.parse()": "<inferred>",
+        "Operand.parseBytes()": "<inferred>",
+        "TypedOperand.bind()": "<inferred>",
+        "TypedOperand.parse()": "<inferred>",
         "add()": "<inferred>",
         "duration()": "<inferred>",
         "field()": "<inferred>",
@@ -15499,10 +15563,10 @@
         "resolve()": "<inferred>",
         "waitDuration()": "<inferred>"
       },
-      "open_error_set_uses": 2,
+      "open_error_set_uses": 3,
       "propagation": {
-        "try": 11,
-        "catch": 3
+        "try": 13,
+        "catch": 5
       },
       "imports": [
         "SqlReference.zig",
@@ -15514,11 +15578,9 @@
       "errors": {
         "IncompatibleDefinition": 1,
         "InvalidLogLeaseDuration": 1,
-        "InvalidLogSettlementOperand": 1,
         "InvalidLogVisibilityTime": 2,
         "InvalidParameterIndex": 1,
         "InvalidQueueLeaseHandle": 1,
-        "NullWorkloadParameter": 1,
         "ParameterCountMismatch": 1,
         "ParameterGap": 2,
         "ParameterTypeConflict": 1,
@@ -15529,16 +15591,10 @@
           "ack",
           "nack",
           "extend"
-        ],
-        "Operand.value": [
-          "literal",
-          "parameter"
         ]
       },
       "error_sets": {},
       "error_returns": {
-        "Operand.bind()": "<inferred>",
-        "Operand.parse()": "<inferred>",
         "Prepared.bind()": "<inferred>",
         "Prepared.init()": "<inferred>",
         "header()": "<inferred>",
@@ -15547,8 +15603,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 36,
-        "catch": 4
+        "try": 34,
+        "catch": 2
       },
       "imports": [
         "LogReadSql.zig",
@@ -17823,7 +17879,6 @@
         "InvalidLogClaimOperand": 1,
         "InvalidLogClaimPredicate": 1,
         "InvalidLogConsumeOperand": 1,
-        "InvalidLogGroupName": 1,
         "InvalidLogLeaseDuration": 1,
         "InvalidLogPartitioning": 1,
         "InvalidLogProducer": 1,
@@ -17863,6 +17918,8 @@
         "InvalidSqlPrivilege": 1,
         "InvalidSqlRole": 1,
         "InvalidSqlSyntax": 1,
+        "InvalidStreamHandle": 1,
+        "InvalidStreamProgress": 1,
         "InvalidTableDefault": 1,
         "InvalidTableSchemaEncoding": 1,
         "InvalidTableSchemaIdentity": 1,
@@ -18085,10 +18142,10 @@
         "structured()": "<inferred>",
         "validateTableSyntax()": "<inferred>"
       },
-      "open_error_set_uses": 13,
+      "open_error_set_uses": 14,
       "propagation": {
         "try": 60,
-        "catch": 33
+        "catch": 34
       },
       "imports": [
         "AuthorizationSql.zig",
@@ -20828,6 +20885,7 @@
         "LogClaimSql.zig",
         "LogConsumeSql.zig",
         "LogDdl.zig",
+        "LogOffsetSql.zig",
         "LogSettlementSql.zig",
         "LogicalArrow.zig",
         "LogicalCodec.zig",
@@ -23342,7 +23400,7 @@
           "deadline"
         ],
         "Definition": [
-          "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97"
+          "@\"037c68077dfd548bbd03c09ee4ae0ccf1f3b7a58d1e496a877ae61b55599fcdf\""
         ],
         "Effect.phase": [
           "pending",
@@ -23618,14 +23676,18 @@
         "CatalogKindMismatch": 2,
         "DataIdentityConflict": 3,
         "IncompatibleDefinition": 2,
-        "InvalidLogClosure": 4,
+        "InvalidLogClosure": 7,
         "InvalidQueueOperationBinding": 1,
         "InvalidStreamOperationBinding": 1,
+        "LogGroupFenced": 1,
+        "LogOffsetConflict": 1,
         "LogProducerFenced": 1,
         "LogProducerReceiptExpired": 1,
         "QueueLeaseExpired": 1,
         "QueueLeaseFenced": 1,
-        "StreamReadConflict": 1
+        "StreamCursorUnauthenticated": 1,
+        "StreamReadConflict": 1,
+        "StreamReadReleased": 1
       },
       "outcomes": {
         "Access": [
@@ -23661,7 +23723,11 @@
           "producer_fenced",
           "producer_receipt_expired",
           "lease_fenced",
-          "lease_expired"
+          "lease_expired",
+          "group_fenced",
+          "offset_conflict",
+          "read_released",
+          "cursor_unauthenticated"
         ],
         "StreamKind": [
           "append",
@@ -24084,6 +24150,41 @@
       "propagation": {
         "try": 11,
         "catch": 3
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-protocol/src/StreamHandle.zig": {
+      "errors": {
+        "EndOfStream": 1,
+        "IncompatibleDefinition": 3,
+        "InvalidStreamHandle": 4,
+        "InvalidStreamProgress": 1,
+        "InvalidStreamRead": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Group.validate()": "<inferred>",
+        "Progress.settlement()": "<inferred>",
+        "Progress.validate()": "<inferred>",
+        "boolean()": "<inferred>",
+        "decode()": "<inferred>",
+        "decodeBody()": "<inferred>",
+        "encode()": "<inferred>",
+        "readCursor()": "<inferred>",
+        "readGroup()": "<inferred>",
+        "readTarget()": "<inferred>",
+        "writeCursor()": "<inferred>",
+        "writeGroup()": "<inferred>",
+        "writeTarget()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 71,
+        "catch": 2
       },
       "imports": [
         "root.zig",
@@ -24686,6 +24787,7 @@
         "Schema.zig",
         "State.zig",
         "Storage.zig",
+        "StreamHandle.zig",
         "StreamQueue.zig",
         "StreamQueueDeclaration.zig",
         "StreamRead.zig",
@@ -32040,11 +32142,12 @@
     },
     "packages/zig/transit-sql-results/src/Workload.zig": {
       "errors": {
-        "IncompleteWorkloadCoverage": 2,
+        "IncompleteWorkloadCoverage": 3,
+        "InvalidStreamProgress": 2,
         "InvalidWorkloadEvidence": 3,
         "InvalidWorkloadObservation": 2,
         "InvalidWorkloadResultCount": 5,
-        "WorkloadResultConflict": 4,
+        "WorkloadResultConflict": 7,
         "WorkloadResultUnavailable": 2
       },
       "outcomes": {
@@ -32059,6 +32162,7 @@
       },
       "error_sets": {},
       "error_returns": {
+        "Completion.streamProgress()": "<inferred>",
         "Completion.validate()": "<inferred>",
         "Completion.validateShape()": "<inferred>",
         "Evidence.requireObservation()": "<inferred>",
@@ -32067,7 +32171,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 19,
+        "try": 24,
         "catch": 0
       },
       "imports": [
@@ -33501,7 +33605,8 @@
           "claim",
           "ack",
           "nack",
-          "extend_lease"
+          "extend_lease",
+          "commit_offset"
         ],
         "Profile": [
           "native",
@@ -33524,6 +33629,7 @@
           "log_consume",
           "log_claim",
           "log_settlement",
+          "log_offset",
           "relational",
           "namespace_change"
         ]
@@ -33544,7 +33650,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 48,
+        "try": 52,
         "catch": 1
       },
       "imports": [
@@ -33746,7 +33852,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 27,
+        "try": 28,
         "catch": 1
       },
       "imports": [
@@ -42968,7 +43074,7 @@
   },
   "grammars": {
     "contracts/sql/TransitExtensions.g4": {
-      "statement": "( historicalStatement | selectStatement | mutationStatement | logAppendCommand | logConsumeCommand | logClaimCommand | logSettlementCommand | extensionStatement | transactionStatement | managedCommand ) SEMI ? EOF",
+      "statement": "( historicalStatement | selectStatement | mutationStatement | logAppendCommand | logConsumeCommand | logClaimCommand | logSettlementCommand | logOffsetCommand | extensionStatement | transactionStatement | managedCommand ) SEMI ? EOF",
       "historicalStatement": "( selectStatement | DESCRIBE identifier | EXPLAIN selectStatement ) snapshotClause projectionClause ? | SHOW TABLES snapshotClause",
       "snapshotClause": "AS OF SNAPSHOT STRING ( IN SCHEMA identifier ) ?",
       "projectionClause": "PROJECTING TO ( CURRENT | SNAPSHOT STRING )",
@@ -43033,11 +43139,13 @@
       "logAppendValue": "DEFAULT | logAppendOperand",
       "logAppendOperand": "literal | PARAMETER",
       "logConsumeStatement": "logConsumeCommand SEMI ? EOF",
-      "logConsumeCommand": "CONSUME projection FROM identifier sourceAlias ? ( GROUP workloadTextOperand ) ? workloadWhereClause ? templateLimitClause ? ( WAIT workloadTextOperand ) ?",
+      "logConsumeCommand": "CONSUME projection FROM identifier sourceAlias ? ( GROUP workloadReceiptOperand ) ? workloadWhereClause ? templateLimitClause ? ( WAIT workloadTextOperand ) ?",
       "logClaimStatement": "logClaimCommand SEMI ? EOF",
       "logClaimCommand": "CLAIM projection FROM identifier sourceAlias ? workloadWhereClause ? templateLimitClause ? WITH LEASE workloadTextOperand ( WAIT workloadTextOperand ) ?",
       "logSettlementStatement": "logSettlementCommand SEMI ? EOF",
       "logSettlementCommand": "ACK ON QUEUE identifier RECEIPT workloadReceiptOperand | NACK ON QUEUE identifier RECEIPT workloadReceiptOperand ( WITH LPAREN VISIBLE_AT EQ workloadTimestampOperand RPAREN ) ? | EXTEND LEASE ON QUEUE identifier RECEIPT workloadReceiptOperand BY workloadTextOperand",
+      "logOffsetStatement": "logOffsetCommand SEMI ? EOF",
+      "logOffsetCommand": "COMMIT OFFSET ON STREAM identifier RECEIPT workloadReceiptOperand",
       "workloadReceiptOperand": "X STRING | PARAMETER | NULL_",
       "workloadTimestampOperand": "TIMESTAMP STRING | PARAMETER | NULL_",
       "workloadTextOperand": "STRING | PARAMETER | NULL_",
@@ -43093,7 +43201,7 @@
       "explainStatement": "EXPLAIN selectStatement",
       "identifier": "settingIdentifier | STREAMS | QUEUES | SNAPSHOT | CURRENT | PROJECTING | DATAFLOW | REVISION | AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE",
       "settingIdentifier": "legacyIdentifier | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER",
-      "legacyIdentifier": "IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | INSERT | UPDATE | DELETE | SET | VALUES | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS | COLLATE | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | EBCDIC_037_PAD | EBCDIC_1047_NOPAD | AT | DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_MULTIPLY | DECIMAL_DIVIDE | DECIMAL_RESCALE | RANGE_OVERLAPS | RANGE_CONTAINS | RANGE_ADJACENT | RANGE_COMPARE | VECTOR_DISTANCE | TIME_BUCKET | LOCAL_TO_UTC | RANGE | MULTIRANGE | VECTOR | ROUNDING | METRIC | TIMEZONE | TZDB | TZIF | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | ROLLBACK | SAVEPOINT | RELEASE | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE | STREAM | QUEUE | PARTITION | PARTITIONS | HASH | PRODUCE | ENQUEUE | PRODUCER | ID | EPOCH | SEQUENCE | VISIBLE_AT | RETURNING | CONSUME | CLAIM | LEASE | WAIT | ACK | NACK | EXTEND | RECEIPT | CONSTRAINT | CHECK | FOREIGN | REFERENCES | ENFORCED | VALID | VALIDATE | NO | ACTION",
+      "legacyIdentifier": "IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | INSERT | UPDATE | DELETE | SET | VALUES | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS | COLLATE | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | EBCDIC_037_PAD | EBCDIC_1047_NOPAD | AT | DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_MULTIPLY | DECIMAL_DIVIDE | DECIMAL_RESCALE | RANGE_OVERLAPS | RANGE_CONTAINS | RANGE_ADJACENT | RANGE_COMPARE | VECTOR_DISTANCE | TIME_BUCKET | LOCAL_TO_UTC | RANGE | MULTIRANGE | VECTOR | ROUNDING | METRIC | TIMEZONE | TZDB | TZIF | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | OFFSET | ROLLBACK | SAVEPOINT | RELEASE | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE | STREAM | QUEUE | PARTITION | PARTITIONS | HASH | PRODUCE | ENQUEUE | PRODUCER | ID | EPOCH | SEQUENCE | VISIBLE_AT | RETURNING | CONSUME | CLAIM | LEASE | WAIT | ACK | NACK | EXTEND | RECEIPT | CONSTRAINT | CHECK | FOREIGN | REFERENCES | ENFORCED | VALID | VALIDATE | NO | ACTION",
       "AT": "'AT'",
       "DECIMAL_ADD": "'DECIMAL_ADD'",
       "DECIMAL_SUBTRACT": "'DECIMAL_SUBTRACT'",
@@ -43158,6 +43266,7 @@
       "ONLY": "'ONLY'",
       "WRITE": "'WRITE'",
       "COMMIT": "'COMMIT'",
+      "OFFSET": "'OFFSET'",
       "ROLLBACK": "'ROLLBACK'",
       "SAVEPOINT": "'SAVEPOINT'",
       "RELEASE": "'RELEASE'",

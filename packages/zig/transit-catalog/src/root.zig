@@ -56,6 +56,7 @@ pub const DirectWorkloadResultProtocol = @import("DirectWorkloadResultProtocol.z
 pub const DirectLogPreparedDdl = @import("DirectLogPreparedDdl.zig");
 pub const DirectLogPreparedAppend = @import("DirectLogPreparedAppend.zig");
 pub const DirectLogPreparedClaim = @import("DirectLogPreparedClaim.zig");
+pub const DirectLogPreparedOffset = @import("DirectLogPreparedOffset.zig");
 pub const DirectLogPreparedSettlement = @import("DirectLogPreparedSettlement.zig");
 pub const DirectLogPreparedConsume = @import("DirectLogPreparedConsume.zig");
 pub const DirectLogClient = @import("DirectLogClient.zig");
@@ -151,6 +152,7 @@ test {
     _ = DirectLogPreparedConsume;
     _ = DirectLogPreparedClaim;
     _ = DirectLogPreparedSettlement;
+    _ = DirectLogPreparedOffset;
     _ = DirectStreamMutation;
     _ = DirectStream;
     _ = DirectQueueMutation;

@@ -108,7 +108,10 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97`.
+`037c68077dfd548bbd03c09ee4ae0ccf1f3b7a58d1e496a877ae61b55599fcdf`.
+It binds explicit binary Stream assignment/progress descriptors, authenticated
+grouped SQL completion intervals and recorded native group/offset/read/MAC
+refusals.
 It requires a mandatory nullable `staged` field in client-token progress and
 binds the `CPR1` owned-progress envelope and signed `client_progress.advance`
 operation. Reservation precedes byte creation; readiness replaces the current

@@ -11,17 +11,18 @@ connection: c.DirectTableProtocol.Connection,
 namespace: u64,
 dialect: f.Sql.Dialect,
 inspection: bool = false,
-plan: union(enum) { select: g.direct.DirectTablePrepared, dml: c.DirectTablePreparedDml, ddl: c.DirectTablePreparedDdl, log_ddl: c.DirectLogPreparedDdl, log_append: c.DirectLogPreparedAppend, log_consume: c.DirectLogPreparedConsume, log_claim: c.DirectLogPreparedClaim, log_settlement: c.DirectLogPreparedSettlement, relational: *g.direct.DirectRelationalCompilation, namespace_change: c.DirectAuthorizationSql.NamespacePlan },
+plan: union(enum) { select: g.direct.DirectTablePrepared, dml: c.DirectTablePreparedDml, ddl: c.DirectTablePreparedDdl, log_ddl: c.DirectLogPreparedDdl, log_append: c.DirectLogPreparedAppend, log_consume: c.DirectLogPreparedConsume, log_claim: c.DirectLogPreparedClaim, log_settlement: c.DirectLogPreparedSettlement, log_offset: c.DirectLogPreparedOffset, relational: *g.direct.DirectRelationalCompilation, namespace_change: c.DirectAuthorizationSql.NamespacePlan },
 output: ?f.Types.Decoded,
-pub const Kind = enum { select, insert, update, delete, create, alter, drop, produce, enqueue, consume, claim, ack, nack, extend_lease };
+pub const Kind = enum { select, insert, update, delete, create, alter, drop, produce, enqueue, consume, claim, ack, nack, extend_lease, commit_offset };
 pub fn isWorkload(self: *const Self) bool {
-    return self.plan == .log_append or self.plan == .log_consume or self.plan == .log_claim or self.plan == .log_settlement;
+    return self.plan == .log_append or self.plan == .log_consume or self.plan == .log_claim or self.plan == .log_settlement or self.plan == .log_offset;
 }
 pub fn kind(self: *const Self) Kind {
     return switch (self.plan) {
         .select, .relational => .select,
         .log_append => |value| if (value.definition.kind() == .stream) .produce else .enqueue,
         .log_consume => .consume,
+        .log_offset => .commit_offset,
         .log_claim => .claim,
         .log_settlement => |value| switch (value.compiled.target.kind) {
             .ack => .ack,
@@ -66,7 +67,7 @@ pub fn parameters(self: *const Self) []const f.Types.Type {
         .log_append => |*value| value.compiled.parameterTypes(),
         .log_consume => |*value| value.compiled.parameterTypes(),
         .log_claim => |*value| value.compiled.parameterTypes(),
-        .log_settlement => |*value| value.compiled.parameterTypes(),
+        inline .log_settlement, .log_offset => |*value| value.compiled.parameterTypes(),
         else => &.{},
     };
 }
@@ -81,6 +82,9 @@ pub fn checkValues(self: *const Self, allocator: std.mem.Allocator, values: []co
         .log_append => |*value| {
             var bound = try value.compiled.bind(allocator, values, null);
             defer bound.deinit();
+        },
+        .log_offset => |*value| {
+            _ = try value.checkValues(allocator, values, null);
         },
         .log_settlement => |*value| {
             _ = try value.checkValues(values, null);
@@ -148,6 +152,8 @@ fn prepareInner(allocator: std.mem.Allocator, client: *c.DirectTableClient, name
         plan = .{ .log_consume = try c.DirectLogPreparedConsume.prepare(allocator, client.*, namespace, text, dialect, location) };
     } else if (tokenIs(first, "CLAIM")) {
         plan = .{ .log_claim = try c.DirectLogPreparedClaim.prepare(allocator, client.*, namespace, text, dialect, location) };
+    } else if (tokenIs(first, "COMMIT") and tokenIs(try lexer.next(), "OFFSET")) {
+        plan = .{ .log_offset = try c.DirectLogPreparedOffset.prepare(allocator, client.*, namespace, text, dialect, location) };
     } else if (tokenIs(first, "ACK") or tokenIs(first, "NACK") or tokenIs(first, "EXTEND")) {
         plan = .{ .log_settlement = try c.DirectLogPreparedSettlement.prepare(allocator, client.*, namespace, text, dialect, location) };
     } else if (std.ascii.eqlIgnoreCase(first.text, "SELECT")) {
@@ -214,6 +220,7 @@ pub fn validate(self: *const Self, client: *c.DirectTableClient) !void {
     if (self.plan == .log_consume) return self.plan.log_consume.validate(client.*);
     if (self.plan == .log_claim) return self.plan.log_claim.validate(client.*);
     if (self.plan == .log_settlement) return self.plan.log_settlement.validate(client.*);
+    if (self.plan == .log_offset) return self.plan.log_offset.validate(client.*);
     const right: c.TableAuthority.Access = switch (self.kind()) {
         .select => if (self.inspection) .inspect else .read,
         .insert => .insert,
@@ -222,7 +229,7 @@ pub fn validate(self: *const Self, client: *c.DirectTableClient) !void {
         .create => .create_table,
         .alter => .alter,
         .drop => .drop,
-        .produce, .enqueue, .consume, .claim, .ack, .nack, .extend_lease => unreachable,
+        .produce, .enqueue, .consume, .claim, .ack, .nack, .extend_lease, .commit_offset => unreachable,
     };
     switch (self.plan) {
         .select => |value| _ = try value.binding.require(client.*, right),
@@ -231,7 +238,7 @@ pub fn validate(self: *const Self, client: *c.DirectTableClient) !void {
         .namespace_change => |value| try value.validate(client.*, self.namespace, .{}),
         .ddl => |*value| try value.validate(client.*),
         .log_ddl => |*value| try value.validate(client.*),
-        .log_append, .log_consume, .log_claim, .log_settlement => unreachable,
+        .log_append, .log_consume, .log_claim, .log_settlement, .log_offset => unreachable,
     }
 }
 pub const Write = union(enum) {
@@ -292,6 +299,7 @@ pub fn bindWritePrepared(self: *const Self, allocator: std.mem.Allocator, client
     if (self.plan == .log_append) return .{ .workload = try self.plan.log_append.bindPrepared(allocator, client.*, operation, values, null, fresh) };
     if (self.plan == .log_consume) return .{ .workload = try self.plan.log_consume.bindPrepared(allocator, client.*, operation, values, null, fresh) };
     if (self.plan == .log_claim) return .{ .workload = try self.plan.log_claim.bindPrepared(allocator, client.*, operation, values, null, fresh) };
+    if (self.plan == .log_offset) return .{ .workload = try self.plan.log_offset.bindPrepared(allocator, client.*, operation, values, null, fresh) };
     if (self.plan == .log_settlement) return .{ .workload = try self.plan.log_settlement.bindPrepared(allocator, client.*, operation, values, null, fresh) };
     if (self.plan == .log_ddl) {
         if (values.len != 0) return error.WireParameterCountMismatch;

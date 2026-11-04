@@ -8256,8 +8256,16 @@ test "workload results reopen original payload and selections without mutation a
             var forged = work;
             forged.work.offset.commit.operation.operation = 103;
             forged.work.offset.progress.exhausted.authentication[0] ^= 1;
-            try t.expectError(error.StreamCursorUnauthenticated, native.stream(native.context, t.allocator, &catalog, access.policy(), .{ .mutate = forged }));
-            try t.expectEqual(original_tail, try wal.log().tail(partition));
+            const refused = try native.stream(native.context, t.allocator, &catalog, access.policy(), .{ .mutate = forged });
+            try t.expectEqual(p.LogWorkload.Refusal.cursor_unauthenticated, refused.operation.?.closed.reason.refused);
+            const refused_tail = try wal.log().tail(partition);
+            try t.expect(refused_tail > original_tail);
+            try t.expectEqual(refused.operation.?.closed.recorded.next_lsn, refused_tail);
+            try t.expectEqualDeep(refused, try native.stream(native.context, t.allocator, &catalog, access.policy(), .{ .mutate = forged }));
+            try t.expectEqualDeep(refused, try native.stream(native.context, t.allocator, &catalog, access.policy(), .{ .operation = forged.work }));
+            try t.expectEqual(refused_tail, try wal.log().tail(partition));
+            const before = try native.stream(native.context, t.allocator, &catalog, access.policy(), .{ .group = .{ .target = work.work.target(), .id = 1 } });
+            try t.expectEqual(@as(u64, 0), before.group.?.next);
             const committed = try native.stream(native.context, t.allocator, &catalog, access.policy(), .{ .mutate = work });
             try t.expect(committed.operation.? == .offset);
             try t.expectEqualDeep(work.work.offset.commit, committed.operation.?.offset.commit);

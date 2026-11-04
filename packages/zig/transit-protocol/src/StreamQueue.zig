@@ -453,6 +453,8 @@ pub const SchemaTypes = struct {
     producer: ProducerState,
     offset_commit: OffsetCommit,
     group_progress: GroupProgress,
+    group_handle: p.StreamHandle.Group,
+    progress_handle: p.StreamHandle.Progress,
     group_assignment: GroupAssignmentReceipt,
     offset_receipt: OffsetReceipt,
     read: p.StreamRead.Receipt,

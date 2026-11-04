@@ -64,6 +64,8 @@ pub fn parse(text: []const u8, dialect: sql.Dialect) !?Control {
         else => return null,
     }
     try parser.advance();
+    // COMMIT OFFSET is a workload statement, never an interactive COMMIT.
+    if (first == .commit and parser.token.tag == .word and std.ascii.eqlIgnoreCase(parser.token.text, "OFFSET")) return null;
     const result: Control = switch (first) {
         .begin, .start => blk: {
             if (first == .start) try parser.require(.transaction) else if (!try parser.eat(.transaction)) _ = try parser.eat(.work);
@@ -115,6 +117,7 @@ test "SQL transaction controls use one typed grammar and reject unsupported sema
     try t.expectEqualDeep(Control{ .rollback_to_savepoint = try Name.init("First") }, (try parse("ROLLBACK WORK TO SAVEPOINT \"First\"", .transit)).?);
     try t.expectEqualDeep(Control{ .release_savepoint = try Name.init("first") }, (try parse("RELEASE first; -- done", .mysql)).?);
     try t.expectEqual(Control.commit, (try parse("COMMIT WORK", .mysql)).?);
+    try t.expectEqual(null, try parse("COMMIT OFFSET ON STREAM events RECEIPT $1", .transit));
     try t.expectEqual(Control.rollback, (try parse("ROLLBACK TRANSACTION", .transit)).?);
     try t.expect(try parse("SELECT 'BEGIN'", .transit) == null);
     try t.expectError(error.UnsupportedTransactionIsolation, parse("BEGIN ISOLATION LEVEL READ COMMITTED", .transit));

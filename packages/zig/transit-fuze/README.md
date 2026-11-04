@@ -85,12 +85,14 @@ the SQL service's Catalog adapter owns those steps.
 
 `LogConsumeSql.Prepared` shares row headers and `LogicalPrepared.adoptSyntax`
 for typed projections, predicates, LIMIT and group/wait operands. The bound
-plan, input field layout and group name own their memory independently of the
+plan, input field layout and binary group descriptor own their memory independently of the
 template. Star expands before predicate-only metadata is added to the input.
 `WorkloadProjection.schemaLayout` supplies that pure metadata layout without
 inventing an accepted operation. This preparation helper has no source capture,
-group identity, native wait or offset-settlement authority. The SQL service
-binds its positional subset through the Catalog. Its LIMIT remains a logical output bound. Original Stream
+group assignment, native wait or offset-settlement authority.
+`LogOffsetSql.Prepared` prepares `COMMIT OFFSET ON STREAM ... RECEIPT ...`
+from a bounded binary native progress descriptor; binding grants no authority. The SQL service
+binds positional and explicitly assigned reads through the Catalog. Its LIMIT remains a logical output bound. Original Stream
 workload projections can retain that bound; SQL result consumption stops with
 the exact native cursor and preserves partial coverage. Append and Queue claim
 projections continue to reject limits. See the [compiler

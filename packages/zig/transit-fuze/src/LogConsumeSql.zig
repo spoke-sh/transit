@@ -1,6 +1,7 @@
 //! Pure CONSUME preparation. LIMIT remains a logical output bound; it is never
 //! converted into an offset span or evidence of completed native coverage.
 const std = @import("std");
+const p = @import("transit_protocol");
 const f = @import("root.zig");
 const Parser = f.SqlTyped;
 const Reference = @import("SqlReference.zig");
@@ -38,7 +39,7 @@ pub const Prepared = struct {
         var parser = try Parser.initDialect(a, try a.dupe(u8, text), location, true, dialect);
         var syntax = try header(&parser);
         var parameters: std.ArrayList(f.LogicalPrepared.Parameter) = .empty;
-        const group = if (try parser.takeWord("GROUP")) try Operand.parse(&parser, &parameters, error.InvalidLogConsumeOperand) else null;
+        const group = if (try parser.takeWord("GROUP")) try Operand.parseBytes(&parser, &parameters, .binary, error.InvalidLogConsumeOperand) else null;
         if (try parser.takeWord("WHERE")) syntax.predicate = try Predicate.syntax(&parser, null, syntax.qualifier, error.UnsupportedConstruct);
         if (try parser.takeWord("LIMIT")) {
             if (try parser.parameter()) |site| {
@@ -74,10 +75,11 @@ pub const Prepared = struct {
         var plan = try self.template.bind(allocator, self.template.name, self.template.descriptor.type, self.template.basis, values, diagnostic);
         errdefer plan.deinit();
         const group = if (self.group) |operand| blk: {
-            errdefer operand.at(diagnostic);
-            const name = try operand.bind(values);
-            if (name.len == 0) return error.InvalidLogGroupName;
-            break :blk name;
+            errdefer {
+                operand.at(diagnostic);
+                if (diagnostic) |detail| detail.expected = "binary";
+            }
+            break :blk try p.StreamHandle.decode(p.StreamHandle.Group, allocator, try operand.bind(values));
         } else null;
         const wait_ms = if (self.wait) |operand| blk: {
             errdefer operand.at(diagnostic);
@@ -88,19 +90,18 @@ pub const Prepared = struct {
         try plan.plan.validate();
         const fields = try allocator.dupe(Field, self.fields);
         errdefer allocator.free(fields);
-        return .{ .allocator = allocator, .plan = plan, .fields = fields, .group = if (group) |name| try allocator.dupe(u8, name) else null, .wait_ms = wait_ms };
+        return .{ .allocator = allocator, .plan = plan, .fields = fields, .group = if (group) |handle| handle.group else null, .wait_ms = wait_ms };
     }
 };
 pub const Bound = struct {
     allocator: std.mem.Allocator,
     plan: f.LogicalPlanCodec.Owned,
     fields: []const Field,
-    group: ?[]const u8,
+    group: ?p.StreamQueue.GroupProgress,
     wait_ms: ?u32,
     pub fn deinit(self: *Bound) void {
         self.plan.deinit();
         self.allocator.free(self.fields);
-        if (self.group) |name| self.allocator.free(name);
         self.* = undefined;
     }
 };
@@ -111,6 +112,12 @@ const test_columns = [_]f.TableSchema.Column{
 };
 const test_schema: f.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 10, .columns = &test_columns, .primary_key = &.{} };
 
+const test_group: p.StreamHandle.Group = .{ .definition = p.Growth.current_definition, .group = .{
+    .target = .{ .definition = p.Growth.current_definition, .interpretation = .{ .object = .{ .scope = .{ .realm = 1, .resource = 2, .catalog = 3 }, .branch = 1, .object = 7 }, .revision = 1, .digest = @splat(9) }, .partition = 2 },
+    .group = .{ .id = 41, .generation = 3, .principal = 8 },
+    .next = 100,
+} };
+
 fn consumeOwned(allocator: std.mem.Allocator) !void {
     const t = std.testing;
     var text = "CONSUME e.id AS event_id, _offset FROM events AS e GROUP $1 WHERE body = $2 AND _partition = $3 LIMIT $4 WAIT $5".*;
@@ -118,16 +125,17 @@ fn consumeOwned(allocator: std.mem.Allocator) !void {
     var live = true;
     defer if (live) prepared.deinit();
     @memset(&text, 0);
-    try t.expectEqualSlices(f.Types.Type, &.{ .utf8, .utf8, .uint64, .uint64, .utf8 }, prepared.parameterTypes());
-    var group = "billing".*;
+    try t.expectEqualSlices(f.Types.Type, &.{ .binary, .utf8, .uint64, .uint64, .utf8 }, prepared.parameterTypes());
+    const group = try p.StreamHandle.encode(allocator, test_group);
+    defer allocator.free(group);
     var body = "MiXeD".*;
-    var bound = try prepared.bind(allocator, &.{ .{ .bytes = &group }, .{ .bytes = &body }, .{ .unsigned = 2 }, .{ .unsigned = 10 }, .{ .bytes = "250ms" } }, null);
+    var bound = try prepared.bind(allocator, &.{ .{ .bytes = group }, .{ .bytes = &body }, .{ .unsigned = 2 }, .{ .unsigned = 10 }, .{ .bytes = "250ms" } }, null);
     defer bound.deinit();
     prepared.deinit();
     live = false;
-    @memset(&group, 0);
+    @memset(group, 0);
     @memset(&body, 0);
-    try t.expectEqualStrings("billing", bound.group.?);
+    try t.expectEqualDeep(test_group.group, bound.group.?);
     try t.expectEqual(@as(?u32, 250), bound.wait_ms);
     try t.expectEqual(@as(?u64, 10), bound.plan.plan.limit);
     try t.expectEqualStrings("event_id", bound.plan.plan.output_names[0].?);
@@ -163,7 +171,7 @@ test "log consume SQL star excludes predicate metadata and keeps finite output l
     try t.expectEqualStrings("body", output.structure[1].name);
     var mysql = try Prepared.init(t.allocator, "CONSUME `id` FROM `events` GROUP ? WHERE id = ? LIMIT ? WAIT ?", test_schema, .mysql, null);
     defer mysql.deinit();
-    try t.expectEqualSlices(f.Types.Type, &.{ .utf8, .int64, .uint64, .utf8 }, mysql.parameterTypes());
+    try t.expectEqualSlices(f.Types.Type, &.{ .binary, .int64, .uint64, .utf8 }, mysql.parameterTypes());
 }
 
 test "log consume SQL refuses conflicting parameters malformed waits and unsafe shapes" {
@@ -172,12 +180,14 @@ test "log consume SQL refuses conflicting parameters malformed waits and unsafe 
     try t.expectError(error.ParameterGap, Prepared.init(t.allocator, "CONSUME id FROM events GROUP $2", test_schema, .transit, null));
     var prepared = try Prepared.init(t.allocator, "CONSUME id FROM events GROUP $1 LIMIT $2 WAIT $3", test_schema, .transit, null);
     defer prepared.deinit();
+    const group = try p.StreamHandle.encode(t.allocator, test_group);
+    defer t.allocator.free(group);
     try t.expectError(error.NullWorkloadParameter, prepared.bind(t.allocator, &.{ null, .{ .unsigned = 1 }, .{ .bytes = "1s" } }, null));
-    try t.expectError(error.NullLimitParameter, prepared.bind(t.allocator, &.{ .{ .bytes = "group" }, null, .{ .bytes = "1s" } }, null));
-    try t.expectError(error.InvalidLogGroupName, prepared.bind(t.allocator, &.{ .{ .bytes = "" }, .{ .unsigned = 1 }, .{ .bytes = "1s" } }, null));
+    try t.expectError(error.NullLimitParameter, prepared.bind(t.allocator, &.{ .{ .bytes = group }, null, .{ .bytes = "1s" } }, null));
+    try t.expectError(error.InvalidStreamHandle, prepared.bind(t.allocator, &.{ .{ .bytes = "" }, .{ .unsigned = 1 }, .{ .bytes = "1s" } }, null));
     for ([_][]const u8{ "", "ms", "0ms", "-1s", "1.5s", "1d", "4294967296ms", "18446744073709551615m" }) |wait| {
         var diagnostic: f.Sql.Binding = .{};
-        try t.expectError(error.InvalidLogWait, prepared.bind(t.allocator, &.{ .{ .bytes = "group" }, .{ .unsigned = 1 }, .{ .bytes = wait } }, &diagnostic));
+        try t.expectError(error.InvalidLogWait, prepared.bind(t.allocator, &.{ .{ .bytes = group }, .{ .unsigned = 1 }, .{ .bytes = wait } }, &diagnostic));
         try t.expectEqual(@as(?u32, 3), diagnostic.parameter);
         try t.expect(diagnostic.location != null);
     }

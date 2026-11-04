@@ -23,47 +23,7 @@ pub fn target(allocator: std.mem.Allocator, text: []const u8, dialect: f.Sql.Dia
     return header(&parser);
 }
 
-const Operand = struct {
-    kind: f.Types.Type,
-    value: union(enum) { literal: struct { atom: Atom, offset: usize }, parameter: f.Sql.Parameter },
-    fn parse(parser: *Parser, kind: f.Types.Type) !Operand {
-        if (try parser.parameter()) |site| return .{ .kind = kind, .value = .{ .parameter = site } };
-        const literal = try parser.literal(kind);
-        var failure: ?Parser.Literal.Span = null;
-        const cell = literal.bind(parser.allocator, kind, &failure) catch |err| {
-            if (parser.location) |where| where.* = .{ .offset = (failure orelse literal.span).start };
-            return err;
-        };
-        if (cell != .value or cell.value != .atom) return error.InvalidLogSettlementOperand;
-        return .{ .kind = kind, .value = .{ .literal = .{ .atom = cell.value.atom, .offset = literal.span.start } } };
-    }
-    fn at(self: Operand, diagnostic: ?*f.Sql.Binding) void {
-        const detail = diagnostic orelse return;
-        detail.expected = @tagName(self.kind);
-        switch (self.value) {
-            .literal => |value| detail.location = .{ .offset = value.offset },
-            .parameter => |site| {
-                detail.location = .{ .offset = site.offset };
-                detail.parameter = site.index;
-                detail.parameter_sites[0] = site.offset;
-            },
-        }
-    }
-    fn bind(self: Operand, values: []const ?Atom, diagnostic: ?*f.Sql.Binding) !Atom {
-        errdefer self.at(diagnostic);
-        return switch (self.value) {
-            .literal => |value| value.atom,
-            .parameter => |site| blk: {
-                const value = values[site.index - 1] orelse return error.NullWorkloadParameter;
-                f.LogicalPrepared.validate(value, self.kind) catch |err| {
-                    if (diagnostic) |detail| detail.actual = @tagName(value);
-                    return err;
-                };
-                break :blk value;
-            },
-        };
-    }
-};
+const Operand = @import("LogReadSql.zig").TypedOperand;
 
 pub const Bound = struct { lease: p.StreamQueue.Lease, action: @FieldType(p.StreamQueue.Settlement, "action") };
 pub const Prepared = struct {

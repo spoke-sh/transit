@@ -8,8 +8,8 @@ bindings. Its validators check shape, exact attribution and supplied guards.
 They perform no I/O and establish no permission, catalog publication, payload
 availability or durable acceptance. SQL declarations and named inspection use
 the [shared Catalog lifecycle](../docs/handbook/reference/sql/streaming.md#stream-and-queue-declarations).
-SQL also supports [PRODUCE and positional CONSUME](../docs/handbook/reference/sql/streaming.md#append-events-and-work).
-Group consumption, WAIT, `COMMIT OFFSET` and `STREAM_SLICE` remain unavailable.
+SQL also supports [PRODUCE and finite CONSUME](../docs/handbook/reference/sql/streaming.md#append-events-and-work).
+Explicitly assigned group consumption and authenticated `COMMIT OFFSET` use the same native owners. WAIT and `STREAM_SLICE` remain unavailable in SQL.
 
 The signed [original-result action](DIRECT_TABLE_V1.md#original-workload-result-delivery)
 reopens accepted append and finite consume results from frozen workload intents.
@@ -188,6 +188,58 @@ null; later policy changes cannot invent an observation time for that history.
 Original outcomes and recovery remain available under current rights even if
 the clock is subsequently unavailable or regresses.
 
+## SQL assignment and progress descriptors
+
+`CONSUME ... FROM name GROUP binary-or-parameter` accepts a `StreamHandle.Group`:
+the 152-byte `SGH1` binary encoding of required `definition` and
+`group: GroupProgress`. It preserves an existing native assignment's full target,
+ID, generation, principal and exclusive checkpoint. The bound descriptor selects
+one partition and starts at that checkpoint; `_offset` predicates filter output
+without skipping earlier untraversed offsets. Catalog binding checks the current
+interpretation, principal and partition. Native admission checks the actual
+assignment and checkpoint. SQL does not create groups or infer membership from
+names, connections or possession of a descriptor.
+
+A grouped SQL completion carries `progress: StreamRead.Progress` in addition to
+its original cursor. It authenticates the interval from the initial cursor to
+completion, including LIMIT 0, filtered empty results and partial LIMITs.
+`StreamHandle.Progress` carries required `definition`, original `receipt` and
+that `progress`. `COMMIT OFFSET ON STREAM name RECEIPT binary-or-parameter`
+freezes a new original settlement operation; the complete interval determines
+`expected_next` and exclusive `next`. No bare offset is accepted. These descriptor
+encodings are bounded to 357 bytes; missing/foreign definitions, invalid tags,
+truncated or trailing bytes and mismatched read endpoints refuse. Encoding/decoding establishes
+shape only. The native owner authenticates both cursor boundaries, verifies the
+live read pin and current group/checkpoint, and records its original decision.
+
+The byte layout is little-endian, with no padding or host-layout dependence.
+Both encodings begin with four magic bytes (`SGH1` or `SPH1`) and the required
+32-byte definition. The common target is six u64 fields (realm, resource, catalog,
+branch, object, revision), a 32-byte interpretation digest and a u32 partition.
+Three u64 fields follow: group ID, generation and principal. `SGH1` ends with the
+u64 checkpoint.
+
+`SPH1` continues with the u64 original read operation and starting offset, a
+0/1 tag followed by an optional u64 requested upper bound, and a 0/1 tag followed
+by optional two i64 timestamp bounds. Next are five u64 fields (cut's accepted
+partition and next LSN, retained lower bound, next offset and source byte count)
+and the 32-byte source hash. A 0/1 progress tag selects one exhausted cursor or
+two interval cursors. Each cursor stores u64 traversed offset, u64 traversed row
+count, a 0/1 completeness tag and its unchanged 32-byte MAC. Receipt validation
+establishes the omitted repeated target, scope, principal, cut and read identity;
+the accepted read position is the cut's next LSN plus one. Decoding reconstructs
+those equal fields and validates the complete native receipt and progress.
+
+Settlements may retain an earlier compatible interpretation, like native offset
+work. Accepted retries recover their original receipt after later advancement or
+reassignment. Recorded `group_fenced`, `offset_conflict`, `read_released` and
+`cursor_unauthenticated` closures reject the exact original work without changing
+progress. Unavailability, authorization loss and missing observations remain
+distinct; they do not establish rejection. Closing a SQL result neither releases
+the native pin nor commits progress. Assignment and explicit read release remain
+native operations. Attached interactive transactions and automatic rebalancing
+are outside this SQL profile.
+
 ## Finite read coverage
 
 `Cut` records the partition interpretation, physical accepted frontier and
@@ -217,6 +269,10 @@ timestamp selection requires the declared timestamp column before admission.
 A null end selects the
 observed upper frontier once during acceptance. Group reads bind their assigned
 principal; the runtime must also compare the current generation and checkpoint.
+Reassignment fences cursor creation and page traversal, including reopening an
+original read. Advancing the checkpoint within the same generation does not
+invalidate that retained read. Original operation and accepted settlement lookup
+remain available under current rights; they do not grant further row delivery.
 `StreamRead.Receipt` retains that original request, exact cut, resolved end,
 immutable source commitment and the next physical publication frontier. Retrying
 after later appends cannot extend its cut. Its initial coverage starts at the

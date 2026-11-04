@@ -401,10 +401,23 @@ pub fn logSettlement(text: []const u8, cause: anyerror, binding: sql.Binding) ?S
     return result;
 }
 
+pub fn logOffset(text: []const u8, cause: anyerror, binding: sql.Binding) ?Self {
+    var result = tableDml(text, cause, binding.location orelse .{}) orelse return null;
+    result.binding = binding;
+    for (@import("SqlCodes.zig").entries) |entry| if (entry.cause == cause and entry.summary != null) return result;
+    result.summary = "Stream offset settlement cannot be compiled";
+    result.hint = "Use COMMIT OFFSET ON STREAM with the original binary progress RECEIPT. Preparation grants no settlement authority.";
+    return result;
+}
+
 /// Project binding evidence captured at compilation, without later catalog reads.
 pub fn bound(text: []const u8, cause: anyerror, inspection: bool, binding: sql.Binding) ?Self {
     var lexer: sql.Lexer = .{ .text = text };
     const first = lexer.next() catch null;
+    if (first) |token| if (token.tag == .word and std.ascii.eqlIgnoreCase(token.text, "COMMIT")) {
+        const next = lexer.next() catch null;
+        if (next) |following| if (following.tag == .word and std.ascii.eqlIgnoreCase(following.text, "OFFSET")) return logOffset(text, cause, binding);
+    };
     if (first) |token| if (token.tag == .word and std.ascii.eqlIgnoreCase(token.text, "CONSUME")) return logConsume(text, cause, binding);
     if (first) |token| if (token.tag == .word and std.ascii.eqlIgnoreCase(token.text, "CLAIM")) return logClaim(text, cause, binding);
     if (first) |token| if (token.tag == .word and (std.ascii.eqlIgnoreCase(token.text, "ACK") or std.ascii.eqlIgnoreCase(token.text, "NACK") or std.ascii.eqlIgnoreCase(token.text, "EXTEND"))) return logSettlement(text, cause, binding);

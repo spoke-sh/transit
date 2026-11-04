@@ -1,4 +1,4 @@
-//! Catalog binding for finite positional CONSUME. Preparing or freezing a body
+//! Catalog binding for finite positional or explicitly assigned CONSUME. Preparing or freezing a body
 //! grants no read pin, admission, group assignment or settlement authority.
 const std = @import("std");
 const c = @import("root.zig");
@@ -129,29 +129,43 @@ fn bounds(bound: *const f.LogConsumeSql.Bound) !Bounds {
 /// Freeze one exact native read and its owned projection. The native owner
 /// chooses the retained upper cut at acceptance. LIMIT never becomes an offset
 /// span; upper-offset comparisons remain exact row predicates within that cut.
-/// Named groups and waits need their own admission owners before this adapter
-/// can accept them. No group ID is inferred from text and no wait is discarded.
+/// Group descriptors freeze an explicit assignment/checkpoint; native admission
+/// checks them against the current owner. No group is inferred from a name.
 pub fn freeze(self: *const Self, allocator: std.mem.Allocator, operation: u64, values: []const ?f.Types.Values.Atom, diagnostic: ?*f.Sql.Binding) !c.DirectWorkloadIntent {
     const identity: p.DataLifecycle.Operation = .{ .scope = self.connection.scope, .principal = self.connection.principal, .operation = operation };
     try identity.validate();
     var bound = try self.compiled.bind(allocator, values, diagnostic);
     defer bound.deinit();
-    if (bound.group != null or bound.wait_ms != null) return error.UnsupportedConstruct;
+    if (bound.wait_ms != null) return error.UnsupportedConstruct;
     const selected = try bounds(&bound);
     if (selected.empty()) return error.UnsupportedConstruct;
     const count = self.definition.stored.declaration.configuration.partitioning.count;
     if (count == 0) return error.InvalidLogPartitioning;
-    const partitions = selected.partition.intersect(.{ .last = count - 1 });
+    var partitions = selected.partition.intersect(.{ .last = count - 1 });
+    if (bound.group) |group| {
+        const target: p.StreamQueue.Partition = .{ .definition = p.Growth.current_definition, .interpretation = self.definition.stored.declaration.interpretation, .partition = group.target.partition };
+        try target.requireSame(group.target);
+        if (group.group.principal != identity.principal) return error.LogGroupFenced;
+        partitions = partitions.intersect(.{ .first = group.target.partition, .last = group.target.partition });
+    }
     if (partitions.empty) return error.InvalidLogPartitioning;
     if (partitions.first != partitions.last) return error.LogPartitionRequired;
-    const work: c.DirectWorkloadIntent.Work = .{ .stream = .{ .work = .{ .consume = .{
-        .target = .{ .definition = p.Growth.current_definition, .interpretation = self.definition.stored.declaration.interpretation, .partition = @intCast(partitions.first) },
-        .operation = identity,
-        .group = null,
-        .from = selected.offset.first,
-        .until = null,
-        .timestamp = null,
-    } }, .payload = null } };
+    const work: c.DirectWorkloadIntent.Work = .{
+        .stream = .{
+            .work = .{
+                .consume = .{
+                    .target = .{ .definition = p.Growth.current_definition, .interpretation = self.definition.stored.declaration.interpretation, .partition = @intCast(partitions.first) },
+                    .operation = identity,
+                    .group = if (bound.group) |group| group.group else null,
+                    // Predicates filter rows but cannot skip the group checkpoint.
+                    .from = if (bound.group) |group| group.next else selected.offset.first,
+                    .until = null,
+                    .timestamp = null,
+                },
+            },
+            .payload = null,
+        },
+    };
     var scratch: std.heap.ArenaAllocator = .init(allocator);
     defer scratch.deinit();
     const a = scratch.allocator();
@@ -278,7 +292,6 @@ test "log consume Catalog routing conservatively encloses Boolean metadata predi
         .{ .sql = "CONSUME id FROM events WHERE _partition = 0 OR id = 1", .failure = error.LogPartitionRequired },
         .{ .sql = "CONSUME id FROM events WHERE _partition = 3", .failure = error.InvalidLogPartitioning },
         .{ .sql = "CONSUME id FROM events WHERE _partition = 0 AND _offset > 18446744073709551615", .failure = error.UnsupportedConstruct },
-        .{ .sql = "CONSUME id FROM events GROUP 'workers'", .failure = error.UnsupportedConstruct },
         .{ .sql = "CONSUME id FROM events WAIT '1ms'", .failure = error.UnsupportedConstruct },
     }) |case| {
         var prepared = try init(t.allocator, TestFixture.connection, 1, case.sql, fixture.metadata, .transit, null);
@@ -287,4 +300,81 @@ test "log consume Catalog routing conservatively encloses Boolean metadata predi
     }
     try t.expectError(error.CatalogDefinitionChanged, init(t.allocator, TestFixture.connection, 2, "CONSUME id FROM events", fixture.metadata, .transit, null));
     try t.expectError(error.CatalogDefinitionChanged, init(t.allocator, TestFixture.connection, 1, "CONSUME id FROM other", fixture.metadata, .transit, null));
+}
+
+test "group consume freezes the explicit assignment checkpoint and rejects mismatched authority" {
+    const t = std.testing;
+    var fixture = try TestFixture.init(3);
+    defer fixture.deinit();
+    var handle: p.StreamHandle.Group = .{ .definition = p.Growth.current_definition, .group = .{
+        .target = .{ .definition = p.Growth.current_definition, .interpretation = fixture.metadata.declaration.stored.declaration.interpretation, .partition = 2 },
+        .group = .{ .id = 19, .generation = 5, .principal = TestFixture.connection.principal },
+        .next = 9,
+    } };
+    var prepared = try init(t.allocator, TestFixture.connection, 1, "CONSUME id FROM events GROUP $1 WHERE _offset >= 30 LIMIT 0", fixture.metadata, .transit, null);
+    defer prepared.deinit();
+    const bytes = try p.StreamHandle.encode(t.allocator, handle);
+    defer t.allocator.free(bytes);
+    var intent = try prepared.freeze(t.allocator, 99, &.{.{ .bytes = bytes }}, null);
+    defer intent.deinit();
+    @memset(bytes, 0);
+    const request = intent.parsed.value.work.stream.work.consume;
+    try t.expectEqualDeep(handle.group.group, request.group.?);
+    try t.expectEqual(2, request.target.partition);
+    try t.expectEqual(9, request.from);
+    try t.expectEqual(null, request.until);
+    handle.group.group.principal += 1;
+    const foreign = try p.StreamHandle.encode(t.allocator, handle);
+    defer t.allocator.free(foreign);
+    try t.expectError(error.LogGroupFenced, prepared.freeze(t.allocator, 100, &.{.{ .bytes = foreign }}, null));
+}
+
+test "SQL offset preparation owns authenticated boundaries and preserves an original control interpretation" {
+    const t = std.testing;
+    var fixture = try TestFixture.init(1);
+    defer fixture.deinit();
+    const target: p.StreamQueue.Partition = .{ .definition = p.Growth.current_definition, .interpretation = fixture.metadata.declaration.stored.declaration.interpretation, .partition = 0 };
+    const receipt: p.StreamRead.Receipt = .{
+        .request = .{ .target = target, .operation = .{ .scope = target.interpretation.object.scope, .principal = 1, .operation = 70 }, .group = .{ .id = 3, .generation = 2, .principal = 1 }, .from = 0, .until = null, .timestamp = null },
+        .cut = .{ .target = target, .accepted = .{ .partition = 11, .next_lsn = 3 }, .retained_from = 0, .next = 10 },
+        .until = 10,
+        .source = .{ .bytes = 91, .sha256 = @splat(7) },
+        .accepted = .{ .partition = 11, .next_lsn = 4 },
+    };
+    const first: p.StreamRead.Cursor = .{ .read = receipt.handle(), .coverage = try receipt.initialCoverage(), .authentication = @splat(1) };
+    var last = first;
+    last.coverage.through = 5;
+    last.coverage.rows = 3;
+    last.authentication = @splat(2);
+    const handle: p.StreamHandle.Progress = .{ .definition = p.Growth.current_definition, .receipt = receipt, .progress = try .between(first, last) };
+    const bytes = try p.StreamHandle.encode(t.allocator, handle);
+    defer t.allocator.free(bytes);
+    var prepared = try c.DirectLogPreparedOffset.init(t.allocator, TestFixture.connection, 1, "COMMIT OFFSET ON STREAM events RECEIPT $1", fixture.metadata, .transit, null);
+    defer prepared.deinit();
+    try t.expectEqualSlices(f.Types.Type, &.{.binary}, prepared.compiled.parameterTypes());
+    var intent = try prepared.freeze(t.allocator, 71, &.{.{ .bytes = bytes }}, null);
+    defer intent.deinit();
+    @memset(bytes, 0);
+    const request = intent.parsed.value.work.stream.work.offset;
+    try t.expectEqualDeep(handle.progress, request.progress);
+    try t.expectEqual(0, request.commit.expected_next);
+    try t.expectEqual(5, request.commit.next);
+    try t.expectEqual(71, request.commit.operation.operation);
+    try t.expectEqual(null, intent.parsed.value.projection);
+    const encoded = try p.StreamHandle.encode(t.allocator, handle);
+    defer t.allocator.free(encoded);
+    var foreign = TestFixture.connection;
+    foreign.principal = 2;
+    var other = try c.DirectLogPreparedOffset.init(t.allocator, foreign, 1, "COMMIT OFFSET ON STREAM events RECEIPT $1", fixture.metadata, .transit, null);
+    defer other.deinit();
+    try t.expectError(error.InvalidStreamHandle, other.freeze(t.allocator, 72, &.{.{ .bytes = encoded }}, null));
+    try t.expectError(error.NullWorkloadParameter, prepared.freeze(t.allocator, 72, &.{null}, null));
+    try t.expectError(error.ParameterGap, f.LogOffsetSql.Prepared.init(t.allocator, "COMMIT OFFSET ON STREAM events RECEIPT $2", .transit, null));
+    for ([_][]const u8{ "COMMIT OFFSET 5 ON STREAM events", "COMMIT OFFSET ON STREAM events RECEIPT 5", "COMMIT OFFSET ON QUEUE events RECEIPT $1", "COMMIT OFFSET ON STREAM events RECEIPT $1; COMMIT" }) |sql| {
+        if (f.LogOffsetSql.Prepared.init(t.allocator, sql, .transit, null)) |value| {
+            var unexpected = value;
+            unexpected.deinit();
+            return error.TestUnexpectedResult;
+        } else |_| {}
+    }
 }

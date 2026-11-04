@@ -54,7 +54,10 @@ else:
     ):
         projected = dict(data=dict(workload=dict(intent=intent, schema=[73]*32,
             projection=[79]*32, selection={kind:receipt}, limit=limit)))
-        terminal = dict(rows=count, workload=dict(intent=copy.deepcopy(intent), position={kind:position}))
+        progress = None
+        if kind == 'consume':
+            progress = dict(exhausted=position) if position['coverage']['complete'] else dict(interval=dict(first=native['read_progress']['interval']['first'], last=position))
+        terminal = dict(rows=count, workload=dict(intent=copy.deepcopy(intent), position={kind:position}, progress=progress))
         selected = dict(cursor=[8]*32, batch=0, schema=value['schema'], observation=projected,
             rows=[value['cells']]*count, complete=True, completion=terminal)
         frame = encode_fixture(current, [2]*16, selected)
@@ -62,11 +65,18 @@ else:
         fixture_path = path.with_name('workload-' + label + '-frame.hex')
         if args.write: fixture_path.write_text(frame.hex() + '\n')
         else: assert fixture_path.read_text() == frame.hex() + '\n', 'workload result fixture drift'
-        for change in ('missing', 'foreign_body', 'count'):
+        changes = ['missing', 'foreign_body', 'count']
+        if kind == 'consume': changes += ['missing_progress', 'foreign_cursor']
+        for change in changes:
             invalid = copy.deepcopy(selected)
             if change == 'missing': del invalid['completion']['workload']
             elif change == 'foreign_body': invalid['completion']['workload']['intent']['sha256'][0] ^= 1
-            else: invalid['completion']['rows'] = count + 10
+            elif change == 'count': invalid['completion']['rows'] = count + 10
+            elif change == 'missing_progress': invalid['completion']['workload']['progress'] = None
+            elif change == 'foreign_cursor':
+                proof = invalid['completion']['workload']['progress']
+                cursor = proof.get('exhausted', proof.get('interval', {}).get('last'))
+                cursor['read']['owner']['operation'] += 1
             try: Decoder().response(encode_fixture(current, [2]*16, invalid), CONTENT_TYPE, current)
             except (AssertionError, ValueError, KeyError): pass
             else: raise AssertionError(('workload oracle accepted mutant', kind, change))

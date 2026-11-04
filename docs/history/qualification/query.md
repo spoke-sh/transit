@@ -9,6 +9,233 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## SQL Stream groups and authenticated offsets — 2026-11-03
+
+This review unit implements M6 Batch 3's grouped progress handoff and 4a.1's
+explicit Stream group binding and offset settlement. Current semantics belong to
+the [SQL reference](../../handbook/reference/sql/streaming.md#consume-and-settle-an-assigned-group),
+[Stream descriptor contract](../../../contracts/STREAM_V1.md#sql-assignment-and-progress-descriptors)
+and [workload result contract](../../../contracts/SQL_RESULTS_V1.md#original-workload-evidence).
+The initial current-v1 cutover used the shared definition
+`78b1bcc56b9de85d82591f5a249df53e8c556ae8d0ad0c30c7946e9fc4260f33`.
+The combined definition and its checks appear under
+[integration with M8 and M12](#integration-with-m8-and-m12) below.
+Generated schemas, bindings, signed requests and independent frame fixtures move
+together; this record establishes no compatibility with earlier stores.
+
+The question is whether SQL can advance an explicitly assigned group's checkpoint
+using authenticated input coverage, independently of filtered output or LIMIT,
+while preserving original operation recovery and current authority. The native
+owner still authenticates cursors, checks retained read pins and assignment
+generations, and commits offsets. SQL carries that evidence through the existing
+Catalog token and result lifecycle.
+
+Executed with the pinned Nix Zig 0.17 toolchain:
+
+| Check and source | Outcome and boundary |
+| --- | --- |
+| `just ci clean --lane interfaces-sql` at `b25d9583ca04bc9a76509459e800f6e122c402e5` | All eight tasks passed: TLS, result allocations, wire gateway, sessions, integrity, history, installed Stream/Queue workloads and transactions |
+| `just test::sql-log-declarations` at `b25d9583ca04bc9a76509459e800f6e122c402e5` | Installed native SQL, PostgreSQL, MySQL and console declarations, appends, consumption, group/offset settlement, claims and Queue settlement passed |
+| `check::core` within the clean core attempt at `78004a1ec3f734112b4d65eb5fff39db96644508` | Passed 66 fast checks, 20 contract checks and the full native suite; the next fourteen tasks through `bindings::runtime-boundary` also passed. The lane then failed at `test::sql-wire-contracts`; this is not a completed core lane |
+| `just test::sql-wire-contracts` at `ef630229d59b0128bf6ecbf4b899b48c29b3ad16` | Passed the independent wire/SCRAM oracles and owning result, protocol, client, SQL, service, host, PostgreSQL and MySQL package tests after correcting the stale coverage assertion |
+
+The installed group test filters out input rows and limits output while checking
+the exact consumed interval, including LIMIT zero and an empty filtered result.
+It covers forged MAC refusal, checkpoint conflicts, explicitly released reads,
+generation reassignment, revocation after buffering, and exact-token recovery
+after restart and a discarded execution response. Reassignment fences buffered
+and reopened grouped delivery; original operation and accepted settlement lookup
+remain recoverable. Result close neither advances progress nor releases a pin.
+Native progress descriptors are then settled through PostgreSQL, MySQL and the
+installed console. Their command tags and row counts do not supply that proof.
+
+Independent codec fixtures exercise full-width identifiers, optional bounds and
+the 357-byte maximum progress descriptor, and reject truncated, trailing,
+malformed and foreign-definition input. Native and Catalog checks retain the
+original settlement after retries, record authenticated-cursor refusals durably,
+and reject mismatched group authority. The SQL result checks distinguish a
+disagreement between the completion cursor and its witness from an internally
+consistent but incomplete result. The result-allocation task qualifies its
+measured Unix/HTTP paths, not all storage or workload performance.
+
+The first clean core attempt at `700a8ec29d4c7688bede650d3541d85258421d03`
+failed three native assertions and the independent signing fixture check.
+The Station signing fixture had not been regenerated; `7affa70b6` updates it.
+A foreign-owner marker test wrote ASCII `x`, now equal to the first byte of the
+new definition; `2692879d4` flips that byte instead, preserving the runtime's
+rejection check. A Catalog test expected a thrown cursor-authentication error
+where the new contract records a durable refusal; `78004a1ec` checks the refusal,
+its retained position, exact retry and unchanged checkpoint. Their targeted
+checks passed before the second clean core run passed the complete native suite.
+
+That second attempt passed the first fifteen core tasks, then failed one of 28
+SQL protocol tests: it changed the final cursor while leaving the newly required
+progress witness unchanged. Commit `ef630229d` separately checks the resulting
+conflict, missing evidence and shape-consistent incomplete coverage. The full
+owning wire-contract task then passed. Neither failed lane is relabeled as a
+pass. No authority, recovery, deadline, cardinality or resource assertion was
+weakened.
+
+Earlier installed development attempts before `b25d9583ca04` exposed fixture
+errors in role selection, an expectation that grouped reads survive reassignment,
+an active result left open before another statement, and noncanonical JSON in a
+native release helper. The corrected test selects the declared role, preserves
+generation fencing, closes the result and passes the binary descriptor directly
+to the native helper. The failed fixtures remain under
+`/var/tmp/transit-direct-sql-wire-5kt53n9f`,
+`/var/tmp/transit-direct-sql-wire-mnx_i_66`,
+`/var/tmp/transit-direct-sql-wire-p4tcpdwt` and
+`/var/tmp/transit-direct-sql-wire-ycyyyx7_`.
+
+Successful SQL lane records are retained under
+`.cache/ci/clean/b25d9583ca04-transit-ci-tgvc14sd` in the implementation worktree.
+Its raw log `/tmp/transit-m6-clean-sql.log` has SHA-256
+`9ae7a3543508441c0adb2e50f20e7f814f1514f96a206e771d376c149f05618d`.
+Failed core clones remain at `/var/tmp/transit-ci-e_g_zbi0` and
+`/var/tmp/transit-ci-0wp2vj01`; the latter retains the completed native checkpoint
+and task records. Raw logs are `/tmp/transit-m6-clean-core.log`,
+`/tmp/transit-m6-clean-core-2.log` and
+`/tmp/transit-m6-wire-contracts-fix.log`. These are local evidence paths, not
+portable public artifacts.
+
+The SQL lane predates merging `origin/main` at `8ffcfdd1b`; that merge changes
+CI preparation, while subsequent corrections above change fixtures and tests.
+Feature runtime source was unchanged between `b25d9583ca04` and `5ecb5d985`.
+These results predate integration of `origin/main` at `e40d9cb26`, which adds M12
+owned-progress reservations and local SQL lane coordination. The combined
+definition is
+`e2dd2417b40a702af82f94a32fd12e73a372a209310692f4725f7dfea8f46428`;
+the earlier SQL/native results do not qualify that combined source. These are selected
+component/caller checks, not whole-suite or M6 completion. Assignment management
+and read release remain native; WAIT, acquisition predicates, `STREAM_SLICE`,
+mixed SQL transactions and transactional Station remain separate work. Full
+installation/browser, formal, Kubernetes/Substrate and performance qualification
+are not supplied here. The
+[preserved maintenance failure](storage.md#preserved-queue-fixture-read-only-recovery--2026-11-02)
+and its original terminal-retention gate remain unresolved.
+
+The clean `storage-query` attempt at
+`ef630229d59b0128bf6ecbf4b899b48c29b3ad16` passed its first twenty targets,
+including local catalog recovery (7,613.72 seconds), direct Table/KV and state/mixed
+transactions, both Queue transfer paths and declaration-token recovery. Fresh
+catalog fixtures passed Stream maintenance, Queue terminal retention and signed
+and typed historical pin/release through physical collection and reopen. This
+does not diagnose or replace the separately preserved maintenance failure.
+
+The next target, `direct-workload-token`, exceeded its unchanged 180-second
+`workload-token-prepare` deadline before execution/recovery assertions. Its fixture
+`/var/tmp/transit-table-workload-token-y_259nay` contains 238 signed attempts and
+238 replies; 231 native Stream cancellation calls consumed 177.417 seconds.
+Preparation intentionally records 257 distinct cancellations per partition to
+cross the 256-frame cold-recovery step. No cardinality or deadline was reduced.
+An unchanged control at the earlier main source
+`8ffcfdd1b32157a977ae2f7f93445b00967bf07b` also exceeded that deadline, with
+468 attempts and 468 replies in
+`/var/tmp/transit-table-workload-token-4ffsmrdn`. This reproduces a baseline setup
+failure; it does not establish its cause or qualify the implementation.
+
+The failed clean checkout remains `/var/tmp/transit-ci-a47g1xwy`. Its raw log
+`/tmp/transit-m6-clean-storage.log` has SHA-256
+`e05ebe6f1ed969e57ffbed7ca48d288fa728d8f535c18bb5a64f2bb105c392f2`.
+The control log `/tmp/transit-m6-baseline-workload-token.log` has SHA-256
+`15af2402a23c8fecd37acafbb535070d8a2a0b4c2560d661c75ae2be76f6fe4e`.
+A separate continuation ran the remaining targets in that same clean source;
+its per-target captures live at `/var/tmp/transit-m6-storage-rest-ef630229`.
+Its `direct-workload-result` target likewise exceeded the unchanged 180-second
+prepare deadline, before recovery assertions, preserving
+`/var/tmp/transit-table-workload-result-hnybygv3` (410 attempts and 410 replies).
+Eight continuation targets passed: direct maintenance, Catalog ABI, concurrency,
+block storage, native blocks, physical collection, publication and Table query
+writing. Document recovery passed stage, acceptance and checkpoint, then exceeded
+its unchanged 900-second final-phase deadline; its fixture remains at
+`/var/tmp/transit-document-local-5sqr94js`. Public-query provisioning failed with
+`AuthorityTimeout`; its caller/node log excerpts remain in `009.log`, but its
+temporary installation was cleaned by the existing harness. Neither cause is
+established by this attempt.
+
+The final Catalog aggregate passed named-resource recovery with 107 typed calls,
+eight withheld staging replies, four withheld dependency replies and eleven
+abrupt node replacements. Its 139-resource growth setup reported one initialized
+and read resource before the caller was stopped with SIGTERM to focus remaining
+qualification on the merged source. No growth assertion or its deadline had
+failed before interruption. The partial fixture remains at
+`/var/tmp/transit-table-resource-growth-19i0b1rp`; the capture directory above
+retains `catalog-interruption.json` and the aggregate's exit-1 record. Across the
+original attempt and continuation, 28 of 33 targets passed, four failed and one
+was interrupted. This is not a complete storage lane or qualification of the
+later merged source.
+
+### Integration with M8 and M12
+
+Commit `4193bd2a02fb3b63bf2b3c7e2b23c7040951350e` integrates main at
+`e40d9cb264700f91c74855c62f6b559449807c24` and regenerates the shared definition
+for both Stream progress and catalog-owned progress reservations. It preserves
+M8's local SQL lane coordination and M12's mandatory candidate slot, original
+admission lifetime and collection fences. The following checks use that combined
+runtime, independently of the earlier `78b1bcc5…` results:
+
+| Check and source | Outcome and boundary |
+| --- | --- |
+| `just check::contracts`, source committed as `4193bd2a0` | All 20 reflected contract and independent fixture checks passed |
+| `just transit-docs::check` and documentation links at `4193bd2a0` | Source/type/tests and production site build passed; 11,335 local links across 731 files passed |
+| `just ci clean --lane sdks-conformance` at `4193bd2a0` | All seven targets passed: declarations, native boundary, logical types, installed interoperability, SQL, gRPC faults and connector preparation |
+| `just ci clean --lane core` at `c60781a15b4622496607531f1a677fd4ba21c019` | All 28 targets passed, including the full native suite, 45 package builds, wire contracts, SDK/runtime boundary, Station, disk storage, service, authorization, callers, inspection and state |
+| `just ci clean --lane interfaces-sql` at `4193bd2a0` | TLS and result-allocation targets passed; gateway failed on an ordinary MySQL `BEGIN` authority timeout. Later targets did not run in this attempt |
+| Five SQL follow-up targets in that retained clean checkout | Sessions, integrity, history, Stream/Queue workloads and transactions all passed with unchanged fixtures and deadlines. These are separate target outcomes, not a completed clean SQL lane |
+
+The installed Stream test passed explicit groups, authenticated offsets,
+filtered/limited coverage, stale group/checkpoint refusal, buffered and reopened
+read fencing, current authorization and original-token recovery across native
+SQL, PostgreSQL, MySQL and the console. The SQL transaction follow-up also passed
+its commit, rollback, savepoint and original-outcome schedules. Unix and HTTP
+result-allocation profiles reported zero allocation events in their measured
+workloads; this does not qualify every Stream/storage hot path.
+
+The gateway failure occurred at `tests/interfaces/sql_wire/faults.py:211`, after
+the MySQL wire command sent plain `BEGIN`. The client reported `AuthorityTimeout`
+at its unchanged 30-second limit, and the node reported an uncertain transaction
+`RequestTimeout`. The returned original command token is
+`2dc1212058ee889681a351e92c9ac3ff`. This is not a rejection or observed rollback;
+the failed installation remains `/var/tmp/transit-direct-sql-wire-ebmqg18f`.
+No cause or baseline reproduction of this particular failure is established.
+
+The successful SDK evidence is
+`.cache/ci/clean/4193bd2a02fb-transit-ci-51rsspel`. Its raw log
+`/var/tmp/transit-m6-merged-sdks-conformance.log` has SHA-256
+`d248d881f708914c58dfc7d23ac10250e5873e9f860d9c1fd06e1363dad2d910`.
+The failed SQL clone remains `/var/tmp/transit-ci-kzc___0a`; follow-up captures are
+at `/var/tmp/transit-m6-sql-rest-4193bd2a`. That capture's copied display label was
+corrected to identify the gateway failure; original metadata is retained, and
+source, commands, task logs and outcomes are unchanged. The combined follow-up
+log `/var/tmp/transit-m6-sql-continuation.log` has SHA-256
+`6ace2d9c8b60cfa0827d015891e35a9d703e7cc82c460518ac0d746ead08e6df`.
+
+Two integrated core attempts exposed generation bookkeeping. At `4193bd2a0`,
+the diagnostic inventory still quoted the definition enum after Zig formatting
+normalized its spelling; `8ef262108` updates that single inventory entry. The
+clean attempt at `8ef262108` then passed all 66 fast checks, all 20 contract checks
+and the grammar's 686 cases/1,019 obligations, but native verification and the
+independent checker rejected stale reactive signatures. Commit `c60781a15`
+regenerates that fixture. The full fixture set and focused native reactive
+verification passed on the corrected candidate. Remaining work in the already
+failed native attempt was interrupted before starting fresh core qualification;
+it is not a completed native suite or core lane. Its clone remains
+`/var/tmp/transit-ci-26btqpm4`, with raw log
+`/var/tmp/transit-m6-merged-core-2.log` and interruption record
+`/var/tmp/transit-m6-core-2-interruption.json`. The earlier inventory failure is
+retained at `/var/tmp/transit-ci-e4lkii5_`. Both corrective commits change test
+records only; runtime source and the shared definition are unchanged after
+`4193bd2a0`.
+
+The fresh core lane at `c60781a15b4622496607531f1a677fd4ba21c019` completed all
+28 targets in 4,705.33 seconds. Its complete native run includes the regenerated
+reactive fixture. Evidence is retained at
+`.cache/ci/clean/c60781a15b46-transit-ci-l8bcp82c`; raw log
+`/var/tmp/transit-m6-merged-core-3.log` has SHA-256
+`7f8dcd7051988b51854031d6032385b268f393dbb2df34545e312564336d79b2`.
+This pass does not close the separate SQL gateway timeout, the earlier storage
+failures or the remaining common-revision integration gates.
+
 ## Owned original staging and closure — 2026-11-03
 
 The R1b original-staging implementation starts from `origin/main` at

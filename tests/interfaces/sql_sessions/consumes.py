@@ -1,14 +1,16 @@
-"""Installed positional consumption: frozen cuts, logical limits and disclosure."""
+"""Installed Stream reads and settlements: cuts, limits, fencing and disclosure."""
+import copy
 import json
 import os
 import struct
 import subprocess
 
+from interfaces.native.stream_handles import encode as stream_handle
 from interfaces.sql_sessions.native import Client
 from interfaces.sql_sessions.storage import unsigned
 
 
-def run(root, port, postgres, mysql_options, restart, authorize, console, config, consumer, home):
+def run(root, port, postgres, mysql_options, restart, authorize, console, config, consumer, home, stream_native):
     from query.logical.fuze_types import descriptor
     import psycopg
     import mysql.connector
@@ -41,7 +43,6 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
     for sql, error in (
         ('CONSUME value FROM consume_events', 'SqlAdmissionTokenRequired'),
         ('CONSUME value FROM append_manual', 'LogPartitionRequired'),
-        ("CONSUME value FROM consume_events GROUP 'workers'", 'UnsupportedConstruct'),
         ("CONSUME value FROM consume_events WAIT '1s'", 'UnsupportedConstruct'),
     ):
         token = None if error == 'SqlAdmissionTokenRequired' else list(os.urandom(16))
@@ -116,6 +117,101 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
         finally:
             authorize(True)
         client.call(dict(fetch=dict(cursor=batch['cursor'], batch=0)), error='SqlResultIncomplete')
+    # Assign through the native administration owner; SQL never creates a group.
+    submit('CREATE STREAM grouped_events (value BIGINT NOT NULL) WITH (read_rows=16)')
+    submit('PRODUCE INTO grouped_events VALUES ' + ','.join(f'({i})' for i in range(65)))
+    def binary(value):
+        return "X'" + stream_handle(value).hex() + "'"
+    def handle(delivered):
+        observation = delivered[2]['data']['workload']
+        progress = delivered[3]['workload']['progress']
+        return dict(definition=client.definition, receipt=observation['selection']['consume'], progress=progress)
+    assignment = stream_native('stream-assign', 'grouped_events', 51, 8051)
+    grouped_sql = f'CONSUME value FROM grouped_events GROUP {binary(assignment)} WHERE value >= 5 LIMIT 3'
+    group_token = list(os.urandom(16))
+    original_group = submit(grouped_sql, group_token)
+    grouped = rows(original_group['identity'])
+    assert [unsigned(row[0]) for row in grouped[0]] == [5, 6, 7]
+    progress = handle(grouped)
+    interval = progress['progress']['interval']
+    assert interval['first']['coverage']['through'] == 0
+    assert interval['last']['coverage']['through'] == 8 and not interval['last']['coverage']['complete']
+    zero = rows(submit(f'CONSUME value FROM grouped_events GROUP {binary(assignment)} LIMIT 0')['identity'])
+    assert zero[0] == [] and handle(zero)['progress']['interval']['last']['coverage']['through'] == 0
+    forged = copy.deepcopy(progress)
+    forged['progress']['interval']['last']['authentication'][0] ^= 1
+    # Bind-time shape validation is not the native MAC check.
+    refused = client.terminal(client.execute(f'COMMIT OFFSET ON STREAM grouped_events RECEIPT {binary(forged)}', list(os.urandom(16)))['operation'], outcomes=('rejected',))
+    assert refused['workload']['receipt']['closed']['reason'] == {'refused': 'cursor_unauthenticated'}, refused
+    commit_sql = f'COMMIT OFFSET ON STREAM grouped_events RECEIPT {binary(progress)}'
+    commit_token = list(os.urandom(16))
+    committed = submit(commit_sql, commit_token)
+    assert committed['command'] == 'commit_offset' and committed['result_kind'] == 'command'
+    assert rows(original_group['identity']) == grouped
+    stale = client.terminal(client.execute(commit_sql, list(os.urandom(16)))['operation'], outcomes=('rejected',))
+    assert stale['workload']['receipt']['closed']['reason'] == {'refused': 'offset_conflict'}
+    stale_read = client.terminal(client.execute(grouped_sql, list(os.urandom(16)))['operation'], outcomes=('rejected',))
+    assert stale_read['workload']['receipt']['closed']['reason'] == {'refused': 'offset_conflict'}
+    client.close()
+    restart()
+    client = Client(root, port).open()
+    assert submit(commit_sql, commit_token) == committed
+    # The operation remains original, but reassignment fences further delivery.
+    before_reassignment = client.call(dict(result=original_group['identity']))['batch']
+    reassigned = stream_native('stream-assign', 'grouped_events', 51, 8151)
+    assert reassigned['group']['next'] == 8 and reassigned['group']['group']['generation'] == 2
+    client.call(dict(fetch=dict(cursor=before_reassignment['cursor'], batch=0)), error='Conflict')
+    client.call(dict(close_result=before_reassignment['cursor']))
+    assert submit(grouped_sql, group_token) == original_group
+    client.call(dict(result=original_group['identity']), error='Conflict')
+    fenced = client.terminal(client.execute(grouped_sql, list(os.urandom(16)))['operation'], outcomes=('rejected',))
+    assert fenced['workload']['receipt']['closed']['reason'] == {'refused': 'group_fenced'}
+    assert submit(commit_sql, commit_token) == committed
+    after = rows(submit(f'CONSUME value FROM grouped_events GROUP {binary(reassigned)} WHERE value > 1000')['identity'])
+    assert after[0] == [] and handle(after)['progress']['exhausted']['coverage']['through'] == 65
+    released_group = stream_native('stream-assign', 'grouped_events', 55, 8055)
+    released_read = rows(submit(f'CONSUME value FROM grouped_events GROUP {binary(released_group)} LIMIT 1')['identity'])
+    released_handle = handle(released_read)
+    (root / 'group-release.bin').write_bytes(stream_handle(released_handle))
+    stream_native('stream-release', 'group-release.bin', 9055)
+    released = client.terminal(client.execute(f'COMMIT OFFSET ON STREAM grouped_events RECEIPT {binary(released_handle)}', list(os.urandom(16)))['operation'], outcomes=('rejected',))
+    assert released['workload']['receipt']['closed']['reason'] == {'refused': 'read_released'}
+    # Lose every outcome byte after headers, replace the service and recover
+    # solely from the token and exact request saved before dispatch.
+    loss = dict(sql=f'COMMIT OFFSET ON STREAM grouped_events RECEIPT {binary(handle(after))}', token=list(os.urandom(16)))
+    (root / 'group-offset-original.json').write_text(json.dumps(loss))
+    client.call(dict(execute=loss), discard_response=True)
+    client.close()
+    restart()
+    client = Client(root, port).open()
+    recovered_offset = submit(loss['sql'], loss['token'])
+    assert recovered_offset['command'] == 'commit_offset'
+    assert submit(loss['sql'], loss['token']) == recovered_offset
+    # Typed grouping now uses the advanced checkpoint, with the same assignment.
+    reassigned['group']['next'] = recovered_offset['workload']['receipt']['offset']['receipt']['commit']['next']
+    assert reassigned['group']['next'] == 65
+    # A complete handoff is consumable by all SQL transports without inventing
+    # coverage from their row counts. Assignment remains a native operation.
+    raw_group = stream_handle(reassigned)
+    binary_type = descriptor('binary')
+    encoded_group = (b'FVL1' + struct.pack('<H', len(binary_type)) + binary_type + b'\x01\x03' + struct.pack('<I', len(raw_group)) + raw_group).hex()
+    typed_operation = submit('CONSUME value FROM grouped_events GROUP $1 LIMIT 0', parameters=[encoded_group])
+    typed_group = rows(typed_operation['identity'])
+    assert typed_group[0] == []
+    buffered = client.call(dict(result=typed_operation['identity']))['batch']
+    authorize(False)
+    try:
+        client.call(dict(fetch=dict(cursor=buffered['cursor'], batch=0)), error='AccessDenied')
+        client.call(dict(status=dict(operation=committed['identity'])), error='AccessDenied')
+    finally:
+        authorize(True)
+    client.call(dict(close_result=buffered['cursor']))
+    wire_proofs = []
+    for group in (52, 53, 54):
+        assigned = stream_native('stream-assign', 'grouped_events', group, 8000 + group)
+        delivered = rows(submit(f'CONSUME value FROM grouped_events GROUP {binary(assigned)}')['identity'])
+        assert len(delivered[0]) == 65 and delivered[1] == [32, 32, 1]
+        wire_proofs.append((assigned, handle(delivered)))
     client.close()
 
     with psycopg.connect(**postgres) as wire:
@@ -125,6 +221,10 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
             assert cursor.statusmessage == 'CONSUME 2'
             cursor.execute('CONSUME value FROM consume_events LIMIT 0')
             assert cursor.fetchall() == [] and cursor.statusmessage == 'CONSUME 0'
+            cursor.execute(f'CONSUME value FROM grouped_events GROUP {binary(wire_proofs[0][0])} LIMIT 0')
+            assert cursor.fetchall() == []
+            cursor.execute(f'COMMIT OFFSET ON STREAM grouped_events RECEIPT {binary(wire_proofs[0][1])}')
+            assert cursor.statusmessage == 'COMMIT OFFSET'
     with mysql.connector.connect(**mysql_options) as wire:
         with wire.cursor(prepared=True) as cursor:
             cursor.execute('CONSUME value FROM consume_events WHERE _offset >= %s LIMIT %s', (64, 2))
@@ -132,14 +232,20 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
         with wire.cursor() as cursor:
             cursor.execute('CONSUME value FROM consume_events LIMIT 0')
             assert cursor.fetchall() == []
+            cursor.execute(f'CONSUME value FROM grouped_events GROUP {binary(wire_proofs[1][0])} LIMIT 0')
+            assert cursor.fetchall() == []
+            cursor.execute(f'COMMIT OFFSET ON STREAM grouped_events RECEIPT {binary(wire_proofs[1][1])}')
     script = consumer / 'consumes.sql'
     script.write_text('CONSUME value FROM consume_events WHERE _offset >= 64 LIMIT 1;\nCONSUME value FROM consume_events LIMIT 0;\n')
+    with script.open('a') as extra:
+        extra.write(f'CONSUME value FROM grouped_events GROUP {binary(wire_proofs[2][0])} LIMIT 0;\nCOMMIT OFFSET ON STREAM grouped_events RECEIPT {binary(wire_proofs[2][1])};\n')
     rendered = subprocess.run([console, 'console', '--config', str(config), '--no-rc', '-f', str(script)],
                               cwd=consumer, env={'PATH': '/unavailable', 'HOME': str(home), 'LANG': 'C'},
                               capture_output=True, text=True, timeout=180)
     assert rendered.returncode == 0, (rendered.stdout, rendered.stderr)
-    assert rendered.stdout.count('"complete_coverage":true') == 2, rendered.stdout
+    assert rendered.stdout.count('"complete_coverage":true') == 3, rendered.stdout
     print(json.dumps(dict(profile='sql_positional_consumes', native=True, postgres=True, mysql=True, console=True,
                           original_cut_after_append_and_replacement=True, result_batches=all_rows[1],
                           filtered_partial_coverage=True, zero_limit=True, exhausted_before_limit=True,
-                          typed_parameters=True, current_disclosure_authorization=True, passed=True)), flush=True)
+                          typed_parameters=True, explicit_groups=True, authenticated_offsets=True, stale_group_and_checkpoint_refusal=True, reassignment_fences_buffered_and_reopened_reads=True,
+                          current_disclosure_authorization=True, passed=True)), flush=True)

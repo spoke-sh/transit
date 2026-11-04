@@ -619,7 +619,8 @@ test "native owner rejects a second owner, foreign marker and unrelated object h
     {
         const marker = try tmp.dir.openFile(t.io, "native/.native-owner", .{ .mode = .read_write });
         defer marker.close(t.io);
-        try marker.writePositionalAll(t.io, "x", 8);
+        const foreign = [_]u8{g.definition_bytes[0] ^ 1};
+        try marker.writePositionalAll(t.io, &foreign, 8);
         try marker.sync(t.io);
     }
     try t.expectError(error.IncompatibleDefinition, backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{}));
