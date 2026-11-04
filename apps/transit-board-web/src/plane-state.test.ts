@@ -22,3 +22,12 @@ describe("accordion plane", () => {
     expect(planeLayout(state).takeover).toBe("right");
   });
 });
+
+it("opens a constrained requested side and returns all the way to work on narrow Back", () => {
+  let state = planeTransition(initialPlane(390), { type: "open", side: "left" });
+  state = planeTransition(state, { type: "open", side: "right" });
+  state = planeTransition(state, { type: "toggle", side: "left" });
+  expect(planeLayout(state).takeover).toBe("left");
+  state = planeTransition(state, { type: "fold", side: "left" });
+  expect(planeLayout(state)).toEqual({ left: false, right: false, takeover: null });
+});

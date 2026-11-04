@@ -1,5 +1,13 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { Link, useRouterState } from "@tanstack/react-router";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  Suspense,
+  type ReactNode,
+} from "react";
+import { CatchBoundary, Link, useRouterState } from "@tanstack/react-router";
 import { ApplicationTransportError } from "@transit/application/error";
 import { generation, presentation } from "@transit/application/definition";
 import { readInterface } from "@transit/application/interface";
@@ -7,6 +15,8 @@ import { type Compiled, type Definition } from "@transit/application";
 import type { Deployment } from "@transit/board-client";
 import "./shell.css";
 import { useRead } from "./use-observation";
+import { WorkbookPage } from "./features";
+import { FeatureLoading, FeatureUnavailable } from "./feature-status";
 import { WorkbenchPlane, useInspector } from "./workbench-layout";
 type Current = { compiled: Compiled; identity: string; published: boolean };
 const Interface = createContext<Current | null>(null);
@@ -60,6 +70,14 @@ function InterfaceBody({ scope, children }: { scope: Deployment; children: React
     pathname.startsWith("/datasets/") ||
     (pathname === "/" && !current?.published);
   const workbookPage = pathname === "/workbook";
+  const workbookActive =
+    workbookPage &&
+    Boolean(current) &&
+    !(current?.published && definition?.screens.some((screen) => screen.path === pathname));
+  const [workbookVisited, setWorkbookVisited] = useState(false);
+  useEffect(() => {
+    if (workbookActive) setWorkbookVisited(true);
+  }, [workbookActive]);
   const application = current?.published
     ? definition?.screens.find((screen) => screen.name === definition.entry)
     : undefined;
@@ -102,6 +120,7 @@ function InterfaceBody({ scope, children }: { scope: Deployment; children: React
         </header>
         <div className="shell-scope">
           Realm {scope.realm} · Private workspace · Reads check current permissions
+          <div ref={inspector.setScopeHost} />
         </div>
         <aside id="shell-navigation" className="shell-navigation" aria-label="Workspace navigation">
           <button
@@ -223,6 +242,15 @@ function InterfaceBody({ scope, children }: { scope: Deployment; children: React
               <p role="status">{error || "Reading the current interface…"}</p>
               <button onClick={observed.retry}>Retry definition read</button>
             </main>
+          )}
+          {(workbookVisited || workbookActive) && (
+            <div hidden={!workbookActive}>
+              <CatchBoundary getResetKey={() => "workbook"} errorComponent={FeatureUnavailable}>
+                <Suspense fallback={<FeatureLoading />}>
+                  <WorkbookPage active={workbookActive} />
+                </Suspense>
+              </CatchBoundary>
+            </div>
           )}
         </div>
         <div className="shell-context">

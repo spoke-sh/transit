@@ -265,3 +265,21 @@
     scroll-behavior: auto !important;
   }
 }
+
+.shell-scope .workbench-scope {
+  border: 0;
+  margin: 6px 0 0;
+  padding: 0;
+  gap: 12px;
+  font-size: 11px;
+}
+
+.shell-navigation,
+.shell-context {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  min-height: calc(100vh - 88px);
+  max-height: 100vh;
+  overflow-y: auto;
+}

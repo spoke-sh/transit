@@ -176,6 +176,7 @@ test("one explicit query survives Canvas/Browse changes and is cleared on revoca
   await expect(
     page.getByRole("button", { name: "Retry exact submission", exact: true }),
   ).toBeVisible();
+  await page.getByRole("button", { name: "Open navigation", exact: true }).click();
   await page.getByRole("link", { name: "Activity", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Activity", exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Atlas", exact: true }).click();

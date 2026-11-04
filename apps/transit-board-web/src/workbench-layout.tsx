@@ -20,7 +20,7 @@ import {
 
 export type Inspection = {
   owner: string;
-  kind: "dataset" | "column" | "result" | "storage" | "computation";
+  kind: "dataset" | "column" | "result" | "storage" | "computation" | "cell";
   metric?: string;
   dimension: "definition" | "profile" | "evidence";
   result?: string;
@@ -37,6 +37,8 @@ type InspectorState = {
   expand: () => void;
   host: HTMLElement | null;
   setHost: (element: HTMLDivElement | null) => void;
+  scopeHost: HTMLElement | null;
+  setScopeHost: (element: HTMLDivElement | null) => void;
   navigationHost: HTMLElement | null;
   setNavigationHost: (element: HTMLDivElement | null) => void;
   navigation: boolean;
@@ -55,11 +57,16 @@ export function useInspector() {
 
 /** Selection holds identities only. Authorized evidence remains with its owner. */
 export function WorkbenchPlane({ children, route }: { children: ReactNode; route: string }) {
-  const [plane, dispatch] = useReducer(planeTransition, window.innerWidth, initialPlane);
+  const [plane, dispatch] = useReducer(
+    planeTransition,
+    document.documentElement.clientWidth,
+    initialPlane,
+  );
   const [selection, setSelection] = useState<Inspection | null>(null);
   const [host, setHost] = useState<HTMLDivElement | null>(null);
+  const [scopeHost, setScopeHost] = useState<HTMLDivElement | null>(null);
   const [navigationHost, setNavigationHost] = useState<HTMLDivElement | null>(null);
-  const trigger = useRef<HTMLElement | null>(null);
+  const triggers = useRef<Record<Side, HTMLElement | null>>({ left: null, right: null });
   const frame = useRef<number | null>(null);
   const layout = planeLayout(plane);
   const focus = useCallback((read: () => HTMLElement | null) => {
@@ -72,10 +79,15 @@ export function WorkbenchPlane({ children, route }: { children: ReactNode; route
   const clear = useCallback(() => setSelection(null), []);
   useEffect(clear, [route, clear]);
   useEffect(() => {
-    const resize = () => dispatch({ type: "resize", width: window.innerWidth });
+    const resize = () => dispatch({ type: "resize", width: document.documentElement.clientWidth });
     window.addEventListener("resize", resize);
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) dispatch({ type: "resize", width: entry.contentRect.width });
+    });
+    observer.observe(document.documentElement);
     return () => {
       window.removeEventListener("resize", resize);
+      observer.disconnect();
       if (frame.current !== null) cancelAnimationFrame(frame.current);
     };
   }, []);
@@ -83,8 +95,8 @@ export function WorkbenchPlane({ children, route }: { children: ReactNode; route
     (side: Side) => {
       dispatch({ type: "fold", side });
       focus(() =>
-        trigger.current?.isConnected && trigger.current.getClientRects().length
-          ? trigger.current
+        triggers.current[side]?.isConnected && triggers.current[side].getClientRects().length
+          ? triggers.current[side]
           : document.querySelector(`[data-plane-toggle="${side}"]`),
       );
     },
@@ -119,7 +131,7 @@ export function WorkbenchPlane({ children, route }: { children: ReactNode; route
     dispatch,
     fold,
     select: (next, element) => {
-      trigger.current = element;
+      triggers.current.right = element;
       setSelection(next);
       dispatch({ type: "tab", tab: "inspector" });
     },
@@ -130,11 +142,13 @@ export function WorkbenchPlane({ children, route }: { children: ReactNode; route
     expand: () => dispatch({ type: "detail" }),
     host,
     setHost,
+    scopeHost,
+    setScopeHost,
     navigationHost,
     setNavigationHost,
     navigation: layout.left,
     toggleNavigation: () => {
-      trigger.current =
+      triggers.current.left =
         document.activeElement instanceof HTMLElement ? document.activeElement : null;
       dispatch({ type: "toggle", side: "left" });
     },
@@ -229,4 +243,17 @@ export function InspectorPanel({
     </>,
     inspector.host,
   );
+}
+
+export function WorkbenchScope({
+  children,
+  active = true,
+}: {
+  children: ReactNode;
+  active?: boolean;
+}) {
+  const { scopeHost } = useInspector();
+  return scopeHost && active
+    ? createPortal(<div className="workbench-scope">{children}</div>, scopeHost)
+    : null;
 }

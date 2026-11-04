@@ -8,6 +8,7 @@ export function useRead<T>(
   read: (signal: AbortSignal) => Promise<T>,
   interval = 5000,
   observeVisibility = true,
+  active = true,
 ) {
   const [snapshot, setSnapshot] = useState<{ key: string; state: Observation<T> }>(() => ({
     key,
@@ -23,15 +24,15 @@ export function useRead<T>(
       interval,
     );
     owner.current = current;
-    const visibility = () => current.send({ type: document.hidden ? "hide" : "show" });
-    current.send({ type: observeVisibility && document.hidden ? "hide" : "read" });
+    const visibility = () => current.send({ type: !active || document.hidden ? "hide" : "show" });
+    current.send({ type: !active || (observeVisibility && document.hidden) ? "hide" : "read" });
     if (observeVisibility) document.addEventListener("visibilitychange", visibility);
     return () => {
       document.removeEventListener("visibilitychange", visibility);
       current.send({ type: "dispose" });
       if (owner.current === current) owner.current = null;
     };
-  }, [key, interval, observeVisibility]);
+  }, [key, interval, observeVisibility, active]);
   const state = snapshot.key === key ? snapshot.state : initialObservation<T>();
   return { ...state, retry: () => owner.current?.send({ type: "read" }) };
 }

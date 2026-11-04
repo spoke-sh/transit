@@ -3,9 +3,13 @@ import { useScope } from "./state";
 import { useRead } from "./use-observation";
 import { ReadStatus } from "./read-status";
 import type { ReadFailure } from "./observation";
-export function useMetadata<T>(key: string, read: (signal: AbortSignal) => Promise<T>) {
+export function useMetadata<T>(
+  key: string,
+  read: (signal: AbortSignal) => Promise<T>,
+  active = true,
+) {
   const scope = useScope().scope;
-  const state = useRead(`${scope?.realm}/${key}`, read);
+  const state = useRead(`${scope?.realm}/${key}`, read, 5000, true, active);
   return { value: state.value, error: state.failure, retry: state.retry };
 }
 export function Unavailable({ error, retry }: { error: ReadFailure | null; retry: () => void }) {

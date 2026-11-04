@@ -158,9 +158,11 @@ test("complete definition editing and exact operator recovery", async ({ page, c
   await expect(applicationEntry).toHaveAttribute("href", "/neighborhood");
   await applicationEntry.click();
   await expect(oldClient).toHaveURL(/\/neighborhood$/);
+  await oldClient.getByRole("button", { name: "Open navigation", exact: true }).click();
   await expect(oldClient.getByRole("link", { name: "My atlas", exact: true })).toBeVisible();
   await oldClient.reload();
   await expect(oldClient.getByRole("heading", { name: "Relief atlas", exact: true })).toBeVisible();
+  await oldClient.getByRole("button", { name: "Open navigation", exact: true }).click();
   await oldClient.emulateMedia({ reducedMotion: "reduce" });
   await oldClient.getByRole("button", { name: "Flat view", exact: true }).focus();
   await oldClient.keyboard.press("Enter");
@@ -182,25 +184,27 @@ test("complete definition editing and exact operator recovery", async ({ page, c
   await expect(page.locator(".transit-shell")).toHaveAttribute("data-density", "compact", {
     timeout: 15000,
   });
+  if (!(await page.getByLabel("Preview density").isVisible()))
+    await page.getByRole("button", { name: "Open navigation", exact: true }).click();
   const header = await page.locator(".shell-header").boundingBox();
   const sidebar = await page.locator(".shell-navigation").boundingBox();
   expect(header?.height).toBe(56);
-  expect(sidebar?.width).toBe(208);
+  expect(sidebar?.width).toBe(232);
   for (const density of ["comfortable", "compact"]) {
     if (!(await page.getByLabel("Preview density").isVisible()))
-      await page.getByRole("button", { name: "Navigation", exact: true }).click();
+      await page.getByRole("button", { name: "Open navigation", exact: true }).click();
     await page.getByLabel("Preview density").selectOption(density);
     expect(
       (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations,
     ).toEqual([]);
     await page.setViewportSize({ width: 320, height: 900 });
     if (!(await page.getByLabel("Preview density").isVisible()))
-      await page.getByRole("button", { name: "Navigation", exact: true }).click();
+      await page.getByRole("button", { name: "Open navigation", exact: true }).click();
     await expect(page.getByLabel("Preview density")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
-    await page.getByRole("button", { name: "Navigation", exact: true }).click();
+    await page.getByRole("button", { name: "Fold navigation", exact: true }).click();
     await page.setViewportSize({ width: 1440, height: 1050 });
     await page.evaluate(() => {
       document.documentElement.style.zoom = "2";

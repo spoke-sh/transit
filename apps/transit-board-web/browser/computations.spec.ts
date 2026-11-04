@@ -75,9 +75,7 @@ test("deferred computation diagram, grid and inspector share verified metadata",
   await computation.getByRole("button", { name: "Latest completed", exact: true }).click();
   await page.setViewportSize({ width: 750, height: 1000 });
   await graph.getByRole("button", { name: "Computation managed_projection", exact: true }).click();
-  await expect(
-    inspector.getByRole("button", { name: "Close inspector", exact: true }),
-  ).toBeFocused();
+  await expect(page.getByRole("button", { name: "Back to workspace", exact: true })).toBeFocused();
   await inspector.getByRole("button", { name: "Evidence", exact: true }).click();
   await expect(inspector).toContainText(expected.completed!.decision.attempt.cut.sha256);
   expect(
@@ -136,7 +134,9 @@ test("a denied read clears both observations and the shared inspector", async ({
   await expect(
     page.getByRole("heading", { name: "Access to Computation denied", exact: true }),
   ).toBeVisible();
-  await expect(page.getByRole("complementary", { name: "Inspector" })).toBeHidden();
+  await expect(
+    page.getByRole("complementary", { name: "Inspector" }).locator(".inspector-subject"),
+  ).toHaveCount(0);
   await expect(computation).toHaveCount(0);
   denied = false;
   await page.getByRole("button", { name: "Recheck access", exact: true }).click();

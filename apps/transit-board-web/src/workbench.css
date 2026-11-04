@@ -202,18 +202,6 @@
 .workbench-body [hidden] {
   display: none;
 }
-.inspector-controls {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-.inspector-controls h2 {
-  margin: 0;
-}
-.inspector-controls button {
-  padding: 6px 8px;
-}
 .inspector-subject {
   font-size: 18px;
 }
@@ -244,13 +232,6 @@
 .workbench-inspector code {
   font-size: 11px;
   overflow-wrap: anywhere;
-}
-.workbench-body[data-inspecting="true"][data-expanded="true"] > .workbench-canvas,
-.workbench-body[data-inspecting="true"][data-expanded="true"] > .workbench-navigator {
-  display: none;
-}
-.workbench-body[data-expanded="true"] > .workbench-inspector {
-  flex: 1;
 }
 .histogram-bin {
   display: flex;
@@ -385,4 +366,35 @@
   .workbench-grid td {
     padding: 10px;
   }
+}
+
+.workbook-evaluation {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px 0;
+  border-block: 1px solid var(--line);
+}
+.workbook-evaluation > div {
+  flex: 1;
+  min-width: 160px;
+}
+.workbook-evaluation strong,
+.workbook-evaluation span {
+  display: block;
+  margin: 4px 0;
+}
+.workbook-cell > label input {
+  display: block;
+  margin-top: 8px;
+  max-width: 100%;
+  padding: 8px;
+}
+.workbook-cell .workbench-toolbar {
+  gap: 8px;
+}
+.workbench-inspector pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }

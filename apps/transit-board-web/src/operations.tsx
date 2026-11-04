@@ -1,3 +1,4 @@
+import { WorkbenchScope } from "./workbench-layout";
 import { Suspense, useState } from "react";
 import { Computations } from "./features";
 import { Link } from "@tanstack/react-router";
@@ -18,7 +19,7 @@ export function Operations() {
           <p>Storage, maintenance and the evidence behind current progress.</p>
         </div>
       </div>
-      <div className="workbench-scope">
+      <WorkbenchScope>
         <strong>Realm {scope?.realm}</strong>
         <span>Read-only inspection</span>
         <Link to="/atlas">Processes and resources</Link>
@@ -26,7 +27,7 @@ export function Operations() {
         {scope?.features.relational && (
           <Link to="/recovery/relational">Relational queries and recovery</Link>
         )}
-      </div>
+      </WorkbenchScope>
       <WorkbenchBody>
         <Storage />
         <CatalogStorageExplorer />
