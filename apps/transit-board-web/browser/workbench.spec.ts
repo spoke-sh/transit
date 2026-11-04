@@ -471,6 +471,7 @@ test("unavailable workbook metadata removes inspector disclosure without rerunni
   await expect(page.getByRole("heading", { name: "Data connection unavailable" })).toBeVisible({
     timeout: 12000,
   });
+  await expect(page.locator(".shell-scope .workbench-scope")).toHaveCount(0);
   await expect(inspector.locator(".inspector-subject")).toHaveCount(0);
   await expect(page.getByText(/Population:/)).toHaveCount(0);
   await expect(page.getByRole("table", { includeHidden: true })).toHaveCount(0);

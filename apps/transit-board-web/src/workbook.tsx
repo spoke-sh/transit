@@ -136,7 +136,7 @@ function WorkbookPageContent({ active }: { active: boolean }) {
           {!connection.value && <Unavailable error={connection.error} retry={connection.retry} />}
           {connected && (
             <div hidden={!connection.value}>
-              <WorkbenchScope active={active}>
+              <WorkbenchScope active={active && Boolean(connection.value)}>
                 <strong>{connection.value?.database}</strong>
                 <span>{connection.value?.source ?? "Configured SQL namespace"}</span>
                 <span>Read-only statements</span>
@@ -442,26 +442,28 @@ function WorkbookCell({
         earlierResult={relation && Boolean(derived) && !graph.current(cell.id)}
         closeLabel={relation ? "Hide result" : "Close result"}
       />
-      <InspectorPanel
-        owner={selection}
-        title={cell.name || `Cell ${index + 1}`}
-        subtitle="WORKBOOK CELL"
-        dimensions={[{ id: "definition", label: "Definition" }]}
-      >
-        <p>{relation ? "Temporary relation" : "Standalone statement"}</p>
-        <p>
-          {dependency
-            ? `Input: ${graph.cells.find((value) => value.id === dependency)?.name ?? dependency}`
-            : "Input: configured SQL source"}
-        </p>
-        <p>
-          {relation && graph.current(cell.id)
-            ? "Output matches the current draft and exact inputs."
-            : "Edits are separate from completed results."}
-        </p>
-        <pre>{cell.sql}</pre>
-        {derived && <p>Result {derived.binding.result}</p>}
-      </InspectorPanel>
+      {available && active && (
+        <InspectorPanel
+          owner={selection}
+          title={cell.name || `Cell ${index + 1}`}
+          subtitle="WORKBOOK CELL"
+          dimensions={[{ id: "definition", label: "Definition" }]}
+        >
+          <p>{relation ? "Temporary relation" : "Standalone statement"}</p>
+          <p>
+            {dependency
+              ? `Input: ${graph.cells.find((value) => value.id === dependency)?.name ?? dependency}`
+              : "Input: configured SQL source"}
+          </p>
+          <p>
+            {relation && graph.current(cell.id)
+              ? "Output matches the current draft and exact inputs."
+              : "Edits are separate from completed results."}
+          </p>
+          <pre>{cell.sql}</pre>
+          {derived && <p>Result {derived.binding.result}</p>}
+        </InspectorPanel>
+      )}
     </section>
   );
 }
