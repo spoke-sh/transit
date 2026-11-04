@@ -48,7 +48,7 @@ source/output/control denial. The browser checks diagram/grid/Inspector agreemen
 keyboard selection, focus return and clearing after denial. This is a separate
 successful task, not completion of the stopped installation/UI lane.
 
-The final `just transit-board::workbench-browser` run at clean committed source
+The `just transit-board::workbench-browser` run at clean committed source
 `6264d221b`, with ReleaseSafe binaries and the private `/tmp` mount described
 below, passes all **13 Chromium cases**: four connection profiles, eight
 workbench cases and retained storage. The reactive journey checks affected-cell
@@ -113,6 +113,32 @@ Failures and environment changes remain part of this account:
   for their owning cell or dataset; formatting, lint and TypeScript checks pass.
   This failed run does not reach the subsequent retained-storage and real
   grant-revocation assertions.
+- Merge `bda5af025` incorporates `origin/main` at `47f79de29` (PRs #365 and
+  #366). The shared generators resolve three contract-file conflicts while
+  preserving both workbook additions and the current definition. Its clean
+  fast-check attempt stops at the diagnostic inventory: the new workbook owners
+  and their failure references had not been recorded. After reviewing the HTTP
+  mappings and failure propagation, `f78a51c77` records that inventory. The failed
+  checkout remains at `/var/tmp/transit-ci-twj28bv2`; this inventory update does
+  not itself certify failure semantics.
+
+The integration follow-up at `f78a51c77` passes all **66** clean fast checks,
+all **20** contract checks and the complete Board check (148 Board tests,
+73 query-client tests, 13 application tests and seven diagnostic tests, with
+types, lint, formatting and generated-contract agreement). Clean fast evidence
+is retained at `.cache/ci/clean/f78a51c771c4-transit-ci-cco0rrlp/` in the
+implementation worktree; the focused checks run from the retained clean checkout
+after updating it to that committed source. This does not rerun or replace the
+earlier complete SQL lane or incomplete installation/UI lane.
+
+The same `f78a51c77` follow-up rebuilds the five ReleaseSafe binaries and passes
+the complete installed workbook proof again: all 13 Chromium cases and the native
+dependency, budget, retained-storage and revocation/restart assertions described
+above. Its fixture is `/var/tmp/transit-server-proof-ibvg9bos`. The source and
+terminal task results are in `m30-merged-checks.json`, the raw output is in
+`m30-merged-workbench.log`, and binary hashes are in
+`m30-runtime-provenance-f78a51c77.json`. These focused runs do not complete the
+stopped installation/UI lane or rerun the entire browser inventory.
 
 Private raw records are retained in `transit-m30-implementation/.cache/`, including
 `m30-final-qualification.json`, `m30-*.log`, `checks/packages-build.json`,
