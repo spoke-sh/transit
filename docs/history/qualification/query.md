@@ -60,6 +60,7 @@ Executed with the pinned Nix Zig `0.17.0-dev.2267+48abf1a34` toolchain:
 | `just ci clean --lane installation-ui`, `5c20c5ff77f2cee327394a461ad47d10e0eab0f3` | First 15 tasks passed, including managed Tables, direct SQL faults, authentication/lifetimes, Board query recovery and Station startup. Workbench failed; the final two tasks did not run in this attempt |
 | Workbench retry, then computation-inspection and declarative-browser follow-ups in that retained clean checkout | All three tasks passed with unchanged fixtures and deadlines; these do not replace the failed lane result |
 | `just ci clean --lane storage-query`, `cdd69c4f683ec57476f9de97e0af0a4c12cdc734` | First 12 targets passed through local-payload-service. The long local-catalog target was interrupted for diagnosis; this lane did not complete |
+| Separate storage follow-ups in that retained clean checkout | 19 additional targets passed across the two captures, including the unchanged workload-token retry. Together with the initial attempt, 31 of 33 targets have passing results; local-catalog and the final catalog aggregate remain incomplete |
 
 The first clean contract attempt at `c46c1890c` failed SQL workload-frame drift:
 native fixture regeneration changed definition-bearing frame inputs. Commit
@@ -103,7 +104,22 @@ transfer paths and declaration-token recovery. Workload-token preparation then
 hit its unchanged 180-second deadline. A fresh unchanged retry passed in 28.04 s
 with the long catalog diagnostic paused. That timing comparison is diagnostic,
 not a causal or performance claim; the original timeout remains a failed attempt.
-The subsequent workload-result and direct-maintenance targets also passed.
+The subsequent workload-result, direct-maintenance and shared Catalog ABI targets
+passed. The ABI exercised 231 public requests, uncertain receipts and pin/release
+replies, caller/node replacement and cached/terminal revocation. Concurrency,
+block storage, physical collection, Document recovery, public queries, publication
+and Table query writing also passed. These are separate target outcomes, not a
+completed storage lane.
+
+The final `test::catalog` aggregate passed named-resource recovery with 107 typed
+catalog calls, eight withheld staging replies, four withheld dependency replies
+and eleven abrupt node replacements. Its broader 139-resource growth setup had
+reported 17 initialized/read resources when the agent stopped its caller with
+SIGTERM to end this selected validation pass. The aggregate returned exit 1.
+No growth assertion or its 5,400-second deadline had failed before interruption;
+setup completion and the subsequent before/after-restart readbacks were not
+proved. Both interrupted catalog targets remain incomplete. No test deadline,
+cardinality or resource budget was changed.
 
 Local focused logs remain in `.cache/checks/m12-owned-progress/` in the
 implementation worktree. Successful clean contract provenance and logs are at
@@ -125,6 +141,10 @@ Each follow-up records source/toolchain provenance, command, per-target logs and
 exit status through the shared capture helper. The diagnostic logs are
 `progress-catalog-verbose.log` and `progress-catalog-verbose-matched.log` in the
 focused evidence directory; neither is a completed lane record.
+The final growth fixture remains at
+`/var/tmp/transit-table-resource-growth-ddexcqo1`. The focused directory retains
+`resource-growth-interruption.json`, both follow-up capture directories and
+`progress-storage-remaining.log`, including the SIGTERM and aggregate exit.
 
 This evidence does not establish complete Milestone 12 qualification. Generic
 DFD1 declarations and original DFW1 admission records remain retained; abandoned
