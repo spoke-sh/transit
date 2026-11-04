@@ -24,7 +24,7 @@ TABLE_ACTIONS = frozenset('''initialize describe namespace namespaces
     scan column_scan filter_scan key_range release'''.split())
 TABLE_CONTROL_ACTIONS = {
     'client_token': frozenset(('bind', 'lookup')),
-    'client_progress': frozenset(('inspect', 'operation', 'list', 'update', 'advance')),
+    'client_progress': frozenset(('inspect', 'operation', 'list', 'update', 'advance', 'stage_original', 'retain_original', 'attach_original', 'close_original')),
     'record': frozenset(('stage', 'read')),
     'workload_result': frozenset(('open', 'page')),
 }

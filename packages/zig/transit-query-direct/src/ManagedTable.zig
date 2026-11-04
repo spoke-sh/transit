@@ -52,6 +52,7 @@ pub const Work = struct {
     declaration: c.DirectRecord.Reference,
     lease: flow.Lease,
     previous: Head,
+    attachment: ?c.DirectKV.Mutation,
     transaction: c.DirectClientToken.Key,
     phase: enum { acquiring, evaluating, staging, checkpoint, deciding, aborting, complete },
     failure: ?flow.Blocked,
@@ -177,11 +178,6 @@ pub fn prepare(self: Self, namespace: u64, name: []const u8, object: u64, identi
     return result;
 }
 
-fn store(self: Self, selected: [32]u8, format: u32, value: anytype) !c.DirectRecord.Reference {
-    const bytes = try p.Json.valueAllocBounded(self.client.allocator, value, c.DirectRecord.max_bytes);
-    defer self.client.allocator.free(bytes);
-    return c.DirectRecord.stage(self.client, selected, format, bytes);
-}
 fn readObjects(value: Declaration) [3]?d.Object {
     return .{ value.source.interpretation.interpretation.object, value.output.interpretation.interpretation.object, value.object };
 }
@@ -194,10 +190,20 @@ fn storeRevision(self: Self, declaration: Declaration, value: Revision) !c.Direc
 }
 pub fn load(self: Self, comptime T: type, reference: c.DirectRecord.Reference, format: u32) !std.json.Parsed(T) {
     const owned = format == page_format or format == revision_format;
+    const original_owned = reference.format == c.DirectOwnedRecord.format;
     const progress_owned = format == work_format and reference.format == c.DirectProgressRecord.format;
-    if ((!progress_owned and reference.format != (if (owned) c.DirectTransactionRecord.format else format)) or !std.meta.eql(reference.scope.connection, self.client.connection)) return error.InvalidManagedTableRecord;
+    if ((!original_owned and !progress_owned and reference.format != (if (owned) c.DirectTransactionRecord.format else format)) or !std.meta.eql(reference.scope.connection, self.client.connection)) return error.InvalidManagedTableRecord;
     const bytes = try c.DirectRecord.read(self.client.allocator, self.client, reference);
     defer self.client.allocator.free(bytes);
+    if (original_owned) {
+        const envelope = try p.Json.parseFromSlice(c.DirectOwnedRecord.Envelope, self.client.allocator, bytes);
+        defer envelope.deinit();
+        try envelope.value.validate(reference);
+        if (envelope.value.format != format) return error.InvalidManagedTableRecord;
+        const payload = try envelope.value.bytes.decode(self.client.allocator, c.DirectRecord.max_bytes);
+        defer self.client.allocator.free(payload);
+        return p.Json.parseFromSliceOwned(T, self.client.allocator, payload);
+    }
     if (progress_owned) {
         const envelope = try p.Json.parseFromSlice(c.DirectProgressRecord.Envelope, self.client.allocator, bytes);
         defer envelope.deinit();
@@ -253,13 +259,17 @@ pub fn publish(self: Self, value: Declaration) !Observation {
         const prepared = try self.prepare(value.namespace, value.name.slice(), value.object.object, value.operation.operation, value.output.name.slice(), value.sql, value.options);
         if (!std.mem.eql(u8, &digest, &try prepared.digest(self.client.allocator))) return error.DataflowSourceChanged;
     }
-    const reference = try self.store(token.account, declaration_format, value);
-    const receipt = try c.DirectClientToken.bind(self.client, .{ .key = token, .fingerprint = digest, .intent = .{ .external = .{ .connection = value.connection, .namespace = value.namespace, .operation = value.operation.operation, .record = reference } } });
-    try receipt.binding.intent.external.record.requireSame(reference);
-    if ((try c.DirectClientToken.inspect(self.client, token)).?.cancel) return error.DataflowSourceChanged;
+    const bytes = try p.Json.valueAllocBounded(self.client.allocator, value, c.DirectRecord.max_bytes);
+    defer self.client.allocator.free(bytes);
+    const progress = try c.DirectOwnedRecord.stage(self.client, token, value.namespace, value.operation.operation, digest, .{ .bytes = 64 * 1024 }, declaration_format, bytes);
+    if (progress.original.?.phase == .closed) return error.OwnedRecordClosed;
+    if (progress.cancel) return error.DataflowSourceChanged;
     return self.initialize(value, token);
 }
 pub fn initialize(self: Self, value: Declaration, token: c.DirectClientToken.Key) !Observation {
+    const staged = try c.DirectClientToken.inspect(self.client, token) orelse return error.ClientOperationMissing;
+    if (!std.mem.eql(u8, &staged.receipt.binding.fingerprint, &try value.digest(self.client.allocator))) return error.DataflowIdentityConflict;
+    _ = try c.DirectOwnedRecord.call(self.client, .{ .retain_original = .{ .key = token, .expected = staged.revision } });
     var output: std.heap.ArenaAllocator = .init(self.client.allocator);
     defer output.deinit();
     const owner = (try self.client.require(.{ .namespace = value.namespace, .target = null, .access = .create_table })).role;
@@ -390,7 +400,17 @@ fn progressWork(self: Self, progress: c.DirectClientToken.Progress, work: Work) 
     defer self.client.allocator.free(bytes);
     const binary = try c.DirectTableProtocol.Binary.encode(self.client.allocator, bytes);
     defer self.client.allocator.free(binary.base64);
-    _ = try c.DirectProgressRecord.advance(self.client, .{ .key = progress.receipt.binding.key, .expected = progress.revision, .pending = work.phase != .complete, .cancel = false, .format = work_format, .bytes = binary });
+    const next = try c.DirectProgressRecord.advance(self.client, .{ .key = progress.receipt.binding.key, .expected = progress.revision, .pending = work.phase != .complete, .cancel = false, .format = work_format, .bytes = binary });
+    if (!next.pending) _ = try self.closeOriginal(next);
+}
+
+/// Explicitly close private original bytes. The Catalog fences unresolved
+/// attachment and refuses retained declarations or unfinished attached work.
+pub fn closeOriginal(self: Self, progress: c.DirectClientToken.Progress) !c.DirectClientToken.Progress {
+    return c.DirectOwnedRecord.call(self.client, .{ .close_original = .{ .key = progress.receipt.binding.key, .expected = progress.revision } });
+}
+fn attachOriginal(self: Self, progress: c.DirectClientToken.Progress, work: Work) !c.DirectClientToken.Progress {
+    return c.DirectOwnedRecord.call(self.client, .{ .attach_original = .{ .key = progress.receipt.binding.key, .expected = progress.revision, .mutation = work.attachment orelse return error.InvalidManagedTableRecord } });
 }
 
 /// Claim one complete successor under an exact current control/head. The work
@@ -416,15 +436,11 @@ pub fn start(self: Self, value: Declaration) !?c.DirectClientToken.Key {
 fn startInner(self: Self, value: Declaration) !?c.DirectClientToken.Key {
     const observed = try self.inspect(value);
     if (observed.head.pending) |pending| {
-        const reference = observed.head.pending_record orelse return error.InvalidManagedTableRecord;
-        const original = try self.load(Work, reference, work_format);
-        defer original.deinit();
-        _ = try c.DirectClientToken.bind(self.client, .{ .key = pending, .budget = .{ .bytes = 64 * 1024 }, .fingerprint = reference.content.sha256, .intent = .{ .external = .{ .connection = self.client.connection, .namespace = value.namespace, .operation = original.value.lease.owner.operation, .record = reference } } });
-        const progress = (try c.DirectClientToken.inspect(self.client, pending)).?;
+        const progress = (try c.DirectClientToken.inspect(self.client, pending)) orelse return error.InvalidManagedTableRecord;
         if (progress.pending) return pending;
+        if (progress.original.?.phase != .closed) _ = try self.closeOriginal(progress);
         var next = observed.head;
         next.pending = null;
-        next.pending_record = null;
         // The identity includes the exact head position. Concurrent controls may
         // defeat this CAS, but can never change an already accepted request.
         try self.put(value, observed.storage, observed.position, next, self.operation(value, "release", observed.position.next_lsn), .present);
@@ -461,12 +477,35 @@ fn startInner(self: Self, value: Declaration) !?c.DirectClientToken.Key {
     claimed.attempt = try std.math.add(u64, claimed.attempt, 1);
     const token = self.workKey(value, claimed.attempt, "transit.managed.table.work.v1");
     claimed.pending = token;
-    const declaration_reference = try self.store(account(), declaration_format, value);
+    const saved = try c.DirectClientToken.inspect(self.client, token);
+    if (saved) |progress| {
+        const original = progress.original orelse return error.InvalidManagedTableRecord;
+        switch (original.phase) {
+            .closed => {
+                // A control change may have invalidated the old head claim.
+                // Advance without reconstructing its immutable staging request.
+                var skipped = observed.head;
+                skipped.attempt = claimed.attempt;
+                try self.put(value, observed.storage, observed.position, skipped, self.operation(value, "skip-closed", observed.position.next_lsn), .present);
+                return null;
+            },
+            .ready, .attaching, .attached => return token,
+            .reserved => {},
+            .retained => return error.InvalidManagedTableRecord,
+        }
+    }
+    const publication = try c.DirectClientToken.inspect(self.client, self.nameKey(value.namespace, value.name)) orelse return error.ClientOperationMissing;
+    if (publication.original == null or publication.original.?.phase != .retained) return error.InvalidManagedTableRecord;
+    const declaration_reference = publication.receipt.binding.intent.external.record;
+    var scratch: std.heap.ArenaAllocator = .init(self.client.allocator);
+    defer scratch.deinit();
+    const attachment = try self.mutation(&scratch, value, observed.storage, observed.position, claimed, self.operation(value, "claim", claimed.attempt), .any);
     const work: Work = .{
         .definition = p.Growth.current_definition,
         .declaration = declaration_reference,
         .lease = .{ .target = try value.interpretation(self.client.allocator), .control = claimed.control, .owner = self.operation(value, "worker", claimed.attempt), .epoch = claimed.attempt },
         .previous = claimed,
+        .attachment = attachment,
         .transaction = self.workKey(value, claimed.attempt, "transit.managed.table.transaction.v1"),
         .phase = .acquiring,
         .failure = null,
@@ -478,10 +517,19 @@ fn startInner(self: Self, value: Declaration) !?c.DirectClientToken.Key {
         .sequence = 0,
         .statement = null,
     };
-    const reference = try self.store(token.account, work_format, work);
-    claimed.pending_record = reference;
-    try self.put(value, observed.storage, observed.position, claimed, self.operation(value, "claim", claimed.attempt), .any);
-    return self.start(value);
+    const bytes = try p.Json.valueAllocBounded(scratch.allocator(), work, c.DirectRecord.max_bytes);
+    var fingerprint: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(bytes, &fingerprint, .{});
+    if (saved) |progress| if (!std.mem.eql(u8, &progress.receipt.binding.fingerprint, &fingerprint)) {
+        // No initial bytes were ready. The changed head makes this reservation
+        // unusable; exact closure fences a concurrent staging/attachment retry.
+        _ = try self.closeOriginal(progress);
+        return null;
+    };
+    const progress = try c.DirectOwnedRecord.stage(self.client, token, value.namespace, work.lease.owner.operation, fingerprint, .{ .bytes = 64 * 1024 }, work_format, bytes);
+    if (progress.original.?.phase == .closed) return null;
+    _ = try self.attachOriginal(progress, work);
+    return token;
 }
 
 fn privateClient(self: Self, transaction: c.DirectClientToken.Key) !c.DirectTableClient {
@@ -506,6 +554,7 @@ pub fn step(self: Self, token: c.DirectClientToken.Key, io: std.Io, directory: s
             else => return err,
         };
         const progress = try c.DirectClientToken.inspect(self.client, token) orelse return err;
+        if (progress.original == null or progress.original.?.phase != .attached) return err;
         const loaded = try self.load(Work, progress.record orelse progress.receipt.binding.intent.external.record, work_format);
         defer loaded.deinit();
         const declared = try self.load(Declaration, loaded.value.declaration, declaration_format);
@@ -514,13 +563,21 @@ pub fn step(self: Self, token: c.DirectClientToken.Key, io: std.Io, directory: s
     };
 }
 fn stepInner(self: Self, token: c.DirectClientToken.Key, io: std.Io, directory: std.Io.Dir, cancellation: ?*const std.atomic.Value(bool)) !bool {
-    const progress = try c.DirectClientToken.inspect(self.client, token) orelse return error.ClientOperationMissing;
+    var progress = try c.DirectClientToken.inspect(self.client, token) orelse return error.ClientOperationMissing;
+    if (!progress.pending) {
+        if (progress.original) |original| {
+            if (original.phase != .closed) _ = try self.closeOriginal(progress);
+        }
+        return false;
+    }
+    const original = progress.original orelse return error.InvalidManagedTableRecord;
+    if (original.phase == .reserved) return error.OwnedRecordPending;
     const loaded = try self.load(Work, progress.record orelse progress.receipt.binding.intent.external.record, work_format);
     defer loaded.deinit();
     var work = loaded.value;
     if (work.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
     if ((work.phase == .aborting and work.failure == null) or (work.phase != .aborting and work.phase != .complete and work.failure != null)) return error.InvalidManagedTableRecord;
-    if (work.phase == .complete) return false;
+    if (work.phase == .complete) return error.InvalidManagedTableRecord;
     const declared = try self.load(Declaration, work.declaration, declaration_format);
     defer declared.deinit();
     const value = declared.value;
@@ -528,6 +585,28 @@ fn stepInner(self: Self, token: c.DirectClientToken.Key, io: std.Io, directory: 
     try work.lease.validate();
     try work.transaction.validate();
     if (!std.meta.eql(work.lease.target, try value.interpretation(self.client.allocator)) or !std.meta.eql(work.transaction.connection, self.client.connection) or (if (work.rows == 0) work.page_count != 0 else (work.page_count == 0 or work.page_count > work.rows)) or work.sequence > work.page_count + 2) return error.InvalidManagedTableRecord;
+    if (original.phase == .ready or original.phase == .attaching) {
+        const attachment = work.attachment orelse return error.InvalidManagedTableRecord;
+        var scratch: std.heap.ArenaAllocator = .init(self.client.allocator);
+        defer scratch.deinit();
+        try work.previous.validate();
+        if (work.previous.pending == null or !std.meta.eql(work.previous.pending.?, token) or work.previous.attempt != work.lease.epoch) return error.InvalidManagedTableRecord;
+        const frozen = try self.mutation(&scratch, value, attachment.binding.expected_definition orelse return error.InvalidManagedTableRecord, attachment.binding.expected_data orelse return error.InvalidManagedTableRecord, work.previous, self.operation(value, "claim", work.lease.epoch), .any);
+        try frozen.binding.requireSame(attachment.binding);
+        progress = self.attachOriginal(progress, work) catch |err| switch (err) {
+            error.TableDataChanged, error.TableDefinitionChanged, error.Conflict => {
+                // Close only through the serialized owner: it rechecks the
+                // original receipt and fences every late attachment retry.
+                const pending = try c.DirectClientToken.inspect(self.client, token) orelse return err;
+                _ = try self.closeOriginal(pending);
+                return false;
+            },
+            else => return err,
+        };
+    }
+    // The original owner keeps the compact attachment binding. Subsequent
+    // recovery no longer needs to copy the initial pending-head payload.
+    work.attachment = null;
     const tx: Tx = .{ .catalog = self.client };
     // A prepared participant can refuse ordinary head reads. Its original
     // decision must remain resumable without reading any participant first.
@@ -661,8 +740,7 @@ fn stepInner(self: Self, token: c.DirectClientToken.Key, io: std.Io, directory: 
                 const read = (try KV.apply(&arena, client, .{ .get = .{ .object = value.object, .key = head_key } })).value;
                 const head = try p.Json.parseFromSlice(Head, arena.allocator(), read.value.?.value.atom.bytes);
                 defer head.deinit();
-                var expected = head.value;
-                expected.pending_record = null;
+                const expected = head.value;
                 if (!std.meta.eql(expected, work.previous)) return self.abort(value, token, progress, work, .lease_fenced);
                 var next = head.value;
                 next.revision = try std.math.add(u64, next.revision, 1);

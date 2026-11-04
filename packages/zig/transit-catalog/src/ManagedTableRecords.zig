@@ -86,20 +86,19 @@ pub const Head = struct {
     source: ?d.Position,
     rows: u64,
     pending: ?c.DirectClientToken.Key,
-    pending_record: ?c.DirectRecord.Reference,
     completed: ?c.DirectClientToken.Key,
     blocked: flow.Blocked,
     retirement_complete: bool,
 
     pub fn initial(digest: [32]u8) Head {
-        return .{ .definition = p.Growth.current_definition, .declaration = digest, .control = .initial(), .attempt = 0, .revision = 0, .completed_refresh = 0, .source = null, .rows = 0, .pending = null, .pending_record = null, .completed = null, .blocked = .none, .retirement_complete = false };
+        return .{ .definition = p.Growth.current_definition, .declaration = digest, .control = .initial(), .attempt = 0, .revision = 0, .completed_refresh = 0, .source = null, .rows = 0, .pending = null, .completed = null, .blocked = .none, .retirement_complete = false };
     }
     pub fn validate(self: Head) !void {
         if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
         try self.control.validate();
         if (self.retirement_complete and self.control.state != .retired) return error.InvalidManagedTableHead;
         if ((self.revision == 0) != (self.completed == null) or (self.revision == 0) != (self.source == null) or
-            self.completed_refresh > self.control.refresh or (self.pending != null and self.attempt == 0) or ((self.pending == null) != (self.pending_record == null))) return error.InvalidManagedTableHead;
+            self.completed_refresh > self.control.refresh or (self.pending != null and self.attempt == 0)) return error.InvalidManagedTableHead;
         if (self.source) |source| try source.validate();
         if (self.pending) |key| try key.validate();
         if (self.completed) |key| try key.validate();
@@ -122,7 +121,7 @@ pub const Revision = struct {
         try self.metadata.validate();
         try self.declaration.validate();
         try self.transaction.validate();
-        if (self.declaration.format != declaration_format or
+        if (self.declaration.format != c.DirectOwnedRecord.format or
             !std.meta.eql(self.declaration.scope.connection, self.transaction.connection) or
             (self.pages == null) != (self.metadata.rows == 0)) return error.InvalidManagedTableRecord;
         if (self.pages) |page| {

@@ -445,7 +445,8 @@ reject that reserved identity. Repeating the exact attachment resolves its origi
 receipt. This operation runs under exclusive Catalog access through execution;
 there is no read-open/write-head race or separate caller-controlled lease bypass.
 
-`close_original` (`key`, `expected`) permanently closes reserved/ready work. For
+`close_original` (`key`, `expected`) uses reserved control admission and
+permanently closes reserved/ready work. For
 `attaching`, it inspects the exact native operation under current rights. A
 receipt prevents abandonment; denial or failed observation preserves uncertainty.
 When no receipt exists, exclusive closure fences subsequent attachment and the

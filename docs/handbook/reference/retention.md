@@ -129,7 +129,12 @@ complete cleanup. Uncertain attempts and committed revisions remain protected;
 retirement alone does not release them. Replaceable managed progress uses
 Catalog-owned `CPR1` records: collection retains the current and staged references
 at its accepted cut and may reclaim superseded payloads after reader grace.
-Terminal progress, declarations and initial-admission records remain retained.
+Terminal progress and published declarations remain retained. Initial managed
+work uses operation-owned `SOR1` records: explicit closure can release private
+staging, and completed work closes its original bytes after recovery obligations
+settle. Closure serializes with exact head attachment and permanently fences late
+retries. Original receipts and commitments survive physical cleanup. Generic
+unowned admission records retain their existing lifetime.
 The local
 maintenance executor schedules native and direct collection using separate
 source-allocation activity and durable pass progress. It resumes an incomplete

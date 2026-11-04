@@ -454,13 +454,22 @@ fn clientTokenTransition(self: *Self, before: r.Root, record: r.Record) !void {
     if (prior) |old| {
         if (!std.meta.eql(old.receipt, accepted.receipt) or (!old.pending and accepted.pending) or
             (old.cancel and !accepted.cancel) or record.root.client_token_count != before.client_token_count) return error.InvalidDirectCatalogTransition;
+        if (old.original) |original| {
+            const next = accepted.original orelse return error.InvalidDirectCatalogTransition;
+            try c.DirectOwnedRecord.State.transition(original, next);
+            if (original.phase == .closed) return error.InvalidDirectCatalogTransition;
+            if (next.phase == .closed and original.phase == .attached and
+                (old.pending or old.record == null or old.record.?.format != c.DirectProgressRecord.format or old.staged != null)) return error.InvalidDirectCatalogTransition;
+        } else if (accepted.original != null) return error.InvalidDirectCatalogTransition;
         if (accepted.staged) |staged| {
             if (!std.meta.eql(staged.expected, old.revision) or !std.meta.eql(old.record, accepted.record) or
                 old.pending != accepted.pending or old.cancel != accepted.cancel) return error.InvalidDirectCatalogTransition;
         } else if (accepted.record) |reference| if (reference.format == c.DirectProgressRecord.format) {
-            const staged = old.staged orelse return error.InvalidDirectCatalogTransition;
-            if (!std.meta.eql(reference, staged.reference) or accepted.pending != staged.pending or accepted.cancel != staged.cancel)
-                return error.InvalidDirectCatalogTransition;
+            if (!std.meta.eql(old.record, accepted.record)) {
+                const staged = old.staged orelse return error.InvalidDirectCatalogTransition;
+                if (!std.meta.eql(reference, staged.reference) or accepted.pending != staged.pending or accepted.cancel != staged.cancel)
+                    return error.InvalidDirectCatalogTransition;
+            } else if (old.pending != accepted.pending or old.cancel != accepted.cancel or old.staged != null) return error.InvalidDirectCatalogTransition;
         };
     } else {
         if (!std.meta.eql(accepted, c.DirectClientToken.Progress.initial(accepted.receipt)) or

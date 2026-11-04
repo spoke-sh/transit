@@ -2966,3 +2966,65 @@ fn progressRecordsDispatch(service: *@import("LocalTableService.zig"), _: u64) !
     (try dispatch(service, .{ .record = .{ .read = terminal.record.? } })).deinit();
     try t.expectEqualDeep(terminal, (try catalog.clientProgress(.{ .advance = request }, policy.policy())).state.?);
 }
+
+test "owned original staging and explicit closure survive physical collection" {
+    typed_dispatch = false;
+    try dataSchedule(originalRecordsDispatch);
+    typed_dispatch = true;
+    try dataSchedule(originalRecordsDispatch);
+}
+fn originalRecordsDispatch(service: *@import("LocalTableService.zig"), _: u64) !void {
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const connection: c.DirectTableProtocol.Connection = .{ .scope = service.configuration.scope, .branch = 1, .audience = service.configuration.audience, .principal = 101, .role = null };
+    var requests: [3]c.DirectOwnedRecord.Stage = undefined;
+    for (&requests, 0..) |*request, i| {
+        const token: c.DirectClientToken.Key = .{ .definition = g.current_definition, .connection = connection, .account = @splat(96), .token = @splat(@intCast(i + 1)) };
+        const payload = try c.DirectTableProtocol.Binary.encode(allocator, "owned original bytes");
+        const encoded = try c.DirectOwnedRecord.encode(allocator, token, 17, payload);
+        request.* = .{ .binding = .{ .key = token, .fingerprint = @splat(17), .budget = .{ .bytes = 64 * 1024 }, .intent = .{ .external = .{ .connection = connection, .namespace = 1, .operation = 140000 + i, .record = try c.DirectRecord.reference(token.scope(), c.DirectOwnedRecord.format, encoded) } } }, .format = 17, .bytes = payload };
+        if (i == 0) continue;
+        const reply = try dispatch(service, .{ .client_progress = .{ .stage_original = request.* } });
+        defer reply.deinit();
+        const state = reply.value.result.client_progress.state.?;
+        const control_value: c.DirectOwnedRecord.Control = .{ .key = token, .expected = state.revision };
+        (try dispatch(service, .{ .client_progress = if (i == 1) .{ .retain_original = control_value } else .{ .close_original = control_value } })).deinit();
+    }
+    const digest: [32]u8 = @splat(17);
+    var policy = try Policy.init(service.engine, service.configuration, try proof(service.engine, digest), digest, null);
+    var control_store: backend.DataStore = .{ .backend = service.engine.journal.backend, .control = true };
+    var data: backend.DataStore = .{ .backend = service.engine.journal.backend };
+    var catalog = try D.init(t.allocator, service.configuration, control_store.log(), control_store.objects(), data.log(), data.objects(), .{ .resident_pages = 1 });
+    defer catalog.deinit();
+    try catalog.recover();
+    catalog.store.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.clientProgress(.{ .stage_original = requests[0] }, policy.policy()));
+    catalog.store.lose_reply = false;
+    try catalog.recover();
+    const CreateDuringGrace = struct {
+        catalog: *D,
+        policy: D.Policy,
+        request: c.DirectOwnedRecord.Stage,
+        result: ?c.DirectClientToken.Progress = null,
+        fn run(raw: *anyopaque) !void {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            self.result = (try self.catalog.clientProgress(.{ .stage_original = self.request }, self.policy)).state.?;
+        }
+    };
+    var creation: CreateDuringGrace = .{ .catalog = &catalog, .policy = policy.policy(), .request = requests[0] };
+    try collectDirectBeforeSweep(service.engine, &catalog, .{ .context = &creation, .run = CreateDuringGrace.run });
+    var path: [96]u8 = undefined;
+    for (requests, 0..) |request, i| try t.expect((try data.objects().head(try c.DirectRecord.key(request.binding.intent.external.record, &path)) != null) == (i != 2));
+    const closed = (try catalog.clientProgress(.{ .close_original = .{ .key = requests[0].binding.key, .expected = creation.result.?.revision } }, policy.policy())).state.?;
+    try collectDirect(service.engine, &catalog);
+    try t.expect(try data.objects().head(try c.DirectRecord.key(requests[0].binding.intent.external.record, &path)) == null);
+    try t.expect(try data.objects().head(try c.DirectRecord.key(requests[1].binding.intent.external.record, &path)) != null);
+    try catalog.recover();
+    try t.expectEqualDeep(closed, (try catalog.clientProgress(.{ .stage_original = requests[0] }, policy.policy())).state.?);
+    (try dispatch(service, .{ .record = .{ .read = requests[1].binding.intent.external.record } })).deinit();
+    const late = try dispatch(service, .{ .client_progress = .{ .stage_original = requests[0] } });
+    defer late.deinit();
+    try t.expectEqualDeep(closed, late.value.result.client_progress.state.?);
+    try t.expect(try data.objects().head(try c.DirectRecord.key(requests[0].binding.intent.external.record, &path)) == null);
+}

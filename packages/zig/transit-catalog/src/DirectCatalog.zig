@@ -1332,9 +1332,14 @@ pub fn inspectManaged(self: *Self, output: std.mem.Allocator, request: c.Managed
     if (publication.pending or publication.cancel or publication.receipt.binding.intent != .external) return error.ManagedTableInitializationPending;
     publisher = publication.receipt.binding.key.connection;
     const reference = publication.receipt.binding.intent.external.record;
-    if (reference.format != M.declaration_format or reference.content.bytes > M.max_definition_bytes or !std.meta.eql(reference.scope.connection, publisher)) return error.InvalidManagedTableRecord;
+    if (reference.format != c.DirectOwnedRecord.format or reference.content.bytes > c.DirectRecord.max_bytes or !std.meta.eql(reference.scope.connection, publisher)) return error.InvalidManagedTableRecord;
     const declaration_bytes = try c.DirectRecord.load(scratch, self.data_objects, reference);
-    const parsed = try p.Json.parseFromSlice(M.Declaration, scratch, declaration_bytes);
+    if (publication.original == null or publication.original.?.phase != .retained) return error.InvalidManagedTableRecord;
+    const owned_state = (try p.Json.parseFromSlice(c.DirectOwnedRecord.Envelope, scratch, declaration_bytes)).value;
+    try owned_state.validate(reference);
+    try owned_state.key.requireSame(publication.receipt.binding.key);
+    if (owned_state.format != M.declaration_format) return error.InvalidManagedTableRecord;
+    const parsed = try p.Json.parseFromSlice(M.Declaration, scratch, try owned_state.bytes.decode(scratch, M.max_definition_bytes));
     const declared = parsed.value;
     try declared.validate();
     if (!std.meta.eql(declared.connection, publisher) or !std.meta.eql(declared.object, object) or declared.namespace != request.namespace or !std.meta.eql(declared.name, request.name)) return error.DataflowIdentityConflict;
@@ -1429,7 +1434,7 @@ pub fn directRecord(self: *Self, allocator: std.mem.Allocator, request: c.Direct
         .stage_transaction => unreachable,
         .stage => |value| blk: {
             if (value.format == c.DirectTransactionRecord.format) return error.TransactionOperationRequired;
-            if (value.format == c.DirectProgressRecord.format) return error.InvalidDirectRecord;
+            if (value.format == c.DirectProgressRecord.format or value.format == c.DirectOwnedRecord.format) return error.InvalidDirectRecord;
             const bytes = try value.bytes.decode(allocator, c.DirectRecord.max_bytes);
             defer allocator.free(bytes);
             if (value.format & c.DirectRecord.guarded_bit != 0) {
@@ -1445,7 +1450,16 @@ pub fn directRecord(self: *Self, allocator: std.mem.Allocator, request: c.Direct
         .read => |value| blk: {
             const bytes = try c.DirectRecord.load(allocator, self.data_objects, value);
             defer allocator.free(bytes);
-            if (value.format == c.DirectProgressRecord.format) {
+            if (value.format == c.DirectOwnedRecord.format) {
+                const envelope = try p.Json.parseFromSlice(c.DirectOwnedRecord.Envelope, allocator, bytes);
+                defer envelope.deinit();
+                try envelope.value.validate(value);
+                const state = (try self.clientProgress(.{ .inspect = envelope.value.key }, policy)).state orelse return error.ClientOperationMissing;
+                const owned_state = state.original orelse return error.InvalidOwnedRecord;
+                if (owned_state.phase == .reserved) return error.OwnedRecordPending;
+                if (owned_state.phase == .closed) return error.OwnedRecordClosed;
+                try value.requireSame(state.receipt.binding.intent.external.record);
+            } else if (value.format == c.DirectProgressRecord.format) {
                 const envelope = try p.Json.parseFromSlice(c.DirectProgressRecord.Envelope, allocator, bytes);
                 defer envelope.deinit();
                 try envelope.value.validate(value);
@@ -1624,9 +1638,9 @@ pub fn requireClientLease(self: *Self, lease: c.DirectClientToken.Lease, policy:
 }
 
 pub fn clientToken(self: *Self, request: c.DirectClientToken.Request, policy: Policy) !?c.DirectClientToken.Receipt {
-    return self.clientTokenSelected(request, policy, false);
+    return self.clientTokenSelected(request, policy, false, false);
 }
-fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy: Policy, server_selection: bool) !?c.DirectClientToken.Receipt {
+fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy: Policy, server_selection: bool, original_reservation: bool) !?c.DirectClientToken.Receipt {
     try self.requireInitialized();
     try request.validate();
     const key = request.key();
@@ -1701,8 +1715,12 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
             try c.OperationBinding.claimTransactionCallInTree(self.allocator, &self.store.index, value);
         },
         .external => |value| {
-            const bytes = try c.DirectRecord.load(self.allocator, self.data_objects, value.record);
-            defer self.allocator.free(bytes);
+            if (value.record.format == c.DirectOwnedRecord.format) {
+                if (!original_reservation) return error.OwnedRecordOperationRequired;
+            } else {
+                const bytes = try c.DirectRecord.load(self.allocator, self.data_objects, value.record);
+                defer self.allocator.free(bytes);
+            }
             try check(current);
             try c.OperationBinding.claimExternalInTree(self.allocator, &self.store.index, value);
         },
@@ -1764,6 +1782,7 @@ pub fn clientProgressWithWorkloads(self: *Self, request: c.DirectClientToken.Pro
     defer arena.deinit();
     const database = try self.guard(arena.allocator(), policy, null, null, .database);
     try check(database);
+    if (request == .stage_original) return .{ .state = try self.stageOriginal(arena.allocator(), request.stage_original, policy) };
     if (request == .list) {
         const page = try self.store.clientPage(request.list);
         for (page.entries) |slot| if (slot) |state| try check(try self.intentGuard(arena.allocator(), state.receipt.binding.intent, policy));
@@ -1773,15 +1792,18 @@ pub fn clientProgressWithWorkloads(self: *Self, request: c.DirectClientToken.Pro
     var state = (switch (request) {
         .inspect => |key| try self.store.clientTokenState(key),
         .operation => |value| try self.store.clientOperation(value.scope, value.id),
-        inline .update, .advance => |value| try self.store.clientTokenState(value.key),
-        .list => unreachable,
+        inline .update, .advance, .retain_original, .attach_original, .close_original => |value| try self.store.clientTokenState(value.key),
+        .stage_original, .list => unreachable,
     }) orelse {
-        if (request == .update or request == .advance) return error.ClientOperationMissing;
+        if (request.mutation()) return error.ClientOperationMissing;
         try check(database);
         return .{ .state = null };
     };
     const current = try self.intentGuard(arena.allocator(), state.receipt.binding.intent, policy);
     try check(current);
+    if (request == .retain_original or request == .attach_original or request == .close_original)
+        return .{ .state = try self.originalControl(arena.allocator(), state, request, policy, current) };
+    if (state.original) |owned_state| if (request.mutation() and owned_state.phase != .retained and owned_state.phase != .attached and !(owned_state.phase == .closed and request == .advance)) return error.OwnedRecordOperationRequired;
     if (request == .advance) return .{ .state = try self.advanceProgress(arena.allocator(), state, request.advance, current) };
     if (request != .update) return .{ .state = state };
     // Transaction workspace, cancellation and settlement belong to the
@@ -1791,7 +1813,8 @@ pub fn clientProgressWithWorkloads(self: *Self, request: c.DirectClientToken.Pro
     if (state.receipt.binding.intent == .branch) return error.BranchOperationRequired;
     if (state.receipt.binding.intent == .transaction or state.receipt.binding.intent == .transaction_call) return error.TransactionOperationRequired;
     const value = request.update;
-    if (value.record) |reference| if (reference.format == c.DirectProgressRecord.format) return error.InvalidDirectRecord;
+    if (state.original) |owned_state| if (owned_state.phase == .attached) return error.OwnedRecordOperationRequired;
+    if (value.record) |reference| if (reference.format == c.DirectProgressRecord.format or reference.format == c.DirectOwnedRecord.format) return error.InvalidDirectRecord;
     if (state.staged == null and state.pending == value.pending and state.cancel == value.cancel and std.meta.eql(state.record, value.record)) return .{ .state = state };
     if (!std.meta.eql(state.revision, value.expected)) return error.ClientOperationConflict;
     if ((!state.pending and value.pending) or (state.cancel and !value.cancel)) return error.ClientOperationConflict;
@@ -1805,6 +1828,83 @@ pub fn clientProgressWithWorkloads(self: *Self, request: c.DirectClientToken.Pro
     state.record = value.record;
     state.staged = null;
     return .{ .state = try self.publishProgress(state, current) };
+}
+
+fn stageOriginal(self: *Self, allocator: std.mem.Allocator, request: c.DirectOwnedRecord.Stage, policy: Policy) anyerror!c.DirectClientToken.Progress {
+    const bytes = try request.encode(allocator);
+    defer allocator.free(bytes);
+    // Validate budget before acceptance; the durable token reserves capacity and
+    // the proposed reference before putImmutable can create any bytes.
+    if (bytes.len + 512 > request.binding.budget.bytes) return error.ClientTokenBudget;
+    const receipt = (try self.clientTokenSelected(.{ .bind = request.binding }, policy, false, true)).?;
+    if (!std.meta.eql(receipt.binding, request.binding)) return error.ClientTokenConflict;
+    var state = (try self.store.clientTokenState(request.binding.key)).?;
+    const owned_state = state.original orelse return error.InvalidOwnedRecord;
+    if (owned_state.phase == .closed) return state;
+    const reference = receipt.binding.intent.external.record;
+    const current = try self.intentGuard(allocator, receipt.binding.intent, policy);
+    try check(current);
+    if (owned_state.phase != .reserved) {
+        const retained = try c.DirectRecord.load(allocator, self.data_objects, reference);
+        defer allocator.free(retained);
+        try check(current);
+        return state;
+    }
+    try reference.requireSame(try c.DirectRecord.store(self.data_objects, reference.scope, reference.format, bytes));
+    state.original.?.phase = .ready;
+    return self.publishProgress(state, current);
+}
+
+fn originalControl(self: *Self, allocator: std.mem.Allocator, previous: c.DirectClientToken.Progress, request: c.DirectClientToken.ProgressRequest, policy: Policy, current: P.Guard) anyerror!c.DirectClientToken.Progress {
+    var state = previous;
+    const owned_state = state.original orelse return error.InvalidOwnedRecord;
+    const expected = switch (request) {
+        inline .retain_original, .attach_original, .close_original => |value| value.expected,
+        else => unreachable,
+    };
+    if (request == .close_original and owned_state.phase == .closed) return state;
+    if (owned_state.phase == .closed) return error.OwnedRecordClosed;
+    if (request == .retain_original and owned_state.phase == .retained) return state;
+    if (request == .attach_original) {
+        const value = request.attach_original;
+        try value.mutation.validate(allocator);
+        if (owned_state.attachment) |binding| try binding.requireSame(value.mutation.binding);
+        if (owned_state.phase == .attached) return state;
+        if (owned_state.phase != .ready and owned_state.phase != .attaching) return error.OwnedRecordPending;
+        if (owned_state.phase == .ready) {
+            if (!std.meta.eql(state.revision, expected)) return error.ClientOperationConflict;
+            // This permanent operation claim rejects ordinary KV calls, including
+            // retries after closure. Only this serialized Catalog owner can run it.
+            try c.OperationBinding.claimOwned(allocator, self.data_objects, .{ .binding = value.mutation.binding, .owner = value.key });
+            state.original = .{ .phase = .attaching, .attachment = value.mutation.binding };
+            state = try self.publishProgress(state, current);
+        }
+        const result = try c.DirectKV.applyOwned(allocator, allocator, self, .{ .mutate = value.mutation }, policy, value.key);
+        defer result.deinit(allocator);
+        if (result.operation == null) return error.OwnedRecordPending;
+        state.original.?.phase = .attached;
+        return self.publishProgress(state, current);
+    }
+    if (!std.meta.eql(state.revision, expected)) return error.ClientOperationConflict;
+    if (request == .retain_original) {
+        if (owned_state.phase != .ready) return error.OwnedRecordPending;
+        state.original.?.phase = .retained;
+    } else {
+        if (owned_state.phase == .retained) return error.OwnedRecordRetained;
+        if (owned_state.phase == .attaching) {
+            // An observation failure, denial or uncertain receipt never closes.
+            // Under the exclusive Catalog owner a missing receipt is fenceable:
+            // subsequent attach sees closed and the ordinary KV route rejects it.
+            const result = try c.DirectKV.applyOwned(allocator, allocator, self, .{ .operation = owned_state.attachment.? }, policy, state.receipt.binding.key);
+            defer result.deinit(allocator);
+            if (result.operation != null) return error.OwnedRecordAttached;
+        }
+        if (owned_state.phase == .attached and (state.pending or state.record == null or state.record.?.format != c.DirectProgressRecord.format or state.staged != null)) return error.OwnedRecordAttached;
+        state.original.?.phase = .closed;
+        state.cancel = state.cancel or state.pending;
+        state.pending = false;
+    }
+    return self.publishProgress(state, current);
 }
 
 fn advanceProgress(self: *Self, allocator: std.mem.Allocator, previous: c.DirectClientToken.Progress, value: c.DirectProgressRecord.Advance, current: P.Guard) !c.DirectClientToken.Progress {
@@ -1824,8 +1924,9 @@ fn advanceProgress(self: *Self, allocator: std.mem.Allocator, previous: c.Direct
         return previous;
     }
     if (!previous.pending or (previous.cancel and !value.cancel)) return error.ClientOperationConflict;
+    const original_bytes = if (previous.original) |owned_state| (if (owned_state.phase == .closed) 0 else previous.receipt.binding.intent.external.record.content.bytes) else 0;
     const retained_bytes = if (previous.record) |retained| (if (retained.format == c.DirectProgressRecord.format) retained.content.bytes else 0) else 0;
-    if (try std.math.add(u64, bytes.len + 512, retained_bytes) > previous.receipt.binding.budget.bytes) return error.ClientTokenBudget;
+    if (try std.math.add(u64, bytes.len + 512 + original_bytes, retained_bytes) > previous.receipt.binding.budget.bytes) return error.ClientTokenBudget;
     var state = previous;
     const reservation = c.DirectProgressRecord.Pending.init(value, reference);
     if (!std.meta.eql(state.staged, @as(?c.DirectProgressRecord.Pending, reservation))) {
@@ -2201,7 +2302,7 @@ fn beginTransactionBounded(self: *Self, request: c.DirectTransactionRequest.Begi
     }
     const begin: p.Transaction.Begin = .{ .definition = p.Growth.current_definition, .identity = identity, .mode = request.mode, .selection = if (request.selection == .explicit_objects) .explicit_objects else .authorized_catalog_tables, .objects = try selected.seal(), .catalog = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn }, .limits = request.limits };
     const binding: c.DirectClientToken.Binding = .{ .key = request.key, .fingerprint = request.fingerprint, .budget = request.budget, .intent = .{ .transaction = .{ .connection = request.key.connection, .namespace = request.namespace, .begin = begin, .purpose = if (self.queue_transfer_owner) |value| .{ .queue_transfer = value.plan } else .interactive } } };
-    return (try self.clientTokenSelected(.{ .bind = binding }, policy, true)).?;
+    return (try self.clientTokenSelected(.{ .bind = binding }, policy, true, false)).?;
 }
 
 fn selectTransactionTable(self: *Self, selected: *s.TransactionDirectory, target: r.Entry, policy: Policy, scratch: std.mem.Allocator, filter: bool) !bool {
@@ -2299,7 +2400,7 @@ fn admitQueueTransferBounded(self: *Self, plan: c.DirectQueueTransferPlan, origi
     defer self.queue_transfer_owner = null;
     var targets: [2]p.Transaction.Target = undefined;
     const receipt = if (reserved) |saved|
-        (try self.clientTokenSelected(.{ .bind = .{ .key = plan.key, .fingerprint = try plan.digest(), .budget = plan.budget, .intent = .{ .transaction = saved.reference } } }, policy, true)).?
+        (try self.clientTokenSelected(.{ .bind = .{ .key = plan.key, .fingerprint = try plan.digest(), .budget = plan.budget, .intent = .{ .transaction = saved.reference } } }, policy, true, false)).?
     else
         try self.beginTransaction(try plan.begin(&targets), policy);
     try plan.requireReceipt(receipt);

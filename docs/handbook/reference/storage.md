@@ -149,7 +149,7 @@ Verified pages use a bounded LRU cache. A separate 16-record cache holds verifie
 immutable authority metadata so data scans cannot evict it. Its key includes the
 complete catalog root; a root change invalidates the records. Native reads still
 refresh authority and execute all current permission/lifetime checks. This cache
-holds at most about 35 KiB of record bytes and is independent of the configured
+has a fixed 16-entry decoded-record capacity independent of the configured
 page-cache slots. Pages and blocks first enter private immutable storage: packed
 segments with Ursula, individual verified objects with the local backend.
 Each backend reserves storage and makes the bytes durable before the final

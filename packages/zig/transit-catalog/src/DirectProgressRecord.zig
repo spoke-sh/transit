@@ -1,6 +1,7 @@
 //! Replaceable external-owner progress. The catalog reserves one candidate
 //! before creating bytes, then atomically replaces the current recovery record.
-//! Original admission records have a separate, permanent retry lifetime.
+//! Original admission identity is permanent; owned original bytes have their
+//! own explicit closure lifetime.
 const std = @import("std");
 const c = @import("root.zig");
 const p = c.protocol;

@@ -4575,12 +4575,12 @@
         "CatalogObservationChanged": 2,
         "CatalogRegistrationRequired": 12,
         "CheckConstraintViolation": 1,
-        "ClientOperationConflict": 5,
-        "ClientOperationMissing": 27,
+        "ClientOperationConflict": 7,
+        "ClientOperationMissing": 28,
         "ClientOperationPending": 8,
-        "ClientTokenBudget": 2,
+        "ClientTokenBudget": 3,
         "ClientTokenCapacity": 1,
-        "ClientTokenConflict": 4,
+        "ClientTokenConflict": 5,
         "ColumnReferencedByCheckConstraint": 1,
         "ColumnReferencedByForeignKey": 1,
         "ConflictingRetry": 1,
@@ -4631,7 +4631,8 @@
         "InvalidLogCatalogDefinition": 2,
         "InvalidLogCatalogOperation": 5,
         "InvalidMaintenanceCursor": 4,
-        "InvalidManagedTableRecord": 6,
+        "InvalidManagedTableRecord": 8,
+        "InvalidOwnedRecord": 3,
         "InvalidPartitionLease": 2,
         "InvalidQueueDestination": 1,
         "InvalidStorageBudget": 1,
@@ -4669,6 +4670,11 @@
         "OnlinePhasedRewriteRequired": 1,
         "OutOfMemory": 11,
         "Overflow": 1,
+        "OwnedRecordAttached": 2,
+        "OwnedRecordClosed": 2,
+        "OwnedRecordOperationRequired": 3,
+        "OwnedRecordPending": 4,
+        "OwnedRecordRetained": 1,
         "QueueDependencyRetained": 1,
         "QueueDestinationChanged": 1,
         "QueueDestinationSchemaMismatch": 1,
@@ -4919,6 +4925,7 @@
         "openTransaction()": "<inferred>",
         "operationGuard()": "<inferred>",
         "original()": "<inferred>",
+        "originalControl()": "anyerror",
         "overlayTransactionRead()": "<inferred>",
         "pending()": "<inferred>",
         "pendingLogs()": "<inferred>",
@@ -5011,6 +5018,7 @@
         "snapshotRead()": "<inferred>",
         "sourceAuthority()": "<inferred>",
         "stageDefinitionInput()": "<inferred>",
+        "stageOriginal()": "anyerror",
         "stageTransactionKV()": "<inferred>",
         "stageTransactionLog()": "<inferred>",
         "stageTransactionLogBounded()": "<inferred>",
@@ -5053,9 +5061,9 @@
         "verifiedObject()": "<inferred>",
         "verifyHistoryDescriptor()": "<inferred>"
       },
-      "open_error_set_uses": 11,
+      "open_error_set_uses": 13,
       "propagation": {
-        "try": 2279,
+        "try": 2304,
         "catch": 30
       },
       "imports": [
@@ -5671,7 +5679,7 @@
         "InvalidClientToken": 8,
         "InvalidDirectCatalogHistory": 8,
         "InvalidDirectCatalogOperation": 17,
-        "InvalidDirectCatalogTransition": 184,
+        "InvalidDirectCatalogTransition": 189,
         "InvalidHistoricalState": 4,
         "InvalidHistoricalTransition": 1,
         "InvalidLogCatalogOperation": 2,
@@ -5749,7 +5757,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 381,
+        "try": 382,
         "catch": 1
       },
       "imports": [
@@ -5801,6 +5809,7 @@
         "DataIdentityConflict": 4,
         "IncompatibleDefinition": 1,
         "InvalidClientToken": 16,
+        "InvalidOwnedRecord": 2,
         "InvalidTableResponse": 2,
         "TransactionAccountCapacity": 1
       },
@@ -5810,7 +5819,11 @@
           "operation",
           "list",
           "update",
-          "advance"
+          "advance",
+          "stage_original",
+          "retain_original",
+          "attach_original",
+          "close_original"
         ],
         "ProgressResult": [
           "state",
@@ -5851,7 +5864,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 50,
+        "try": 53,
         "catch": 0
       },
       "imports": [
@@ -6308,13 +6321,14 @@
         "Mutation.validate()": "<inferred>",
         "Request.validate()": "<inferred>",
         "apply()": "<inferred>",
+        "applyOwned()": "<inferred>",
         "authorize()": "<inferred>",
         "definition()": "<inferred>",
         "keyBytes()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 46,
+        "try": 48,
         "catch": 2
       },
       "imports": [
@@ -6887,6 +6901,45 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 18,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectOwnedRecord.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidOwnedRecord": 5,
+        "InvalidTableResponse": 1
+      },
+      "outcomes": {
+        "State.phase": [
+          "reserved",
+          "ready",
+          "retained",
+          "attaching",
+          "attached",
+          "closed"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Attach.validate()": "<inferred>",
+        "Control.validate()": "<inferred>",
+        "Envelope.validate()": "<inferred>",
+        "Stage.encode()": "<inferred>",
+        "Stage.validate()": "<inferred>",
+        "State.transition()": "<inferred>",
+        "State.validate()": "<inferred>",
+        "call()": "<inferred>",
+        "encode()": "<inferred>",
+        "stage()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 19,
         "catch": 0
       },
       "imports": [
@@ -7509,7 +7562,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 603,
+        "try": 606,
         "catch": 1
       },
       "imports": [
@@ -8348,7 +8401,7 @@
         "DataIdentityConflict": 3,
         "IncompatibleDefinition": 1,
         "InvalidKVResponse": 1,
-        "InvalidTableResponse": 164
+        "InvalidTableResponse": 168
       },
       "outcomes": {},
       "error_sets": {},
@@ -8374,7 +8427,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 232,
+        "try": 235,
         "catch": 10
       },
       "imports": [
@@ -9789,10 +9842,12 @@
         "ImmutableObjectConflict": 1,
         "IncompatibleDefinition": 1,
         "InvalidClientToken": 1,
-        "InvalidOperationBinding": 11
+        "InvalidOperationBinding": 11,
+        "InvalidOwnedRecord": 2
       },
       "outcomes": {
         "Stored": [
+          "owned",
           "history",
           "branch",
           "transaction_call",
@@ -9814,6 +9869,7 @@
       "error_sets": {},
       "error_returns": {
         "History.validate()": "<inferred>",
+        "Owned.validate()": "<inferred>",
         "Stored.requireSame()": "<inferred>",
         "Stored.transaction.validate()": "<inferred>",
         "Stored.validate()": "<inferred>",
@@ -9829,6 +9885,7 @@
         "claimInTree()": "<inferred>",
         "claimNamespace()": "<inferred>",
         "claimNamespaceInTree()": "<inferred>",
+        "claimOwned()": "<inferred>",
         "claimQueue()": "<inferred>",
         "claimResource()": "<inferred>",
         "claimResourceInTree()": "<inferred>",
@@ -9855,11 +9912,12 @@
         "lookupStored()": "<inferred>",
         "lookupStream()": "<inferred>",
         "lookupTransaction()": "<inferred>",
+        "requireOwned()": "<inferred>",
         "transactionLogObservation()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 46,
+        "try": 50,
         "catch": 1
       },
       "imports": [
@@ -10379,6 +10437,7 @@
         "DirectLogProtocol.zig",
         "DirectMigration.zig",
         "DirectNamespace.zig",
+        "DirectOwnedRecord.zig",
         "DirectProgressRecord.zig",
         "DirectQueue.zig",
         "DirectQueueClient.zig",
@@ -23238,7 +23297,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"3981a6a977f356b8f1f1af39978b690fca425cd5926f5fb1dfa13507b5671079\""
+          "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8"
         ],
         "Effect.phase": [
           "pending",
@@ -24897,15 +24956,16 @@
       "errors": {
         "AccessDenied": 2,
         "CatalogDenied": 2,
-        "ClientOperationMissing": 1,
-        "DataflowIdentityConflict": 5,
+        "ClientOperationMissing": 3,
+        "Conflict": 1,
+        "DataflowIdentityConflict": 6,
         "DataflowLeaseFenced": 1,
         "DataflowRevisionNotFound": 1,
         "DataflowSourceChanged": 6,
         "FailedRelationalQuery": 1,
         "IncompatibleDefinition": 1,
         "IncompleteDataflowCoverage": 7,
-        "InvalidManagedTableRecord": 16,
+        "InvalidManagedTableRecord": 27,
         "InvalidTransactionRead": 1,
         "KVBuildBudget": 1,
         "ManagedTableCleanupPending": 1,
@@ -24915,6 +24975,8 @@
         "ManagedTableResultBudget": 7,
         "ManagedTableSchemaMismatch": 2,
         "Overflow": 1,
+        "OwnedRecordClosed": 1,
+        "OwnedRecordPending": 1,
         "QueryPageBudget": 1,
         "QueryResultBudget": 1,
         "Rejected": 2,
@@ -24923,7 +24985,8 @@
         "RelationalSpillBudget": 1,
         "RelationalSpillWorkBudget": 1,
         "RelationalWorkBudget": 1,
-        "TableDefinitionChanged": 2,
+        "TableDataChanged": 1,
+        "TableDefinitionChanged": 3,
         "TableNotFound": 8,
         "TransactionMemoryLimit": 1,
         "TransactionWorkspaceLimit": 1,
@@ -24954,6 +25017,8 @@
       "error_returns": {
         "abort()": "<inferred>",
         "applyControl()": "<inferred>",
+        "attachOriginal()": "<inferred>",
+        "closeOriginal()": "<inferred>",
         "evaluate()": "<inferred>",
         "find()": "<inferred>",
         "flushPage()": "<inferred>",
@@ -24973,13 +25038,12 @@
         "startInner()": "<inferred>",
         "step()": "<inferred>",
         "stepInner()": "<inferred>",
-        "store()": "<inferred>",
         "storeRevision()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 171,
-        "catch": 9
+        "try": 185,
+        "catch": 10
       },
       "imports": [
         "root.zig",
@@ -32900,7 +32964,7 @@
         "GatewayWaitCancelled": 1,
         "InvalidGatewayConfiguration": 1,
         "InvalidGatewayTerminal": 1,
-        "InvalidManagedTableRecord": 2,
+        "InvalidManagedTableRecord": 3,
         "InvalidSqlReadRecovery": 1,
         "MissingGatewayOperation": 1,
         "MissingGatewayTerminal": 2,

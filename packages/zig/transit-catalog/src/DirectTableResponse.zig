@@ -300,6 +300,23 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
                     switch (input) {
                         .inspect => |key| try key.requireSame(state.receipt.binding.key),
                         .operation => |saved| if (saved.id != state.id()) return error.DataIdentityConflict,
+                        .stage_original => |saved| {
+                            const encoded = try saved.encode(allocator);
+                            defer allocator.free(encoded);
+                            if (!std.meta.eql(saved.binding, state.receipt.binding) or state.original == null or state.original.?.phase == .reserved) return error.InvalidTableResponse;
+                        },
+                        inline .retain_original, .attach_original, .close_original => |saved, tag| {
+                            try saved.key.requireSame(state.receipt.binding.key);
+                            const owned_state = state.original orelse return error.InvalidTableResponse;
+                            const phase: @FieldType(c.DirectOwnedRecord.State, "phase") = switch (tag) {
+                                .retain_original => .retained,
+                                .attach_original => .attached,
+                                .close_original => .closed,
+                                else => unreachable,
+                            };
+                            if (owned_state.phase != phase or state.revision.partition != saved.expected.partition or state.revision.next_lsn < saved.expected.next_lsn) return error.InvalidTableResponse;
+                            if (comptime tag == .attach_original) try (owned_state.attachment orelse return error.InvalidTableResponse).requireSame(saved.mutation.binding);
+                        },
                         .advance => |saved| {
                             try saved.key.requireSame(state.receipt.binding.key);
                             const bytes = try c.DirectProgressRecord.encode(allocator, saved);
@@ -316,7 +333,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
                         },
                         .list => unreachable,
                     }
-                } else if (input == .update or input == .advance) return error.InvalidTableResponse;
+                } else if (input.mutation()) return error.InvalidTableResponse;
             }
         },
         .client_token => |receipt| {
