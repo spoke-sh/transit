@@ -52,6 +52,7 @@ Executed with the pinned Nix Zig `0.17.0-dev.2267+48abf1a34` toolchain:
 | `just ci clean --check fast`, `2c511bb6c` | All 66 checks passed, including the owned runtime-directory fixture controls |
 | `just ci clean --check fast`, `74e1fe2ec` | All 66 checks passed after integrating #364 and regenerating definition-bound fixtures |
 | `just ci clean --check fast`, `6a729e348` | All 66 checks passed after extracting the reusable installed boundary assertions |
+| `just ci clean --check fast`, `5a22f4bec` | All 66 checks passed with the focused byte-boundary helper and final implementation/test changes |
 | `just check native fixtures`, `74e1fe2ec` | The complete fixture scope passed, including independent signing/source/record fixtures, Document/MIME oracles and 161 native/port codec cases |
 | `just ci clean --check contracts`, `e525714e0` | All 20 checks passed |
 | Typed managed proof in the retained clean installation checkout, `ec60e03d7` | Preparation, node replacement, recovery, retained complete/empty revisions, incomplete-prefix refusal and current authorization passed, including two withheld pre-head attachments |
@@ -62,7 +63,8 @@ The successful clean records are local artifacts at
 `.cache/ci/clean/7a3fd2201f3b-transit-ci-28gpbrgu` and
 `.cache/ci/clean/2c511bb6c492-transit-ci-frhnp_27` and
 `.cache/ci/clean/74e1fe2ec18d-transit-ci-rpseh1vc` and
-`.cache/ci/clean/6a729e348e8a-transit-ci-__n7lar3` (fast checks), and
+`.cache/ci/clean/6a729e348e8a-transit-ci-__n7lar3` and
+`.cache/ci/clean/5a22f4bec2e3-transit-ci-3vif4_9h` (fast checks), and
 `.cache/ci/clean/ec60e03d70a2-transit-ci-qn4ah9wp` (SDK conformance).
 `tests/runner/capture.py` verified each record's complete task inventory and
 artifact hashes, and the native fixture capture at
@@ -147,6 +149,19 @@ cause is unestablished. This run did not reach the byte-boundary assertions and
 does not qualify the full row sequence. Its capture is
 `/var/tmp/transit-ci-zrdpgodr/src/.cache/ci/runs/m12-managed-boundary-0i0nyu_2`;
 the installation is `/var/tmp/transit-server-proof-g2tfjj5g`.
+
+The final selected follow-up invokes only `byte_boundary(fixture)` from
+`36aea74f4`, with unchanged frozen `0fc4d56a1` binaries and a recorded driver
+hash. After two provisioning retries it reached SQL readiness, then a source
+INSERT returned `ReadFailed` before the dataflow declaration. Its connection
+file remained valid JSON; the transport failure's cause is unestablished. The
+statement was not replayed, and this is not byte-boundary execution evidence.
+The capture is
+`/var/tmp/transit-ci-zrdpgodr/src/.cache/ci/runs/m12-managed-byte-l6vp2oxq` and
+the installation is `/var/tmp/transit-server-proof-cvhp710t`. The new byte-boundary
+fixture remains unverified; the earlier successful 63/64/65-row follow-up does
+not establish that separate case. No deadline, restart budget or execution
+quota was increased in these follow-ups.
 
 The `storage-query` clean attempt at `e63cbabb4` passed its first 12 targets,
 through local-payload-service. The aggregate local-catalog target ran for over
