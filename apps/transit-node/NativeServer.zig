@@ -482,6 +482,7 @@ pub fn Host(comptime Provider: type) type {
             server: *Server,
             diagnostics: *telemetry.Runtime,
             mutex: std.Io.Mutex = .init,
+            lane_cond: std.Io.Condition = .init,
             changed: Notifications = .{},
             database_changes: wire.LocalEndpoint.Changes = .{},
             lanes: []Lane,
@@ -730,18 +731,22 @@ pub fn Host(comptime Provider: type) type {
                     .control => self.lanes[4..6],
                     .wait => self.lanes[6..],
                 };
-                for (selected) |*lane| if (!lane.busy) {
-                    lane.busy = true;
-                    self.syncToLane(lane);
-                    return lane;
-                };
-                return error.ControlCapacity;
+                while (true) {
+                    for (selected) |*lane| if (!lane.busy) {
+                        lane.busy = true;
+                        self.syncToLane(lane);
+                        return lane;
+                    };
+                    if (kind == .wait) return error.ControlCapacity;
+                    try self.lane_cond.wait(io, &self.mutex);
+                }
             }
             fn release(self: *Context, io: std.Io, lane: *Lane) void {
                 self.mutex.lockUncancelable(io);
                 defer self.mutex.unlock(io);
                 self.syncFromLane(lane);
                 lane.busy = false;
+                self.lane_cond.broadcast(io);
             }
             pub fn isWait(_: *@This(), request: *std.http.Server.Request) bool {
                 return (http.header(request, "x-transit-wait") catch null) != null;
