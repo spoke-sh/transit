@@ -172,7 +172,7 @@ pub const features = [_]l.FeatureDescriptor{
         .title = "Core scalar types, exact numeric DECIMAL, and character collations",
         .owner = "packages/zig/transit-fuze/src/Types.zig",
         .dependencies = &.{"UCS_BASIC"},
-        .deviations = "Selected scalar types and collations. DECIMAL arithmetic uses bounded explicit DECIMAL_* functions with declared result precision, scale and rounding; ordered SUM widens to DECIMAL(38,s). Frozen column semantics carry exact TZif artifacts for AT TIME ZONE, TIME_BUCKET and LOCAL_TO_UTC. General infix arithmetic and host timezone lookup are not admitted. Installed native SQL exercises stored values, scalar expressions, decimal SUM and gateway restart. PostgreSQL/MySQL expose admitted boolean/float results and explicitly refuse unsupported decimal result types.",
+        .deviations = "Selected scalar types and collations. DECIMAL arithmetic uses bounded explicit DECIMAL_* functions with declared result precision, scale and rounding; ordered SUM widens to DECIMAL(38,s). Frozen column semantics carry exact TZif artifacts for AT TIME ZONE, TIME_BUCKET and LOCAL_TO_UTC. General infix arithmetic and host timezone lookup are not admitted. Installed native SQL exercises stored values, scalar expressions, decimal SUM and gateway restart. PostgreSQL/MySQL expose admitted boolean/float and exact decimal results (MySQL scale at most 30); range result columns remain unsupported.",
         .corpus_sources = &.{ "contracts/sql/corpus/statements.json", "contracts/sql/corpus/parameters.json" },
         .states = .{ .parse = .implemented, .lower = .implemented, .execute = .implemented, .recover = .implemented, .transport = .implemented },
         .reference_verified = false,

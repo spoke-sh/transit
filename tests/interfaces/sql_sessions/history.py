@@ -1,4 +1,5 @@
 """Installed historical catalog binding with independent retained-value oracles."""
+from decimal import Decimal
 import json
 import os
 import time
@@ -105,25 +106,38 @@ def companion_expressions(root, port, postgres, mysql_options, restart, catalog)
     client.call(dict(close_result=repeated['cursor']))
     client.call(dict(release=prepared))
     transport_query = 'SELECT RANGE_ADJACENT(span,next_span) AS adjacent, VECTOR_DISTANCE(x,y) AS distance FROM history_companions WHERE id=1' + suffix
+    unsupported_query = 'SELECT span FROM history_companions WHERE id=1' + suffix
+    decimal_expected = [(Decimal('0.17'),)]
     with psycopg.connect(**postgres) as pg:
         assert pg.execute(transport_query).fetchall() == [(True, 25.0)]
+        for binary in (False, True):
+            with pg.cursor(binary=binary) as cursor:
+                cursor.execute(sum_sql, prepare=True)
+                assert cursor.fetchall() == decimal_expected
+                field = cursor.description[0]
+                assert (field.type_code, field.precision, field.scale) == (1700, 38, 2), field
         try:
-            pg.execute(sum_sql)
+            pg.execute(unsupported_query)
         except psycopg.errors.FeatureNotSupported as error:
             assert error.sqlstate == '0A000'
         else:
-            raise AssertionError('Unqualified PostgreSQL DECIMAL result profile was admitted')
+            raise AssertionError('Unsupported PostgreSQL RANGE result profile was admitted')
     with mysql.connector.connect(**mysql_options) as my:
+        for prepared_result in (False, True):
+            with my.cursor(prepared=prepared_result) as cursor:
+                cursor.execute(sum_sql)
+                assert cursor.fetchall() == decimal_expected
+                assert cursor.description[0][1] == 246, cursor.description
         cursor = my.cursor(prepared=True)
         cursor.execute(transport_query)
         assert cursor.fetchall() == [(1, 25.0)]
         try:
-            cursor.execute(sum_sql)
+            cursor.execute(unsupported_query)
         except mysql.connector.Error as error:
             # ER_NOT_SUPPORTED_YET retains MySQL's vendor SQLSTATE mapping.
             assert (error.errno, error.sqlstate) == (1235, '42000'), error
         else:
-            raise AssertionError('Unqualified MySQL DECIMAL result profile was admitted')
+            raise AssertionError('Unsupported MySQL RANGE result profile was admitted')
         cursor.close()
     client.close()
     restart()
@@ -136,7 +150,8 @@ def companion_expressions(root, port, postgres, mysql_options, restart, catalog)
     print(json.dumps(dict(profile='installed_companion_expressions', source=provenance(ROOT),
                           canonical_native_values=True, exact_decimal_sum=True,
                           pinned_timezone=True, prepared_history=True, gateway_restart=True,
-                          postgres_mysql_scalar_outputs=True, unsupported_decimal_wire_refuses=True)), flush=True)
+                          postgres_mysql_scalar_outputs=True, postgres_mysql_exact_decimal_sum=True,
+                          unsupported_range_wire_refuses=True)), flush=True)
 
 
 def captured_history(root, port, restart, catalog, faults, select_source):
