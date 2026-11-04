@@ -441,9 +441,10 @@ authority. PR #328 subsequently adds transaction-owned `TXR1` result
 pages/manifests: paged registration precedes creation, commit refuses unfinished
 registration, and frozen owners cannot create or resurrect bytes. The storage
 graph preserves uncertain and committed candidates and releases aborted payloads
-only after authoritative transaction cleanup. Original declaration/work records
-and ownership metadata remain retained recovery evidence. Broader work-record
-closure and the full combined collection/crash matrix remain R1b/R3a work.
+only after authoritative transaction cleanup. The later SOR1 slice above adds
+explicit original-work closure while preserving retained declarations and
+permanent ownership metadata. The full combined collection/crash matrix remains
+R3a work.
 Historical SQL row fetching, history consumers, multi-source
 execution, the full fault/growth matrix and T5/T8 correspondence remain open.
 The [qualification record](../history/qualification/query.md#retained-managed-table-revisions--2026-11-01)
@@ -660,7 +661,7 @@ The handoffs are executable gates, not whole-milestone waits:
 
 | Work that can start now | Integration gate |
 | --- | --- |
-| R1b closure, R3a qualification and T8 lifecycle correspondence | Existing finite owner, TXR1 inventory, batched pages and current Catalog/storage APIs |
+| R3a closure qualification and T8 lifecycle correspondence | Existing finite owner, TXR1/CPR1/SOR1 ownership, batched pages and current Catalog/storage APIs |
 | R2 Table-history contract/adapter work and T5 schedules | Reuse the delivered retained reader; enable service mode only after durable lease/cursor ownership and R3a safety gates |
 | R5 plan DAG and independent finite operators; a separate constant-membership slice | Share exact bindings, typed cells, budgets and the result owner; coordinate M14 hashing/preparation without waiting for its search indexes |
 | R4 durable arrangements and operator experiments | Enable each production operator only after its finite oracle and R2/R3 coverage/publication gates pass |
@@ -1153,7 +1154,7 @@ tests alone. R9 migration work and R10 correspondence accompany every row.
 | **R3a batching mechanism — Implemented by #356** | Bounded multi-row DFP1 pages and one output INSERT per page inside the original transaction | TXR1 owner and current-v1 cutover | Run the combined batched-page fault, authority and resource matrix below; no accepted performance gain is inferred from implementation |
 | **R1b replacement progress — Delivered by #361** | CPR1 reservation before creation, exact readiness retry, current/candidate graph roots and collection of superseded work progress | Original external token and TXR1 collection fences | [Recorded progress evidence](../history/qualification/query.md#catalog-owned-managed-progress--2026-11-03); preserve these checks with the SOR1 original owner below |
 | **R1b original closure — Implemented in this slice** | SOR1 reservation before creation, protected KV attachment, permanent closure evidence and paged private-payload collection | Delivered TXR1/CPR1 mechanisms; R0 lifetime contract | Real collection preserves every recoverable/referenced object; interrupted cleanup resumes; closed identities cannot be accepted late; unrelated record formats remain protected |
-| **R3a finite qualification** | Combined-source baseline, bounded fair runtime work, reserved control capacity and complete finite crash/revocation/growth proof | Begin baseline now; finish collection matrix after remaining R1b | Old/new complete output at every staging/prepare/decision/finalize kill; exact batched recovery, stale-worker refusal, growth beyond helper capacities, idle parking and attributed retained-revision costs |
+| **R3a finite qualification** | Combined-source baseline, bounded fair runtime work, reserved control capacity and complete finite crash/revocation/growth proof | Delivered TXR1/CPR1 and the SOR1 closure implementation above | Old/new complete output at every staging/prepare/decision/finalize kill; exact batched recovery, stale-worker refusal, growth beyond helper capacities, idle parking and attributed retained-revision costs |
 | **R2a/R3b — Table history consumer** | Persisted history protection, snapshot backfill and exact ordered/net modes in the installed service; explicit resume policy | R3a | Concurrent backfill writes, no-ops, oscillations, archive/trim, true gaps, lost wakes and restart; no checkpoint through an incomplete acceptance |
 | **R2b/R3c — Multiple inputs and managed dependencies** | Paged source vector, real common-decision barrier, alias deduplication and bounded acyclic scheduling | R2a/R3b; R5a for joins | Delayed/aborted mixed participants never publish a partial cut; durable waiting and cycle rejection; admit output chaining only with qualified dependency coverage |
 | **R4a — Persistent delta execution** | Typed batches, durable arrangements and real spill for projection/filter and admitted UNION ALL | R2a/R3b; finite operator semantics | Independent finite equality at every completed basis; reopen arrangements, checked multiplicities, allocation and disk-budget controls |
