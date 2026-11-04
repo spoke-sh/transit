@@ -222,7 +222,14 @@ history/collection qualification (#345/#355), M14 owned predicate work, current
 Table cuts and multi-row managed pages (#356), and immutable Table branch
 discovery/retirement/forks (#344/#353). Main also contains the SQL admission and
 local collection corrections in #359. None supplies a direct Document service
-or a Document transaction participant. No runtime suite was rerun for this plan.
+or a Document transaction participant. The initial planning review reran no
+runtime suite.
+
+The implementation follow-through adds the retained-membership component below
+and integrates main through `47f79de29f67d39d1b19dde36396b3cf9ead862f`, including
+M12's original-operation staging/closure. The delivered basis below includes
+those changes; the [qualification record](../history/qualification/storage.md#retained-document-partition-membership--2026-11-03)
+keeps each implementation revision, definition and executed result separate.
 
 **Outcome:** an application declares a Document object, applies causal or
 versioned changes, reads exact accepted revisions and relational projections,
@@ -237,18 +244,18 @@ The [2026-10-30 component evidence](../history/qualification/storage.md#direct-d
 records D0–D3 and the authority/graph portion of D4. The
 [2026-11-01 causal storage evidence](../history/qualification/storage.md#integrated-causal-document-map-trees--2026-11-01)
 adds evaluated map roots, disk reopen and authenticated value paging. Preserve
-both records' source revisions and exclusions. The audit below describes the
-new plan basis; the [partition guide](../../packages/zig/transit-storage/docs/document-partitions.md)
+both records' source revisions and exclusions. The audit below includes the
+retained-membership increment; the [partition guide](../../packages/zig/transit-storage/docs/document-partitions.md)
 owns the component's current behavior. Component integration does not establish
 an installed direct Document service.
 
-| Boundary at the plan basis | Existing implementation | Work still required |
+| Boundary | Delivered implementation | Work still required |
 | --- | --- | --- |
 | Installed Document lifecycle | [Public Documents](../handbook/reference/documents.md), `transit-station-document`, `DirectResource` and `NamedResource` still use native resource allocation and Station initialization/publication | Replace that lifecycle and every affected caller together; preserve state/input/reply atomicity |
-| Neutral contracts (D0, partial C0) | [`DOCUMENT_V1`](../../contracts/DOCUMENT_V1.md), full-width `DCHANGE1`, `DORDER01`, mandatory logical layouts/counts and retained ordered selections exist | Specify complete ancestry, causal sequences/spans, multi-request staging, collection cuts/discovery and partition-aware transaction bindings; preserve existing ordered input rather than defining it again |
+| Neutral contracts (D0, partial C0) | [`DOCUMENT_V1`](../../contracts/DOCUMENT_V1.md), full-width `DCHANGE1`, `DORDER01`, mandatory logical layouts/counts, retained ordered selections and `DocumentRead.Collection` cuts/cursors/releases exist | Specify complete ancestry, causal sequences/spans, multi-request staging, installed collection selection/discovery and partition-aware transaction bindings; preserve existing ordered input rather than defining it again |
 | Deterministic algebra (D1, partial C1) | [`LogicalChange`/`CausalTree` and `OrderedChange`](../../packages/zig/transit-document/README.md) supply maps and validated ordered input; storage derives conditional create/root/path replacement. `SpanText`/`VersionedMerge` remain component oracles | Integrate causal lists/span edits, paged three-way merges and validated logical checkpoints. Ordinal-path replacement currently rebuilds the result; it does not establish incremental patch costs |
 | Physical layout (D2, partial C2) | [`DocumentOrderedTree`](../../packages/zig/transit-storage/src/DocumentOrderedTree.zig) persists residual node/name/value records, `2N` BP bits and verified raw parts through `DocumentIndex` `.tseg` rows. [`DocumentShredder.shredBatch`](../../packages/zig/transit-storage/src/DocumentShredder.zig) still builds only in-memory subcolumns | Add persisted navigation indexes, span pieces and shared typed subcolumns, with reconstruction and pruning against accepted segments. BP bytes in key/value rows do not yet implement the target column groups or zero-copy buffer path |
-| Durable owner (D3, partial C3) | [`DocumentPartition`](../../packages/zig/transit-storage/src/DocumentPartition.zig) derives causal and ordered roots, checks expected heads and accepts with one fenced WAL append. Exact pinned logical pages own up to 240 payload bytes; opaque mutations/checkpoints cannot replace logical roots | Add collection reads, resumable protected staging, logical checkpoints and transaction preparation/decision visibility. Keep the opaque receipt seam out of public ingestion |
+| Durable owner (D3, partial C3) | [`DocumentPartition`](../../packages/zig/transit-storage/src/DocumentPartition.zig) derives causal and ordered roots, checks expected heads and accepts with one fenced WAL append. Exact pinned logical pages own up to 240 payload bytes; retained membership pages own up to 16 logical heads. Opaque mutations/checkpoints cannot replace logical roots | Install collection reads and add resumable protected staging, logical checkpoints and transaction preparation/decision visibility. Keep the opaque receipt seam out of public ingestion |
 | Structural reads | `inspectOrderedNode` returns owned parent/child/sibling/depth/subtree metadata from retained BP chunks with current authorization and bounded memory | Replace repeated linear scans with measured persisted indexes where required. Current per-call bit/lookup budgets and a bounded depth stack establish neither constant-time navigation nor whole-tree validation |
 | Profile handoff | M16 verified JSON/XML/MIME candidates preserve ordered duplicate members/headers, exact lexemes, mixed content, binary body bytes and raw spans through disk reopen | Complete-frame candidate construction still needs resident input/output buffers. Persist profile attestations and generic container relationships through an explicit M16 contract handoff; multipart parsing, transport/effect ownership and exchange replacement remain M16 |
 | Recovery and cursor keys | `open`/`recoverStep` replay bounded units (default 64 records, permitted 1–256), reuse per-record scratch and refuse operations until ready. A nonzero host-supplied `read_secret` is mandatory | Preserve these safeguards while adding logical pages and transaction records; prove bounded candidate construction, checkpoint validation and installed cold recovery. Root readiness is not an exhaustive scrub or zero-allocation claim; define installed key persistence/rotation |
@@ -295,9 +302,10 @@ component work or declare D4 complete.
 
 1. **Start after the ordered-storage increment.** Canonical ordered input,
    conditional create/replace/path patches, persisted BP/raw parts and verified
-   profile-to-disk handoff are available. Keep them as regressions. Next implement
-   retained collection cuts and protected candidate ownership so catalog callers
-   and transactions can use those roots safely.
+   profile-to-disk handoff are available. Retained collection cuts are now also
+   component operations. Keep them as regressions. Finish their installed
+   ownership/selection contracts and protected candidate ownership so catalog
+   callers and transactions can use those roots safely.
 2. **Separate development dependencies from release gates.** C4 lifecycle and
    C5 participant work can use the existing evaluated causal/ordered layouts
    after their C0/C3 contract subsets pass. They need not wait for every span,
@@ -515,10 +523,14 @@ recovery database. Freeze the proposed 64 KiB read-page and 256 KiB save-request
 budgets there only after owner measurements; they are not current Document limits.
 
 Define private staging ownership before adding multi-call payload upload.
-Reuse M12's neutral transaction-owned root protection where applicable; extend
-the catalog/storage contract for standalone Document candidates. Record owner,
-operation, definition, root inventory and creation fence before a collector can
-observe staged bytes. Resolve or fence uncertain attachment before explicit
+Reuse M12's transaction-owned root protection and the catalog's
+[`DirectOwnedRecord`/`DirectProgressRecord`](../../packages/zig/transit-catalog/README.md)
+reservation, readiness and closure semantics where applicable. Original-record
+KV attachment does not attach a Document mutation or protect its part/root
+inventory. Extend the catalog/storage contract for standalone Document
+candidates. Record owner, operation, definition, root inventory and creation
+fence before a collector can observe staged bytes. Resolve or fence uncertain
+attachment before explicit
 abandonment; elapsed time or a missing reply cannot authorize deletion. Duplicate
 chunks, interrupted upload, late attach and shared part roots need exact outcomes.
 
@@ -966,9 +978,11 @@ their existing dependencies. M7 remains **In Progress**.
 
 ### First implementation changes
 
-Implement the following review units from `63f6369d5`. These replace the previous
-packet order: its ordered-storage packets 1/2 have an integrated implementation,
-while their wider C0–C3 obligations remain open. Keep C0–C8 as the completion
+The following review sequence was selected from `63f6369d5`; continue from the
+retained-membership increment below and the merged prerequisites above. It
+replaces the previous packet order: its ordered-storage packets 1/2 have an
+integrated implementation, while their wider C0–C3 obligations remain open.
+Keep C0–C8 as the completion
 checklist; packet numbers below sequence reviews, not new milestone identities.
 
 | Order | Packages and change | Prerequisite | Exit before dependent work |
@@ -1054,7 +1068,9 @@ attachment to an accepted mutation. Use bounded chunk writes tied to the origina
 operation/definition, verify full coverage and raw digests before attachment, and
 charge cumulative upload/index work. Recovery must distinguish an unaccepted
 candidate from an accepted mutation whose reply was lost. Extend neutral owned-root
-tracking rather than borrowing a Table-specific workspace or teaching the
+tracking, using the available original-operation reservation/readiness/closure
+seams and adding Document-specific root inventory and guarded attachment. Do not
+treat the existing SOR1 KV attachment as Document acceptance or teach the
 collector profile grammar. The existing complete-frame JSON/XML/MIME adapter is
 the oracle while a streaming sink is wired in cooperation with M16.
 

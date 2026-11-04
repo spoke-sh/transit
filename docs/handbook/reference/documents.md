@@ -18,7 +18,8 @@ also evaluates causal-map and conditional ordered changes, supplies bounded WAL
 recovery, and reads exact retained revisions under byte/work budgets and current
 authorization. It can also retain one partition’s logical document membership
 and enumerate owned pages of up to 16 heads while later edits advance live state.
-Independent partition reads do not constitute an atomic collection snapshot. Ordered structural inspection returns parent/child/sibling and
+Independent partition reads do not constitute an atomic collection snapshot.
+Ordered structural inspection returns parent/child/sibling and
 subtree metadata from persisted topology with bounded resident memory. These are
 storage-library operations; the installed service lifecycle remains separate.
 
