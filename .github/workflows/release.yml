@@ -131,6 +131,13 @@ jobs:
         with:
           name: release-identity
           path: .cache
+      - name: Reclaim unused hosted SDKs
+        if: runner.environment == 'github-hosted'
+        # Consumed language runtimes come from Nix; leave user-managed runners alone.
+        run: |
+          df -h /
+          sudo rm -rf -- /usr/local/lib/android /usr/share/dotnet
+          df -h /
       - uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
       - name: Check release identity
         env:
@@ -158,7 +165,7 @@ jobs:
           retention-days: 14
       - name: Validate Helm deployment boundaries
         if: matrix.architecture == 'x86_64'
-        run: nix develop --command just test::deployments
+        run: nix develop .#release --command just test::deployments
       - name: Package deterministic archives and checksums
         run: nix develop .#release --command python3 -B tasks/package_release.py --prefix .cache/release-runtime --output dist/release
       - name: Retain qualified runtime artifacts

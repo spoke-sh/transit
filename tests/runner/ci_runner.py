@@ -157,6 +157,15 @@ def release_workflow():
         assert {(row['architecture'], row['runner']) for row in platforms} == {
             ('x86_64', 'ubuntu-24.04'), ('aarch64', 'ubuntu-24.04-arm')}
         assert jobs[job]['strategy']['fail-fast'] is False
+    for job in ('build', 'sdk-build', 'sdk-consumers', 'sdk-zig'):
+        steps = jobs[job]['steps']
+        reclaim = next(step for step in steps if step.get('name') == 'Reclaim unused hosted SDKs')
+        assert reclaim['if'] == "runner.environment == 'github-hosted'"
+        assert steps.index(reclaim) < next(i for i, step in enumerate(steps)
+                                           if step.get('uses', '').startswith('cachix/install-nix-action@'))
+    helm = next(step for step in jobs['build']['steps']
+                if step.get('name') == 'Validate Helm deployment boundaries')
+    assert helm['run'] == 'nix develop .#release --command just test::deployments'
     evidence = next(step for step in jobs['images']['steps']
                     if step.get('name') == 'Preserve image conversion diagnostics')
     assert evidence['if'] == 'failure()'
