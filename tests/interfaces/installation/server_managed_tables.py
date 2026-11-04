@@ -112,18 +112,21 @@ def await_revision(fixture, revision, expected):
     return current
 
 
-def retire(fixture, name):
+def dataflow_command(fixture, sql):
     # The CLI may preserve an accepted identity when an observation fails.
     # Settle that exact command through the public control surface; never
-    # resubmit RETIRE under another token or infer success from transport loss.
+    # resubmit under another token or infer success from transport loss.
     try:
-        fixture.console(f'RETIRE DATAFLOW {name};\n')
+        fixture.console(sql + ';\n')
         return
     except AssertionError as failure:
         result = failure.args[0] if failure.args else None
         if not isinstance(result, subprocess.CompletedProcess) or result.returncode != 1:
             raise
-        unresolved = json.loads(result.stdout)['unresolved']
+        try:
+            unresolved = json.loads(result.stdout)['unresolved']
+        except (json.JSONDecodeError, KeyError):
+            raise failure
         assert unresolved['reason'] == 'unavailable', result
         identity = unresolved['operation']
         assert identity is not None and identity['kind'] == 'dataflow', result
@@ -139,7 +142,7 @@ def retire(fixture, name):
                 assert operation['identity'] == identity and operation['token'] == unresolved['token']
                 if operation['phase'] == 'terminal':
                     assert operation['outcome'] == 'applied', operation
-                    print(f'Managed SQL: original retirement {identity["id"]} settled.', flush=True)
+                    print(f'Managed SQL: original dataflow command {identity["id"]} settled.', flush=True)
                     return
             assert time.monotonic() < deadline, observed
             time.sleep(.1)
@@ -148,11 +151,61 @@ def retire(fixture, name):
         client.close()
 
 
+def retire(fixture, name):
+    dataflow_command(fixture, f'RETIRE DATAFLOW {name}')
+
+
+def page_boundaries(fixture):
+    # Exercise both physical page limits through installed SQL. Each
+    # successor is independently verified and prior revisions stay readable.
+    fixture.console('CREATE TABLE batch_input (id BIGINT PRIMARY KEY);\nCREATE TABLE batch_output (id BIGINT PRIMARY KEY);\n'
+                    + 'INSERT INTO batch_input (id) VALUES ' + ','.join(f'({i})' for i in range(63)) + ';\n')
+    dataflow_command(fixture, 'CREATE DATAFLOW batch_projection INTO batch_output AS SELECT id FROM batch_input')
+    dataflow_command(fixture, 'AUTHORIZE DATAFLOW batch_projection')
+    dataflow_command(fixture, 'ACTIVATE DATAFLOW batch_projection')
+    for number, total in enumerate((63, 64, 65), 1):
+        if total > 63:
+            fixture.console(f'INSERT INTO batch_input (id) VALUES ({total - 1});\n')
+        batch = await_head(fixture, 'batch_projection', lambda head: head['revision'] == number and head['pending'] is None)
+        assert batch['observation']['head']['rows'] == total
+        actual = records(fixture.console('SELECT id FROM batch_output;\n')[-1])
+        assert sorted(int(row['id']) for row in actual) == list(range(total))
+        print(f'Managed SQL: boundary revision {number} ({total} rows) verified.', flush=True)
+    assert json.loads(records(fixture.console('SHOW DATAFLOW batch_projection REVISION 1;\n')[-1])[0]['dataflow_revision'])['revision']['rows'] == 63
+    retire(fixture, 'batch_projection')
+    print('Managed SQL: 63/64/65-row successors and retained revision metadata verified.', flush=True)
+    byte_boundary(fixture)
+
+
+def byte_boundary(fixture):
+    columns = [f'body{i}' for i in range(12)]
+    fixture.console('CREATE TABLE bytes_input (id BIGINT PRIMARY KEY, body UTF8 NOT NULL);\n'
+                    + 'CREATE TABLE bytes_output (id BIGINT PRIMARY KEY, ' + ', '.join(f'{name} UTF8' for name in columns) + ');\n')
+    # Populate through bounded SQL statements, then use the maintained
+    # compiler's supported column projections. Wide output rows reach the
+    # page byte budget before its 64-row budget.
+    payload = 'x' * 200
+    for start in range(0, 63, 10):
+        values = ','.join(f"({i},'{payload}')" for i in range(start, min(start + 10, 63)))
+        fixture.console(f'INSERT INTO bytes_input (id, body) VALUES {values};\n')
+    projection = ', '.join(f'body AS {name}' for name in columns)
+    dataflow_command(fixture, f'CREATE DATAFLOW bytes_projection INTO bytes_output AS SELECT id, {projection} FROM bytes_input')
+    dataflow_command(fixture, 'AUTHORIZE DATAFLOW bytes_projection')
+    dataflow_command(fixture, 'ACTIVATE DATAFLOW bytes_projection')
+    await_head(fixture, 'bytes_projection', lambda head: head['revision'] == 1 and head['pending'] is None)
+    actual = records(fixture.console('SELECT * FROM bytes_output;\n')[-1])
+    assert sorted(int(row['id']) for row in actual) == list(range(63))
+    assert all(row[name] == payload for row in actual for name in columns)
+    retire(fixture, 'bytes_projection')
+    print('Managed SQL: byte-boundary pages and all 63 wide output rows verified.', flush=True)
+
+
 def run(cli, node, host, board, gateway):
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
     os.environ['TEST_TRANSIT_BOARD_BINARY'] = str(Path(board).resolve())
     os.environ['TEST_TRANSIT_SQL_GATEWAY_BINARY'] = str(Path(gateway).resolve())
     fixture = Fixture(cli, node, host)
+    fixture.use_private_runtime()
     # Use the installed direct-Table correctness profile that LifecycleFixture
     # expects; its CLI budget must agree with the configured server commands.
     fixture.config['sql'].update(command_ms=120000, request_timeout_ms=30000)
@@ -216,6 +269,7 @@ def run(cli, node, host, board, gateway):
             assert failure['err']['sqlstate'] == list(b'42704'), failure
         finally:
             client.close()
+        page_boundaries(fixture)
         fixture.console('CREATE TABLE failed_input (id BIGINT NOT NULL);\nCREATE TABLE failed_output (id BIGINT PRIMARY KEY);\nINSERT INTO failed_input (id) VALUES (1),(1);\nCREATE DATAFLOW failed_projection INTO failed_output AS SELECT id FROM failed_input;\nAUTHORIZE DATAFLOW failed_projection;\nACTIVATE DATAFLOW failed_projection;\n')
         failed = await_head(fixture, 'failed_projection', lambda head: head['blocked'] == 'execution_failed' and head['pending'] is None)['observation']['head']
         assert failed['revision'] == 0

@@ -99,15 +99,69 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 14
+  console-latency:
+    name: Console latency gate
+    needs: prepare
+    if: needs.prepare.outputs.skip != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.cache/ci-zig
+      ZIG_LOCAL_PKG_DIR: ${{ github.workspace }}/.cache/ci-zig/p
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Reclaim unused hosted SDKs
+        if: runner.environment == 'github-hosted'
+        run: |
+          df -h /
+          sudo rm -rf -- /usr/local/lib/android /usr/share/dotnet
+          df -h /
+      - uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
+      - name: Restore Nix store
+        uses: nix-community/cache-nix-action/restore@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.2
+        with:
+          primary-key: nix-v2-experience-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock', 'flake.nix', 'nix/*.nix', 'nix/*.patch', 'nix/vite-plus/**', 'nix/ate-upgrade/**', 'deploy/reference/versions.json') }}
+          restore-prefixes-first-match: |
+            nix-v2-experience-${{ runner.os }}-${{ runner.arch }}-
+            nix-v1-${{ runner.os }}-${{ runner.arch }}-
+      - name: Restore Zig standard libraries and fetched packages
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            .cache/ci-zig/o
+            .cache/ci-zig/h
+            .cache/ci-zig/p
+          key: zig-v3-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock') }}-${{ hashFiles('**/build.zig.zon') }}
+          restore-keys: |
+            zig-v3-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock') }}-
+            zig-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock') }}-
+            zig-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock') }}-
+      - name: Fetch pinned Zig dependencies
+        run: nix develop .#ci-experience --command just ci::dependencies
+      - name: Qualify console startup and statement latency budgets
+        run: nix develop .#ci-experience --command just test::console-latency-gate
+      - name: Preserve console latency gate evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-console-latency-${{ github.run_attempt }}
+          path: |
+            .cache/transit-latency/gate/*.json
+            .cache/transit-latency/gate/*.jsonl
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14
   qualification:
     # Every publishing channel qualifies this exact captured source revision.
-    needs: prepare
+    needs: [prepare, console-latency]
     if: needs.prepare.outputs.publish == 'true' && needs.prepare.outputs.skip != 'true'
     uses: ./.github/workflows/ci.yml
     with:
       release_qualification: true
   build:
-    needs: prepare
+    needs: [prepare, console-latency]
     if: needs.prepare.outputs.skip != 'true'
     strategy:
       fail-fast: false
@@ -632,7 +686,7 @@ jobs:
           HOMEBREW_NO_INSTALL_CLEANUP: '1'
         run: python3 -B tasks/verify_release_brew.py dist/release
   publish:
-    needs: [prepare, qualification, build, images, installed, board, sdk-consumers, sdk-zig, sdk-loaders, assemble, homebrew]
+    needs: [prepare, console-latency, qualification, build, images, installed, board, sdk-consumers, sdk-zig, sdk-loaders, assemble, homebrew]
     if: needs.prepare.outputs.publish == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30

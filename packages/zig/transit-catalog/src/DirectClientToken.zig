@@ -199,8 +199,10 @@ pub const Progress = struct {
     record: ?c.DirectRecord.Reference,
     /// Mandatory durable reservation; null is distinct from an omitted old format.
     staged: ?c.DirectProgressRecord.Pending,
+    /// Mandatory original payload lifetime, independent of permanent retry identity.
+    original: ?c.DirectOwnedRecord.State,
     pub fn initial(receipt: Receipt) Progress {
-        return .{ .receipt = receipt, .revision = receipt.position, .pending = true, .cancel = false, .record = null, .staged = null };
+        return .{ .receipt = receipt, .revision = receipt.position, .pending = true, .cancel = false, .record = null, .staged = null, .original = if (receipt.binding.intent == .external and receipt.binding.intent.external.record.format == c.DirectOwnedRecord.format) .initial() else null };
     }
     pub fn validate(self: Progress) !void {
         try self.receipt.validate();
@@ -220,10 +222,18 @@ pub const Progress = struct {
                 value.expected.next_lsn >= self.revision.next_lsn or (self.cancel and !value.cancel)) return error.InvalidClientToken;
         }
         if (self.record) |value| if (value.format == c.DirectProgressRecord.format and self.receipt.binding.intent != .external) return error.InvalidClientToken;
+        const owned = self.receipt.binding.intent == .external and self.receipt.binding.intent.external.record.format == c.DirectOwnedRecord.format;
+        if (owned != (self.original != null)) return error.InvalidOwnedRecord;
+        if (self.original) |original| {
+            try original.validate();
+            if (original.phase == .closed and self.pending) return error.InvalidOwnedRecord;
+            if (original.attachment) |binding| try self.receipt.binding.key.connection.binding(binding);
+        }
+        const original_bytes = if (self.original) |original| (if (original.phase == .closed) 0 else self.receipt.binding.intent.external.record.content.bytes) else 0;
         const current_bytes = if (self.record) |value| (if (value.format == c.DirectProgressRecord.format) value.content.bytes else 0) else 0;
         const staged_bytes = if (self.staged) |value| value.reference.content.bytes else 0;
-        if ((current_bytes != 0 or staged_bytes != 0) and
-            try std.math.add(u64, try std.math.add(u64, current_bytes, staged_bytes), 512) > self.receipt.binding.budget.bytes) return error.ClientTokenBudget;
+        if ((original_bytes != 0 or current_bytes != 0 or staged_bytes != 0) and
+            try std.math.add(u64, try std.math.add(u64, try std.math.add(u64, current_bytes, staged_bytes), original_bytes), 512) > self.receipt.binding.budget.bytes) return error.ClientTokenBudget;
     }
     pub fn id(self: Progress) u64 {
         return self.receipt.position.next_lsn;
@@ -257,10 +267,18 @@ pub const ProgressRequest = union(enum) {
     list: Selection,
     update: Update,
     advance: c.DirectProgressRecord.Advance,
+    stage_original: c.DirectOwnedRecord.Stage,
+    retain_original: c.DirectOwnedRecord.Control,
+    attach_original: c.DirectOwnedRecord.Attach,
+    close_original: c.DirectOwnedRecord.Control,
+    pub fn mutation(self: ProgressRequest) bool {
+        return self != .inspect and self != .operation and self != .list;
+    }
     pub fn scope(self: ProgressRequest) c.DirectRecord.Scope {
         return switch (self) {
             .inspect => |value| value.scope(),
-            inline .update, .advance => |value| value.key.scope(),
+            inline .update, .advance, .retain_original, .attach_original, .close_original => |value| value.key.scope(),
+            .stage_original => |value| value.binding.key.scope(),
             inline .operation, .list => |value| value.scope,
         };
     }
@@ -268,7 +286,7 @@ pub const ProgressRequest = union(enum) {
         try self.scope().validate();
         switch (self) {
             .inspect => |value| try value.validate(),
-            inline .update, .advance => |value| try value.validate(),
+            inline .update, .advance, .stage_original, .retain_original, .attach_original, .close_original => |value| try value.validate(),
             .operation => |value| if (value.id < 2) return error.InvalidClientToken,
             .list => {},
         }

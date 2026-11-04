@@ -137,8 +137,9 @@ def release_workflow():
                    '${{ github.workspace }}/.cache/operation-fixture/operation-fixture'
                    for step in jobs[job]['steps'])
     assert 'sdk-build' not in ancestors('installed')
+    assert 'console-latency' in ancestors('qualification') and 'console-latency' in ancestors('build')
     # Independence during diagnosis must never weaken the publication gate.
-    required = {'qualification', 'build', 'images', 'installed', 'board', 'sdk-build',
+    required = {'console-latency', 'qualification', 'build', 'images', 'installed', 'board', 'sdk-build',
                 'sdk-consumers', 'sdk-zig', 'sdk-loaders', 'handbook', 'assemble', 'homebrew'}
     assert required <= ancestors('publish')
     assert 'images' in ancestors('assemble')
@@ -190,8 +191,11 @@ def main():
     lane_workflow = yaml.safe_load((ROOT / '.github/workflows/ci-lane.yml').read_text())
     execution = lane_workflow['jobs']['execute']
     steps = execution['steps']
-    assert workflow['jobs']['sdks']['needs'] == ['plan', 'native']
-    assert workflow['jobs']['checks']['needs'] == 'plan'
+    assert workflow['jobs']['console-latency']['needs'] == 'plan'
+    assert workflow['jobs']['console-latency']['if'] == "needs.plan.outputs.checks == 'true'"
+    assert workflow['jobs']['native']['needs'] == ['plan', 'console-latency']
+    assert workflow['jobs']['sdks']['needs'] == ['plan', 'console-latency', 'native']
+    assert workflow['jobs']['checks']['needs'] == ['plan', 'console-latency']
     assert workflow['jobs']['sdks']['with']['native_bundle'] is True
     assert workflow['jobs']['native']['strategy']['matrix'] == '${{ fromJSON(needs.plan.outputs.native_matrix) }}'
     assert len(select([], 'push')['native_matrix']['include']) == 4
@@ -228,7 +232,7 @@ def main():
     assert {".cache/ci/runs/", ".cache/checks/runs/"} <= set(artifacts["with"]["path"].splitlines())
     assert ".cache/native-artifacts/" in artifacts["with"]["path"].splitlines()
     gate = workflow["jobs"]["foundation-and-protocol"]
-    assert gate["if"] == "always()" and gate["needs"] == ["plan", "checks", "native", "sdks", "documentation"]
+    assert gate["if"] == "always()" and gate["needs"] == ["plan", "console-latency", "checks", "native", "sdks", "documentation"]
     assert workflow["jobs"]["documentation"]["if"] == "needs.plan.outputs.documentation == 'true'"
     assert workflow["jobs"]["checks"]["if"] == "needs.plan.outputs.runtime_checks == 'true'"
     assert "transit-docs::check" in LANES["installation-ui"]
@@ -454,7 +458,8 @@ def main():
             for result in ("success", "failure", "cancelled", "skipped", ""):
                 for docs in ("success", "failure", "cancelled", "skipped", ""):
                     passed = subprocess.run(["bash", "-e", "-c", gate_script], env=os.environ | {
-                        "PLAN": plan, "CHECKS": checks, "DOCUMENTATION": documentation,
+                        "PLAN": plan, "ALL_CHECKS": checks, "GATE": "success" if checks == "true" else "skipped",
+                        "CHECKS": checks, "DOCUMENTATION": documentation,
                         "RESULT": result, "DOCS": docs,
                         "SDKS": "false", "NATIVE_RESULT": "skipped", "SDK_RESULT": "skipped",
                     }).returncode == 0
@@ -462,6 +467,14 @@ def main():
                                       and (checks, result) in {("true", "success"), ("false", "skipped")}
                                       and (documentation, docs) in {("true", "success"), ("false", "skipped")}), (
                                           plan, checks, documentation, result, docs)
+    for gate_result in ("success", "failure", "cancelled", "skipped", ""):
+        passed = subprocess.run(["bash", "-e", "-c", gate_script], env=os.environ | {
+            "PLAN": "success", "ALL_CHECKS": "true", "GATE": gate_result,
+            "CHECKS": "true", "RESULT": "success",
+            "SDKS": "false", "NATIVE_RESULT": "skipped", "SDK_RESULT": "skipped",
+            "DOCUMENTATION": "false", "DOCS": "skipped",
+        }).returncode == 0
+        assert passed == (gate_result == "success")
     tasks = [task for lane in selected for task in LANES[lane]]
     assert len(tasks) == len(set(tasks)), "a proof is duplicated across lanes"
     assert {"test::packages-build", "test::compute"} <= set(LANES["core"])
@@ -484,7 +497,8 @@ def main():
     for native, sdk in (("success", "success"), ("failure", "skipped"),
                         ("skipped", "success"), ("success", "cancelled"), ("success", "")):
         passed = subprocess.run(["bash", "-e", "-c", gate_script], env=os.environ | {
-            "PLAN": "success", "CHECKS": "false", "RESULT": "skipped",
+            "PLAN": "success", "ALL_CHECKS": "true", "GATE": "success",
+            "CHECKS": "false", "RESULT": "skipped",
             "SDKS": "true", "NATIVE_RESULT": native, "SDK_RESULT": sdk,
             "DOCUMENTATION": "false", "DOCS": "skipped",
         }).returncode == 0

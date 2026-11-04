@@ -101,7 +101,7 @@ def run(node, caller, mode="tables", *artifacts):
         pressure_scan = []
         capture_pressure_scan = False
         board_fault = {"next": None, "accepted": []}
-        managed_fault = {"pages_before_failure": None, "failed": False, "staging_reply_lost": False}
+        managed_fault = {"pages_before_failure": None, "failed": False, "staging_reply_lost": False, "attachments_withheld": 0}
         managed_pages = set()
         computation_reads = []
         computation_inspecting = False
@@ -126,6 +126,19 @@ def run(node, caller, mode="tables", *artifacts):
                     assert len(computation_reads) < 1024
                     computation_reads.extend(envelope["action"])
                 record = envelope.get("action", {}).get("record") if isinstance(envelope.get("action"), dict) else None
+                progress = envelope.get("action", {}).get("client_progress") if isinstance(envelope.get("action"), dict) else None
+                if (mode in ("managed", "managed-board", "managed-board-browser") and progress and "attach_original" in progress
+                        and managed_fault["attachments_withheld"] < 2):
+                    # Original staging is ready, but no head claim has run.
+                    # The caller changes control before resuming this identity.
+                    managed_fault["attachments_withheld"] += 1
+                    data = b'{"err":"AuthorityUnavailable"}'
+                    self.send_response(503)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(data)))
+                    self.end_headers()
+                    self.wfile.write(data)
+                    return
                 if (mode in ("managed", "managed-board", "managed-board-browser") and record and "read" in record
                         and tuple(record["read"]["content"]["sha256"]) in managed_pages
                         and managed_fault["pages_before_failure"] is not None):
@@ -753,6 +766,7 @@ def run(node, caller, mode="tables", *artifacts):
             if mode in ("managed", "managed-board", "managed-board-browser"):
                 subprocess.run([caller, endpoint, "managed-prepare", str(profile)], check=True, timeout=600)
                 assert managed_fault["staging_reply_lost"], managed_fault
+                assert managed_fault["attachments_withheld"] == 2, managed_fault
                 authority.kill()
                 authority.wait(timeout=15)
                 authority = start()

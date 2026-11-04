@@ -319,7 +319,9 @@ the stable `R0`–`R10` packages and the existing milestone scope. The
 remaining gates; the [next slice](#next-implementation-slice-owned-staging-and-finite-qualification)
 specifies the first changes. Milestone 12 remains **In Progress**; this planning
 baseline adds no runtime qualification. The owned-progress increment below
-records the subsequent implementation scope.
+records the subsequent implementation scope. The original-staging increment
+below starts from `origin/main` at `2f8be4bae`, including merged CPR1 progress
+ownership (#361) and the adjacent local SQL lane-contention fix (#362).
 
 The immediate decisions are to reuse the owned-record and batched-page paths,
 finish their recovery/collection qualification before history activation, and
@@ -339,13 +341,38 @@ can reclaim superseded progress without loading obsolete payloads during catalog
 recovery. The current-v1 cutover makes the candidate slot mandatory, including
 explicit null, and migrates generated callers and signing fixtures together.
 
-This delivers replacement-record closure, not all R1b work. Generic `DFD1`
-declarations and initial `DFW1` admission records remain retained because the
-head and immutable original-token reservation still depend on them. Collecting
-abandoned pre-admission records requires its own admission/closure protocol.
+PR #361 delivered replacement-record closure. The original-staging slice below
+replaces its retained generic `DFD1`/initial `DFW1` admission path with explicit
+pre-head ownership and closure; it preserves the CPR1 replacement contract.
 The combined installed fault/resource matrix, fair executor yielding, complete
 history consumers and R5 analytical execution remain separate gates. Current
 semantics and limits are in the [managed computation contract](../../contracts/DATAFLOW_V1.md).
+
+### Original staging and closure implementation slice — 2026-11-03
+
+This R1b increment wraps initial DFD1/DFW1 payloads in Catalog-owned `SOR1`
+records. The existing paged client-token owner reserves identity, commitment and
+quota before bytes exist. A managed declaration becomes permanently retained
+before initialization can publish references. Work staging precedes its pending
+head: the owner reserves the exact KV attachment identity, records the intent,
+and executes it under the Catalog's exclusive lock. Ordinary KV routes reject
+that reserved identity, including after closure.
+
+Explicit closure releases unreferenced staging or terminal originals while
+keeping their compact token, operation commitment, attachment fence and terminal
+CPR1. A missing attachment receipt can close only under the serialized owner;
+an accepted attachment must first reach terminal progress. Recovery resumes the
+saved work after a control change, then fences an impossible attachment and
+advances past its closed attempt. Collection follows latest open SOR1 roots and
+preserves creation epochs and grace. It never collects generic `direct-records/`.
+
+Published/retained declarations, completed revisions and permanent identity/quota
+charges remain retained. Conservatively retaining a declaration before
+initialization can retain an incomplete publication too; this slice provides no
+retirement expiry or automatic timeout cleanup. The [qualification record](../history/qualification/query.md#owned-original-staging-and-closure--2026-11-03)
+separates executed owner/installed cases from the remaining combined R3a
+process-death, growth, fairness and measured-resource gates. M6/M7 extensions and
+M11 indexing remain independent feature gates; they are not assumed to be landed.
 
 ### Installed Table implementation slice — 2026-11-01
 
@@ -414,9 +441,10 @@ authority. PR #328 subsequently adds transaction-owned `TXR1` result
 pages/manifests: paged registration precedes creation, commit refuses unfinished
 registration, and frozen owners cannot create or resurrect bytes. The storage
 graph preserves uncertain and committed candidates and releases aborted payloads
-only after authoritative transaction cleanup. Original declaration/work records
-and ownership metadata remain retained recovery evidence. Broader work-record
-closure and the full combined collection/crash matrix remain R1b/R3a work.
+only after authoritative transaction cleanup. The later SOR1 slice above adds
+explicit original-work closure while preserving retained declarations and
+permanent ownership metadata. The full combined collection/crash matrix remains
+R3a work.
 Historical SQL row fetching, history consumers, multi-source
 execution, the full fault/growth matrix and T5/T8 correspondence remain open.
 The [qualification record](../history/qualification/query.md#retained-managed-table-revisions--2026-11-01)
@@ -426,7 +454,7 @@ records executed checks and their source-specific limits.
 
 | Merged increment | Reuse now | Remaining acceptance |
 | --- | --- | --- |
-| [#328](https://github.com/spoke-sh/transit/pull/328), transaction-owned candidates | `DirectTransactionRecord` registers `TXR1` pages/manifests before creation, requires readiness before commit and fences frozen owners. Real collection preserves active/committed roots and reclaims closed abort payloads | Generic `DFD1` declarations and `DFW1` work records still retain indefinitely. Finish their explicit closure contract and the combined installed crash/resource matrix; do not implement candidate ownership again |
+| [#328](https://github.com/spoke-sh/transit/pull/328), transaction-owned candidates | `DirectTransactionRecord` registers `TXR1` pages/manifests before creation, requires readiness before commit and fences frozen owners. Real collection preserves active/committed roots and reclaims closed abort payloads | SOR1 now owns original declaration/work staging alongside CPR1 replacement progress. Preserve those owners and finish the combined installed crash/resource matrix; do not implement candidate ownership again |
 | [#339](https://github.com/spoke-sh/transit/pull/339) / [#340](https://github.com/spoke-sh/transit/pull/340), computation inspection | Catalog `ManagedInspection`, shared `ManagedTableRecords`, SQL SHOW and Board use independent current read grants for exact current/retained metadata | Extend this owner for source vectors, history coverage and budgets. Board metadata inspection does not read result pages, acquire pins or execute controls; general SDK and historical SQL row adapters remain open |
 | [#348](https://github.com/spoke-sh/transit/pull/348), diagnostic instrumentation | Fixed-cardinality counters separate managed phases, record reservations/readiness and observed returns | Preserve failed campaigns and missing allocation/physical-I/O observations. Counters neither establish durable acceptance nor qualify successor latency |
 | [#356](https://github.com/spoke-sh/transit/pull/356), current-cut capture and managed batching | `ManagedTable` packs up to 64 rows and 128 KiB of encoded rows into a `DFP1` page, stages one INSERT per page, and retains the original transaction. `ManagedRevision` validates page sequence/ordinals and current disclosure | Qualify row and byte boundaries, exact retries, full envelopes/quotas, collection and foreground interference. The old one-row-per-page cost model is historical. M8's broader batching/performance objectives are not closed by the code change |
@@ -619,10 +647,10 @@ UDF, connector and interface completion requirements.
 | R9 | Complete caller migration, inspection and current-v1 cutover | Starts with R0/R3; finishes after exposed R4–R8 slices | Shared SQL/native/SDK/Flight/Board contracts, installed caller proofs and removed superseded paths |
 | R10 | Formal correspondence, integrated faults and qualification | Begins with R0; closes after R1–R9 | One committed revision with required evidence, public documentation and explicit limits |
 
-The next path is **R1b remaining work-record closure → R3a finite qualification
-→ R2/R3 history consumption → R4 incremental execution**. Start R3a's
-combined-source regression and measurement baseline immediately, alongside R1b;
-finish its collection/crash/resource matrix after closure lands. R5 can
+The next path is **R3a finite qualification → R2/R3 history consumption
+→ R4 incremental execution**. This slice implements R1b original closure.
+Finish R3a's combined-source regression, collection/crash/resource matrix and
+measurement baseline before enabling history consumption. R5 can
 proceed alongside it after contract review; each operator enters R4 only after
 its finite semantics are qualified. R6 splits by feature, and R8 can consume the
 finite profile before every incremental operator is ready. R9 and R10 accompany
@@ -633,7 +661,7 @@ The handoffs are executable gates, not whole-milestone waits:
 
 | Work that can start now | Integration gate |
 | --- | --- |
-| R1b closure, R3a qualification and T8 lifecycle correspondence | Existing finite owner, TXR1 inventory, batched pages and current Catalog/storage APIs |
+| R3a closure qualification and T8 lifecycle correspondence | Existing finite owner, TXR1/CPR1/SOR1 ownership, batched pages and current Catalog/storage APIs |
 | R2 Table-history contract/adapter work and T5 schedules | Reuse the delivered retained reader; enable service mode only after durable lease/cursor ownership and R3a safety gates |
 | R5 plan DAG and independent finite operators; a separate constant-membership slice | Share exact bindings, typed cells, budgets and the result owner; coordinate M14 hashing/preparation without waiting for its search indexes |
 | R4 durable arrangements and operator experiments | Enable each production operator only after its finite oracle and R2/R3 coverage/publication gates pass |
@@ -1124,9 +1152,9 @@ tests alone. R9 migration work and R10 correspondence accompany every row.
 | **R1b candidate mechanism — Delivered by #328** | TXR1 registration/readiness, creation fences and abort payload collection | R1a | Preserve [owned-candidate evidence](../history/qualification/query.md#transaction-owned-managed-result-candidates--2026-11-02); generic work closure and the full matrix remain below |
 | **R9 inspection slice — Delivered by #339/#340** | Shared Catalog metadata codecs and independent SQL/Board current/retained reads | R1a | Preserve [inspection evidence](../history/qualification/interfaces.md#board-computation-inspection--2026-11-02); historical row SQL and broader callers remain open |
 | **R3a batching mechanism — Implemented by #356** | Bounded multi-row DFP1 pages and one output INSERT per page inside the original transaction | TXR1 owner and current-v1 cutover | Run the combined batched-page fault, authority and resource matrix below; no accepted performance gain is inferred from implementation |
-| **R1b replacement progress — Implemented in this slice** | CPR1 reservation before creation, exact readiness retry, current/candidate graph roots and collection of superseded work progress | Original external token and TXR1 collection fences | [Recorded progress evidence](../history/qualification/query.md#catalog-owned-managed-progress--2026-11-03); original DFD1/DFW1 admission records remain retained |
-| **R1b remaining closure** | Pre-admission declaration/initial-work ownership and attachment fences, compact closure evidence and paged abandoned-work cleanup | Delivered TXR1/CPR1 mechanisms; R0 lifetime contract | Real collection preserves every recoverable/referenced object; interrupted cleanup resumes; closed identities cannot be accepted late; unrelated record formats remain protected |
-| **R3a finite qualification** | Combined-source baseline, bounded fair runtime work, reserved control capacity and complete finite crash/revocation/growth proof | Begin baseline now; finish collection matrix after remaining R1b | Old/new complete output at every staging/prepare/decision/finalize kill; exact batched recovery, stale-worker refusal, growth beyond helper capacities, idle parking and attributed retained-revision costs |
+| **R1b replacement progress — Delivered by #361** | CPR1 reservation before creation, exact readiness retry, current/candidate graph roots and collection of superseded work progress | Original external token and TXR1 collection fences | [Recorded progress evidence](../history/qualification/query.md#catalog-owned-managed-progress--2026-11-03); preserve these checks with the SOR1 original owner below |
+| **R1b original closure — Implemented in this slice** | SOR1 reservation before creation, protected KV attachment, permanent closure evidence and paged private-payload collection | Delivered TXR1/CPR1 mechanisms; R0 lifetime contract | Real collection preserves every recoverable/referenced object; interrupted cleanup resumes; closed identities cannot be accepted late; unrelated record formats remain protected |
+| **R3a finite qualification** | Combined-source baseline, bounded fair runtime work, reserved control capacity and complete finite crash/revocation/growth proof | Delivered TXR1/CPR1 and the SOR1 closure implementation above | Old/new complete output at every staging/prepare/decision/finalize kill; exact batched recovery, stale-worker refusal, growth beyond helper capacities, idle parking and attributed retained-revision costs |
 | **R2a/R3b — Table history consumer** | Persisted history protection, snapshot backfill and exact ordered/net modes in the installed service; explicit resume policy | R3a | Concurrent backfill writes, no-ops, oscillations, archive/trim, true gaps, lost wakes and restart; no checkpoint through an incomplete acceptance |
 | **R2b/R3c — Multiple inputs and managed dependencies** | Paged source vector, real common-decision barrier, alias deduplication and bounded acyclic scheduling | R2a/R3b; R5a for joins | Delayed/aborted mixed participants never publish a partial cut; durable waiting and cycle rejection; admit output chaining only with qualified dependency coverage |
 | **R4a — Persistent delta execution** | Typed batches, durable arrangements and real spill for projection/filter and admitted UNION ALL | R2a/R3b; finite operator semantics | Independent finite equality at every completed basis; reopen arrangements, checked multiplicities, allocation and disk-budget controls |
@@ -1146,13 +1174,11 @@ tests alone. R9 migration work and R10 correspondence accompany every row.
 | **R9 — Complete migration and caller matrix** | Finish captured/maintained migration, shared data client/SDKs, applicable gateways/Flight and read-only Board | Per-feature migration starts immediately; closure after R4–R8 | Real caller journeys, foreign-definition rejection, retained old attribution, no captured API loss and removal of superseded paths |
 | **R10 — Common-revision qualification** | Final T5/T8/A3 correspondence, fault/resource/performance evidence and public profile | All prior exits | Full required clean qualification at one committed revision; unresolved failures closed, omissions explicit and all milestone acceptance criteria met |
 
-**Next review units: remaining R1b closure and R3a qualification.**
-Preserve the `63f6369d5` baseline's TXR1 ownership, batched pages and independent
-inspection, plus this slice's CPR1 progress ownership. Implement pre-admission
-ownership and original-work closure as one executable cleanup journey; run the batched finite
-profile's regression/measurement baseline independently while that work proceeds.
-Finish the combined closure/fault/resource matrix before enabling service history
-consumption. R2 contract/model work, R5a and the small R5 membership review can
+**Next review unit: R3a qualification.**
+Preserve TXR1 result ownership, CPR1 progress replacement, SOR1 original closure,
+batched pages and independent inspection. Finish the combined
+closure/fault/resource matrix and the finite profile's measurement baseline
+before enabling service history consumption. R2 contract/model work, R5a and the small R5 membership review can
 proceed alongside it. None requires a new scheduler, a second historical catalog
 or completion of the Station migration.
 
@@ -1162,15 +1188,15 @@ The user-visible outcome is that Transit can reclaim explicitly abandoned privat
 work while every accepted operation and retained completed revision remains
 recoverable. A retired computation still serves its retained revisions under
 current rights; it does not implicitly opt into expiry. The table records the
-remaining implementation target. Transaction-owned candidate registration/abort
-collection, batched result pages and independent inspection are already on the
-base. This slice adds replacement-progress registration and collection. Declaration
-and original-work closure and the full installed matrix remain proposed work.
+implementation target and its remaining qualification. Transaction-owned
+candidates, CPR1 replacement progress, batched result pages and independent
+inspection are on the base. This slice implements SOR1 original ownership and
+closure; the full installed fault/resource matrix remains R3a work.
 
 | Step | Owning code/contracts | Reviewable change and exit |
 | --- | --- | --- |
 | 1. Freeze the remaining lifetime contract | [DATAFLOW_V1](../../contracts/DATAFLOW_V1.md), [DIRECT_TABLE_V1](../../contracts/DIRECT_TABLE_V1.md), `Dataflow`, `DirectRecord` and token types | Specify pre-head operation-owned DFD1/DFW1 staging, attachment and permanent closure. Preserve the delivered TXR1/CPR1 rules. Define which compact original receipt/reference survives payload cleanup; regenerate schemas/fixtures for the incompatible current-v1 change |
-| 2. Persist pre-head ownership and attachment | Catalog operation/token owner, `ManagedTable.publish`, `start` and stored `ManagedTableRecords` | Register a bounded neutral root directory before initial bytes; condition head/token attachment on the open ownership generation. Recover stage-before-head and head-before-token windows by original identity. Exact late retries return the original outcome or closure; they never recreate closed work |
+| 2. Persist pre-head ownership and attachment | Catalog operation/token owner, `ManagedTable.publish`, `start` and stored `ManagedTableRecords` | Reserve the original through existing paged client-token directories before initial bytes; condition protected KV attachment on open ownership. Recover stage-before-head by original identity and eliminate head-before-token ordering. Exact late retries return the original outcome or closure; they never recreate closed work |
 | 3. Extend retained-graph traversal | `DirectStorageGraph` and [local DataCollection](../../packages/zig/transit-backend-local/src/DataCollection.zig) | Traverse operation-owned initial references from pending heads/tokens, preparations and retained manifests. Reuse TXR1 traversal for pages and CPR1 traversal for replacement progress. Preserve creation/storage epochs, read grace and shared references; keep generic unowned record families excluded |
 | 4. Close and reclaim private work | Catalog ownership reducer, existing maintenance admission, managed recovery | Add resumable closure for provably abandoned publications and original work after admission/decision uncertainty settles or is fenced. Persist denied cleanup and compact recovery evidence. A published declaration referenced by DFR1 remains retained; retirement does not expire results |
 | 5. Qualify batching and the installed finite profile | [managed owner fixture](../../tests/catalog/tables/managed_table.zig), [installed SQL fixture](../../tests/interfaces/installation/server_managed_tables.py), existing collection/fault owners and installed performance driver | Verify exact batched output/retained rows at page boundaries, real collection, node death and policy races. Preserve original operation and source cut through replay. Run foreground reads and controls under normal maintenance, then finish R3a's growth/fairness and measured resource gates |
@@ -1189,15 +1215,15 @@ The creation-versus-collection race is part of the contract: protect a proposed
 root before exposing it to a collector cut, verify its ownership epoch on attach,
 and prevent closed ownership from re-entering accepted work. A content digest,
 read-guard envelope or terminal work phase alone proves none of these facts.
-Choose the exact neutral record layout with the catalog/storage owners in step 1;
-do not turn the entire `direct-records/` prefix into collectible storage.
+SOR1 implements this neutral layout through the existing token owner. The
+`direct-records/` prefix remains outside collection authority.
 
 The minimum disk/installed fault matrix for this slice is:
 
 | Interruption or race | Required observation after restart and collection |
 | --- | --- |
 | Stage succeeds, response is lost, admission has not resolved | Original staging remains attributable and protected; retry neither changes identity nor duplicates accepted work |
-| Head accepts pending work before its token exists | Independent recovery discovery recreates that exact token and cannot lose the staged record |
+| Staging is ready before head attachment, followed by a control change | Independent recovery finds the saved token; the exact stale attachment closes under its owner, late retries remain fenced and a later attempt can proceed |
 | Process dies during pages, participant prepare, decision or finalization | Readers see the old or new complete revision; original transaction recovery settles once, including a prepared control-KV barrier |
 | Lost reply or node death inside multi-row staging/preparation/execution | Retry the exact page/statement identity and ordinals; no duplicated rows, skipped page, per-page commit or new source capture. Cover 63/64/65 rows and a byte-boundary split |
 | Suspend/retire/revoke races with candidate publication | Actual decision ordering determines the winner; stale work cannot publish, and existing guarded buffered/empty/terminal checks still deny disclosure |

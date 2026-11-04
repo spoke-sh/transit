@@ -65,10 +65,17 @@ source coverage and the committed transaction decision. The service drives
 a work token and retain it until completion. On activation, page pending tokens
 with `DirectClientToken.list(client, ManagedTable.workAccount(), after, true)`
 and resume their exact `step` calls before discovering new work with `start`.
+Declaration and initial work staging reserve original tokens before creating
+`SOR1` payloads. Publication retains declarations permanently. Work attachment
+saves and executes the exact pending-head KV operation through Catalog; recovery
+can discover it before any head write. `closeOriginal(progress)` explicitly
+abandons unattached staging under the Catalog fence. A reserved payload needs
+the saved staging request to complete creation. Terminal work closes its original
+payload after transaction cleanup; closure never releases retained revisions.
 Subsequent `DFW1` progress uses Catalog-owned `CPR1` records, with one durable
-candidate reservation before byte creation. The current and candidate records
-share a 64 KiB token reservation. Superseded progress is collectible; declaration
-and initial work records remain original-admission evidence. A terminal work
+candidate reservation before byte creation. The open original, current and candidate records
+share a 64 KiB token reservation. Superseded progress and closed originals are
+collectible; permanent receipts retain their commitments and closure. A terminal work
 record stays retained, independently of result-page retention.
 A prepared control participant can refuse `inspect` or `start`; recovery must
 not depend on reading that participant to discover its pending transaction.

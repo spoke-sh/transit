@@ -541,7 +541,12 @@ completed revision, row count, source position and common transaction decision.
 `EXPLAIN CREATE DATAFLOW ...` validates metadata and budgets without publishing,
 pinning a snapshot or running the SELECT.
 
-Recovery keeps the original declaration and admission identity. Replacement
+Recovery keeps the original declaration and admission identity. Staging reserves
+ownership before creating declaration or work bytes. The Catalog records the
+exact head attachment and fences it against explicit closure. Completed work
+closes its original private payload after transaction cleanup; its final progress
+and all retained results remain available. Published declarations retain
+indefinitely. Replacement
 work records use one durable candidate reservation per operation; collection
 can reclaim superseded records after its normal fences while preserving the
 current record and any pending candidate. This does not expire completed results

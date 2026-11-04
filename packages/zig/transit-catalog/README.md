@@ -28,6 +28,15 @@ including raw record reads. Format and envelope bytes
 participate in the immutable key; changing either cannot unwrap an existing
 record. Plain caller-owned operation records retain their existing scope checks.
 
+`DirectOwnedRecord` reserves original external work in the paged token directory
+before creating its `SOR1` payload. Signed `stage_original`, `retain_original`,
+`attach_original` and `close_original` operations keep readiness, permanent
+retention, exact KV attachment and irreversible closure distinct. Attachment
+executes under exclusive Catalog ownership; its immutable operation reservation
+rejects ordinary KV replay after closure. Closed bytes are collectible while
+retry commitments, closure and terminal progress remain inspectable. Published
+retained roots cannot close. See the [exact lifetime contract](../../../contracts/DIRECT_TABLE_V1.md#durable-client-token-bindings).
+
 `DirectProgressRecord` supplies replaceable external-owner recovery records.
 The signed `client_progress.advance` reserves one candidate in the original
 token before creating bytes, then publishes readiness and the replacement.
