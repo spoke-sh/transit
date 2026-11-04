@@ -116,24 +116,35 @@ class Exchange:
         # The installed courier owns delivery. Observe its actual outcome;
         # racing it with a second operator delivery would test a different path.
         deadline = time.monotonic() + 30
-        while True:
+        restarts = 0
+        while time.monotonic() < deadline:
             after, pending, seen = None, False, 0
             position = self.query(dict(capabilities={}))['position']
-            while True:
-                page = self.query(dict(outputs=dict(after=after, position=position)))['body']['outputs']
-                for entry in page['entries']:
-                    if entry and entry['source'] in {r['pid'] for r in self.roles.values()}:
-                        assert entry['phase'] in ('pending', 'delivered'), entry['phase']
-                        seen += 1
-                        pending |= entry['phase'] == 'pending'
-                after = page['next']
-                if after is None:
-                    break
+            try:
+                while True:
+                    assert time.monotonic() < deadline, 'courier observation deadline'
+                    page = self.query(dict(outputs=dict(after=after, position=position)))['body']['outputs']
+                    for entry in page['entries']:
+                        if entry and entry['source'] in {r['pid'] for r in self.roles.values()}:
+                            assert entry['phase'] in ('pending', 'delivered'), entry['phase']
+                            seen += 1
+                            pending |= entry['phase'] == 'pending'
+                    after = page['next']
+                    if after is None:
+                        break
+            except AssertionError as error:
+                if error.args != ((409, b'{"err":"QueryExpired"}'),):
+                    raise
+                # Authority changes expire this entire paged view. Discard its
+                # prefix, including seen/pending, before a fresh observation.
+                restarts += 1
+                continue
             assert seen, 'missing published call/outcome'
+            assert time.monotonic() < deadline, 'courier observation deadline'
             if not pending:
-                return
-            assert time.monotonic() < deadline, 'courier did not settle published outputs'
+                return restarts
             time.sleep(.05)
+        raise AssertionError('courier did not settle published outputs')
 
 
 def run(journey, binaries):
@@ -276,7 +287,7 @@ def run(journey, binaries):
                     original = exchange.activate('caller', 'publish')
                     assert original['phase'] == 'called'
                     assert exchange.activate('caller', 'publish') == original
-                    exchange.deliver()
+                    sample['delivery_restarts'] = exchange.deliver()
                     assert exchange.activate('connector', 'accept')['phase'] == 'ready'
                     sample['verified'] = True
                 with journey.sample('effect_unknown' if lost_response else 'effect_observed') as sample:
@@ -298,7 +309,7 @@ def run(journey, binaries):
                         finally:
                             release.set()
                         execution = dispatched.result(timeout=120)
-                    exchange.deliver()
+                    sample['delivery_restarts'] = exchange.deliver()
                     outcome = exchange.activate('caller', 'receive')
                     assert outcome['phase'] == ('closed_unknown' if lost_response else 'observed'), (outcome, execution)
                     if not lost_response:

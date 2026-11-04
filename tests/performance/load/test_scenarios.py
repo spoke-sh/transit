@@ -1,7 +1,9 @@
 """Independent negative controls for complete scenario and latency evidence."""
 import copy
 import unittest
+from unittest.mock import Mock, patch
 
+from interfaces.installation.webhook import Exchange
 from performance.load.scenario_report import check_budgets, compare, summarize
 
 
@@ -27,6 +29,30 @@ def campaign():
 
 
 class ScenarioReportTest(unittest.TestCase):
+    def test_courier_observation_discards_expired_prefix_and_keeps_deadline(self):
+        exchange = object.__new__(Exchange)
+        exchange.roles = {'caller': {'pid': 7}, 'connector': {'pid': 8}}
+        def page(source, phase, after=None):
+            return dict(body=dict(outputs=dict(entries=[dict(source=source, phase=phase)], next=after)))
+        expired = AssertionError((409, b'{"err":"QueryExpired"}'))
+        prefix = [dict(position=10), page(7, 'pending', 1), expired, dict(position=11)]
+        exchange.query = Mock(side_effect=prefix + [page(8, 'delivered')])
+        self.assertEqual(exchange.deliver(), 1)
+        self.assertEqual(exchange.query.call_args_list[-1].args,
+                         (dict(outputs=dict(after=None, position=11)),))
+        exchange.query = Mock(side_effect=prefix + [page(99, 'delivered')])
+        with self.assertRaisesRegex(AssertionError, 'missing published'):
+            exchange.deliver()
+        refusal = AssertionError((403, b'{"err":"AccessDenied"}'))
+        exchange.query = Mock(side_effect=[dict(position=10), refusal])
+        with self.assertRaises(AssertionError) as raised:
+            exchange.deliver()
+        self.assertIs(raised.exception, refusal)
+        exchange.query = Mock(side_effect=[dict(position=10), expired])
+        with patch('interfaces.installation.webhook.time.monotonic', side_effect=[0, 0, 0, 31]):
+            with self.assertRaisesRegex(AssertionError, 'courier did not settle'):
+                exchange.deliver()
+
     def test_webhook_requires_the_unknown_and_retained_replay_schedules(self):
         records = campaign()[:2]
         records[1].update(scenario='webhook', repeat=1)

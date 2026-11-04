@@ -57,6 +57,10 @@ unavailable. No zero-allocation or physical-sync-count claim follows from timing
 Transient refusals of fresh `SHOW DATAFLOW` observations consume the original
 completion deadline and elapsed span and are counted in `observation_refusals`.
 They do not authorize replaying a mutation or restarting a partially read result.
+Courier output inspection discards its entire partial view on `QueryExpired`
+and starts a fresh observation within the original deadline; effect samples
+record these `delivery_restarts`. Pages from different cuts never establish
+delivery completion together.
 
 [`scenario_budgets.json`](scenario_budgets.json) supplies executable maximum
 latency ceilings for the finite smoke workload. These generous regression guards
