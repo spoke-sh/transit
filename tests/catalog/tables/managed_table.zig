@@ -145,12 +145,30 @@ pub fn prepare(init: std.process.Init, client: c.DirectTableClient, path: []cons
     try control(manager, declaration, .activate, 652006);
     try count(client, 0);
     try t.expectError(error.DataflowRevisionNotFound, q.ManagedRevision.open(manager, declaration, 1, .{}));
+    try t.expectError(error.AuthorityUnavailable, manager.start(declaration));
+    const unclaimed = (try pendingWork(manager, declaration)).?;
+    try t.expectEqualDeep(unclaimed, (try manager.start(declaration)).?);
+    _ = try manager.closeOriginal((try c.DirectClientToken.inspect(client, unclaimed)).?);
+    try t.expect(try manager.start(declaration) == null); // Skip the closed attempt.
+    try t.expectError(error.AuthorityUnavailable, manager.start(declaration));
+    const abandoned = (try pendingWork(manager, declaration)).?;
+    try t.expect(!std.meta.eql(unclaimed, abandoned));
+    try t.expect((try manager.inspect(declaration)).head.pending == null);
+    try control(manager, declaration, .suspend_computation, 652030);
+    try control(manager, declaration, .resume_computation, 652031);
+    // Independent token discovery resumes the saved original after controls
+    // advance the attempt. Its exact stale attachment closes permanently.
+    try t.expectEqualDeep(abandoned, (try pendingWork(manager, declaration)).?);
+    try t.expect(!try manager.step(abandoned, init.io, .cwd(), null));
+    try t.expectEqual(.closed, (try c.DirectClientToken.inspect(client, abandoned)).?.original.?.phase);
     const pending = (try manager.start(declaration)).?;
+    try t.expect(!std.meta.eql(abandoned, pending));
     try t.expect(try manager.step(pending, init.io, .cwd(), null)); // Acquire.
     const progress = (try c.DirectClientToken.inspect(client, pending)).?;
     try t.expect(progress.pending and progress.staged == null);
     try t.expectEqual(c.DirectProgressRecord.format, progress.record.?.format);
-    try t.expectEqual(M.work_format, progress.receipt.binding.intent.external.record.format);
+    try t.expectEqual(c.DirectOwnedRecord.format, progress.receipt.binding.intent.external.record.format);
+    try t.expectEqual(.attached, progress.original.?.phase);
     const original_work = try manager.load(M.Work, progress.receipt.binding.intent.external.record, M.work_format);
     defer original_work.deinit();
     try t.expectEqual(.acquiring, original_work.value.phase);
@@ -262,6 +280,26 @@ pub fn verify(init: std.process.Init, client: c.DirectTableClient, path: []const
     const declaration = try c.protocol.Json.parseFromSlice(M.Declaration, init.gpa, bytes);
     defer declaration.deinit();
     const manager: M = .{ .client = client };
+    var after: ?u64 = null;
+    var closed_count: usize = 0;
+    var abandoned_count: usize = 0;
+    while (true) {
+        const page = try c.DirectClientToken.list(client, M.workAccount(), after, false);
+        for (page.entries) |slot| if (slot) |entry| {
+            try t.expect(!entry.pending and entry.original.?.phase == .closed);
+            if (entry.record) |record| {
+                try t.expectEqual(c.DirectProgressRecord.format, record.format);
+                closed_count += 1;
+            } else {
+                try t.expect(entry.cancel);
+                abandoned_count += 1;
+            }
+            try t.expect(!try manager.step(entry.receipt.binding.key, init.io, .cwd(), null));
+        };
+        after = page.next orelse break;
+    }
+    try t.expect(closed_count >= 5);
+    try t.expectEqual(@as(usize, 2), abandoned_count);
     // No scheduler or source snapshot is needed after another node replacement.
     try count(client, 0);
     try retained(manager, declaration.value, 1, &.{ 1, 2, 3 });

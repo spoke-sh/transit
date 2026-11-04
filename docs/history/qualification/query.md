@@ -9,6 +9,185 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Owned original staging and closure — 2026-11-03
+
+The R1b original-staging implementation starts from `origin/main` at
+`2f8be4bae`, including CPR1 progress ownership (#361) and the adjacent local SQL
+lane fix (#362). SOR1 reserves original declaration/work identity and quota in
+the existing paged client-token owner before creating bytes. Protected native
+KV attachment and permanent closure prevent late head claims and payload
+resurrection. Current semantics belong to [DATAFLOW_V1](../../../contracts/DATAFLOW_V1.md),
+[DIRECT_TABLE_V1](../../../contracts/DIRECT_TABLE_V1.md) and the
+[retention reference](../../handbook/reference/retention.md). The shared current-v1
+definition is `efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8`.
+
+Disk owner tests cover lost reservation/readiness/attachment/closure replies,
+cold reopen around uncertain attachment, protected ordinary-KV rejection,
+terminal CPR1 retry after original deletion, denial, permanent retained
+publication and 18 closed token identities across pages with a one-page cache.
+The local collection fixture uses signed JSON and typed dispatch, protecting
+reserved creation during grace and retained declarations while reclaiming
+closed originals. The managed caller adds a withheld pre-head attachment,
+control change, exact saved-work recovery and permanent closure followed by a
+new attempt. The installed SQL fixture adds 63/64/65-row successors and a
+63-row wide projection that crosses the page byte budget before its row budget.
+These describe test coverage; completed executions are recorded below.
+
+The development baseline managed proof passed preparation, node replacement,
+recovery, retained nonempty/empty results, incomplete-prefix refusal and current
+source/output/control denial. That run preceded the final saved-work retry
+refinement. The first contract check passed all 20 checks. Iterative fast-check
+attempts found table-source fixture drift, diagnostic inventory drift and an
+enum-formatting difference; the owning generators/formatter corrected those
+artifacts. These attempts are not a clean common-revision qualification.
+
+Executed with the pinned Nix Zig `0.17.0-dev.2267+48abf1a34` toolchain:
+
+| Check and source | Outcome and boundary |
+| --- | --- |
+| Focused catalog `zig build test` filters `owned original` and `owned progress`, `e63cbabb4` | All 11 tests passed, including missing-ready-byte refusal, disk reopen, attachment fencing and terminal retry after original deletion |
+| `zig build test-local-catalog -Dlocal-catalog-filter='owned original'`, implementation through `fbc648ac8` | Both signed/typed cases passed; each executed 101- and 817-step collections, reclaiming 2 and 186 allocations respectively |
+| `just ci clean --check fast`, `e525714e0` | All 66 checks passed |
+| `just ci clean --check fast`, `7a3fd2201` | All 66 checks passed after the saved-command fixture and malformed-head inventory correction |
+| `just ci clean --check fast`, `2c511bb6c` | All 66 checks passed, including the owned runtime-directory fixture controls |
+| `just ci clean --check fast`, `74e1fe2ec` | All 66 checks passed after integrating #364 and regenerating definition-bound fixtures |
+| `just ci clean --check fast`, `6a729e348` | All 66 checks passed after extracting the reusable installed boundary assertions |
+| `just ci clean --check fast`, `5a22f4bec` | All 66 checks passed with the focused byte-boundary helper and final implementation/test changes |
+| `just check native fixtures`, `74e1fe2ec` | The complete fixture scope passed, including independent signing/source/record fixtures, Document/MIME oracles and 161 native/port codec cases |
+| `just ci clean --check contracts`, `e525714e0` | All 20 checks passed |
+| Typed managed proof in the retained clean installation checkout, `ec60e03d7` | Preparation, node replacement, recovery, retained complete/empty revisions, incomplete-prefix refusal and current authorization passed, including two withheld pre-head attachments |
+| `just ci clean --lane sdks-conformance`, `ec60e03d7` | All seven targets passed: binding checks, native ABI, logical values, all ten public-language pairs, SQL, gRPC faults and connector preparation |
+
+The successful clean records are local artifacts at
+`.cache/ci/clean/e525714e057a-transit-ci-i1okjdpa` (contracts),
+`.cache/ci/clean/7a3fd2201f3b-transit-ci-28gpbrgu` and
+`.cache/ci/clean/2c511bb6c492-transit-ci-frhnp_27` and
+`.cache/ci/clean/74e1fe2ec18d-transit-ci-rpseh1vc` and
+`.cache/ci/clean/6a729e348e8a-transit-ci-__n7lar3` and
+`.cache/ci/clean/5a22f4bec2e3-transit-ci-3vif4_9h` (fast checks), and
+`.cache/ci/clean/ec60e03d70a2-transit-ci-qn4ah9wp` (SDK conformance).
+`tests/runner/capture.py` verified each record's complete task inventory and
+artifact hashes, and the native fixture capture at
+`.cache/checks/runs/native-fixtures-by75rrrc`. Focused raw logs are
+`/tmp/m12-owner-committed.log` and
+`/tmp/m12-local-original-final.log`; the first clean installation attempt and
+its follow-ups remain in `/var/tmp/transit-ci-obdja84d`. These paths are local
+evidence, not portable published artifacts.
+
+The first expanded managed fixture incorrectly expected a work token to remain
+the next discovery result after suspend/resume, although both controls advance
+the attempt epoch. The corrected fixture separately proves saved-token discovery
+before controls and recovery of the abandoned token afterward. Its next run
+passed preparation/recovery but incorrectly unwrapped a CPR1 record on an
+original closed before attachment. The final fixture distinguishes two abandoned
+originals from completed work and passed all four typed stages. Neither failed
+test oracle is recorded as a passing run.
+
+The first clean `installation-ui` attempt at `ec60e03d7` passed Board/docs,
+generated Node validators, observability and server logging, then failed packaged
+installation recovery. A two-second `rotate_worker` authority timeout consumed
+an extra automatic restart and exhausted that fixture's restart budget. An
+unchanged retry of `test::server-single-executable` in the same checkout passed
+the full role-death, manager-replacement and retained-identity sequence. The
+initial failure's cause is unestablished; no baseline attribution is claimed.
+
+The subsequent direct-Table target passed. The managed target passed the typed
+proof and installed revisions 1–5, replacement, suspension, empty refresh,
+retained inspection, retirement and output edits. It then stopped at the new
+batch-flow declaration with an unresolved accepted SQL operation, before the
+63/64/65-row and byte-boundary assertions. Observing that same operation after
+restarting the retained installation showed `ready`, then terminal `applied`;
+the declaration was not resubmitted. Commit `0fc4d56a1` generalizes the existing
+retirement settlement helper for individual boundary-test commands. It preserves
+the original account, instance, operation and token and retains the existing
+deadlines. The unknown result is neither rejection nor a completed boundary proof.
+
+The later clean fast attempt at `7d6639a55` found one stale diagnostic-inventory
+count after `ec60e03d7` added malformed pending-head rejection. Regenerating the
+owning inventory updates that count from 27 to 28 `InvalidManagedTableRecord`
+sites; it does not change a runtime mapping or certify additional proof coverage.
+
+The clean installation rerun at `0fc4d56a1` passed its first seven targets and
+all four typed managed stages. Installed managed startup then failed before
+SQL admission: the node reported `NoSpaceLeft` while the shared `/tmp` filesystem
+had zero free inodes. Its configured local SQL control socket was under
+`/tmp/transit-1000`; the fixture's persistent data and compiler temporary files
+were already under `/var/tmp`. Replaying the exact node launch for diagnosis
+confirmed the error. The managed fixture now explicitly selects an owned
+`XDG_RUNTIME_DIR`; its server and console share that directory across restart.
+Other fixture profiles and all existing deadlines remain unchanged.
+
+The first isolated-runtime follow-up (`2c511bb6c` fixture, unchanged `0fc4d56a1`
+binaries) passed 63/64/65-row successors and retained revision metadata, then
+failed the wide declaration. Its literal projection was outside the maintained
+compiler's profile. Read-only EXPLAIN reproduced `UnsupportedStatement`, SHOW
+found no declaration, and original-operation inspection ended at the preceding
+Table creation. The fixture now projects one stored 200-byte text column into
+twelve distinct aliases; bounded ten-row INSERTs populate the 63-row source.
+The settlement helper also preserves the original command diagnostic when stdout
+contains no unresolved-operation JSON. No accepted declaration was resubmitted.
+
+The corrected full installed follow-up (`ab5a44a00` fixture, the same frozen
+`0fc4d56a1` binaries) passed revisions 1–3 and suspend/restart/resume, then
+stopped when `DELETE FROM managed_input` returned `SqlOutcomeUnknown` under
+the existing deadlines. The response retained account, instance and token but
+no operation ID; it establishes neither rejection nor completion. The command
+was not replayed. Its capture is
+`/var/tmp/transit-ci-zrdpgodr/src/.cache/ci/runs/m12-managed-private-e9unf4sv`,
+and its original installation remains at `/var/tmp/transit-server-proof-jvwmlyi5`.
+Commit `8a5d99c14` extracts the existing boundary assertions into
+`page_boundaries(fixture)` without changing the full fixture's sequence. A first
+selected-driver invocation was rejected by the repository launcher because the
+driver was outside `tests`; no installation or assertion ran in that invocation.
+
+The selected boundary run at `8a5d99c14`, using those same binaries, then failed
+inside the 63/64/65-row loop when its local SQL socket disappeared and metadata
+transport did not recover before the deadline. Two provisioning authority
+timeouts had already consumed automatic restarts; a later node disconnection
+and `rotate_worker` timeout exhausted the restart budget. The node disconnection's
+cause is unestablished. This run did not reach the byte-boundary assertions and
+does not qualify the full row sequence. Its capture is
+`/var/tmp/transit-ci-zrdpgodr/src/.cache/ci/runs/m12-managed-boundary-0i0nyu_2`;
+the installation is `/var/tmp/transit-server-proof-g2tfjj5g`.
+
+The final selected follow-up invokes only `byte_boundary(fixture)` from
+`36aea74f4`, with unchanged frozen `0fc4d56a1` binaries and a recorded driver
+hash. After two provisioning retries it reached SQL readiness, then a source
+INSERT returned `ReadFailed` before the dataflow declaration. Its connection
+file remained valid JSON; the transport failure's cause is unestablished. The
+statement was not replayed, and this is not byte-boundary execution evidence.
+The capture is
+`/var/tmp/transit-ci-zrdpgodr/src/.cache/ci/runs/m12-managed-byte-l6vp2oxq` and
+the installation is `/var/tmp/transit-server-proof-cvhp710t`. The new byte-boundary
+fixture remains unverified; the earlier successful 63/64/65-row follow-up does
+not establish that separate case. No deadline, restart budget or execution
+quota was increased in these follow-ups.
+
+The `storage-query` clean attempt at `e63cbabb4` passed its first 12 targets,
+through local-payload-service. The aggregate local-catalog target ran for over
+80 minutes without reporting an assertion failure before deliberate interruption
+to end this optional broad attempt and remove its concurrent disk work. Its test
+process and then the waiting build wrapper received SIGTERM; the runner exited
+143. The remaining 20 targets did not run. This is an incomplete storage lane,
+not a pass or a reproduced runtime defect. The capture remains in
+`/var/tmp/transit-ci-1gfhyloa`; the exact interruption is recorded locally in
+`.cache/ci/m12-storage-interruption.json`. The separately completed focused
+Catalog and collection cases above do not replace this aggregate.
+
+Neither clean installation attempt completed the whole lane. In the second
+attempt, the ten targets following managed Tables did not run: direct faults,
+SQL lifetimes, HTTP/local SQL, Board/Board query, Station, workbench, computation
+inspection and declarative browser. Separate SDK family, Chromium and reference
+runtime lanes were not selected. Selected follow-ups retain their own source
+and outcome rather than replacing the original failed lane records.
+
+Retained declarations (including initialization already marked retained),
+completed revisions, identity receipts and quota charges remain indefinite.
+Neither 18 token identities nor 65 output rows proves the full R3a cardinality,
+fairness or resource gates. The combined process-death/collector/revocation
+matrix, performance measurements, persistent history consumers and final R10
+common-revision qualification remain separate work.
+
 ## Catalog-owned managed progress — 2026-11-03
 
 This slice asks whether managed computations can replace their recovery progress

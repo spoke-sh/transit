@@ -402,7 +402,7 @@ apply. Inspection may expose a reservation without bytes; that is not readiness
 or proof that the owner's work completed. The previous record remains readable.
 
 There is at most one candidate per token, regardless of history length. Current
-and candidate encoded `CPR1` bytes plus 512 bytes of bookkeeping must fit the
+and candidate encoded `CPR1` bytes, any open `SOR1` bytes, plus 512 bytes of bookkeeping must fit the
 original binding's byte reservation. A new proposal with the current revision
 may replace an interrupted candidate. Generic `update` may explicitly clear it,
 but cannot attach `CPR1` records. Initial external binding and generic
@@ -414,9 +414,58 @@ The direct collector retains current and candidate references at its accepted
 catalog cut. A candidate absent before creation uses the backend's newer epoch
 if created later; a missing current object fails graph validation. Superseded
 records become collectible after epoch/time/reader-grace fences. Catalog replay
-retains old progress metadata without loading superseded payloads. Original
-admission records have their own permanent retry lifetime. Settling a token does
+retains old progress metadata without loading superseded payloads. Generic original
+admission records retain permanently; owned originals use the explicit lifetime below. Settling a token does
 not itself release its current record, original identity or budget charge.
+
+Original external work can instead use Catalog-owned `SOR1` (`0x534f5231`)
+records under `owned-records/`. `Progress.original` is mandatory and nullable;
+non-null state contains `phase` and nullable exact KV `attachment` binding.
+The current-v1 definition rejects earlier persisted layouts. An `SOR1` envelope
+contains current `definition`, original token `key`, plain inner `format` and
+binary `bytes`. The complete envelope binds storage to one original owner;
+copying an inner payload does not transfer that owner's lifetime.
+
+The signed `client_progress.stage_original` carries the complete external token
+`binding`, inner `format` and `bytes`. It checks the content commitment and
+budget, reserves the original operation/token in the existing paged directories,
+then creates bytes and publishes `ready`. `reserved` is discoverable even when
+no bytes exist. Exact retry repairs only that reservation; a ready retry verifies
+existing bytes. A closed retry returns the permanent original receipt and closure
+without opening or recreating bytes. Changed bindings conflict. Generic staging
+and first-time token binding cannot create or adopt `SOR1`.
+
+`retain_original` (`key`, `expected`) changes ready ownership to permanent
+`retained` before publication can reference the payload. No operation in this
+profile releases retained ownership. `attach_original` (`key`, `expected`, exact
+KV `mutation`) instead reserves that mutation's complete native operation binding,
+publishes `attaching`, executes through the ordinary KV authorization/storage
+owner, then publishes `attached`. Ordinary KV mutation and operation routes
+reject that reserved identity. Repeating the exact attachment resolves its original
+receipt. This operation runs under exclusive Catalog access through execution;
+there is no read-open/write-head race or separate caller-controlled lease bypass.
+
+`close_original` (`key`, `expected`) uses reserved control admission and
+permanently closes reserved/ready work. For
+`attaching`, it inspects the exact native operation under current rights. A
+receipt prevents abandonment; denial or failed observation preserves uncertainty.
+When no receipt exists, exclusive closure fences subsequent attachment and the
+permanent operation reservation rejects ordinary KV replay. Attached work may
+close only after its external owner has settled it with a ready terminal `CPR1`
+record and no staged replacement. The owner remains responsible for verifying
+its transaction and recovery obligations before settlement. Generic progress
+updates cannot erase that recovery record. Retained originals cannot close.
+Closure preserves the immutable receipt, payload commitment, attachment binding,
+final progress and account byte charge; it releases pending capacity only once.
+A closed original cannot reopen or attach again, even after physical deletion.
+
+Original bytes, current/candidate progress and 512 bytes of bookkeeping share
+the accepted token budget. The collector marks each latest open original at its
+cut, tolerates an absent reserved object, and requires ready bytes. Closed originals
+become collectible under the existing allocation epoch and reader-grace rules.
+Replay validates metadata without loading removed bodies. Generic `direct-records/`
+objects remain outside this collectible family. No timeout, retirement, quota
+pressure or missing token establishes closure.
 
 `Binding.budget` declares account limits for operations, retained recovery bytes
 and pending operations, plus this operation's byte reservation. Defaults are

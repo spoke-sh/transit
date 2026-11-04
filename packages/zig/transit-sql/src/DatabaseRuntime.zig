@@ -343,8 +343,12 @@ fn managedStep(self: *Self) !bool {
     const page = try c.DirectClientToken.list(caller, if (self.managed_work) M.workAccount() else M.account(), self.managed_after, self.managed_work);
     for (page.entries) |slot| if (slot) |entry| {
         self.managed_after = entry.id();
+        const original = entry.original orelse return error.InvalidManagedTableRecord;
+        // Reservations need the exact caller payload or explicit closure. They
+        // are discoverable but do not spin a worker or read nonexistent bytes.
+        if (original.phase == .reserved or original.phase == .closed) return true;
         if (self.managed_work) {
-            if (entry.receipt.binding.intent != .external or entry.receipt.binding.intent.external.record.format != M.work_format) return error.InvalidManagedTableRecord;
+            if (entry.receipt.binding.intent != .external or entry.receipt.binding.intent.external.record.format != c.DirectOwnedRecord.format) return error.InvalidManagedTableRecord;
             if (entry.receipt.binding.intent.external.namespace != bindings[self.managed_route].namespace) return true;
             const token = entry.receipt.binding.key;
             const selected = self.claim(token.token);
@@ -363,7 +367,7 @@ fn managedStep(self: *Self) !bool {
             self.managed_pending = self.managed_pending or pending;
             return true;
         }
-        if (entry.receipt.binding.intent != .external or entry.receipt.binding.intent.external.record.format != M.declaration_format) return error.InvalidManagedTableRecord;
+        if (entry.receipt.binding.intent != .external or entry.receipt.binding.intent.external.record.format != c.DirectOwnedRecord.format) return error.InvalidManagedTableRecord;
         const declared = try manager.load(M.Declaration, entry.receipt.binding.intent.external.record, M.declaration_format);
         defer declared.deinit();
         if (declared.value.namespace != bindings[self.managed_route].namespace) return true;

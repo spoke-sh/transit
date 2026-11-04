@@ -9913,3 +9913,160 @@ test "owned progress reserves before creation and recovers exact readiness witho
     const admission = try c.DirectRecord.load(allocator, objects.objectStore(), original);
     try t.expectEqualStrings("original admission", admission);
 }
+
+fn ownedOriginalRequest(allocator: std.mem.Allocator, ordinal: u8) !c.DirectOwnedRecord.Stage {
+    const key: c.DirectClientToken.Key = .{ .definition = p.Growth.current_definition, .connection = .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null }, .account = @splat(95), .token = @splat(ordinal) };
+    const bytes = try c.DirectTableProtocol.Binary.encode(allocator, "private original work");
+    const encoded = try c.DirectOwnedRecord.encode(allocator, key, 17, bytes);
+    return .{ .binding = .{ .key = key, .fingerprint = @splat(ordinal), .budget = .{ .bytes = 64 * 1024 }, .intent = .{ .external = .{ .connection = key.connection, .namespace = 1, .operation = 74000 + @as(u64, ordinal), .record = try c.DirectRecord.reference(key.scope(), c.DirectOwnedRecord.format, encoded) } } }, .format = 17, .bytes = bytes };
+}
+
+test "owned originals reserve before bytes and retain permanent closure through disk recovery" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const request = try ownedOriginalRequest(allocator, 1);
+    const key = request.binding.key;
+    const reference = request.binding.intent.external.record;
+    var path: [96]u8 = undefined;
+    try t.expectError(error.OwnedRecordOperationRequired, catalog.clientToken(.{ .bind = request.binding }, access.policy()));
+    var small = request;
+    small.binding.budget.bytes = 512;
+    try t.expectError(error.ClientTokenBudget, catalog.clientProgress(.{ .stage_original = small }, access.policy()));
+    try t.expect(try catalog.clientToken(.{ .lookup = key }, access.policy()) == null);
+    catalog.store.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.clientProgress(.{ .stage_original = request }, access.policy()));
+    try t.expect(try objects.objectStore().head(try c.DirectRecord.key(reference, &path)) == null);
+    try catalog.recover();
+    const reserved = (try catalog.clientProgress(.{ .inspect = key }, access.policy())).state.?;
+    try t.expectEqual(.reserved, reserved.original.?.phase);
+    try t.expectError(error.LostAcknowledgement, catalog.clientProgress(.{ .stage_original = request }, access.policy()));
+    catalog.store.lose_reply = false;
+    try catalog.recover();
+    const ready = (try catalog.clientProgress(.{ .stage_original = request }, access.policy())).state.?;
+    try t.expectEqual(.ready, ready.original.?.phase);
+    try t.expectEqualDeep(reserved.receipt, ready.receipt);
+    const serialized = try p.Json.valueAlloc(allocator, ready);
+    const omitted = try std.mem.replaceOwned(u8, allocator, serialized, ",\"original\":{\"phase\":\"ready\",\"attachment\":null}", "");
+    try t.expectError(error.MissingField, p.Json.parseFromSlice(c.DirectClientToken.Progress, allocator, omitted));
+    const close: c.DirectClientToken.ProgressRequest = .{ .close_original = .{ .key = key, .expected = ready.revision } };
+    access.deny_at = access.calls + 1;
+    try t.expectError(error.CatalogDenied, catalog.clientProgress(close, access.policy()));
+    access.deny_at = std.math.maxInt(usize);
+    catalog.store.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.clientProgress(close, access.policy()));
+    catalog.store.lose_reply = false;
+    try catalog.recover();
+    const closed = (try catalog.clientProgress(close, access.policy())).state.?;
+    try t.expectEqual(.closed, closed.original.?.phase);
+    try t.expect(closed.cancel and !closed.pending);
+    try objects.objectStore().delete(try c.DirectRecord.key(reference, &path));
+    try catalog.recover();
+    try t.expectEqualDeep(closed, (try catalog.clientProgress(.{ .stage_original = request }, access.policy())).state.?);
+    try t.expect(try objects.objectStore().head(try c.DirectRecord.key(reference, &path)) == null);
+    try t.expectEqualDeep(closed.receipt, (try catalog.clientToken(.{ .bind = request.binding }, access.policy())).?);
+    try t.expectError(error.OwnedRecordClosed, catalog.clientProgress(.{ .retain_original = .{ .key = key, .expected = closed.revision } }, access.policy()));
+    // Multiple durable pages retain closed retry identities without retaining
+    // their payloads or consuming pending capacity indefinitely.
+    for (2..19) |ordinal| {
+        const next = try ownedOriginalRequest(allocator, @intCast(ordinal));
+        const state = (try catalog.clientProgress(.{ .stage_original = next }, access.policy())).state.?;
+        _ = try catalog.clientProgress(.{ .close_original = .{ .key = next.binding.key, .expected = state.revision } }, access.policy());
+    }
+    var after: ?u64 = null;
+    var count: usize = 0;
+    while (true) {
+        const page = (try catalog.clientProgress(.{ .list = .{ .scope = key.scope(), .after = after, .pending = false } }, access.policy())).page;
+        for (page.entries) |entry| if (entry) |state| {
+            try t.expectEqual(.closed, state.original.?.phase);
+            count += 1;
+        };
+        after = page.next orelse break;
+    }
+    try t.expectEqual(@as(usize, 18), count);
+    const retained_request = try ownedOriginalRequest(allocator, 20);
+    const staged = (try catalog.clientProgress(.{ .stage_original = retained_request }, access.policy())).state.?;
+    const retained = (try catalog.clientProgress(.{ .retain_original = .{ .key = retained_request.binding.key, .expected = staged.revision } }, access.policy())).state.?;
+    try t.expectError(error.OwnedRecordRetained, catalog.clientProgress(.{ .close_original = .{ .key = retained_request.binding.key, .expected = retained.revision } }, access.policy()));
+    const damaged = try ownedOriginalRequest(allocator, 21);
+    _ = try catalog.clientProgress(.{ .stage_original = damaged }, access.policy());
+    const damaged_path = try c.DirectRecord.key(damaged.binding.intent.external.record, &path);
+    try objects.objectStore().delete(damaged_path);
+    try t.expectError(error.DirectRecordMissing, catalog.clientProgress(.{ .stage_original = damaged }, access.policy()));
+    try t.expect(try objects.objectStore().head(damaged_path) == null);
+}
+
+test "owned original attachment resolves lost replies and closure fences raw KV retries" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const spec: s.KVDeclaration.Spec = .{ .value_type = .int64, .nullable = false };
+    const base = try creation(7, 1, "owned_head");
+    const declared = try c.DirectKVClient.prepareDeclaration(allocator, .{ .binding = base.binding, .namespace = 1, .name = base.intent.name, .action = .{ .create = .{ .owner = 0, .spec = spec } } });
+    for ([_]@FieldType(c.DirectKV.DeclarationRequest, "command"){ .admit, .execute }) |command| _ = try SignedDispatch.call(&arena, &catalog, &access, .{ .kv_declaration = .{ .declaration = declared, .command = command, .steps = 1 } });
+    const metadata = (try c.DirectKV.apply(allocator, allocator, &catalog, .{ .observe = base.binding.target }, access.policy())).definition;
+    for (1..3) |ordinal| {
+        const request = try ownedOriginalRequest(allocator, @intCast(ordinal));
+        const ready = (try SignedDispatch.call(&arena, &catalog, &access, .{ .client_progress = .{ .stage_original = request } })).client_progress.state.?;
+        var binding = base.binding;
+        binding.identity.operation = 75000 + ordinal;
+        binding.action = .insert;
+        binding.expected_definition = metadata.interpretation.interpretation;
+        binding.expected_data = metadata.position;
+        const mutation = try c.DirectKVClient.prepareMutation(&arena, binding, spec, &.{.{ .put = .{ .key = "head", .value = .{ .value = .{ .atom = .{ .signed = 42 } } }, .expect = .absent } }});
+        const attach: c.DirectClientToken.ProgressRequest = .{ .attach_original = .{ .key = request.binding.key, .expected = ready.revision, .mutation = mutation } };
+        catalog.store.lose_reply = ordinal == 1;
+        catalog.lose_table_reply = ordinal == 2;
+        try t.expectError(error.LostAcknowledgement, catalog.clientProgress(attach, access.policy()));
+        catalog.store.lose_reply = false;
+        catalog.lose_table_reply = false;
+        catalog.deinit();
+        wal.deinit();
+        objects.deinit();
+        wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        catalog = try owner(&wal, &objects);
+        const uncertain = (try catalog.clientProgress(.{ .inspect = request.binding.key }, access.policy())).state.?;
+        try t.expectEqual(.attaching, uncertain.original.?.phase);
+        const close: c.DirectClientToken.ProgressRequest = .{ .close_original = .{ .key = request.binding.key, .expected = uncertain.revision } };
+        try t.expectError(error.DataIdentityConflict, c.DirectKV.apply(allocator, allocator, &catalog, .{ .mutate = mutation }, access.policy()));
+        if (ordinal == 1) {
+            _ = try catalog.clientProgress(close, access.policy());
+            try t.expectError(error.OwnedRecordClosed, catalog.clientProgress(attach, access.policy()));
+        } else {
+            try t.expectError(error.OwnedRecordAttached, catalog.clientProgress(close, access.policy()));
+            const attached = (try SignedDispatch.call(&arena, &catalog, &access, .{ .client_progress = attach })).client_progress.state.?;
+            try t.expectEqual(.attached, attached.original.?.phase);
+            const advance: c.DirectClientToken.ProgressRequest = .{ .advance = .{ .key = request.binding.key, .expected = attached.revision, .pending = false, .cancel = false, .format = 17, .bytes = try c.DirectTableProtocol.Binary.encode(allocator, "complete original operation") } };
+            const terminal = (try catalog.clientProgress(advance, access.policy())).state.?;
+            const closed = (try catalog.clientProgress(.{ .close_original = .{ .key = request.binding.key, .expected = terminal.revision } }, access.policy())).state.?;
+            var path: [96]u8 = undefined;
+            try objects.objectStore().delete(try c.DirectRecord.key(request.binding.intent.external.record, &path));
+            try catalog.recover();
+            try t.expectEqualDeep(closed, (try catalog.clientProgress(advance, access.policy())).state.?);
+            try t.expectEqualDeep(closed, (try catalog.clientProgress(.{ .stage_original = request }, access.policy())).state.?);
+            try t.expectError(error.OwnedRecordClosed, catalog.clientProgress(attach, access.policy()));
+        }
+        try t.expectError(error.DataIdentityConflict, c.DirectKV.apply(allocator, allocator, &catalog, .{ .mutate = mutation }, access.policy()));
+    }
+}

@@ -116,14 +116,14 @@ class Fixture(LocalInstallation):
         args = [self.cli, "server", "--config", str(self.path)]
         if self.no_ui:
             args.append("--no-ui")
-        result = subprocess.run(args, capture_output=True, text=True, timeout=30, env={"PATH": "/unavailable"})
+        result = subprocess.run(args, capture_output=True, text=True, timeout=30, env=self.environment)
         assert result.returncode != 0 and message in result.stderr, result
         assert not result.stdout, result
     def console_config(self):
         # Public rendezvous is sufficient; never read a client signing key.
         import hashlib
         uid = os.geteuid()
-        runtime = Path(f'/tmp/transit-{uid}')
+        runtime = self.runtime_directory / 'transit' if self.runtime_directory is not None else Path(f'/tmp/transit-{uid}')
         digest = hashlib.sha256(str(self.installation).encode()).hexdigest()
         rendezvous = json.loads((runtime / (digest[:32] + '.json')).read_text())
         return dict(version=1, endpoint='unix:'+rendezvous['socket'],
@@ -137,7 +137,7 @@ class Fixture(LocalInstallation):
             path.write_text(json.dumps(connection))
             args.extend(['--config', str(path)])
         result = subprocess.run(args,
-            input=text, text=True, capture_output=True, timeout=timeout, cwd=self.root, env={"PATH": "/unavailable"})
+            input=text, text=True, capture_output=True, timeout=timeout, cwd=self.root, env=self.environment)
         assert result.returncode == expected, result
         if expected:
             return result

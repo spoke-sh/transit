@@ -108,7 +108,7 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`3981a6a977f356b8f1f1af39978b690fca425cd5926f5fb1dfa13507b5671079`.
+`efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8`.
 It requires a mandatory nullable `staged` field in client-token progress and
 binds the `CPR1` owned-progress envelope and signed `client_progress.advance`
 operation. Reservation precedes byte creation; readiness replaces the current

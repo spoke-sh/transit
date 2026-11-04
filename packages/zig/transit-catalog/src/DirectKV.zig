@@ -198,6 +198,11 @@ fn authorize(guard: s.PublicationGuard) !void {
 /// All returned bytes belong to output; decoding and lowering borrow scratch.
 /// A missing reply is reconciled with operation using the original binding.
 pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.DirectCatalog, request: Request, policy: c.DirectCatalog.Policy) !Result {
+    return applyOwned(scratch, output, catalog, request, policy, null);
+}
+/// Only the Catalog original-record owner passes a key. Ordinary mutation and
+/// observation cannot reuse its permanently reserved operation identity.
+pub fn applyOwned(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.DirectCatalog, request: Request, policy: c.DirectCatalog.Policy, owned: ?c.DirectClientToken.Key) !Result {
     try request.validate(scratch, policy.subject.principal(), catalog.store.root.configuration.scope);
     var selected = try catalog.kvAccess(scratch, request.target(), request.access(), request.control(), if (request == .mutate) request.mutate.binding.prerequisite else null, policy);
     defer selected.view.deinit();
@@ -207,13 +212,17 @@ pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.
     const result: Result = switch (request) {
         .observe => .{ .definition = try definition(&owner.storage, selected.view.properties) },
         .operation => |binding| blk: {
-            if (try c.OperationBinding.lookup(scratch, catalog.data_objects, binding.identity)) |known| try known.requireSame(binding);
+            if (owned) |key| {
+                try c.OperationBinding.requireOwned(scratch, catalog.data_objects, .{ .binding = binding, .owner = key });
+            } else if (try c.OperationBinding.lookup(scratch, catalog.data_objects, binding.identity)) |known| try known.requireSame(binding);
             break :blk .{ .operation = try owner.observe(binding, guard) };
         },
         .mutate => |mutation| blk: {
             const spec = (try s.KVDeclaration.fromPhysical(owner.storage.declaration.definition)).spec;
             const changes = try mutation.decodeChanges(scratch, spec);
-            try c.OperationBinding.claim(scratch, catalog.data_objects, mutation.binding);
+            if (owned) |key| {
+                try c.OperationBinding.requireOwned(scratch, catalog.data_objects, .{ .binding = mutation.binding, .owner = key });
+            } else try c.OperationBinding.claim(scratch, catalog.data_objects, mutation.binding);
             if (try owner.observe(mutation.binding, guard) == null) try catalog.kvReady(mutation.binding.target, guard);
             owner.storage.lose_reply = catalog.lose_table_reply;
             _ = owner.apply(mutation.binding, changes, guard) catch |err| switch (err) {

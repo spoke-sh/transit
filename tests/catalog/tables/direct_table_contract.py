@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "3981a6a977f356b8f1f1af39978b690fca425cd5926f5fb1dfa13507b5671079"
+definition = "efb0898e71235f3014fde2d4c964d133d7c86a26ea36975853e61671e46dcba8"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -756,6 +756,37 @@ for field in ("key", "expected", "pending", "cancel", "format", "bytes"):
     assert not validator.is_valid(invalid), field
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-progress-record-v1.json",
         (json.dumps({"request": progress_request, "public_key": public_key}, ensure_ascii=False, indent=2) + "\n").encode())
+
+# Original staging/closure have independent signed vectors. The storage
+# commitment includes the original token, not just reusable payload bytes.
+original_bytes = {"base64": base64.b64encode(b"private-original-fixture").decode()}
+original_envelope = canonical({"definition": definition, "key": token_key, "format": 17, "bytes": original_bytes})
+original_reference = {"scope": {"definition": definition, "connection": request_input["connection"], "account": token_key["account"]},
+                      "format": 0x534F5231, "content": {"bytes": len(original_envelope), "sha256": list(hashlib.sha256(original_envelope).digest())}}
+original_binding = {**token_binding, "intent": {"external": {"connection": request_input["connection"], "namespace": 1,
+                    "operation": 2**64 - 1, "record": original_reference}}}
+original_control = {"key": token_key, "expected": {"partition": 1, "next_lsn": 3}}
+original_vectors = {}
+with tempfile.TemporaryDirectory(prefix="transit-original-contract-") as directory:
+    signing_key = Key(Path(directory), "public-test-key", 9)
+    for action, body in {
+        "stage_original": {"binding": original_binding, "format": 17, "bytes": original_bytes},
+        "retain_original": original_control,
+        "attach_original": {**original_control, "mutation": kv_mutation},
+        "close_original": original_control,
+    }.items():
+        original_input = {**request_input, "action": {"client_progress": {action: body}}}
+        original_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(original_input)).digest())}
+        original_request = {**original_input, "proof": {"claim": original_claim,
+            "signature": signing_key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(original_claim)).digest())}}
+        validator.validate(original_request)
+        for field in body:
+            invalid = copy.deepcopy(original_request)
+            del invalid["action"]["client_progress"][action][field]
+            assert not validator.is_valid(invalid), (action, field)
+        original_vectors[action] = original_request
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-owned-record-v1.json",
+        (json.dumps({"requests": original_vectors, "public_key": public_key}, ensure_ascii=False, indent=2) + "\n").encode())
 
 # A log declaration token commits to its complete canonical saved body before
 # declaration admission. Content, account and the original binding are explicit.

@@ -41,6 +41,7 @@ class LocalInstallation:
         self.path = self.root / "transit.yaml"
         self.path.write_text(json.dumps(self.config))
         self.no_ui = True
+        self.runtime_directory = None
         self.process = None
         self.logs = []
         self.http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -62,6 +63,18 @@ class LocalInstallation:
     def record(self):
         return json.loads((self.installation / "installation.json").read_text())
 
+    def use_private_runtime(self):
+        """Keep local SQL sockets on this fixture's filesystem across restarts."""
+        self.runtime_directory = self.root / 'runtime'
+        self.runtime_directory.mkdir(mode=0o700, exist_ok=True)
+
+    @property
+    def environment(self):
+        values = {"PATH": "/unavailable", "LANG": "C"}
+        if self.runtime_directory is not None:
+            values['XDG_RUNTIME_DIR'] = str(self.runtime_directory)
+        return values
+
     @phase("process-start", "local-installation")
     def start(self):
         assert self.process is None
@@ -71,7 +84,7 @@ class LocalInstallation:
         if self.no_ui:
             args.append("--no-ui")
         self.process = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=log,
-            cwd=self.root, env={"PATH": "/unavailable", "LANG": "C"})
+            cwd=self.root, env=self.environment)
 
     @phase("teardown", "local-installation")
     def stop(self, kill=False):
