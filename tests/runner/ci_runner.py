@@ -106,6 +106,25 @@ if "tests/runner/ci.py" in sys.argv or any(arg.startswith("check::") for arg in 
                        for row in metadata["phases"])
 
 
+def console_latency_workflow(job):
+    steps = job['steps']
+    build = next(step for step in steps if step.get('name') == 'Build optimized console latency executables')
+    measure = next(step for step in steps if step.get('name') == 'Qualify console startup and statement latency budgets')
+    assert steps.index(build) < steps.index(measure)
+    assert build['run'] == ('nix develop .#ci-experience --command zig build transit transit-node '
+                            'transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe '
+                            '--prefix .cache/transit-latency/release')
+    assert measure['run'] == ('nix develop .#ci-experience --command python3 -B tests/runner/launch.py '
+                              'tests/performance/console/gate.py '
+                              '--cli .cache/transit-latency/release/bin/transit '
+                              '--node .cache/transit-latency/release/bin/transit-node '
+                              '--host .cache/transit-latency/release/bin/transit-query-host')
+    assert build['timeout-minutes'] == 40 and measure['timeout-minutes'] == 10
+    assert job['timeout-minutes'] > build['timeout-minutes'] + measure['timeout-minutes']
+    assert not job.get('continue-on-error', False)
+    assert all(not step.get('continue-on-error', False) for step in steps)
+
+
 def release_workflow():
     workflow = yaml.safe_load((ROOT / '.github/workflows/release.yml').read_text())
     assert workflow['concurrency']['cancel-in-progress'] == "${{ github.event_name == 'pull_request' }}"
@@ -118,6 +137,7 @@ def release_workflow():
             'tests/interfaces/installation/server_sql.py', 'tests/interfaces/cli/operations/**',
             'tests/harness/operation_helpers.py'} <= set(triggers)
     jobs = workflow['jobs']
+    console_latency_workflow(jobs['console-latency'])
 
     def ancestors(name):
         needs = jobs[name].get('needs', [])
@@ -179,6 +199,7 @@ def main():
     clean_runner()
     release_workflow()
     workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
+    console_latency_workflow(workflow['jobs']['console-latency'])
     strategy = workflow["jobs"]["checks"]["strategy"]
     assert strategy["matrix"] == "${{ fromJSON(needs.plan.outputs.runtime_matrix) }}"
     assert strategy["max-parallel"] == SUITE["selection"]["max_parallel"]

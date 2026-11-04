@@ -86,7 +86,8 @@ jobs:
     needs: plan
     if: needs.plan.outputs.checks == 'true'
     runs-on: ${{ vars.TRANSIT_CI_RUNNER || 'ubuntu-24.04' }}
-    timeout-minutes: 15
+    # Optimized compilation is preparation, not a console latency sample.
+    timeout-minutes: 60
     env:
       ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.cache/ci-zig
       ZIG_LOCAL_PKG_DIR: ${{ github.workspace }}/.cache/ci-zig/p
@@ -128,8 +129,12 @@ jobs:
             zig-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock') }}-
       - name: Fetch pinned Zig dependencies
         run: nix develop .#ci-experience --command just ci::dependencies
+      - name: Build optimized console latency executables
+        timeout-minutes: 40
+        run: nix develop .#ci-experience --command zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release
       - name: Qualify console startup and statement latency budgets
-        run: nix develop .#ci-experience --command just test::console-latency-gate
+        timeout-minutes: 10
+        run: nix develop .#ci-experience --command python3 -B tests/runner/launch.py tests/performance/console/gate.py --cli .cache/transit-latency/release/bin/transit --node .cache/transit-latency/release/bin/transit-node --host .cache/transit-latency/release/bin/transit-query-host
       - name: Preserve console latency gate evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
