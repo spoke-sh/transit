@@ -772,13 +772,22 @@ test("reactive workbook retains drafts, complete inputs and independent results 
   );
   for (const width of [1000, 390, 720, 1200, 1440, 1920]) {
     await page.setViewportSize({ width, height: 1000 });
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
-      true,
-    );
+    // Resizing the viewport does not wait for the plane's resize observation
+    // and React render. Verify the resolved layout before measuring overflow.
     await expect(page.locator(".transit-shell")).toHaveAttribute(
       "data-left",
       String(width >= 1232),
     );
+    await expect(page.locator(".transit-shell")).toHaveAttribute("data-right", "true");
+    await expect(page.locator(".transit-shell")).toHaveAttribute(
+      "data-takeover",
+      width < 800 ? "right" : "none",
+    );
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth), {
+        message: `Workbook has no horizontal overflow at ${width}px`,
+      })
+      .toBeLessThanOrEqual(width);
     if (width < 800)
       await expect(page.getByRole("button", { name: "Back to workspace" })).toBeFocused();
   }
