@@ -1201,7 +1201,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     scenario_test.addArtifactArg(http_worker);
     scenario_test.addArg("--budgets");
     scenario_test.addFileArg(b.path("tests/performance/load/scenario_budgets.json"));
-    if (b.args) |args| scenario_test.addArgs(args);
     scenario_test.has_side_effects = true;
     scenario_test.stdio = .inherit;
     b.step("test-server-scenarios", "Verify installed SQL, Dataflow and webhook effect journeys with latency ceilings").dependOn(&scenario_test.step);
