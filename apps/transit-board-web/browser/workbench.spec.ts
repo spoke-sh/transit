@@ -36,7 +36,7 @@ test("deferred view loading and failed downloads preserve shell navigation", asy
     (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze())
       .violations,
   ).toEqual([]);
-  await navigation.getByRole("link", { name: "Data", exact: true }).click();
+  await navigation.getByRole("link", { name: "Catalog", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Catalog", exact: true })).toBeVisible();
   await navigation.getByRole("link", { name: "Operations", exact: true }).click();
   await expect(page.getByRole("heading", { name: "View unavailable", exact: true })).toBeVisible();
@@ -741,12 +741,12 @@ test("reactive workbook retains drafts, complete inputs and independent results 
   await expect(cell(3).getByRole("button", { name: "Inspect cell", exact: true })).toBeFocused();
   await page
     .getByRole("navigation", { name: "Activities" })
-    .getByRole("link", { name: "Data", exact: true })
+    .getByRole("link", { name: "Catalog", exact: true })
     .click();
   await expect(page.getByRole("heading", { name: "Catalog", exact: true })).toBeVisible();
   await page
     .getByRole("navigation", { name: "Activities" })
-    .getByRole("link", { name: "Workbooks", exact: true })
+    .getByRole("link", { name: "Workbook", exact: true })
     .click();
   await expect(sql).toHaveValue('SELECT id FROM "workbook.source" WHERE id >= 120');
   await expect(cell(2).getByRole("textbox", { name: "Investigation notes" })).toHaveValue(

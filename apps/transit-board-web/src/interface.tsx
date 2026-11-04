@@ -143,7 +143,7 @@ function InterfaceBody({ scope, children }: { scope: Deployment; children: React
             <Link
               to="/catalog"
               title="Catalog"
-              aria-label="Data"
+              aria-label="Catalog"
               aria-current={dataPage ? "page" : undefined}
             >
               <span aria-hidden="true">▦</span>
@@ -154,7 +154,7 @@ function InterfaceBody({ scope, children }: { scope: Deployment; children: React
             <Link
               to="/workbook"
               title="Workbook"
-              aria-label="Workbooks"
+              aria-label="Workbook"
               aria-current={workbookPage ? "page" : undefined}
             >
               <span aria-hidden="true">▤</span>
