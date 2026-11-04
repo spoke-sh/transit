@@ -624,12 +624,16 @@ From a clean committed source, build and validate before packaging:
 ```sh
 nix build .#transit-release --out-link .cache/release-runtime
 nix develop .#ci-experience --command just test::release .cache/release-runtime
+nix develop .#release --command just test::deployments
 nix develop .#release --command python3 -B tasks/package_release.py --prefix .cache/release-runtime --output dist/release
 nix develop .#release --command python3 -B tasks/release_images.py dist/release
 ```
 
 The last command requires Docker and exercises a temporary container's SQL
-lifecycle. These commands do not publish. Packaging rejects build/source identity
+lifecycle. `nix develop .#release` includes `just`, Helm and PyYAML so release
+builds validate chart boundaries without building the full development shell,
+and hosted release build jobs reclaim unused Android/.NET images before
+installing Nix. These commands do not publish. Packaging rejects build/source identity
 mismatch, dynamic executables and nonempty output directories. The release
 workflow uses the same commands and publishes only after tagged qualification.
 The package/Helm archive metadata uses the commit timestamp for repeatable bytes.
