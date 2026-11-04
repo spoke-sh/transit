@@ -9,6 +9,115 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Retained Document partition membership — 2026-11-03
+
+Implementation `3baaf38ef` retains the exact logical-head directory of one
+Document partition and returns owned, authenticated pages of at most 16 heads.
+The [Document contract](../../../contracts/DOCUMENT_V1.md#retained-partition-membership)
+owns acquisition, cumulative budgets, current authorization, continuation and
+release; the [partition guide](../../../packages/zig/transit-storage/docs/document-partitions.md)
+describes the storage component. The required logical-change frontier and pin
+kind replace the stored current-v1 definition with
+`964d643dc61f84cc24dc3e2854898e8fd02423d4312d2388acb6847f0ca3e3fb`.
+Missing or foreign definitions remain rejected. Documentation commit
+`c48fabeea7ec6a38fa721a0944c0f27454160b9d` contains that runtime source;
+`a0743d7ade445540e74ae1b28069e4609e8c1cc8` changes only the two generated Node
+validator files after the first clean SDK run found stale definitions.
+
+The disk-backed `LocalWal`/`LocalSegmentStore` tests cover both ordered/versioned
+and causal Documents. Each retained collection contains 40 logical heads while
+the directory cache holds only one resident page. The head directory grows
+beyond a leaf, then a later mutation replaces one revision and adds a 41st
+Document. Reading the retained cut still yields the original ordered membership
+and revisions. An acquired empty partition remains empty after later writes.
+The schedule also checks lost acquisition/release replies, exact idempotent
+retries, one-record recovery steps, archive/checkpoint/trim and cold reopen.
+
+Wrong principals, altered cursor fields and revocation after buffering refuse
+disclosure. Work counts include cached directory visits; cumulative byte/work
+exhaustion refuses the page rather than reporting a complete prefix. Repeated
+terminal reads do not append WAL records. Release prevents reuse of the pin,
+including after retrying its original acquisition. Removing a retained directory
+object produces a missing-object error after cold reopen, never an empty result.
+The graph test follows a collection pin as its only starting root into the
+retained directory; the complete graph also retains its logical state and
+segment objects. Independent Python HMAC fixtures check every signed field and
+the current definition, while artifact checks reject missing, foreign and
+inconsistent source metadata.
+
+The pinned development environment executes these component checks:
+
+| Command / owner | Result |
+| --- | --- |
+| Protocol package `zig build test --summary all` | 124/124 |
+| Storage package `zig build test -Dtest-filter=document --summary all` | 21/21 |
+| Catalog package `zig build test -Dtest-filter='direct graph retains document' --summary all` | 7/7 |
+| Root `zig build test-ordered-documents --summary all` | 1/1 |
+| `just check contracts` | 20/20 |
+| `just transit-docs::check` | Checks and production build passed |
+
+An early graph-test compile failed because its fixture omitted required archive
+fields; it was corrected before the seven selected tests ran. Earlier overlapping
+storage-test invocations were stopped; only the completed 21/21 invocation above
+is used as evidence. The first clean
+`sdks-conformance` lane at `c48fabeea7ec6a38fa721a0944c0f27454160b9d` failed
+`bindings::check` on Node validator drift. Running the Node validator generator
+and committing its output in `a0743d7ade445540e74ae1b28069e4609e8c1cc8` resolves
+that failure. The clean rerun passes all seven lane tasks, including the actual
+ten-language interoperability ring, SQL bindings and connector fault checks.
+Neither earlier failure is passing evidence.
+
+The clean `core` lane at `c48fabeea7ec6a38fa721a0944c0f27454160b9d` passes
+all 28 tasks, including native components, standalone packages, installed Zig
+consumers, the runtime dependency boundary, storage recovery, authorization,
+runtime upgrade and inspection. The clean runner records committed, unmodified
+source and the pinned toolchain in its completion metadata. These selected
+lanes do not substitute for full integration/release qualification.
+
+The clean `storage-query` lane at the same runtime revision passes all **33/33
+tasks**, with the complete expected inventory, clean source and zero task exit
+codes. It includes native catalog/physical-collection checks, installed
+Table/Queue services, mixed transactions, original workload tokens/results,
+maintenance, existing installed Documents, public queries and publication. Its
+final catalog schedule verifies 139 initialized KV/Document objects, typed
+values, eight-entry directory pages and the original first receipt across node
+SIGKILL/restart using 1,437 typed calls. The lane records 13,827.44 seconds;
+this is a functional qualification duration, not a performance benchmark.
+
+Raw transcripts are retained under
+`.cache/verification/document-collections/2026-11-03/`:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `storage.log` | `bbd3deda52b4a4e66251eeb98c06ea0f83bc276f8cc8f144ab8e0a41080c14cc` |
+| `graph.log` | `72ed9fc1e5378f7cf30eee1f2bfa9f87d7285869bbd8dee25304af8910244983` |
+| `ordered.log` | `dc790bf0536b8bc26b23303c0863b3a826a062be6f6b3f423bc7c89864fd1826` |
+| `contracts.log` | `f5bb8bace3e848f3be2fc179ac9ae550298cac149a6b6f8048c5d5266118093c` |
+| `docs.log` | `508c566ef3046784d54e399996fca5023992545c34d5307c55f6ab17b1132337` |
+| `sdk-initial-failure.log` | `e8e9db965330f6585998352b7c367fa571a0b94d03c7c323e432263ab51df06e` |
+| `clean-core.log` | `8ea206eb8118c5a75968d4acd0c72298e0fdb702992655376c42d3c03e262324` |
+| `clean-sdk.log` | `8fdef5e81ee67f975db271b3ddb7bab3ffe72e70c90c43819c93e467f633e86d` |
+| `clean-storage.log` | `393fab49c91f6d80bd9ec83a7f414ca4a44832a150bfd9aa9f4ac7c5fb5f08d0` |
+
+Clean source/toolchain metadata, complete task inventories and per-task artifacts
+are retained in `.cache/ci/clean/c48fabeea7ec-transit-ci-syzxgndk/` (`core`) and
+`.cache/ci/clean/a0743d7ade44-transit-ci-qga2zp3_/` (`sdks-conformance`). Their
+completion metadata SHA-256 values are respectively
+`9ddc35c738b36f22b2c427bb5f4938a644cbc8b7218b2d62b6031db2d50f4374`
+and `984e08191cfbba83d08c9441d45539486a809b38a895980e8f0414993b5e7eb7`.
+Storage/query evidence is retained in
+`.cache/ci/clean/c48fabeea7ec-transit-ci-ct28vikx/`; its completion metadata has
+SHA-256 `e6be6b3f92428fef2b911528df44396d8e081358f7228fe979d4c03159425dac`,
+and its complete task inventory has
+SHA-256 `615c8c520bb9727ca9ef41f9cfd5db9fb76b6195f334b862f8ca8cf43fe9c02e`.
+
+The retained membership API remains a storage component. This record does not
+qualify installed Document lifecycle/discovery, logical deletion, protected
+candidate staging, multi-partition atomic cuts, Document transaction
+participation, SQL projections or the Station/SDK consumer replacement. It makes
+no warmed zero-allocation, power-loss or performance claim, and does not close
+the [Milestone 7 gate](../../roadmap/07-document-storage-and-station-decoupling.md).
+
 ## Frozen workload projection bodies — 2026-11-01
 
 Commit `b5fcc0c003053c33cd51f341fea46531fe75f49e` includes the ordered projection

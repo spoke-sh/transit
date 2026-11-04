@@ -998,54 +998,54 @@ separate logical-head frontier and collection-pin kind; `DirectStorageGraph`
 traverses the captured directory independently of current heads. The current-v1
 cutover regenerates shared definitions and independent fixtures. The
 [public contract](../../contracts/DOCUMENT_V1.md#retained-partition-membership)
-owns semantics and limits. This increment does not close packet 1 or C0/C3:
+owns semantics and limits; the [qualification record](../history/qualification/storage.md#retained-document-partition-membership--2026-11-03)
+owns executed checks and their limits. This increment does not close packet 1 or C0/C3:
 partition-aware transaction targets/guards, candidate ownership and original-
 operation discovery still need their reviewed contracts and implementation.
 Logical deletion and common-cut acquisition remain unsupported.
 
 #### Next review: retained collection cuts and owner contracts
 
-Continue packet 1 from the retained membership increment above. The direct Document declaration
-can describe several logical documents and partitions; its current
-`DocumentOperation.Cut` is only one logical document's revision basis. Catalog listing,
-collection queries and transaction guards need a retained partition-head basis
-that includes absent documents and empty partitions.
+Continue packet 1 from the retained membership increment above.
+`DocumentOperation.Cut` names one logical revision; `DocumentRead.Collection.Cut`
+now supplies the retained partition-head basis, including an empty partition.
+Catalog listing, collection queries and transaction guards must consume that
+basis through their owning contracts.
 
-1. Extend `transit-protocol.DocumentOperation`/`DocumentRead` with a proposed
-   partition cut and bounded logical-head page contract. Bind object/definition,
-   partition ordinal, accepted data frontier, head-directory commitment, pin,
-   principal, request and coverage. Keep logical data changes distinct from
-   read-pin, receipt-alias and maintenance WAL records. An independent vector of
-   these cuts is not an atomic collection snapshot; acquisition under the common
-   transaction owner is a separate operation.
-2. Add component acquisition/enumeration/release in `DocumentPartition`, using
-   the existing paged head directory and `TreeStore` traversal. Return owned
-   bounded pages with authenticated continuation and completion; never enumerate
-   into a resident array sized by document count. Preserve the exact captured
-   directory while later mutations, deletion and maintenance advance the owner.
-   Specify logical-document deletion/tombstone semantics before supporting it;
-   catalog object DROP remains a separate lifecycle operation.
-3. Extend `DocumentRead`, recovery records, `DocumentStorageRoots` and
-   `DirectStorageGraph` together so cold recovery and collection preserve the
-   cut. Define pin acquisition/expiry/release and persisted cursor-key policy.
-   Missing roots, incomplete coverage, expired/released pins and changed keys
-   produce typed failures; none becomes an empty result or a fresh read.
-4. Freeze the Document-specific `Transaction.Target` ordinal and guard shape
+1. Specify logical-document deletion/tombstone semantics before supporting it;
+   catalog object DROP remains a separate lifecycle operation. Preserve exact
+   retained membership and absence while later deletion and maintenance advance
+   the owner. Keep logical changes distinct from read-pin, receipt-alias and
+   maintenance WAL records.
+2. Define installed pin ownership and persisted cursor-key policy using the
+   existing explicit acquisition/release and authenticated continuation. Any
+   proposed expiry requires application opt-in and its own recorded semantics.
+   Preserve cold recovery and collector reachability; missing roots, incomplete
+   coverage, expired/released pins and changed keys cannot become an empty result
+   or a fresh read.
+3. Freeze the Document-specific `Transaction.Target` ordinal and guard shape
    against that cut, plus one preparation per physical owner. Keep Document
    participant execution refused until packet 4 implements preparation, decisions
-   and reads. A validated new type is not evidence of atomic publication.
-5. Record the C0 migration inventory and staging/discovery contracts in their
+   and reads. An independent vector of partition cuts is not an atomic snapshot;
+   common-transaction acquisition needs its own operation. A validated new type
+   is not evidence of atomic publication.
+4. Record the C0 migration inventory and staging/discovery contracts in their
    owners. Specify which catalog records protect standalone candidates and
    permit original-operation enumeration; do not expose arbitrary caller-record
    payloads or call a logical-head list an operation-discovery API.
 
-**Focused exit:** disk tests grow the logical-head directory beyond the configured
+**Retained-membership regression gate:** disk tests grow the logical-head directory beyond the configured
 page cache, capture a cut, mutate the live owner, reopen and recover identical paged
 membership. Cover an empty partition, page retries, one-less byte/step budgets,
 scratch reuse, a second principal, revocation after buffering, released pins,
 missing roots and collection during an active cut. Use existing causal and
-ordered owners in the same suite. Record component-only scope; this review adds
+ordered owners in the same suite. Record component-only scope; this increment adds
 no installed route, executable SQL, Board persistence or Station turn.
+
+**Remaining packet-1 exit:** reviewed deletion/absence, installed pin ownership,
+partition-aware transaction guards, protected candidate ownership and original-
+operation discovery contracts have explicit owners, rejection cases and migration
+inventories before dependent adapters implement them.
 
 #### Follow-on reviews: caller and common-decision path
 
