@@ -388,6 +388,28 @@ the test does not increase storage quotas or reset accepted work within a histor
 Use an owned disk-backed `TMPDIR` for large consumer builds, as the clean suite
 does. See the [proof ledger](../docs/history/qualification/sdk.md#rust-native-lifetime-investigation--2026-09-30).
 
+## SQL interface validation
+
+For SQL scalar or adapter changes, run these checks inside the development shell:
+
+```sh
+just test sql-wire-contracts
+just test sql-wire-types
+just test server-sql-types
+```
+
+The checks cover shared wire contracts, scalar aliases and prepared values in
+database drivers, then a copied ReleaseSafe server using the same definitions
+and values through the native console, psql and MySQL, including disk restart.
+CI and release run the installed-server smoke after the console latency gate
+using the same binary. The
+[protocol test owner](../tests/interfaces/sql_wire/README.md) explains the
+independent corpus, required clients and evidence limits.
+
+When the change updates published documentation, also run the
+[handbook checks](#public-documentation). Repository link checks alone do not
+validate published command conventions or build the site.
+
 ## Public documentation
 
 `just transit-docs::install` installs locked workspace dependencies; the existing

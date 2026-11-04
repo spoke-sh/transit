@@ -50,6 +50,56 @@ relevant milestone or historical review for scope and rationale. Planning and
 historical records must not be required to discover current user-facing semantics. Promote newly
 established behavior, limits and reasoning into the public owner with the change.
 
+## Required checks before opening or updating a PR
+
+Run these baseline checks from the repository root for **every PR**, including
+documentation-only changes, before opening the PR or pushing updates to it:
+
+```sh
+nix develop --command just check fast
+nix develop .#docs --command just transit-docs::install
+nix develop .#docs --command just transit-docs::check
+```
+
+These are separate required gates:
+
+- `just check fast` runs the formatting, tooling, version/inventory, independent
+  Python and source-link checks owned by [checks.json](tests/runner/checks.json).
+  It does not build the handbook, compile runtime tests or qualify live services.
+- `just transit-docs::check` runs handbook formatting/lint, strict TypeScript,
+  content/navigation tests and the production build with broken links and anchors
+  treated as errors. The install command only prepares locked dependencies.
+  `python3 -B tests/runner/docs.py` and `just check fast` cannot substitute for
+  this gate.
+
+The handbook gate is required even when changes are outside `docs/handbook/`:
+published sources include component/SDK guides, examples and generated contracts,
+and the [publication workflow](.github/workflows/handbook.yml) builds every PR.
+Keep repository-only `nix`/`just` command examples in source tooling guides outside
+the published catalog; link to their owner from the handbook.
+
+Also run the affected checks below; the baseline does not replace them. Commands
+in this table run inside `nix develop`, with the locked dependencies installed:
+
+| Change | Additional required checks |
+| --- | --- |
+| Board frontend or shared browser packages/contracts | `just transit-board::check` and affected browser proofs |
+| Public protocol, schema, ABI or generated bindings | `just check contracts` and dependent package/caller checks |
+| Console, server, SQL execution, gateway or their build/startup paths | `just test console-latency-gate` and `just test server-sql-types`; use the pinned `ci-experience` shell for the gate |
+| SQL scalar types or PostgreSQL/MySQL adapters | The [SQL interface validation loop](tasks/README.md#sql-interface-validation), including `just test sql-wire-contracts` and `just test sql-wire-types` |
+| Handbook navigation, search, rendering or hosting | The [handbook browser proof](docs/handbook/README.md#validation-and-hosting), including affected root/prefixed routes |
+
+Before pushing implementation or test-infrastructure changes, also run the affected
+`just ci clean --lane NAME` checks against committed HEAD as described below.
+Documentation-only changes do not require runtime suites. Full clean qualification
+remains an integration/release gate.
+
+Use the final PR contents as the validation basis; rerun affected gates after
+subsequent edits. Do not open or update a PR while a required gate is failing or
+incomplete. Record the commands, outcomes and scope in the PR; skipped checks,
+task listings, dry runs and dependency installation are not passes. A baseline
+pass is not full runtime qualification.
+
 ## Implementation rules
 
 - Design from the data lifecycle. Identify the data kind, stable object and
@@ -517,8 +567,9 @@ compiler and standard library, not examples from older releases. Use the
 [test index](tests/README.md) to select the smallest meaningful owning checks
 during iteration and the affected caller/fault checks before submitting. Install
 locked frontend dependencies with `just transit-board::install` when needed.
-Documentation-only changes require link/whitespace checks and affected site checks;
-they do not require a new runtime suite. Before pushing implementation or test
+The [required pre-PR gates](#required-checks-before-opening-or-updating-a-pr)
+apply to documentation-only changes too; they do not require a new runtime suite.
+Before pushing implementation or test
 infrastructure changes, run the affected `just ci clean --lane NAME` checks against
 committed HEAD to expose dependencies hidden by local outputs. Shared contract,
 authority and cross-domain changes require their dependent lanes; full clean
