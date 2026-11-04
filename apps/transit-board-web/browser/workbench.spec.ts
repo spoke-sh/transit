@@ -759,10 +759,7 @@ test("reactive workbook retains drafts, complete inputs and independent results 
   await expect(cell(3).getByRole("textbox", { name: "Relation name" })).toHaveValue("filtered");
   expect(evaluations).toHaveLength(3);
   await page.emulateMedia({ reducedMotion: "reduce" });
-  expect(
-    (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze())
-      .violations,
-  ).toEqual([]);
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   if (process.env.BOARD_SCREENSHOT) {
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.screenshot({

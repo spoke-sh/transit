@@ -118,10 +118,10 @@ function InterfaceBody({ scope, children }: { scope: Deployment; children: React
             Definition recovery
           </Link>
         </header>
-        <div className="shell-scope">
+        <section className="shell-scope" aria-label="Workspace scope">
           Realm {scope.realm} · Private workspace · Reads check current permissions
           <div ref={inspector.setScopeHost} />
-        </div>
+        </section>
         <aside id="shell-navigation" className="shell-navigation" aria-label="Workspace navigation">
           <button
             className="plane-toggle"
@@ -253,7 +253,7 @@ function InterfaceBody({ scope, children }: { scope: Deployment; children: React
             </div>
           )}
         </div>
-        <div className="shell-context">
+        <section className="shell-context" aria-label="Context pane">
           <div
             role="tablist"
             aria-label="Context"
@@ -345,7 +345,7 @@ function InterfaceBody({ scope, children }: { scope: Deployment; children: React
               </aside>
             </section>
           </div>
-        </div>
+        </section>
       </div>
     </Interface.Provider>
   );
