@@ -9665,6 +9665,16 @@ test "transaction record reservation retry quota disclosure and abort closure su
     catalog.deinit();
     catalog = try owner(&wal, &objects);
     try reference.requireSame((try catalog.directRecord(allocator, request, access.policy())).reference);
+    var external_key = key;
+    external_key.token[0] ^= 1;
+    const before_adoption = catalog.store.root;
+    try t.expectError(error.InvalidDirectRecord, catalog.clientToken(.{ .bind = .{
+        .key = external_key,
+        .fingerprint = reference.content.sha256,
+        .intent = .{ .external = .{ .connection = key.connection, .namespace = 1, .operation = 9601, .record = reference } },
+    } }, access.policy()));
+    try t.expectEqualDeep(before_adoption, catalog.store.root);
+    try t.expect(try catalog.clientToken(.{ .lookup = external_key }, access.policy()) == null);
     // Two lost acknowledgements are attempts, not observed publication returns.
     // Recovery proves the durable inventory below independently of telemetry.
     const measured = metrics.snapshot().?.values;
@@ -9798,4 +9808,108 @@ test "transaction record graph retains uncertain and committed payloads and rele
     // Accepted committed bytes cannot be reconstructed if storage loses them.
     try objects.objectStore().delete(try c.DirectRecord.key(references[1], &name));
     try t.expectError(error.DirectRecordMissing, catalog.directRecord(allocator, requests[1], access.policy()));
+}
+
+test "owned progress reserves before creation and recovers exact readiness without resurrection" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const key: c.DirectClientToken.Key = .{ .definition = p.Growth.current_definition, .connection = .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null }, .account = @splat(93), .token = @splat(1) };
+    const original = try c.DirectRecord.store(objects.objectStore(), key.scope(), 17, "original admission");
+    const binding: c.DirectClientToken.Binding = .{ .key = key, .fingerprint = @splat(17), .intent = .{ .external = .{ .connection = key.connection, .namespace = 1, .operation = 73000, .record = original } } };
+    const receipt = (try catalog.clientToken(.{ .bind = binding }, access.policy())).?;
+    const request: c.DirectProgressRecord.Advance = .{ .key = key, .expected = receipt.position, .pending = true, .cancel = false, .format = 17, .bytes = try c.DirectTableProtocol.Binary.encode(allocator, "first progress") };
+    const table_binding = try tokenBinding(objects.objectStore(), 73001, 2);
+    const table_receipt = (try catalog.clientToken(.{ .bind = table_binding }, access.policy())).?;
+    var wrong_owner = request;
+    wrong_owner.key = table_binding.key;
+    wrong_owner.expected = table_receipt.position;
+    try t.expectError(error.InvalidDirectRecord, catalog.clientProgress(.{ .advance = wrong_owner }, access.policy()));
+    const encoded = try c.DirectProgressRecord.encode(allocator, request);
+    const reference = try c.DirectRecord.reference(key.scope(), c.DirectProgressRecord.format, encoded);
+    var name: [96]u8 = undefined;
+    catalog.store.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.clientProgress(.{ .advance = request }, access.policy()));
+    try t.expect(try objects.objectStore().head(try c.DirectRecord.key(reference, &name)) == null);
+    try catalog.recover();
+    const staged = (try catalog.clientProgress(.{ .inspect = key }, access.policy())).state.?;
+    try t.expectEqualDeep(receipt, staged.receipt);
+    try t.expect(staged.record == null and staged.pending);
+    try reference.requireSame(staged.staged.?.reference);
+    // The retry resumes the reservation. Losing the readiness reply must not
+    // lead to another record, operation or subsequent recreation of its bytes.
+    try t.expectError(error.LostAcknowledgement, catalog.clientProgress(.{ .advance = request }, access.policy()));
+    catalog.store.lose_reply = false;
+    try catalog.recover();
+    const accepted = (try catalog.clientProgress(.{ .advance = request }, access.policy())).state.?;
+    try t.expect(accepted.staged == null and accepted.pending);
+    try reference.requireSame(accepted.record.?);
+    const serialized = try p.Json.valueAlloc(allocator, accepted);
+    const omitted = try std.mem.replaceOwned(u8, allocator, serialized, ",\"staged\":null", "");
+    try t.expectError(error.MissingField, p.Json.parseFromSlice(c.DirectClientToken.Progress, allocator, omitted));
+    const root_before = catalog.store.root;
+    try t.expectEqualDeep(accepted, (try catalog.clientProgress(.{ .advance = request }, access.policy())).state.?);
+    try t.expectEqualDeep(root_before, catalog.store.root);
+    var changed = request;
+    changed.bytes = try c.DirectTableProtocol.Binary.encode(allocator, "stale replacement");
+    try t.expectError(error.ClientOperationConflict, catalog.clientProgress(.{ .advance = changed }, access.policy()));
+    changed.expected = accepted.revision;
+    const oversized: [8192]u8 = @splat(37);
+    changed.bytes = try c.DirectTableProtocol.Binary.encode(allocator, &oversized);
+    try t.expectError(error.ClientTokenBudget, catalog.clientProgress(.{ .advance = changed }, access.policy()));
+    try t.expectEqualDeep(root_before, catalog.store.root);
+    try t.expectError(error.InvalidDirectRecord, catalog.clientProgress(.{ .update = .{ .key = key, .expected = accepted.revision, .pending = true, .cancel = false, .record = reference } }, access.policy()));
+    try t.expectError(error.InvalidDirectRecord, catalog.directRecord(allocator, .{ .stage = .{ .scope = key.scope(), .format = c.DirectProgressRecord.format, .bytes = try c.DirectTableProtocol.Binary.encode(allocator, encoded) } }, access.policy()));
+    var foreign_binding = binding;
+    foreign_binding.intent.external.record = reference;
+    try t.expectError(error.InvalidDirectRecord, foreign_binding.validate());
+    _ = try catalog.directRecord(allocator, .{ .read = reference }, access.policy());
+    access.deny_at = access.calls + 1;
+    try t.expectError(error.CatalogDenied, catalog.directRecord(allocator, .{ .read = reference }, access.policy()));
+    access.deny_at = std.math.maxInt(usize);
+    var abandoned = request;
+    abandoned.expected = accepted.revision;
+    abandoned.bytes = try c.DirectTableProtocol.Binary.encode(allocator, "reserved but replaced before creation");
+    const abandoned_reference = try c.DirectRecord.reference(key.scope(), c.DirectProgressRecord.format, try c.DirectProgressRecord.encode(allocator, abandoned));
+    catalog.store.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.clientProgress(.{ .advance = abandoned }, access.policy()));
+    catalog.store.lose_reply = false;
+    try catalog.recover();
+    const interrupted = (try catalog.clientProgress(.{ .inspect = key }, access.policy())).state.?;
+    try abandoned_reference.requireSame(interrupted.staged.?.reference);
+    try reference.requireSame(interrupted.record.?);
+    _ = try catalog.directRecord(allocator, .{ .read = reference }, access.policy());
+    changed = request;
+    changed.expected = interrupted.revision;
+    changed.pending = false;
+    changed.bytes = try c.DirectTableProtocol.Binary.encode(allocator, "terminal progress");
+    const terminal = (try catalog.clientProgress(.{ .advance = changed }, access.policy())).state.?;
+    try t.expect(!terminal.pending and terminal.staged == null);
+    try t.expectEqualDeep(receipt, terminal.receipt);
+    try t.expectError(error.ClientOperationConflict, catalog.clientProgress(.{ .advance = abandoned }, access.policy()));
+    try t.expect(try objects.objectStore().head(try c.DirectRecord.key(abandoned_reference, &name)) == null);
+    try t.expectError(error.ClientOperationConflict, catalog.directRecord(allocator, .{ .read = reference }, access.policy()));
+    try t.expectError(error.ClientOperationConflict, catalog.clientProgress(.{ .advance = request }, access.policy()));
+    catalog.deinit();
+    wal.deinit();
+    objects.deinit();
+    wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    catalog = try owner(&wal, &objects);
+    try t.expectEqualDeep(terminal, (try catalog.clientProgress(.{ .advance = changed }, access.policy())).state.?);
+    try objects.objectStore().delete(try c.DirectRecord.key(terminal.record.?, &name));
+    try t.expectError(error.DirectRecordMissing, catalog.clientProgress(.{ .advance = changed }, access.policy()));
+    try t.expect(try objects.objectStore().head(try c.DirectRecord.key(terminal.record.?, &name)) == null);
+    const admission = try c.DirectRecord.load(allocator, objects.objectStore(), original);
+    try t.expectEqualStrings("original admission", admission);
 }

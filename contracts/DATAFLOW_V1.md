@@ -140,6 +140,31 @@ transaction without first reading that head. An abort disposition is durably
 recorded before abort settlement can install participant barriers. Each recovery
 unit advances at most one transaction participant.
 
+Managed recovery replaces subsequent `DFW1` work through Catalog's signed
+`client_progress.advance`. A `CPR1` envelope binds the original token, expected
+progress revision, requested pending/cancel flags, inner format and payload.
+Each token has one mandatory nullable `staged` slot. The Catalog publishes that
+reservation before creating bytes and publishes readiness before replacing the
+current record. The old current record stays readable during staging. Exact
+retries resume the same reservation or verify the accepted ready object;
+missing accepted bytes are corruption, not permission to recreate them.
+Changed proposals require the currently observed revision. Settled work cannot
+start again. Generic record staging, initial token binding and generic progress
+updates cannot attach `CPR1` records.
+
+Managed work reserves 64 KiB of account capacity per token. The current and
+candidate encoded progress records plus 512 bytes of bookkeeping must fit that
+reservation; physical backlog remains subject to storage quota and collection.
+The collector retains the current and staged references at its accepted catalog
+cut, including reservations whose bytes do not yet exist. Superseded progress
+becomes collectible after the normal epoch and reader-grace fences. Old catalog
+actions remain replayable without their superseded payloads. Terminal work keeps
+its last progress record. Declaration records and the initial `DFW1` referenced
+by the guarded head and original token remain retained admission evidence;
+this profile does not collect abandoned pre-admission declarations or work.
+These rules govern internal recovery records, not user result retention or
+permission to execute a computation.
+
 The output Table, source read guard, head and completed revision key share one
 common transaction. The revision key holds an immutable manifest reference. Its
 manifest retains the declaration, exact source/output definitions, encoded output

@@ -197,8 +197,10 @@ pub const Progress = struct {
     pending: bool,
     cancel: bool,
     record: ?c.DirectRecord.Reference,
+    /// Mandatory durable reservation; null is distinct from an omitted old format.
+    staged: ?c.DirectProgressRecord.Pending,
     pub fn initial(receipt: Receipt) Progress {
-        return .{ .receipt = receipt, .revision = receipt.position, .pending = true, .cancel = false, .record = null };
+        return .{ .receipt = receipt, .revision = receipt.position, .pending = true, .cancel = false, .record = null, .staged = null };
     }
     pub fn validate(self: Progress) !void {
         try self.receipt.validate();
@@ -208,6 +210,20 @@ pub const Progress = struct {
             try value.validate();
             if (!std.meta.eql(value.scope, self.receipt.binding.key.scope())) return error.DataIdentityConflict;
         }
+        if (self.staged) |value| {
+            try value.reference.validate();
+            try value.expected.validate();
+            if (!self.pending or self.receipt.binding.intent != .external or
+                value.reference.format != c.DirectProgressRecord.format or
+                !std.meta.eql(value.reference.scope, self.receipt.binding.key.scope()) or
+                value.expected.partition != self.revision.partition or value.expected.next_lsn < self.receipt.position.next_lsn or
+                value.expected.next_lsn >= self.revision.next_lsn or (self.cancel and !value.cancel)) return error.InvalidClientToken;
+        }
+        if (self.record) |value| if (value.format == c.DirectProgressRecord.format and self.receipt.binding.intent != .external) return error.InvalidClientToken;
+        const current_bytes = if (self.record) |value| (if (value.format == c.DirectProgressRecord.format) value.content.bytes else 0) else 0;
+        const staged_bytes = if (self.staged) |value| value.reference.content.bytes else 0;
+        if ((current_bytes != 0 or staged_bytes != 0) and
+            try std.math.add(u64, try std.math.add(u64, current_bytes, staged_bytes), 512) > self.receipt.binding.budget.bytes) return error.ClientTokenBudget;
     }
     pub fn id(self: Progress) u64 {
         return self.receipt.position.next_lsn;
@@ -240,10 +256,11 @@ pub const ProgressRequest = union(enum) {
     operation: struct { scope: c.DirectRecord.Scope, id: u64 },
     list: Selection,
     update: Update,
+    advance: c.DirectProgressRecord.Advance,
     pub fn scope(self: ProgressRequest) c.DirectRecord.Scope {
         return switch (self) {
             .inspect => |value| value.scope(),
-            .update => |value| value.key.scope(),
+            inline .update, .advance => |value| value.key.scope(),
             inline .operation, .list => |value| value.scope,
         };
     }
@@ -251,7 +268,7 @@ pub const ProgressRequest = union(enum) {
         try self.scope().validate();
         switch (self) {
             .inspect => |value| try value.validate(),
-            .update => |value| try value.validate(),
+            inline .update, .advance => |value| try value.validate(),
             .operation => |value| if (value.id < 2) return error.InvalidClientToken,
             .list => {},
         }

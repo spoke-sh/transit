@@ -17,6 +17,9 @@ pub const External = struct {
         try c.Model.nativeId(self.namespace);
         try self.identity().validate();
         try self.record.validate();
+        // An immutable operation reservation cannot adopt a payload whose
+        // transaction or progress owner may close its lifetime independently.
+        if (self.record.format == c.DirectProgressRecord.format or self.record.format == c.DirectTransactionRecord.format) return error.InvalidDirectRecord;
         if (!std.meta.eql(self.connection, self.record.scope.connection)) return error.DataIdentityConflict;
     }
 };

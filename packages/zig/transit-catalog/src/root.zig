@@ -144,6 +144,7 @@ test {
     _ = LogAuthority;
     _ = KVAuthority;
     _ = DocumentAuthority;
+    _ = DirectProgressRecord;
     _ = DirectBranch;
     _ = DirectLog;
     _ = DirectLogPreparedAppend;
@@ -163,6 +164,7 @@ pub const testing = if (@import("builtin").is_test) struct {
     pub const Authority = @import("TestAuthority.zig");
 } else struct {};
 pub const DirectIntent = @import("DirectIntent.zig");
+pub const DirectProgressRecord = @import("DirectProgressRecord.zig");
 pub const DirectRecord = @import("DirectRecord.zig");
 pub const DirectTransactionRecord = @import("DirectTransactionRecord.zig");
 pub const DirectClientToken = @import("DirectClientToken.zig");

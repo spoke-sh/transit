@@ -126,7 +126,11 @@ only after proving that none of those owners need them. Saved direct-intent
 references and permanent identity reservations remain retained. Transaction-owned
 managed result candidates become eligible only after authoritative abort and
 complete cleanup. Uncertain attempts and committed revisions remain protected;
-retirement alone does not release them. The local
+retirement alone does not release them. Replaceable managed progress uses
+Catalog-owned `CPR1` records: collection retains the current and staged references
+at its accepted cut and may reclaim superseded payloads after reader grace.
+Terminal progress, declarations and initial-admission records remain retained.
+The local
 maintenance executor schedules native and direct collection using separate
 source-allocation activity and durable pass progress. It resumes an incomplete
 pass before starting another and still requires current maintenance authority

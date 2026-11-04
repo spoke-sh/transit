@@ -300,13 +300,23 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
                     switch (input) {
                         .inspect => |key| try key.requireSame(state.receipt.binding.key),
                         .operation => |saved| if (saved.id != state.id()) return error.DataIdentityConflict,
+                        .advance => |saved| {
+                            try saved.key.requireSame(state.receipt.binding.key);
+                            const bytes = try c.DirectProgressRecord.encode(allocator, saved);
+                            defer allocator.free(bytes);
+                            const reference = try c.DirectRecord.reference(saved.key.scope(), c.DirectProgressRecord.format, bytes);
+                            if (state.staged != null or state.pending != saved.pending or state.cancel != saved.cancel or
+                                !std.meta.eql(state.record, @as(?c.DirectRecord.Reference, reference)) or
+                                state.revision.partition != saved.expected.partition or state.revision.next_lsn <= saved.expected.next_lsn)
+                                return error.InvalidTableResponse;
+                        },
                         .update => |saved| {
                             try saved.key.requireSame(state.receipt.binding.key);
-                            if (state.pending != saved.pending or state.cancel != saved.cancel or !std.meta.eql(state.record, saved.record) or state.revision.partition != saved.expected.partition or state.revision.next_lsn < saved.expected.next_lsn) return error.InvalidTableResponse;
+                            if (state.staged != null or state.pending != saved.pending or state.cancel != saved.cancel or !std.meta.eql(state.record, saved.record) or state.revision.partition != saved.expected.partition or state.revision.next_lsn < saved.expected.next_lsn) return error.InvalidTableResponse;
                         },
                         .list => unreachable,
                     }
-                } else if (input == .update) return error.InvalidTableResponse;
+                } else if (input == .update or input == .advance) return error.InvalidTableResponse;
             }
         },
         .client_token => |receipt| {
