@@ -109,7 +109,8 @@
         rec {
           release = pkgs.mkShellNoCC {
             packages = [
-              pkgs.python3
+              (pkgs.python3.withPackages (ps: [ ps.pyyaml ]))
+              pkgs.just
               pkgs.git
               pkgs.gh
               pkgs.kubernetes-helm
