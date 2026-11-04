@@ -31,10 +31,13 @@ authorization, preparation, reads and account coordination for all adapters.
 
 The PostgreSQL/MySQL profile is autocommit SELECT, CREATE TABLE, INSERT, UPDATE and DELETE.
 Typed parameters apply to single-Table SELECT/DML. Literal relational SELECT
-uses the admitted shared int64 join/group profile. Core wire values are int64,
-uint64, finite float64, Boolean, UTF-8, binary and SQL NULL. PostgreSQL represents
+uses the admitted shared int64 join/group profile. Core wire values are signed and
+unsigned 8–64-bit integers, finite float32/64, exact decimal (precision 1–38;
+MySQL scale at most 30), Boolean, UTF-8, binary and SQL NULL. PostgreSQL represents
 uint64 as numeric(20,0); MySQL uses unsigned LONGLONG. PostgreSQL text rejects NUL.
-Other projected types reject without opening a result stream.
+Other projected types reject without opening a result stream. CREATE TABLE also
+checks every column before durable admission; a type refusal names the protocol,
+column and descriptor. Native Tables retain their broader logical type profile.
 Each UTF-8 or binary bound parameter is limited to 4096 bytes. SQL text, complete
 intent size and session budgets have separate limits in the wire contract.
 

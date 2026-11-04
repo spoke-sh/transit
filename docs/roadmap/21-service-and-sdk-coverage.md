@@ -50,6 +50,8 @@ driver slice, fast inventory controls and required early CI/release step are
 implemented. Current behavior lives in the [database protocol reference](../handbook/reference/database-protocols.md)
 and [wire contract](../../contracts/SQL_GATEWAY_V1.md); runnable loops and their
 limits live with the [test owner](../../tests/interfaces/sql_wire/README.md).
+The [qualification record](../history/qualification/sql.md#scalar-parity-across-sql-interfaces--2026-11-04)
+identifies the executed clean build, latency, installed, gateway and session checks.
 The design below preserves the original plan and broader qualification targets;
 it is not evidence that every listed full lane or fault schedule has run.
 
