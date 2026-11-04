@@ -5,8 +5,9 @@
 This design item reimagines Board around data, derived computations and
 governing policies. Its current proposal connects a searchable catalog to
 focused dataset inspection, schema relationships, SQL workbooks, directed
-lineage and change review. D3 develops horizontal activity navigation and one
-selection-driven Inspector, with persistent branch/time context. Write-ahead
+lineage and change review. D5 revises the root into an accordion plane with
+Inspector/Assistant tabs and formalizes temporary reactive workbook cells.
+It retains D3's selection-driven Inspector and persistent context. Write-ahead
 change streams (`TransitLog`), durable processes (`Station`) and connectors
 explain how those declarations are
 activated. D2 supplies the retained monochrome baseline; D3 reviews topology
@@ -21,7 +22,7 @@ declaration profile. [Inspect with Board](../../handbook/guides/inspect-board.md
 and the [data model](../../handbook/reference/data-model.md) own current
 implemented behavior and public contracts.
 
-**Current review:** [D4 — Readable quantities and storage evidence](D4.md).
+**Current review:** [D5 — Accordion workbench and reactive workbook state](D5.md).
 
 | Review | Focus | Status | Outcome or next decision |
 | --- | --- | --- | --- |
@@ -29,6 +30,7 @@ implemented behavior and public contracts.
 | [D2](D2.md) | Focused catalog, dataset, relationship, workbook, lineage and change views; monochrome styling and eight browser-rendered screenshots | In review | Selected monochrome direction is reflected in the artifacts; review the catalog-first default, contextual detail and separate change workflows. |
 | [D3](D3.md) | Horizontal activities, optional object navigation, one Inspector and persistent branch/time context across three workflows | Accepted in part | Reviewer endorsed the topology direction; six new browser figures, exact dimensions and responsive behavior remain under review. Theme retained; the existing metadata/result workbench now uses the shared topology. Synthetic storage/execution/comparison dimensions remain proposed. |
 | [D4](D4.md) | Readable binary quantities, retained definition/row placement and maintenance evidence | Accepted in part | Quantity and R2 implementation direction approved; precise layouts and installed evidence remain separately reviewable. |
+| [D5](D5.md) | Folding root plane, Inspector/Assistant tabs, composed interface state and dependent SQL cells | Accepted in part | Reviewer requested the accordion/reactive direction and selected design-first delivery and separate context tabs. Geometry, scheduling and session graph contracts remain in review; no production changes. |
 
 Review status tracks the design conversation. The studies and local prototype
 do not establish implemented browser routes, arbitrary joins, whole-dataset
@@ -40,9 +42,12 @@ contracts; design acceptance alone does not complete that work.
 
 Follow the shared [review workflow](../README.md#maintaining-the-sequence) and
 [template](../TEMPLATE.md) when adding subsequent reviews; the next review in
-this item is `D5.md`.
+this item is `D6.md`.
 
 ## Supporting material
+
+- [D5 figures and state model](D5.md#visual-studies), [interactive study](d5.html),
+  [fixture/reducer](d5-model.js) and [capture/check script](d5-render.mjs).
 
 - [D4 storage structure and evidence](D4.md#visual-studies), [monochrome wireframe](d4-storage.svg), [installed figures](D4.md#installed-figures).
 
