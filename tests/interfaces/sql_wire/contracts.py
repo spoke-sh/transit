@@ -126,8 +126,13 @@ def mysql_backend():
 def scalars(protocol):
     cases = []
     for kind, values in (
+        ('int8', [-128, -1, 0, 127]),
+        ('int16', [-32768, 0, 32767]),
+        ('int32', [-2**31, 0, 2**31-1]),
         ('int64', [-2**63, -32769, -1, 0, 1, 32768, 2**63-1]),
+        ('uint8', [0, 255]), ('uint16', [0, 65535]), ('uint32', [0, 2**32-1]),
         ('uint64', [0, 1, 10000, 2**63-1, 2**63, 2**64-1]),
+        ('float32', [-0.0, 0.0, -1.25, 2**-149, (2-2**-23)*2**127]),
         ('float64', [-0.0, 0.0, -1.25, 5e-324, 2.2250738585072014e-308, 1.7976931348623157e308]),
         ('boolean', [False, True]),
         ('utf8', [b'', 'snow ☃ and 列'.encode()] + ([b'a\0b'] if protocol == 'mysql' else [])),
@@ -151,10 +156,33 @@ def scalars(protocol):
                         n //= 10000
                     binary = struct.pack('>hhHH' + 'H'*len(digits), len(digits), max(len(digits)-1, 0), 0, 0, *digits)
                 else:
-                    binary = struct.pack(order + {'int64': 'q', 'uint64': 'Q', 'float64': 'd', 'boolean': '?'}[kind], value)
+                    formats = dict(int8='b', int16='h', int32='i', int64='q', uint8='B', uint16='H', uint32='I', uint64='Q', float32='f', float64='d', boolean='?')
+                    if protocol == 'postgres':
+                        formats.update(int8='h', uint8='h', uint16='i', uint32='q')
+                    binary = struct.pack(order + formats[kind], value)
             if protocol == 'mysql':
                 text = length(len(text)) + text
             cases.append(dict(kind=kind, value=encoded_value, binary=binary.hex(), text=text.hex()))
+    for precision, scale, coefficient in ((10, 2, 0), (10, 2, -12345), (10, 2, 1), (10, 2, 100),
+            (38, 0, 10**38-1), (38, 2, -(10**38-1)), (38, 38, 1), (38, 38, 10**38-1), (38, 4, 100000000)):
+        digits = str(abs(coefficient)).zfill(scale+1)
+        rendered = ('-' if coefficient < 0 else '') + (digits[:-scale]+'.'+digits[-scale:] if scale else digits)
+        raw = rendered.encode()
+        if protocol == 'postgres':
+            # Independently group the decimal spelling around its radix point.
+            whole, _, fraction = rendered.lstrip('-').partition('.')
+            whole = whole.zfill((len(whole)+3)//4*4)
+            fraction = fraction.ljust((len(fraction)+3)//4*4, '0')
+            groups = [int((whole+fraction)[i:i+4]) for i in range(0,len(whole+fraction),4)]
+            weight = len(whole)//4-1
+            while groups and groups[0] == 0:
+                groups.pop(0); weight -= 1
+            while groups and groups[-1] == 0: groups.pop()
+            binary = struct.pack('>hhHH'+'H'*len(groups),len(groups),weight if groups else 0,0x4000 if coefficient<0 else 0,scale,*groups)
+            text = raw
+        else:
+            binary = text = length(len(raw))+raw
+        cases.append(dict(kind='decimal', precision=precision, scale=scale, value=str(coefficient), binary=binary.hex(), text=text.hex()))
     return cases
 
 

@@ -8,6 +8,7 @@ Read the [protocol reference](../../../docs/handbook/reference/database-protocol
 | --- | --- |
 | Wire contract and logical values | [contracts.py](contracts.py), [values.py](values.py), [schema.py](schema.py) |
 | Installed gateway and independent clients | [gateway.py](gateway.py), [clients.py](clients.py), [psql.py](psql.py) |
+| Scalar parity, aliases and admission | [Independent corpus](type_cases.py), [driver matrix](types.py), [inventory and negative controls](type_inventory.py), [installed smoke](../installation/server_sql_types.py) |
 | Authorization, lifecycle and lost replies | [authority.py](authority.py), [lifecycle.py](lifecycle.py), [faults.py](faults.py) |
 | TLS and connection settings | [tls.py](tls.py), [settings.py](settings.py) |
 | Explicit reference deployment | [reference.py](reference.py) |
@@ -17,6 +18,27 @@ Run the owning `just test::sql-wire-*` task with pinned clients; recipes identif
 the `sql-wire` shell and native binary inputs. Protocol acceptance and performance
 measurements have separate expectations. Reference deployment requires its own
 available infrastructure and cannot be inferred from local gateway checks.
+
+For scalar changes, run `just test::sql-wire-contracts`, then
+`just test::sql-wire-types` and `just test::server-sql-types`. The `types` slice
+checks all declared scalar aliases using psycopg text/binary and mysql-connector
+text/prepared paths, empty metadata, NULLs, exact decimals, numeric failures and
+unsupported DDL without durable acceptance. Pinned libpq/libmysqlclient additionally
+check INT/REAL/DECIMAL prepared metadata and exact values. `all` runs this slice
+with fresh state after its existing fault and CLI schedules.
+
+The installed smoke copies one ReleaseSafe executable outside the checkout and
+uses the native console plus real psql/mysql clients. It checks the employees
+declaration, 3-by-3 cross-interface CRUD, 0/1/32/33/65 rows, scalar boundaries,
+unsupported declarations/projections and exact values after a disk restart.
+The no-primary-key employees rowset is compared as a complete multiset; the
+fixture does not invent ORDER BY support. Each invocation retains a distinct
+sanitized `.cache/sql-types/smoke-*.json` manifest with source, binary digest,
+client versions, definition, expected/executed cases and terminal completion.
+CI and release run it serially after the console latency measurement, before
+dependent qualification, using the same optimized binary. Missing clients or
+incomplete cases fail. Fast inventory checks classify every native logical kind
+and SQL scalar alias, so a new type requires a reviewed interface disposition.
 
 The gateway `cli` and `all` slices run `psql.py` with the pinned psql 18 client.
 It checks catalog pagination and ordering, literal/wildcard and quoted Unicode

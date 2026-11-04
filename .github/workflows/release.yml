@@ -34,6 +34,8 @@ on:
       - 'tests/interfaces/installation/board_workbench.py'
       - 'tests/interfaces/installation/board_profiles.py'
       - 'tests/interfaces/installation/server_sql.py'
+      - 'tests/interfaces/installation/server_sql_types.py'
+      - 'tests/interfaces/sql_wire/type_cases.py'
       - 'tests/interfaces/cli/operations/**'
       - 'tests/harness/operation_helpers.py'
       - 'tests/interfaces/cli/console_terminal.py'
@@ -148,6 +150,9 @@ jobs:
       - name: Qualify console startup and statement latency budgets
         timeout-minutes: 10
         run: nix develop .#ci-experience --command python3 -B tests/runner/launch.py tests/performance/console/gate.py --cli .cache/transit-latency/release/bin/transit --node .cache/transit-latency/release/bin/transit-node --host .cache/transit-latency/release/bin/transit-query-host
+      - name: Qualify installed SQL scalar interfaces
+        timeout-minutes: 5
+        run: nix develop .#ci-experience --command python3 -B tests/runner/launch.py tests/interfaces/installation/server_sql_types.py --cli .cache/transit-latency/release/bin/transit
       - name: Preserve console latency gate evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -156,6 +161,7 @@ jobs:
           path: |
             .cache/transit-latency/gate/*.json
             .cache/transit-latency/gate/*.jsonl
+            .cache/sql-types/*.json
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 14

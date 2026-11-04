@@ -653,6 +653,16 @@
           "-B",
           "tests/runner/test_feedback_cost.py"
         ]
+      },
+      {
+        "id": "sql-type-inventory",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/interfaces/sql_wire/type_inventory.py"
+        ]
       }
     ],
     "contracts": [

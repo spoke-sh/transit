@@ -21634,13 +21634,14 @@
       "error_sets": {},
       "error_returns": {
         "compatible()": "<inferred>",
+        "decimalAllocation()": "<inferred>",
         "decode()": "<inferred>",
         "encode()": "<inferred>",
         "text()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 23,
+        "try": 42,
         "catch": 0
       },
       "imports": [
@@ -21974,15 +21975,19 @@
     },
     "packages/zig/transit-postgres/src/Scalar.zig": {
       "errors": {
+        "InexactDecimalRounding": 1,
         "InvalidWireText": 1,
-        "InvalidWireValue": 13,
+        "InvalidWireValue": 16,
         "WireParameterTypeMismatch": 1,
-        "WireValueOutOfRange": 6,
+        "WireValueOutOfRange": 9,
         "WireValueTooLarge": 4
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "decimalAllocation()": "<inferred>",
+        "decimalDecode()": "<inferred>",
+        "decimalEncode()": "<inferred>",
         "decode()": "<inferred>",
         "encode()": "<inferred>",
         "integerText()": "<inferred>",
@@ -21993,8 +21998,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 39,
-        "catch": 5
+        "try": 66,
+        "catch": 7
       },
       "imports": [
         "Frontend.zig",
@@ -31644,31 +31649,58 @@
     },
     "packages/zig/transit-sql-protocol/src/WireType.zig": {
       "errors": {
+        "Inexact": 1,
+        "InexactDecimalRounding": 1,
+        "InvalidLiteral": 1,
+        "InvalidWireValue": 1,
         "MissingWireValue": 1,
+        "NoSpaceLeft": 1,
+        "NonFiniteValue": 1,
         "NullNotAllowed": 1,
+        "Overflow": 1,
         "QueryConflict": 1,
         "QueryTypeError": 1,
-        "UnsupportedWireType": 2
+        "UnsupportedWireType": 4,
+        "WireValueOutOfRange": 1
       },
       "outcomes": {
         "Kind": [
+          "int8",
+          "int16",
+          "int32",
           "int64",
+          "uint8",
+          "uint16",
+          "uint32",
           "uint64",
+          "float32",
           "float64",
+          "decimal",
           "boolean",
           "utf8",
           "binary"
+        ],
+        "Operation": [
+          "declaration",
+          "result",
+          "parameter"
         ]
       },
       "error_sets": {},
       "error_returns": {
+        "admit()": "<inferred>",
+        "admitInner()": "<inferred>",
+        "decimalParse()": "<inferred>",
+        "decimalText()": "<inferred>",
         "from()": "<inferred>",
+        "scalarError()": "anyerror",
+        "validate()": "<inferred>",
         "value()": "<inferred>"
       },
-      "open_error_set_uses": 0,
+      "open_error_set_uses": 2,
       "propagation": {
-        "try": 1,
-        "catch": 0
+        "try": 4,
+        "catch": 5
       },
       "imports": [
         "root.zig",
@@ -32923,7 +32955,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 139,
+        "try": 142,
         "catch": 9
       },
       "imports": [
@@ -33650,7 +33682,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 52,
+        "try": 54,
         "catch": 1
       },
       "imports": [

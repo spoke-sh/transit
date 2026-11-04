@@ -49,14 +49,25 @@ body reads, and partial EOF cannot become another command or a completion.
 | Streams and Queues | [Declarations, metadata and single-partition appends](sql/streaming.md), including `PRODUCE`/`ENQUEUE ... RETURNING` |
 | Parameters | Typed single-Table SELECT/mutations and Stream/Queue appends; the owning compiler imposes its plan limits |
 | Relational reads | Selected literal int64 joins and grouping in the [relational profile](sql/relational.md) |
-| Values | int64, uint64, finite float64, Boolean, UTF-8, binary and SQL NULL |
+| Values | Signed/unsigned 8/16/32/64-bit integers, finite float32/float64, exact decimal, Boolean, UTF-8, binary and SQL NULL |
 | PostgreSQL extended protocol | Prepared reads and suspended read portals; a write requires exactly one Execute followed by Sync |
 | MySQL prepared statements | Bounded classic-protocol preparation, typed execution and explicit handle cleanup |
 
 PostgreSQL exposes uint64 as numeric(20,0); MySQL uses unsigned LONGLONG.
+DECIMAL/NUMERIC preserve precision 1–38 and scale 0–precision (MySQL scale at most
+30); defaults remain precision 38, scale 0. Values never pass through binary
+floating point. Overflow and inexact prepared rescaling reject. `INT`/`INTEGER`
+remain int32, `REAL` remains float32, and `VARCHAR` remains UTF-8. Thus
+`CREATE TABLE employees (id INT, name VARCHAR, salary DECIMAL(10,2))` supports
+empty and populated reads through the console, psql and MySQL.
+
 PostgreSQL text cannot contain NUL. Missing, type-error and conflict cells cannot
-be encoded as SQL NULL. Nested, decimal and other native logical descriptors
-outside these six types reject at the wire boundary. Each UTF-8 or binary bound
+be encoded as SQL NULL. Nested, 128-bit integer, temporal, UUID, JSON and other native logical descriptors
+outside this matrix reject at the wire boundary. CREATE TABLE checks every column
+before admission, so an unsupported declaration cannot succeed and then fail its
+first SELECT. Refusals identify the protocol, column/parameter and type with
+PostgreSQL SQLSTATE `0A000` or MySQL error 1235 / SQLSTATE `42000`. Native Tables may retain broader types; projecting only supported
+columns through a wire client is allowed. Each UTF-8 or binary bound
 parameter is limited to 4096 bytes, independently of frame size.
 
 Stream and Queue append completions use `PRODUCE n` and `ENQUEUE n` command

@@ -268,6 +268,10 @@ sql-transactions:
 sql-wire-gateway:
     nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe
 
+# Typed metadata and exact scalar values through independent prepared drivers.
+sql-wire-types:
+    nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe -- types
+
 # Framed row costs without TLS/native/storage work; also runs before the gateway proof.
 sql-wire-encoding:
     zig build test-sql-wire-encoding -Doptimize=ReleaseSafe
@@ -1004,6 +1008,10 @@ server-board:
 # Ordinary server/console and Board from one copied executable with unavailable PATH.
 server-single-executable:
     zig build test-server-single-executable -Doptimize=ReleaseSafe
+
+# Copied server binary, real console/psql/mysql, scalar CRUD and disk restart.
+server-sql-types *args:
+    nix develop .#ci-experience --command zig build test-server-sql-types -Doptimize=ReleaseSafe -- {{args}}
 
 # Downstream single-executable package, with no source-runtime dependencies.
 server-board-package:

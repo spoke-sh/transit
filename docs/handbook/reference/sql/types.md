@@ -161,6 +161,7 @@ batch. A value can be valid logically and too large for a selected transport.
 | Catalog publication and stored Tables | General typed schemas, typed defaults, optional single/composite primary keys, selected CREATE/ALTER/DROP and atomic DML |
 | Board and native/foreign query SDKs | Views/callers of the admitted native contracts; no separate inference authority or implicit write grants |
 | Logical Arrow IPC export and native results | All logical families, exact type metadata and five-state wrappers; no logical IPC import or C Data admission |
+| PostgreSQL / MySQL SQL | Signed/unsigned 8–64-bit integers, finite float32/64, decimal precision 1–38 (MySQL scale ≤30), Boolean, UTF-8, binary and NULL; [exact mappings and admission](../database-protocols.md#supported-queries-and-types) |
 | Flight SQL | Its configured primitive-int64 Table subset; logical native support does not widen Flight admission |
 | Reactive Table transport | The explicitly qualified two-int64-column profile; general finite Table reads do not widen watch admission |
 

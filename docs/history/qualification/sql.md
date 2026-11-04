@@ -9,6 +9,61 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Scalar parity across SQL interfaces — 2026-11-04
+
+The reported `CREATE TABLE employees (id INT, name VARCHAR, salary DECIMAL(10,2))`
+could succeed through psql while its first SELECT failed wire admission. The
+shared wire profile omitted int32 and decimal, and CREATE did not check its
+declared columns. The [current protocol reference](../../handbook/reference/database-protocols.md#supported-queries-and-types)
+and [wire contract](../../../contracts/SQL_GATEWAY_V1.md) now own the admitted
+widths, exact decimal mappings, refusal diagnostics and remaining limits.
+
+An isolated checkout of `1c2d29038cf5ff6d4b7a626b0c626df96fbe0e2a` passed the
+following sequential checks on Linux x86_64, local disk and the pinned toolchain:
+
+| Check | Executed result |
+| --- | --- |
+| Clean fast profile | All 68 checks, including alias/family dispositions, inventory negative controls, required CI/release steps and documentation links |
+| ReleaseSafe build | `test-sql-wire-build`, `test-operation-fixture` and `transit-board`; no inherited workspace build outputs |
+| Existing console latency gate | Passed unchanged startup, statement and resource budgets; 37.874 seconds for the complete local gate |
+| Installed scalar smoke | All 23 expected stages, 46.265 seconds; copied executable with native console, psql and mysql |
+| Full gateway `all` schedule | Passed existing CLI/C/Python, TLS, authorization, revocation, cancellation, detached-write recovery, certificate replacement, wide values, schema invalidation and lifecycle checks, followed by fresh CLI and scalar slices |
+| Native `sessions-basic` schedule | Passed the existing native session, result/disclosure, inspection, DML and readiness-recovery checks |
+
+The scalar smoke keeps the original employees column declaration and checks all
+three creators against all three readers/writers. It verifies empty results,
+NULLs, Unicode, binary, exact integers/decimals, 1/32/33/65-row reads, unsupported
+DDL with no accepted operation, supported projections from a broader native
+Table, and exact values after restarting the same installation. Its unkeyed
+rowsets are compared as complete multisets; it does not assume ORDER BY support.
+The deeper slice covers every scalar alias, PostgreSQL text/binary and MySQL
+text/prepared execution, typed empty/all-NULL results, range/inexact/required-NULL
+refusals, unsupported parameters, decimal defaults/scale limits, C-driver
+metadata, and stale prepared handles after external ALTER/DROP/name reuse.
+
+Automatic evidence is under `.cache/sql-types/runs/clean-integration-x1nw39vo`.
+The installed smoke manifest SHA-256 is
+`b1dc1f2cedb0fa3196081ea34bf707bef1aa841601e5ef7e364e1c8b57ebe93b`;
+the latency report SHA-256 is
+`8266caa1a955d38a32f177b8b9d9c8e65c329ad0d780a721539a0d4f2b29368f`.
+Reports retain source/binary identity and expected versus completed stages;
+failed development fixtures remain private and are not passing evidence.
+
+The subsequent `92301ab0e` change only bounds type diagnostics to the existing
+512-byte database error-frame limit and adds a nested-type regression. All 68
+fast checks and the full shared SQL/protocol package suite pass at that committed
+source in the isolated checkout, including independent
+scalar bytes, exact float narrowing, malformed numeric input, allocation failure
+cleanup and decimal buffer reuse after warmup. Native messages, stored type
+descriptors and exported ABI layouts did not change; this is additive upstream
+scalar adaptation and correction of the existing wire admission boundary.
+
+These are scoped local proofs, not complete installation/interfaces lanes,
+hosted latency qualification or a release run. Flight/ADBC and other broader
+logical families retain their published profiles. CI/release now require the
+installed smoke after the existing latency gate; registration alone does not
+establish a passing hosted result.
+
 ## Stream and Queue declaration SQL — 2026-10-31
 
 Commits `2edbae87a` and `7ed31b3e7` add dedicated declaration syntax, shared

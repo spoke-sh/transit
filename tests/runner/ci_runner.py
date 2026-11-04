@@ -110,7 +110,8 @@ def console_latency_workflow(job):
     steps = job['steps']
     build = next(step for step in steps if step.get('name') == 'Build optimized console latency executables')
     measure = next(step for step in steps if step.get('name') == 'Qualify console startup and statement latency budgets')
-    assert steps.index(build) < steps.index(measure)
+    scalars = next(step for step in steps if step.get('name') == 'Qualify installed SQL scalar interfaces')
+    assert steps.index(build) < steps.index(measure) < steps.index(scalars)
     assert build['run'] == ('nix develop .#ci-experience --command zig build transit transit-node '
                             'transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe '
                             '--prefix .cache/transit-latency/release')
@@ -120,7 +121,13 @@ def console_latency_workflow(job):
                               '--node .cache/transit-latency/release/bin/transit-node '
                               '--host .cache/transit-latency/release/bin/transit-query-host')
     assert build['timeout-minutes'] == 40 and measure['timeout-minutes'] == 10
-    assert job['timeout-minutes'] > build['timeout-minutes'] + measure['timeout-minutes']
+    assert scalars['run'] == ('nix develop .#ci-experience --command python3 -B tests/runner/launch.py '
+                              'tests/interfaces/installation/server_sql_types.py '
+                              '--cli .cache/transit-latency/release/bin/transit')
+    assert scalars['timeout-minutes'] == 5
+    assert job['timeout-minutes'] > build['timeout-minutes'] + measure['timeout-minutes'] + scalars['timeout-minutes']
+    evidence = next(step for step in steps if step.get('name') == 'Preserve console latency gate evidence')
+    assert evidence['if'] == 'always()' and '.cache/sql-types/*.json' in evidence['with']['path']
     assert not job.get('continue-on-error', False)
     assert all(not step.get('continue-on-error', False) for step in steps)
 
@@ -134,7 +141,8 @@ def release_workflow():
             'tests/interfaces/cli/console_terminal.py', 'tests/interfaces/cli/console_edit.py',
             'apps/transit-board-web/browser/workbench.spec.ts', 'tasks/bindings.just',
             'tasks/test.just', 'tests/interfaces/installation/board_profiles.py',
-            'tests/interfaces/installation/server_sql.py', 'tests/interfaces/cli/operations/**',
+            'tests/interfaces/installation/server_sql.py', 'tests/interfaces/installation/server_sql_types.py',
+            'tests/interfaces/sql_wire/type_cases.py', 'tests/interfaces/cli/operations/**',
             'tests/harness/operation_helpers.py'} <= set(triggers)
     jobs = workflow['jobs']
     console_latency_workflow(jobs['console-latency'])

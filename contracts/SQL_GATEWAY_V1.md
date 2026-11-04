@@ -9,11 +9,27 @@ write. Executed evidence belongs to the
 
 ## Common values and resource budgets
 
-`transit-sql-gateway.Type` admits exactly int64, uint64, finite float64, Boolean,
-UTF-8 and binary logical descriptors. Nullability is independent of the type.
+`transit-sql-protocol.Type` admits signed and unsigned integers of 8, 16, 32 and
+64 bits, finite float32/float64, exact decimal, Boolean, UTF-8 and binary logical
+descriptors. Decimal retains precision 1–38 and scale 0–precision; MySQL additionally
+limits scale to 30. Nullability is independent of the type.
 Values retain exact integer sign/range and finite floating-point checks. Missing,
 type-error and conflict cells never encode as SQL NULL. Other stored descriptors
 return `UnsupportedWireType` at this boundary.
+
+CREATE TABLE columns, projected result columns (including empty results), and
+prepared parameters use this same admission check. Unsupported Table declarations
+reject before accepting durable work or publishing a catalog definition. An
+authorized refusal identifies the protocol, declaration/result/parameter, escaped
+name and logical type in a bounded diagnostic: shared/PostgreSQL SQLSTATE `0A000`,
+mapped to MySQL error 1235 / SQLSTATE `42000` by its existing adapter. Native SQL
+retains its broader type profile; selecting supported columns from a native Table
+does not require admitting its unselected columns to the wire profile.
+
+This adds upstream scalar representations to the current v1 profile without
+changing native messages, stored descriptors or binding ABI layouts. Rejecting
+unsupported Table DDL closes an admission gap in the existing wire type boundary;
+it does not reinterpret previously accepted work.
 
 The shared prepared-scalar binder limits each UTF-8 or binary parameter to 4096
 bytes. This is a per-value bound, independent of the frame/session ceilings and
@@ -285,19 +301,28 @@ by the session owner. `saslInitial` admits only bounded SCRAM-SHA-256 payloads.
 
 | Logical type | Result OID | Text | Binary |
 | --- | ---: | --- | --- |
+| int8, int16, uint8 | 21 | Exact decimal integer | Signed two-byte big-endian |
+| int32, uint16 | 23 | Exact decimal integer | Signed four-byte big-endian |
+| uint32 | 20 | Unsigned decimal integer | Nonnegative signed eight-byte big-endian |
 | int64 | 20 | Signed decimal | Signed eight-byte big-endian |
 | uint64 / counts | 1700 | Unsigned decimal | Positive numeric, scale zero, base-10000 digits; `numeric(20,0)` modifier |
+| finite float32 | 700 | Decimal floating point | Four-byte IEEE big-endian |
 | finite float64 | 701 | Decimal floating point | Eight-byte IEEE big-endian |
+| decimal(p,s) | 1700 | Exact decimal retaining scale | Signed base-10000 numeric; `numeric(p,s)` modifier |
 | Boolean | 16 | `t` / `f` | Exactly zero or one |
 | UTF-8 | 25 | UTF-8 without NUL | Same |
 | Binary | 17 | `\\x` followed by hex | Exact bytes |
 
 Parameter OID zero infers the canonical type. Signed integer OIDs 21/23/20
-admit lossless int16/int32/int64 representations for int64 or nonnegative uint64;
-numeric OID 1700 is also available for uint64. Numeric parameters have integer
+admit lossless integer representations within the logical destination's range;
+numeric OID 1700 is also available for uint64. uint64 numeric parameters have integer
 scale and a maximum of five base-10000 digits; negative, fractional, special and
-overflow values reject. Float OIDs 700/701 preserve their declared width before
-widening to float64. UTF-8 accepts OIDs 25/1043. Other cross-kind conversions
+overflow values reject. Decimal parameters accept OID 1700 or integer OIDs,
+with exact rescaling to their declared precision/scale and no binary-float conversion.
+Decimal binary inputs bound digit count to 20, weight to -10 through 9 and display
+scale to 0–38; invalid groups, special signs, overflow and discarded nonzero
+fractional digits reject. Float OIDs 700/701 preserve their declared width and
+require exact representation in the destination. UTF-8 accepts OIDs 25/1043. Other cross-kind conversions
 reject, including an incompatible declared OID on a NULL parameter. Text integer
 parameters obey their declared width. SQL constraints remain the compiler's
 responsibility. Bytea text decoding allocates in the supplied allocator; other
@@ -394,16 +419,25 @@ logical parameter types. No query-attribute layout is accepted.
 
 | Logical type | Result field type | Flags / representation |
 | --- | --- | --- |
+| int8 / uint8 | TINY (1) | One byte; UNSIGNED for uint8 |
+| int16 / uint16 | SHORT (2) | Two bytes little-endian; UNSIGNED for uint16 |
+| int32 / uint32 | LONG (3) | Four bytes little-endian; UNSIGNED for uint32 |
 | int64 | LONGLONG (8) | Signed eight-byte little-endian |
 | uint64 / counts | LONGLONG (8) | UNSIGNED, eight-byte little-endian |
+| finite float32 | FLOAT (4) | Four-byte IEEE little-endian |
 | finite float64 | DOUBLE (5) | Eight-byte IEEE little-endian |
+| decimal(p,s) | NEWDECIMAL (246) | Length-encoded exact decimal text in text and binary rows; decimals=s |
 | Boolean | TINY (1) | UNSIGNED; integer zero or one |
 | UTF-8 | VAR_STRING (253) | Session's explicitly selected UTF-8 collation |
 | Binary | BLOB (252) | BINARY flag, charset 63 |
 
 Non-nullable fields add NOT_NULL. Numeric fields use charset 63. Parameters
 admit signed/unsigned TINY, SHORT, LONG, INT24 and LONGLONG when they fit the
-logical integer or zero/one Boolean destination; FLOAT widens to finite DOUBLE.
+logical integer or zero/one Boolean destination; FLOAT/DOUBLE must fit the finite
+logical float destination exactly. Decimal parameters admit DECIMAL (0),
+NEWDECIMAL (246), or integer types; string decimal payloads retain their exact
+coefficient and reject overflow or inexact rescaling. Decimal result length is
+precision plus one sign position and, for nonzero scale, one decimal point.
 String/blob wire types carry length-encoded UTF-8/binary bytes. Embedded NUL is
 valid in MySQL length-framed values. NULL remains separate from an empty value;
 type code NULL carries no value bytes. Unsupported codes/flags, negative unsigned

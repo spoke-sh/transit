@@ -12,7 +12,7 @@ owning data or execution service; a transport never grants authority.
 | Use KV or collaborative Documents | [Resource client](../reference/state.md), [Document services](../reference/documents.md) | Explicit encoding or accepted structured revisions; SQL declarations do not provision these objects |
 | Run interactive SQL | [Console](../../../apps/transit-cli/docs/console.md), [SQL reference](../reference/sql.md) | Independent server-managed local/remote sessions; finite reads, Table mutations and scoped administration |
 | Build a SQL session client | [SQL HTTP/TLS API](../reference/sql-sessions.md) | Logical sessions, typed results and token-based recovery of accepted operations |
-| Use a PostgreSQL or MySQL client | [Database protocols](../reference/database-protocols.md) | Explicit listeners and authentication, autocommit Table reads/writes and six scalar types; optional local TLS |
+| Use a PostgreSQL or MySQL client | [Database protocols](../reference/database-protocols.md) | Explicit listeners and authentication, Table reads/writes and the documented integer/float/decimal/text/binary/Boolean profile; optional local TLS |
 | Inspect the system | [Board OpenAPI](../reference/board-api.md) | Private viewers share a scoped read identity; optional query/operator identities are separate |
 | Expose application commands and reads | [Serving OpenAPI](../reference/openapi.md) | Signed native commands and scoped reads through a published service |
 | Follow changes | [Reactive API / AsyncAPI](../reference/asyncapi.md) | Int64 Table sessions and resumable notifications, fetch-SSE or WebSocket |

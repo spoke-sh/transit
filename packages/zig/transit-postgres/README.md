@@ -29,7 +29,10 @@ framing errors close the connection. Cycle decisions alone grant no authority.
 
 `Frontend.decode` checks exact simple/extended bodies and borrows their bytes.
 `Scalar` supplies OIDs and lossless text/binary codecs, including uint64 as
-`numeric(20,0)`, nullable parameters and narrower driver integer OIDs. Text values
+`numeric(20,0)`, signed/unsigned 8–64-bit widths, float32/64 and signed
+`numeric(p,s)` decimals with precision up to 38. Prepared inputs, empty result
+metadata and text/binary rows retain precision/scale. Nullable parameters and
+narrower driver integer OIDs remain checked against the logical destination. Text values
 reject NUL. The caller retains statement/portal bytes, owns bytea hex decoding
 allocations, validates statement counts and supplies bounded row framing.
 

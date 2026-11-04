@@ -10,6 +10,12 @@ batches and session limits. PostgreSQL, MySQL and SQL execution share these
 definitions without importing the execution service into a codec. The package
 build walks transitive imports and rejects runtime and transport dependencies.
 
+`Wire.Type` retains integer/float widths and decimal precision/scale. Its shared
+capability check covers declarations, parameters and results with bounded,
+escaped failure details. PostgreSQL and MySQL preserve exact decimal coefficients;
+MySQL admits scale at most 30. The [wire contract](../../../contracts/SQL_GATEWAY_V1.md)
+owns the complete mapping; native results retain their broader logical profile.
+
 `Wire.Startup` defines the connection admission continuation. Input, output, TLS
 upgrade, credential selection, password verification, cancellation and final
 session admission are explicit requests. The host owns I/O, randomness, verifier
