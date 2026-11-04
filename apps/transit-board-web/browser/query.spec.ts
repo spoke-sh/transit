@@ -75,12 +75,14 @@ test("one explicit query survives Canvas/Browse changes and is cleared on revoca
   ]);
   await page.getByRole("button", { name: "Refresh observation", exact: true }).click();
   await expect(page.getByLabel("Resource participation")).toBeVisible({ timeout: 15000 });
+  await page.getByRole("button", { name: "Open navigation", exact: true }).click();
   for (const density of ["comfortable", "compact"]) {
     await page.getByLabel("Preview density").selectOption(density);
     expect(
       (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations,
     ).toEqual([]);
   }
+  await page.getByRole("button", { name: "Fold navigation", exact: true }).click();
   await page.getByRole("button", { name: "Resources", exact: true }).click();
   await page.getByLabel("Detail zoom").focus();
   await page.getByLabel("Detail zoom").press("End");
