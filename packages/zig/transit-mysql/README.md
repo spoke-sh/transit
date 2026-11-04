@@ -23,7 +23,8 @@ before freeing it. Framing does not authenticate or authorize execution.
 `Command` validates command bodies and typed prepared execution. Its `Parameters`
 object retains the last fully validated parameter type vector; failed executions
 do not alter it. Values borrow the input message. `Scalar` defines full-width
-signed/unsigned metadata and finite numbers, integer Booleans, UTF-8 and binary
+signed/unsigned 8–64-bit metadata, finite float32/64, exact NEWDECIMAL values
+(precision 1–38, scale at most 30), integer Booleans, UTF-8 and binary
 values. `Codec` checks length-encoded inputs before slicing. The session owner
 supplies NULL/result framing, a truthful selected collation and aggregate bounds.
 

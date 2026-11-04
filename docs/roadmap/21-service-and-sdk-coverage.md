@@ -40,10 +40,18 @@ terminal/SSH delivery and broader service/SDK parity are not established by it.
 
 ## SQL type parity and installed interface smoke loop
 
-**Implementation plan — 2026-11-04. Status: Planned.** Make ordinary Table
+**Implementation plan — 2026-11-04. Status: Implemented; scoped qualification below.** Make ordinary Table
 definitions usable through the native console, PostgreSQL and MySQL interfaces,
 and catch differences in the normal build/test loop. This slice belongs here;
 it does not depend on the later [dialect ergonomics audit](43-sql-grammar-and-dialect-ergonomics.md).
+
+The scalar/admission changes, independent corpus, installed smoke, prepared/C
+driver slice, fast inventory controls and required early CI/release step are
+implemented. Current behavior lives in the [database protocol reference](../handbook/reference/database-protocols.md)
+and [wire contract](../../contracts/SQL_GATEWAY_V1.md); runnable loops and their
+limits live with the [test owner](../../tests/interfaces/sql_wire/README.md).
+The design below preserves the original plan and broader qualification targets;
+it is not evidence that every listed full lane or fault schedule has run.
 
 ### Failure and current coverage
 

@@ -91,6 +91,14 @@ composes those packages. The [task reference](../../../tasks/README.md) distingu
 standalone package compilation, shared unit execution and focused engine proofs.
 Package READMEs give integration requirements.
 
+For SQL scalar or adapter changes, run `just test::sql-wire-contracts`,
+`just test::sql-wire-types` and `just test::server-sql-types`. The last command
+builds a copied ReleaseSafe server and exercises the same definitions and values
+through the native console, psql and MySQL, including disk restart. CI and release
+run this correctness smoke after the console latency gate using the same binary.
+The [protocol test owner](../../../tests/interfaces/sql_wire/README.md) explains
+the independent corpus, required clients and evidence limits.
+
 External dependencies belong to their consumer’s manifest with immutable
 revision/hash pins. Libraries become static or shared artifacts only when
 needed. Independent package releases are not available. Board frontend tooling
