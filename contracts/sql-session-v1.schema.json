@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "definition": "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97",
+  "definition": "037c68077dfd548bbd03c09ee4ae0ccf1f3b7a58d1e496a877ae61b55599fcdf",
   "routes": {
     "method": "POST",
     "data": "/v1/sql/session",
@@ -44,7 +44,7 @@
       "T2": {
         "type": "string",
         "enum": [
-          "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97"
+          "037c68077dfd548bbd03c09ee4ae0ccf1f3b7a58d1e496a877ae61b55599fcdf"
         ]
       },
       "T3": {
@@ -806,7 +806,7 @@
       "T2": {
         "type": "string",
         "enum": [
-          "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97"
+          "037c68077dfd548bbd03c09ee4ae0ccf1f3b7a58d1e496a877ae61b55599fcdf"
         ]
       },
       "T3": {
@@ -3566,7 +3566,11 @@
           "producer_fenced",
           "producer_receipt_expired",
           "lease_fenced",
-          "lease_expired"
+          "lease_expired",
+          "group_fenced",
+          "offset_conflict",
+          "read_released",
+          "cursor_unauthenticated"
         ]
       },
       "T145": {
@@ -4526,7 +4530,7 @@
       "T11": {
         "type": "string",
         "enum": [
-          "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97"
+          "037c68077dfd548bbd03c09ee4ae0ccf1f3b7a58d1e496a877ae61b55599fcdf"
         ]
       },
       "T12": {
@@ -5829,6 +5833,9 @@
           },
           "position": {
             "$ref": "#/$defs/T7"
+          },
+          "progress": {
+            "$ref": "#/$defs/T25"
           }
         },
         "required": [
@@ -6077,7 +6084,7 @@
       "T16": {
         "type": "string",
         "enum": [
-          "c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97"
+          "037c68077dfd548bbd03c09ee4ae0ccf1f3b7a58d1e496a877ae61b55599fcdf"
         ]
       },
       "T17": {
@@ -6219,6 +6226,60 @@
           {
             "type": "null"
           }
+        ]
+      },
+      "T25": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/T26"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "T26": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "exhausted"
+            ],
+            "properties": {
+              "exhausted": {
+                "$ref": "#/$defs/T9"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "interval"
+            ],
+            "properties": {
+              "interval": {
+                "$ref": "#/$defs/T27"
+              }
+            }
+          }
+        ]
+      },
+      "T27": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "first": {
+            "$ref": "#/$defs/T9"
+          },
+          "last": {
+            "$ref": "#/$defs/T9"
+          }
+        },
+        "required": [
+          "first",
+          "last"
         ]
       }
     }

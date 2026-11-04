@@ -38,8 +38,20 @@ same binary descriptors, while the native SQL result API supplies authenticated
 completion metadata. SQL does not create or rebalance assignments, infer progress
 from row counts, release a read pin on result close, or silently commit progress.
 The current-v1 definition changes to
-`78b1bcc56b9de85d82591f5a249df53e8c556ae8d0ad0c30c7946e9fc4260f33`;
+`037c68077dfd548bbd03c09ee4ae0ccf1f3b7a58d1e496a877ae61b55599fcdf`;
 generated consumers and independent fixtures move with it.
+
+The 2026-11-04 rebase onto `origin/main` at `b94462388` preserves M7's
+retained Document collection cuts, M8's co-hosted SQL lane coordination, M12's
+catalog-owned progress and original staging/closure, and Board's bounded workbook
+relations. The combined definition covers Stream descriptors, Document collection
+coverage, the mandatory nullable candidate slot and `CPR1` progress envelope,
+and `SOR1` original ownership.
+Later Station work can reuse these reservation/readiness, attachment, closure and
+collection contracts where applicable. The original source assessment below and
+earlier qualification results retain their recorded revisions; they do not
+qualify this rebased source. Continuous Stream activation, SQL WAIT and
+transactional Station remain separate work.
 
 The [qualification record](../history/qualification/query.md#sql-stream-groups-and-authenticated-offsets--2026-11-03)
 attributes the completed checks and earlier failed attempts to their tested
