@@ -131,6 +131,8 @@ Query, finite Live and definition publication retain their shared settlement
 owners and use the same scheduled transports. Workbook drafts stay in the shell
 for its lifetime. Its separate finite evaluation owner schedules only explicitly
 enabled Live relations; standalone statement cells keep explicit Run.
+Named cells share one workbook progress line above the cells. Its space stays
+reserved so draft validation does not move Run controls during a pointer click.
 
 The separately configured relational UI is at `/recovery/relational`, including
 its existing query controls and interrupted-query cleanup. Moving the view does

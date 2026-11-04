@@ -385,6 +385,10 @@
   display: block;
   margin: 4px 0;
 }
+.workbook-progress {
+  /* Validation can start or settle between pointerdown and click on Run. */
+  min-block-size: 1lh;
+}
 .workbook-cell > label input {
   display: block;
   margin-top: 8px;

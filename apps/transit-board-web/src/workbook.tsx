@@ -217,11 +217,13 @@ function WorkbookPageContent({ active }: { active: boolean }) {
                     </button>
                   </p>
                 )}
-                {graph.busy && (
-                  <p role="status">
-                    {graph.unresolved ? "Evaluating the accepted draft…" : "Checking workbook…"}
-                  </p>
-                )}
+                <p role="status" className="workbook-progress">
+                  {graph.busy
+                    ? graph.unresolved
+                      ? "Evaluating the accepted draft…"
+                      : "Checking workbook…"
+                    : ""}
+                </p>
                 {cells.map((cell, index) => (
                   <WorkbookCell
                     key={cell.id}
@@ -442,6 +444,7 @@ function WorkbookCell({
       )}
       <ResultPanel
         state={result}
+        showProgress={!relation}
         draft={cell.sql}
         parent={`Cell ${index + 1}`}
         earlierResult={relation && Boolean(derived) && !graph.current(cell.id)}
