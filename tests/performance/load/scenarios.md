@@ -19,7 +19,8 @@ effect lifecycle coverage to that baseline.
 The webhook listener is a finite **test application adapter**, not a new public
 Transit route or SQL `SINK` declaration. It authenticates synthetic bodies with
 an application HMAC and validates a bounded integer payload before using public
-SQL. Its immutable input rows retain event identities. The Dataflow output Table
+SQL. The fixture treats input rows as immutable and retains their event identities.
+The Dataflow output Table
 is the application's intent relation: its rows and completed revision are
 published together by the existing managed owner. The explicit application
 dispatcher binds each selected event to a provisioned finite caller/connector
