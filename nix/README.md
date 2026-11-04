@@ -462,6 +462,15 @@ installation-ui (including browser proofs) 120 minutes, storage-query and
 interfaces 150 minutes each, each SDK lane 360 minutes, and launchers 45 minutes. These are
 finite failure limits, not measured feedback budgets. A larger cap does not
 qualify a slower run or change any accepted operation's deadline.
+
+The early console latency gate separates optimized runtime compilation (40-minute
+step limit) from startup, SQL and resource measurements (10-minute step limit).
+Its 60-minute job limit also includes dependency preparation and evidence upload.
+Main CI and release candidates use the same limits and unchanged runtime budgets;
+the earlier [15-minute combined job](https://github.com/spoke-sh/transit/actions/runs/41787561559/job/126433688470)
+expired during compilation before producing measurement evidence. A completed
+build alone cannot pass this gate.
+
 The four SDK groups preserve the full task inventory and seven-job ceiling, but
 repeat preparation in more jobs. Their cost needs new hosted measurements;
 historical budgets retain the original inventory identities.
