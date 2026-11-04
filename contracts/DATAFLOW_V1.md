@@ -120,25 +120,29 @@ authorizes expiry, silent cancellation or discarding accepted work.
 carrying `sequence`, `first_ordinal`, `previous` and `rows`, staged as one
 batched `INSERT` statement per page) and `DFR1` completed revision manifests. A named direct
 binary KV owns the current control,
-pending original work reference and paged completed revision keys. The logical
+pending original work identity and paged completed revision keys. The logical
 computation definition hashes the declaration; it is distinct from the KV
 storage definition. The catalog's `managed` dependency kind validates that
 storage identity and protects source/output DROP. Under the same catalog CAS,
 registration excludes output chaining and multiple managed writers, including
 concurrent declarations in either registration order.
 
-A work record is staged before its reference can enter the guarded head. Only
-that accepted head admits the work token. Recovery can recreate a missing token
-from the exact retained reference. The pending reference survives output commit
-until original transaction cleanup and work bookkeeping complete. A suspension
-changes the same KV that the output transaction reads/writes, so the common
-serializable decision enforces the control fence. Replacement resumes that exact
-accepted work under the service's existing activation fence. Pending work tokens
-have an independently paged directory: a prepared control-KV participant may
-refuse ordinary head reads, so recovery discovers and settles the original
-transaction without first reading that head. An abort disposition is durably
-recorded before abort settlement can install participant barriers. Each recovery
-unit advances at most one transaction participant.
+Declarations and initial work use Catalog-owned `SOR1` envelopes carrying
+`DFD1` and `DFW1` payloads. The original operation/token is reserved before bytes
+are created. Publication permanently retains its declaration before initializing
+the control KV or registering dependencies. Retiring or failing initialization
+does not release a declaration that publication may have referenced.
+
+Work saves the exact pending-head KV mutation with its original payload. The
+Catalog records attachment intent and executes that mutation through its protected
+operation owner. The token exists before the head; recovery pages the same token
+and can resume attachment without discovering work through a mutable head.
+The head stores the token identity, not a second original-payload root. Closure
+serializes with attachment, checks its original receipt, and permanently fences
+late native retries. A prepared control-KV participant may refuse ordinary head
+reads, so recovery continues to discover the transaction independently. An abort
+disposition is durably recorded before abort settlement can install participant
+barriers. Each recovery unit advances at most one transaction participant.
 
 Managed recovery replaces subsequent `DFW1` work through Catalog's signed
 `client_progress.advance`. A `CPR1` envelope binds the original token, expected
@@ -152,16 +156,20 @@ Changed proposals require the currently observed revision. Settled work cannot
 start again. Generic record staging, initial token binding and generic progress
 updates cannot attach `CPR1` records.
 
-Managed work reserves 64 KiB of account capacity per token. The current and
+Managed work reserves 64 KiB of account capacity per token. The open original, current and
 candidate encoded progress records plus 512 bytes of bookkeeping must fit that
 reservation; physical backlog remains subject to storage quota and collection.
 The collector retains the current and staged references at its accepted catalog
 cut, including reservations whose bytes do not yet exist. Superseded progress
 becomes collectible after the normal epoch and reader-grace fences. Old catalog
 actions remain replayable without their superseded payloads. Terminal work keeps
-its last progress record. Declaration records and the initial `DFW1` referenced
-by the guarded head and original token remain retained admission evidence;
-this profile does not collect abandoned pre-admission declarations or work.
+its last progress record. After verified transaction cleanup and terminal progress,
+managed recovery explicitly closes the original work payload. `start` retries
+closure before clearing the pending head. Pre-attachment private staging can be
+closed explicitly with `ManagedTable.closeOriginal`; a reserved body requires
+its exact original staging request to finish creation. Neither recovery nor
+collection invents missing accepted bytes. Published declarations and all
+completed revisions remain retained indefinitely.
 These rules govern internal recovery records, not user result retention or
 permission to execute a computation.
 
@@ -191,8 +199,8 @@ The [query reference](../docs/handbook/reference/queries.md#managed-table-comput
 owns supported operators, quotas, inspection, current grants and retention limits.
 This profile uses complete finite recomputation over one Table. It does not
 implement the neutral contract's ordered/net-change consumers or history handoff,
-SQL joins, incremental arrangements or sink effects. Immutable declaration/work
-records retain indefinitely. Candidate result pages
+SQL joins, incremental arrangements or sink effects. Published declarations and terminal recovery
+records retain indefinitely; explicitly closed private originals are collectible. Candidate result pages
 and manifests use the transaction-owned record lifecycle in
 [Direct Table](DIRECT_TABLE_V1.md#durable-client-token-bindings); common
 transaction cleanup releases its source pins and preparation barriers.
