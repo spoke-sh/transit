@@ -123,7 +123,10 @@ def dataflow_command(fixture, sql):
         result = failure.args[0] if failure.args else None
         if not isinstance(result, subprocess.CompletedProcess) or result.returncode != 1:
             raise
-        unresolved = json.loads(result.stdout)['unresolved']
+        try:
+            unresolved = json.loads(result.stdout)['unresolved']
+        except (json.JSONDecodeError, KeyError):
+            raise failure
         assert unresolved['reason'] == 'unavailable', result
         identity = unresolved['operation']
         assert identity is not None and identity['kind'] == 'dataflow', result
@@ -237,13 +240,19 @@ def run(cli, node, host, board, gateway):
             assert sorted(int(row['id']) for row in actual) == list(range(total))
         assert json.loads(records(fixture.console('SHOW DATAFLOW batch_projection REVISION 1;\n')[-1])[0]['dataflow_revision'])['revision']['rows'] == 63
         retire(fixture, 'batch_projection')
+        print('Managed SQL: 63/64/65-row successors and retained revision metadata verified.', flush=True)
         columns = [f'body{i}' for i in range(12)]
-        fixture.console('CREATE TABLE bytes_output (id BIGINT PRIMARY KEY, ' + ', '.join(f'{name} UTF8' for name in columns) + ');\n')
-        # Each supported scalar literal stays within its existing bound; the
-        # complete rows reach the page byte budget before its 64-row budget.
+        fixture.console('CREATE TABLE bytes_input (id BIGINT PRIMARY KEY, body UTF8 NOT NULL);\n'
+                        + 'CREATE TABLE bytes_output (id BIGINT PRIMARY KEY, ' + ', '.join(f'{name} UTF8' for name in columns) + ');\n')
+        # Populate through bounded SQL statements, then use the maintained
+        # compiler's supported column projections. Wide output rows reach the
+        # page byte budget before its 64-row budget.
         payload = 'x' * 200
-        projection = ', '.join(f"'{payload}' AS {name}" for name in columns)
-        dataflow_command(fixture, f"CREATE DATAFLOW bytes_projection INTO bytes_output AS SELECT id, {projection} FROM batch_input WHERE id < 63")
+        for start in range(0, 63, 10):
+            values = ','.join(f"({i},'{payload}')" for i in range(start, min(start + 10, 63)))
+            fixture.console(f'INSERT INTO bytes_input (id, body) VALUES {values};\n')
+        projection = ', '.join(f'body AS {name}' for name in columns)
+        dataflow_command(fixture, f'CREATE DATAFLOW bytes_projection INTO bytes_output AS SELECT id, {projection} FROM bytes_input')
         dataflow_command(fixture, 'AUTHORIZE DATAFLOW bytes_projection')
         dataflow_command(fixture, 'ACTIVATE DATAFLOW bytes_projection')
         await_head(fixture, 'bytes_projection', lambda head: head['revision'] == 1 and head['pending'] is None)
