@@ -56,6 +56,10 @@ Executed with the pinned Nix Zig `0.17.0-dev.2267+48abf1a34` toolchain:
 | `zig build test-local-catalog -Dlocal-catalog-filter='owned progress'`, `c46c1890c` | Passed both dispatch paths and all six collection passes |
 | `just check::fast`, `c46c1890c` worktree | All 66 checks passed; this precedes the later fixture/hardening commits |
 | `just ci clean --check contracts`, `a6bbe1f23a225d5a1af4dee56ead8a61b7541245` | All 20 checks passed |
+| `just ci clean --check fast`, `cdd69c4f683ec57476f9de97e0af0a4c12cdc734` | All 66 checks passed after the admission guard, candidate-replacement test and integration of `origin/main` at `8ffcfdd1b` |
+| `just ci clean --lane installation-ui`, `5c20c5ff77f2cee327394a461ad47d10e0eab0f3` | First 15 tasks passed, including managed Tables, direct SQL faults, authentication/lifetimes, Board query recovery and Station startup. Workbench failed; the final two tasks did not run in this attempt |
+| Workbench retry, then computation-inspection and declarative-browser follow-ups in that retained clean checkout | All three tasks passed with unchanged fixtures and deadlines; these do not replace the failed lane result |
+| `just ci clean --lane storage-query`, `cdd69c4f683ec57476f9de97e0af0a4c12cdc734` | First 12 targets passed through local-payload-service. The long local-catalog target was interrupted for diagnosis; this lane did not complete |
 
 The first clean contract attempt at `c46c1890c` failed SQL workload-frame drift:
 native fixture regeneration changed definition-bearing frame inputs. Commit
@@ -66,11 +70,61 @@ Node validators; neither failure is relabeled as a pass. The development collect
 test also initially rejected an absent reserved candidate; the implemented
 creation-epoch handling above fixes that case, and its repeated schedule passes.
 
+The second installation attempt failed when the workbench's ordinary
+`SELECT * FROM empty_metrics` returned HTTP 400 with `Conflict` / SQLSTATE
+`55000`. The fresh workbench retry passed empty/metadata results, 145-row
+traversal, retained placement, current denial and disk reopen. Its first failure's
+cause remains unestablished; no baseline reproduction or runtime fix is claimed.
+The separate computation-inspection task passed independent readers, retained
+nonempty/empty metadata and read-only admission. The declarative listener task
+passed callbacks, lost acknowledgements, process replacement, 81 durable
+identities with bounded pagination, revocation/expiry during watches, buffered
+source/policy changes, proxy admission and the documented configure helper.
+These runs precede the later admission-body guard; its focused catalog evidence
+is identified separately above. They do not establish a common-revision R10 pass
+or execution of the separate Chromium lane.
+
+The interrupted storage attempt passed Arrow, Fuze (610 oracle cases and
+16,810 rows), spatial/source/file queries, logical Arrow (251 cases), codec/page
+growth, growing service, local owner recovery and local payload service. The
+local-catalog process was still active when interrupted; it had not reported an
+assertion failure. Running its unchanged test binary directly with the shell's
+8 MiB stack faulted in `PageCodec`; the original build runner supplies a 46 MiB
+stack. That mismatched diagnostic is not a reproduction under the lane's limits.
+A second direct invocation used the original 47,104 KiB stack and passed five
+of 24 cases, including the signed local lifecycle and a 1,562-step collection
+that reclaimed 64 allocations. Its typed counterpart completed 127 maintenance
+units and remained in collection when the diagnostic was stopped. These partial
+runs show progress but do not complete the local-catalog target.
+
+The separate storage follow-up in the same clean checkout passed direct Table
+projection/collation/lifetime checks, KV, state/mixed transactions, both Queue
+transfer paths and declaration-token recovery. Workload-token preparation then
+hit its unchanged 180-second deadline. A fresh unchanged retry passed in 28.04 s
+with the long catalog diagnostic paused. That timing comparison is diagnostic,
+not a causal or performance claim; the original timeout remains a failed attempt.
+The subsequent workload-result and direct-maintenance targets also passed.
+
 Local focused logs remain in `.cache/checks/m12-owned-progress/` in the
 implementation worktree. Successful clean contract provenance and logs are at
 `.cache/ci/clean/a6bbe1f23a22-transit-ci-uf2_gqcj`; failed clean attempts remain at
 `/var/tmp/transit-ci-1ra4w46h` and `/var/tmp/transit-ci-ap405zjo`. These are local
 evidence paths, not portable public artifacts.
+The final clean fast record is
+`.cache/ci/clean/cdd69c4f683e-transit-ci-zscfcduj`. The failed installation lane
+is retained at `/var/tmp/transit-ci-bd0ntcsl`, with its failing workbench fixture
+at `/var/tmp/transit-server-proof-unu08t60`. Its lane, retry and continuation logs
+are `clean-installation-2.log`, `progress-workbench-retry.log` and
+`progress-ui-continuation.log` in the focused evidence directory above.
+The interrupted clean storage checkout is `/var/tmp/transit-ci-chskk65n`.
+Its capture is `.cache/ci/runs/storage-query-5zh_7yl2`; the first follow-up is
+`.cache/ci/runs/storage-followup-ols2no3q`, including the workload-token timeout.
+The timeout fixture remains at `/var/tmp/transit-table-workload-token-009o9fin`.
+The retry and remaining targets use `.cache/ci/runs/storage-remaining-sa4pd8qc`.
+Each follow-up records source/toolchain provenance, command, per-target logs and
+exit status through the shared capture helper. The diagnostic logs are
+`progress-catalog-verbose.log` and `progress-catalog-verbose-matched.log` in the
+focused evidence directory; neither is a completed lane record.
 
 This evidence does not establish complete Milestone 12 qualification. Generic
 DFD1 declarations and original DFW1 admission records remain retained; abandoned
