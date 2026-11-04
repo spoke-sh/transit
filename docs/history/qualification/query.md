@@ -50,6 +50,8 @@ Executed with the pinned Nix Zig `0.17.0-dev.2267+48abf1a34` toolchain:
 | `just ci clean --check fast`, `e525714e0` | All 66 checks passed |
 | `just ci clean --check fast`, `7a3fd2201` | All 66 checks passed after the saved-command fixture and malformed-head inventory correction |
 | `just ci clean --check fast`, `2c511bb6c` | All 66 checks passed, including the owned runtime-directory fixture controls |
+| `just ci clean --check fast`, `74e1fe2ec` | All 66 checks passed after integrating #364 and regenerating definition-bound fixtures |
+| `just check native fixtures`, `74e1fe2ec` | The complete fixture scope passed, including independent signing/source/record fixtures, Document/MIME oracles and 161 native/port codec cases |
 | `just ci clean --check contracts`, `e525714e0` | All 20 checks passed |
 | Typed managed proof in the retained clean installation checkout, `ec60e03d7` | Preparation, node replacement, recovery, retained complete/empty revisions, incomplete-prefix refusal and current authorization passed, including two withheld pre-head attachments |
 | `just ci clean --lane sdks-conformance`, `ec60e03d7` | All seven targets passed: binding checks, native ABI, logical values, all ten public-language pairs, SQL, gRPC faults and connector preparation |
@@ -57,10 +59,13 @@ Executed with the pinned Nix Zig `0.17.0-dev.2267+48abf1a34` toolchain:
 The successful clean records are local artifacts at
 `.cache/ci/clean/e525714e057a-transit-ci-i1okjdpa` (contracts),
 `.cache/ci/clean/7a3fd2201f3b-transit-ci-28gpbrgu` and
-`.cache/ci/clean/2c511bb6c492-transit-ci-frhnp_27` (fast checks), and
+`.cache/ci/clean/2c511bb6c492-transit-ci-frhnp_27` and
+`.cache/ci/clean/74e1fe2ec18d-transit-ci-rpseh1vc` (fast checks), and
 `.cache/ci/clean/ec60e03d70a2-transit-ci-qn4ah9wp` (SDK conformance).
 `tests/runner/capture.py` verified each record's complete task inventory and
-artifact hashes. Focused raw logs are `/tmp/m12-owner-committed.log` and
+artifact hashes, and the native fixture capture at
+`.cache/checks/runs/native-fixtures-by75rrrc`. Focused raw logs are
+`/tmp/m12-owner-committed.log` and
 `/tmp/m12-local-original-final.log`; the first clean installation attempt and
 its follow-ups remain in `/var/tmp/transit-ci-obdja84d`. These paths are local
 evidence, not portable published artifacts.
@@ -117,6 +122,19 @@ Table creation. The fixture now projects one stored 200-byte text column into
 twelve distinct aliases; bounded ten-row INSERTs populate the 63-row source.
 The settlement helper also preserves the original command diagnostic when stdout
 contains no unresolved-operation JSON. No accepted declaration was resubmitted.
+
+The corrected full installed follow-up (`ab5a44a00` fixture, the same frozen
+`0fc4d56a1` binaries) passed revisions 1–3 and suspend/restart/resume, then
+stopped when `DELETE FROM managed_input` returned `SqlOutcomeUnknown` under
+the existing deadlines. The response retained account, instance and token but
+no operation ID; it establishes neither rejection nor completion. The command
+was not replayed. Its capture is
+`/var/tmp/transit-ci-zrdpgodr/src/.cache/ci/runs/m12-managed-private-e9unf4sv`,
+and its original installation remains at `/var/tmp/transit-server-proof-jvwmlyi5`.
+Commit `8a5d99c14` extracts the existing boundary assertions into
+`page_boundaries(fixture)` without changing the full fixture's sequence. A first
+selected-driver invocation was rejected by the repository launcher because the
+driver was outside `tests`; no installation or assertion ran in that invocation.
 
 The `storage-query` clean attempt at `e63cbabb4` passed its first 12 targets,
 through local-payload-service. The aggregate local-catalog target ran for over
