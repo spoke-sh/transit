@@ -155,6 +155,45 @@ def retire(fixture, name):
     dataflow_command(fixture, f'RETIRE DATAFLOW {name}')
 
 
+def page_boundaries(fixture):
+    # Exercise both physical page limits through installed SQL. Each
+    # successor is independently verified and prior revisions stay readable.
+    fixture.console('CREATE TABLE batch_input (id BIGINT PRIMARY KEY);\nCREATE TABLE batch_output (id BIGINT PRIMARY KEY);\n'
+                    + 'INSERT INTO batch_input (id) VALUES ' + ','.join(f'({i})' for i in range(63)) + ';\n')
+    dataflow_command(fixture, 'CREATE DATAFLOW batch_projection INTO batch_output AS SELECT id FROM batch_input')
+    dataflow_command(fixture, 'AUTHORIZE DATAFLOW batch_projection')
+    dataflow_command(fixture, 'ACTIVATE DATAFLOW batch_projection')
+    for number, total in enumerate((63, 64, 65), 1):
+        if total > 63:
+            fixture.console(f'INSERT INTO batch_input (id) VALUES ({total - 1});\n')
+        batch = await_head(fixture, 'batch_projection', lambda head: head['revision'] == number and head['pending'] is None)
+        assert batch['observation']['head']['rows'] == total
+        actual = records(fixture.console('SELECT id FROM batch_output;\n')[-1])
+        assert sorted(int(row['id']) for row in actual) == list(range(total))
+    assert json.loads(records(fixture.console('SHOW DATAFLOW batch_projection REVISION 1;\n')[-1])[0]['dataflow_revision'])['revision']['rows'] == 63
+    retire(fixture, 'batch_projection')
+    print('Managed SQL: 63/64/65-row successors and retained revision metadata verified.', flush=True)
+    columns = [f'body{i}' for i in range(12)]
+    fixture.console('CREATE TABLE bytes_input (id BIGINT PRIMARY KEY, body UTF8 NOT NULL);\n'
+                    + 'CREATE TABLE bytes_output (id BIGINT PRIMARY KEY, ' + ', '.join(f'{name} UTF8' for name in columns) + ');\n')
+    # Populate through bounded SQL statements, then use the maintained
+    # compiler's supported column projections. Wide output rows reach the
+    # page byte budget before its 64-row budget.
+    payload = 'x' * 200
+    for start in range(0, 63, 10):
+        values = ','.join(f"({i},'{payload}')" for i in range(start, min(start + 10, 63)))
+        fixture.console(f'INSERT INTO bytes_input (id, body) VALUES {values};\n')
+    projection = ', '.join(f'body AS {name}' for name in columns)
+    dataflow_command(fixture, f'CREATE DATAFLOW bytes_projection INTO bytes_output AS SELECT id, {projection} FROM bytes_input')
+    dataflow_command(fixture, 'AUTHORIZE DATAFLOW bytes_projection')
+    dataflow_command(fixture, 'ACTIVATE DATAFLOW bytes_projection')
+    await_head(fixture, 'bytes_projection', lambda head: head['revision'] == 1 and head['pending'] is None)
+    actual = records(fixture.console('SELECT * FROM bytes_output;\n')[-1])
+    assert sorted(int(row['id']) for row in actual) == list(range(63))
+    assert all(row[name] == payload for row in actual for name in columns)
+    retire(fixture, 'bytes_projection')
+    print('Managed SQL: 63/64/65-row successors and byte-boundary pages verified.', flush=True)
+
 def run(cli, node, host, board, gateway):
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
     os.environ['TEST_TRANSIT_BOARD_BINARY'] = str(Path(board).resolve())
@@ -224,43 +263,7 @@ def run(cli, node, host, board, gateway):
             assert failure['err']['sqlstate'] == list(b'42704'), failure
         finally:
             client.close()
-        # Exercise both physical page limits through installed SQL. Each
-        # successor is independently verified and prior revisions stay readable.
-        fixture.console('CREATE TABLE batch_input (id BIGINT PRIMARY KEY);\nCREATE TABLE batch_output (id BIGINT PRIMARY KEY);\n'
-                        + 'INSERT INTO batch_input (id) VALUES ' + ','.join(f'({i})' for i in range(63)) + ';\n')
-        dataflow_command(fixture, 'CREATE DATAFLOW batch_projection INTO batch_output AS SELECT id FROM batch_input')
-        dataflow_command(fixture, 'AUTHORIZE DATAFLOW batch_projection')
-        dataflow_command(fixture, 'ACTIVATE DATAFLOW batch_projection')
-        for number, total in enumerate((63, 64, 65), 1):
-            if total > 63:
-                fixture.console(f'INSERT INTO batch_input (id) VALUES ({total - 1});\n')
-            batch = await_head(fixture, 'batch_projection', lambda head: head['revision'] == number and head['pending'] is None)
-            assert batch['observation']['head']['rows'] == total
-            actual = records(fixture.console('SELECT id FROM batch_output;\n')[-1])
-            assert sorted(int(row['id']) for row in actual) == list(range(total))
-        assert json.loads(records(fixture.console('SHOW DATAFLOW batch_projection REVISION 1;\n')[-1])[0]['dataflow_revision'])['revision']['rows'] == 63
-        retire(fixture, 'batch_projection')
-        print('Managed SQL: 63/64/65-row successors and retained revision metadata verified.', flush=True)
-        columns = [f'body{i}' for i in range(12)]
-        fixture.console('CREATE TABLE bytes_input (id BIGINT PRIMARY KEY, body UTF8 NOT NULL);\n'
-                        + 'CREATE TABLE bytes_output (id BIGINT PRIMARY KEY, ' + ', '.join(f'{name} UTF8' for name in columns) + ');\n')
-        # Populate through bounded SQL statements, then use the maintained
-        # compiler's supported column projections. Wide output rows reach the
-        # page byte budget before its 64-row budget.
-        payload = 'x' * 200
-        for start in range(0, 63, 10):
-            values = ','.join(f"({i},'{payload}')" for i in range(start, min(start + 10, 63)))
-            fixture.console(f'INSERT INTO bytes_input (id, body) VALUES {values};\n')
-        projection = ', '.join(f'body AS {name}' for name in columns)
-        dataflow_command(fixture, f'CREATE DATAFLOW bytes_projection INTO bytes_output AS SELECT id, {projection} FROM bytes_input')
-        dataflow_command(fixture, 'AUTHORIZE DATAFLOW bytes_projection')
-        dataflow_command(fixture, 'ACTIVATE DATAFLOW bytes_projection')
-        await_head(fixture, 'bytes_projection', lambda head: head['revision'] == 1 and head['pending'] is None)
-        actual = records(fixture.console('SELECT * FROM bytes_output;\n')[-1])
-        assert sorted(int(row['id']) for row in actual) == list(range(63))
-        assert all(row[name] == payload for row in actual for name in columns)
-        retire(fixture, 'bytes_projection')
-        print('Managed SQL: 63/64/65-row successors and byte-boundary pages verified.', flush=True)
+        page_boundaries(fixture)
         fixture.console('CREATE TABLE failed_input (id BIGINT NOT NULL);\nCREATE TABLE failed_output (id BIGINT PRIMARY KEY);\nINSERT INTO failed_input (id) VALUES (1),(1);\nCREATE DATAFLOW failed_projection INTO failed_output AS SELECT id FROM failed_input;\nAUTHORIZE DATAFLOW failed_projection;\nACTIVATE DATAFLOW failed_projection;\n')
         failed = await_head(fixture, 'failed_projection', lambda head: head['blocked'] == 'execution_failed' and head['pending'] is None)['observation']['head']
         assert failed['revision'] == 0
