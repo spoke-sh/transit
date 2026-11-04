@@ -360,7 +360,7 @@
       "dependencies": [
         "UCS_BASIC"
       ],
-      "deviations": "Selected scalar types and collations. DECIMAL arithmetic uses bounded explicit DECIMAL_* functions with declared result precision, scale and rounding; ordered SUM widens to DECIMAL(38,s). Frozen column semantics carry exact TZif artifacts for AT TIME ZONE, TIME_BUCKET and LOCAL_TO_UTC. General infix arithmetic and host timezone lookup are not admitted. Installed native SQL exercises stored values, scalar expressions, decimal SUM and gateway restart. PostgreSQL/MySQL expose admitted boolean/float results and explicitly refuse unsupported decimal result types.",
+      "deviations": "Selected scalar types and collations. DECIMAL arithmetic uses bounded explicit DECIMAL_* functions with declared result precision, scale and rounding; ordered SUM widens to DECIMAL(38,s). Frozen column semantics carry exact TZif artifacts for AT TIME ZONE, TIME_BUCKET and LOCAL_TO_UTC. General infix arithmetic and host timezone lookup are not admitted. Installed native SQL exercises stored values, scalar expressions, decimal SUM and gateway restart. PostgreSQL/MySQL expose admitted boolean/float and exact decimal results (MySQL scale at most 30); range result columns remain unsupported.",
       "corpus_sources": [
         "contracts/sql/corpus/statements.json",
         "contracts/sql/corpus/parameters.json"
@@ -1103,7 +1103,7 @@
       ]
     }
   ],
-  "sha256": "0d977a1ba8ba8f0354c300e6cd8f9d474f7191cadb604f3121177a2533950486",
+  "sha256": "9d3d477837ef284578c47a03a1cc71a8f1d5953f93f0f7b4bcd97e339debae96",
   "scope": "States describe public runtime entry points, not helper availability or ISO conformance. Physical codecs describe typed TableSchema admission; ENCODING syntax remains reference-only. An implemented feature covers only the stated deviations and fixtures.",
   "compiler_cases": [
     {
