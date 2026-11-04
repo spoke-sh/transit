@@ -83,7 +83,7 @@ export function ResultPanel({
   return (
     <section
       className="workbench-result"
-      aria-label={preview ? "Dataset preview" : "Statement result"}
+      aria-label={`${parent} ${preview ? "preview" : "result"}`}
     >
       {earlier && (
         <p className="workbench-notice">
@@ -155,7 +155,7 @@ export function ResultPanel({
             className="workbench-grid"
             tabIndex={0}
             role="region"
-            aria-label="Scrollable result table"
+            aria-label={`${parent}: scrollable result table`}
           >
             <table>
               <caption>

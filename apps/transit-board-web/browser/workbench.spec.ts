@@ -336,7 +336,9 @@ test("installed catalog, exact preview, profiles and session workbook", async ({
   await expect(page.getByText(/Earlier result ·/)).toBeVisible();
   expect(runs).toBe(2);
   await page.getByRole("button", { name: "Run cell 1", exact: true }).click();
-  await expect(page.getByRole("region", { name: "Statement result" })).toContainText("metrics");
+  await expect(page.getByRole("region", { name: "Cell 1 result", exact: true })).toContainText(
+    "metrics",
+  );
   await expect(page.getByRole("heading", { name: "Workbook", exact: true })).toBeVisible();
   expect(
     (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze())
