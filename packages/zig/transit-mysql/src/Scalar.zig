@@ -150,3 +150,31 @@ test "MySQL signedness and typed integer Boolean boundaries" {
     try t.expectEqualStrings("a\x00b", (try decode(&reader, .utf8, .{ .code = 253 })).?.bytes);
     try t.expectEqual(@as(u16, 33), descriptor(.{ .kind = .uint64, .nullable = false }, 309).flags);
 }
+
+test "decimal codecs reuse bounded output and reject inexact inputs" {
+    const t = std.testing;
+    const kind: g.Type.Kind = .{ .decimal = .{ .precision = 38, .scale = 30 } };
+    var memory: [256]u8 = undefined;
+    var fixed = std.heap.FixedBufferAllocator.init(&memory);
+    var out: std.ArrayList(u8) = .empty;
+    try out.ensureTotalCapacityPrecise(fixed.allocator(), 128);
+    const used = fixed.end_index;
+    for (0..100) |_| {
+        out.clearRetainingCapacity();
+        try encode(fixed.allocator(), &out, kind, .{ .decimal = -12345 });
+        var reader: Codec.Reader = .{ .bytes = out.items };
+        try t.expectEqual(@as(i128, -12345), (try decode(&reader, kind, .{ .code = 246 })).?.decimal);
+        try reader.finish();
+        out.clearRetainingCapacity();
+        try text(fixed.allocator(), &out, kind, .{ .decimal = -12345 });
+    }
+    try t.expectEqual(used, fixed.end_index);
+    var reader: Codec.Reader = .{ .bytes = "\x051.001" };
+    try t.expectError(error.InexactDecimalRounding, decode(&reader, .{ .decimal = .{ .precision = 10, .scale = 2 } }, .{ .code = 246 }));
+    try t.checkAllAllocationFailures(t.allocator, decimalAllocation, .{});
+}
+fn decimalAllocation(allocator: std.mem.Allocator) !void {
+    var out: std.ArrayList(u8) = .empty;
+    defer out.deinit(allocator);
+    try encode(allocator, &out, .{ .decimal = .{ .precision = 38, .scale = 30 } }, .{ .decimal = -12345 });
+}

@@ -181,7 +181,7 @@ pub fn decode(allocator: std.mem.Allocator, kind: g.Type.Kind, declared_oid: u32
             };
             var n: f64 = if (format == .text) std.fmt.parseFloat(f64, value) catch return error.InvalidWireValue else if (oid == 700) @as(f32, @bitCast(try reader.int(u32, .big))) else @as(f64, @bitCast(try reader.int(u64, .big)));
             if (format == .binary) try reader.finish();
-            if (format == .text and (oid == 700 or kind == .float32)) n = @as(f32, @floatCast(n));
+            if (format == .text and oid == 700) n = @as(f32, @floatCast(n));
             if (!std.math.isFinite(n)) return error.InvalidWireValue;
             break :blk .{ .float = n };
         },
@@ -272,6 +272,7 @@ test "PostgreSQL scalar range, exact numeric, UTF8 and NULL boundaries" {
     try t.expectError(error.InvalidWireValue, decode(a, .uint64, 1700, .text, "1_000"));
     try t.expectError(error.InvalidWireText, decode(a, .utf8, 25, .binary, "a\x00b"));
     try t.expectError(error.InvalidWireValue, decode(a, .float64, 701, .text, "NaN"));
+    try t.expectError(error.InexactDecimalRounding, decode(a, .float32, 701, .text, "0.1"));
     try t.expectError(error.InvalidWireValue, decode(a, .float64, 701, .text, "1_000"));
     try t.expectError(error.InvalidWireValue, decode(a, .uint64, 1700, .binary, "\x00\x01\x00\x00\x00\x00\x00\x01\x00\x01"));
     try t.expectError(error.WireValueOutOfRange, decode(a, .uint64, 1700, .binary, "\x00\x05\x00\x04\x00\x00\x00\x00\x07\x34\x1a\x58\x02\xe1\x03\xbb\x06\x50"));
@@ -310,4 +311,10 @@ test "numeric encoding reuses warmed bounded output without heap allocations" {
         }
     }
     try t.expectEqual(used, fixed.end_index);
+    try t.checkAllAllocationFailures(t.allocator, decimalAllocation, .{});
+}
+fn decimalAllocation(allocator: std.mem.Allocator) !void {
+    var out: std.ArrayList(u8) = .empty;
+    defer out.deinit(allocator);
+    try encode(allocator, &out, .{ .decimal = .{ .precision = 38, .scale = 38 } }, .binary, .{ .decimal = -12345 });
 }
