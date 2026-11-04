@@ -486,8 +486,21 @@ def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False, 
         assert request('workbook', dict(status=dict(id=workbook, sequence=3)))['status']['remaining'] == 24
         cells[0]['name'] = 'renamed'
         assert request('workbook', dict(validate=dict(cells=cells)))['validation']['issue']['code'] == 'MissingCellInput'
+        cells[0].update(name='source', sql='SELECT id, label FROM metrics')
+        # A forced local aggregate consumes one evaluation; cached ancestors do not.
+        # Exhaust the public budget without rerunning any source query.
+        for sequence in range(4, 28):
+            exhausted = request('workbook', dict(evaluate=dict(id=workbook, sequence=sequence, cells=cells, targets=[cells[2]['id']], affected=False, force=True)))['status']
+            assert exhausted['failure'] is None and exhausted['remaining'] == 27 - sequence, exhausted
+        refused = dict(id=workbook, sequence=28, cells=cells, targets=[cells[2]['id']], affected=False, force=True)
+        limited = request('workbook', dict(evaluate=refused))['status']
+        assert limited['remaining'] == 0
+        assert limited['failure'] == dict(cell=cells[2]['id'], code='WorkbookBudgetExhausted')
+        assert limited['results'] == exhausted['results']
+        assert request('workbook', dict(evaluate=refused))['status'] == limited
+        assert request('workbook', dict(status=dict(id=workbook, sequence=28)))['status'] == limited
         request('workbook', dict(close=workbook))
-        request('workbook', dict(status=dict(id=workbook, sequence=3)), 410)
+        request('workbook', dict(status=dict(id=workbook, sequence=28)), 410)
         if browser:
             screenshots = ROOT / '.cache/board-workbench'
             screenshots.mkdir(parents=True, exist_ok=True)
