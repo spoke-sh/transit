@@ -282,17 +282,24 @@ pub fn verify(init: std.process.Init, client: c.DirectTableClient, path: []const
     const manager: M = .{ .client = client };
     var after: ?u64 = null;
     var closed_count: usize = 0;
+    var abandoned_count: usize = 0;
     while (true) {
         const page = try c.DirectClientToken.list(client, M.workAccount(), after, false);
         for (page.entries) |slot| if (slot) |entry| {
             try t.expect(!entry.pending and entry.original.?.phase == .closed);
-            try t.expectEqual(c.DirectProgressRecord.format, entry.record.?.format);
+            if (entry.record) |record| {
+                try t.expectEqual(c.DirectProgressRecord.format, record.format);
+                closed_count += 1;
+            } else {
+                try t.expect(entry.cancel);
+                abandoned_count += 1;
+            }
             try t.expect(!try manager.step(entry.receipt.binding.key, init.io, .cwd(), null));
-            closed_count += 1;
         };
         after = page.next orelse break;
     }
     try t.expect(closed_count >= 5);
+    try t.expectEqual(@as(usize, 2), abandoned_count);
     // No scheduler or source snapshot is needed after another node replacement.
     try count(client, 0);
     try retained(manager, declaration.value, 1, &.{ 1, 2, 3 });
