@@ -75,7 +75,7 @@
         "ApplicationOperatorDenied": 1,
         "ApplicationPublicationChanged": 1,
         "ApplicationScopeChanged": 1,
-        "AuthenticationFailed": 1,
+        "AuthenticationFailed": 2,
         "Cancelled": 1,
         "CatalogDefinitionChanged": 1,
         "CatalogIdentityConflict": 1,
@@ -96,7 +96,7 @@
         "HttpInspectionCapacity": 1,
         "HttpReplayGap": 1,
         "IncompatibleDefinition": 2,
-        "IncompatibleSqlDefinition": 1,
+        "IncompatibleSqlDefinition": 2,
         "IncompleteResult": 1,
         "InvalidApplicationConfiguration": 2,
         "InvalidApplicationOperation": 1,
@@ -123,11 +123,15 @@
         "InvalidQueryOrdinal": 1,
         "InvalidReactiveConfiguration": 4,
         "InvalidReadIdentity": 1,
-        "InvalidReadPosition": 1,
+        "InvalidReadPosition": 2,
         "InvalidReadStatement": 1,
         "InvalidRequest": 1,
         "InvalidSequence": 1,
         "InvalidTableConnection": 2,
+        "InvalidWorkbookGraph": 1,
+        "InvalidWorkbookIdentity": 1,
+        "InvalidWorkbookSize": 1,
+        "InvalidWorkbookTargets": 1,
         "NotFound": 1,
         "QueryAccessDenied": 1,
         "QueryBusy": 1,
@@ -145,10 +149,15 @@
         "RelationalCallerChanged": 1,
         "RemoteOriginRequiresTLS": 1,
         "ResourceUnavailable": 1,
-        "SqlObservationDenied": 1,
+        "SqlObservationDenied": 2,
         "SqlReadRejected": 1,
         "TableDefinitionChanged": 1,
         "UnsafePrincipal": 1,
+        "WorkbookCapacity": 1,
+        "WorkbookExpired": 1,
+        "WorkbookResultChanged": 1,
+        "WorkbookResultUnavailable": 1,
+        "WorkbookSequenceConflict": 1,
         "WrongExchangeProtocol": 1
       },
       "outcomes": {
@@ -174,6 +183,7 @@
         "Server.respond()": "<inferred>",
         "Server.unifiedQueryRequest()": "<inferred>",
         "Server.workbenchRequest()": "<inferred>",
+        "Server.workbookGraphRequest()": "<inferred>",
         "Shared.handle()": "anyerror",
         "header()": "<inferred>",
         "localhostOrigin()": "<inferred>",
@@ -192,7 +202,7 @@
       "open_error_set_uses": 6,
       "propagation": {
         "try": 61,
-        "catch": 57
+        "catch": 61
       },
       "imports": [
         "Growing.zig",
@@ -3306,7 +3316,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 88,
+        "try": 89,
         "catch": 0
       },
       "imports": [
@@ -30454,6 +30464,23 @@
         "std"
       ]
     },
+    "packages/zig/transit-sql-client/src/ReadSession.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "open()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 5,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-sql-client/src/ReadView.zig": {
       "errors": {
         "ExpectedRowResult": 1,
@@ -30524,7 +30551,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 16,
+        "try": 13,
         "catch": 2
       },
       "imports": [
@@ -30588,6 +30615,99 @@
         "transit_memory"
       ]
     },
+    "packages/zig/transit-sql-client/src/WorkbookGraph.zig": {
+      "errors": {
+        "InvalidWorkbookSize": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "analyze()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 2,
+        "catch": 3
+      },
+      "imports": [
+        "std",
+        "transit_fuze"
+      ]
+    },
+    "packages/zig/transit-sql-client/src/WorkbookWorkspace.zig": {
+      "errors": {
+        "AuthenticationFailed": 2,
+        "IncompatibleSqlDefinition": 1,
+        "InvalidReadPosition": 1,
+        "InvalidWorkbookGraph": 1,
+        "InvalidWorkbookIdentity": 1,
+        "InvalidWorkbookTargets": 2,
+        "SqlObservationDenied": 4,
+        "SqlReadRejected": 1,
+        "UnexpectedEof": 1,
+        "WorkbookBudgetExhausted": 1,
+        "WorkbookCapacity": 1,
+        "WorkbookDataRelationRequired": 1,
+        "WorkbookExpired": 2,
+        "WorkbookIncompleteInput": 2,
+        "WorkbookResultChanged": 1,
+        "WorkbookResultUnavailable": 2,
+        "WorkbookRowBudget": 1,
+        "WorkbookSequenceConflict": 3,
+        "WorkbookSourceCapacity": 1
+      },
+      "outcomes": {
+        "Request.action": [
+          "describe",
+          "validate",
+          "open",
+          "evaluate",
+          "status",
+          "observe",
+          "close"
+        ],
+        "Response": [
+          "description",
+          "validation",
+          "status",
+          "result",
+          "closed"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Oracle.close()": "<inferred>",
+        "Oracle.next()": "anyerror",
+        "Oracle.output()": "<inferred>",
+        "Oracle.validate()": "<inferred>",
+        "Output.append()": "<inferred>",
+        "Output.binding()": "<inferred>",
+        "Output.collect()": "<inferred>",
+        "Output.create()": "<inferred>",
+        "Output.derive()": "<inferred>",
+        "Output.read()": "<inferred>",
+        "Output.validate()": "<inferred>",
+        "Output.view()": "<inferred>",
+        "Session.create()": "<inferred>",
+        "Session.evaluate()": "<inferred>",
+        "Session.evaluateCell()": "anyerror",
+        "Session.status()": "<inferred>",
+        "apply()": "<inferred>",
+        "applySession()": "<inferred>",
+        "find()": "<inferred>",
+        "hex()": "<inferred>"
+      },
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 64,
+        "catch": 4
+      },
+      "imports": [
+        "root.zig",
+        "std",
+        "transit_fuze"
+      ]
+    },
     "packages/zig/transit-sql-client/src/read_schema.zig": {
       "errors": {},
       "outcomes": {},
@@ -30621,9 +30741,12 @@
         "Executor.zig",
         "MigrationClient.zig",
         "Pending.zig",
+        "ReadSession.zig",
         "ReadView.zig",
         "ReadWorkspace.zig",
         "Response.zig",
+        "WorkbookGraph.zig",
+        "WorkbookWorkspace.zig",
         "transit_sql_protocol",
         "transit_sql_results"
       ]
