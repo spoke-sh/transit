@@ -60,7 +60,7 @@ def summarize(run, jobs, log, budgets, suite=SUITE):
     duplicate_lanes = sorted(name for name in ordinary_lanes if names.count(name) > 1)
     full_inventory = bool(ordinary_lanes) and not missing_lanes and not duplicate_lanes
     for job in jobs:
-        if job['name'] in ('Selection and documentation', 'foundation-and-protocol'):
+        if job['name'] in ('Selection and documentation', 'Console latency gate', 'foundation-and-protocol'):
             continue
         # The full matrix owns documentation through installation-ui. Its separate
         # docs-only job is intentionally skipped by the selection gate.
@@ -201,7 +201,7 @@ def main():
     # extraction). Preserve measurable jobs and the missing-log distinction.
     logs, missing_logs = [], []
     for job in response['jobs']:
-        if job['conclusion'] == 'skipped' or job['name'] in ('Selection and documentation', 'foundation-and-protocol'):
+        if job['conclusion'] == 'skipped' or job['name'] in ('Selection and documentation', 'Console latency gate', 'foundation-and-protocol'):
             continue
         fetched = subprocess.run(['gh', 'run', 'view', str(args.run), '--repo', args.repo,
                                   '--attempt', str(run['run_attempt']), '--job', str(job['id']), '--log'],

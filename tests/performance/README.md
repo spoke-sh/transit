@@ -11,7 +11,7 @@
 | Installed Station handler turns | [Workload and limits](load/station_turn.md), [handler driver](load/station_turn.zig), [state/outbox oracle](load/station_turn.py) |
 | Structural page experiments | [Geometry/codec runner](storage/page_layout.py), [native probe](storage/page_layout.zig); private variants, without provider I/O or native latency claims |
 | Offered load and scale | [Load driver](load/growing_load.py), [scale matrix](scale/scale.json), [matrix runner](scale/scale.py) |
-| Console, startup and mutation latency | [Console runner](console/console_latency.py), [startup workload](console/startup.py), [mutation runner](mutations/mutation_latency.py), [transport probe](../harness/http_probe.py) |
+| Console, startup and mutation latency | [Console runner](console/console_latency.py), [startup workload](console/startup.py), [latency gate](console/gate.py), [active budgets](console/budgets.json), [mutation runner](mutations/mutation_latency.py), [transport probe](../harness/http_probe.py) |
 | Installed SDK costs | [Catalog/Query workload, packaging and report guide](sdk/README.md) |
 | Managed computations and connection pressure | [Installed experiment guide](load/installed.md), [runner](load/installed.py), [reporter](load/report.py) |
 | Result codec allocations and paired costs | [Method and budgets](results/README.md), [comparison runner](results/codecs.py) |
@@ -180,6 +180,17 @@ Summed RSS double-counts shared pages; PSS apportions them. Virtual address spac
 is not allocator reserve, high-water RSS is not the peak of this statement, and
 these samples do not prove zero allocation or cover other language hosts. A
 snapshot is evidence only when the entire workload's value/count checks pass.
+
+`just test::console-latency-gate` runs the installed default startup/restart
+sequence (`--startup-restarts 2 --startup-default`) and the persistent console
+statement and resource workload (`--statements --repeat 1 --cycles 5 --warm-reads 2
+--resources --worker-interval-ms 10`) pinned to 4 CPUs, then enforces the
+active regression budgets in [`console/budgets.json`](console/budgets.json). The
+gate checks startup readiness and first-verified-result medians, pooled
+`warm_read`/`refresh_read`/`dml_write` class medians, per-case statement medians
+(with a 20% regression budget and a 15-ms noise floor for `<50 ms` warm reads),
+and owned process/thread/PSS footprints. Pass `--freeze` to recalibrate the
+checked-in baseline after an intentional architectural change.
 
 `just test::console-latency-tls 5` runs the same value/count workload through the
 existing matching TLS SQL fixture without a proxy. This separate component
