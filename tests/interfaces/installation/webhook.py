@@ -245,6 +245,8 @@ def run(journey, binaries):
             response_body = b'{"accepted":true}'
 
             class Destination(BaseHTTPRequestHandler):
+                protocol_version = 'HTTP/1.1'
+
                 def log_message(self, *_):
                     pass
 
@@ -261,6 +263,7 @@ def run(journey, binaries):
                             return
                         self.send_response(200)
                         self.send_header('Content-Length', str(len(response_body)))
+                        self.send_header('Connection', 'close')
                         self.end_headers()
                         self.wfile.write(response_body)
                     except Exception as error:
@@ -294,10 +297,10 @@ def run(journey, binaries):
                             journey.rows('console_during_http', 'SELECT * FROM items;', [])
                         finally:
                             release.set()
-                        dispatched.result(timeout=120)
+                        execution = dispatched.result(timeout=120)
                     exchange.deliver()
                     outcome = exchange.activate('caller', 'receive')
-                    assert outcome['phase'] == ('closed_unknown' if lost_response else 'observed'), outcome
+                    assert outcome['phase'] == ('closed_unknown' if lost_response else 'observed'), (outcome, execution)
                     if not lost_response:
                         assert outcome['status'] == 200
                     assert len(received) == 1 and not peer_errors, peer_errors
