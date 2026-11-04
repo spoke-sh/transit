@@ -21,7 +21,7 @@ for the current executable declarations, workload operations and inspection form
 
 ## Explicit SQL Stream groups and offset settlement — 2026-11-03
 
-The next implementation review unit delivers Batch 3's grouped progress handoff
+This implementation delivers Batch 3's grouped progress handoff
 and **4a.1** over the existing native assignment, read and settlement owners.
 `CONSUME ... GROUP` binds an explicit binary native assignment and starts at its
 checkpoint; predicates filter output without skipping input progress. Grouped
@@ -40,6 +40,10 @@ from row counts, release a read pin on result close, or silently commit progress
 The current-v1 definition changes to
 `78b1bcc56b9de85d82591f5a249df53e8c556ae8d0ad0c30c7946e9fc4260f33`;
 generated consumers and independent fixtures move with it.
+
+The [qualification record](../history/qualification/query.md#sql-stream-groups-and-authenticated-offsets--2026-11-03)
+attributes the completed checks and earlier failed attempts to their tested
+revisions and distinguishes this slice from the remaining milestone gates.
 
 This section supersedes the older dated next-step descriptions for 4a.1 below.
 M6 remains **In Progress**. Stream/Queue waits, payload acquisition predicates,
