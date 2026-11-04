@@ -112,7 +112,7 @@ export default defineConfig({
             },
             {
               name: "shell",
-              test: /transit-board-web\/src\/(?:routes\/|(?:state|interface|declared|features|feature-status|feature-access|data-route|data-metadata|dataset-selection|use-observation|observation|observation-owner|read-status|request-scheduler|workbench-layout|quantity|quantities|query-diagnostic|process-tabs|routeTree.gen)\.tsx?$)|transit-board-client\/src\/(?:deployment|request|host-validators)\.(?:ts|js)$|transit-application\/src\/(?:interface|definition|error|validators)\.(?:ts|js)$|transit-query-client\/src\/(?:error|logical|diagnostics|read-types)\.ts$|transit-reactive-client\/src\/(?:caller-gate|request-scheduling|error)\.ts$|transit-diagnostics\/src\/|ajv\/dist\/runtime\//,
+              test: /transit-board-web\/src\/(?:routes\/|(?:state|plane-state|interface|declared|features|feature-status|feature-access|data-route|data-metadata|dataset-selection|use-observation|observation|observation-owner|read-status|request-scheduler|workbench-layout|quantity|quantities|query-diagnostic|process-tabs|routeTree.gen)\.tsx?$)|transit-board-client\/src\/(?:deployment|request|host-validators)\.(?:ts|js)$|transit-application\/src\/(?:interface|definition|error|validators)\.(?:ts|js)$|transit-query-client\/src\/(?:error|logical|diagnostics|read-types)\.ts$|transit-reactive-client\/src\/(?:caller-gate|request-scheduling|error)\.ts$|transit-diagnostics\/src\/|ajv\/dist\/runtime\//,
             },
           ],
         },
