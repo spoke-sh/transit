@@ -876,7 +876,7 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
     // Direct HTTP failures retain the verified owner cause separately from
     // their status-class error. Do not apply that cause to unrelated failures.
     const cause = if ((err == error.Conflict or err == error.Rejected) and rejected == .TableDefinitionChanged) error.TableDefinitionChanged else err;
-    const info: struct { [5]u8, []const u8 } = if (err == error.AuthorityUnavailable and (rejected == .HttpCapacity or rejected == .StorageQuota)) .{ "53000".*, "Database capacity exhausted; inspect admitted writes before retrying SQL" } else if (err == error.Conflict and rejected == .Conflict) .{ "55000".*, "Current state changed; inspect admitted work before retrying SQL" } else switch (cause) {
+    const info: struct { [5]u8, []const u8 } = if (err == error.AuthorityUnavailable and (rejected == .HttpCapacity or rejected == .ControlCapacity or rejected == .StorageQuota)) .{ "53000".*, "Database capacity exhausted; inspect admitted writes before retrying SQL" } else if (err == error.Conflict and rejected == .Conflict) .{ "55000".*, "Current state changed; inspect admitted work before retrying SQL" } else switch (cause) {
         error.CatalogDenied, error.AccessDenied, error.GatewayDatabaseDenied, error.ConfigurationDenied => .{ "42501".*, "Current permission denied" },
         error.GatewayCredentialChanged, error.InvalidAuthentication => .{ "28000".*, "Credential changed or disabled" },
         error.GatewayDeadline, error.GatewayWaitCancelled, error.Cancelled, error.Canceled, error.StatementTimedOut => .{ "57014".*, "Request wait ended; admitted work requires outcome inspection" },
@@ -1053,6 +1053,8 @@ test "capacity diagnostics retain operation uncertainty and do not override deni
     try std.testing.expectEqualStrings("42501", &host.diagnostic(error.AccessDenied).state);
     host.wire.last_rejection = .ConflictingRetry;
     try std.testing.expectEqualStrings("XX000", &host.diagnostic(error.Conflict).state);
+    host.wire.last_rejection = .ControlCapacity;
+    try std.testing.expectEqualStrings("53000", &host.diagnostic(error.AuthorityUnavailable).state);
     host.wire.last_rejection = .StorageQuota;
     try std.testing.expectEqualStrings("53000", &host.diagnostic(error.AuthorityUnavailable).state);
     try std.testing.expectEqualStrings("54000", &host.diagnostic(error.SqlReadLeaseCapacity).state);
