@@ -412,6 +412,18 @@ pub const Request = struct {
     pub fn input(self: Request) Input {
         return .{ .definition = self.definition, .connection = self.connection, .nonce = self.nonce, .action = self.action, .delegation = self.delegation, .closure = self.closure, .borrow = self.borrow, .lease = self.lease, .transaction = self.transaction };
     }
+    /// Private staging and reader retention change durable bookkeeping without
+    /// publishing a new source or declaration. They must not turn a SELECT's
+    /// pin/release lifecycle into another managed-computation discovery sweep.
+    /// This conservative hint is separate from mutation/uncertainty semantics:
+    /// even a refused publication attempt may wake an authorized recheck.
+    pub fn publicationHint(self: Request) bool {
+        return switch (self.action) {
+            .record, .stage, .pin, .retain_history, .release => false,
+            else => self.transport().mutation,
+        };
+    }
+
     /// Transport hints classify a request attempt; the server validates its
     /// parsed action and current rights before using reserved admission.
     pub fn transport(self: Request) struct { operation: []const u8, mutation: bool, control: ?[]const u8, wait: ?c.client.WaitHint } {

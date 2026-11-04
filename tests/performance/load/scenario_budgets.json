@@ -1,0 +1,23 @@
+{
+  "scenario": "all",
+  "minimum_repeat": 1,
+  "limits_ms": {
+    "console_cold": {"max_ms": 5000},
+    "console_warm_empty": {"max_ms": 250},
+    "console_warm_one": {"max_ms": 250},
+    "console_insert": {"max_ms": 2500},
+    "console_update": {"max_ms": 2500},
+    "console_delete": {"max_ms": 2500},
+    "console_after_insert": {"max_ms": 3000},
+    "console_after_update": {"max_ms": 3000},
+    "console_after_delete": {"max_ms": 3000},
+    "console_during_dataflow": {"max_ms": 5000},
+    "console_during_http": {"max_ms": 3000},
+    "dataflow_after_insert": {"max_ms": 50000},
+    "dataflow_after_update": {"max_ms": 50000},
+    "dataflow_after_delete": {"max_ms": 50000},
+    "webhook_accept": {"max_ms": 5000},
+    "effect_observed": {"max_ms": 25000},
+    "effect_unknown": {"max_ms": 15000}
+  }
+}

@@ -815,6 +815,11 @@ interactive-query:
 server:
     zig build test-server -Doptimize=ReleaseSafe
 
+# Installed console/Dataflow/webhook journeys, independent outcomes and latency ceilings.
+[positional-arguments]
+server-scenarios *args:
+    zig build test-server-scenarios -Doptimize=ReleaseSafe -- "$@"
+
 server-direct-tables:
     zig build test-server-direct-tables -Doptimize=ReleaseSafe
 

@@ -14,6 +14,7 @@
 | Console, startup and mutation latency | [Console runner](console/console_latency.py), [startup workload](console/startup.py), [latency gate](console/gate.py), [active budgets](console/budgets.json), [mutation runner](mutations/mutation_latency.py), [transport probe](../harness/http_probe.py) |
 | Installed SDK costs | [Catalog/Query workload, packaging and report guide](sdk/README.md) |
 | Managed computations and connection pressure | [Installed experiment guide](load/installed.md), [runner](load/installed.py), [reporter](load/report.py) |
+| Console, Dataflow and webhook effect journeys | [Scenarios and latency gates](load/scenarios.md), [runner](load/scenarios.py), [active ceilings](load/scenario_budgets.json) |
 | Result codec allocations and paired costs | [Method and budgets](results/README.md), [comparison runner](results/codecs.py) |
 
 Use the existing `just test` benchmark commands. Python entry points use
