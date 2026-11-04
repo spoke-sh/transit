@@ -118,6 +118,173 @@ participation, SQL projections or the Station/SDK consumer replacement. It makes
 no warmed zero-allocation, power-loss or performance claim, and does not close
 the [Milestone 7 gate](../../roadmap/07-document-storage-and-station-decoupling.md).
 
+### Integration with owned progress
+
+Commit `d58d659bae4b9f0e02630db360d282a7b874eb28` merges main at
+`2f8be4bae819f5710d81b36b66cd1cfbca841922`, including the owned-progress
+lifecycle and local SQL admission correction. The collector retains both the
+`progress-records/` and `document-collections/` namespaces. The combined
+current-v1 definition is
+`c41b96a7fd2e713dc00ce1cecfb1e059584be310fbc26aa47d830bc0ea84efb4`; schemas,
+bindings, Node validators and independent signing fixtures are regenerated from
+the merged source. The earlier results above retain their original source and
+definition; the checks below qualify this integrated source.
+
+Protocol tests pass **124/124**, the combined Document graph/owned-progress
+selection passes **8/8**, and contract checks pass **20/20**. The latter graph
+selection is `zig build test -Dtest-filter='direct graph retains document'
+-Dtest-filter='owned progress reserves' --summary all` in the catalog package.
+`just transit-docs::check` passes its checks and production build. Three `just
+ci clean --lane NAME` invocations run the same committed, unmodified integrated
+source in fresh workspaces, with these distinct outcomes:
+
+| Lane | Completed tasks | Recorded duration |
+| --- | --- | --- |
+| `core` | 28/28 | 4,960.38 seconds |
+| `storage-query` | First 20 tasks passed; task 21 failed; final 12 did not run | 12,323.61 seconds |
+| `sdks-conformance` | 7/7 | 1,922.68 seconds |
+
+The completed core and SDK records contain the exact expected task inventories,
+zero task exit codes, the source revision and pinned toolchain. SDK conformance
+includes all ten language interoperability pairs. The storage attempt passes
+the full local catalog task in 9,953.58 seconds, direct Table/KV services,
+state/mixed transactions, both Queue transfers and original log-token recovery.
+It then fails `test::direct-workload-token`: `workload-token-prepare` exceeds
+its unchanged 180-second deadline before reaching the recovery assertions. The
+node log records 220 successful Stream setup calls, with 252 HTTP 200 requests
+in all. The fixture remains at
+`/var/tmp/transit-table-workload-token-nzg0nr4n`. Observed host I/O pressure
+does not establish the cause of this timeout.
+
+A separate `m7-storage-followup` capture in the retained checkout retries the
+unchanged failing task. Its `workload-token-prepare` phase again exceeds the
+180-second deadline; that capture stops before its remaining tasks. The retry
+fixture remains at `/var/tmp/transit-table-workload-token-zitk7_bs`. Its 646.98
+seconds include rebuilding from the same source, not a longer test deadline. A
+further `m7-storage-remaining` capture executes the final 12 tasks, retaining
+each outcome and continuing after failures. Eleven pass;
+`test::direct-workload-result` fails during its unchanged 180-second
+`workload-result-prepare` phase, before recovery assertions. The complete
+continuation records 6,210.74 seconds and returns nonzero. Its final catalog
+task passes in 3,683.96 seconds, verifying all 139 typed objects, eight-entry
+directory pages and the original first receipt after SIGKILL/restart (1,437
+typed catalog calls). Across the original attempt and continuation, 31 of 33
+unique tasks pass; workload-token and workload-result remain unqualified. Both
+captures use committed `d58d659bae4b9f0e02630db360d282a7b874eb28` with no
+source changes; fixtures, deadlines and task commands are unchanged. This
+separate coverage does not replace the failed clean lane. These durations
+describe functional runs, not performance benchmarks. The component and
+whole-milestone limits above still apply; no full integration/release
+qualification is claimed.
+
+Integrated transcripts are retained alongside the earlier artifacts in
+`.cache/verification/document-collections/2026-11-03/`:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `integration-protocol.log` | `70677a6528a2129d410b9a9a0808b27d1fc109e3b93f67f5199e56f34fbba8d8` |
+| `integration-graph.log` | `96b4739b1ec69d9672dd7591fce82b19782a2307a438b4fa8dcb02b094008f35` |
+| `integration-contracts.log` | `f5bb8bace3e848f3be2fc179ac9ae550298cac149a6b6f8048c5d5266118093c` |
+| `integration-docs.log` | `1752c8c71ff2dc3f04f099c88093c92a778f3d7a8f47233f9ad8b6f1c990b5a6` |
+| `integrated-clean-core.log` | `acd1844fc4b770cbc027d72d2079367b2722f185668ff1f8a654719b82d20df5` |
+| `integrated-clean-storage.log` (failed lane) | `72997a22a4213ef2f652d6b3b8baf07b3a9eeb1634a6a7b180b0800f225ce1b4` |
+| `integrated-clean-sdk.log` | `254dbfcbe1ef7fa640d5deeaee1f725594514428985703c57c4668c5adbae583` |
+| `integrated-storage-followup.log` (failed retry) | `e27b89f7d2153f3282618d176851596bc1a95e26d8c24fcc90e5d95a87d2192a` |
+| `integrated-storage-remaining.log` | `996cbe2b8cbbdd25840aab664655c924dedc32c280c9a5545fafa7bae0d702c3` |
+
+The complete clean-lane artifacts are under `.cache/ci/clean/`:
+
+| Evidence directory | Completion metadata SHA-256 | Task inventory SHA-256 |
+| --- | --- | --- |
+| `d58d659bae4b-transit-ci-grqqtfdb/` (`core`) | `6f0c7be7c630b140f86577dafac4cd6e73226f0337cff24d303927a3202a5cd4` | `c57df50c91dea7329851ab5d0fd7ecb88d1431ff96a4753b6d0a1290490228c3` |
+| `d58d659bae4b-transit-ci-_ov_7uzr/` (`sdks-conformance`) | `6a675b1f072534eedae0c7b1e26fe8267173044a05f12d15e61236ee65449f19` | `b9a8b6cf63cfa805e1db7ee530b31b8be6ed6040076d988a6785e7cec9e8087c` |
+
+The failed storage lane remains at
+`/var/tmp/transit-ci-77wsl70i/src/.cache/ci/runs/storage-query-dap4kx8q/`. Its
+metadata SHA-256 is
+`365b668d38e11cc797d80c690751cf1e9a7d3f0de960b978828a55453629c55b`; its task
+inventory SHA-256 is
+`a00cce97b3b2821d77a534a2e200b831cc34e83fe5dda95b38c49b050e70d893`. The failed
+retry is in the sibling `m7-storage-followup-jc9jbt8j/` directory, with
+metadata SHA-256
+`f5404365cf1ecbcf04c2ed6cd026d040f91c07d8214831c533f09921878ec590` and task
+inventory SHA-256
+`e08704ff67855945c851a44030c98cede194f179572626ad58556a25add5ee14`. The final
+continuation record is `m7-storage-remaining-vfqbq1ps/`, with metadata SHA-256
+`1ecbdfa29c47b913b33afb10b8c86c46cd7cfe7d1e2eb9f2110efb08e58a7e34` and task
+inventory SHA-256
+`c36016cfa295ea11869ddd121ce85856b371e0d97e5705294de9b9ebb3c026fe`.
+
+### Integration with original-operation staging closure — 2026-11-04
+
+Commit `501d5532be3b049b65d7b02ffd26efbd9837f9bf` integrates main at
+`47f79de29f67d39d1b19dde36396b3cf9ead862f`, including original-operation
+staging/closure and the early console-latency gate. The collector preserves
+`owned-records/`, `progress-records/` and `document-collections/`, including
+main's original-operation reachability rules. The combined current-v1 definition
+is `c185acdc72afbcd9b8e5de723aed05ee8468e4cf8c12e6c012e495952fedab97`.
+All generated contracts, SDK bindings, Node validators and signing fixtures are
+regenerated. Earlier qualification above applies only to its recorded sources.
+
+The final source passes the protocol package's **124/124** tests, the storage
+package's lowercase `document` selection (**21/21**), and the catalog selection
+combining `direct graph retains document`, `owned progress reserves`,
+`owned originals reserve` and `owned original attachment` (**10/10**).
+These are component checks, including both ordered and causal disk schedules;
+they do not establish an installed direct Document API or milestone completion.
+
+Three `just ci clean --lane NAME` invocations pass against the same
+committed, unmodified runtime source in fresh workspaces:
+
+| Lane | Passed tasks | Recorded duration |
+| --- | --- | --- |
+| `core` | 28/28 | 4,327.73 seconds |
+| `sdks-conformance` | 7/7 | 1,635.17 seconds |
+| `storage-query` | 33/33 | 11,514.11 seconds |
+
+Each completion record contains the full expected task inventory, zero task
+exit codes, clean source identity and the pinned toolchain. Every captured
+task log is checked against its recorded byte count and SHA-256. Core includes
+all 20 contract checks; SDK conformance includes all ten language interoperability
+pairs. Storage/query includes native catalog collection, installed Table/KV
+services, state and mixed transactions, Queue transfers, maintenance, existing
+installed Documents, public queries, publication and catalog replacement.
+The final catalog schedule verifies all 139 initialized KV/Document objects,
+typed values, eight-entry directory pages and the original first receipt after
+node SIGKILL/restart, using 1,437 typed catalog calls.
+Both workload-token and workload-result schedules complete under their unchanged
+preparation deadlines on this source; this does not diagnose the earlier
+source's timeouts. The recorded durations are functional qualification times,
+not performance benchmarks.
+
+The transcripts below are retained under
+`.cache/verification/document-collections/2026-11-03/`:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `closure-protocol.log` | `b50451921ff364ba0679c1c3e0b2b9d2e594c556d52ad6525d8d6a503066b90c` |
+| `closure-document-all.log` | `dbddafbb3e608a415518d1f005e4c02edf01b806e16e6ddb6be1d5069ee42520` |
+| `closure-graph.log` | `161f2641ebd85c7eff9b0e57f16f5ac0406aec9d00059caf57ba2ba1d6278ed1` |
+| `closure-clean-core.log` | `1a306b0c2eb95281772898cf0e5e68f54a42c6c4412aa89b9e0ebcd07157dd13` |
+| `closure-clean-sdk.log` | `2cfd153ab8fda19048f12afc2393031113eec09e36e854edb75c248dc3e14db7` |
+| `closure-clean-storage.log` | `14fecb66fb9ac391887bb7cf02a01b832b2f6d786bc29edb4108ed58a0d2b23d` |
+| `closure-docs.log` | `90427c05bb0b52970f91d6d32dfc03d9c4700408f8e2db18ef581b03f59428c2` |
+| `closure-doc-links.log` | `6f2e63ef340e1d4052bfe9c216ea5f72fde3a7fad741c88b6485c4d711c3e04b` |
+
+The complete clean-lane records are under `.cache/ci/clean/`:
+
+| Evidence directory | Completion metadata SHA-256 | Task inventory SHA-256 |
+| --- | --- | --- |
+| `501d5532be3b-transit-ci-35tsozux/` (`core`) | `21a214d58f6236c564614a7f6635df4adb481f86f10bd4144e00bd5fe74a27f0` | `9a8574d75066816a506856719d53035db5f3830fc3e70b897f70f5dc271289c6` |
+| `501d5532be3b-transit-ci-ayix5gk6/` (`sdks-conformance`) | `0f0754625c9b09a00f75db1f5b7bf0314513bdc0dc6f7080d76176e0cc357d67` | `e0518731fb06631b315e6f4191eae32f746ca842eb4cef5e0736d51de7700737` |
+| `501d5532be3b-transit-ci-5islmdth/` (`storage-query`) | `e036bbc60bd036e513c0272df14783e1a352cc9061818ad8d081482c98ef8389` | `69763b59560d13198cbfdde2446796468a536fb64e0bd8d687d663dd82a2738b` |
+
+Documentation-only commit `152e94b18418c8dbab90c9f91536ec095ef6b6c0` passes
+the site checks and production build; its repository link check covers 11,330
+links across 731 files. The final qualification-account edit passes its own
+link and whitespace checks. These selected lanes and component schedules do not
+establish full integration/release or whole-Milestone-7 qualification.
+
 ## Frozen workload projection bodies — 2026-11-01
 
 Commit `b5fcc0c003053c33cd51f341fea46531fe75f49e` includes the ordered projection
