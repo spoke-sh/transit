@@ -2,7 +2,11 @@
 
 [Roadmap](README.md) · **Status:** In Progress
 
-Start with the [R3 implementation plan for review](#r3--explain-completed-and-pending-computation):
+The current design revision is [accordion layout and reactive workbook state](#accordion-and-reactive-workbook-design--2026-11-03),
+with [board-data D5](../design/board-data/D5.md) and its interactive study.
+The reviewer requested design-first delivery; no UI or runtime change is included.
+
+The existing [R3 implementation plan](#r3--explain-completed-and-pending-computation) covers
 public read-only computation evidence, then linked source → computation → output
 inspection. R1, automatic local data access and [R2](#readable-storage-delivery-r2--2026-11-02)
 are merged, including readable binary quantities, retained storage placement,
@@ -15,11 +19,90 @@ Reimplement Board as the installed interface for discovering data, explaining
 computations and reviewing governed changes. Deliver the focused catalog,
 dataset previews, relationships, SQL workbooks, directed lineage and change
 workflows developed in [board-data D2](../design/board-data/D2.md), with the
-horizontal workbench and single-Inspector direction in
-[board-data D3](../design/board-data/D3.md). Preserve
+single-Inspector direction in [board-data D3](../design/board-data/D3.md) and the
+accordion/reactive revision in [board-data D5](../design/board-data/D5.md). Preserve
 operational inspection and expose each capability through its owning public
 operation; the interface does not become another catalog, query engine or
 permission authority.
+
+## Accordion and reactive workbook design — 2026-11-03
+
+**Status: design in review; no implementation or new runtime evidence.** Source
+basis: `796599b58`. The reviewer retains Catalog's overall direction and Operations'
+data, requests a folding root layout, removes the long temporary-session paragraph,
+and wants SQL cells to recalculate their dependents as the draft changes. They
+selected an interactive design study before production changes and separate
+Inspector/Assistant tabs in the right pane. [D5](../design/board-data/D5.md) owns
+the interaction model, figures, alternatives and open decisions.
+
+The proposed root has an expandable left activity/object rail, one persistent
+central surface and an independently expandable right context pane. Catalog,
+Workbook and Operations remain first-class destinations. The same observation
+owners supply their grids, diagrams and Inspector. Folding, selecting a tab and
+resizing are presentation transitions, not execution events. Operations' original
+inspection and recovery paths remain reachable.
+
+The proposed workbook is a temporary graph with stable cell identities, compiler-
+resolved relation dependencies and distinct draft, execution and output state.
+An edit invalidates the changed cell and its descendants immediately. In a visible,
+enabled finite Live session, debounce/blur coalesce into one evaluation of the
+latest valid candidate. Downstream work binds exact upstream complete relations;
+unrelated cells do not rerun. Previous completed output remains visibly earlier.
+No display window is substituted for a complete relation or independent source
+vector relabeled as an atomic snapshot.
+
+Replace the notice with compact Unsaved/lifetime detail and real discard handling.
+The target shell retains a temporary workbook across activity navigation and pauses
+its evaluation while inactive. This is not current route-local behavior; removing
+copy must not falsely claim navigation persistence. Saving drafts through Documents
+remains the separate L2–L5 scope below. Saved work does not execute on Open.
+
+### Contract prerequisites and reviewable slices
+
+| Slice | Outcome | Required owner and gate |
+| --- | --- | --- |
+| A0 — review the state and plane | Review D5 closed/open/narrow layouts, tab semantics, draft/result transitions and copy | Local fixture/browser study only; acceptance does not certify installed behavior |
+| A1 — implement the plane | Shared root rail/context tabs; keep Catalog/Operations evidence and explicit Run | Existing shell, selection and observation owners; prove focus, navigation, zoom, denial clearing and no execution from geometry. Assistant unavailable unless its separate capability exists |
+| A2 — qualify session graph semantics | Shared binding/validation, exact dependent relations, finite evaluation budget, progress, pause/close and bounded relation storage | SQL/query/client owners first; generated browser types and non-browser callers. Define namespace collisions, cycles, source cuts, input lifetimes, cancellation races and budget accounting before a Board adapter |
+| A3 — implement reactive cells | Visible Live scope; immediate invalidation; debounce/blur; only the affected dependency closure runs | Consume A2 via shared clients, retain current typed read-only admission. Bound queued candidates, active work, output windows and service memory/spill. The existing request scheduler still reserves cleanup/control capacity |
+| A4 — qualify installed journeys | Same semantics across installed Board and independent public caller | Record actual browser/service evidence and numeric budgets; publish delivered behavior to the Board guide/API and shared owners |
+
+Do not route the graph through hidden Tables, concatenate unvalidated SQL in the
+browser, or evaluate full relations in JavaScript. Current
+[managed DATAFLOW](../handbook/reference/queries.md#managed-table-computations)
+requires an existing output Table, separate publication/authorization/activation,
+one source and no managed output chaining. A temporary composable workbook is a
+new lifetime/binding profile; this design does not invent executable
+`CREATE TEMP DATAFLOW`. Extend the existing current-v1 contracts together where
+semantics change. Promotion to durable computation is a separately reviewed,
+authorized operation, not an effect of typing, Save or changing tabs.
+
+Assistant context attachment, model/tool requests and retention require their
+application/connector owners. Selection does not send data. A suggested edit only
+changes the draft; its subsequent evaluation follows the visible workbook mode.
+Inspection gains no administrative power through the context pane.
+
+### Required acceptance beyond the study
+
+- Edit bursts, IME composition and blur admit the same latest revision once;
+  obsolete completions cannot replace a newer draft's output. A→B→C and diamond
+  graphs use exact complete input revisions; unrelated cells remain untouched.
+- Reject cycles, missing/deleted inputs, duplicate names, shadowing and type changes
+  with attributable diagnostics. Prove rename/reorder preserves stable bindings.
+- Exercise complete empty inputs, multi-batch relations larger than the display
+  window, byte/memory limits, budget exhaustion, failures and interrupted prefixes.
+  Never label a partial relation current/complete or feed it to dependent SQL.
+- Pause, route change, hidden tab, close, reload and cancellation races preserve
+  original work identity and bounded cleanup. Returning does not reset budgets,
+  rerun SQL implicitly or splice source snapshots. Current denial clears buffered
+  rows, Inspector evidence and attached assistant context.
+- Prove both rails, both tabs, browser Back, narrow/zoomed focus return and activity
+  navigation retain the intended draft/selection and never dispatch SQL. Explicit
+  workbook closure/discard is separate from folding the plane.
+
+Earlier dated explicit-Run delivery/checklists describe their original profiles
+and remain evidence. D5 revises the next workbook target; it does not invalidate
+their proved safety gates or complete R4/R5, persistence, or this milestone.
 
 ## Local connections and Document persistence plan — 2026-11-02
 
@@ -1924,9 +2007,10 @@ workflows retain the completion gates below.
    where needed; catalog size must not determine resident memory or graph size.
    Reveal only capabilities available to the current configured scope. Keep
    query and administrative capabilities separate from read-only inspection.
-   Apply [D3's topology](../design/board-data/D3.md): horizontal activity navigation,
-   optional object navigation, one primary working surface and one shared
-   selection-driven Inspector. Definition, Profile, Storage, Lineage, History,
+   Apply [D5's folding plane](../design/board-data/D5.md) after review: left
+   activity/object navigation, one primary working surface and a shared right
+   pane with Inspector/Assistant tabs. Retain D3's selection-driven Inspector.
+   Definition, Profile, Storage, Lineage, History,
    Execution and Policy dimensions appear only for relevant subjects and
    qualified public evidence. Keep result coverage/completion and exact
    comparison inputs outside collapsible detail. Context changes cannot
@@ -1957,7 +2041,10 @@ workflows retain the completion gates below.
    Independent cell runs do not silently form one atomic investigation. A retained
    shared basis uses the qualified snapshot/pin owner with explicit lifetime.
 5. **Make execution and transaction state understandable.** Preserve explicit
-   Run as the baseline and visible finite budgets for enabled Live sessions.
+   Run until the session graph owner qualifies, then add D5's reactive dependent
+   cells within visible finite Live budgets. Keep drafts, exact input revisions,
+   in-flight work and last complete results separate; blur/debounce coalesce,
+   unrelated cells do not rerun and source-follow remains a separate capability.
    Editing never implicitly applies DDL, publishes a proposal or dispatches an
    effect. For supported transaction sessions, show autocommit versus explicit
    scope, provisional results, commit/rollback state and the original operation
