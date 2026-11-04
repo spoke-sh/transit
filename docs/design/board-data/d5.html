@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Board D5 · Accordion workbench study</title>
+  <link rel="stylesheet" href="d5.css">
+  <script src="d5-model.js" defer></script>
+  <script src="d5.js" defer></script>
+</head>
+<body>
+  <div class="study"><strong>BOARD / D5</strong><span>Interactive design study · synthetic data · no service calls</span><a href="D5.md">Design record ↗</a></div>
+  <div class="plane" id="plane" data-left="false" data-right="false" data-last="right">
+    <nav class="navigation" aria-label="Board navigation">
+      <div class="brand"><span class="mark" aria-hidden="true">t</span><strong class="nav-label">Transit / Board</strong></div>
+      <button id="left-toggle" class="fold" title="Toggle navigation" aria-label="Toggle navigation" aria-controls="nav-detail" aria-expanded="false">☰<span class="nav-label">Fold navigation</span></button>
+      <div class="activities">
+        <button data-route="catalog" title="Catalog" aria-label="Catalog"><span aria-hidden="true">▦</span><span class="nav-label">Catalog</span></button>
+        <button data-route="workbook" title="Workbook" aria-label="Workbook"><span aria-hidden="true">▤</span><span class="nav-label">Workbook</span></button>
+        <button data-route="operations" title="Operations" aria-label="Operations"><span aria-hidden="true">◴</span><span class="nav-label">Operations</span></button>
+      </div>
+      <div id="nav-detail" class="nav-detail"></div>
+      <div class="nav-bottom"><span aria-hidden="true">◉</span><span class="nav-label">Local workspace<br><small>Read-only data scope</small></span></div>
+    </nav>
+    <div class="work-area">
+      <header class="context"><span><strong>local</strong><i>/</i> logistics <i>/</i> public</span><span>Configured scope · fixture</span></header>
+      <main id="workspace" tabindex="-1"></main>
+      <div class="narrow-return"><button id="back">← Back to work</button><span>Draft and selection retained</span></div>
+    </div>
+    <aside class="right" aria-label="Context pane">
+      <div class="right-rail">
+        <button id="right-toggle" aria-label="Toggle context pane" title="Toggle context pane" aria-controls="context-body" aria-expanded="false">◫</button>
+        <button data-tab="inspector" title="Inspector" aria-label="Inspector"><span aria-hidden="true">ⓘ</span></button>
+        <button data-tab="assistant" title="Assistant" aria-label="Assistant"><span aria-hidden="true">✳</span></button>
+        <span class="rail-label">Context</span>
+      </div>
+      <div class="context-body" id="context-body">
+        <div class="context-top"><div role="tablist" aria-label="Context tabs">
+          <button role="tab" id="tab-inspector" aria-controls="inspector-panel" data-tab="inspector">Inspector</button>
+          <button role="tab" id="tab-assistant" aria-controls="assistant-panel" data-tab="assistant">Assistant</button>
+        </div><button id="close-right" title="Fold context" aria-label="Fold context">→</button></div>
+        <section id="inspector-panel" role="tabpanel" aria-labelledby="tab-inspector"></section>
+        <section id="assistant-panel" role="tabpanel" aria-labelledby="tab-assistant" hidden>
+          <p class="eyebrow">WORKBOOK ASSISTANCE</p><h2>Think alongside the data.</h2>
+          <p>Ask about a definition, explain a result, or propose a change to a cell.</p>
+          <div class="assistant-card"><strong>No context attached</strong><p>Choose what to share. Selecting a cell does not send its contents.</p></div>
+          <div class="assistant-example"><small>EXAMPLE QUESTION</small><p>How would I group delayed shipments by region?</p></div>
+          <label>Message<textarea placeholder="Assistant connection required" disabled></textarea></label>
+          <button disabled>Send</button><p class="muted">Assistant layout only. No model, connector or tool is connected.</p>
+        </section>
+      </div>
+    </aside>
+  </div>
+  <div class="announcement" id="announcement" role="status" aria-live="polite"></div>
+</body>
+</html>
