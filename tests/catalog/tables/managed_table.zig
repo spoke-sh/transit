@@ -146,16 +146,21 @@ pub fn prepare(init: std.process.Init, client: c.DirectTableClient, path: []cons
     try count(client, 0);
     try t.expectError(error.DataflowRevisionNotFound, q.ManagedRevision.open(manager, declaration, 1, .{}));
     try t.expectError(error.AuthorityUnavailable, manager.start(declaration));
+    const unclaimed = (try pendingWork(manager, declaration)).?;
+    try t.expectEqualDeep(unclaimed, (try manager.start(declaration)).?);
+    _ = try manager.closeOriginal((try c.DirectClientToken.inspect(client, unclaimed)).?);
+    try t.expect(try manager.start(declaration) == null); // Skip the closed attempt.
+    try t.expectError(error.AuthorityUnavailable, manager.start(declaration));
     const abandoned = (try pendingWork(manager, declaration)).?;
+    try t.expect(!std.meta.eql(unclaimed, abandoned));
     try t.expect((try manager.inspect(declaration)).head.pending == null);
     try control(manager, declaration, .suspend_computation, 652030);
     try control(manager, declaration, .resume_computation, 652031);
-    // Retry selects the saved original rather than rebinding its token to the
-    // changed head. Its exact attachment fails, is fenced and closes forever.
-    try t.expectEqualDeep(abandoned, (try manager.start(declaration)).?);
+    // Independent token discovery resumes the saved original after controls
+    // advance the attempt. Its exact stale attachment closes permanently.
+    try t.expectEqualDeep(abandoned, (try pendingWork(manager, declaration)).?);
     try t.expect(!try manager.step(abandoned, init.io, .cwd(), null));
     try t.expectEqual(.closed, (try c.DirectClientToken.inspect(client, abandoned)).?.original.?.phase);
-    try t.expect(try manager.start(declaration) == null); // Skip the closed attempt.
     const pending = (try manager.start(declaration)).?;
     try t.expect(!std.meta.eql(abandoned, pending));
     try t.expect(try manager.step(pending, init.io, .cwd(), null)); // Acquire.
