@@ -100,6 +100,67 @@ incomplete. Record the commands, outcomes and scope in the PR; skipped checks,
 task listings, dry runs and dependency installation are not passes. A baseline
 pass is not full runtime qualification.
 
+## Using and maintaining nightly container performance
+
+Read the [container campaign guide](tests/performance/load/containers.md) and
+[performance test instructions](tests/performance/AGENTS.md) before changing this
+suite. The [workflow](.github/workflows/nightly-performance.yml) runs at 19:17 UTC,
+twelve hours after the regular nightly schedule. The
+[image resolver](tasks/performance_image.py) freezes the last successfully
+promoted nightly's channel commit, release manifest/checksums and OCI digest.
+The [driver](tests/performance/load/container_suite.py) measures that published
+image; never rebuild the measured runtime from the driver's checkout, use a
+mutable image tag or silently substitute an unpromoted candidate. Missing
+promotion or mismatched provenance is a failed prerequisite. Use `--candidate-tag`
+only for an explicitly labeled investigation, never as a scheduled fallback.
+
+To reproduce, prepare Docker and authenticated GitHub release access, then run
+both profiles sequentially from the repository root with one frozen selection
+and fresh output directories:
+
+```sh
+mkdir -p .cache/performance
+perf_run="$(mktemp -d .cache/performance/local-XXXXXX)"
+python3 -B tasks/performance_image.py --output "$perf_run/selection.json"
+nix develop --command just test::nightly-performance "$perf_run/selection.json" "$perf_run/one-node" 1
+nix develop --command just test::nightly-performance "$perf_run/selection.json" "$perf_run/three-node" 3
+```
+
+- Keep heavy builds, tests and other performance campaigns out of measurement
+  windows. Preserve declared workloads, warmups, repetitions, resource budgets,
+  synchronous durability, maintenance and admission limits when comparing runs.
+  Reduced diagnostic controls do not qualify the scheduled pressure profile.
+- The three-node case is client-routed independent authorities on one Docker
+  host. Console pipes and local SQL include client overhead; they measure neither
+  TCP/TLS latency nor replicated, shared-data or physical multi-host scaling.
+  Add such topologies only after their owning contracts and recovery proofs execute.
+- Inspect `samples.jsonl`, `summary.json`/`summary.md` and, on failure,
+  `failure.json`. A complete inventory, exact values, authoritative mutation
+  counts, terminal coverage, retained restart and joined cleanup are required.
+  Missing or failed samples cannot pass; never replay uncertain writes as new
+  operations, discard failed attempts or weaken checks to improve a score.
+- Preserve separate driver/runtime identities and original raw records. Treat
+  percentiles and throughput as exploratory until matched repeated campaigns
+  establish reviewed regression budgets. Keep unavailable counters explicit;
+  Docker snapshots do not establish heap allocations, peak RSS or physical syncs.
+- Successful runs remove their owned containers and volumes. Retain failed
+  volumes for original-outcome investigation; use the names in `failure.json`
+  and never clean unrelated Docker resources. Publish only safe measurement
+  artifacts, excluding installation data, credentials, recovery files and raw logs.
+- When changing selection, workloads, reporting or orchestration, run
+  `python3 -B tests/runner/launch.py tests/performance/load/test_container_suite.py`,
+  then the affected real image profiles. Preserve negative controls for identity,
+  values/counts, incomplete/duplicate samples and lifecycle failures. Maintain the
+  workflow, [Just task](tasks/test.just), [fast inventory](tests/runner/checks.json),
+  [external-task registration](tests/runner/suite.json) and campaign guide together.
+  Keep the twelve-hour offset if the nightly schedule changes. The fast controls
+  and ordinary PR gates do not execute or qualify the scheduled campaign.
+- Record publication prerequisites, regressions and unqualified scenarios in
+  [tracker #378](https://github.com/spoke-sh/transit/issues/378). Follow the
+  [performance milestone's ownership map](docs/roadmap/13-data-structures-and-performance.md#nightly-container-scorecard-and-distributed-handoffs)
+  for provider, replication, operations, clustered execution and build-profile
+  extensions. Keep build cost, process placement and durable authority distinct.
+
 ## Implementation rules
 
 - Design from the data lifecycle. Identify the data kind, stable object and
