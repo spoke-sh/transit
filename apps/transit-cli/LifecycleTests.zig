@@ -1,5 +1,6 @@
 //! Application-owned process mechanics, independent of native protocol tests.
 test {
+    _ = @import("server/DirectoryPublication.zig");
     _ = @import("Options.zig");
     _ = @import("Undo.zig");
     _ = @import("EditorState.zig");

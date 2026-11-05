@@ -330,6 +330,12 @@ pub fn emit(self: *Self, io: std.Io, err: anyerror) void {
 const Advice = struct { []const u8, ?[]const u8 };
 fn adviceFor(err: anyerror) ?Advice {
     return switch (err) {
+        error.InstallationDirectoryExists => .{ "initialization requires an absent installation directory", "Choose a new child path inside the mounted volume. Existing directories, including empty ones, are never removed by initialization." },
+        error.FilesystemPublicationUnsupported => .{ "the filesystem cannot publish files without replacement", "Use a filesystem supporting exclusive hard links and durable file/directory synchronization. Preserve any retained installation; do not bypass exclusive publication." },
+        error.DirectoryPublicationOwnershipUnknown => .{ "directory publication ownership is unresolved", "Preserve the assembly, publication intent and destination. An unmarked directory cannot be adopted or removed automatically; reconcile the original attempt." },
+        error.DirectoryPublicationIncomplete => .{ "the directory has no committed publication record", "Preserve the directory and its original publication intent. Do not initialize or manually publish retained staging files." },
+        error.DirectoryPublicationConflict, error.InvalidDirectoryPublication => .{ "directory publication evidence does not match", "Preserve all publication records and paths. Restore matching evidence without overwriting or adopting unrelated contents." },
+        error.DirectoryAssemblyTooLarge => .{ "the initial directory assembly exceeds its publication bound", "Reduce the initial assembly to the documented file, path and byte limits before retrying; preserve the original attempt." },
         error.InstallationInUse => .{ "another server manages this installation", "Stop the existing manager before starting another server for this installation." },
         error.InstallationIdentityMismatch => .{ "the configuration or executable differs from the recorded installation", "Restore the recorded configuration and matching executables. Do not initialize or delete the installation to bypass this check." },
         error.ExistingInstallationRequired => .{ "startup requires an existing installation", "startup.require_existing is enabled. Verify the installation path and storage mount; restore the intended installation before starting." },

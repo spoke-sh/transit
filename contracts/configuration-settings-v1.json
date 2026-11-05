@@ -1,5 +1,5 @@
 {
-  "definition": "ce9669acc55f70dc22d4be6f6bb5a2510579405086bf0f45244df2eacfaeda17",
+  "definition": "4a79430a0f740284cda72df8341f0af87a87a63a599d7a81c62a934778875e1a",
   "settings": [
     {
       "name": "version",
@@ -35,7 +35,7 @@
     },
     {
       "name": "startup.require_existing",
-      "description": "Refuse missing or empty installations instead of creating one at startup",
+      "description": "Refuse absent installations instead of creating one; existing empty directories are always refused at startup",
       "owner": "server",
       "kind": "boolean",
       "scope": "component",
@@ -1672,7 +1672,7 @@
         "properties": {
           "require_existing": {
             "type": "boolean",
-            "description": "Refuse missing or empty installations instead of creating one at startup",
+            "description": "Refuse absent installations instead of creating one; existing empty directories are always refused at startup",
             "x-transit-owner": "server",
             "x-transit-change": "restart",
             "default": false

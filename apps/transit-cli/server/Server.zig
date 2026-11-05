@@ -63,6 +63,7 @@ fn launch(init: std.process.Init, options: @import("../Options.zig").Options, di
         return diagnostic.fail(err, "cannot read the retained installation record", "This directory contains data and will not be initialized. Verify the installation path and restore missing data from its recovery source.");
     };
     if (record.definition != q.protocol.Growth.current_definition or record.version != 1 or !std.meta.eql(record.identity, identity)) return error.InstallationIdentityMismatch;
+    try @import("DirectoryPublication.zig").check(init.io, init.gpa, config.installation, try @import("DirectoryPublication.zig").binding(init.gpa, identity));
     if (record.complete) {
         const checkpoint = try std.fs.path.join(init.arena.allocator(), &.{ config.installation, "configuration.json" });
         diagnostic.atFile(checkpoint);

@@ -8,6 +8,7 @@ const http = @import("transit_http_server");
 const Installation = @import("Installation.zig");
 const Config = @import("Config.zig");
 const Files = @import("Files.zig");
+const Publication = @import("DirectoryPublication.zig");
 const Process = @import("Process.zig");
 const Signals = @import("../Signals.zig");
 const Self = @This();
@@ -83,11 +84,12 @@ pub fn create(init: std.process.Init, installation: *Installation, executable: [
     self.* = .{ .init = init, .installation = installation, .executable = executable, .limits = limits, .apps = apps, .listener = listener, .host = host };
     var arena = std.heap.ArenaAllocator.init(init.gpa);
     defer arena.deinit();
+    try Publication.recoverChildren(init.io, init.gpa, try installation.path("applications"), try Publication.binding(init.gpa, installation.record.installation));
     const directory = try std.Io.Dir.cwd().openDir(init.io, try installation.path("applications"), .{ .iterate = true });
     defer directory.close(init.io);
     var iterator = directory.iterate();
     while (try iterator.next(init.io)) |entry| {
-        if (std.mem.startsWith(u8, entry.name, ".creating-")) continue;
+        if (std.mem.startsWith(u8, entry.name, ".creating-") or std.mem.startsWith(u8, entry.name, ".probe-") or std.mem.startsWith(u8, entry.name, Publication.pending_prefix)) continue;
         if (entry.kind != .directory) return error.InvalidApplicationCatalog;
         try A.name(entry.name);
         const record = try self.load(arena.allocator(), entry.name);
@@ -144,8 +146,9 @@ fn path(self: *Self, allocator: std.mem.Allocator, application: []const u8, tail
     return std.fs.path.join(allocator, &.{ self.installation.config.installation, "applications", application, tail });
 }
 fn load(self: *Self, allocator: std.mem.Allocator, application: []const u8) !Record {
+    try Publication.check(self.init.io, allocator, try self.path(allocator, application, ""), try Publication.binding(allocator, self.installation.record.installation));
     const record = try Files.readBounded(Record, self.init.io, allocator, try self.path(allocator, application, "record.json"), record_bytes);
-    if (record.version != 1 or !std.mem.eql(u8, &record.installation, &self.installation.record.installation) or !std.mem.eql(u8, record.declaration.application, application) or !std.mem.eql(u8, &record.digest, &try A.digest(allocator, record.declaration))) return error.InvalidApplicationCatalog;
+    if (record.version != 1 or record.definition != g.current_definition or !std.mem.eql(u8, &record.installation, &self.installation.record.installation) or !std.mem.eql(u8, record.declaration.application, application) or !std.mem.eql(u8, &record.digest, &try A.digest(allocator, record.declaration))) return error.InvalidApplicationCatalog;
     try record.declaration.validate();
     return record;
 }
@@ -272,6 +275,12 @@ fn control(self: *Self, allocator: std.mem.Allocator, signed: A.Signed, admin: b
 fn install(self: *Self, allocator: std.mem.Allocator, signed: A.Signed) !void {
     const declaration = signed.request.command.install;
     const digest = try A.digest(allocator, declaration);
+    if (try Publication.recover(self.init.io, allocator, try self.path(allocator, declaration.application, ""), try Publication.binding(allocator, self.installation.record.installation))) {
+        if (self.find(declaration.application) == null) {
+            const recovered = try self.load(allocator, declaration.application);
+            try self.add(declaration.application, recovered.declaration.roles.len);
+        }
+    }
     if (self.find(declaration.application) != null) {
         const record = try self.load(allocator, declaration.application);
         if (!std.mem.eql(u8, &record.digest, &digest)) return error.ConflictingApplicationDeclaration;
@@ -282,11 +291,8 @@ fn install(self: *Self, allocator: std.mem.Allocator, signed: A.Signed) !void {
     for (self.apps[0..self.count]) |app| total += app.role_count;
     if (self.count >= self.apps.len or total > self.limits.max_roles) return error.ApplicationCapacity;
     for (declaration.roles) |role| if (!std.mem.eql(u8, &try Config.digest(self.init, role.artifact.path), &role.artifact.sha256)) return error.ApplicationArtifactChanged;
-    var nonce: [16]u8 = undefined;
-    try self.init.io.randomSecure(&nonce);
-    const staging = try std.fmt.allocPrint(allocator, ".creating-{s}", .{std.fmt.bytesToHex(nonce, .lower)});
-    const directory_path = try self.path(allocator, staging, "");
-    try std.Io.Dir.cwd().createDir(self.init.io, directory_path, .fromMode(0o700));
+    const directory_path = try Publication.stage(self.init.io, allocator, try self.path(allocator, declaration.application, ""));
+    const staging = std.fs.path.basename(directory_path);
     const directory = try std.Io.Dir.cwd().openDir(self.init.io, directory_path, .{ .iterate = true });
     defer directory.close(self.init.io);
     for ([_][]const u8{ "requests", "receipts", "activations" }) |child| try directory.createDir(self.init.io, child, .fromMode(0o700));
@@ -310,13 +316,10 @@ fn install(self: *Self, allocator: std.mem.Allocator, signed: A.Signed) !void {
     try Files.jsonBounded(self.init.io, allocator, try self.path(allocator, staging, "record.json"), record, record_bytes);
     try Files.json(self.init.io, allocator, try self.path(allocator, staging, try std.fmt.allocPrint(allocator, "requests/{d}-{s}.json", .{ signed.request.principal, signed.request.operation })), signed);
     if (std.c.fsync(directory.handle) != 0) return error.InstallationSyncFailed;
-    try std.Io.Dir.cwd().renamePreserve(directory_path, std.Io.Dir.cwd(), try self.path(allocator, declaration.application, ""), self.init.io);
-    const parent = try std.Io.Dir.cwd().openDir(self.init.io, try self.installation.path("applications"), .{ .iterate = true });
-    defer parent.close(self.init.io);
-    if (std.c.fsync(parent.handle) != 0) {
+    Publication.publish(self.init.io, allocator, directory_path, try self.path(allocator, declaration.application, ""), try Publication.binding(allocator, self.installation.record.installation)) catch |err| {
         self.failed.store(true, .release);
-        return error.InstallationSyncFailed;
-    }
+        return err;
+    };
     try self.add(declaration.application, declaration.roles.len);
 }
 fn randomPrincipal(self: *Self) !u64 {

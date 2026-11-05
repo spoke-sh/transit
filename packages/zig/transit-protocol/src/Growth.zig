@@ -7,7 +7,7 @@ pub const version = 1;
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
 /// SHA-256 of transit.v1.relational-scalar-ordering-and-forward-dataflow-revisions.2026-11-04.
 pub const Definition = enum {
-    ce9669acc55f70dc22d4be6f6bb5a2510579405086bf0f45244df2eacfaeda17,
+    @"4a79430a0f740284cda72df8341f0af87a87a63a599d7a81c62a934778875e1a",
 
     fn spelling(bytes: []const u8) !Definition {
         if (!std.mem.eql(u8, bytes, @tagName(current_definition))) return error.InvalidEnumTag;
@@ -1276,4 +1276,8 @@ test "complete bulk descriptor and metadata budgets fit the bounded canonical re
     hasher.update(query_domain);
     hasher.update(canonical);
     try std.testing.expectEqualDeep(hasher.finalResult(), try queryDigest(query));
+}
+
+test "directory publication cutover rejects the preceding definition" {
+    try std.testing.expectError(error.InvalidEnumTag, std.json.parseFromSlice(Definition, std.testing.allocator, "\"ce9669acc55f70dc22d4be6f6bb5a2510579405086bf0f45244df2eacfaeda17\"", .{}));
 }

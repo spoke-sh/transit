@@ -6,7 +6,7 @@ pub const registry: R = .{ .descriptors = &descriptors };
 pub const descriptors = [_]D{
     .{ .name = "version", .default_json = "1", .description = "Configuration definition version", .owner = "server", .kind = .unsigned, .scope = .installation, .change = .initialization, .minimum = 1, .maximum = 1 },
     .{ .name = "installation", .description = "Retained installation directory", .owner = "server", .kind = .string, .scope = .installation, .change = .initialization },
-    .{ .name = "startup.require_existing", .default_json = "false", .description = "Refuse missing or empty installations instead of creating one at startup", .owner = "server", .kind = .boolean, .change = .restart },
+    .{ .name = "startup.require_existing", .default_json = "false", .description = "Refuse absent installations instead of creating one; existing empty directories are always refused at startup", .owner = "server", .kind = .boolean, .change = .restart },
     .{ .name = "logging.format", .default_json = "\"text\"", .description = "Operational log rendering on stderr", .owner = "server", .kind = .enumeration, .change = .restart, .values = &.{ "text", "json" } },
     .{ .name = "logging.level", .default_json = "\"info\"", .description = "Minimum operational log severity", .owner = "server", .kind = .enumeration, .change = .restart, .values = &.{ "debug", "info", "warn", "error", "off" } },
     .{ .name = "realm", .default_json = "1", .description = "Native security realm", .owner = "node", .kind = .unsigned, .scope = .installation, .change = .initialization, .minimum = 1, .maximum = 9007199254740991 },
