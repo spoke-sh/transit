@@ -48,7 +48,7 @@ fn call(caller: c.DirectTableClient, saved: Intent.Saved, action: enum { inspect
     return caller.call(switch (saved.work) {
         .stream => |value| .{ .stream = switch (action) {
             .inspect => .{ .operation = value.work },
-            .execute => .{ .mutate = value },
+            .execute => if (saved.wait_ms) |milliseconds| .{ .wait = .{ .consume = value.work.consume, .milliseconds = milliseconds } } else .{ .mutate = value },
             .cancel => .{ .cancel = value.work },
         } },
         .queue => |value| .{ .queue = switch (action) {
@@ -95,7 +95,7 @@ pub fn evidence(reference: Intent.Reference, work: Intent.Work, result: w.Result
 }
 /// Passive recovery can settle an original receipt or requested cancellation.
 /// A saved wait can execute only through a foreground, explicitly requested
-/// attempt. A timeout never creates an empty claim or closes accepted SQL work.
+/// attempt. A timeout never creates an empty result or closes accepted SQL work.
 pub fn advance(caller: c.DirectTableClient, state: c.DirectClientToken.Progress) !bool {
     return (try step(caller, state, .passive)).pending;
 }
@@ -124,11 +124,23 @@ fn step(caller: c.DirectTableClient, state: c.DirectClientToken.Progress, mode: 
         defer response.deinit();
         if (saved.wait_ms) |milliseconds| {
             if (!state.cancel) {
-                if (response.value.result != .queue) return error.InvalidWorkloadEvidence;
-                try c.DirectQueueResponse.validate(caller.allocator, caller.connection, .{ .wait = .{ .claim = saved.work.queue.work.claim, .milliseconds = milliseconds } }, response.value.result.queue);
-                if (response.value.result.queue == .timed_out) {
+                const cut: ?c.protocol.StreamQueue.Cut = switch (saved.work) {
+                    .stream => |value| blk: {
+                        if (response.value.result != .stream) return error.InvalidWorkloadEvidence;
+                        const result = response.value.result.stream;
+                        try c.DirectStreamResponse.validate(caller.allocator, caller.connection, .{ .wait = .{ .consume = value.work.consume, .milliseconds = milliseconds } }, result);
+                        break :blk if (result == .timed_out) result.timed_out else null;
+                    },
+                    .queue => |value| blk: {
+                        if (response.value.result != .queue) return error.InvalidWorkloadEvidence;
+                        const result = response.value.result.queue;
+                        try c.DirectQueueResponse.validate(caller.allocator, caller.connection, .{ .wait = .{ .claim = value.work.claim, .milliseconds = milliseconds } }, result);
+                        break :blk if (result == .timed_out) result.timed_out else null;
+                    },
+                };
+                if (cut) |timed_out| {
                     var wait = waiting(reference, milliseconds);
-                    wait.timed_out = response.value.result.queue.timed_out;
+                    wait.timed_out = timed_out;
                     return .{ .pending = true, .wait = wait };
                 }
             }
