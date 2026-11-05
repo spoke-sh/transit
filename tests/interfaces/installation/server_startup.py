@@ -11,7 +11,7 @@ def admission(fixture):
     fixture.path.write_text(json.dumps(fixture.config))
     fixture.refusal('startup requires an existing installation')
     assert not fixture.installation.exists()
-    assert not list(fixture.root.glob('installation.creating-*'))
+    assert not list(fixture.root.glob('.creating-*'))
     fixture.installation.mkdir()
     inode = fixture.installation.stat().st_ino
     fixture.refusal('startup requires an existing installation')
@@ -52,7 +52,7 @@ def admission(fixture):
             assert not list(target.iterdir())
         fixture.installation.unlink()
     target.rmdir()
-    assert not list(fixture.root.glob('installation.creating-*'))
+    assert not list(fixture.root.glob('.creating-*'))
     print('Startup admission: existing-only YAML/environment, missing/empty directories, unknown contents, malformed records, files and symlinks preserved.', flush=True)
 
 
@@ -62,6 +62,10 @@ def empty_installation(cli, node, host):
     success = False
     try:
         fixture.installation.mkdir()
+        inode = fixture.installation.stat().st_ino
+        fixture.refusal("initialization requires an absent installation directory")
+        assert fixture.installation.stat().st_ino == inode and not list(fixture.installation.iterdir())
+        fixture.installation.rmdir()
         fixture.start(); fixture.ready(); fixture.stop()
         assert 'creating installation' in Path(fixture.logs[-1].name).read_text()
         before = fixture.record()
@@ -73,7 +77,7 @@ def empty_installation(cli, node, host):
         for field in ('installation', 'root_public', 'provision', 'authorization_steps'):
             assert before[field] == after[field], field
         success = True
-        print('Startup: empty-directory creation and existing-only restart preserve installation, keys and grants.', flush=True)
+        print('Startup: empty-directory refusal and existing-only restart preserve installation, keys and grants.', flush=True)
     finally:
         fixture.cleanup()
         if success:

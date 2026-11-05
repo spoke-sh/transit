@@ -18,7 +18,7 @@ transit migrate <plan|inspect|apply|status|resume|verify> [OPTIONS]
 
 | Command | Input and outcome |
 | --- | --- |
-| `server` | Run the local supervisor in the foreground. Missing or empty installation directories are initialized automatically. The local profile starts Board by default; `--no-ui` runs headlessly |
+| `server` | Run the local supervisor in the foreground. Missing installation paths are initialized automatically; existing empty directories are refused. The local profile starts Board by default; `--no-ui` runs headlessly |
 | `console` | Independent local/remote SQL sessions, interactive and batch results, terminal assistance and service-owned operation recovery |
 | `migrate` | Reviewable, resumable application schema and data migration lifecycle (`plan`, `inspect`, `apply`, `status`, `resume`, `verify`) over ordered `.sql` sources or saved plans (`transit_migration_plan_v1`) |
 
@@ -29,7 +29,7 @@ selects exactly one file instead. `TRANSIT_CONFIG` selects an explicit file when
 using `__` for nesting. No matching file means defaults; a bad selected file
 fails without fallback. Configuration files are bounded to 64 KiB, 96 nested
 containers and 65,536 syntax nodes; logical schemas retain their own depth,
-node and name budgets. Server startup initializes missing or empty state unless
+node and name budgets. Server startup initializes an absent installation path unless
 `startup.require_existing: true` is configured.
 
 The console resolves the installation path (default `./.transit`) to a nonsecret
@@ -140,7 +140,7 @@ unresolved outcomes remain explicit. It does not imply rejection,
 suggest fresh SQL as a retry, or recommend deleting history. A server identity
 mismatch asks for the recorded configuration and matching executables. Use the same server command
 for first startup and restarts. Set
-`startup.require_existing: true` to refuse a missing or empty installation.
+`startup.require_existing: true` to also refuse a missing installation.
 
 ### Streams, privacy and limits
 

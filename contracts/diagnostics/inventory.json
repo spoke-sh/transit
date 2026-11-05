@@ -385,9 +385,15 @@
         "ConsoleRecoveryInUse": 1,
         "ConsoleRecoverySyncFailed": 1,
         "ConsoleRecoveryWriteFailed": 1,
+        "DirectoryAssemblyTooLarge": 1,
+        "DirectoryPublicationConflict": 1,
+        "DirectoryPublicationIncomplete": 1,
+        "DirectoryPublicationOwnershipUnknown": 1,
         "DuplicateField": 1,
         "ExistingInstallationRequired": 1,
         "FileNotFound": 3,
+        "FilesystemPublicationUnsupported": 1,
+        "InstallationDirectoryExists": 1,
         "InstallationIdentityMismatch": 1,
         "InstallationInUse": 1,
         "InstallationSyncFailed": 1,
@@ -395,6 +401,7 @@
         "InvalidConfiguration": 5,
         "InvalidConfigurationPath": 1,
         "InvalidCredentialFile": 1,
+        "InvalidDirectoryPublication": 1,
         "InvalidInstallationDirectory": 1,
         "InvalidInvocation": 6,
         "InvalidJson": 1,
@@ -1224,7 +1231,7 @@
         "ConflictingApplicationOperation": 2,
         "FileNotFound": 6,
         "IncompatibleApplicationReplacement": 1,
-        "InstallationSyncFailed": 3,
+        "InstallationSyncFailed": 2,
         "InvalidApplicationCatalog": 6,
         "InvalidApplicationCursor": 1,
         "InvalidRegistration": 4,
@@ -1290,13 +1297,14 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 161,
-        "catch": 13
+        "try": 168,
+        "catch": 14
       },
       "imports": [
         "../Settings.zig",
         "../Signals.zig",
         "Config.zig",
+        "DirectoryPublication.zig",
         "Files.zig",
         "Installation.zig",
         "Process.zig",
@@ -1475,6 +1483,66 @@
         "transit_query"
       ]
     },
+    "apps/transit-cli/server/DirectoryPublication.zig": {
+      "errors": {
+        "DirectoryAssemblyTooLarge": 5,
+        "DirectoryPublicationConflict": 7,
+        "DirectoryPublicationIncomplete": 1,
+        "DirectoryPublicationOwnershipUnknown": 1,
+        "FileNotFound": 9,
+        "FilesystemPublicationUnsupported": 3,
+        "InstallationIdentityMismatch": 1,
+        "InvalidDirectoryPublication": 16,
+        "OperationUnsupported": 2,
+        "PathAlreadyExists": 4,
+        "Unexpected": 12
+      },
+      "outcomes": {
+        "Entry.kind": [
+          "directory",
+          "file"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Fault.linkFile()": "std . Io . Dir . HardLinkError",
+        "Fault.mkdir()": "std . Io . Dir . CreateDirError",
+        "Fault.removeDir()": "std . Io . Dir . DeleteDirError",
+        "Fault.removeFile()": "std . Io . Dir . DeleteFileError",
+        "Fault.rename()": "std . Io . Dir . RenameError",
+        "Fault.syncFile()": "std . Io . File . SyncError",
+        "binding()": "<inferred>",
+        "check()": "<inferred>",
+        "cleanup()": "<inferred>",
+        "copy()": "<inferred>",
+        "finish()": "<inferred>",
+        "inventory()": "<inferred>",
+        "parentOf()": "<inferred>",
+        "privateDir()": "<inferred>",
+        "probe()": "<inferred>",
+        "publish()": "<inferred>",
+        "read()": "<inferred>",
+        "recover()": "<inferred>",
+        "recoverChildren()": "<inferred>",
+        "same()": "<inferred>",
+        "sample()": "<inferred>",
+        "stage()": "<inferred>",
+        "sync()": "<inferred>",
+        "validate()": "<inferred>",
+        "verifyFile()": "<inferred>",
+        "verifyTree()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 113,
+        "catch": 15
+      },
+      "imports": [
+        "Files.zig",
+        "std",
+        "transit_query"
+      ]
+    },
     "apps/transit-cli/server/Files.zig": {
       "errors": {
         "FileNotFound": 1,
@@ -1560,7 +1628,8 @@
         "AuthorityRollback": 2,
         "ExistingInstallationRequired": 1,
         "FileNotFound": 1,
-        "InstallationSyncFailed": 2,
+        "InstallationDirectoryExists": 1,
+        "InstallationSyncFailed": 1,
         "InvalidInstallationAuthority": 2,
         "InvalidInstallationDirectory": 1,
         "InvalidRegistration": 1,
@@ -1610,12 +1679,13 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 73,
+        "try": 72,
         "catch": 4
       },
       "imports": [
         "../Signals.zig",
         "Config.zig",
+        "DirectoryPublication.zig",
         "Files.zig",
         "Provider.zig",
         "Startup.zig",
@@ -1746,7 +1816,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 94,
+        "try": 96,
         "catch": 10
       },
       "imports": [
@@ -1758,6 +1828,7 @@
         "Board.zig",
         "Config.zig",
         "Configuration.zig",
+        "DirectoryPublication.zig",
         "Files.zig",
         "Gateway.zig",
         "Hosts.zig",
@@ -1866,7 +1937,6 @@
         "GatewayConfigurationChanged": 1,
         "GatewayIdentityConflict": 2,
         "InstallationIdentityMismatch": 2,
-        "InstallationSyncFailed": 2,
         "InvalidGatewayConfiguration": 1
       },
       "outcomes": {
@@ -1891,17 +1961,19 @@
         "open()": "<inferred>",
         "path()": "<inferred>",
         "provision()": "<inferred>",
+        "publicationBinding()": "<inferred>",
         "publish()": "<inferred>",
         "seed()": "<inferred>",
         "temporary()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 81,
+        "try": 89,
         "catch": 3
       },
       "imports": [
         "AuthorizationProfile.zig",
+        "DirectoryPublication.zig",
         "Files.zig",
         "Installation.zig",
         "SqlJournal.zig",
@@ -2748,7 +2820,8 @@
         "catch": 2
       },
       "imports": [
-        "std"
+        "std",
+        "transit_storage"
       ]
     },
     "packages/zig/transit-backend-local/src/NativeAllocations.zig": {
@@ -23528,7 +23601,7 @@
           "deadline"
         ],
         "Definition": [
-          "ce9669acc55f70dc22d4be6f6bb5a2510579405086bf0f45244df2eacfaeda17"
+          "@\"4a79430a0f740284cda72df8341f0af87a87a63a599d7a81c62a934778875e1a\""
         ],
         "Effect.phase": [
           "pending",
@@ -38863,6 +38936,7 @@
         "catch": 10
       },
       "imports": [
+        "FilePublication.zig",
         "SyncBatch.zig",
         "TransitObjectStore.zig",
         "std",
@@ -39577,6 +39651,24 @@
         "TransitObjectStore.zig",
         "std",
         "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/FilePublication.zig": {
+      "errors": {
+        "FileNotFound": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "link()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 2,
+        "catch": 1
+      },
+      "imports": [
+        "std"
       ]
     },
     "packages/zig/transit-storage/src/KVDeclaration.zig": {
@@ -42790,6 +42882,7 @@
         "DocumentRecovery.zig",
         "DocumentShredder.zig",
         "DocumentStorageRoots.zig",
+        "FilePublication.zig",
         "KVDeclaration.zig",
         "KVPartition.zig",
         "LocalSegmentStore.zig",

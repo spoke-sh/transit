@@ -108,7 +108,7 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`ce9669acc55f70dc22d4be6f6bb5a2510579405086bf0f45244df2eacfaeda17`.
+`4a79430a0f740284cda72df8341f0af87a87a63a599d7a81c62a934778875e1a`.
 It binds typed relational scalar programs, grouping and ordering keys, checked
 decimal aggregation, post-aggregation sort progress and ascending DATAFLOW
 revision page links. Earlier plans, checkpoints and result records require a
@@ -376,9 +376,12 @@ catalogs, saved commands and retained query bundles are incompatible. No automat
 converter, fallback decoder or installation reset is supplied. Recover earlier
 pending work with its matching build before an explicit cutover.
 
-The local configuration checkpoint also includes the startup policy registry.
-Installations from before this definition are rejected; automatic first startup
-applies only to missing or empty directories and never converts retained history.
+This definition also requires explicit directory publication intents, claims and
+commit records for installation, SQL enrollment and applications. Earlier records
+and unjournaled staging directories are not adopted. The local configuration
+checkpoint includes the startup policy registry. Installations from before this
+definition are rejected; automatic first startup applies only to absent paths
+and never converts retained history. Existing empty directories are refused.
 Keep existing installations with their matching artifacts, or deliberately select
 a separate new installation directory.
 

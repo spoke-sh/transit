@@ -160,18 +160,24 @@ deployments use the pinned upstream provider and its S3 cold storage configurati
 Role limits and exact artifact
 versions belong in the [server guide](../apps/transit-cli/docs/server.md).
 
-Startup initializes a missing or genuinely empty installation directory by
-publishing a complete private installation record before starting services.
-`startup.require_existing: true` refuses both cases before creation; its default
-is false. A populated directory always requires its recorded installation and
+Startup initializes an absent installation path by publishing a complete private
+installation record before starting services. Existing empty directories are
+refused without removal. `startup.require_existing: true` additionally refuses
+an absent path before creation; its default is false. A populated directory always requires its recorded installation and
 storage. Files, symbolic links, unrecognized contents, missing or malformed
 records and incompatible definitions fail without replacement or reset.
 The sibling OS lock serializes inspection, creation and recovery. Creation
-assembles private files in a sibling directory, synchronizes them, removes only
-an empty destination directory and publishes with a nonreplacing rename followed
-by parent-directory sync. New contents appearing before publication cause a
-refusal. Unpublished staging directories contain no accepted work and are never
-adopted. Use a directory within a mounted volume rather than its mount point.
+assembles and synchronizes private files in a sibling directory. A durable
+publication intent binds the current definition, installation identity, source,
+destination and file digests. Exclusive directory creation reserves the target;
+an immutable claim establishes ownership. Nonreplacing hard links populate the
+assembly, and a synchronized commit record gates every reader. This applies to
+installation, SQL enrollment and application directories. Existing destinations
+are never removed or overwritten. Recovery resumes only the exact intent and
+claim; the mkdir-before-claim ambiguity fails closed. Committed targets are
+never recopied from initial files. Unjournaled staging directories are neither
+adopted nor automatically deleted. The server guide owns assembly bounds and
+filesystem qualification limits. Use an absent child path within a mounted volume.
 There is no destructive reset, storage replacement, generation rollback or
 deletion of a stale activation marker.
 An interrupted initial creation resumes through its persisted bootstrap intent

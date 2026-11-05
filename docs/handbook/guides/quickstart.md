@@ -166,7 +166,8 @@ change twice. Stopping the server does not undo accepted writes.
 Interactive SELECT statements run again against a fresh snapshot.
 If an existing installation contains missing state or a changed artifact,
 startup refuses to recreate its history. Set `startup.require_existing: true`
-to also refuse a completely missing or empty installation directory.
+to also refuse a completely missing installation directory. Existing empty
+directories are always refused; choose an absent child path for first startup.
 Inspect the error and follow [server recovery](../../../apps/transit-cli/docs/server.md#ownership-and-recovery).
 
 Reconnect and run the final count again to observe the retained task data.

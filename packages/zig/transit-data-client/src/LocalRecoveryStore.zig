@@ -84,7 +84,7 @@ pub fn open(allocator: std.mem.Allocator, io: std.Io, parent: std.Io.Dir, name: 
         defer staged.deinit(io);
         try staged.file.writeStreamingAll(io, &format);
         try staged.file.sync(io);
-        try staged.link(io);
+        try @import("transit_catalog").storage.FilePublication.link(io, &staged);
     }
     try syncDirectory(io, directory);
     // Parent may be an O_PATH handle; acquire a sync-capable directory handle.
@@ -156,7 +156,7 @@ fn publish(self: *Self, record: Record, replace: bool) !void {
     try staged.file.writeStreamingAll(self.io, record.original);
     try staged.file.writeStreamingAll(self.io, record.evidence);
     try staged.file.sync(self.io);
-    if (replace) try staged.replace(self.io) else try staged.link(self.io);
+    if (replace) try staged.replace(self.io) else try @import("transit_catalog").storage.FilePublication.link(self.io, &staged);
     try syncDirectory(self.io, self.directory);
 }
 

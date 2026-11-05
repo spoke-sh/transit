@@ -7,6 +7,7 @@ const p = q.protocol;
 const n = p.Growth;
 const Installation = @import("Installation.zig");
 const Files = @import("Files.zig");
+const Publication = @import("DirectoryPublication.zig");
 const Journal = @import("SqlJournal.zig");
 const Settings = @import("SqlSettings.zig");
 pub const Meta = struct {
@@ -62,24 +63,19 @@ fn seed(installation: *Installation, allocator: std.mem.Allocator, directory: []
     try Files.write(installation.init.io, try std.fmt.allocPrint(allocator, "{s}/{s}.seed", .{ directory, name }), &encoded);
 }
 fn temporary(installation: *Installation, allocator: std.mem.Allocator, destination: []const u8) ![]const u8 {
-    var random: [16]u8 = undefined;
-    try installation.init.io.randomSecure(&random);
-    const result = try std.fmt.allocPrint(allocator, "{s}.creating-{s}", .{ destination, std.fmt.bytesToHex(random, .lower) });
-    try std.Io.Dir.cwd().createDir(installation.init.io, result, .fromMode(0o700));
-    return result;
+    return Publication.stage(installation.init.io, allocator, destination);
+}
+fn publicationBinding(installation: *Installation, allocator: std.mem.Allocator) ![32]u8 {
+    return Publication.binding(allocator, installation.record.installation);
 }
 fn publish(installation: *Installation, source: []const u8, destination: []const u8) !void {
-    const directory = try std.Io.Dir.cwd().openDir(installation.init.io, source, .{ .iterate = true });
-    defer directory.close(installation.init.io);
-    if (std.c.fsync(directory.handle) != 0) return error.InstallationSyncFailed;
-    try std.Io.Dir.cwd().renamePreserve(source, std.Io.Dir.cwd(), destination, installation.init.io);
-    const parent = try std.Io.Dir.cwd().openDir(installation.init.io, std.fs.path.dirname(destination).?, .{ .iterate = true });
-    defer parent.close(installation.init.io);
-    if (std.c.fsync(parent.handle) != 0) return error.InstallationSyncFailed;
+    try Publication.publish(installation.init.io, installation.init.gpa, source, destination, try publicationBinding(installation, installation.init.gpa));
 }
+
 pub fn open(installation: *Installation, allocator: std.mem.Allocator) !?Meta {
     const directory = try path(installation, allocator, "");
     const file = try path(installation, allocator, "installation.json");
+    _ = try Publication.recover(installation.init.io, allocator, directory, try publicationBinding(installation, allocator));
     if (std.Io.Dir.cwd().access(installation.init.io, directory, .{})) |_| {} else |err| {
         if (err != error.FileNotFound) return err;
         if (!installation.config.sql.listening()) return null;
@@ -89,6 +85,8 @@ pub fn open(installation: *Installation, allocator: std.mem.Allocator) !?Meta {
         try Files.json(installation.init.io, allocator, try std.fs.path.join(allocator, &.{ pending, "installation.json" }), Meta{ .definition = n.current_definition, .installation = installation.record.installation, .administrator = try number(installation.init.io) });
         try publish(installation, pending, directory);
     }
+    try Publication.check(installation.init.io, allocator, directory, try publicationBinding(installation, allocator));
+    try Publication.recoverChildren(installation.init.io, allocator, try path(installation, allocator, "accounts"), try publicationBinding(installation, allocator));
     const record = try Files.read(Meta, installation.init.io, allocator, file);
     if (record.definition != n.current_definition or !std.mem.eql(u8, &record.installation, &installation.record.installation)) return error.InstallationIdentityMismatch;
     return record;
@@ -110,6 +108,7 @@ pub fn administrator(installation: *Installation, allocator: std.mem.Allocator, 
 }
 pub fn createAccount(installation: *Installation, allocator: std.mem.Allocator, desired: Settings.Account) !Account {
     const directory = try accountPath(installation, allocator, desired.name, "");
+    _ = try Publication.recover(installation.init.io, allocator, directory, try publicationBinding(installation, allocator));
     if (std.Io.Dir.cwd().access(installation.init.io, directory, .{})) |_| {} else |err| {
         if (err != error.FileNotFound) return err;
         const pending = try temporary(installation, allocator, directory);
@@ -151,6 +150,7 @@ pub fn catalogAccess(installation: *Installation, allocator: std.mem.Allocator) 
     _ = try Files.jsonIfChanged(installation.init.io, allocator, try path(installation, allocator, "catalog-access.json"), document);
 }
 pub fn loadAccount(installation: *Installation, allocator: std.mem.Allocator, name: []const u8) !Account {
+    try Publication.check(installation.init.io, allocator, try accountPath(installation, allocator, name, ""), try publicationBinding(installation, allocator));
     const record = try Files.read(Account, installation.init.io, allocator, try accountPath(installation, allocator, name, "account.json"));
     if (record.definition != n.current_definition or !std.mem.eql(u8, &record.installation, &installation.record.installation) or !std.mem.eql(u8, record.name, name)) return error.InstallationIdentityMismatch;
     return record;

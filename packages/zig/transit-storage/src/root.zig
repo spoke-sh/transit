@@ -6,6 +6,7 @@ pub const TransitObjectStore = @import("TransitObjectStore.zig");
 pub const LocalWal = @import("LocalWal.zig");
 pub const LocalSegmentStore = @import("LocalSegmentStore.zig");
 pub const SyncBatch = @import("SyncBatch.zig");
+pub const FilePublication = @import("FilePublication.zig");
 pub const TableManifest = @import("TableManifest.zig");
 pub const BranchSnapshot = @import("BranchSnapshot.zig");
 pub const BranchAncestry = @import("BranchAncestry.zig");
@@ -77,6 +78,7 @@ pub const TableWorkspace = @import("TableWorkspace.zig");
 pub const TransactionDecisionLog = @import("TransactionDecisionLog.zig");
 
 test {
+    _ = FilePublication;
     _ = SyncBatch;
     _ = @import("kv_partition_test.zig");
     _ = TransitLog;

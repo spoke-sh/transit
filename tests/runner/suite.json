@@ -90,6 +90,7 @@
       "test::observability",
       "test::server-logging",
       "test::server-single-executable",
+      "test::server-filesystem",
       "test::server-sql-types",
       "test::server-scenarios",
       "test::server-direct-tables",

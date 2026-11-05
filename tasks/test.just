@@ -992,6 +992,12 @@ server-applications:
     cd examples/work-items && zig build -Doptimize=ReleaseSafe
     python3 -B tests/runner/launch.py tests/interfaces/installation/server_applications.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
 
+# Named temporary publication without RENAME_NOREPLACE; actual embedded runtime.
+server-filesystem:
+    zig build test-operation-fixture transit -Doptimize=ReleaseSafe
+    cd examples/work-items && zig build -Doptimize=ReleaseSafe
+    python3 -B tests/runner/launch.py tests/interfaces/installation/server_filesystem.py zig-out/bin/transit examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
+
 # Lost native and migration replies, current revocation and management admission.
 server-application-faults:
     zig build test-operation-fixture transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe
