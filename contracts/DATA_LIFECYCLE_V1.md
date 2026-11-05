@@ -50,8 +50,8 @@ publish the complete descriptor before releasing them. Interrupted acquisition
 cannot be returned as a complete cut.
 
 `Target` binds the stable scoped object, data kind and logical partition ordinal.
-Tables, KV and Documents require a null ordinal; Streams and Queues require an
-explicit ordinal, including zero. An ordinal is not a physical WAL partition ID.
+Tables and KV require a null ordinal; Documents, Streams and Queues require an
+explicit `u32` ordinal, including zero. An ordinal is not a physical WAL partition ID.
 Directories order by object then ordinal, with state's null ordinal first. A
 single object cannot occur with different kinds. Exact retries preserve the
 whole target; a name change cannot retarget it. The installed Table-only SQL
@@ -71,6 +71,26 @@ primitive for serializable transactions; its standalone validation does not
 provide isolation. Name/definition directory validation remains a separate
 coordinator obligation. Read-only transactions retain their original cut and
 do not require that it remain the latest data version.
+
+`DocumentGuard.source` is a `DocumentRead.Collection.Cut`: exact declaration and
+logical partition ordinal, observed physical WAL position, logical-head frontier
+and nullable head-directory digest. It covers the whole partition, including an
+accepted empty directory and absent document IDs. A changed interpretation,
+ordinal, physical partition, head digest or logical frontier conflicts; so does a
+regressed observed WAL position. Read acquisition/release, causal receipt aliases
+and archival/recovery bookkeeping may advance the observed position alone.
+`DocumentPartition.transactionGuard` observes this basis under current authority
+and readiness checks; it does not acquire a pin or a common transaction cut.
+
+Documents use the distinct `Participant.document` variant (`guard`, `access`),
+never `StateGuard` or the removed `StateKind.document`. Each logical Document
+partition maps to one physical owner, one directory entry and, if it writes, one
+preparation, regardless of how many documents are changed. Its `Prepared`
+predecessor must be that exact guard and its position must advance the same WAL
+partition. Directory validation establishes neutral membership only. Catalog
+selection, the decision log and retained transaction graph explicitly reject
+Document participants until the owning preparation and pin integration exists.
+No saved old unpartitioned Document participant is reinterpreted by this cutover.
 
 `LogGuard` binds the kind, exact partition definition, retained offset range,
 physical acceptance and logical-change frontier. Append, group progress, claims

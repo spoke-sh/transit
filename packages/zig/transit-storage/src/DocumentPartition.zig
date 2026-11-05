@@ -177,7 +177,10 @@ pub fn recoverStep(self: *Self, guard: Guard, budget: u16) !RecoveryProgress {
         if (decoded.record.root.changed_next_lsn != (if (changed) decoded.record.root.next_lsn else self.root.changed_next_lsn))
             return error.InvalidDocumentPartitionRecord;
         if (decoded.record.evidence) |ev| {
-            _ = try Evidence.load(self.scratch.allocator(), self.objects, ev);
+            const outcome = try Evidence.load(self.scratch.allocator(), self.objects, ev);
+            if (decoded.record.action == .deletion and
+                (outcome != .deletion or !std.meta.eql(outcome.deletion, decoded.record.action.deletion)))
+                return error.InvalidDocumentPartitionRecord;
         }
         try authorize(guard);
         self.root = decoded.record.root;
@@ -476,10 +479,10 @@ fn acceptMutation(
         .state = state_content,
         .accepted = accepted_pos,
     };
-    const new_head: DocumentHead = .{
+    const new_head: DocumentHead = .{ .live = .{
         .cut = new_cut,
         .unresolved_conflicts = unresolved_conflicts,
-    };
+    } };
     const rev_entry: RevisionEntry = .{
         .state = state_content,
         .payload = payload_content,
@@ -524,6 +527,54 @@ fn acceptMutation(
         .evidence = evidence_content,
     }, .row_delta, guard);
     return receipt;
+}
+
+/// Conditionally retire one logical ID through a single fenced append. Retained
+/// revisions, operation evidence and live pins keep their original lifetimes.
+pub fn delete(self: *Self, deletion: doc.Delete, guard: Guard) !doc.DeleteReceipt {
+    defer _ = self.scratch.reset(.retain_capacity);
+    try deletion.validate();
+    try self.requirePartition(deletion.expected.target.partition);
+    try authorize(guard);
+    try self.requireReady();
+    if (try self.findOutcome(deletion.operation)) |existing| {
+        if (existing != .deletion) return error.DocumentOperationConflict;
+        try existing.deletion.requireDeletion(deletion);
+        try authorize(guard);
+        return existing.deletion;
+    }
+    const head = (try self.getDocumentHead(deletion.expected.target.document)) orelse return error.DocumentNotFound;
+    if (!std.meta.eql(head.cut, deletion.expected)) return error.DocumentDeletionConflict;
+    const receipt: doc.DeleteReceipt = .{
+        .deletion = deletion,
+        .deleted_revision = head.cut.accepted_revision + 1,
+        .accepted = try self.nextPosition(),
+    };
+    try receipt.validate();
+    const evidence = try Evidence.stage(self.objects, .{ .deletion = receipt });
+    try self.store.begin(self.options.index_work_bytes);
+    defer self.store.end();
+    var root = self.root;
+    root.next_lsn = receipt.accepted.next_lsn;
+    root.changed_next_lsn = root.next_lsn;
+    root.documents_root = try self.tree().put(root.documents_root, try docKey(head.cut.target.document), try self.encodeValue(DocumentHead{ .deleted = receipt.tombstone() }));
+    root.operations_root = try self.tree().put(root.operations_root, try operationKey(deletion.operation), try self.encodeValue(evidence));
+    try self.publishRecord(.{ .definition = p.Growth.current_definition, .previous_commitment = self.commitment, .root = root, .action = .{ .deletion = receipt }, .evidence = evidence }, .row_delta, guard);
+    return receipt;
+}
+
+/// Current point observation. The host must authorize this target; the returned
+/// owned evidence is neither a retained read pin nor a common snapshot.
+pub fn observeHead(self: *Self, target: doc.Target, guard: Guard) !?DocumentHead {
+    defer _ = self.scratch.reset(.retain_capacity);
+    try target.validate();
+    try self.requirePartition(target.partition);
+    try authorize(guard);
+    try self.requireReady();
+    if (!std.meta.eql(target.partition.interpretation, self.root.declared.declaration.interpretation)) return error.DocumentPartitionConflict;
+    const result = try self.lookupHead(target.document);
+    try authorize(guard);
+    return result;
 }
 
 pub fn publishCheckpoint(
@@ -578,10 +629,10 @@ pub fn publishCheckpoint(
     try receipt.validate();
     const evidence_content = try Evidence.stage(self.objects, .{ .checkpoint = receipt });
 
-    const new_head: DocumentHead = .{
+    const new_head: DocumentHead = .{ .live = .{
         .cut = new_cut,
         .unresolved_conflicts = head.unresolved_conflicts,
-    };
+    } };
 
     try self.store.begin(self.options.index_work_bytes);
     defer self.store.end();
@@ -1128,6 +1179,30 @@ pub fn releaseRead(
     return receipt;
 }
 
+/// Observe a conservative whole-partition transaction guard. This does not
+/// acquire a read pin, enlist the partition, or establish a common snapshot.
+pub fn transactionGuard(self: *Self, guard: Guard) !p.Transaction.DocumentGuard {
+    try authorize(guard);
+    try self.requireReady();
+    const result: p.Transaction.DocumentGuard = .{ .source = self.collectionCut() };
+    try result.validate();
+    try authorize(guard);
+    return result;
+}
+
+fn collectionCut(self: *const Self) collection.Cut {
+    return .{
+        .target = .{
+            .definition = p.Growth.current_definition,
+            .interpretation = self.root.declared.declaration.interpretation,
+            .partition = self.root.initialization.ordinal,
+        },
+        .observed = self.root.position(),
+        .changed_next_lsn = self.root.changed_next_lsn,
+        .heads_digest = if (self.root.documents_root) |r| r.digest else null,
+    };
+}
+
 /// Retain one exact partition-head directory, including the accepted empty set.
 /// The host supplies current partition read authority for request.operation.
 pub fn beginCollectionRead(self: *Self, request: collection.Request, guard: Guard) !collection.Receipt {
@@ -1148,12 +1223,7 @@ pub fn beginCollectionRead(self: *Self, request: collection.Request, guard: Guar
     const source: Collection.Source = .{
         .definition = p.Growth.current_definition,
         .request = request,
-        .cut = .{
-            .target = request.target,
-            .observed = self.root.position(),
-            .changed_next_lsn = self.root.changed_next_lsn,
-            .heads_digest = if (self.root.documents_root) |r| r.digest else null,
-        },
+        .cut = self.collectionCut(),
         .heads_root = self.root.documents_root,
     };
     const content = try Collection.stage(self.objects, source);
@@ -1249,11 +1319,13 @@ pub fn readCollectionPage(self: *Self, cursor: collection.Cursor, principal: u64
             if (result.count == source.request.page_heads) break :scan;
             if (entry.key.len != 16) return error.InvalidDocumentCollection;
             const head = try self.decodeValue(DocumentHead, entry.value);
-            try head.cut.validate();
-            try source.cut.target.requireSame(head.cut.target.partition);
-            if (!std.mem.eql(u8, entry.key.slice(), &head.cut.target.document) or
-                head.cut.accepted.partition != source.cut.observed.partition or
-                head.cut.accepted.next_lsn > source.cut.changed_next_lsn)
+            try head.validate();
+            const cut = head.basis();
+            const position = head.position();
+            try source.cut.target.requireSame(cut.target.partition);
+            if (!std.mem.eql(u8, entry.key.slice(), &cut.target.document) or
+                position.partition != source.cut.observed.partition or
+                position.next_lsn > source.cut.changed_next_lsn)
                 return error.InvalidDocumentCollection;
             const size: u32 = entry.value.len;
             if (size > source.request.page_bytes - page_bytes) {
@@ -1266,7 +1338,7 @@ pub fn readCollectionPage(self: *Self, cursor: collection.Cursor, principal: u64
             page_bytes += size;
             coverage.bytes += size;
             coverage.heads = std.math.add(u64, coverage.heads, 1) catch return error.DocumentReadLimitExceeded;
-            coverage.after = head.cut.target.document;
+            coverage.after = cut.target.document;
         }
         if (batch.next == null) {
             coverage.complete = true;
@@ -1562,9 +1634,22 @@ fn requirePin(self: *Self, handle: doc.Read.Handle, kind: @FieldType(PinEntry, "
     return pin;
 }
 
-fn getDocumentHead(self: *Self, document_id: [16]u8) !?DocumentHead {
+fn getDocumentHead(self: *Self, document_id: [16]u8) !?collection.LiveHead {
+    return switch (try self.lookupHead(document_id) orelse return null) {
+        .live => |head| head,
+        .deleted => error.DocumentDeleted,
+    };
+}
+
+fn lookupHead(self: *Self, document_id: [16]u8) !?DocumentHead {
     const val = (try self.tree().get(self.root.documents_root, try docKey(document_id))) orelse return null;
-    return try self.decodeValue(DocumentHead, val);
+    const head = try self.decodeValue(DocumentHead, val);
+    try head.validate();
+    const cut = head.basis();
+    try self.requirePartition(cut.target.partition);
+    if (!std.mem.eql(u8, &document_id, &cut.target.document) or head.position().partition != self.root.initialization.partition or head.position().next_lsn > self.root.changed_next_lsn)
+        return error.InvalidDocumentPartitionRecord;
+    return head;
 }
 
 fn getReplicaState(self: *Self, document_id: [16]u8, replica_id: [16]u8) !?doc.ReplicaState {

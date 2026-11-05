@@ -7544,7 +7544,8 @@
         "StorageMaintenanceBudget": 1,
         "TableHistoryMissing": 3,
         "TableSegmentMissing": 1,
-        "TransactionNotFrozen": 1
+        "TransactionNotFrozen": 1,
+        "UnsupportedTransactionParticipant": 3
       },
       "outcomes": {
         "DocumentIndexKind": [
@@ -8677,7 +8678,8 @@
         "InvalidTransactionTransfer": 1,
         "TransactionCapacity": 1,
         "TransactionCutNotAcquired": 1,
-        "TransactionIdentityConflict": 1
+        "TransactionIdentityConflict": 1,
+        "UnsupportedTransactionParticipant": 1
       },
       "outcomes": {
         "Reference.purpose": [
@@ -23150,12 +23152,18 @@
         "InvalidDocumentCursor": 1,
         "InvalidDocumentRelease": 2
       },
-      "outcomes": {},
+      "outcomes": {
+        "Head": [
+          "live",
+          "deleted"
+        ]
+      },
       "error_sets": {},
       "error_returns": {
         "Coverage.validate()": "<inferred>",
         "Cursor.validate()": "<inferred>",
         "Cut.validate()": "<inferred>",
+        "Head.validate()": "<inferred>",
         "Page.validate()": "<inferred>",
         "Receipt.requireRequest()": "<inferred>",
         "Receipt.validate()": "<inferred>",
@@ -23167,7 +23175,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 23,
+        "try": 25,
         "catch": 1
       },
       "imports": [
@@ -23226,6 +23234,7 @@
     "packages/zig/transit-protocol/src/DocumentOperation.zig": {
       "errors": {
         "DocumentCheckpointConflict": 1,
+        "DocumentDeletionConflict": 1,
         "DocumentHistoryUnavailable": 1,
         "DocumentMutationConflict": 1,
         "DocumentPartitionConflict": 2,
@@ -23235,11 +23244,13 @@
         "DocumentReplicaRequired": 2,
         "DocumentReplicaSequenceGap": 3,
         "DocumentRevisionBeyondCut": 1,
+        "DocumentRevisionExhausted": 1,
         "DocumentTargetConflict": 2,
         "IncompatibleDefinition": 1,
         "InvalidDocumentCheckpoint": 1,
         "InvalidDocumentCheckpointReceipt": 1,
         "InvalidDocumentCut": 1,
+        "InvalidDocumentDeletionReceipt": 1,
         "InvalidDocumentLineage": 6,
         "InvalidDocumentMutation": 1,
         "InvalidDocumentMutationReceipt": 3,
@@ -23265,6 +23276,10 @@
         "CheckpointReceipt.validate()": "<inferred>",
         "Cut.requireRevision()": "<inferred>",
         "Cut.validate()": "<inferred>",
+        "Delete.requireSame()": "<inferred>",
+        "Delete.validate()": "<inferred>",
+        "DeleteReceipt.requireDeletion()": "<inferred>",
+        "DeleteReceipt.validate()": "<inferred>",
         "Lineage.validate()": "<inferred>",
         "Mutation.requireSame()": "<inferred>",
         "Mutation.validate()": "<inferred>",
@@ -23281,11 +23296,12 @@
         "ReplicaState.validate()": "<inferred>",
         "Target.requireOperation()": "<inferred>",
         "Target.requireSame()": "<inferred>",
-        "Target.validate()": "<inferred>"
+        "Target.validate()": "<inferred>",
+        "Tombstone.validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 42,
+        "try": 52,
         "catch": 0
       },
       "imports": [
@@ -23632,7 +23648,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"72f8c8ee18d16bef3bff32bbc24973c9faebcc33aaad678d4fef0baa70a9c8d5\""
+          "@\"240baa2bb21e59ab138b0b8a21097676d142d401f2a726e2a283d7ad01a885e5\""
         ],
         "Effect.phase": [
           "pending",
@@ -24662,7 +24678,7 @@
         "InvalidTransactionTarget": 1,
         "InvalidTransactionTransfer": 7,
         "ReadOnlyTransaction": 2,
-        "TransactionConflict": 2,
+        "TransactionConflict": 3,
         "TransactionIdentityConflict": 7,
         "UnsupportedTransactionDomain": 1,
         "UnsupportedTransactionParticipant": 5
@@ -24682,7 +24698,8 @@
         ],
         "Guard": [
           "state",
-          "log"
+          "log",
+          "document"
         ],
         "LogAction.action": [
           "append",
@@ -24708,7 +24725,12 @@
         ],
         "Participant": [
           "state",
-          "log"
+          "log",
+          "document"
+        ],
+        "Participant.document.access": [
+          "read",
+          "write"
         ],
         "Participant.state.access": [
           "read",
@@ -24720,8 +24742,7 @@
         ],
         "StateKind": [
           "table",
-          "kv",
-          "document"
+          "kv"
         ],
         "Target.kind": [
           "table",
@@ -24745,6 +24766,8 @@
         "Decision.requireAttempt()": "<inferred>",
         "Decision.validate()": "<inferred>",
         "Directory.validate()": "<inferred>",
+        "DocumentGuard.requireUnchanged()": "<inferred>",
+        "DocumentGuard.validate()": "<inferred>",
         "Guard.requirePagedState()": "<inferred>",
         "Guard.requireTable()": "<inferred>",
         "Guard.validate()": "<inferred>",
@@ -24772,7 +24795,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 81,
+        "try": 87,
         "catch": 0
       },
       "imports": [
@@ -39135,6 +39158,7 @@
       "outcomes": {
         "Outcome": [
           "mutation",
+          "deletion",
           "checkpoint",
           "read",
           "read_release",
@@ -39152,7 +39176,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 18,
+        "try": 19,
         "catch": 0
       },
       "imports": [
@@ -39355,6 +39379,8 @@
         "DocumentAppendUncertain": 2,
         "DocumentCheckpointRequired": 1,
         "DocumentConflictLimitExceeded": 1,
+        "DocumentDeleted": 1,
+        "DocumentDeletionConflict": 1,
         "DocumentDepthLimitExceeded": 1,
         "DocumentEpochFenced": 4,
         "DocumentEvaluationBudget": 4,
@@ -39364,9 +39390,10 @@
         "DocumentLogicalEvaluationRequired": 3,
         "DocumentLogicalLayoutMismatch": 5,
         "DocumentMutationLimitExceeded": 3,
-        "DocumentOperationConflict": 9,
+        "DocumentNotFound": 1,
+        "DocumentOperationConflict": 10,
         "DocumentPartMissing": 1,
-        "DocumentPartitionConflict": 5,
+        "DocumentPartitionConflict": 6,
         "DocumentPathCapacity": 3,
         "DocumentPositionExhausted": 1,
         "DocumentReadConflict": 9,
@@ -39387,7 +39414,7 @@
         "InvalidDocumentCursor": 10,
         "InvalidDocumentLineage": 6,
         "InvalidDocumentMutation": 3,
-        "InvalidDocumentPartitionRecord": 4,
+        "InvalidDocumentPartitionRecord": 6,
         "InvalidDocumentRead": 2,
         "InvalidDocumentRecovery": 2,
         "InvalidDocumentRecoveryBudget": 1,
@@ -39437,6 +39464,7 @@
         "checkpointRecovery()": "<inferred>",
         "collectionCursor()": "<inferred>",
         "decodeValue()": "<inferred>",
+        "delete()": "<inferred>",
         "docKey()": "<inferred>",
         "encodeValue()": "<inferred>",
         "findOutcome()": "<inferred>",
@@ -39445,7 +39473,9 @@
         "inspectOrderedNode()": "<inferred>",
         "inspectOrderedNodeInner()": "<inferred>",
         "loadBytes()": "<inferred>",
+        "lookupHead()": "<inferred>",
         "nextPosition()": "<inferred>",
+        "observeHead()": "<inferred>",
         "open()": "<inferred>",
         "operationKey()": "<inferred>",
         "orderedCursor()": "<inferred>",
@@ -39474,11 +39504,12 @@
         "signCausal()": "<inferred>",
         "signOrdered()": "<inferred>",
         "stageBytes()": "<inferred>",
+        "transactionGuard()": "<inferred>",
         "trimArchived()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 380,
+        "try": 412,
         "catch": 8
       },
       "imports": [
@@ -39506,11 +39537,12 @@
       "errors": {
         "DocumentPartitionConflict": 1,
         "IncompatibleDefinition": 3,
-        "InvalidDocumentPartitionRecord": 15
+        "InvalidDocumentPartitionRecord": 16
       },
       "outcomes": {
         "Action": [
           "mutation",
+          "deletion",
           "checkpoint",
           "read",
           "read_release",

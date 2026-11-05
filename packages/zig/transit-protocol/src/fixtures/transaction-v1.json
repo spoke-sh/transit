@@ -1,6 +1,6 @@
 {
   "begin": {
-    "definition": "72f8c8ee18d16bef3bff32bbc24973c9faebcc33aaad678d4fef0baa70a9c8d5",
+    "definition": "240baa2bb21e59ab138b0b8a21097676d142d401f2a726e2a283d7ad01a885e5",
     "identity": {
       "begin": {
         "scope": {
@@ -69,7 +69,7 @@
   },
   "cut": {
     "begin": {
-      "definition": "72f8c8ee18d16bef3bff32bbc24973c9faebcc33aaad678d4fef0baa70a9c8d5",
+      "definition": "240baa2bb21e59ab138b0b8a21097676d142d401f2a726e2a283d7ad01a885e5",
       "identity": {
         "begin": {
           "scope": {
@@ -293,7 +293,7 @@
   },
   "prepared": {
     "attempt": {
-      "definition": "72f8c8ee18d16bef3bff32bbc24973c9faebcc33aaad678d4fef0baa70a9c8d5",
+      "definition": "240baa2bb21e59ab138b0b8a21097676d142d401f2a726e2a283d7ad01a885e5",
       "transaction": {
         "begin": {
           "scope": {
@@ -550,7 +550,7 @@
   "observation": {
     "decided": {
       "attempt": {
-        "definition": "72f8c8ee18d16bef3bff32bbc24973c9faebcc33aaad678d4fef0baa70a9c8d5",
+        "definition": "240baa2bb21e59ab138b0b8a21097676d142d401f2a726e2a283d7ad01a885e5",
         "transaction": {
           "begin": {
             "scope": {
@@ -792,7 +792,7 @@
     "action": {
       "append": {
         "target": {
-          "definition": "72f8c8ee18d16bef3bff32bbc24973c9faebcc33aaad678d4fef0baa70a9c8d5",
+          "definition": "240baa2bb21e59ab138b0b8a21097676d142d401f2a726e2a283d7ad01a885e5",
           "interpretation": {
             "object": {
               "scope": {
@@ -907,7 +907,7 @@
       "source": {
         "exhausted": {
           "target": {
-            "definition": "72f8c8ee18d16bef3bff32bbc24973c9faebcc33aaad678d4fef0baa70a9c8d5",
+            "definition": "240baa2bb21e59ab138b0b8a21097676d142d401f2a726e2a283d7ad01a885e5",
             "interpretation": {
               "object": {
                 "scope": {
@@ -964,7 +964,7 @@
       },
       "destination": {
         "target": {
-          "definition": "72f8c8ee18d16bef3bff32bbc24973c9faebcc33aaad678d4fef0baa70a9c8d5",
+          "definition": "240baa2bb21e59ab138b0b8a21097676d142d401f2a726e2a283d7ad01a885e5",
           "interpretation": {
             "object": {
               "scope": {
@@ -1067,6 +1067,104 @@
     "accepted": {
       "partition": 91,
       "next_lsn": 15
+    }
+  },
+  "document_participant": {
+    "document": {
+      "guard": {
+        "source": {
+          "target": {
+            "definition": "240baa2bb21e59ab138b0b8a21097676d142d401f2a726e2a283d7ad01a885e5",
+            "interpretation": {
+              "object": {
+                "scope": {
+                  "realm": 1,
+                  "resource": 2,
+                  "catalog": 3
+                },
+                "branch": 1,
+                "object": 42
+              },
+              "revision": 1,
+              "digest": [
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5
+              ]
+            },
+            "partition": 4294967295
+          },
+          "observed": {
+            "partition": 93,
+            "next_lsn": 17
+          },
+          "changed_next_lsn": 15,
+          "heads_digest": [
+            67,
+            67,
+            67,
+            67,
+            67,
+            67,
+            67,
+            67,
+            67,
+            67,
+            67,
+            67,
+            67,
+            67,
+            67,
+            67,
+            67,
+            67,
+            67,
+            67,
+            67,
+            67,
+            67,
+            67,
+            67,
+            67,
+            67,
+            67,
+            67,
+            67,
+            67,
+            67
+          ]
+        }
+      },
+      "access": "write"
     }
   }
 }

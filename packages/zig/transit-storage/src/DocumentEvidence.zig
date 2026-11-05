@@ -12,6 +12,7 @@ pub const max_bytes = 16384;
 
 pub const Outcome = union(enum) {
     mutation: doc.MutationReceipt,
+    deletion: doc.DeleteReceipt,
     checkpoint: doc.CheckpointReceipt,
     read: doc.Read.Receipt,
     read_release: doc.Read.ReleaseReceipt,
@@ -21,6 +22,7 @@ pub const Outcome = union(enum) {
     pub fn validate(self: Outcome) !void {
         switch (self) {
             .mutation => |v| try v.validate(),
+            .deletion => |v| try v.validate(),
             .checkpoint => |v| try v.validate(),
             .read => |v| try v.validate(),
             .read_release => |v| try v.validate(),
@@ -32,6 +34,7 @@ pub const Outcome = union(enum) {
     pub fn operation(self: Outcome) d.Operation {
         return switch (self) {
             .mutation => |v| v.mutation.operation,
+            .deletion => |v| v.deletion.operation,
             .checkpoint => |v| v.checkpoint.operation,
             .read => |v| v.request.operation,
             .read_release => |v| v.release.operation,

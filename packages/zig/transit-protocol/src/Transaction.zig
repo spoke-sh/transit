@@ -5,11 +5,11 @@ const p = @import("root.zig");
 const d = p.DataLifecycle;
 const q = p.StreamQueue;
 
-pub const StateKind = enum { table, kv, document };
+pub const StateKind = enum { table, kv };
 pub const LogKind = enum { stream, queue };
 
-/// Stable physical-owner selection. A logical log partition ordinal is never a
-/// WAL partition ID. State objects have one selected owner and no ordinal.
+/// Stable physical-owner selection. A Document/log partition ordinal is never
+/// a WAL partition ID. Table and KV objects have one owner and no ordinal.
 pub const Target = struct {
     object: d.Object,
     kind: enum { table, kv, document, stream, queue },
@@ -17,7 +17,7 @@ pub const Target = struct {
 
     pub fn validate(self: Target) !void {
         try self.object.validate();
-        if ((self.kind == .stream or self.kind == .queue) != (self.partition != null))
+        if ((self.kind == .document or self.kind == .stream or self.kind == .queue) != (self.partition != null))
             return error.InvalidTransactionTarget;
     }
 
@@ -227,14 +227,37 @@ pub const LogGuard = struct {
     }
 };
 
+/// One Document partition's exact logical-head directory, including an empty
+/// partition. Retention and common-cut acquisition remain owner operations.
+pub const DocumentGuard = struct {
+    source: p.DocumentRead.Collection.Cut,
+
+    pub fn validate(self: DocumentGuard) !void {
+        try self.source.validate();
+    }
+
+    pub fn requireUnchanged(self: DocumentGuard, current: DocumentGuard) !void {
+        try self.validate();
+        try current.validate();
+        if (!std.meta.eql(self.source.target, current.source.target) or
+            self.source.observed.partition != current.source.observed.partition or
+            current.source.observed.next_lsn < self.source.observed.next_lsn or
+            self.source.changed_next_lsn != current.source.changed_next_lsn or
+            !std.meta.eql(self.source.heads_digest, current.source.heads_digest))
+            return error.TransactionConflict;
+    }
+};
+
 pub const Guard = union(enum) {
     state: struct { kind: StateKind, basis: StateGuard },
     log: LogGuard,
+    document: DocumentGuard,
 
     pub fn validate(self: Guard) !void {
         switch (self) {
             .state => |state| try state.basis.validate(),
             .log => |log| try log.validate(),
+            .document => |document| try document.validate(),
         }
     }
 
@@ -243,9 +266,9 @@ pub const Guard = union(enum) {
             .state => |state| .{ .object = state.basis.source.interpretation.object, .kind = switch (state.kind) {
                 .table => .table,
                 .kv => .kv,
-                .document => .document,
             }, .partition = null },
             .log => |log| .{ .object = log.source.target.interpretation.object, .kind = if (log.kind == .stream) .stream else .queue, .partition = log.source.target.partition },
+            .document => |document| .{ .object = document.source.target.interpretation.object, .kind = .document, .partition = document.source.target.partition },
         };
     }
 
@@ -253,6 +276,7 @@ pub const Guard = union(enum) {
         return switch (self) {
             .state => |state| state.basis.source.accepted,
             .log => |log| log.source.accepted,
+            .document => |document| document.source.observed,
         };
     }
 
@@ -264,7 +288,7 @@ pub const Guard = union(enum) {
 
     pub fn requirePagedState(self: Guard) !StateGuard {
         try self.validate();
-        if (self != .state or self.state.kind == .document) return error.UnsupportedTransactionParticipant;
+        if (self != .state) return error.UnsupportedTransactionParticipant;
         return self.state.basis;
     }
 };
@@ -280,11 +304,13 @@ pub const Participant = union(enum) {
         access: enum { read, write },
     },
     log: struct { guard: LogGuard, actions: ?Directory },
+    document: struct { guard: DocumentGuard, access: enum { read, write } },
 
     pub fn guard(self: Participant) Guard {
         return switch (self) {
             .state => |state| .{ .state = .{ .kind = state.kind, .basis = state.guard } },
             .log => |log| .{ .log = log.guard },
+            .document => |document| .{ .document = document.guard },
         };
     }
 
@@ -292,6 +318,7 @@ pub const Participant = union(enum) {
         return switch (self) {
             .state => |state| state.access == .write,
             .log => |log| log.actions != null,
+            .document => |document| document.access == .write,
         };
     }
 
@@ -308,6 +335,10 @@ pub const Participant = union(enum) {
                     try actions.validate();
                     if (actions.count == 0) return error.InvalidTransactionParticipant;
                 }
+            },
+            .document => |document| {
+                try document.guard.validate();
+                try identity.requireObject(document.guard.source.target.interpretation.object);
             },
         }
     }
@@ -329,7 +360,7 @@ pub const Participant = union(enum) {
     pub fn requireLocalState(self: Participant, begin: Begin) !void {
         try begin.validate();
         try self.validate(begin.identity);
-        if (self != .state or self.state.kind == .document) return error.UnsupportedTransactionParticipant;
+        if (self != .state) return error.UnsupportedTransactionParticipant;
         if (begin.mode == .read_only and self.writes()) return error.ReadOnlyTransaction;
     }
 };
@@ -579,6 +610,7 @@ pub const SchemaTypes = struct {
     begin: Begin,
     cut: Cut,
     participant: Participant,
+    document_participant: Participant,
     statement: Statement,
     prepared: Prepared,
     observation: Observation,

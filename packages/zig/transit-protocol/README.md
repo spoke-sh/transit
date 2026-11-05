@@ -86,7 +86,9 @@ operation through its authorized owner.
 [`DocumentRead`](src/DocumentRead.zig) supply neutral direct Document
 declarations, merge profiles (`causal_crdt`, `versioned`), subcolumn shredding
 and collation configurations, lineage and replica deduplication floors, finite
-merge-window checkpoints and retained revision read pins. Their
+merge-window checkpoints, conditional deletion evidence, tagged collection heads
+and retained revision read pins. Partition-aware Document transaction guards
+remain separate from transaction admission. Their
 [contract](../../../contracts/DOCUMENT_V1.md) separates shape/lineage validation
 from durable partition acceptance.
 

@@ -509,6 +509,11 @@ fn documentGraph(comptime ordered: bool) !void {
         .page_heads = 16,
         .page_bytes = 32768,
     }, guard);
+    const deleted = try owner.delete(.{
+        .operation = .{ .scope = scope_id, .principal = 7, .operation = 8 },
+        .expected = (try owner.observeHead(logical_mutation.target, guard)).?.live.cut,
+    }, guard);
+    try t.expectEqualDeep(deleted.tombstone(), (try owner.observeHead(logical_mutation.target, guard)).?.deleted);
     // Walk only the collection pin: no current heads or revision directory can
     // accidentally hide a missing edge to its retained logical trees/segments.
     var isolated: Workspace = .{};

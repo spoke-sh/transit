@@ -272,6 +272,65 @@ pub const Cut = struct {
     }
 };
 
+/// Logical deletion fences one exact live head. It neither expires retained
+/// revisions nor releases reads; the owning partition must check the live head.
+pub const Delete = struct {
+    operation: d.Operation,
+    expected: Cut,
+
+    pub fn validate(self: Delete) !void {
+        try self.expected.validate();
+        try self.expected.target.requireOperation(self.operation);
+        if (self.expected.accepted_revision == std.math.maxInt(u64)) return error.DocumentRevisionExhausted;
+    }
+
+    pub fn requireSame(self: Delete, other: Delete) !void {
+        try self.validate();
+        try other.validate();
+        if (!std.meta.eql(self, other)) return error.DocumentDeletionConflict;
+    }
+};
+
+/// Terminal logical tombstone evidence, not physical reclamation evidence.
+/// Shape validation alone does not establish partition acceptance.
+pub const Tombstone = struct {
+    previous: Cut,
+    deleted_revision: u64,
+    accepted: d.Position,
+
+    pub fn validate(self: Tombstone) !void {
+        try self.previous.validate();
+        try self.accepted.validate();
+        if (self.previous.accepted_revision == std.math.maxInt(u64) or
+            self.deleted_revision != self.previous.accepted_revision + 1 or
+            self.accepted.partition != self.previous.accepted.partition or
+            self.accepted.next_lsn <= self.previous.accepted.next_lsn)
+            return error.InvalidDocumentDeletionReceipt;
+    }
+};
+
+/// Original-operation outcome. Query-visible heads use only the tombstone;
+/// knowing a document does not grant access to another caller's operation.
+pub const DeleteReceipt = struct {
+    deletion: Delete,
+    deleted_revision: u64,
+    accepted: d.Position,
+
+    pub fn validate(self: DeleteReceipt) !void {
+        try self.deletion.validate();
+        try self.tombstone().validate();
+    }
+
+    pub fn tombstone(self: DeleteReceipt) Tombstone {
+        return .{ .previous = self.deletion.expected, .deleted_revision = self.deleted_revision, .accepted = self.accepted };
+    }
+
+    pub fn requireDeletion(self: DeleteReceipt, candidate: Delete) !void {
+        try self.validate();
+        try self.deletion.requireSame(candidate);
+    }
+};
+
 pub const Checkpoint = struct {
     target: Target,
     operation: d.Operation,
@@ -330,6 +389,7 @@ pub const SchemaTypes = struct {
     mutation: MutationReceipt,
     replica: ReplicaState,
     checkpoint: CheckpointReceipt,
+    deletion: DeleteReceipt,
     read: Read.Receipt,
     read_cursor: Read.Cursor,
     read_release: Read.ReleaseReceipt,
