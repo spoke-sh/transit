@@ -95,8 +95,8 @@ history. Deployment memory and storage quotas still apply.
 
 ALTER cannot change schema, partitioning, routing keys, ordering, compaction
 keys or timestamp identity. `IF EXISTS`, `IF NOT EXISTS` and schema evolution
-are outside this SQL profile. Group assignment and waits require typed native
-callers. SQL group reads and offset settlement use their native descriptors. The admitted partition-routed CLAIM and
+are outside this SQL profile. Group assignment and Stream waits require typed native
+callers. Queue waits use the claim interface below. SQL group reads and offset settlement use their native descriptors. The admitted partition-routed CLAIM and
 receipt-bound settlement profiles are described below.
 
 Named `SHOW` returns the published object identity, definition revision,
@@ -232,7 +232,7 @@ the same settlement even after reassignment. Reassignment fences further deliver
 of the old grouped read, including buffered and reopened results; the original
 operation and accepted settlement remain recoverable. Closing results advances
 no offset and releases no native pin. Group assignment and read release remain native
-operations. WAIT and attached interactive workload transactions remain outside
+operations. Stream WAIT and attached interactive workload transactions remain outside
 this SQL profile.
 
 ## Acquire Queue work
@@ -251,7 +251,7 @@ A genuinely empty accepted claim is a complete empty result; capacity or budget
 refusal is not an empty claim.
 
 A one-partition Queue needs no WHERE clause. For multiple partitions, use exactly
-`WHERE _partition = <unsigned value or parameter>`. Other predicates and WAIT
+`WHERE _partition = <unsigned value or parameter>`. Other predicates
 are refused before admission in this profile. Payload predicates require native
 selection before acquisition; SQL never leases unrelated rows and hides them
 with a result filter. Star includes application columns only. `_partition`,
@@ -270,6 +270,32 @@ read and acquire rights are rechecked before disclosure.
 
 CLAIM is outside attached interactive transactions. Native settlement retains
 its existing owner and current lease checks.
+
+### Wait for eligible Queue work
+
+```sql
+CLAIM value, _receipt_handle FROM jobs LIMIT 16 WITH LEASE '30s' WAIT '1s';
+```
+
+WAIT accepts a duration or bound parameter from 1 through 1000 milliseconds.
+Transit makes one bounded attempt using the native Queue waiter and its existing
+capacity, FIFO and lease policies. The duration is frozen with the original claim.
+A timeout leaves that operation pending; it does not accept an empty claim.
+Status and background recovery never acquire later arrivals for a timed-out wait.
+
+The shared SQL client returns a typed `unresolved` outcome with reason `waiting`.
+`Executor.resumeWorkload` explicitly makes another bounded attempt for that same
+original operation. Native `status` and `cancel` remain available, including after
+service replacement. Same-token execute observes the original work without another
+attempt. Once accepted, resume and result reopening preserve the original rows
+and lease handles without renewal or reselection.
+
+PostgreSQL and MySQL report SQLSTATE 57014 and the original operation ID when
+waiting ends without completion. The console exits nonzero and its JSON output
+includes the pending identity and wait observation. Repeating the SQL creates a
+new operation; use the shared client or native operation interface to resume or
+cancel the original. See the [wait contract](../../../../contracts/SQL_SESSION_V1.md#queue-wait-attempts)
+for timeout evidence and interrupted requests.
 
 ## Acknowledge Queue work
 

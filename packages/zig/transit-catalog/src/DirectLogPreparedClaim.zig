@@ -133,19 +133,22 @@ const TestFixture = struct {
 
 fn testOwned(allocator: std.mem.Allocator, metadata: c.DirectLogProtocol.Definition) !void {
     const t = std.testing;
-    var prepared = try init(allocator, TestFixture.connection, 1, "CLAIM payload AS body, _partition, _offset, _lease_epoch, _attempt FROM tasks WHERE _partition = $1 LIMIT $2 WITH LEASE $3", metadata, .transit, null);
+    var prepared = try init(allocator, TestFixture.connection, 1, "CLAIM payload AS body, _partition, _offset, _lease_epoch, _attempt FROM tasks WHERE _partition = $1 LIMIT $2 WITH LEASE $3 WAIT $4", metadata, .transit, null);
     var live = true;
     defer if (live) prepared.deinit();
     var lease = "30s".*;
-    var intent = try prepared.freeze(allocator, 99, &.{ .{ .unsigned = 2 }, .{ .unsigned = 3 }, .{ .bytes = &lease } }, null);
+    var wait = "100ms".*;
+    var intent = try prepared.freeze(allocator, 99, &.{ .{ .unsigned = 2 }, .{ .unsigned = 3 }, .{ .bytes = &lease }, .{ .bytes = &wait } }, null);
     defer intent.deinit();
     prepared.deinit();
     live = false;
     @memset(&lease, 'z');
+    @memset(&wait, 'z');
     var restored = try c.DirectWorkloadIntent.restore(allocator, intent.bytes);
     defer restored.deinit();
     try t.expectEqualDeep(try intent.reference(@splat(17)), try restored.reference(@splat(17)));
     const saved = restored.parsed.value;
+    try t.expectEqual(@as(?u32, 100), saved.wait_ms);
     const request = saved.work.queue.work.claim;
     try t.expectEqual(@as(u32, 2), request.target.partition);
     try t.expectEqual(@as(u32, 3), request.maximum);

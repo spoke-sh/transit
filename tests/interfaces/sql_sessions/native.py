@@ -40,6 +40,8 @@ class Client:
             self.transport()
         name = action if isinstance(action, str) else next(iter(action))
         control = name in ('cancel', 'status', 'resume', 'operations', 'close', 'close_result')
+        if name == 'resume' and action['resume']['kind'] == 'workload':
+            control = False
         if isinstance(action, str):
             action = {action: {}}
         body = dict(version=1, definition=self.definition, instance=self.instance, session=self.session, action=action)

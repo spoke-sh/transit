@@ -188,6 +188,8 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, stream
     consumes.run(root, port, postgres, mysql_options, restart, authorize, console, config, consumer, home, stream_native)
     from interfaces.sql_sessions import claims
     claims.run(root, port, postgres, mysql_options, restart, authorize, console, config, consumer, home)
+    from interfaces.sql_sessions import waits
+    waits.run(root, port, postgres, mysql_options, restart, authorize, console, config, consumer, home)
 
 
 def appends(root, port, postgres, mysql_options, restart, authorize, console, config, consumer, home):

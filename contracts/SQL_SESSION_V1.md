@@ -42,8 +42,8 @@ counters; a repeated fetch preserves the original buffered values.
 
 Requests use HTTP/1.1 POST with `application/json`, bounded Content-Length and
 no content encoding. `/v1/sql/session` admits data and authentication work;
-`/v1/sql/control` independently admits cancellation, observation, resume and
-closure. The body action must match the selected lane. Duplicate security or
+`/v1/sql/control` independently admits cancellation, observation, non-workload resume and
+closure. Workload resume uses the data lane because it may park a bounded wait. The body action must match the selected lane. Duplicate security or
 framing headers, ambiguous framing, redirects, browser Origin and forwarded
 identity headers are rejected. Responses carry `Cache-Control: no-store`.
 Control responses use `application/json`. Result batches use
@@ -124,7 +124,7 @@ Existing native Stream/Queue workload tokens appear as operation kind `workload`
 Status observes the original native receipt or recorded closure under current
 rights, preserving its saved intent and binding in `workload` evidence. Missing
 receipts and bounded owner recovery remain pending. Database recovery executes
-or cancels only that saved work and discharges pending accounting through the
+or cancels only that saved work, except waited claims described below and discharges pending accounting through the
 Catalog terminal-evidence gate; it never recompiles saved SQL. Native group
 assignment and explicit native read-release tokens are outside this SQL profile.
 
@@ -168,9 +168,45 @@ additional payload READ rights. Data appends, consumption and acquisition
 still require their exact preparation interpretation. GROUP binds an explicit
 native assignment/checkpoint binary descriptor. COMMIT OFFSET binds the original
 read receipt and authenticated completion progress, using the same workload
-token and command-result lifecycle. WAIT, Queue payload predicates and
-attached-transaction workloads remain outside
-the SQL execution profile.
+token and command-result lifecycle. Queue payload predicates, Stream WAIT and
+attached-transaction workloads remain outside the SQL execution profile.
+
+### Queue wait attempts
+
+`CLAIM ... WITH LEASE ... WAIT ...` freezes a positive whole-millisecond wait
+duration of 1–1000 ms in the canonical saved intent. Its exact native claim,
+source, projection and wait policy share the SQL token fingerprint and saved
+content commitment. Missing policy fields or foreign definitions reject before
+execution; null policy means ordinary non-waiting work.
+
+A first admission makes at most one native wait attempt. The native owner retains
+its waiter, worker, declaration, FIFO, lease, capacity and publication checks.
+SQL owns no partition lock while parked. A native timeout leaves the original
+SQL operation `ready`, with no outcome, authoritative counts or accepted workload receipt.
+Its optional `wait` observation identifies the saved content, native binding,
+duration and nullable timeout cut. Only a response to an actual timed-out attempt
+contains that cut. Status after timeout or replacement carries null `timed_out`;
+it cannot reconstruct a lost timeout observation. A cut confers neither acceptance
+nor retained payload coverage.
+
+Passive recovery and same-token execute only inspect waited claims or perform
+an explicitly requested cancellation. They never issue a plain claim or restart
+a wait. `resume` of the original workload identity explicitly requests at most
+one more attempt through the data lane and current account/database rights. It
+uses the same saved request and fixed duration with a new transient native
+deadline. Lost replies and interrupted waits require original-outcome inspection;
+they authorize no automatic attempt. Already accepted empty/nonempty claims or
+closures return the original receipt without reselection or lease renewal.
+Cancellation races resolve through the native original-operation owner.
+
+The shared client returns `StatementOutcome.unresolved` with reason `waiting`
+and this typed observation. `Executor.resumeWorkload` explicitly resumes that
+original account/instance/token/operation, then either returns another pending
+observation or opens its original result. PostgreSQL and MySQL return SQLSTATE
+57014 with the original gateway operation ID when no claim completed; neither
+returns `CLAIM 0` or successful empty rows. The console reports a nonzero outcome
+and includes original recovery identity in JSON. These callers may use native
+status/resume/cancel under current authorization; repeating SQL creates new work.
 
 Prepared descriptions always include `schema`. It is null when the statement
 returns no rows, including DML and schema commands; parameters and the mutation
