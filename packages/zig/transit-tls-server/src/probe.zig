@@ -48,7 +48,16 @@ fn exchange(io: std.Io, context: *tls.Context, listener: *std.Io.net.Server, pro
     var session = try tls.Session.accept(context, &transport);
     defer session.deinit();
     var message: [16]u8 = undefined;
-    try session.readExact(&message);
+    try session.readExact(message[0..1]);
+    // The independent peer sends at least three application bytes per record.
+    // The remainder is already decrypted inside OpenSSL; expiry must reject it
+    // without consuming plaintext or advancing the output record sequence.
+    const active = transport.deadline;
+    transport.deadline = .{ .deadline = .{ .clock = .awake, .raw = std.Io.Clock.awake.now(io).addDuration(.fromSeconds(-1)) } };
+    try std.testing.expectError(error.Timeout, session.read(message[1..2]));
+    try std.testing.expectError(error.Timeout, session.writeAll("expired"));
+    transport.deadline = active;
+    try session.readExact(message[1..]);
     try session.writeAll(&message);
     try session.finish();
 }

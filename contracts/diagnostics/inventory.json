@@ -21356,6 +21356,30 @@
         "transit_tls"
       ]
     },
+    "packages/zig/transit-http-server/src/Socket.zig": {
+      "errors": {
+        "EndOfStream": 1,
+        "ReadFailed": 3,
+        "Timeout": 1,
+        "WriteFailed": 3
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "read()": "Io . Reader . StreamError",
+        "readError()": "anyerror",
+        "readVec()": "Io . Reader . Error",
+        "write()": "Io . Writer . Error"
+      },
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 3,
+        "catch": 4
+      },
+      "imports": [
+        "std"
+      ]
+    },
     "packages/zig/transit-http-server/src/WebSocket.zig": {
       "errors": {
         "WebSocketBinaryUnsupported": 2,
@@ -21393,42 +21417,47 @@
         "AmbiguousFraming": 1,
         "DuplicateHeader": 1,
         "HttpCapacity": 1,
-        "HttpDeadline": 1,
+        "HttpDeadline": 3,
         "InvalidHost": 1,
         "InvalidHttpLimits": 1,
         "InvalidTarget": 1,
         "MissingHost": 1,
+        "Timeout": 1,
         "UnsupportedContentEncoding": 1,
         "UnsupportedExpectation": 1,
         "UnsupportedHttpVersion": 1,
         "UnsupportedTransferEncoding": 1
       },
       "outcomes": {
-        "deadline().Result": [
+        "deadlineAt().Result": [
           "completed",
           "timeout"
         ]
       },
       "error_sets": {},
       "error_returns": {
+        "DeadlineFixture.handle()": "<inferred>",
+        "DeadlineFixture.run()": "<inferred>",
         "Options.validate()": "<inferred>",
+        "checkDeadline()": "<inferred>",
         "deadline()": "<inferred>",
+        "deadlineAt()": "<inferred>",
         "header()": "<inferred>",
-        "receive()": "anyerror",
+        "receive()": "<inferred>",
         "respond()": "<inferred>",
         "serve()": "<inferred>",
-        "serve().Plain.init()": "<inferred>",
         "serve().Worker.connection()": "<inferred>",
         "serve().Worker.dispatch()": "anyerror",
         "timeout()": "anyerror",
         "validateHead()": "<inferred>"
       },
-      "open_error_set_uses": 5,
+      "open_error_set_uses": 6,
       "propagation": {
-        "try": 23,
-        "catch": 3
+        "try": 31,
+        "catch": 5
       },
       "imports": [
+        "Socket.zig",
         "WebSocket.zig",
         "builtin",
         "std"
@@ -31209,6 +31238,7 @@
       "error_returns": {
         "Connection.init()": "<inferred>",
         "Connection.read()": "std . Io . Reader . StreamError",
+        "Connection.readError()": "anyerror",
         "Connection.send()": "std . Io . Writer . Error",
         "Connection.write()": "std . Io . Writer . Error",
         "RequestStorage.acquire()": "<inferred>",
@@ -31218,7 +31248,7 @@
         "respond()": "<inferred>",
         "serve()": "<inferred>"
       },
-      "open_error_set_uses": 1,
+      "open_error_set_uses": 3,
       "propagation": {
         "try": 24,
         "catch": 6
@@ -31311,7 +31341,7 @@
         "InvalidAuthentication": 5,
         "InvalidCancelRequest": 1,
         "PathAlreadyExists": 1,
-        "Timeout": 2,
+        "Timeout": 3,
         "TlsMemoryCapacity": 1,
         "TlsRequired": 1,
         "WireSessionExhausted": 1
@@ -31347,7 +31377,6 @@
         "Authentication.perform()": "<inferred>",
         "Output.writeAll()": "<inferred>",
         "Server.acquire()": "<inferred>",
-        "Server.authenticationDeadline()": "anyerror",
         "Server.cancel()": "<inferred>",
         "Server.connectionDeadline()": "<inferred>",
         "Server.handle()": "<inferred>",
@@ -31364,12 +31393,14 @@
         "recoverSessions()": "<inferred>",
         "run()": "<inferred>",
         "serve()": "<inferred>",
-        "workerReserveFailures()": "<inferred>"
+        "waitAuthentication()": "anyerror",
+        "workerReserveFailures()": "<inferred>",
+        "writeDeadline()": "<inferred>"
       },
       "open_error_set_uses": 23,
       "propagation": {
-        "try": 109,
-        "catch": 26
+        "try": 106,
+        "catch": 27
       },
       "imports": [
         "Connection.zig",
@@ -43047,6 +43078,7 @@
     "packages/zig/transit-tls-server/src/probe.zig": {
       "errors": {
         "InvalidSslRequest": 2,
+        "Timeout": 2,
         "Usage": 3
       },
       "outcomes": {},
@@ -43057,7 +43089,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 23,
+        "try": 26,
         "catch": 0
       },
       "imports": [
@@ -43073,6 +43105,7 @@
         "InvalidTimeout": 2,
         "InvalidTlsCredentials": 4,
         "InvalidTlsTrust": 2,
+        "Timeout": 1,
         "TlsAllocationFailed": 6,
         "TlsConfiguration": 2,
         "TlsControlBudget": 2,
@@ -43083,7 +43116,11 @@
         "UnsupportedTlsLibrary": 1
       },
       "outcomes": {},
-      "error_sets": {},
+      "error_sets": {
+        "Transport.checkDeadline().<error>": [
+          "Timeout"
+        ]
+      },
       "error_returns": {
         "Context.init()": "<inferred>",
         "Context.verifyLocalTrust()": "<inferred>",
@@ -43094,6 +43131,7 @@
         "Session.read()": "<inferred>",
         "Session.readExact()": "<inferred>",
         "Session.writeAll()": "<inferred>",
+        "Transport.checkDeadline()": "error { Timeout }",
         "Transport.idle()": "<inferred>",
         "Transport.inputStarted()": "<inferred>",
         "Transport.read()": "<inferred>",
@@ -43103,7 +43141,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 17,
+        "try": 24,
         "catch": 0
       },
       "imports": [

@@ -1,6 +1,6 @@
 # 8. Gateway architecture, sans-I/O wire protocols and direct-plane ingress
 
-[Roadmap](README.md) · [Write lifecycle and I/O #211](https://github.com/spoke-sh/transit/issues/211) · [Cutover #110](https://github.com/spoke-sh/transit/issues/110) · [Maintenance & Packaging #122](https://github.com/spoke-sh/transit/issues/122) · [Foundation #125](https://github.com/spoke-sh/transit/issues/125) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · [Allocation Guidance #194](https://github.com/spoke-sh/transit/issues/194) · **Status:** In Progress ([remaining implementation plan](#implementation-plan--2026-11-01))
+[Roadmap](README.md) · [Write lifecycle and I/O #211](https://github.com/spoke-sh/transit/issues/211) · [Cutover #110](https://github.com/spoke-sh/transit/issues/110) · [Maintenance & Packaging #122](https://github.com/spoke-sh/transit/issues/122) · [Foundation #125](https://github.com/spoke-sh/transit/issues/125) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · [Allocation Guidance #194](https://github.com/spoke-sh/transit/issues/194) · **Status:** In Progress ([remaining implementation plan, 2026-11-05](#implementation-plan--2026-11-05))
 
 Let callers query declared data, submit mutations and compose supported
 transactions through one bounded execution service. They must be able to inspect
@@ -36,8 +36,9 @@ Build on [data identities](01-declarative-data-lifecycle.md),
 local Table profile in [transactions](05-transactions-and-atomic-composition.md).
 [M6](06-streams-queues-and-durable-runtime.md) now supplies database-owned SQL,
 named direct KV, typed Stream/Queue operations and maintenance, native mixed
-transactions and Stream/Queue declaration SQL. Workload SQL, mixed transaction
-SQL, automatic DLQ transfer and transactional Station composition remain open.
+transactions, automatic DLQ transfer and declaration/workload SQL, including
+grouped consumption and offset settlement. SQL waits, acquisition predicates,
+finite `STREAM_SLICE`, mixed transaction SQL and transactional Station remain open.
 The public Document cutover in [M7](07-document-storage-and-station-decoupling.md)
 is still an incoming gate. These dependencies apply to their particular adapters;
 they do not block improvements to existing Table SQL. The
@@ -281,180 +282,233 @@ records the executed checks and their source basis.
 
 ### Implementation plan — 2026-11-01
 
-**Source basis:** fetched `origin/main` at
-`c8d060cb2dfcf3bc531ef2e41fcdf7d4f172c2d5`. This plan uses merged source,
-public contracts and recorded qualification; it establishes no new runtime or
-performance result. Keep M8 **In Progress**. Preserve the P0–P6 acceptance
-identifiers, startup S0–S6 gates and earlier failure records. This section
-supersedes the October 31 implementation inventory and next-change order.
+The [November 1 plan at its recorded source](https://github.com/spoke-sh/transit/blob/c4dd89c2224ab53fd9139f2f89c328e8ca0b3f25/docs/roadmap/08-gateway-architecture-and-protocol-ingress.md#implementation-plan--2026-11-01)
+retains the prior inventory, delivery order and subsequent performance subplans.
+The November 5 refresh below supersedes its next-change ordering. Earlier
+experiments, incomplete checks and original-outcome obligations retain their
+recorded scope; neither a later merge nor this plan resolves them.
 
-Integration with `origin/main` at `f49a3da65` preserves the later M9 bounded
-admission/direct-KV recovery increment and the browser/branch definition cutover.
-M9's [current plan](09-client-foundation-and-language-apis.md#remaining-implementation-plan--2026-11-01)
-and [increment](09-client-foundation-and-language-apis.md#implemented-context-and-kv-recovery-increment--2026-11-01)
-own that progress and its remaining qualification. The new asset-pipeline M19
-renumbers the later handoffs below; it adds no M8 protocol capability. The
-source inventory and historical results retain their original basis.
+### Implementation plan — 2026-11-05
+
+**Source basis:** fetched `origin/main` at
+`c4dd89c2224ab53fd9139f2f89c328e8ca0b3f25`, reviewed in a new worktree.
+The shared definition in
+[`Growth.zig`](../../packages/zig/transit-protocol/src/Growth.zig) is
+`4a79430a0f740284cda72df8341f0af87a87a63a599d7a81c62a934778875e1a`.
+This is a source-grounded implementation proposal, not executed runtime or
+performance qualification. Unmerged work in other worktrees is not a delivered
+prerequisite. Keep M8 **In Progress**, its P0–P6 acceptance identifiers, startup
+S0–S6 gates and the existing #211 objectives.
 
 **Deliverable:** an installed caller submits a statement against declared data,
 receives its authoritative command outcome or one complete bounded result, and
 can inspect the original accepted work after disconnection or replacement.
 Local execution shares the database owners. A standalone frontend delegates to
-that same service. Protocol state and buffered output remain bounded while
-slow peers, storage waits and authentication do not occupy every runnable worker.
+that same service. Protocol state and buffered output remain bounded while slow
+peers, storage waits and authentication leave runnable capacity for other callers,
+control and recovery.
+
+The immediate work is **deadline propagation and a resumable host driver**.
+PG/MySQL startup and command continuations already exist. Current Table capture,
+managed multi-row pages and output-statement batching also exist; do not repeat
+them as new optimization work. Refresh measurements and remaining contracts first,
+then qualify scheduling before changing the connection-based worker formula.
+Local configuration composition and the remote authority contract can progress
+independently. M6/M7 gate their own incoming capabilities, not existing Table SQL.
 
 #### Current implementation and evidence
 
-| Boundary at the source basis | Delivered work to preserve | Remaining work |
+**First deadline slice after this audit:** the HTTP owner now sets absolute
+socket deadlines for plain and native TLS headers without a header timer/work
+pair. Buffered parsing checks the same deadline; body, output and joined
+non-socket handler cancellation use the original request budget. PG/MySQL
+authentication shares one timestamp across startup I/O and an event waiter,
+replacing the five-millisecond polling loop. Output caps use exact timestamps.
+Socket and TLS guards also reject expired operations when the socket is ready
+or decrypted bytes are buffered, before consuming input or advancing TLS output.
+The [SQL host ownership matrix](../../packages/zig/transit-sql-host/README.md)
+records the affected borrows, authority and cancellation owners; the
+[HTTP](../../contracts/HTTP_SERVING_V1.md) and
+[wire](../../contracts/SQL_GATEWAY_V1.md) contracts retain their existing limits.
+These are implementation changes within the current definition.
+
+Package controls cover expired buffered input, stalled headers without timer
+tasks, body/handler cancellation and joins, pipelined reuse, spurious event wakes,
+expiry, cancellation and exact output caps. The independent native TLS schedule
+adds fragmented-header expiry before ordinary authenticated session use. The TLS
+probe covers expired buffered reads/writes and unchanged byte/record sequencing
+through both protocol upgrades and TLS versions. PR
+validation records the executed integration and clean-checkout outcomes.
+P3 remains open: command/handler cancellation tasks, signed-client propagation,
+resumable host progress, fair queues and CPU-sized worker defaults still require
+their remaining contracts and proofs. This slice does not close P0/P5 measurement
+controls, local configuration handoff, remote authority, or M6/M7 incoming gates.
+
+The public [runtime owner](../../packages/zig/transit-sql/docs/runtime.md),
+[SQL host](../../packages/zig/transit-sql-host/README.md),
+[wire contract](../../contracts/SQL_GATEWAY_V1.md) and
+[Stream/Queue SQL profile](../handbook/reference/sql/streaming.md) define current
+behavior. The following source inventory separates it from remaining delivery.
+
+| Boundary at this source | Delivered work to preserve | Remaining M8 obligation |
 | --- | --- | --- |
-| SQL execution and recovery | [`DatabaseRuntime`](../../packages/zig/transit-sql/src/DatabaseRuntime.zig), `ReadCache` and Registry own original tokens, foreground settlement, paged discovery, dirty pins and event-driven recovery. Settled accounts park; native session expiry follows actual leases. | Requalify P1 when scheduling changes, including typed pending work for Table, log declarations, transactions and external operations. The 2–100 ms retry range applies to unresolved obligations, not settled-idle polling. |
-| Local placement | [`transit-sql-host`](../../packages/zig/transit-sql-host/README.md) runs inside the installed node; signed `LocalEndpoint` dispatch shares native/Table authority, admission and owner locks. | Finish configuration-owner handoff, complete local/HTTP equivalence and qualify activation/replacement/shutdown together. Preserve explicit local failure without HTTP fallback. |
-| Protocol continuations | PRs #295/#299 deliver neutral `Wire` types, transitive import gates, incremental frames and pure authenticated PG/MySQL command sessions. `WireSessionDriver` handles one request/output event at a time, generation-fenced completions, partial drains and disclosure guards. TSR1 remains pure. | Authentication/TLS orchestration still lives in the blocking host. Reuse these continuations; do not repeat the service-dependency extraction or invent another result protocol. Full connection scheduling and installed allocation/performance remain open. |
-| Deadlines and workers | [`root.zig`](../../packages/zig/transit-sql-host/src/root.zig) still has `authenticationDeadline`, `connectionDeadline` and `boundedHandle`; [`transit-http-server`](../../packages/zig/transit-http-server/src/root.zig) and the signed client retain timer-task races. Host worker count grows with accounts, connections and listener slots. | Absolute socket deadlines plus bounded non-socket cancellation; resumable authentication and readiness-driven I/O before reducing runnable workers. Account for every co-hosted pool. |
-| Startup and publication | PR #302 adds conditional enrolled-worker rotation, unchanged derived-file reuse, eight-page private publication buffering and bounded overlapping file barriers. Earlier write/read optimizations remain in place. | Preserve readiness/recovery gates. Finish aged-history, interrupted-bootstrap and unclean-restart evidence; select further work from current attribution. Neither startup improvement nor command continuations close #211's statement latency targets. |
-| Standalone placement | [`transit-sql-gateway`](../../apps/transit-sql-gateway/README.md) still composes SQL execution with fine-grained HTTP-backed direct clients. | P2c: server-owned Registry/runtime/read cache/results/recovery; frontend-only bounded protocol and authentication attachment. |
-| M6 direct owners and SQL | Merged M6 work through PR #303 includes named direct KV, bounded Queue waits, native Table/KV/Stream/Queue composition, explicit paired Queue transfers, and CREATE/ALTER/RENAME/DROP plus SHOW/DESCRIBE for Streams/Queues. | Preserve these actual consumers now. Workload verbs, finite retained `STREAM_SLICE`, mixed transaction SQL, automatic DLQ scheduling and Station replacement remain M6 work. SQL BEGIN retains its selected Table profile. |
-| M7 Document | PR #300 adds bounded recovery steps, cumulative retained-read budgets, explicit read signing keys and exact receipt/target checks to `DocumentPartition`. | The partition still accepts supplied state/conflict counts and reads one whole revision within budget. Canonical evaluation, persisted shredding, public direct lifecycle, participant and caller migration remain open; no direct Document ingress is established. |
-| M9 clients | Context Catalog/SQL leases, frozen pre-submit SQL attempts, `LocalRecoveryStore` and `SqlRecovery` now exist alongside shared `Executor`/`ResultSet`. | Consume their ownership/persistence seams. Principal coordination, ordinary Catalog settlement, managed result/transaction handles, data ABI/host and installed language qualification remain M9 work. |
-| Other installed consumers | Browser ingress is co-hosted under `BROWSER_V1`. M19 adds typed immutable single-Table branches and paged SQL recovery across excluded branch work. | Preserve browser admission/disclosure and branch-owned pins. Branch records are not SQL jobs; skipping one must not hide later SQL work. Writable/general branch SQL is not an M8 capability. |
+| SQL placement and authority | Installed SQL runs in the node; signed typed `LocalEndpoint` calls use the same native/Table owners, policy, locks and final disclosure fences as HTTP. The local dispatcher has four data, two control and four wait lanes. | Complete configuration-owner handoff and common-revision local/HTTP lifecycle evidence. Lane counts are current admission bounds, not the target runnable-worker formula. |
+| SQL recovery | `DatabaseRuntime`, Registry and `ReadCache` retain original tokens/cuts, foreground settlement, complete paged discovery, wake generations and actual session leases. Settled owners park. | Preserve execution claims, scan-to-park correctness and separate execution/accounting/pin obligations under the new scheduler and every typed pending kind. |
+| Connection protocols | #295/#299/#315 deliver pure `Wire`, PG/MySQL `Session` and `StartupSession`, partial input/output and generation-fenced host completions. Credential/TLS effects remain hosted. TSR1 is pure. | Drive those engines without a blocking task per connection; extend pure boundaries to the selected HTTP/Flight/Serving framing. No repeated startup extraction. |
+| Socket deadlines | [`transit-tls-server.Transport`](../../packages/zig/transit-tls-server/src/root.zig) already uses `io.operateTimeout` for socket reads/writes, including partial TLS records. | Remove eligible outer `connectionDeadline`/`boundedHandle`, HTTP header/handler and signed-client timer races only after their non-socket cancellation responsibilities have replacements. Socket support alone does not make the host resumable. |
+| Worker residency | [`transit-sql-host`](../../packages/zig/transit-sql-host/src/root.zig) sizes `Threaded` with account count, eight workers per wire slot and further native-listener reserves. [`transit-io`](../../packages/zig/transit-io/README.md) owns bounded task slabs and joined worker cleanup. | Effective-CPU-bounded runnable work across the entire installation, separately bounded parked state and blocking work, fair admission and measured progress before reducing defaults. |
+| Fresh reads and finite managed work | #356 delivers explicit current Table capture and bounded multi-row `DFP1` pages/output statements. #361/#365 add Catalog-owned `CPR1` replacement progress and `SOR1` original staging/closure above `TXR1` candidates. | Remeasure complete results and successors with normal maintenance; preserve original cuts, staging ownership and collection. M12 owns remaining finite recovery/fairness and incremental execution. |
+| Foreground contention | #362 bounds local lane acquisition; #381 releases a foreground wire claim after an accepted-operation conflict and waits for original recovery. #384 moves activation-reply-loss injection to the actual co-hosted boundary. | Carry the same cancellation/deadline through admission and recovery. Force conflicts before and after commit, revocation and activation loss without redispatching SQL or holding the claim needed by recovery. |
+| M6 ingress | Declarations, PRODUCE/ENQUEUE, positional/grouped CONSUME, COMMIT OFFSET, CLAIM, ACK/NACK and renewal are executable through shared SQL owners. #367 adds exact group/progress descriptors. Native mixed transactions and automatic DLQ owners exist. | SQL WAIT, payload-aware Queue acquisition, finite `STREAM_SLICE`, mixed SQL and transactional Station remain M6 handoffs. Group assignment/read release stay native; wire row counts cannot fabricate authenticated progress. |
+| M7 Documents | #319/#354 integrate causal maps, ordered trees, BP inspection and verified JSON/XML/MIME candidates; #370 adds retained partition membership and bounded head pages. | Protected staging, public direct lifecycle/discovery, transaction participation and the coordinated consumer cutover remain M7 gates. Component collection cuts are not installed direct Document ingress. |
+| Types, catalogs and queries | #351 adds selected psql catalog inspection; #355/#377 extend/correct historical evidence; #374 admits scalar widths and exact decimals across native/PG/MySQL; #383 adds typed relational grouping, HAVING, ORDER BY/LIMIT and forward revision semantics. | Preserve exact schema/collation, empty/prepared/binary values, historical bindings and original revisions. These do not widen Flight's int64 profile or establish every SQL dialect/analytical combination. |
+| Startup and storage publication | Earlier startup reductions remain; #384 publishes immutable files and recoverable installation assemblies without requiring `RENAME_NOREPLACE`. | Requalify startup/replacement under the new I/O owner, including interrupted assembly and retained history. Local injected syscall tests do not qualify EFS/Fargate or cross-client lock-loss behavior. |
+| Other ingress placements | Standalone SQL still runs Registry/runtime with fine-grained HTTP direct clients. Flight retains durable Query/Station requesters; Serving/browser hosts retain signed native/effect owners. | P2c server-owned remote execution; shared Flight/Serving host integration and pure codecs with unchanged authority/capture lifetimes. |
 
-Evidence remains scoped to its recorded source and workload:
+Merged source does not certify a combined pass. Retain these evidence boundaries:
 
-- [The October 30 console experiment](../history/qualification/performance.md#pipelined-batch-writes-cached-client-token-progress-deduplicated-operationbinding-claims-and-same-turn-sql-coordination--2026-10-30)
-  at `5c4081e95` records p50 29 ms for 50 warm reads, 925 ms for five INSERTs
-  and 599 ms for five read-after-INSERT samples under shared-host load. It is
-  not a matched comparison or a measurement of this plan's HEAD. Its native
-  recovery pass does not resolve the earlier co-hosting timeout/installation.
-- [Startup publication probes](../history/qualification/performance.md#installed-startup-publication-reduction--2026-10-31)
-  record all 60 launches and roughly threefold median readiness improvements.
-  Candidate fresh medians are 21.707 s headless / 22.836 s with embedded UI;
-  retained medians are 3.208 / 2.666 s. First verified results, failed-attempt
-  time and host load are recorded separately. These are frozen-binary probes,
-  not current-HEAD tails or the final 5 s / 1 s startup acceptance.
-- [Native mixed/transfer recovery](../history/qualification/transactions.md#installed-recovery-and-bounded-evaluation)
-  records same-binary installed Table/KV, mixed state/input/output and Queue
-  transfer schedules. [Declaration SQL](../history/qualification/sql.md#stream-and-queue-declaration-sql--2026-10-31)
-  covers native, console, PG and MySQL callers, paged metadata, original tokens
-  and buffered revocation. Neither establishes workload SQL or complete clean lanes.
-- [Document partition ownership](../../packages/zig/transit-storage/docs/document-partitions.md)
-  states the component boundaries and tests; bounded replay is not public
-  Document acceptance or zero-allocation qualification.
-- [M9's local recovery evidence](../history/qualification/sdk.md#local-sql-recovery-and-context-leases--2026-10-31)
-  covers local files and loopback clients, not installed language process loss.
-  [Branch evidence](../history/qualification/catalog.md#immutable-single-table-branches--2026-10-31)
-  retains its failed/incomplete integration attempts.
-
-The startup ledger still records unsuccessful clean installation/UI attempts;
-the declaration ledger records a workspace run, not a clean co-built lane.
-PR #304 repairs a typed-pending transaction replay consumer; that correction
-alone does not certify all of `main`. Refresh the integrated baseline before
-attributing a failure to the next M8 change. Keep original failed installations
-and accepted identities; a fresh passing fixture does not settle them.
+- [Startup continuation qualification](../history/qualification/sql.md#connection-startup-continuations--2026-11-01)
+  records a complete clean SQL lane and separate failed/incomplete installation,
+  workbench and browser attempts at its named revisions. Do not reopen delivered
+  codecs or treat later fresh passes as explanations of those failures.
+- [Scalar parity](../history/qualification/sql.md#scalar-parity-across-sql-interfaces--2026-11-04)
+  records the copied ReleaseSafe server, all 23 installed smoke stages, independent
+  driver matrix and unchanged latency gate at `1c2d29038…`, plus the bounded-error
+  follow-up. It is not a complete clean-lane or current-HEAD qualification.
+- [Owned original staging](../history/qualification/query.md#owned-original-staging-and-closure--2026-11-03)
+  records scoped owner/installed checks. Combined process-death, growth, fairness
+  and resource evidence remains with M12.
+- The [older F0 scorecard](../history/qualification/performance.md#managed-staging-and-sdk-diagnostic-baselines--2026-11-02)
+  predates current capture, page batching and later definitions. Its failed
+  operations and timings remain historical controls, not this source's results.
+- The [nightly container campaign](../../tests/performance/load/containers.md)
+  and console latency gate are now implemented measurement infrastructure.
+  Registration, a successful build or a promoted image alone is not an executed
+  campaign. #378 tracks publication prerequisites and incomplete profiles.
 
 #### Milestone dependencies and handoffs
 
-| Owner | Available input and M8 obligation | Gate or work retained by that owner |
+| Owner | Available input and immediate M8 use | Incoming gate or later responsibility |
 | --- | --- | --- |
-| [M1–M3](03-live-storage-and-sql-cutover.md) | Stable identities, local WAL/object publication, direct lifecycle and installation. Share their authority and retained roots. | M3 remains In Progress. Gateway placement does not complete all installed data lifecycles or storage qualification. |
-| [M4](04-statement-results-and-consumption.md), [M5](05-transactions-and-atomic-composition.md) | Completed result model and selected local serializable Table transactions: exact cuts, provisional counts, savepoints and original decisions. | Preserve these semantics through every adapter. M6 extends native participants; SQL and Document support must be qualified separately. |
-| [M6](06-streams-queues-and-durable-runtime.md#r6-expose-sql-and-shared-caller-operations) | Existing log DDL/inspection and typed KV/Stream/Queue/mixed operations are current regression cases. Preserve typed pending pagination and owner notifications. | R6 workload SQL/finite Stream reader and R7/R8 Station/effect replacement are incoming gates. R9 and M8 jointly own account-token/publication and #211 latency work; neither milestone may defer it to the other. |
-| [M7](07-document-storage-and-station-decoupling.md#remaining-work-packages-and-gates) | Consume C0 contracts and C3/C4 accepted-revision, authorization and direct caller boundaries when delivered. | C1/C2 integrate logical/physical storage; C5 supplies the participant, C6 SQL/Query, C7 consumer cutover and C8 qualification. Coordinate seams early without treating component roots as a service. |
-| [M9](09-client-foundation-and-language-apis.md#remaining-implementation-plan--2026-11-01), [M21](21-service-and-sdk-coverage.md) | Reuse client context leases, bounded admission, original SQL/KV attempt persistence and logical result consumption. Publish remote authority, handles and buffer lifetimes before wiring clients. | M9 may continue context/ABI work while M8 develops remote hosting. M8 does not wait for every SDK, but each incompatible cutover migrates its affected consumers. Broader parity remains M21. |
-| [M10](10-standards-and-catalogs.md), [M11](11-indexing-and-access-paths.md) | Carry exact definition/collation and metadata observations; preserve invalidation after ALTER, rename and DROP. | Historical catalog, constraint and index helpers do not enable unsupported wire types, `AS OF` or new execution profiles. |
-| [M12](12-sql-and-dataflows.md) | Provide bounded execution/result/cancellation seams for qualified analytical plans and later activation. | M6 owns finite `STREAM_SLICE`; M12 owns maintained computations/CDC and durable dataflow activation. A parked wire connection is not a durable subscription. |
-| [M13](13-data-structures-and-performance.md), [M14](14-vectorized-strings-and-search.md), [M15](15-data-centric-compilation-and-specialization.md) | Supply measured ingress allocations, scheduling/queue costs and cancellation/yield boundaries. | General buffer pools, resource metering, optimizer/search and AOT work stay there. M8 still owes its own worker, buffer and latency gates. |
-| [M16](16-document-profiles-and-gateway-exchange-lifecycle.md) | Deliver pure byte/event seams and explicit owned/borrowed lifetimes for future Document profile codecs. | Multi-format parsers and gateway/connector exchange capture await their Document/effect contracts. Do not redirect `STATION_EXCHANGE_V1` or add profile parsers in M8. |
-| [M20](20-branches-merges-and-restore.md#local-table-branch-increment), [M22](22-formal-semantics-and-correspondence.md), [M26](26-clustered-execution.md) | Preserve retained branch roots and non-SQL pending discovery; provide scheduler/ownership traces and explicit remote failure semantics. | Branch writes/merges, general formal correspondence, replication and distributed failover retain their own gates. One remote frontend is not a cluster protocol. |
+| [M1–M3](03-live-storage-and-sql-cutover.md), [M4](04-statement-results-and-consumption.md), [M5](05-transactions-and-atomic-composition.md) | Stable definitions, local durability, logical `StatementOutcome`/`ResultSet`, common Table cuts, provisional counts/savepoints and original decisions | M3 remains In Progress; M4/M5 completion has their selected scope. Preserve bootstrap/recovery and Table transaction semantics through placement and scheduling. |
+| [M6](06-streams-queues-and-durable-runtime.md#completion-plan-at-current-main--2026-11-03) | Current direct KV/log SQL, authenticated progress, native waits/mixed decisions/DLQ are regression inputs | WAIT needs resumable host capacity and its own shared pending/result contract. M6 supplies selection/settlement and Station semantics; M8 supplies scheduling. M6 R9 and M8 P2 jointly retain account-token/commit and #211 latency closure. |
+| [M7](07-document-storage-and-station-decoupling.md#remaining-work-packages-and-gates) | Retained collection cuts define the future partition read basis; coordinate staging/borrow/cancellation interfaces now | C0 contracts, protected staging, C4 signed lifecycle/discovery, C5 participants, C6 SQL and C7/C8 consumer qualification gate direct Documents. A component root or independent partition vector grants neither acceptance nor an atomic cut. |
+| [M9](09-client-foundation-and-language-apis.md#remaining-implementation-plan--2026-11-01), [M21](21-service-and-sdk-coverage.md) | Context leases, bounded admission, `LocalRecoveryStore`, frozen SQL/KV attempts and shared result readers | Define remote handles/authority together. Principal coordination, ordinary settlement, managed handles/data ABI and language breadth remain there; M8 migrates every existing consumer affected by its cutover without waiting for all SDK redesigns. |
+| [M10](10-standards-and-catalogs.md), [M11](11-indexing-and-access-paths.md) | Historical catalogs/cuts, exact scalar/collation descriptors and current policy checks constrain all metadata and data output | Index-backed execution, online maintenance and narrower conflict tracking remain M11. Cached preparation cannot invent current coverage or remove existing conflict guards. |
+| [M12](12-sql-and-dataflows.md#next-implementation-slice-owned-staging-and-finite-qualification) | Batched finite results and `TXR1`/`CPR1`/`SOR1` owned work; typed relational execution and independent inspection | Provide bounded execution/yield/cancel seams; M12 owns complete-history activation, incremental processing and finite recovery/fairness. A gateway connection is not a durable subscription or history cursor. |
+| [M13](13-data-structures-and-performance.md#nightly-container-scorecard-and-distributed-handoffs), [M14](14-vectorized-strings-and-search.md), [M15](15-data-centric-compilation-and-specialization.md) | Existing scorecards and execution-owned predicate/buffer interfaces | M8 proves ingress allocations, queues and CPU-sized progress. General metering, storage/cache work, search and compilation stay with these owners; future meters cannot excuse an unbounded M8 queue. |
+| [M16](16-document-profiles-and-gateway-exchange-lifecycle.md) | Offline JSON/XML/MIME codecs, construction, framing and commitments can consume pure byte/event interfaces | Profile expansion and gateway/connector capture require M7 acceptance and explicit effect contracts. Reuse pure libraries; do not migrate `STATION_EXCHANGE_V1` or dispatch effects in a codec. |
+| [M20](20-branches-merges-and-restore.md), [M22](22-formal-semantics-and-correspondence.md), [M26](26-clustered-execution.md) | Immutable branches/forks and mixed pending directories must survive discovery; finite scheduler traces support correspondence | Branch mutation/merge, general refinement, replication/failover and distributed transaction behavior remain separate. A remote protocol frontend and three independent container authorities establish none of them. |
+| [M30](30-board-reimplementation.md), [M45](45-releases.md) | Read-only public inspection, computation/retained-result views, installed artifacts and filesystem publication | Preserve Board/browser control progress and source-bound output; UI work and hosted filesystem qualification retain their owners. Keep build/package cost separate from runtime startup. |
 
-Browser admission is an immediate regression boundary. Native SQL keeps rejecting
-browser Origin/cookie/forwarded-identity admission; browser endpoints keep their
-Host/Origin, provider, session and publication rules. Board inspection remains
-read-only through public callers. Sharing ingress creates no new authority.
+Native SQL retains its rejection of browser Origin/cookie/forwarded identity.
+Browser listeners retain Host/Origin, provider, session and publication checks.
+Shared hosting supplies no new permission, settings or retention authority.
 
 #### Delivery order and independently reviewable changes
 
-The P0–P6 inventory below is the full acceptance scope. The numbered changes
-here select the remaining implementation; each includes owning tests and public
-documentation before the next dependent cutover.
+The P0–P6 inventory remains the full acceptance scope. This order replaces the
+older instructions to implement startup continuations, current capture and
+single-row managed-page reductions. Each review includes its owner documentation,
+negative controls and applicable gates; do not combine all host and protocol
+changes into one cutover.
 
-| Change | Obligation and implementation owners | Dependencies | Reviewable exit |
+| Review | Scope and owners | Entry gate | Reviewable exit |
 | --- | --- | --- | --- |
-| 1. Refresh baseline and freeze missing contracts | P0/P5; SQL protocol/service/host, existing performance drivers | Audited HEAD and delivered M4/M5/M6 profiles | Current capability/authority matrix, reproducible controls, deadline/borrow/cancellation fixtures and numeric resource budgets |
-| 2. Close measured read/write and startup costs | P2a/P2b; `Session`, `ReadCache`, Catalog/storage, CLI startup; M6 R9 | Change 1 attribution; existing S0–S6 gates | Paired complete-outcome improvements with original receipts and disk recovery; separate PRs for read reuse, publication and stored-semantic cutovers |
-| 3. Complete connection continuations | Remaining P4 core; PG/MySQL authentication states, native HTTP and `WireSessionDriver` host composition | Change 1; reuse delivered command events | Pure protocol authentication events, host-owned TLS/crypto, partial-handshake/cancellation and output-lifetime tests |
-| 4a. Propagate absolute deadlines | P3; SQL host, HTTP server, signed client and TLS transport | Change 1; may start before change 3 finishes | No per-header/command timer races on converted paths; socket and non-socket cancellation both bounded |
-| 4b. Schedule runnable work independently of connections | P3; `transit-io`, shared listeners and owner dispatch | Changes 3/4a and an executable progress prototype | Effective-CPU-scaled workers, bounded blocking lanes, joined cancellation and saturation progress before lowering defaults |
-| 5. Finish local owner composition | P2a/P2b; node, `ConfigurationOperations`, CLI lifecycle | Change 1 authority/lifetime contract; preserve P1 | One activation/configuration owner, equivalent local/HTTP behavior, complete replacement/shutdown recovery |
-| 6. Replace remote fine-grained orchestration | P2c; gateway, SQL service and shared client | Changes 1/5; delivered command events; M9 result/lease seam | Coarse server-owned execution and recovery with authenticated frontend attachment and counted exchanges |
-| 7. Integrate Flight/Serving/browser hosting | P4 adapters; protocol modules and existing service hosts | Changes 3/4/5 plus each service's lifetime contract | Shared bounded ingress with real independent callers and unchanged supported authority/effect semantics |
-| 8. Integrate qualified primitive capabilities | P2/P4; same SQL/typed owners | Existing M6 operations now; new operations gated individually by M6/M7 | Local/remote create/use/inspect/recover equivalence; explicit refusal for unqualified combinations |
-| 9. Close common-revision qualification | P5/P6; task inventory, proof ledgers and public owners | Applicable exits above, including owner handoffs | Complete selected clean lanes, paired scorecards and reconciled P0–P6/S0–S6 acceptance |
+| 1. Refresh controls and freeze remaining contracts | P0/P5; SQL host/service/protocol, I/O and existing measurement drivers | This source audit, M4/M5 and current M6 profiles | Versioned authority/borrow/deadline/handle matrix; reproducible current-definition control and explicit numeric resource/progress budgets |
+| 2. Propagate absolute deadlines | P3; TLS transport, HTTP server, signed client and SQL host | Review 1 cancellation matrix | Converted sockets use one active-operation deadline; non-socket work has bounded cancellation/join; eligible outer timer races removed without weakening timeouts |
+| 3. Prove a resumable host driver | P3/P4; existing startup/command engines, `WireSessionDriver`, `transit-io` | Reviews 1–2; pinned backend capability audit | More idle/slow peers than workers, partial TLS/output and delayed owner completions progress with bounded state and no held-lock deadlock; default sizing unchanged until this passes |
+| 4. Switch runnable sizing and fair admission | P3; all co-hosted pools and node lanes | Review 3 installed progress proof | Workers scale with effective CPU capacity, parked sessions are separately bounded, and control/data/recovery make measured progress under saturation |
+| 5. Finish local configuration/lifecycle composition | P2a/P2b; node, CLI supervisor, `ConfigurationOperations` | Review 1 ownership contract; independent of review 4 | One settings/reload authority, typed local calls where possible, explicit bounded supervisor handoff, fingerprint-fenced activation and joined replacement/shutdown |
+| 6. Replace standalone orchestration | P2c; SQL service, gateway and shared client | Remote contract from review 1 and review 5 lifecycle seam | Server owns runtime/Registry/cursors/recovery; frontend owns protocol state; one coarse execute plus explicitly counted auth/prepare/fetch/control/disclosure exchanges |
+| 7. Integrate Flight/Serving framing and hosting | P4; neutral protocol modules and effectful service hosts | Reviews 2–5 and each service's authority/lifetime contract | Pure codec import gates, shared bounded ingress and independent clients preserve the selected ticket, capture, session and disclosure profiles |
+| 8. Integrate each newly qualified data capability | P2/P4; existing SQL/typed owner adapters | Current M6 operations now; future M6/M7 operations only after their owner gates | Local/remote create/use/inspect/recover parity; WAIT parks; no implicit ACK/offset advance and no actor fallback for direct Documents |
+| 9. Close publication/startup and common-revision gates | P0/P2/P5/P6; existing S0–S6 and F0/R1/M3/C4/D5/S6/E7/Q8 tracking | Attributed candidates and applicable exits above | Matched complete-outcome measurements, required clean lanes, reconciled original failures and explicit closure/open status for every acceptance obligation |
 
-**First implementation changes:** freeze the remaining authentication/deadline
-contract and current controls in one review; implement connection authentication
-continuations next; land absolute-deadline propagation with its nested-call
-cancellation tests before the scheduler/default-worker change. Read/publication,
-startup and local configuration work can proceed independently after attribution.
-Remote authority/handle contract work can start immediately; its runtime cutover
-uses the completed local owner seam. Do not wait for a finished Document service
-to improve Table SQL, and do not close the full data-kind gate with Table evidence.
+**First three implementation PRs:** remaining contracts/current-definition
+controls, deadline/cancellation propagation, then the resumable-driver proof.
+Change worker defaults only in the following review. Contract design for remote
+authentication and local configuration can begin immediately; coarse transport
+implementation consumes the agreed server owner. Measured read/write publication
+and retained-history startup fixes can land separately after attribution. Heavy
+proofs and timing campaigns run sequentially on a shared host.
 
 #### 1. Freeze contracts, controls and budgets
 
-Extend existing `SQL_GATEWAY_V1`, `SQL_SESSION_V1` and `SQL_RESULTS_V1`,
-`Wire.Session` and the host APIs only where the remaining boundary needs fields.
-Do not implement a second logical result/transaction/recovery state machine.
-Resolve these items before dependent adapters:
+Extend [SQL_GATEWAY_V1](../../contracts/SQL_GATEWAY_V1.md),
+[SQL_SESSION_V1](../../contracts/SQL_SESSION_V1.md) and
+[SQL_RESULTS_V1](../../contracts/SQL_RESULTS_V1.md) only where the remaining
+boundary needs fields. Keep the existing typed result and transaction owners.
+Resolve these decisions before dependent implementation:
 
-- **Connection events:** startup input, protocol negotiation, TLS upgrade,
-  challenge/credential work, authenticated completion and close. Supply time,
-  randomness and validated outcomes explicitly. Bind every pending event to a
-  connection generation and sequence; one completion cannot authorize another
-  connection. TLS stays in the host, and a failed upgrade never downgrades.
-- **Deadlines and borrowers:** name the owner of each request slice, credential
-  scratch, preparation, batch, output-drain lease and cancellation join. Define
-  one absolute budget across queueing, partial input, TLS and nested dispatch,
-  with independently bounded storage/compute work. A timeout records uncertainty
-  where dispatch may have occurred; it never supplies nonacceptance evidence.
-- **Coarse SQL service:** map session context, prepare/describe/release,
-  direct/prepared execute, bounded fetch/repeat/close, cancellation/status/resume
-  and transaction attachment/controls to the existing service. Server handles
-  bind session and generation; accepted tokens bind the original scope/content.
-- **Remote authority:** define a verified frontend-to-service binding for the
-  original account/principal/role, credential revision, destination and service
-  activation. Existing native SCRAM is destination-bound; forwarding a claimed
-  account or translating a PG/MySQL login is not sufficient proof. Specify each
-  protocol's exchange, final frontend disclosure checks and revocation behavior,
-  counting additional exchanges separately from the single execute submission.
-- **Admission:** freeze data/auth/control/recovery slot and byte budgets, bounded
-  wait queues, effective-CPU worker sizing and cancellation/control latency
-  thresholds. Reserve progress through downstream queues/locks, not just the
-  first listener. Unlimited retained work never becomes a resident queue.
+- **Lifecycle and memory:** identify the owner of credential scratch, command
+  input, prepared metadata, row batches, TLS buffers and partially drained output.
+  Carry connection generation/event sequence through suspension; late completion
+  cannot mutate a reused slot. Abort fences output, then cancellation joins every
+  borrower before erasure, close or deallocation. Accepted work survives that close.
+- **Deadline matrix:** distinguish idle connection wait, first-byte frame budget,
+  authentication, active statement, control request and session lease. Preserve
+  existing idle semantics; partial frames, TLS retries, queueing and output cannot
+  renew an active deadline. Socket waits use the remaining absolute budget;
+  owner locks, crypto, storage and query work require their own cancellable or
+  bounded steps. A deadline after possible dispatch retains original uncertainty.
+- **Scheduler/backend:** inventory the pinned Zig I/O/TLS capabilities and nested
+  synchronous calls. Select a readiness/completion driver with bounded task and
+  blocking-work lanes only after a real TLS/database progress prototype. Do not
+  prescribe io_uring or assume a smaller `Threaded` pool makes blocking calls park.
+- **Admission:** freeze per-account data/auth/control/recovery slots and queued
+  bytes, parked connections, TLS/frame/output memory, blocking-work capacity and
+  downstream lock order. Define effective CPU affinity/quota handling and numeric
+  cancellation/control-latency thresholds from controls before changing defaults.
+  Record every co-hosted pool; reserve progress beyond the listener itself.
+- **Remote session authority:** bind original principal/role, account, credential
+  revision, destination, session and activation. Native SCRAM is destination-bound;
+  a PG/MySQL login cannot be forwarded as an asserted account. Specify the scoped
+  frontend/service exchange and current checks at both output boundaries. No
+  gateway superuser or retained buffer may stand in for caller authorization.
+- **Coarse service handles:** map prepare/describe/release, direct/prepared execute,
+  bounded fetch/repeat/close, status/resume/cancel and transaction attach/controls
+  to the shared service. Handles bind generation; accepted tokens bind immutable
+  content/scope. Freeze disconnect and expiry behavior without silently recapturing
+  SELECT or replaying mutations. Count extra authorization exchanges explicitly.
+- **Incoming waits:** M6 owns selection, accepted identity and authenticated
+  coverage. Its future SQL WAIT adapter needs an explicit pending/result handoff
+  and register/recheck/park behavior; current generic pending projection excludes
+  workload intents. Reuse native notifications and `WorkloadRead`, not a timer
+  loop, replacement claim or SQL-specific durable queue.
 
-Use the existing [console workload](../../tests/performance/console/console_latency.py)
-and [statement cases](../../tests/performance/console/statements.py) with matched
-ReleaseSafe binaries, auth, durability and residency. Include cold-connection
-setup separately from warm/empty SELECT, prepared reads after another writer,
-read-after-write, changed/no-op/zero-match DML, the unchanged 67-row INSERT,
-explicit transactions and Stream/Queue metadata. Exercise fresh and retained
-startup headless and with the default UI; add aged history, interrupted bootstrap
-and unclean recovery without weakening readiness.
+Freeze a ReleaseSafe control at the implementation base with matching runtime,
+SDK/generated definitions, binary/driver hashes, toolchain, CPU/quota, filesystem,
+cache, maintenance and durability. Preserve existing deadlines and admission.
+Use persistent console, native SQL and independent PG/MySQL callers for empty,
+0/1/32/33/65-row results, exact scalar/prepared metadata, warm/fresh reads,
+changed/no-op/zero-match writes, the unchanged 67-row INSERT, Table transactions,
+log workloads and original recovery. Separate cold authentication from statements.
+Include historical/branch observations and finite managed successors as distinct
+cases; no one read profile substitutes for another.
 
-Attribute queue/lock wait, authentication/policy, preparation, cut acquisition,
-execution, framing/output, token binding, publication and pending settlement.
-Count local dispatch, HTTP requests, application sync calls and physical device
-I/O separately. Record source/definition, binary/driver hashes, toolchain,
-CPU/quota, filesystem, load, maintenance and omissions. Keep payloads and secrets
-out of diagnostics and avoid adding overlapping spans as serial time.
+Attribute queue/lock wait, current authorization, preparation/cut acquisition,
+execution, output, token admission, publication and pending settlement. Separate
+foreground/recovery/observer traffic, logical appends, physical syncs, allocation
+and resident/retained bytes. Missing counters remain unavailable, and overlapping
+spans are not an additive cost breakdown. Instrumented diagnostics do not replace
+matched uninstrumented timing.
 
-Five-repeat probes guide iteration. Performance acceptance needs at least three
-alternating control/candidate pairs with 50 steady-state samples per statement
-case per arm; this sample count does not establish p99. Freeze numeric regression,
-queue and control-latency budgets before changing the scheduler. Keep startup's
-separate campaign and the existing absolute statement targets below open until
-their own measurements pass.
+Run the existing latency gate before selecting an optimization; it supplies the
+checked-in regression budgets, not proof of the separate #211 absolute targets.
+For performance acceptance retain at least three alternating pairs and 50 samples
+per arm/case, every failed attempt and verified terminal values/counts. Startup
+retains its separate fresh/restart schedule. Small probes guide iteration; neither
+small empirical p99 nor a failed campaign with resampled wins establishes a tail
+or capacity claim. Current-definition failures get their own original-identity
+investigation, independently of historical failures kept with matching binaries.
 
 #### Current-main performance implementation — 2026-11-01
+
+**Historical plan/implementation record:** retain the source and evidence below.
+The [November 5 inventory and delivery order](#implementation-plan--2026-11-05)
+supersede its next-action instructions, including already delivered capture,
+managed batching and startup-continuation work.
 
 The first packet below landed in [PR #325](https://github.com/spoke-sh/transit/pull/325).
 The [post-merge review plan](#post-merge-performance-delivery-plan--2026-11-01)
@@ -593,6 +647,11 @@ The [retained-revision contract at that source](https://github.com/spoke-sh/tran
 defines this separate workload.
 
 #### Next performance implementation after milestones — 2026-11-02
+
+**Historical plan/implementation record:** retain the source and evidence below.
+The [November 5 inventory and delivery order](#implementation-plan--2026-11-05)
+supersede its next-action instructions, including already delivered capture,
+managed batching and startup-continuation work.
 
 **Status: In Progress; implementation sequence approved.** The first F0 packet
 implements bounded owner attribution and diagnostic controls. The initial audit
@@ -864,6 +923,11 @@ separate from selected local checks. Keep executed checks and performance campai
 with their exact source in the [qualification account](../history/qualification/performance.md).
 
 #### Post-merge performance delivery plan — 2026-11-01
+
+**Historical plan/implementation record:** retain the source and evidence below.
+The [November 5 inventory and delivery order](#implementation-plan--2026-11-05)
+supersede its next-action instructions, including already delivered capture,
+managed batching and startup-continuation work.
 
 **Plan status: In Progress.** The implementation sequence is approved; the first
 tranche covers F0, R1a–c and V2. M8 remains In Progress. Source basis is
@@ -1277,6 +1341,11 @@ every optimization retains its own before/after control and recovery gates.
 
 #### Follow-up performance delivery — 2026-11-01
 
+**Historical plan/implementation record:** retain the source and evidence below.
+The [November 5 inventory and delivery order](#implementation-plan--2026-11-05)
+supersede its next-action instructions, including already delivered capture,
+managed batching and startup-continuation work.
+
 **Status: In Progress within M8.** The plan's source
 basis is merge `a000b8d18449fdee7901955d0c94417ceeab32eb` of
 [PR #302](https://github.com/spoke-sh/transit/pull/302). The intended outcome is
@@ -1411,6 +1480,11 @@ as the new baseline. Full M8/M9 completion still requires their other placement,
 service, API and data-kind obligations.
 
 #### Installed startup reduction plan — 2026-10-31
+
+**Historical startup subplan:** preserve S0–S6 and the recorded measurements.
+The [November 5 plan](#implementation-plan--2026-11-05) sets the current
+implementation order; further startup reductions follow refreshed attribution
+and can proceed independently of the host scheduling work.
 
 **Status: In Progress.** Make declared data and configured services usable quickly
 after `transit server`, while preserving installation identity, current grants,
@@ -1640,6 +1714,12 @@ Scheduler and topology changes follow evidence from those reductions.
 
 #### 2. Close the measured installed read/write path
 
+Current capture and managed page/statement batching are delivered. Reuse them
+with `TXR1`/`CPR1`/`SOR1` ownership; measure the new path before selecting another
+publication change. Keep M12's finite fault/fairness gates and M6's retained Queue
+maintenance/result-setup investigations separate from #381's foreground-conflict
+fix. A matching failure schedule is required to establish a shared cause.
+
 Preserve the already delivered immutable-publication optimizations. Select the
 next read change from measured cost in `Session`, `Registry`, `ReadCache`, direct
 preparation and `LocalTableHost`. A cached definition is not a cached current
@@ -1668,45 +1748,52 @@ measurements pass; do not reinterpret the loaded October 30 run as a speedup.
 
 #### 3. Complete connection continuations and preserve pure command engines
 
-The neutral types, import gates and authenticated command engines have landed.
-Extend their event discipline to the remaining startup/authentication lifecycle
-in [`transit-postgres`](../../packages/zig/transit-postgres/README.md),
+**Startup and command engines are delivered; host scheduling remains open.**
+Reuse `StartupSession`, `Session`, `Wire.Startup` and `Wire.Session` in
+[`transit-postgres`](../../packages/zig/transit-postgres/README.md),
 [`transit-mysql`](../../packages/zig/transit-mysql/README.md) and
 [`transit-sql-protocol`](../../packages/zig/transit-sql-protocol/README.md).
-Keep `WireSessionDriver` as the host adapter; no codec may invoke a host callback
-or import transport, storage, timers or tasks.
+Their transitive import gates already exclude transport, storage, timers and
+execution. `WireSessionDriver` and the host own effects; an engine invokes no
+host callback. Pure credential/crypto helpers do not authorize a session.
 
-Represent upgrade negotiation, challenge/response progress, credential lookup,
-cryptographic verification and authentication completion as bounded events and
-host-supplied results. Existing pure crypto helpers may remain pure; expensive
-work executes under admitted host capacity. Supply randomness/time as values.
-Keep credential buffers separate from reusable public frame/output buffers and
-erase them after the final borrower joins. TLS context/handshake I/O stays with
-the host. Native HTTP framing and authentication must obey the same ownership
-and deadline rules without pretending its logical sessions are socket-bound.
+The next change replaces blocking host progress around these events. First drive
+one complete startup, authenticated statement, partial output, cancellation and
+close through the proposed scheduler with delayed host completions. Then cover
+both wire protocols and native HTTP, preserving logical sessions independently of
+HTTP sockets. Do not reduce the production pool after a codec-only prototype:
+TLS, credential/native admission, owner waits, final authorization and cleanup
+must all run through the bounded implementation.
 
-Drive fragmented/coalesced handshakes, short output, refusal, timeouts, wrong
-generation and duplicate/late completions without sockets or sleeps. Verify
-failed TLS upgrades cannot enter plaintext admission, exact MySQL capability
-agreement survives upgrade, PG SCRAM completes only once, and native SCRAM keeps
-its destination binding. Test disconnect between credential verification and
-session publication. Installed TLS/certificate/credential tests separately prove
-the effectful composition; pure event tests cannot establish it.
+Retain fragmented/coalesced handshake, failed TLS upgrade, exact MySQL capability,
+PG SCRAM single-use and native destination-binding tests. Inject credential
+rotation between challenge and admission, delayed completion after abort/slot
+reuse, short drains and disconnect before session publication. Reserve command
+state before login success. Erase credential buffers only after the last borrower
+joins, independently of ordinary frame/output reuse. Failed output cannot retry a
+prefix or append an error frame to a possibly transmitted response.
 
 Preserve PG deferred writes until valid Sync, failed-cycle draining and suspended
-portal cuts; preserve MySQL sequence/capability/parameter-type state and
-`CLIENT_FOUND_ROWS`; retain TSR1 commitments, ordinal retries and completion.
-Keep the shared 32-row wire batch budget separate from smaller source read
-pages and from native result byte budgets. Seal warmed backing allocators for actual encode/decode/event
-cycles, including refused admission and reset/reuse, rather than only testing
-reserve construction. Wider type or protocol coverage remains a separate gate.
+portal cuts; MySQL sequence/capability/parameter-type state and `CLIENT_FOUND_ROWS`;
+and TSR1 commitments, ordinal retries, Stream progress and verified completion.
+After parking, reacquire current disclosure authority before buffered metadata,
+rows or terminal counts leave the host. Re-observe a write's original outcome;
+never execute it again to regain an output guard.
+
+Keep the 32-row SQL wire batch, encoded byte budget, storage page and caller
+window distinct. Cover the current scalar widths/decimals and 0/1/32/33/65-row
+boundaries, prepared/empty metadata and strict unsupported-type refusal. Seal
+backing allocators around actual warmed startup/command/reset/refusal/drain cycles;
+measure TLS, execution, libc and OS allocations separately. Existing framing or
+TLS-reserve checks do not establish installation-wide zero allocation.
 
 #### 4. Replace timer races, then bound runnable workers
 
 Audit [`transit-client`](../../packages/zig/transit-client/src/root.zig)'s nested
 request deadlines as well as `boundedHandle`, HTTP header/handler deadlines and
-TLS read/write paths. Include the host's 5 ms authentication-progress loop and
-its separate timer task. Use `io.operateTimeout` for absolute socket deadlines;
+TLS read/write paths. Reuse the existing `Transport` socket `operateTimeout`
+implementation; the missing work is end-to-end propagation and outer-race removal.
+Include the host's 5 ms authentication-progress loop and its separate timer task. Use `io.operateTimeout` for absolute socket deadlines;
 partial reads/writes, TLS retries and queueing cannot restart the budget.
 Compute, owner-lock, storage and upstream waits need bounded interruption or
 explicit bounded work units. Do not remove a timer before its non-socket work
@@ -1726,7 +1813,10 @@ effective CPU affinity/quota plus a documented fixed service allowance. Connecti
 limits size state/buffers, not runnable threads. Inventory nested synchronous
 local calls and mutex ordering; a parked SQL task must not hold an owner lock
 needed by its completion or control request. A separate bounded blocking lane
-must not become one hidden thread per connection.
+must not become one hidden thread per connection. Preserve the #362 bounded local
+lane waits and #381 foreground-claim release: recovery must be able to run when
+the foreground awaits an original accepted conflict. A parked task cannot retain
+the data/control lane or execution claim required by its completion.
 
 Freeze fair per-account data/auth/control/recovery admission in bytes and slots.
 Reserve control progress through downstream queues and locks; give data and
@@ -1797,13 +1887,18 @@ Gate each direct KV/Stream/Queue/Document adapter on its public signed operation
 authorization, exact receipt/cut, paging and recovery contract plus the actual
 SQL lowering when SQL is exposed. Reuse M4 results and M6/M7 participants;
 reading/closing a result must not ACK a Queue or commit a Stream offset.
-The current regression set includes named KV, Queue waits, native mixed
-transactions/paired transfers and Stream/Queue DDL/inspection. Exercise typed
-pending discovery with interleaved Table, log, transaction and branch records,
+The current regression set includes named KV, native Queue waits, mixed
+transactions/paired transfers and automatic DLQ; SQL DDL/inspection,
+PRODUCE/ENQUEUE, positional/grouped CONSUME, COMMIT OFFSET, CLAIM, ACK/NACK and
+renewal. Preserve the exact group generation and authenticated coverage even when
+LIMIT completes a SQL result before the retained native interval is exhausted.
+Wire row counts/command tags cannot substitute for native progress descriptors.
+Exercise typed pending discovery with interleaved Table, log, transaction and branch records,
 including pages containing only work excluded from SQL recovery. Keep Table-only
-SQL transaction selection unchanged until M6 supplies mixed SQL. Add workload
-verbs and finite Stream results only when R6 qualifies them; no adapter-local
-claim retry or automatic offset settlement is permitted.
+SQL transaction selection unchanged until M6 supplies mixed SQL. Add remaining
+SQL WAIT, acquisition predicates, mixed SQL and finite
+`STREAM_SLICE` only when R6 qualifies them; no adapter-local claim retry or
+automatic offset settlement is permitted.
 Require independent caller, after-buffer revocation, lost-reply and restart
 proofs. For the Document/Station handoff, include the shared ABI/SDK, Query,
 Board and deployment migration and worker/courier-free direct lifecycle.
@@ -1822,15 +1917,33 @@ already permitted explicit settings identically in both arms.
 
 | Gate | Required evidence |
 | --- | --- |
-| Semantic regression | Owning package checks; `just test::sql-wire-contracts`, `sql-gateway`, `sql-sessions`, `sql-log-declarations`, `sql-transactions`, `sql-wire-gateway`, `sql-wire-tls` and `sql-result-allocations` via the existing `test::` namespace; independent native/PG/MySQL callers, empty/multi-batch/repeated/incomplete results and exact transaction outcomes |
-| Installed composition | Existing `test::server-sql`, `server-sql-local`, `server-sql-lifetimes`, `server-direct-tables`, `server-direct-faults` and `declarative-browser`; unchanged defaults, recovery schedules and original operation identities |
-| Existing direct data owners | `just test::direct-kv`, `direct-state-transaction`, `direct-mixed-transaction`, `direct-queue-transfer` and `direct-log-token` in the `test::` namespace; Queue waits and typed pending pagination, including non-SQL branch entries. These native checks do not qualify mixed SQL or direct Documents. |
+| Semantic regression | Owning package checks; `just test::sql-wire-contracts`, `sql-gateway`, `sql-sessions`, `sql-log-declarations`, `sql-transactions`, `sql-wire-gateway`, `sql-wire-types`, `sql-wire-tls` and `sql-result-allocations` via the existing `test::` namespace; independent native/PG/MySQL callers, empty/multi-batch/repeated/incomplete results and exact transaction outcomes |
+| Installed composition | Run `just test console-latency-gate` in the pinned `ci-experience` shell, then `just test server-sql-types`; retain the [SQL validation loop](../../tasks/README.md#sql-interface-validation) for scalar/adapter changes. Existing `test::server-sql`, `server-sql-local`, `server-sql-lifetimes`, `server-direct-tables`, `server-direct-faults` and `declarative-browser`; unchanged defaults, recovery schedules and original operation identities |
+| Existing direct data owners | `just test::direct-kv`, `direct-state-transaction`, `direct-mixed-transaction`, `direct-queue-transfer` and `direct-log-token` in the `test::` namespace; Queue waits and typed pending pagination, including non-SQL branch entries. These native checks do not qualify mixed SQL or direct Documents. Extend existing SQL session/log suites for original grouped results, offset settlement and renewal, including empty, partial-LIMIT and after-buffer revocation. |
 | Adapter migration | Registered Flight/ADBC, Serving/reactive/browser and affected direct SDK/ABI tests; actual clients, explicit unsupported capabilities and disclosure revocation |
 | Storage/authority changes | Relevant contract/core/storage/retained-graph and model/disk fault checks, including original token and pin recovery; logical publication and physical durability evidence reported separately |
 | Resource/performance | Paired uninstrumented console runs plus separate bounded traces; zero settled-idle SQL calls, zero local database loopback calls, counted coarse remote exchanges, warmed allocation boundary, core-bounded workers and fair progress under saturation; sustained maintenance debt measured |
 | Common revision | Select complete affected clean lanes from the current suite, including `just ci clean --lane interfaces-sql` and `--lane installation-ui`; add core/storage/bindings/browser lanes when affected. Run deployment placement separately. Record skipped/incomplete cases and source/binary identity. |
 
 Run these through pinned `nix develop` and the registered task-specific shells.
+Before opening/updating any implementation or documentation PR, run the separate
+baseline gates from the repository root:
+
+```sh
+nix develop --command just check fast
+nix develop .#docs --command just transit-docs::install
+nix develop .#docs --command just transit-docs::check
+```
+
+Dependency installation is preparation, not a check. Public contract/ABI changes
+also require `just check contracts` and affected caller/binding checks. Browser
+changes require `just transit-board::check` and affected browser proofs. Before
+pushing implementation/test changes, run the affected `just ci clean --lane NAME`
+checks against committed HEAD; choose dependencies from the current suite rather
+than relying on historical lane contents. A failed/incomplete required gate blocks
+PR publication, not investigation. This planning-only edit needs no runtime suite
+and establishes no runtime pass.
+
 Fully qualified local changes can ship before remote/service/data-kind gates,
 but cannot close M8. Promote implemented behavior and limits into SQL/session,
 security, caller, Flight/Serving/browser references; host/node/CLI guides and
@@ -1841,6 +1954,42 @@ The final review must reconcile every P0–P6 obligation, each required M6/M7
 handoff and each performance objective below. Preserve earlier failures and
 unresolved accepted work; fresh successful fixtures do not settle them. Mark the
 milestone and index Completed only when their required gates actually pass.
+
+#### Measurement handoff and completion decisions
+
+The [container campaign](../../tests/performance/load/containers.md) is an
+additional scheduler-pressure control after owning correctness and latency gates.
+Freeze the last successfully promoted image's digest, channel commit and release
+checksums once; record the driver separately. Run one-node then three-node profiles
+with the same aggregate budgets and no competing build/campaign. Never rebuild
+the measured runtime from the driver checkout or silently substitute a candidate.
+An explicitly labeled candidate investigation is separate from scheduled evidence.
+
+Persistent console pipes include client overhead and do not measure TCP/TLS;
+three client-routed independent authorities on one Docker host do not establish
+replication, shared data or multi-host scaling. Report exact values/counts, complete
+sample inventory, original uncertain writes, retained restart and joined cleanup.
+PIDs/RSS snapshots do not prove allocations or physical syncs. #378/M13 own expanded
+topologies and regression-budget review; M8 still owns ingress progress and latency.
+
+Keep these decisions explicit at review boundaries:
+
+| Decision or risk | Required resolution before proceeding |
+| --- | --- |
+| Pinned I/O backend cannot park a nested operation | Demonstrate a bounded offload/completion path or retain current sizing for that profile; do not claim core-bounded hosting from pure codec tests. |
+| Reentrant local calls or recovery compete for the same lane/claim | Document lock and lane ownership, inject saturation plus post-acceptance conflict, and prove cancellation/recovery complete before switching the driver. |
+| Remote credential translation or buffered disclosure is underspecified | Settle the authority contract and negative fixtures before enabling remote delegation. Additional current-policy exchanges stay visible in the one-submission scorecard. |
+| Unqualified M6/M7 adapter is unavailable | Ship the qualified existing profile and keep the full handoff open. No actor fallback, invented SQL, implicit release/ACK or new retention TTL. |
+| New definition or filesystem changes invalidate old controls | Freeze matching fresh control/candidate installations; keep old failed histories with their original binaries. Qualify EFS/Fargate separately through the deployment owner. |
+| Latency improves by deferring settlement, readiness or cleanup | Reject the comparison unless terminal truth, first verified result and bounded recovery/maintenance debt meet the same workload contract. |
+
+For each P0–P6/S0–S6 gate, record the implementation revision, public owner,
+executed command/profile, artifact identity, result and remaining limitation.
+Retain historical failures and record whether their original operations were
+resolved, only their cause was explained, or neither. A milestone closure needs
+the required service/data-kind handoffs and measured objectives as well as local
+Table correctness. Broader deployment, SDK and release claims remain with their
+owners. Do not replace an unmet numerical target with a source-level proxy.
 
 ### Performance objectives and experiment design
 
@@ -1888,7 +2037,7 @@ from application call counts.
 | Owner | Required coordination |
 | --- | --- |
 | M3 / M4 / completed local M5 | Preserve bootstrap, logical results and Table transactions while changing placement. Source-bound and captured operations remain explicit adapters. |
-| M6 / M7 | Preserve named direct KV, typed Stream/Queue owners, native mixed decisions and log declaration SQL. Gate workload/mixed SQL, automatic DLQ scheduling, Station composition and the public Document cutover individually. DocumentPartition foundations do not establish the installed caller cutover. |
+| M6 / M7 | Preserve named direct KV, typed Stream/Queue owners, native mixed decisions/DLQ and executable declaration/workload SQL including groups/offsets. Gate remaining SQL waits/predicates/TVF/mixed transactions, Station composition and public Documents individually. Retained Document collection cuts do not establish the installed caller cutover. |
 | #211 W5a | Bounded native/direct page groups share directory barriers; later single-chunk sidecar elision, allocation batching and pipelining also landed. Keep each recorded sync count scoped to its revision/object profile; installed latency closure remains open. |
 | #211 W5b/W6 | Make coordination/index/outcome state reconstructible where justified; define an account-wide token/commit envelope. Co-hosting preserves today's separate decisions until that contract lands. |
 | #211 W7 / M13 | Reduce fresh-cut cost and allocations after attribution. Preserve exact open-result cuts and bound deferred maintenance. |
@@ -1950,12 +2099,12 @@ flowchart TD
 ### Work packages and delivery sequence
 
 Preserve P0–P6 identifiers for #211 coordination. The
-[implementation plan](#implementation-plan--2026-11-01)
-sets the current order: refresh P0 evidence and remaining contracts, complete
-connection authentication/deadlines, then prove and enable P3 scheduling.
+[implementation plan](#implementation-plan--2026-11-05)
+sets the current order: refresh P0 evidence and remaining contracts, propagate
+deadlines, then prove the resumable host and enable P3 scheduling.
 Measured installed costs and local configuration work proceed independently;
 remote placement and service/data-kind adapters consume their named owner gates.
-P1, delivered P2a/P2b slices and P4 authenticated command continuations are
+P1, delivered P2a/P2b slices and P4 startup/command continuations are
 regression obligations, not work to repeat. Add each slice's tests when it lands;
 P5 reorganizes and completes coverage. Shrinking workers still waits for the
 nonblocking progress proof; publication changes retain their independent gates.

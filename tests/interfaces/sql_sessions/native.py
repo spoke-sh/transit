@@ -169,7 +169,35 @@ class Client:
         self.http.close()
 
 
+def header_deadline(root, port):
+    context = ssl.create_default_context(cafile=str(root / 'certificate.pem'))
+    with socket.create_connection(('localhost', port), timeout=5) as raw:
+        with context.wrap_socket(raw, server_hostname='localhost') as connection:
+            connection.settimeout(.2)
+            connection.sendall(b'POST /v1/sql/session HTTP/1.1\r\nHost: localhost\r\nX-Partial: ')
+            until = time.monotonic() + 3
+            while time.monotonic() < until:
+                try:
+                    # Native headers have a one-second total budget. Keep
+                    # supplying fragments: neither TLS nor HTTP may renew it.
+                    data = connection.recv(1)
+                    assert not data, ('incomplete header produced output', data)
+                    break
+                except socket.timeout:
+                    pass
+                except (ConnectionResetError, ssl.SSLEOFError):
+                    break
+                try:
+                    connection.sendall(b'x')
+                except (BrokenPipeError, ConnectionResetError, ssl.SSLEOFError):
+                    break
+            else:
+                raise AssertionError('TLS header fragments renewed the HTTP deadline')
+    print('Native TLS: fragmented incomplete headers close within their original deadline.', flush=True)
+
+
 def run(root, port, postgres, restart, console, authorize, select_source, source_pin, sources=None, faults=None, service_pid=None, authorize_reads=None):
+    header_deadline(root, port)
     first, second = Client(root, port).open(), Client(root, port).open()
     rejected = first.call(dict(execute=dict(sql="SET unknown_setting = '1'", token=list(os.urandom(16)))), error='UnsupportedGatewayStatement')['err']
     assert rejected['retry'] == 'never', rejected

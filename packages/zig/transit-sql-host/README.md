@@ -22,6 +22,23 @@ attachment may have ended. The installed driver drains requests with blocking
 workers and deadline tasks. The same deadlines bound authentication input and
 TLS upgrades.
 
+Authentication captures one absolute handshake deadline before scheduling the
+protocol task. Socket reads, TLS upgrades and the authentication event wait share
+that deadline. Completion signals the event; spurious wakes reuse its original
+deadline instead of polling. The event resets only after both tasks have joined.
+Output takes the earlier of its write deadline and the active handshake/command
+deadline, without rounding or restarting the latter.
+
+| Phase | Borrowed state and authority | Deadline and cancellation owner |
+| --- | --- | --- |
+| PostgreSQL/MySQL authentication | Startup buffers, credentials and reserved session slot; the shared Registry owns admission | Socket deadline plus an event waiter for non-socket credential/admission work; the connection joins both before erasure or reuse |
+| HTTP headers, including native TLS | Connection reader and header buffer; headers grant no authority | Absolute header socket deadline, checked around buffered parsing; fragments do not renew it and no header timer task is allocated |
+| HTTP body, handler and response | Handler admission and borrowed request/transport; the handler retains its domain authority checks | Original total request deadline on socket I/O plus joined cancellation for non-socket work |
+| PostgreSQL/MySQL command | Driver handles, prepared objects and read batches; accepted writes belong to the database runtime | Existing command cancellation joins the driver before cleanup; a timeout does not settle or replay accepted work |
+
+These changes retain the current connection-based worker sizing and admission
+bounds. They do not establish progress with more parked connections than workers.
+
 The pure `StartupSession` engines emit input, output, TLS upgrade, credential,
 verification and final admission requests through `Wire.Startup`. The host
 performs credential reads, randomness, SCRAM/password verification and TLS, and
