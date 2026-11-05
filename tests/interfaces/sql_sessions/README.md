@@ -148,3 +148,18 @@ and MySQL, including rename/name reuse, prepared execution, current revocation,
 gateway replacement and explicit release. `just test::sql-history` owns this
 installed check. Retention uses the public direct historical operations; its
 selector bytes and expected rows are independently specified in the driver.
+
+`waits.py`, included in `just test::sql-log-declarations`, checks Queue WAIT
+through real native owners, PostgreSQL, MySQL and the console. It retains the
+original token through timeout, lost reply and service replacement, proves
+passive observation cannot acquire later arrivals, then explicitly resumes or
+cancels that original. Receipt replay preserves original selection and lease
+handles. Revocation rejects status/resume; a separate waiter exercises arrival
+while control remains available. If arrival loses the timeout race, the test
+validates timeout evidence and explicitly resumes that same original operation. Native waiter saturation and lease algorithms
+retain their separate storage/runtime proofs.
+
+For iteration on WAIT alone, the same installed driver accepts `sessions-wait`:
+`nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe -- sessions-wait`.
+This focused selection does not qualify the broader declaration, append,
+consume, claim and settlement regressions in `just test::sql-log-declarations`.

@@ -10,6 +10,8 @@ started: std.Io.Timestamp,
 milliseconds: u32,
 operation: ?api.Operation = null,
 session_lost: bool = false,
+expected_operation: ?api.OperationId = null,
+expected_wait: ?api.results.Workload.Wait = null,
 
 pub fn init(client: *Client, token: api.Token) Self {
     return .{ .token = token, .account = client.account.?, .started = std.Io.Clock.awake.now(client.io), .milliseconds = client.timeout_ms };
@@ -17,6 +19,15 @@ pub fn init(client: *Client, token: api.Token) Self {
 pub fn observe(self: *Self, value: api.Operation) !void {
     try value.validate();
     if (!std.mem.eql(u8, &self.token, &value.token) or !std.mem.eql(u8, &self.account, &value.identity.account)) return error.InvalidSqlResponse;
+    if (self.expected_operation) |identity| if (!std.meta.eql(identity, value.identity)) return error.InvalidSqlResponse;
+    if (value.wait) |wait| {
+        if (self.expected_wait) |prior| try prior.requireSame(wait);
+        self.expected_wait = wait;
+    }
+    if (self.expected_wait) |wait| if (value.workload) |terminal| {
+        try wait.binding.requireSame(terminal.binding);
+        if (!std.meta.eql(wait.intent, terminal.intent)) return error.InvalidSqlResponse;
+    };
     if (self.operation) |prior| {
         if (!std.meta.eql(prior.identity, value.identity)) return error.InvalidSqlResponse;
         if (prior.command != null and prior.command != value.command) return error.InvalidSqlResponse;
@@ -31,6 +42,7 @@ fn sleep(io: std.Io, milliseconds: u32) !void {
 /// known, settlement has 270 seconds from the original submission, including
 /// polling and at most one replacement observation session.
 pub fn settle(self: *Self, client: *Client, config: Client.Config, password: ?[]const u8, cancel: bool) !api.Operation {
+    if (!cancel) if (self.operation) |value| if (value.wait != null) return value;
     var observer: ?Client = null;
     defer if (observer) |*value| {
         value.timeout_ms = 100;
@@ -60,7 +72,7 @@ pub fn settle(self: *Self, client: *Client, config: Client.Config, password: ?[]
         };
         // Discovering an accepted operation after a lost execute reply has the
         // same settlement budget as receiving it directly. Never restart time.
-        if (operation.phase == .terminal) return operation;
+        if (operation.phase == .terminal or (!cancel and operation.wait != null)) return operation;
     }
 }
 fn run(self: *Self, original: *Client, config: Client.Config, password: ?[]const u8, cancel: bool, observer: *?Client) !api.Operation {
@@ -90,7 +102,7 @@ fn run(self: *Self, original: *Client, config: Client.Config, password: ?[]const
         switch (reply.value.result) {
             .operation => |value| {
                 try self.observe(value);
-                if (discovering or value.phase == .terminal) return value;
+                if (discovering or value.phase == .terminal or (!cancel and value.wait != null)) return value;
                 request_cancel = false;
                 try sleep(client.io, 5);
                 continue;

@@ -104,7 +104,12 @@ fn write(self: *Self, client: c.DirectTableClient, state: c.DirectClientToken.Pr
     const reference = try c.DirectRecord.stage(client, state.receipt.binding.key.account, format, bytes);
     return c.DirectClientToken.update(client, .{ .key = state.receipt.binding.key, .expected = state.revision, .pending = true, .cancel = false, .record = reference }) catch |err| {
         if (err == error.Conflict) {
+            const rejection = client.service.last_rejection;
             if (try c.DirectClientToken.inspect(client, state.receipt.binding.key)) |current| _ = try self.read(client, current);
+            // Successful reconciliation clears transport diagnostics. Preserve
+            // the failed update's cause only when returning that original error;
+            // a reconciliation denial or invalid record keeps its own failure.
+            client.service.last_rejection = rejection;
         }
         return err;
     };
@@ -253,4 +258,91 @@ pub fn tick(self: *Self, client: c.DirectTableClient) !bool {
     try release(client, record);
     _ = try self.write(client, state, null);
     return true;
+}
+
+test "read cache reconciliation preserves the original conflict but never masks a new refusal" {
+    const t = std.testing;
+    const Peer = struct {
+        state: c.DirectClientToken.Progress,
+        bytes: []const u8,
+        signing_key: [32]u8,
+        denial: enum { none, inspect, read } = .none,
+        stages: usize = 0,
+        updates: usize = 0,
+        inspections: usize = 0,
+        reads: usize = 0,
+        fn invoke(raw: *anyopaque, invocation: *g.wire.LocalEndpoint.Invocation) !void {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            const request = try invocation.request(w.Request);
+            try request.validate(invocation.allocator);
+            try request.proof.verify(self.signing_key);
+            const result: w.Result = switch (request.action) {
+                .record => |record| switch (record) {
+                    .stage => |stage| blk: {
+                        self.stages += 1;
+                        const bytes = try stage.bytes.decode(invocation.allocator, c.DirectRecord.max_bytes);
+                        break :blk .{ .record = .{ .reference = try c.DirectRecord.reference(stage.scope, stage.format, bytes), .bytes = null } };
+                    },
+                    .read => |reference| blk: {
+                        self.reads += 1;
+                        try self.state.record.?.requireSame(reference);
+                        if (self.denial == .read) return invocation.client.reject(.forbidden, .AccessDenied);
+                        break :blk .{ .record = .{ .reference = reference, .bytes = try w.Binary.encode(invocation.allocator, self.bytes) } };
+                    },
+                    else => return error.TestUnexpectedRequest,
+                },
+                .client_progress => |progress| switch (progress) {
+                    .update => |update| {
+                        self.updates += 1;
+                        try self.state.receipt.binding.key.requireSame(update.key);
+                        try t.expectEqualDeep(self.state.revision, update.expected);
+                        return invocation.client.reject(.conflict, .Conflict);
+                    },
+                    .inspect => |selected| blk: {
+                        self.inspections += 1;
+                        try self.state.receipt.binding.key.requireSame(selected);
+                        if (self.denial == .inspect) return invocation.client.reject(.forbidden, .AccessDenied);
+                        break :blk .{ .client_progress = .{ .state = self.state } };
+                    },
+                    else => return error.TestUnexpectedRequest,
+                },
+                else => return error.TestUnexpectedRequest,
+            };
+            const claim = request.proof.claim;
+            const response: w.Response = .{ .definition = p.Growth.current_definition, .context = claim.context, .policy_revision = 1, .subject = .{ .principal = claim.principal, .login_role = 1, .role = 1, .credential_epoch = claim.credential_epoch, .audience = claim.audience, .context = claim.context }, .result = result };
+            try invocation.respond(try g.wire.LocalEndpoint.clone(invocation.allocator, response));
+        }
+    };
+    const connection: w.Connection = .{ .scope = .{ .realm = 1, .resource = 2, .catalog = 3 }, .branch = 1, .audience = 4, .principal = 5, .role = null };
+    const selected: c.DirectClientToken.Key = .{ .definition = p.Growth.current_definition, .connection = connection, .account = @splat(6), .token = @splat(7) };
+    const bytes = try p.Json.valueAlloc(t.allocator, Slot{ .generation = 1, .record = null });
+    defer t.allocator.free(bytes);
+    const reference = try c.DirectRecord.reference(selected.scope(), format, bytes);
+    var state = c.DirectClientToken.Progress.initial(.{
+        .binding = .{ .key = selected, .fingerprint = reference.content.sha256, .intent = .{ .external = .{ .connection = connection, .namespace = 1, .operation = 8, .record = reference } } },
+        .position = .{ .partition = 9, .next_lsn = 10 },
+        .coordination = null,
+    });
+    state.record = reference;
+    try state.validate();
+    const signing = try p.Ed25519.KeyPair.generateDeterministic(@splat(11));
+    var peer: Peer = .{ .state = state, .bytes = bytes, .signing_key = signing.public_key.toBytes() };
+    var transport = g.wire.Client.init(t.allocator, t.io, "http://127.0.0.1:1");
+    defer transport.deinit();
+    transport.local = .{ .context = &peer, .invoke = Peer.invoke };
+    const caller: c.DirectTableClient = .{ .allocator = t.allocator, .authority = &transport, .service = &transport, .connection = connection, .key = signing, .credential_epoch = 1 };
+    var cache = try Self.init(t.allocator, t.io, std.Io.Dir.cwd(), .{ .realm = 1, .account = selected.account }, 1);
+    defer cache.deinit();
+    try t.expectError(error.Conflict, cache.write(caller, state, null));
+    try t.expectEqual(@as(?p.ErrorCode, .Conflict), transport.last_rejection);
+    peer.denial = .inspect;
+    try t.expectError(error.AccessDenied, cache.write(caller, state, null));
+    try t.expectEqual(@as(?p.ErrorCode, .AccessDenied), transport.last_rejection);
+    peer.denial = .read;
+    try t.expectError(error.AccessDenied, cache.write(caller, state, null));
+    try t.expectEqual(@as(?p.ErrorCode, .AccessDenied), transport.last_rejection);
+    try t.expectEqual(3, peer.stages);
+    try t.expectEqual(3, peer.updates);
+    try t.expectEqual(3, peer.inspections);
+    try t.expectEqual(2, peer.reads);
 }

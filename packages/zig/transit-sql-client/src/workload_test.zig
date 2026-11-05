@@ -9,7 +9,36 @@ const t = std.testing;
 const instance: api.Instance = @splat(7);
 const session: api.Id = @splat(8);
 const account: api.Account = @splat(9);
-const Mode = enum { direct, lost_reply, lost_session, foreign_result, denied_disclosure };
+const Mode = enum { direct, lost_reply, lost_session, foreign_result, denied_disclosure, waiting, lost_wait_reply, lost_resume_reply, denied_resume_observation };
+
+test "pending waits reject foreign identity policy terminal evidence and completion" {
+    const evidence = try Peer.evidence();
+    const operation: api.Operation = .{ .identity = .{ .account = account, .id = 15, .kind = .workload }, .command = .claim, .token = @splat(1), .phase = .ready, .result_kind = .rows, .wait = .{ .intent = evidence.intent, .binding = evidence.binding, .milliseconds = 100, .timed_out = .{ .target = selection().claim.target, .accepted = selection().accepted, .retained_from = 0, .next = 0 } } };
+    try operation.validate();
+    try t.expectError(error.SqlRowsRequired, operation.completion());
+    var invalid = operation;
+    invalid.wait.?.milliseconds = 1001;
+    try t.expectError(error.InvalidWorkloadWait, invalid.validate());
+    invalid = operation;
+    invalid.phase = .terminal;
+    invalid.outcome = .applied;
+    invalid.workload = evidence;
+    try t.expectError(error.InvalidSqlOperation, invalid.validate());
+    var pending: sdk.Pending = .{ .account = account, .token = operation.token, .started = std.Io.Clock.awake.now(t.io), .milliseconds = 1000 };
+    try pending.observe(operation);
+    invalid = operation;
+    invalid.wait.?.milliseconds += 1;
+    try t.expectError(error.InvalidWorkloadWait, pending.observe(invalid));
+    invalid = operation;
+    invalid.wait = null;
+    invalid.phase = .terminal;
+    invalid.outcome = .applied;
+    invalid.workload = evidence;
+    invalid.workload.?.intent.sha256[0] ^= 1;
+    try t.expectError(error.InvalidSqlResponse, pending.observe(invalid));
+    invalid.workload = evidence;
+    try pending.observe(invalid);
+}
 
 fn selection() p.StreamQueue.ClaimReceipt {
     const scope: p.DataLifecycle.Scope = .{ .realm = 1, .resource = 2, .catalog = 3 };
@@ -21,6 +50,7 @@ const Peer = struct {
     mode: Mode,
     executes: usize = 0,
     statuses: usize = 0,
+    resumes: usize = 0,
     results: usize = 0,
     fetches: usize = 0,
     closes: usize = 0,
@@ -50,6 +80,7 @@ const Peer = struct {
             var writer = stream.writer(self.io, &output);
             var server = std.http.Server.init(&reader.interface, &writer.interface);
             var request = try server.receiveHead();
+            const data_lane = std.mem.eql(u8, "/v1/sql/session", request.head.target);
             const bytes = try request.readerExpectNone(&.{}).allocRemaining(t.allocator, .limited(65536));
             defer t.allocator.free(bytes);
             const parsed = try api.Json.parseFromSliceOwned(api.Request, t.allocator, bytes);
@@ -78,7 +109,14 @@ const Peer = struct {
                     self.executes += 1;
                     try t.expectEqual(1, self.executes);
                     self.token = value.token.?;
-                    if (self.mode == .lost_reply or self.mode == .lost_session) continue;
+                    if (self.mode == .lost_reply or self.mode == .lost_session or self.mode == .lost_wait_reply) continue;
+                },
+                .@"resume" => |identity| {
+                    self.resumes += 1;
+                    try t.expectEqual(1, self.resumes);
+                    try t.expectEqualDeep(r.Operation{ .account = account, .id = 15, .kind = .workload }, identity);
+                    try t.expect(data_lane);
+                    if (self.mode == .lost_resume_reply or self.mode == .denied_resume_observation) continue;
                 },
                 .status => |target| {
                     self.statuses += 1;
@@ -86,6 +124,10 @@ const Peer = struct {
                     if (self.mode == .lost_session and self.statuses == 1) {
                         control_response = true;
                         response.result = .{ .err = .{ .code = "SqlSessionExpired", .sqlstate = "55000".*, .message = "expired", .retry = .control } };
+                    }
+                    if (self.mode == .denied_resume_observation) {
+                        control_response = true;
+                        response.result = .{ .err = .{ .code = "AccessDenied", .sqlstate = "42501".*, .message = "revoked", .retry = .never } };
                     }
                 },
                 .result => |operation| {
@@ -119,10 +161,14 @@ const Peer = struct {
                     try request.respond(frame_bytes, .{ .keep_alive = false, .extra_headers = &.{.{ .name = "content-type", .value = api.ResultFrame.content_type }} });
                     continue;
                 }
+            } else if ((self.mode == .waiting or self.mode == .lost_wait_reply or self.mode == .lost_resume_reply or self.mode == .denied_resume_observation) and self.resumes == 0) {
+                const saved = try evidence();
+                response.result = .{ .operation = .{ .identity = .{ .account = account, .id = 15, .kind = .workload }, .command = .claim, .token = self.token.?, .phase = .ready, .result_kind = .rows, .wait = .{ .intent = saved.intent, .binding = saved.binding, .milliseconds = 100, .timed_out = if (parsed.value.action == .execute) .{ .target = selection().claim.target, .accepted = selection().accepted, .retained_from = 0, .next = 0 } else null } } };
             } else response.result = .{ .operation = .{ .identity = .{ .account = account, .id = 15, .kind = .workload }, .command = .claim, .token = self.token.?, .phase = .terminal, .outcome = .applied, .result_kind = .rows, .workload = try evidence() } };
             const reply = try api.Json.valueAlloc(t.allocator, response);
             defer t.allocator.free(reply);
             try request.respond(reply, .{ .keep_alive = false, .extra_headers = &.{.{ .name = "content-type", .value = "application/json" }} });
+            if (self.mode == .denied_resume_observation and self.statuses != 0) return;
         }
         return error.WorkloadClientRequestBudget;
     }
@@ -155,8 +201,35 @@ test "workload settlement opens only original rows after lost execute and checks
         if (mode == .foreign_result) {
             try t.expectError(error.WorkloadResultConflict, result);
         } else {
-            const outcome = try result;
+            var outcome = try result;
             defer outcome.deinit();
+            if (mode == .waiting or mode == .lost_wait_reply or mode == .lost_resume_reply or mode == .denied_resume_observation) {
+                try t.expect(outcome.value == .unresolved);
+                try t.expectEqual(.waiting, outcome.value.unresolved.reason);
+                try t.expectEqual(mode != .lost_wait_reply, outcome.value.unresolved.wait.?.timed_out != null);
+                try t.expectEqual(0, peer.results);
+                const resumed = try executor.resumeWorkload(outcome.value.unresolved, .{});
+                if (mode == .denied_resume_observation) {
+                    defer resumed.deinit();
+                    try t.expect(resumed.value == .unresolved);
+                    try t.expectEqual(.denied, resumed.value.unresolved.reason);
+                    try t.expectEqualDeep(outcome.value.unresolved.operation, resumed.value.unresolved.operation);
+                    try t.expectEqualDeep(outcome.value.unresolved.token, resumed.value.unresolved.token);
+                    try t.expectEqualDeep(outcome.value.unresolved.account, resumed.value.unresolved.account);
+                    try t.expectEqualDeep(outcome.value.unresolved.instance, resumed.value.unresolved.instance);
+                    try outcome.value.unresolved.wait.?.requireSame(resumed.value.unresolved.wait.?);
+                    try t.expectEqual(null, resumed.value.unresolved.wait.?.timed_out);
+                    try task.await(io);
+                    try t.expectEqual(1, peer.executes);
+                    try t.expectEqual(1, peer.resumes);
+                    try t.expectEqual(1, peer.statuses);
+                    try t.expectEqual(0, peer.results);
+                    try t.expectEqual(0, peer.closes);
+                    continue;
+                }
+                outcome.deinit();
+                outcome = resumed;
+            }
             try t.expect(outcome.value == .rows);
             try t.expectEqual(0, outcome.value.rows.completion().?.rows);
             if (mode == .denied_disclosure) {
@@ -168,7 +241,7 @@ test "workload settlement opens only original rows after lost execute and checks
         try t.expectEqual(1, peer.executes);
         try t.expectEqual(1, peer.results);
         try t.expectEqual(1, peer.closes);
-        try t.expectEqual(@as(usize, if (mode == .lost_session) 2 else if (mode == .lost_reply) 1 else 0), peer.statuses);
+        try t.expectEqual(@as(usize, if (mode == .lost_session) 2 else if (mode == .lost_reply or mode == .lost_wait_reply or mode == .lost_resume_reply) 1 else 0), peer.statuses);
         try t.expectEqual(@as(u8, if (mode == .lost_session) 2 else 0), peer.opens);
         try t.expectEqual(mode == .lost_session, executor.session_lost);
         try t.expectEqual(client.session, control.session);

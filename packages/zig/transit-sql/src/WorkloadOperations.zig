@@ -44,8 +44,8 @@ fn load(caller: c.DirectTableClient, state: c.DirectClientToken.Progress) !Inten
     try reference.requireSame(try intent.reference(state.receipt.binding.key.account));
     return intent;
 }
-fn call(caller: c.DirectTableClient, work: Intent.Work, action: enum { inspect, execute, cancel }) !std.json.Parsed(w.Response) {
-    return caller.call(switch (work) {
+fn call(caller: c.DirectTableClient, saved: Intent.Saved, action: enum { inspect, execute, cancel }) !std.json.Parsed(w.Response) {
+    return caller.call(switch (saved.work) {
         .stream => |value| .{ .stream = switch (action) {
             .inspect => .{ .operation = value.work },
             .execute => .{ .mutate = value },
@@ -53,7 +53,7 @@ fn call(caller: c.DirectTableClient, work: Intent.Work, action: enum { inspect, 
         } },
         .queue => |value| .{ .queue = switch (action) {
             .inspect => .{ .operation = value.work },
-            .execute => .{ .mutate = value },
+            .execute => if (saved.wait_ms) |milliseconds| .{ .wait = .{ .claim = value.work.claim, .milliseconds = milliseconds } } else .{ .mutate = value },
             .cancel => .{ .cancel = value.work },
         } },
     });
@@ -93,29 +93,55 @@ pub fn evidence(reference: Intent.Reference, work: Intent.Work, result: w.Result
     try value.validate(try command(work));
     return value;
 }
-/// At most one observation and one original mutation per recovery turn. Missing
-/// receipts and owner replay progress remain pending. Token settlement rechecks
-/// the native owner through Catalog's existing terminal-evidence gate.
+/// Passive recovery can settle an original receipt or requested cancellation.
+/// A saved wait can execute only through a foreground, explicitly requested
+/// attempt. A timeout never creates an empty claim or closes accepted SQL work.
 pub fn advance(caller: c.DirectTableClient, state: c.DirectClientToken.Progress) !bool {
-    if (!state.pending) return false;
+    return (try step(caller, state, .passive)).pending;
+}
+pub fn attempt(caller: c.DirectTableClient, state: c.DirectClientToken.Progress) !?g.results.Workload.Wait {
+    return (try step(caller, state, .explicit)).wait;
+}
+pub fn initialWait(caller: c.DirectTableClient, state: c.DirectClientToken.Progress) !?g.results.Workload.Wait {
+    return (try step(caller, state, .initial_wait)).wait;
+}
+const Step = struct { pending: bool, wait: ?g.results.Workload.Wait = null };
+fn waiting(reference: Intent.Reference, milliseconds: u32) g.results.Workload.Wait {
+    return .{ .intent = reference.record.content, .binding = reference.binding, .milliseconds = milliseconds };
+}
+fn step(caller: c.DirectTableClient, state: c.DirectClientToken.Progress, mode: enum { passive, explicit, initial_wait }) !Step {
+    if (!state.pending) return .{ .pending = false };
     var intent = try load(caller, state);
     defer intent.deinit();
     const reference = state.receipt.binding.intent.workload;
-    const work = intent.parsed.value.work;
-    const observed = try call(caller, work, .inspect);
+    const saved = intent.parsed.value;
+    if (mode == .initial_wait and saved.wait_ms == null) return .{ .pending = true };
+    const observed = try call(caller, saved, .inspect);
     defer observed.deinit();
-    if (try evidence(reference, work, observed.value.result) == null) {
-        const response = try call(caller, work, if (state.cancel) .cancel else .execute);
+    if (try evidence(reference, saved.work, observed.value.result) == null) {
+        if (saved.wait_ms != null and mode == .passive and !state.cancel) return .{ .pending = true };
+        const response = try call(caller, saved, if (state.cancel) .cancel else .execute);
         defer response.deinit();
-        if (try evidence(reference, work, response.value.result) == null) return true;
+        if (saved.wait_ms) |milliseconds| {
+            if (!state.cancel) {
+                if (response.value.result != .queue) return error.InvalidWorkloadEvidence;
+                try c.DirectQueueResponse.validate(caller.allocator, caller.connection, .{ .wait = .{ .claim = saved.work.queue.work.claim, .milliseconds = milliseconds } }, response.value.result.queue);
+                if (response.value.result.queue == .timed_out) {
+                    var wait = waiting(reference, milliseconds);
+                    wait.timed_out = response.value.result.queue.timed_out;
+                    return .{ .pending = true, .wait = wait };
+                }
+            }
+        }
+        if (try evidence(reference, saved.work, response.value.result) == null) return .{ .pending = true };
     }
     _ = try c.DirectClientToken.update(caller, .{ .key = state.receipt.binding.key, .expected = state.revision, .pending = false, .cancel = state.cancel, .record = state.record });
-    return false;
+    return .{ .pending = false };
 }
 pub fn status(caller: c.DirectTableClient, state: c.DirectClientToken.Progress) !g.session_protocol.Operation {
     var intent = try load(caller, state);
     defer intent.deinit();
-    const response = try call(caller, intent.parsed.value.work, .inspect);
+    const response = try call(caller, intent.parsed.value, .inspect);
     defer response.deinit();
     const terminal = try evidence(state.receipt.binding.intent.workload, intent.parsed.value.work, response.value.result);
     if (!state.pending and terminal == null) return error.MissingGatewayTerminal;
@@ -132,6 +158,7 @@ pub fn status(caller: c.DirectTableClient, state: c.DirectClientToken.Progress) 
         .changed = if (counts) |value| value.changed else 0,
         .result_kind = if (intent.parsed.value.projection != null and (terminal == null or terminal.?.outcome() == .applied)) .rows else .command,
         .workload = terminal,
+        .wait = if (terminal == null and intent.parsed.value.wait_ms != null) waiting(state.receipt.binding.intent.workload, intent.parsed.value.wait_ms.?) else null,
     };
     try result.validate();
     return result;

@@ -232,6 +232,39 @@ pub fn execute(self: *Self, sql: []const u8, parameters: ?[]const r.fuze.Logical
     }
     return out;
 }
+/// Explicitly attempt the saved workload once. Transport loss falls back to
+/// observation of the same token; it never repeats the wait or submits SQL.
+pub fn resumeWorkload(self: *Self, original: r.Unresolved, options: Options) !*Outcome {
+    if (options.captured or options.before_submit != null) return error.InvalidSqlExecution;
+    const identity = original.operation orelse return error.MissingWorkloadEvidence;
+    if (identity.kind != .workload or !std.mem.eql(u8, &identity.account, &original.account)) return error.InvalidSqlResponse;
+    if (!std.meta.eql(self.client.instance, @as(?api.Instance, original.instance))) return error.SqlInstanceChanged;
+    if (!std.meta.eql(self.client.account, @as(?api.Account, original.account)) or
+        !std.meta.eql(self.control.account, self.client.account) or !std.meta.eql(self.control.instance, self.client.instance)) return error.SqlObservationDenied;
+    if (original.wait) |wait| try wait.validate();
+    const out = try self.createOutcome(options);
+    errdefer out.deinit();
+    var pending = sdk.Pending.init(self.control, original.token);
+    pending.expected_operation = identity;
+    pending.expected_wait = original.wait;
+    self.enter(.submit);
+    const response = self.call(.{ .@"resume" = identity }, out.memory.allocator()) catch |err| {
+        out.value = try self.settle(&pending, err == error.ResultCancelled, out, options);
+        return out;
+    };
+    defer response.deinit();
+    switch (response.value.result) {
+        .operation => |operation| {
+            try pending.observe(operation);
+            out.value = try self.settle(&pending, false, out, options);
+        },
+        // A resumed original can have progressed before any error reply.
+        // Observe it under current authority rather than inferring rejection.
+        .err => out.value = try self.settle(&pending, false, out, options),
+        else => return error.InvalidSqlResponse,
+    }
+    return out;
+}
 fn createOutcome(self: *Self, options: Options) !*Outcome {
     if (options.resident_bytes == 0 or options.resident_bytes > 16 * 1024 * 1024) return error.InvalidResultBudget;
     const out = try self.client.allocator.create(Outcome);
@@ -250,14 +283,20 @@ fn settle(self: *Self, pending: *sdk.Pending, cancel: bool, out: *Outcome, optio
     defer self.session_lost = self.session_lost or pending.session_lost;
     const value = self.awaitPending(pending, cancel) catch |err| {
         self.access_lost = self.access_lost or err == error.SqlObservationDenied;
-        return .{ .unresolved = .{
-            .account = pending.account,
-            .instance = self.client.instance.?,
-            .token = pending.token,
-            .operation = if (pending.operation) |operation| operation.identity else null,
-            .reason = if (err == error.SqlObservationDenied) .denied else if (self.interrupted) .interrupted else if (err == error.SqlInstanceChanged or err == error.IncompatibleSqlDefinition) .identity_changed else .unavailable,
-        } };
+        return .{
+            .unresolved = .{
+                .account = pending.account,
+                .instance = self.client.instance.?,
+                .token = pending.token,
+                .operation = if (pending.operation) |operation| operation.identity else pending.expected_operation,
+                // A failed observation retains the original wait policy, but an
+                // earlier timeout cut cannot describe the uncertain latest attempt.
+                .wait = if (pending.expected_wait) |wait| .{ .intent = wait.intent, .binding = wait.binding, .milliseconds = wait.milliseconds } else null,
+                .reason = if (err == error.SqlObservationDenied) .denied else if (self.interrupted) .interrupted else if (err == error.SqlInstanceChanged or err == error.IncompatibleSqlDefinition) .identity_changed else .unavailable,
+            },
+        };
     };
+    if (value.wait) |wait| return .{ .unresolved = .{ .account = pending.account, .instance = self.client.instance.?, .token = pending.token, .operation = value.identity, .reason = .waiting, .wait = wait } };
     if (value.result_kind == .rows) return self.openWorkload(value, pending.session_lost, out, options);
     const completion = try value.completion();
     return .{ .command = completion };

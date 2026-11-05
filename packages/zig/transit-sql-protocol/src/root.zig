@@ -61,7 +61,8 @@ pub const Request = struct {
     }
     pub fn control(self: Request) bool {
         return switch (self.action) {
-            .cancel, .status, .operations, .@"resume", .close, .close_result => true,
+            .cancel, .status, .operations, .close, .close_result => true,
+            .@"resume" => |value| value.kind != .workload,
             else => false,
         };
     }
@@ -108,6 +109,7 @@ pub const Operation = struct {
     diagnostic: ?@import("transit_protocol").Diagnostic = null,
     result_kind: enum { command, rows } = .command,
     workload: ?results.Workload.Evidence = null,
+    wait: ?results.Workload.Wait = null,
     pub fn validate(self: Operation) !void {
         if (self.identity.id == 0 or ((self.phase == .terminal) != (self.outcome != null))) return error.InvalidSqlOperation;
         if (self.phase == .terminal) {
@@ -116,6 +118,10 @@ pub const Operation = struct {
         if (self.result_kind == .rows and (self.identity.kind != .workload or (self.phase == .terminal and self.outcome != .applied) or
             (self.command != .produce and self.command != .consume and self.command != .enqueue and self.command != .claim and self.command != .extend_lease))) return error.InvalidSqlOperation;
         if ((self.phase == .ready or self.phase == .active) and self.command == null) return error.InvalidSqlOperation;
+        if (self.wait) |value| {
+            try value.validate();
+            if (self.identity.kind != .workload or self.command != .claim or self.phase != .ready or self.result_kind != .rows) return error.InvalidSqlOperation;
+        }
     }
     pub fn completion(self: Operation) !results.CommandCompletion {
         if (self.result_kind == .rows) return error.SqlRowsRequired;

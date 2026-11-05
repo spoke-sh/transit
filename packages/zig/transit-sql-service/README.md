@@ -60,7 +60,7 @@ outcome using progress notifications; result delivery never submits another
 append. Positional `CONSUME` shares admission and original-result recovery;
 its finite cut, predicate and optional LIMIT are frozen independently of output
 batches. Its descriptor requires mutation admission because accepting a read
-retains native history. Group consumption, WAIT, claim/settlement SQL and
+retains native history. Stream WAIT, Queue payload predicates and
 attached-transaction workloads remain outside this execution profile.
 
 `ConfigurationOperations` records the original reload identity and expected
@@ -113,3 +113,10 @@ separately admits append, positional consumption, claim and ACK/NACK/renewal SQL
 through native, console, PostgreSQL and MySQL consumers. It verifies original
 results after gateway replacement, typed parameters, logical limits, stale lease
 fencing, later settlement and revoked batches.
+
+Queue `CLAIM ... WAIT` returns an original pending wait observation when no claim
+completed. Workload resume borrows a data session for one explicit native attempt;
+status and recovery cannot dispatch waited work. PostgreSQL exposes pending
+waits as SQLSTATE 57014; MySQL uses error 1317 / SQLSTATE 70100. Both include the
+original operation ID. See the
+[wait contract](../../../contracts/SQL_SESSION_V1.md#queue-wait-attempts).

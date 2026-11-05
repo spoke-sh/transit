@@ -46,7 +46,7 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
         ("CLAIM value FROM claim_manual WITH LEASE '1s'", 'LogPartitionRequired'),
         ("CLAIM value FROM claim_work WHERE value = 7 WITH LEASE '1s'", 'UnsupportedConstruct'),
         ("CLAIM value FROM claim_work WHERE _offset >= 7 WITH LEASE '1s'", 'UnsupportedConstruct'),
-        ("CLAIM value FROM claim_work WITH LEASE '1s' WAIT '1s'", 'UnsupportedConstruct'),
+        ("CLAIM value FROM claim_work WITH LEASE '1s' WAIT '1001ms'", 'InvalidQueueWait'),
         ("CLAIM value FROM claim_work LIMIT 66 WITH LEASE '1s'", 'QueueClaimLimitExceeded'),
         ("CLAIM value FROM claim_work WITH LEASE '31s'", 'InvalidQueueLeaseDuration'),
     ):

@@ -78,8 +78,9 @@ Both interval boundaries are authenticated; the larger read can remain partial. 
 for budgets, empty results and unavailable retained history. SQL supports
 [append and positional consumption](sql/streaming.md#consume-a-finite-stream-cut);
 group consumption accepts explicit native assignment descriptors and SQL offset
-settlement accepts authenticated progress. Assignment, read release and waits
-retain their native interfaces.
+settlement accepts authenticated progress. Assignment, read release and Stream waits
+retain their native interfaces. [Queue WAIT](sql/streaming.md#wait-for-eligible-queue-work)
+uses the shared SQL original-operation lifecycle.
 SQL ACK, NACK and [lease renewal](sql/streaming.md#renew-a-queue-lease) bind an
 original binary lease receipt through the shared native settlement owner.
 

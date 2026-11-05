@@ -323,8 +323,8 @@ pub const Console = struct {
             },
             .rows => |*result| self.consume(result, &timing) catch |err| return if (err == error.ResultCancelled) error.ConsoleInterrupted else err,
             .unresolved => |unknown| {
-                self.diagnostic.summary = if (unknown.reason == .denied) "Permissions prevented confirming the statement outcome" else "Could not confirm whether the statement completed";
-                self.diagnostic.next = "Running it again may apply changes twice.";
+                self.diagnostic.summary = if (unknown.reason == .waiting) "The wait ended without a completed claim; the original operation remains pending" else if (unknown.reason == .denied) "Permissions prevented confirming the statement outcome" else "Could not confirm whether the statement completed";
+                self.diagnostic.next = if (unknown.reason == .waiting) "Resume or cancel the original operation through the shared SQL client. Running SQL again creates new work." else "Running it again may apply changes twice.";
                 if (self.session.format == .json) try self.resultJson(.{ .unresolved = unknown });
                 return if (executor.interrupted) error.ConsoleInterrupted else error.SqlOutcomeUnknown;
             },
