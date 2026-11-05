@@ -71,9 +71,9 @@ def check():
         try:
             tree(case['sql'])
         except ValueError:
-            pass
+            assert not case.get('reference', False), case['id']
         else:
-            raise AssertionError(f"invalid/out-of-profile syntax accepted: {case['id']}")
+            assert case.get('reference', False), f"invalid/out-of-profile syntax accepted: {case['id']}"
         from pglast.parser import parse_sql_json, ParseError
         try:
             parse_sql_json(case['sql'])
@@ -98,7 +98,7 @@ def check():
     reference_check()
     documentation_examples()
     print(f"SQL grammar: {len(data['select'])} SELECT ASTs agree with libpg_query; "
-          f"{len(data['reject'])} syntax exclusions; {len(data['extensions'])} extensions; zero ANTLR diagnostics.")
+          f"{sum(not c.get('reference', False) for c in data['reject'])} syntax exclusions; {len(data['extensions'])} extensions; zero ANTLR diagnostics.")
     return data
 
 

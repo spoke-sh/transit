@@ -10,6 +10,7 @@ const w = c.DirectTableProtocol;
 pub const declaration_format: u32 = 0x44464431; // DFD1
 pub const work_format: u32 = 0x44465731; // DFW1
 pub const page_format: u32 = c.DirectRecord.guarded_bit | 0x44465031; // guarded DFP1
+pub const page_link_format: u32 = c.DirectRecord.guarded_bit | 0x44464c31; // guarded DFL1
 pub const revision_format: u32 = c.DirectRecord.guarded_bit | 0x44465231; // guarded DFR1
 pub const head_key = "\x00dataflow/head";
 pub const max_definition_bytes = 64 * 1024;

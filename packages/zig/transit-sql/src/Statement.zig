@@ -63,6 +63,7 @@ pub fn deinit(self: *Self) void {
 pub fn parameters(self: *const Self) []const f.Types.Type {
     return switch (self.plan) {
         .select => |*value| value.parameterTypes(),
+        .relational => |value| value.parameterTypes(),
         .dml => |*value| value.parameterTypes(),
         .log_append => |*value| value.compiled.parameterTypes(),
         .log_consume => |*value| value.compiled.parameterTypes(),
@@ -98,6 +99,10 @@ pub fn checkValues(self: *const Self, allocator: std.mem.Allocator, values: []co
         .select => |*value| {
             const template = &value.template;
             var bound = try template.bind(allocator, template.name, template.descriptor.type, template.basis, values, null);
+            defer bound.deinit();
+        },
+        .relational => |value| {
+            var bound = try value.bindValues(allocator, values);
             defer bound.deinit();
         },
         .dml => |*value| {
@@ -157,16 +162,7 @@ fn prepareInner(allocator: std.mem.Allocator, client: *c.DirectTableClient, name
     } else if (tokenIs(first, "ACK") or tokenIs(first, "NACK") or tokenIs(first, "EXTEND")) {
         plan = .{ .log_settlement = try c.DirectLogPreparedSettlement.prepare(allocator, client.*, namespace, text, dialect, location) };
     } else if (std.ascii.eqlIgnoreCase(first.text, "SELECT")) {
-        // Parameterized relational syntax is outside this profile. Parameter
-        // tokens belong to the shared single-Table compiler; strings/comments
-        // containing their spelling never change routing.
-        var parameterized = false;
-        while (true) {
-            const token = try lexer.next();
-            if (token.tag == .eof) break;
-            if (token.tag == .integer and token.text.len != 0 and (token.text[0] == '$' or token.text[0] == '?')) parameterized = true;
-        }
-        if (!parameterized and try f.RelationalSql.requiredDialect(text, dialect)) {
+        if (try f.RelationalSql.requiredDialect(text, dialect)) {
             var syntax = try f.RelationalSql.parseDialect(allocator, text, location, dialect);
             defer syntax.deinit();
             const clients: [f.Relational.max_sources]c.DirectTableClient = @splat(client.*);
@@ -330,9 +326,9 @@ pub fn openSelect(self: *const Self, allocator: std.mem.Allocator, client: *c.Di
     if (self.inspection or self.plan != .select) return error.ExpectedSingleTableSelect;
     return g.direct.DirectTableQuery.openPreparedRetained(allocator, client.*, snapshot, &self.plan.select, values, limits, cancellation, null, .{});
 }
-pub fn openRelational(self: *const Self, allocator: std.mem.Allocator, io: std.Io, directory: std.Io.Dir, name: []const u8, client: *c.DirectTableClient, snapshots: []const c.DirectTableProtocol.Snapshot, options: g.direct.DirectRelationalQuery.Options, cancellation: ?*const std.atomic.Value(bool)) !*g.direct.DirectRelationalQuery {
+pub fn openRelational(self: *const Self, allocator: std.mem.Allocator, io: std.Io, directory: std.Io.Dir, name: []const u8, client: *c.DirectTableClient, values: []const ?f.Types.Values.Atom, snapshots: []const c.DirectTableProtocol.Snapshot, options: g.direct.DirectRelationalQuery.Options, cancellation: ?*const std.atomic.Value(bool)) !*g.direct.DirectRelationalQuery {
     if (self.inspection or self.plan != .relational) return error.ExpectedRelationalSelect;
-    return g.direct.DirectRelationalQuery.openPreparedRetained(allocator, io, directory, name, client.*, self.plan.relational, snapshots, options, cancellation);
+    return g.direct.DirectRelationalQuery.openBoundPreparedRetained(allocator, io, directory, name, client.*, self.plan.relational, values, snapshots, options, cancellation);
 }
 
 test "gateway statements reject transaction controls and multiple commands before authority access" {

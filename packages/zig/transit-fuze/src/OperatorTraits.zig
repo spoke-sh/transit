@@ -203,7 +203,7 @@ pub fn forRelationalPlan(plan: Relational.Plan) !Summary {
             has_aggregate = true;
         },
     };
-    var has_filter = plan.filter.instructions.len > 0;
+    var has_filter = plan.filter.instructions.len > 0 or plan.having.instructions.len > 0;
     for (plan.source_filters[0..plan.sources.len]) |pred| {
         if (pred.instructions.len > 0) has_filter = true;
     }
@@ -218,7 +218,7 @@ pub fn forRelationalPlan(plan: Relational.Plan) !Summary {
     return .{
         .effects = effects,
         .deterministic = true,
-        .fallible = has_aggregate or has_filter or plan.join != null,
+        .fallible = has_aggregate or has_filter or plan.join != null or plan.order_by.len != 0 or plan.scalars.instructions.len != 0,
         .five_state_rule = if (has_aggregate)
             .checked_aggregate
         else if (has_filter)
@@ -230,7 +230,7 @@ pub fn forRelationalPlan(plan: Relational.Plan) !Summary {
         .change_mode = change_mode,
         .work_bound = .{
             .max_source_pins = plan.budgets.source_pins,
-            .max_output_rows = plan.budgets.output_rows,
+            .max_output_rows = if (plan.limit) |limit| @min(limit, plan.budgets.output_rows) else plan.budgets.output_rows,
             .max_resident_bytes = plan.budgets.resident_bytes,
             .max_spill_bytes = plan.budgets.spill_bytes,
             .max_work_steps = plan.budgets.work_steps,

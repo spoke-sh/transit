@@ -16,7 +16,7 @@ import sqlite3
 import struct
 
 FIXTURE = ROOT / 'packages/zig/transit-fuze/src/fixtures/relational.json'
-DEFINITION = b'transit.fuze.relational.v1.2026-10-26'
+DEFINITION = b'transit.fuze.relational.v1.2026-11-05'
 MIN_I64, MAX_I64, MAX_U64 = -(2**63), 2**63 - 1, 2**64 - 1
 
 
@@ -195,6 +195,7 @@ def identity_fixture():
     encoded = DEFINITION + b'\0prepared\0\2'
     for alias, resource, fingerprint in zip(['l', 'r'], [101, 202], schemas):
         encoded += text(alias) + struct.pack('<QQQQ', 1, resource, 9, 7) + fingerprint
+    encoded += b'\0'  # Empty shared scalar program.
     encoded += b'\2' + column(0, 1) + column(1, 1)  # left join
     encoded += b'\0\0\0'  # two source predicates and one joined predicate
     encoded += b'\1' + column(0, 1) + b'\4'
@@ -202,6 +203,7 @@ def identity_fixture():
         encoded += text(label) + bytes([tag])
         if reference:
             encoded += column(*reference)
+    encoded += b'\0\0\0'  # having, order_by, and limit
     encoded += b'\1' + struct.pack('<QQQQQB', 4096, 8192, 16384, 1000, 10000, 2)
     prepared = hashlib.sha256(encoded).digest()
     bound = DEFINITION + b'\0bound\0' + prepared

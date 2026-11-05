@@ -61,13 +61,8 @@ def check(driver):
                 pass
             else:
                 raise AssertionError(f"Invalid template grammar accepted: {case['id']}")
-        if case.get('has_parameters', True):
-            try:
-                tree(case['sql'])
-            except ValueError:
-                pass
-            else:
-                raise AssertionError(f"Ordinary grammar accepted parameters: {case['id']}")
+        if case.get('grammar', True):
+            tree(case['sql'])  # The shared statement grammar includes prepared SQL.
     with tempfile.TemporaryDirectory(prefix='transit-sql-parameters-') as temp:
         root = Path(temp)
         source = root / 'cases.json'
@@ -104,4 +99,4 @@ def check(driver):
             assert actual == expected_rows, (case['id'], actual, expected_rows)
             executed += 1
     print(f'SQL parameters: {len(asts)} reference ASTs, {executed} canonical plans/paged Arrow results, '
-          f'{rejected} exact rejections; ordinary grammar excludes placeholders.')
+          f'{rejected} exact rejections; unbound source-parser placeholders rejected.')

@@ -44,6 +44,7 @@ const Case = struct {
     sql: []const u8,
     schema: struct { name: []const u8, columns: [2][]const u8, type: m.Type } = .{ .name = "items", .columns = .{ "id", "value" }, .type = .int64 },
     parameters: ?[]const FixtureScalar = null,
+    has_parameters: bool = true,
 };
 fn writeColumn(out: anytype, column: *const sql.Column) !void {
     try out.write([2]?[]const u8{ if (column.qualifier) |*name| name.slice() else null, column.name.slice() });
@@ -196,6 +197,9 @@ fn compile(allocator: std.mem.Allocator, case: Case, ast: sql.Ast, source: m.Sql
     return .{ .ordinary = try m.Sql.compile(allocator, ast, source) };
 }
 fn parse(case: Case) !sql.TemplateAst {
+    if (case.parameters != null and case.has_parameters) {
+        if (sql.parse(case.sql)) |_| return error.AcceptedUnboundParameters else |_| {}
+    }
     return if (case.parameters != null) try sql.parseTemplate(case.sql, null) else .{ .ast = try sql.parse(case.sql), .parameters = .{} };
 }
 pub fn main(init: std.process.Init) !void {

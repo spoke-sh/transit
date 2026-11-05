@@ -22,6 +22,9 @@ pub const resident_base = @sizeOf(Self) + 4 * @sizeOf(q.DirectRelationalTables) 
 /// Owns the plan and local traversal/spill state, borrowing only transport and
 /// cancellation. The original durable pins remain the caller's responsibility.
 pub fn openPreparedRetained(allocator: std.mem.Allocator, io: std.Io, directory: std.Io.Dir, spill_name: []const u8, client: q.catalog.DirectTableClient, prepared: *const q.DirectRelationalCompilation, snapshots: []const q.catalog.DirectTableProtocol.Snapshot, options: Options, cancellation: ?*const std.atomic.Value(bool)) !*Self {
+    return openBoundPreparedRetained(allocator, io, directory, spill_name, client, prepared, &.{}, snapshots, options, cancellation);
+}
+pub fn openBoundPreparedRetained(allocator: std.mem.Allocator, io: std.Io, directory: std.Io.Dir, spill_name: []const u8, client: q.catalog.DirectTableClient, prepared: *const q.DirectRelationalCompilation, values: []const ?f.Types.Values.Atom, snapshots: []const q.catalog.DirectTableProtocol.Snapshot, options: Options, cancellation: ?*const std.atomic.Value(bool)) !*Self {
     try options.requireClient(client);
     if (options.budgets.resident_bytes <= resident_base or options.budgets.resident_bytes > std.math.maxInt(usize)) return error.RelationalResidentBudget;
     if (options.requests < 2 or options.spill_work == 0) return error.InvalidQueryBudget;
@@ -33,14 +36,13 @@ pub fn openPreparedRetained(allocator: std.mem.Allocator, io: std.Io, directory:
     self.parent = allocator;
     self.memory = .{ .parent = allocator, .limit = @intCast(options.budgets.resident_bytes - resident_base) };
     const owned = self.memory.allocator();
-    const bytes = try owned.alloc(u8, f.RelationalCodec.max_bytes);
-    defer owned.free(bytes);
-    self.owned = try f.RelationalCodec.decode(owned, try f.RelationalCodec.encode(prepared.plan, bytes));
+    self.owned = try prepared.bindValues(owned, values);
     errdefer self.owned.deinit();
     self.owned.plan.budgets = options.budgets;
     self.owned.plan.lifetime = .interactive;
     self.tables = try q.DirectRelationalTables.openProjectedAt(owned, client, snapshots, self.owned.plan.sources, options.requests - 2, cancellation, prepared.catalog, prepared.projections[0..snapshots.len]);
     errdefer self.tables.deinit();
+    self.tables.projection = try e.Projection.init(self.owned.plan);
     for (prepared.bindings[0..snapshots.len], self.tables.scans[0..snapshots.len]) |binding, scan| {
         if (!std.meta.eql(binding.interpretation, scan.?.reader.basis.interpretation)) return error.RelationalSourceChanged;
     }

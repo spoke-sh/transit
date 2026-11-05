@@ -86,8 +86,8 @@ Relational column suggestions admit int64 only. At an unqualified position,
 multiple sources produce separately quoted alias/column references; after a
 qualifier only its columns are offered. Unknown and ambiguous predicate names
 produce no guessed comparison operators. NULL appears for explicit state tests,
-not as a comparison literal. Other logical cell states, rich-type comparisons,
-LIMIT, HAVING and ORDER BY are excluded from this relational profile. Consumed
-JOIN/GROUP/aggregate syntax and aliases receive roles from that same production
+not as a comparison literal. Other logical cell states and rich-type comparisons
+are excluded from this relational assistance profile. Consumed
+JOIN/GROUP/HAVING/ORDER/aggregate syntax and aliases receive roles from that same production
 parser for console highlighting. Suggested text does not enable relational
 execution or bypass the explicit connection configuration and query admission.

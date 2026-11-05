@@ -88,15 +88,31 @@ def normalized_program(instructions):
 def antlr_ast(sql, *, template=False):
     ctx = tree(sql, 'parameterTemplate').templateSelect() if template else tree(sql).selectStatement()
     assert ctx
-    selected = ctx.selection()
+    relational = ctx.relationalSelect() if not template else None
+    selected = ctx.selection() if template else None
     aggregate = selected.aggregateSelection() if selected else ctx.aggregateSelection()
-    if not aggregate:
+    if relational:
+        assert not relational.relationalJoin() and not relational.columnReference()
+        assert not relational.havingClause() and not relational.orderByClause()
+        outputs = relational.relationalSelection()
+        expression = outputs[0].relationalExpression() if outputs else None
+        if expression and (expression.COUNT() or expression.SUM()):
+            assert len(outputs) == 1
+            aggregate = outputs[0]
+            selection = ({'kind': 'count'} if expression.STAR() else
+                         {'kind': 'count_values' if expression.COUNT() else 'sum', 'column': column(expression.columnReference())})
+        else:
+            selection = {'kind': 'rows', 'columns': None if relational.STAR() else [
+                {'column': column(item.relationalExpression().columnReference()),
+                 'alias': identifier(item.outputAlias().identifier()) if item.outputAlias() else None}
+                for item in outputs]}
+    elif not aggregate:
         selection = {'kind': 'rows', 'columns': projection(selected.projection())}
     elif aggregate.COUNT() and aggregate.STAR():
         selection = {'kind': 'count'}
     else:
         selection = {'kind': 'count_values' if aggregate.COUNT() else 'sum', 'column': column(aggregate.columnReference())}
-    where = ctx.templateWhereClause() if template else ctx.whereClause()
+    where = ctx.templateWhereClause() if template else (relational or ctx).whereClause()
     def atom(pred):
         result = {'column': column(pred.columnReference()), 'op': 'is_' + pred.cellState().getText().lower() if pred.cellState() else None}
         if pred.comparison():
@@ -119,7 +135,7 @@ def antlr_ast(sql, *, template=False):
         return join_program([conjunction(part) for part in ctx.conjunction()], 'or')
 
     predicate = (atom(where.templatePredicate()) if template else normalized_program(disjunction(where.predicate().disjunction()))) if where else None
-    limits = ctx.templateLimitClause() if template else ctx.limitClause()
+    limits = ctx.templateLimitClause() if template else ([relational.limitClause()] if relational.limitClause() else []) if relational else ctx.limitClause()
     # Identify clauses by their position relative to the derived-table close.
     outer = inner = None
     for lim in limits:
@@ -130,10 +146,12 @@ def antlr_ast(sql, *, template=False):
         else:
             outer = n
     names = ctx.identifier()
-    return {'source': identifier(names[0]), 'source_alias': identifier(ctx.sourceAlias().identifier()) if ctx.sourceAlias() else None,
+    target = relational.relationalTarget() if relational else None
+    alias = target.relationalAlias() if target else ctx.sourceAlias()
+    return {'source': identifier(target.identifier()) if target else identifier(names[0]), 'source_alias': identifier(alias.identifier() or alias.relationalImplicitAlias()) if alias else None,
             'output_alias': identifier(aggregate.outputAlias().identifier()) if aggregate and aggregate.outputAlias() else None,
             'selection': selection, 'predicate': predicate,
-            'limit': outer, 'input': None if selected else {
+            'limit': outer, 'input': None if selected or relational else {
                 'projection': projection(ctx.projection()), 'limit': inner, 'alias': identifier(names[1])}}
 
 

@@ -7,7 +7,7 @@ const native = @import("transit_protocol").Growth;
 const table = @import("TableSchema.zig");
 const values = @import("RelationalValues.zig");
 pub const max_rows = 4;
-pub const fixed_bytes = 4 + 32 + 32 + 8 + 1 + 8 * 4 + 2 + max_rows * (20 + table.max_columns * 9);
+pub const fixed_bytes = 4 + 32 + 32 + 8 + 1 + 8 * 4 + 2 + max_rows * (20 + r.row_columns * values.fixed_bytes);
 pub const max_bytes = fixed_bytes + max_rows * values.max_text_bytes;
 
 pub fn definition() [32]u8 {
@@ -27,11 +27,11 @@ pub fn route(plan: r.Plan, source: u8, partitions: u64, row: e.Row) !u64 {
     if (plan.join) |join| {
         hash.update(&.{1});
         const column = if (source == 0) join.left else join.right;
-        try values.hashInto(&hash, row.values[try plan.sources[source].schema.index(column.id)], try plan.resolveColumn(column));
+        try values.hashInto(&hash, row.values[if (column.source == r.computed_source) @as(usize, @intCast(128 + column.id - 1)) else try plan.sources[source].schema.index(column.id)], try plan.resolveColumn(column));
     } else if (grouped(plan)) {
         hash.update(&.{2});
         hash.update(&.{@intCast(plan.group_by.len)});
-        for (plan.group_by) |column| try values.hashInto(&hash, row.values[try plan.sources[source].schema.index(column.id)], try plan.resolveColumn(column));
+        for (plan.group_by) |column| try values.hashInto(&hash, row.values[if (column.source == r.computed_source) @as(usize, @intCast(128 + column.id - 1)) else try plan.sources[source].schema.index(column.id)], try plan.resolveColumn(column));
     } else {
         hash.update(&.{3});
         var bytes: [20]u8 = undefined;
@@ -57,11 +57,23 @@ pub fn validateRow(plan: r.Plan, source: u8, row: e.Row) !void {
     _ = try values.payloadLength(&row.values);
     const columns = plan.sources[source].schema.columns;
     for (columns, 0..) |column, i| {
-        if (column.type == .int64 or column.type == .utf8) {
+        if (values.supported(column.type)) {
             try values.validate(row.values[i], column);
         } else if (row.values[i] != null) return error.InvalidRelationalSourceRow;
     }
-    for (row.values[columns.len..]) |value| if (value != null) return error.InvalidRelationalSourceRow;
+    for (row.values[columns.len..128]) |value| if (value != null) return error.InvalidRelationalSourceRow;
+    const count = if (source == 0) plan.scalars.instructions.len else 0;
+    const kernel = @import("RelationalKernel.zig").bind(plan);
+    const selected = source != 0 or (kernel.filters[0].matches(row, null) and kernel.predicate.matches(row, null));
+    var inputs: [table.max_columns]@import("Types.zig").Field = undefined;
+    var fields: [r.ScalarProgram.max_instructions]@import("Types.zig").Field = undefined;
+    if (count != 0) _ = try plan.scalars.validate((try plan.sources[0].schema.rowType(&inputs)).structure, &fields);
+    for (row.values[128..][0..count], fields[0..count], 0..) |value, field, i| {
+        if (selected and values.supported(field.type)) {
+            try values.validate(value, .{ .id = i + 1, .name = field.name, .type = field.type, .nullable = field.nullable });
+        } else if (value != null) return error.InvalidRelationalSourceRow;
+    }
+    for (row.values[128 + count ..]) |value| if (value != null) return error.InvalidRelationalSourceRow;
 }
 pub const Segment = struct {
     exchange: u64,
@@ -111,6 +123,7 @@ pub const Segment = struct {
             identityBytes(row.identity, &id);
             try writer.writeAll(&id);
             for (row.values[0..bound.plan.sources[self.source].schema.columns.len]) |value| try values.write(writer, value);
+            if (self.source == 0) for (row.values[128..][0..bound.plan.scalars.instructions.len]) |value| try values.write(writer, value);
         }
     }
     pub fn decode(allocator: std.mem.Allocator, bound: r.Bound, bytes: []const u8) !Segment {
@@ -129,6 +142,9 @@ pub const Segment = struct {
         for (result.rows[0..result.len]) |*row| {
             row.* = .{ .identity = .{ .origin = try reader.takeInt(u64, .big), .operation = try reader.takeInt(u64, .big), .ordinal = try reader.takeInt(u32, .big) } };
             for (row.values[0..bound.plan.sources[result.source].schema.columns.len]) |*value| value.* = try values.read(&reader);
+            if (result.source == 0) for (row.values[128..][0..bound.plan.scalars.instructions.len]) |*value| {
+                value.* = try values.read(&reader);
+            };
         }
         if (reader.bufferedLen() != 0) return error.InvalidRelationalExchange;
         values.checkEncoding(bytes, result, bound) catch |err| return switch (err) {

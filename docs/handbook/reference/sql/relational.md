@@ -1,11 +1,11 @@
 # Table joins and grouped aggregation
 
 The relational Table profile executes one inner or left equijoin over two
-explicit Tables, or grouped aggregation over one Table. Referenced columns have
-the exact int64 (`BIGINT`) or UTF-8 (`TEXT`) type; SUM requires int64. Other
-columns can remain in the stored schema. Join keys require matching types and
-collations. Text comparisons, grouping and routing use the declared UTF8_BINARY,
-ASCII_CI or EBCDIC_CP037 collation with NO PAD semantics.
+explicit Tables, or grouped and ordered execution over one Table. Referenced
+columns support BOOL, BIGINT, UINT64, FLOAT64, DECIMAL, DATE, TIME, TIMESTAMP,
+UUID, TEXT and BINARY. SUM accepts BIGINT or DECIMAL. Join keys require the same
+logical descriptor and collation. Text comparison and grouping preserve the
+column's declared collation, including its padding rule.
 SQL, typed plans and the captured query owner use the same Fuze operators.
 
 ```sql
@@ -18,7 +18,11 @@ FROM observations AS l LEFT JOIN readings AS r ON l.key = r.key
 GROUP BY l.key;
 
 SELECT key, COUNT(*) AS rows, SUM(value) AS total
-FROM observations WHERE value >= 0 GROUP BY key;
+FROM observations WHERE value >= 0
+GROUP BY key
+HAVING COUNT(*) > 1
+ORDER BY total DESC NULLS LAST, key ASC
+LIMIT 10;
 ```
 
 The console uses the selected account's service-owned catalog, independent
@@ -33,17 +37,35 @@ Tables retain bag multiplicity. Every equal-key pair contributes, including
 duplicate rows. NULL keys do not match. A left join emits one null-extended row
 only after complete right-side coverage proves that no right row matches.
 `WHERE` filters the joined rows before grouping. Boolean predicates use the
-existing three-valued, eager evaluation rules; this profile accepts int64 and text
+existing three-valued, eager evaluation rules; this profile accepts typed scalar
 comparisons and `IS [NOT] NULL`.
 
 `COUNT(*)` counts contributors, `COUNT(column)` counts non-null values and
-`SUM(column)` adds non-null int64 values with checked arithmetic. SUM follows
+`SUM(column)` adds non-null BIGINT or DECIMAL values with checked arithmetic.
+Decimal sums preserve the declared precision and scale, using i128 coefficients. SUM follows
 stable left/right row-identity order and preserves the first overflowing
 contributor, even if later values would reduce the mathematical total. It does
 not widen to PostgreSQL's numeric result. Ungrouped empty input returns zero
-counts and null sums; grouped empty input returns no rows. Group output is
-lexicographic under the declared collations with NULL first. A text group retains
-the first contributor’s original spelling, including under ASCII_CI. This canonical order does not enable `ORDER BY`.
+counts and null sums; grouped empty input returns no rows. `HAVING` filters
+completed groups using the same three-valued Boolean predicate semantics over
+grouped columns and `COUNT`/`SUM` aggregates. Without `ORDER BY`, group output is
+lexicographic under the declared collations with NULL first. `ORDER BY` sorts
+grouped or ungrouped rows by up to eight column or aggregate expressions (`ASC`
+or `DESC`, with `NULLS FIRST` default for `ASC`, `NULLS LAST` default for `DESC`,
+and explicit `NULLS FIRST`/`NULLS LAST` overrides), breaking ties by canonical
+group key or row-pair identity. Unqualified identifiers in `HAVING` and `ORDER BY`
+resolve explicit `AS` output aliases before source columns. `LIMIT` truncates the
+final ordered output. A text group retains
+the first contributor’s original spelling, including under ASCII_CI.
+
+Prepared queries can bind WHERE, HAVING and LIMIT operands using typed `$1`
+parameters (or MySQL `?` parameters). Types, repeated uses and parameter gaps
+are checked before execution. NULL comparisons remain unknown; LIMIT requires a
+non-null unsigned value. Single-Table queries also support `*` and the existing
+scalar expressions in projections and ordering, including ordering by an alias.
+Filtering precedes scalar evaluation. Sorting and LIMIT never hide a later
+source-order arithmetic failure. Sorting uses bounded external storage; LIMIT
+does not cap the number of spill records.
 
 Direct Tables have separate partition cuts even within one catalog resource.
 Repeated aliases of the same Table share one retained pin. This independent
@@ -61,8 +83,8 @@ spill file and returns a null execution basis. Concurrent metadata revision
 changes reject preparation. A later SELECT acquires its own basis and checks
 read access independently.
 
-The profile excludes LIMIT, HAVING, DISTINCT, arbitrary ORDER BY, more than one
-join, right/full/cross/non-equality joins, general subqueries, parameters,
+The profile excludes DISTINCT, OFFSET, more than one
+join, right/full/cross/non-equality joins, general subqueries,
 implicit type coercion and float sums. Existing single-source limits retain
 their own semantics. Board, Flight and foreign-language query bindings retain
 their separately declared profiles; parser support does not enable an operator

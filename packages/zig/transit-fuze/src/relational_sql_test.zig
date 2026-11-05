@@ -17,7 +17,43 @@ test "MySQL relational dialect preserves the same bound plan with backtick ident
     var original = try sql.parse(t.allocator, statement, null);
     defer original.deinit();
     try t.expectEqualSlices(u8, &try (try original.bind(&sources, .captured, budgets, null)).fingerprint(), &try (try mysql.bind(&sources, .captured, budgets, null)).fingerprint());
-    try t.expectError(error.UnboundParameters, sql.parseDialect(t.allocator, "SELECT COUNT(*) FROM `lefts` WHERE `key` = ?", null, .mysql));
+    var parameterized = try sql.parseDialect(t.allocator, "SELECT COUNT(*) FROM `lefts` l WHERE `key` = ?", null, .mysql);
+    defer parameterized.deinit();
+    try t.expectError(error.ParameterCountMismatch, parameterized.bind(sources[0..1], .interactive, budgets, null));
+}
+
+test "relational parameters preserve typed templates through grouping ordering and null binding" {
+    const types = @import("Types.zig");
+    var syntax = try sql.parse(t.allocator, "SELECT l.key, SUM(l.value) AS total FROM lefts l WHERE l.value > $1 GROUP BY l.key HAVING total > $1 ORDER BY total DESC LIMIT $2", null);
+    defer syntax.deinit();
+    var parameters: sql.Parameters = .{};
+    const prototype = try syntax.bindParameters(syntax.arena.allocator(), sources[0..1], .interactive, budgets, null, &parameters, null);
+    try t.expectEqual(@as(usize, 2), parameters.slice().len);
+    try t.expectEqual(types.Type.int64, parameters.slice()[0]);
+    try t.expectEqual(types.Type.uint64, parameters.slice()[1]);
+    const original = try prototype.fingerprint();
+    for ([_]?types.Values.Atom{ .{ .signed = 3 }, null, .{ .signed = -5 } }) |value| {
+        var arena: std.heap.ArenaAllocator = .init(t.allocator);
+        defer arena.deinit();
+        var inferred: sql.Parameters = .{};
+        const bound = try syntax.bindParameters(arena.allocator(), sources[0..1], .interactive, budgets, null, &inferred, &.{ value, .{ .unsigned = 7 } });
+        try t.expectEqual(@as(?u64, 7), bound.limit);
+        try t.expectEqual(value == null, bound.filter.instructions[0].compare.value == null);
+        try t.expectEqual(value == null, bound.having.instructions[0].compare.value == null);
+        try t.expectEqualSlices(u8, &original, &try prototype.fingerprint());
+        var bytes: [@import("RelationalCodec.zig").max_bytes]u8 = undefined;
+        var decoded = try @import("RelationalCodec.zig").decode(t.allocator, try @import("RelationalCodec.zig").encode(bound, &bytes));
+        defer decoded.deinit();
+        try t.expectEqualSlices(u8, &try bound.fingerprint(), &try decoded.plan.fingerprint());
+    }
+    var gap = try sql.parse(t.allocator, "SELECT l.key FROM lefts l WHERE l.key > $2 ORDER BY l.key", null);
+    defer gap.deinit();
+    var inferred: sql.Parameters = .{};
+    try t.expectError(error.ParameterGap, gap.bindParameters(gap.arena.allocator(), sources[0..1], .interactive, budgets, null, &inferred, null));
+    var conflict = try sql.parse(t.allocator, "SELECT l.key FROM lefts l WHERE l.key > $1 ORDER BY l.key LIMIT $1", null);
+    defer conflict.deinit();
+    inferred = .{};
+    try t.expectError(error.ParameterTypeConflict, conflict.bindParameters(conflict.arena.allocator(), sources[0..1], .interactive, budgets, null, &inferred, null));
 }
 test "relational routing distinguishes clause words from existing names" {
     for ([_][]const u8{
@@ -35,8 +71,27 @@ test "relational routing distinguishes clause words from existing names" {
         "SELECT l.value FROM items AS \"left\" LEFT JOIN others r ON l.key=r.key",
         "SELECT key, COUNT(*) FROM group GROUP BY key",
         "SELECT key FROM items WHERE group = 1 GROUP BY key",
+        "SELECT key FROM items ORDER BY key",
+        "SELECT COUNT(*) FROM items HAVING COUNT(*) > 1",
         "SELECT COUNT(*), SUM(value) FROM items",
     }) |text| try t.expect(try sql.required(text));
+}
+
+test "relational HAVING binds a hidden scalar aggregate before inferring its operand" {
+    const decimal: @import("Types.zig").Type = .{ .decimal = .{ .precision = 8, .scale = 2 } };
+    const cols = [_]schema.Column{
+        .{ .id = 1, .name = "key", .type = .int64 },
+        .{ .id = 2, .name = "value", .type = decimal },
+    };
+    var source = sources[0];
+    source.schema.columns = &cols;
+    var syntax = try sql.parse(t.allocator, "SELECT l.key FROM lefts l GROUP BY l.key HAVING SUM(DECIMAL_ADD(l.value,l.value,8,2,REJECT)) > $1 ORDER BY l.key", null);
+    defer syntax.deinit();
+    var parameters: sql.Parameters = .{};
+    const plan = try syntax.bindParameters(syntax.arena.allocator(), &.{source}, .interactive, budgets, null, &parameters, null);
+    try t.expect(try decimal.eql(parameters.slice()[0]));
+    try t.expect(plan.having.instructions[0].compare.expression.sum.source == r.computed_source);
+    try plan.validate();
 }
 const statement = "SELECT l.key, COUNT(*) AS rows, COUNT(r.value) AS values, SUM(r.value) AS total FROM lefts l LEFT JOIN rights r ON r.key = l.key GROUP BY l.key";
 fn roundtrip(allocator: std.mem.Allocator) !void {
@@ -71,12 +126,11 @@ test "relational SQL binds shared three-valued predicates and precise unknown na
 test "relational compiler rejects unsupported composition before source binding" {
     for ([_][]const u8{
         "SELECT DISTINCT l.key FROM lefts l",
-        "SELECT l.key FROM lefts l LIMIT 1",
-        "SELECT l.key FROM lefts l ORDER BY l.key",
-        "SELECT l.key FROM lefts l GROUP BY l.key HAVING COUNT(*) > 1",
         "SELECT l.key FROM lefts l RIGHT JOIN rights r ON l.key = r.key",
         "SELECT l.key FROM lefts l JOIN rights r ON l.key > r.key",
         "SELECT l.key FROM lefts l JOIN rights r ON l.key = r.key JOIN more m ON l.key = m.key",
+        "SELECT l.key FROM lefts l ORDER BY l.key NULLS",
+        "SELECT l.key FROM lefts l GROUP BY l.key HAVING",
     }) |text| {
         if (sql.parse(t.allocator, text, null)) |value| {
             var owned = value;
@@ -84,6 +138,24 @@ test "relational compiler rejects unsupported composition before source binding"
             return error.UnexpectedSqlAcceptance;
         } else |_| {}
     }
+}
+test "relational SQL binds HAVING, ORDER BY and LIMIT with output alias resolution" {
+    var syntax = try sql.parse(
+        t.allocator,
+        "SELECT l.key AS k, COUNT(*) AS n, SUM(l.value) AS total FROM lefts l GROUP BY l.key HAVING n > 1 AND total IS NOT NULL ORDER BY total DESC NULLS FIRST, k ASC NULLS LAST LIMIT 5",
+        null,
+    );
+    defer syntax.deinit();
+    const plan = try syntax.bind(sources[0..1], .interactive, budgets, null);
+    try t.expectEqual(@as(usize, 4), plan.having.instructions.len);
+    try t.expectEqual(@as(usize, 2), plan.order_by.len);
+    try t.expect(plan.order_by[0].expression.eql(.{ .sum = .{ .source = 0, .id = 2 } }));
+    try t.expectEqual(r.Direction.desc, plan.order_by[0].direction);
+    try t.expectEqual(r.NullOrder.first, plan.order_by[0].nulls);
+    try t.expect(plan.order_by[1].expression.eql(.{ .column = .{ .source = 0, .id = 1 } }));
+    try t.expectEqual(r.Direction.asc, plan.order_by[1].direction);
+    try t.expectEqual(r.NullOrder.last, plan.order_by[1].nulls);
+    try t.expectEqual(@as(?u64, 5), plan.limit);
 }
 
 test "relational editor expectations and source discovery share the executable parser" {

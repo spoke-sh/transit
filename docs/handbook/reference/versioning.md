@@ -108,7 +108,11 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`037c68077dfd548bbd03c09ee4ae0ccf1f3b7a58d1e496a877ae61b55599fcdf`.
+`ce9669acc55f70dc22d4be6f6bb5a2510579405086bf0f45244df2eacfaeda17`.
+It binds typed relational scalar programs, grouping and ordering keys, checked
+decimal aggregation, post-aggregation sort progress and ascending DATAFLOW
+revision page links. Earlier plans, checkpoints and result records require a
+hard cutover; their bytes are never interpreted using the replacement semantics.
 It binds explicit binary Stream assignment/progress descriptors, authenticated
 grouped SQL completion intervals and recorded native group/offset/read/MAC
 refusals.

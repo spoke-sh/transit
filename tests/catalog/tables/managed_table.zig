@@ -101,6 +101,7 @@ fn retained(manager: M, declaration: M.Declaration, revision: u64, expected: []c
     var first: ?q.fuze.TableRow.Row = null;
     while (try reader.next(&output)) |row| {
         try t.expect(count_ < values.len);
+        try t.expectEqual(count_, row.identity.ordinal);
         values[count_] = @intCast(row.cells[0].value.atom.signed);
         if (first == null) first = row;
         count_ += 1;
@@ -109,7 +110,6 @@ fn retained(manager: M, declaration: M.Declaration, revision: u64, expected: []c
     }
     try t.expect(reader.complete);
     try t.expect(try reader.next(&output) == null);
-    std.mem.sort(i64, values[0..count_], {}, std.sort.asc(i64));
     try t.expectEqualSlices(i64, expected, values[0..count_]);
 }
 pub fn prepare(init: std.process.Init, client: c.DirectTableClient, path: []const u8) !void {
@@ -273,9 +273,51 @@ pub fn recover(init: std.process.Init, client: c.DirectTableClient, path: []cons
     try retained(manager, declaration, 1, &.{ 1, 2, 3 });
     try retained(manager, declaration, 2, &.{ 1, 2, 3, 4 });
     try retained(manager, declaration, 4, &.{});
+    try prepareOrderedPages(init, client);
+}
+
+fn prepareOrderedPages(init: std.process.Init, client: c.DirectTableClient) !void {
+    try ddl(client, "CREATE TABLE managed_order_input (id BIGINT PRIMARY KEY)", 652050, 652050);
+    try ddl(client, "CREATE TABLE managed_order_output (id BIGINT PRIMARY KEY)", 652051, 652051);
+    var storage: [4096]u8 = undefined;
+    var writer: std.Io.Writer = .fixed(&storage);
+    try writer.writeAll("INSERT INTO managed_order_input (id) VALUES ");
+    for (0..130) |i| {
+        if (i != 0) try writer.writeByte(',');
+        try writer.print("({d})", .{i});
+    }
+    try dml(client, writer.buffered(), 652052);
+    const manager: M = .{ .client = client };
+    const declaration = try manager.prepare(1, "managed_order_pages", 650005, 652053, "managed_order_output", "SELECT id FROM managed_order_input ORDER BY id DESC", options);
+    _ = try manager.publish(declaration);
+    try control(manager, declaration, .authorize, 652054);
+    try control(manager, declaration, .activate, 652055);
+    try drain(manager, declaration, init.io, .cwd());
+    try verifyOrderedPages(init, client);
+}
+
+fn verifyOrderedPages(init: std.process.Init, client: c.DirectTableClient) !void {
+    const manager: M = .{ .client = client };
+    const declaration = (try manager.find(1, try .init("managed_order_pages"))).?;
+    defer declaration.deinit();
+    var reader = try q.ManagedRevision.open(manager, declaration.value, 1, .{});
+    defer reader.deinit();
+    var output: std.heap.ArenaAllocator = .init(init.gpa);
+    defer output.deinit();
+    var count_: usize = 0;
+    while (try reader.next(&output)) |row| {
+        try t.expectEqual(count_, row.identity.ordinal);
+        try t.expectEqual(@as(i128, @intCast(129 - count_)), row.cells[0].value.atom.signed);
+        count_ += 1;
+        _ = output.reset(.retain_capacity);
+    }
+    try t.expectEqual(@as(usize, 130), count_);
+    try t.expectEqual(@as(u64, 3), reader.sequence);
+    try t.expect(reader.complete);
 }
 
 pub fn verify(init: std.process.Init, client: c.DirectTableClient, path: []const u8, admin: anytype, role: u64) !void {
+    try verifyOrderedPages(init, client);
     const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, path, init.arena.allocator(), .limited(M.max_definition_bytes));
     const declaration = try c.protocol.Json.parseFromSlice(M.Declaration, init.gpa, bytes);
     defer declaration.deinit();
@@ -428,6 +470,14 @@ pub fn verify(init: std.process.Init, client: c.DirectTableClient, path: []const
         _ = try admin.change(.{ .transfer_object = .{ .object = object, .owner = role } });
     }
     try retained(manager, declaration.value, 1, &.{ 1, 2, 3 });
+    try ddl(client, "CREATE TABLE managed_grouped_output (id BIGINT PRIMARY KEY)", 652039, 652049);
+    const grouped = try manager.prepare(1, "managed_grouped_order", 650004, 652040, "managed_grouped_output", "SELECT id FROM managed_input GROUP BY id HAVING COUNT(*) >= 1 ORDER BY id DESC LIMIT 2", options);
+    _ = try manager.publish(grouped);
+    try control(manager, grouped, .authorize, 652041);
+    try control(manager, grouped, .activate, 652042);
+    try drain(manager, grouped, init.io, .cwd());
+    try retained(manager, grouped, 1, &.{ 4, 3 });
+    try control(manager, grouped, .retire, 652043);
 }
 
 pub fn incomplete(init: std.process.Init, client: c.DirectTableClient, path: []const u8) !void {

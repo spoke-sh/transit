@@ -8,8 +8,8 @@ const values = @import("RelationalValues.zig");
 const native = @import("transit_protocol").Growth;
 const Self = @This();
 pub const fixed_bytes = 8192;
-pub const max_bytes = fixed_bytes + 2 * values.max_text_bytes;
-pub const Phase = enum(u8) { input = 1, empty_right = 2, output = 3, complete = 4, failed = 5 };
+pub const max_bytes = fixed_bytes + 3 * values.max_text_bytes;
+pub const Phase = enum(u8) { input = 1, empty_right = 2, output = 3, complete = 4, failed = 5, sorting = 6 };
 binding: [32]u8,
 root: ?Index.Reference,
 phase: Phase = .input,
@@ -19,6 +19,8 @@ after_right: ?r.RowIdentity = null,
 matched: bool = false,
 right_covered: bool = false,
 group_count: u64 = 0,
+sorted_count: u64 = 0,
+visited_groups: u64 = 0,
 after_group: ?e.Key = null,
 work: u64 = 0,
 result_rows: u64 = 0,
@@ -31,15 +33,17 @@ pub fn bufferBytes(plan: r.Plan) !usize {
     try plan.validate();
     var bytes: usize = fixed_bytes;
     if (plan.join != null) for (plan.sources[0].schema.columns) |column| {
-        if (column.type == .utf8) {
+        if (values.variable(column.type)) {
             bytes += values.max_text_bytes;
             break;
         }
     };
-    for (plan.group_by) |reference| if ((try plan.resolveColumn(reference)).type == .utf8) {
+    var keys_buf: [r.max_groups]r.Column = undefined;
+    for (plan.keyColumns(&keys_buf)) |reference| if (values.variable((try plan.resolveColumn(reference)).type)) {
         bytes += values.max_text_bytes;
         break;
     };
+    if (plan.hasAggregateOrder()) bytes += values.max_text_bytes;
     return bytes;
 }
 
@@ -73,8 +77,8 @@ pub fn validate(self: Self, bound: r.Bound) !void {
     if (self.work > plan.budgets.work_steps or self.result_rows > plan.budgets.output_rows or self.result_bytes > plan.budgets.result_bytes) return error.InvalidRelationalCheckpoint;
     if (self.root) |root| {
         try Index.validateReference(root);
-        if (root.entries != self.group_count) return error.InvalidRelationalCheckpoint;
-    } else if (self.group_count != 0) return error.InvalidRelationalCheckpoint;
+        if (root.entries != try std.math.add(u64, self.group_count, self.sorted_count)) return error.InvalidRelationalCheckpoint;
+    } else if (self.group_count != 0 or self.sorted_count != 0) return error.InvalidRelationalCheckpoint;
     for ([_]?r.RowIdentity{ self.after_left, self.after_right }) |id| if (id) |value| try value.validate();
     if (plan.join == null and (self.left != null or self.after_right != null or self.matched or self.right_covered or self.phase == .empty_right)) return error.InvalidRelationalCheckpoint;
     if (self.left) |row| {
@@ -83,25 +87,35 @@ pub fn validate(self: Self, bound: r.Bound) !void {
         if (self.after_left == null or !std.meta.eql(row.identity, self.after_left.?) or (self.phase != .input and self.phase != .failed)) return error.InvalidRelationalCheckpoint;
         const schema = plan.sources[0].schema;
         for (row.values, 0..) |value, i| {
-            if (i >= schema.columns.len or (schema.columns[i].type != .int64 and schema.columns[i].type != .utf8)) {
+            if (i >= schema.columns.len or !values.supported(schema.columns[i].type)) {
                 if (value != null) return error.InvalidRelationalCheckpoint;
             } else try values.validate(value, schema.columns[i]);
         }
     }
+    const uses_groups = plan.usesGroups();
     if (self.after_group) |key| {
         try checkKey(key, plan);
-        if (!grouped(plan) or (self.phase != .output and self.phase != .complete and self.phase != .failed)) return error.InvalidRelationalCheckpoint;
+        if (!uses_groups or (self.phase != .sorting and self.phase != .output and self.phase != .complete and self.phase != .failed)) return error.InvalidRelationalCheckpoint;
     }
-    if (!grouped(plan)) {
-        if (self.root != null or self.group_count != 0 or self.after_group != null or self.phase == .output) return error.InvalidRelationalCheckpoint;
+    if (!uses_groups) {
+        if (self.root != null or self.group_count != 0 or self.after_group != null or (self.phase == .output or self.phase == .sorting)) return error.InvalidRelationalCheckpoint;
+        if (plan.limit) |limit| if (self.result_rows > limit) return error.InvalidRelationalCheckpoint;
     } else {
         if (self.result_rows > self.group_count or ((self.phase == .input or self.phase == .empty_right) and self.result_rows != 0)) return error.InvalidRelationalCheckpoint;
-        if (self.phase == .complete and self.result_rows != self.group_count) return error.InvalidRelationalCheckpoint;
-        if (self.phase != .failed and ((self.after_group == null) != (self.result_rows == 0))) return error.InvalidRelationalCheckpoint;
+        if (plan.limit) |limit| if (self.result_rows > limit) return error.InvalidRelationalCheckpoint;
+        const total = if (plan.hasAggregateOrder() and self.phase != .sorting) self.sorted_count else self.group_count;
+        if (self.visited_groups > total or self.sorted_count > self.group_count) return error.InvalidRelationalCheckpoint;
+        if (!plan.hasAggregateOrder() and (self.sorted_count != 0 or self.phase == .sorting)) return error.InvalidRelationalCheckpoint;
+        if (self.phase == .complete and plan.limit == null and self.visited_groups != total) return error.InvalidRelationalCheckpoint;
+        if (self.phase == .sorting and self.result_rows != 0) return error.InvalidRelationalCheckpoint;
+        if (self.phase != .failed and self.after_group == null and self.result_rows != 0) return error.InvalidRelationalCheckpoint;
+        if (self.phase != .failed and self.phase != .sorting and plan.having.instructions.len == 0 and self.after_group != null and self.result_rows == 0) return error.InvalidRelationalCheckpoint;
     }
     if (self.failure) |failure| {
         if (self.after_group != null or self.result_rows != 0) return error.InvalidRelationalCheckpoint;
-        if (self.phase != .failed or failure.output >= plan.outputs.len or plan.outputs[failure.output].expression == .column) return error.InvalidRelationalCheckpoint;
+        var states_buf: [r.max_outputs]r.Expression = undefined;
+        const states = try plan.stateExpressions(&states_buf);
+        if (self.phase != .failed or !grouped(plan) or failure.output >= states.len or states[failure.output] == .column) return error.InvalidRelationalCheckpoint;
         try failure.pair.left.validate();
         if (failure.pair.right) |right| {
             if (plan.join == null) return error.InvalidRelationalCheckpoint;
@@ -114,18 +128,11 @@ pub fn validate(self: Self, bound: r.Bound) !void {
     const size = (try (try plan.outputSchema(&fields)).encode(&schema_bytes)).len;
     if (self.result_bytes < size) return error.InvalidRelationalCheckpoint;
     const minimum = std.math.mul(u64, self.result_rows, plan.outputs.len * 5) catch return error.InvalidRelationalCheckpoint;
-    const maximum = std.math.mul(u64, self.result_rows, plan.outputs.len * 13 + values.max_text_bytes) catch std.math.maxInt(u64);
+    const maximum = std.math.mul(u64, self.result_rows, plan.outputs.len * 21 + values.max_text_bytes) catch std.math.maxInt(u64);
     if (self.result_bytes - size < minimum or self.result_bytes - size > maximum) return error.InvalidRelationalCheckpoint;
 }
 fn checkKey(key: e.Key, plan: r.Plan) !void {
-    if (key.len != plan.group_by.len) return error.InvalidRelationalCheckpoint;
-    _ = try values.payloadLength(key.values[0..key.len]);
-    for (key.values[0..key.len], plan.group_by) |value, reference| {
-        var column = try plan.resolveColumn(reference);
-        column.nullable = true;
-        try values.validate(value, column);
-    }
-    for (key.values[key.len..]) |value| if (value != null) return error.InvalidRelationalCheckpoint;
+    key.validate(plan) catch return error.InvalidRelationalCheckpoint;
 }
 fn definition() [32]u8 {
     var bytes: [32]u8 = undefined;
@@ -156,7 +163,7 @@ pub fn writeTo(self: Self, bound: r.Bound, writer: *std.Io.Writer) !void {
     }
     try writer.writeByte(@intFromBool(self.matched));
     try writer.writeByte(@intFromBool(self.right_covered));
-    inline for (.{ "group_count", "work", "result_rows", "result_bytes" }) |field| try writer.writeInt(u64, @field(self, field), .little);
+    inline for (.{ "group_count", "sorted_count", "visited_groups", "work", "result_rows", "result_bytes" }) |field| try writer.writeInt(u64, @field(self, field), .little);
     try writer.writeByte(@intFromBool(self.after_group != null));
     if (self.after_group) |key| try writeKey(writer, key);
     try writer.writeByte(@intFromBool(self.failure != null));
@@ -184,7 +191,7 @@ pub fn decode(allocator: std.mem.Allocator, bound: r.Bound, bytes: []const u8) !
     }
     self.matched = try boolean(&reader);
     self.right_covered = try boolean(&reader);
-    inline for (.{ "group_count", "work", "result_rows", "result_bytes" }) |field| @field(self, field) = try reader.takeInt(u64, .little);
+    inline for (.{ "group_count", "sorted_count", "visited_groups", "work", "result_rows", "result_bytes" }) |field| @field(self, field) = try reader.takeInt(u64, .little);
     if (try boolean(&reader)) self.after_group = try readKey(&reader, bound.plan);
     if (try boolean(&reader)) self.failure = .{ .pair = .{ .left = try r.RowIdentity.decode(try reader.takeArray(20)), .right = try readId(&reader) }, .output = try reader.takeByte(), .group = try readKey(&reader, bound.plan) };
     if (reader.bufferedLen() != 0) return error.InvalidRelationalCheckpoint;
@@ -207,10 +214,8 @@ fn readId(reader: *std.Io.Reader) !?r.RowIdentity {
     return if (try boolean(reader)) try r.RowIdentity.decode(try reader.takeArray(20)) else null;
 }
 fn writeKey(writer: *std.Io.Writer, key: e.Key) !void {
-    for (key.values[0..key.len]) |value| try values.write(writer, value);
+    try key.write(writer);
 }
 fn readKey(reader: *std.Io.Reader, plan: r.Plan) !e.Key {
-    var key: e.Key = .{ .len = @intCast(plan.group_by.len) };
-    for (key.values[0..key.len]) |*value| value.* = try values.read(reader);
-    return key;
+    return e.Key.read(reader, plan);
 }

@@ -83,10 +83,12 @@ not depend on reading that participant to discover its pending transaction.
 `ManagedRevision.open(manager, declaration, revision, limits)` reads one completed
 revision from its immutable schema and row pages, independently of later output
 Table writes. `next(&output)` copies each row into a caller-owned arena; reset
-that arena only after consuming its rows. Call `validateDisclosure` after buffering
+that arena only after consuming its rows. Rows follow ascending evaluation ordinal
+through a bounded forward page-reference chain, including across page boundaries.
+An unordered SQL read of the mutable output Table has no such ordering guarantee. Call `validateDisclosure` after buffering
 and before exposing schema, metadata or rows. Reads recheck current source, output
 and control access, including empty and terminal results. Defaults bound consumption
-to 10,000 rows and 16 MiB of encoded manifest/page bytes. Budget stops and failures
+to 10,000 rows and 16 MiB of encoded manifest/link/page bytes. Budget stops and failures
 do not establish completion. `deinit` frees local memory without releasing the
 retained revision or retiring the computation. Result pages and manifests use
 transaction-owned immutable records. Their original transaction retains them

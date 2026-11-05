@@ -16,6 +16,7 @@ positions: [r.max_sources]q.protocol.DataLifecycle.Position = undefined,
 schemas: [r.max_sources]?f.TableSchema.Owned = @splat(null),
 sources: [r.max_sources]r.Source = undefined,
 plan: r.Plan,
+parameters: f.RelationalSql.Parameters = .{},
 access: c.TableAuthority.Access = .read,
 catalog: ?q.protocol.DataLifecycle.Snapshot = null,
 pub const resident_base = @sizeOf(Self) + r.max_sources * f.TableSchema.max_bytes;
@@ -75,7 +76,8 @@ pub fn prepareProjectedAt(allocator: std.mem.Allocator, clients: []const c.Direc
         self.sources[i] = .{ .alias = target.alias, .realm = connection.scope.realm, .resource = connection.scope.resource, .catalog = connection.scope.catalog, .owner = connection.audience, .schema = self.schemas[i].?.schema };
     }
     self.access = access;
-    self.plan = try self.syntax.bind(self.sources[0..clients.len], lifetime, options.budgets, location);
+    self.parameters = .{};
+    self.plan = try self.syntax.bindParameters(self.syntax.arena.allocator(), self.sources[0..clients.len], lifetime, options.budgets, location, &self.parameters, null);
     try self.validate(clients[0]);
     return self;
 }
@@ -87,6 +89,19 @@ pub fn validate(self: *const Self, client: c.DirectTableClient) !void {
     }
     const response = try client.call(.{ .check_set = checks[0..self.syntax.targets.len] });
     defer response.deinit();
+}
+pub fn parameterTypes(self: *const Self) []const f.Types.Type {
+    return self.parameters.slice();
+}
+/// Instantiate separately owned operands without changing the prepared source
+/// declarations or its metadata-only witness plan.
+pub fn bindValues(self: *const Self, allocator: std.mem.Allocator, values: []const ?f.Types.Values.Atom) !f.RelationalCodec.Owned {
+    var arena: std.heap.ArenaAllocator = .init(allocator);
+    defer arena.deinit();
+    var parameters: f.RelationalSql.Parameters = .{};
+    const plan = try self.syntax.bindParameters(arena.allocator(), self.plan.sources, self.plan.lifetime, self.plan.budgets, null, &parameters, values);
+    const bytes = try arena.allocator().alloc(u8, f.RelationalCodec.max_bytes);
+    return f.RelationalCodec.decode(allocator, try f.RelationalCodec.encode(plan, bytes));
 }
 /// Local binding validity is separate from current-name resolution. A retained
 /// reader checks current rights against its snapshots before every disclosure.
@@ -132,6 +147,7 @@ pub fn fromRetained(allocator: std.mem.Allocator, client: c.DirectTableClient, n
         try q.DirectTableQuery.qualify(self.schemas[i].?.schema);
         self.sources[i] = .{ .alias = target.alias, .realm = client.connection.scope.realm, .resource = client.connection.scope.resource, .catalog = client.connection.scope.catalog, .owner = client.connection.audience, .schema = self.schemas[i].?.schema };
     }
+    self.parameters = .{};
     self.plan = try self.syntax.bind(self.sources[0..bindings.len], .interactive, options.budgets, location);
     try self.validateBindings(client);
     // Recheck every source together after buffering all original schemas.

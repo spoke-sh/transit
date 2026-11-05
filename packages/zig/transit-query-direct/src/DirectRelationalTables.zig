@@ -16,6 +16,7 @@ cuts: [r.max_sources]r.Cut = undefined,
 requests: u64 = 0,
 request_limit: u64,
 closed: bool = false,
+projection: e.Projection = .{},
 
 pub fn open(allocator: std.mem.Allocator, client: c.DirectTableClient, snapshots: []const c.DirectTableProtocol.Snapshot, sources: []const r.Source, requests: u64, cancellation: ?*const std.atomic.Value(bool)) !Self {
     return openAt(allocator, client, snapshots, sources, requests, cancellation, null);
@@ -90,5 +91,5 @@ pub fn next(self: *Self, source: u8, after: ?r.RowIdentity) !?e.Row {
     defer self.requests += scan.requests - before;
     var row = (try scan.nextAfter(after)) orelse return null;
     defer row.deinit();
-    return try e.Row.fromCells(self.allocator, scan.after.?, self.declarations[source].schema.columns, row.cells);
+    return try self.projection.row(self.allocator, scan.after.?, source, self.declarations[source].schema.columns, row.cells);
 }

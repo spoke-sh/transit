@@ -12,6 +12,7 @@ import {
 import { TableStorage } from "./relational-storage";
 import { QueryDiagnostic } from "./query-diagnostic";
 import type { Diagnostic } from "@transit/query-client";
+import { logicalCellValid, logicalCellText } from "@transit/query-client/logical";
 
 type Open = Extract<
   Extract<RelationalRequest, { query: unknown }>["query"],
@@ -125,16 +126,7 @@ export function RelationalWorkspace() {
         (value.row.cells.length !== opened.description.columns.length ||
           value.row.cells.some((cell, index) => {
             const column = opened.description.columns[index]!;
-            if ("null" in cell) return !column.nullable;
-            return (
-              !("value" in cell) ||
-              !("atom" in cell.value) ||
-              ("int64" in column.type
-                ? !("signed" in cell.value.atom)
-                : "uint64" in column.type
-                  ? !("unsigned" in cell.value.atom)
-                  : !("utf8" in column.type) || !("utf8" in cell.value.atom))
-            );
+            return !logicalCellValid(cell, column);
           }))
       )
         throw new BoardError(0, "InvalidResponse");
@@ -409,17 +401,7 @@ export function RelationalWorkspace() {
                   <tr>
                     {page.row.cells.map((cell, index) => (
                       <td key={index}>
-                        {"null" in cell
-                          ? "NULL"
-                          : "value" in cell && "atom" in cell.value
-                            ? "signed" in cell.value.atom
-                              ? cell.value.atom.signed
-                              : "unsigned" in cell.value.atom
-                                ? cell.value.atom.unsigned
-                                : "utf8" in cell.value.atom
-                                  ? JSON.stringify(cell.value.atom.utf8)
-                                  : "Invalid scalar"
-                            : "Invalid cell"}
+                        {logicalCellText(cell, opened.description.columns[index]!.type)}
                       </td>
                     ))}
                   </tr>

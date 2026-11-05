@@ -159,12 +159,21 @@ def run(binary):
                 initial_json = json.loads(initial_status.stdout)
                 assert initial_json['outcome'] == 'inspected' and initial_json['versions'] == [], initial_json
 
-                order_by_probe = run_cli(
-                    root, env, cli, '02-order-by-diagnostic',
+                order_by_ok = run_cli(
+                    root, env, cli, '02a-order-by-supported',
                     'console', '--no-rc', '--format', 'json',
                     input_text=(
                         "CREATE TABLE platform_migrations (version TEXT PRIMARY KEY);\n"
                         "SELECT version FROM platform_migrations ORDER BY version;\n"
+                    ),
+                )
+                assert order_by_ok.returncode == 0, (order_by_ok.returncode, order_by_ok.stdout, order_by_ok.stderr)
+
+                order_by_probe = run_cli(
+                    root, env, cli, '02-order-by-diagnostic',
+                    'console', '--no-rc', '--format', 'json',
+                    input_text=(
+                        "SELECT * FROM platform_migrations ORDER BY version;\n"
                     ),
                 )
                 assert order_by_probe.returncode != 0, order_by_probe.stdout

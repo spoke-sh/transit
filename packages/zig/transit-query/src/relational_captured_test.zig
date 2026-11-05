@@ -12,6 +12,13 @@ fn roundtrip(allocator: std.mem.Allocator, bytes: []const u8) !void {
     var output: [Bundle.max_bytes]u8 = undefined;
     try t.expectEqualSlices(u8, bytes, try owned.bundle.encode(&output));
 }
+test "relational native maintained deltas refuse finite output ordering" {
+    var fixture = try Fixture.init(t.allocator, .maintained, false);
+    defer fixture.deinit();
+    fixture.bundle.plan.order_by = &.{.{ .expression = .count_all, .direction = .desc, .nulls = .last }};
+    try fixture.bundle.plan.validate();
+    try t.expectError(error.UnsupportedRelationalClause, fixture.bundle.validate());
+}
 test "direct captured bundles preserve signed grants across truncation and allocation failure" {
     var fixture = try Fixture.init(t.allocator, .captured, false);
     defer fixture.deinit();

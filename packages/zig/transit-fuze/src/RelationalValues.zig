@@ -4,15 +4,73 @@ const std = @import("std");
 const table = @import("TableSchema.zig");
 const types = @import("Types.zig");
 const collation = @import("Collation.zig");
-pub const Literal = union(enum) { integer: i64, text: []const u8 };
+pub const Literal = union(enum(u8)) {
+    integer: i64 = 1,
+    text: []const u8 = 2,
+    unsigned: u64 = 3,
+    float: f64 = 4,
+    decimal: i128 = 5,
+    boolean: bool = 6,
+    date: i32 = 7,
+    time: u64 = 8,
+    timestamp: i64 = 9,
+    uuid: [16]u8 = 10,
+    binary: []const u8 = 11,
+};
+/// Largest fixed scalar encoding (tag plus decimal/UUID payload).
+pub const fixed_bytes = 17;
+pub fn supported(kind: types.Type) bool {
+    return switch (kind) {
+        .boolean, .int64, .uint64, .float64, .decimal, .date, .time, .timestamp, .uuid, .utf8, .binary => true,
+        else => false,
+    };
+}
+pub fn variable(kind: types.Type) bool {
+    return kind == .utf8 or kind == .binary;
+}
+fn payload(value: Literal) ?[]const u8 {
+    return switch (value) {
+        .text, .binary => |bytes| bytes,
+        else => null,
+    };
+}
+fn setPayload(value: *Literal, bytes: []const u8) void {
+    switch (value.*) {
+        .text => value.text = bytes,
+        .binary => value.binary = bytes,
+        else => unreachable,
+    }
+}
+pub fn encodedLength(value: Value) usize {
+    const present = value orelse return 1;
+    return 1 + switch (present) {
+        .text, .binary => |bytes| 4 + bytes.len,
+        .decimal, .uuid => @as(usize, 16),
+        .boolean => @as(usize, 1),
+        .date => @as(usize, 4),
+        else => @as(usize, 8),
+    };
+}
+pub fn cellBytes(value: types.Values.Cell) !usize {
+    if (value == .null) return 5;
+    if (value != .value or value.value != .atom) return error.InvalidRelationalOutput;
+    return 5 + @as(usize, switch (value.value.atom) {
+        .signed, .unsigned, .float, .time, .timestamp => 8,
+        .decimal, .uuid => 16,
+        .boolean => 1,
+        .date => 4,
+        .bytes => |bytes| bytes.len,
+        else => return error.InvalidRelationalOutput,
+    });
+}
 pub const Value = ?Literal;
 pub const max_text_bytes = (types.Limits{}).value_bytes;
 
 pub fn payloadLength(values: []const Value) !usize {
     var length: usize = 0;
-    for (values) |value| if (value) |present| if (present == .text) {
-        if (present.text.len > max_text_bytes - length) return error.RelationalResidentBudget;
-        length += present.text.len;
+    for (values) |value| if (value) |present| if (payload(present)) |bytes| {
+        if (bytes.len > max_text_bytes - length) return error.RelationalResidentBudget;
+        length += bytes.len;
     };
     return length;
 }
@@ -21,16 +79,27 @@ pub fn cell(value: Value) types.Values.Cell {
     const atom = value orelse return .null;
     return .{ .value = .{ .atom = switch (atom) {
         .integer => |v| .{ .signed = v },
-        .text => |v| .{ .bytes = v },
+        .text, .binary => |v| .{ .bytes = v },
+        inline else => |v, tag| @unionInit(types.Values.Atom, @tagName(tag), v),
     } } };
 }
 pub fn fromCell(value: types.Values.Cell, column: table.Column) !Value {
     const result: Value = if (value == .null) null else blk: {
         if (value != .value or value.value != .atom) return error.InvalidRelationalSourceRow;
         const atom = value.value.atom;
+        try types.Semantics.validate(atom, column.type);
         break :blk switch (column.type) {
-            .int64 => if (atom == .signed) .{ .integer = std.math.cast(i64, atom.signed) orelse return error.InvalidRelationalSourceRow } else return error.InvalidRelationalSourceRow,
-            .utf8 => if (atom == .bytes) .{ .text = atom.bytes } else return error.InvalidRelationalSourceRow,
+            .int64 => .{ .integer = @intCast(atom.signed) },
+            .uint64 => .{ .unsigned = @intCast(atom.unsigned) },
+            .utf8 => .{ .text = atom.bytes },
+            .binary => .{ .binary = atom.bytes },
+            .float64 => .{ .float = atom.float },
+            .decimal => .{ .decimal = atom.decimal },
+            .boolean => .{ .boolean = atom.boolean },
+            .date => .{ .date = atom.date },
+            .time => .{ .time = atom.time },
+            .timestamp => .{ .timestamp = atom.timestamp },
+            .uuid => .{ .uuid = atom.uuid },
             else => return error.UnsupportedRelationalType,
         };
     };
@@ -38,18 +107,16 @@ pub fn fromCell(value: types.Values.Cell, column: table.Column) !Value {
     return result;
 }
 pub fn validate(value: Value, column: table.Column) !void {
-    if (column.type != .int64 and column.type != .utf8) return error.UnsupportedRelationalType;
+    if (!supported(column.type)) return error.UnsupportedRelationalType;
     const present = value orelse {
         if (!column.nullable) return error.InvalidRelationalSourceRow;
         return;
     };
-    switch (present) {
-        .integer => if (column.type != .int64) return error.InvalidRelationalSourceRow,
-        .text => |bytes| {
-            if (column.type != .utf8 or bytes.len > max_text_bytes) return error.InvalidRelationalSourceRow;
-            try types.Semantics.validate(.{ .bytes = bytes }, .utf8);
-            try collation.validateBytes(bytes, column.collation);
-        },
+    if ((present == .text and column.type != .utf8) or (present == .binary and column.type != .binary)) return error.InvalidRelationalSourceRow;
+    types.Semantics.validate(cell(value).value.atom, column.type) catch return error.InvalidRelationalSourceRow;
+    if (payload(present)) |bytes| {
+        if (bytes.len > max_text_bytes) return error.InvalidRelationalSourceRow;
+        if (present == .text) try collation.validateBytes(bytes, column.collation);
     }
 }
 /// NULL sorts first for group identity; it never establishes a join match.
@@ -86,18 +153,18 @@ pub const Buffer = struct {
     pub fn copy(allocator: std.mem.Allocator, values: []Value) !Buffer {
         const length = try payloadLength(values);
         if (length == 0) {
-            for (values) |*value| if (value.*) |*present| if (present.* == .text) {
-                present.text = "";
+            for (values) |*value| if (value.*) |*present| if (payload(present.*) != null) {
+                setPayload(present, "");
             };
             return .{};
         }
         const bytes = try allocator.alloc(u8, length);
         var offset: usize = 0;
-        for (values) |*value| if (value.*) |*present| if (present.* == .text) {
-            const destination = bytes[offset..][0..present.text.len];
-            @memcpy(destination, present.text);
+        for (values) |*value| if (value.*) |*present| if (payload(present.*)) |source| {
+            const destination = bytes[offset..][0..source.len];
+            @memcpy(destination, source);
             offset += destination.len;
-            present.text = destination;
+            setPayload(present, destination);
         };
         return .{ .allocator = allocator, .bytes = bytes };
     }
@@ -112,7 +179,7 @@ pub const Buffer = struct {
             if (value == .null) continue;
             if (value != .value or value.value != .atom) return error.InvalidRelationalOutput;
             switch (value.value.atom) {
-                .signed, .unsigned => {},
+                .signed, .unsigned, .float, .decimal, .boolean, .date, .time, .timestamp, .uuid => {},
                 .bytes => |bytes| {
                     if (bytes.len > max_text_bytes - length) return error.RelationalResidentBudget;
                     length += bytes.len;
@@ -140,30 +207,39 @@ pub const Buffer = struct {
 
 pub fn write(writer: *std.Io.Writer, value: Value) !void {
     const present = value orelse return writer.writeByte(0);
+    try writer.writeByte(@backingInt(std.meta.activeTag(present)));
     switch (present) {
-        .integer => |integer| {
-            try writer.writeByte(1);
-            try writer.writeInt(i64, integer, .little);
-        },
-        .text => |bytes| {
+        .text, .binary => |bytes| {
             if (bytes.len > max_text_bytes) return error.InvalidRelationalSourceRow;
-            try writer.writeByte(2);
             try writer.writeInt(u32, @intCast(bytes.len), .little);
             try writer.writeAll(bytes);
         },
+        .float => |number| try writer.writeInt(u64, @bitCast(number), .little),
+        .boolean => |flag| try writer.writeByte(@intFromBool(flag)),
+        .uuid => |bytes| try writer.writeAll(&bytes),
+        inline else => |number| try writer.writeInt(@TypeOf(number), number, .little),
     }
 }
-/// Returned text borrows the encoded record until the caller copies its vector.
+/// Returned bytes borrow the record until the caller copies its vector.
 pub fn read(reader: *std.Io.Reader) !Value {
-    return switch (try reader.takeByte()) {
-        0 => null,
-        1 => .{ .integer = try reader.takeInt(i64, .little) },
-        2 => blk: {
+    const tag = try reader.takeByte();
+    if (tag == 0) return null;
+    const kind = std.enums.fromInt(std.meta.Tag(Literal), tag) orelse return error.InvalidRelationalSourceRow;
+    return switch (kind) {
+        .text, .binary => blk: {
             const length = try reader.takeInt(u32, .little);
             if (length > max_text_bytes) return error.InvalidRelationalSourceRow;
-            break :blk .{ .text = try reader.take(length) };
+            const bytes = try reader.take(length);
+            break :blk if (kind == .text) .{ .text = bytes } else .{ .binary = bytes };
         },
-        else => error.InvalidRelationalSourceRow,
+        .float => .{ .float = @bitCast(try reader.takeInt(u64, .little)) },
+        .boolean => .{ .boolean = switch (try reader.takeByte()) {
+            0 => false,
+            1 => true,
+            else => return error.InvalidRelationalSourceRow,
+        } },
+        .uuid => .{ .uuid = (try reader.takeArray(16)).* },
+        inline else => |field| @unionInit(Literal, @tagName(field), try reader.takeInt(@FieldType(Literal, @tagName(field)), .little)),
     };
 }
 
@@ -268,4 +344,44 @@ test "relational text ownership survives scratch reuse and allocation failure" {
     try t.expectEqualStrings("AbC", (try read(&reader)).?.text);
     try t.expectEqualStrings("", (try read(&reader)).?.text);
     try t.expectEqual(@as(usize, 0), reader.bufferedLen());
+}
+
+test "relational scalar keys retain exact types through ordering encoding and owned rows" {
+    const t = std.testing;
+    const Case = struct { kind: types.Type, low: Literal, high: Literal };
+    const cases = [_]Case{
+        .{ .kind = .boolean, .low = .{ .boolean = false }, .high = .{ .boolean = true } },
+        .{ .kind = .uint64, .low = .{ .unsigned = 9223372036854775808 }, .high = .{ .unsigned = std.math.maxInt(u64) } },
+        .{ .kind = .float64, .low = .{ .float = -1.25 }, .high = .{ .float = 2.5 } },
+        .{ .kind = .{ .decimal = .{ .precision = 38, .scale = 2 } }, .low = .{ .decimal = -9223372036854775809 }, .high = .{ .decimal = 9223372036854775809 } },
+        .{ .kind = .date, .low = .{ .date = -1 }, .high = .{ .date = 1 } },
+        .{ .kind = .time, .low = .{ .time = 1 }, .high = .{ .time = 86399999999999 } },
+        .{ .kind = .{ .timestamp = .utc }, .low = .{ .timestamp = -1 }, .high = .{ .timestamp = 1 } },
+        .{ .kind = .uuid, .low = .{ .uuid = @splat(0) }, .high = .{ .uuid = @splat(255) } },
+        .{ .kind = .binary, .low = .{ .binary = "\x00\xff" }, .high = .{ .binary = "\xff\x00" } },
+    };
+    for (cases) |case| {
+        const column: table.Column = .{ .id = 1, .name = "k", .type = case.kind, .nullable = true };
+        try t.expectEqual(std.math.Order.lt, try order(case.low, case.high, column));
+        try t.expectEqual(std.math.Order.lt, try order(null, case.low, column));
+        var bytes: [128]u8 = undefined;
+        var writer: std.Io.Writer = .fixed(&bytes);
+        try write(&writer, case.high);
+        var reader: std.Io.Reader = .fixed(writer.buffered());
+        const decoded = try read(&reader);
+        try t.expectEqual(std.math.Order.eq, try order(case.high, decoded, column));
+        try t.expectEqual(std.math.Order.eq, try order(case.high, try fromCell(cell(decoded), column), column));
+        var first: std.crypto.hash.sha2.Sha256 = .init(.{});
+        var second = first;
+        try hashInto(&first, case.high, column);
+        try hashInto(&second, decoded, column);
+        try t.expectEqual(first.finalResult(), second.finalResult());
+        var owned_values = [_]Value{decoded};
+        var owned = try Buffer.copy(t.allocator, &owned_values);
+        defer owned.deinit();
+        @memset(&bytes, 0);
+        try t.expectEqual(std.math.Order.eq, try order(case.high, owned_values[0], column));
+    }
+    try t.expectError(error.InvalidRelationalSourceRow, validate(.{ .float = std.math.nan(f64) }, .{ .id = 1, .name = "x", .type = .float64 }));
+    try t.expectError(error.InvalidRelationalSourceRow, validate(.{ .decimal = 1000 }, .{ .id = 1, .name = "x", .type = .{ .decimal = .{ .precision = 3, .scale = 1 } } }));
 }

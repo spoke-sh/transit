@@ -58,7 +58,7 @@ test "spill quota work cancellation and torn records poison the incomplete owner
     defer tmp.cleanup();
     const cuts = [_]r.Cut{try cut()};
     var definition = plan();
-    definition.budgets.spill_bytes = 152; // One fixed record with one key and two outputs.
+    definition.budgets.spill_bytes = 177; // One fixed record with one key and two outputs.
     var spill = try Spill.open(t.allocator, t.io, tmp.dir, "quota", .{ .plan = definition, .cuts = &cuts }, 1000, null);
     defer spill.deinit();
     try spill.put(group(1, 1));
@@ -97,6 +97,38 @@ const Source = struct {
         return row;
     }
 };
+test "private disk ordering stages complete rows and hidden aggregate sort keys" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    const cuts = [_]r.Cut{try cut()};
+    for ([_]bool{ false, true }) |grouped| {
+        var definition = plan();
+        if (!grouped) definition.group_by = &.{};
+        definition.outputs = &.{.{ .name = "key", .expression = .{ .column = .{ .source = 0, .id = 1 } } }};
+        definition.order_by = &.{.{ .expression = if (grouped) .{ .sum = .{ .source = 0, .id = 1 } } else .{ .column = .{ .source = 0, .id = 1 } }, .direction = .desc, .nulls = .last }};
+        definition.limit = 5;
+        const bound: r.Bound = .{ .plan = definition, .cuts = &cuts };
+        var spill = try Spill.open(t.allocator, t.io, tmp.dir, if (grouped) "aggregate-sort" else "row-sort", bound, 1000000, null);
+        defer spill.deinit();
+        var source: Source = .{};
+        var run = try e.Execution(*Source, *Spill).init(t.allocator, bound, &source, &spill);
+        defer run.deinit();
+        var seen: usize = 0;
+        while (true) switch (try run.step()) {
+            .progress => {},
+            .complete => break,
+            .row => |owned| {
+                var row = owned;
+                defer row.deinit();
+                try t.expectEqual(@as(u64, 600), spill.count);
+                try t.expectEqual(@as(i128, @intCast(299 - (if (grouped) seen else seen / 2))), row.cells[0].value.atom.signed);
+                if (!grouped) try t.expectEqual(@as(u64, @intCast(300 - seen / 2 + (seen % 2) * 300)), row.identity.pair.left.operation);
+                seen += 1;
+            },
+        };
+        try t.expectEqual(@as(usize, 5), seen);
+    }
+}
 test "finite execution groups through private disk state with fixed operator memory" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
@@ -238,7 +270,7 @@ test "text spill charges payload bytes and poisons allocation failures before di
     text_sources[0].schema.columns = &text_columns;
     var definition = plan();
     definition.sources = &text_sources;
-    definition.budgets.spill_bytes = 152 + 8192;
+    definition.budgets.spill_bytes = 177 + 8192;
     var text_cut = try cut();
     text_cut.schema = try text_sources[0].schema.fingerprint();
     const cuts = [_]r.Cut{text_cut};

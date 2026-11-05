@@ -2,8 +2,9 @@
 
 Board's Operations screen contains an explicit-submit relational worksheet.
 It uses the shared Zig [interactive caller](../../../packages/zig/transit-query/docs/relational-callers.md)
-for one or two Tables, one inner/left int64 or UTF-8 equijoin, int64/UTF-8 projection/grouping,
-COUNT and ordered checked int64 SUM. SQL declares int64 as `BIGINT`.
+for one or two Tables, one inner/left equijoin, scalar projection/grouping,
+COUNT and checked BIGINT/DECIMAL SUM. HAVING filters completed groups; ORDER BY
+and LIMIT control final output. Decimal cells render using their declared scale.
 The [relational contract](../../../contracts/RELATIONAL_V1.md) defines exact
 ordering, nulls, multiplicity, limits and unsupported forms.
 
@@ -125,7 +126,7 @@ and browser validators derive from those Zig types.
 
 Requests require an `Origin` matching the admitted Host and scheme, and JSON content type. The body
 limit is 16 KiB; responses use the browser's 256 KiB decoded limit. One page has
-at most 128 int64/uint64/UTF-8/null cells. Existing Board deadlines, shared read throttle
+at most 128 admitted scalar/null cells. Existing Board deadlines, shared read throttle
 and serialized query lock apply. The browser retries an identical pre-dispatch
 429 refusal at most three times, 250 ms apart. Other errors require explicit
 caller action. A disabled route returns `404 QueryDisabled`.

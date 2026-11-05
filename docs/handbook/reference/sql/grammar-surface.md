@@ -45,7 +45,7 @@ Every row is **Implemented — execution** within its stated profile.
 | `SHOW DATABASES`, `SHOW SCHEMAS` | Authorized configured bindings and selected database schemas | [SHOW](show.md) |
 | `SHOW STORAGE FOR name` | Direct Table storage progress through the shared SQL session and current metadata-inspection authority | [SHOW](show.md#table-storage-progress) |
 | `DESCRIBE name`, `SHOW TABLES` | Authorized configured-catalog Tables in the console, or the explicit source in query-source scope | [DESCRIBE](describe.md), [SHOW](show.md) |
-| `JOIN`, `GROUP BY`, mixed COUNT/SUM | Explicit relational Table profile: one inner/left int64 or UTF-8 equijoin, int64/UTF-8 grouping and ordered checked aggregates; separate opt-in console connection | [Table joins and grouping](relational.md) |
+| `JOIN`, `GROUP BY`, `HAVING`, `ORDER BY`, `LIMIT`, mixed COUNT/SUM | Explicit relational Table profile: one inner/left int64 or UTF-8 equijoin, int64/UTF-8 grouping, HAVING predicates, ORDER BY (`ASC`/`DESC`, `NULLS FIRST`/`NULLS LAST`), LIMIT and ordered checked aggregates; separate opt-in console connection and `CREATE DATAFLOW` | [Table joins and grouping](relational.md) |
 | `EXPLAIN SELECT ...` | Validated finite plan and output columns; no query admission or row execution; snapshot behavior depends on the inspection profile | [EXPLAIN](explain.md) |
 
 The [syntax reference](syntax.md) owns names, comments, literals and parser
@@ -127,9 +127,10 @@ application materialization, watch/refresh and connector alternatives. A finite
 result delivered in batches is not a continuous query; a retracted row cannot
 undo an external effect.
 
-The implemented Table join/group profile excludes `HAVING`, `DISTINCT`,
-arbitrary sorting, general subqueries, non-equality/full/right joins and more than
-one join. It also excludes `LIMIT` on the new composed profile; implemented
+The implemented Table join/group profile supports `HAVING`, `ORDER BY`
+(`ASC`/`DESC`, `NULLS FIRST`/`NULLS LAST`) and `LIMIT`, while excluding `DISTINCT`,
+`OFFSET`, general subqueries, non-equality/full/right joins and more than
+one join. Implemented
 single-source limits keep their existing meaning. Broader composition does not
 implicitly select every SQL operator or relax these initial bounds.
 
@@ -335,7 +336,7 @@ standards text. Runtime and installed caller checks remain separate.
 
 | Feature | Parse | Lower | Execute | Recover | Transport | Reference | Scope and limits |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| E021-E051 | implemented | implemented | implemented | implemented | implemented | unverified | Selected scalar types and collations. DECIMAL arithmetic uses bounded explicit DECIMAL_* functions with declared result precision, scale and rounding; ordered SUM widens to DECIMAL(38,s). Frozen column semantics carry exact TZif artifacts for AT TIME ZONE, TIME_BUCKET and LOCAL_TO_UTC. General infix arithmetic and host timezone lookup are not admitted. Installed native SQL exercises stored values, scalar expressions, decimal SUM and gateway restart. PostgreSQL/MySQL expose admitted boolean/float and exact decimal results (MySQL scale at most 30); range result columns remain unsupported. |
+| E021-E051 | implemented | implemented | implemented | implemented | implemented | unverified | Selected scalar types and collations. DECIMAL arithmetic uses bounded explicit DECIMAL_* functions with declared result precision, scale and rounding; single-source logical SUM widens to DECIMAL(38,s), while relational grouped SUM preserves its declared precision and scale. Finite Table GROUP BY/HAVING/ORDER BY/LIMIT admit core scalar keys and typed parameters; single-Table scalar projections share bounded scalar programs. Frozen column semantics carry exact TZif artifacts for AT TIME ZONE, TIME_BUCKET and LOCAL_TO_UTC. General infix arithmetic and host timezone lookup are not admitted. Installed native SQL exercises stored values, scalar expressions, decimal SUM and gateway restart. PostgreSQL/MySQL expose admitted boolean/float and exact decimal results (MySQL scale at most 30); range result columns remain unsupported. |
 | F031-F034 | implemented | implemented | implemented | implemented | implemented | unverified | Selected CREATE/ALTER/DROP operations, lazy projection and bounded validation scans. Populated physical rewrites reject pending the phased rewrite runtime. |
 | F491 | implemented | implemented | implemented | implemented | implemented | unverified | Table-level bounded AND comparisons and IS NULL predicates; stable IDs, NOT VALID new-write enforcement and bounded validation. OR, inline CHECK, subqueries and effects reject. |
 | F492 | implemented | implemented | staged | staged | staged | unverified | Explicit NOT ENFORCED declarations bind exact parent definitions and primary-key columns. Bounded recoverable column protection precedes publication; enforcement and referential actions require the maintained-index runtime. |

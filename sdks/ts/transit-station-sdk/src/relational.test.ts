@@ -76,6 +76,47 @@ test("relational pages preserve exact values and own their caller-selected ordin
   });
 });
 
+test("relational rows and group identities share lossless scalar decoding", async () => {
+  const atoms = [
+    { decimal: "18446744073709551618" },
+    { unsigned: "18446744073709551615" },
+    { boolean: true },
+    { date_days: "-1" },
+    { time_nanos: "86399999999999" },
+    { timestamp_micros: "-9223372036854775808" },
+    { float_bits: "000000000000f43f" },
+    { uuid: "ff".repeat(16) },
+    { binary: "00ff" },
+  ];
+  const response = {
+    page: {
+      reference,
+      ordinal: "0",
+      row: {
+        identity: { group: atoms },
+        cells: atoms.map((atom) => ({ value: { atom } })),
+      },
+      complete_coverage: false,
+    },
+  };
+  await withHost(response, async (client) => {
+    const page = await client.page(r.Reference.restore(JSON.stringify(reference)), 0n);
+    const expected = [
+      18446744073709551618n,
+      (1n << 64n) - 1n,
+      true,
+      -1n,
+      86399999999999n,
+      -(1n << 63n),
+      1.25,
+      Uint8Array.from({ length: 16 }, () => 255),
+      Uint8Array.of(0, 255),
+    ];
+    assert.deepEqual(page.row?.cells, expected);
+    assert.deepEqual(page.row?.identity, { kind: "group", keys: expected });
+  });
+});
+
 test("relational responses cannot change references, coverage or the int64 profile", async () => {
   for (const page of [
     {

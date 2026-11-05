@@ -158,6 +158,9 @@ const NoGroups = struct {
     pub fn put(_: *NoGroups, _: f.RelationalExecution.Group) !void {
         return error.UnexpectedGroupAccess;
     }
+    pub fn nextSorted(_: *NoGroups, _: ?f.RelationalExecution.Key) !?f.RelationalExecution.Group {
+        return error.UnexpectedGroupAccess;
+    }
     pub fn next(_: *NoGroups, _: ?f.RelationalExecution.Key) !?f.RelationalExecution.Group {
         return error.UnexpectedGroupAccess;
     }

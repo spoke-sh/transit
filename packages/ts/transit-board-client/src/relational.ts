@@ -5,6 +5,28 @@ import {
 } from "./relational-validators.js";
 import { request } from "./request";
 import { QueryError as BoardError } from "@transit/query-client/error";
+import {
+  boundedQueryJson,
+  logicalAtomValid,
+  logicalColumnsValid,
+  type LogicalType,
+  type LogicalCell,
+} from "@transit/query-client/logical";
+const scalarTypes: LogicalType[] = [
+  { int64: {} },
+  { uint64: {} },
+  { float64: {} },
+  { decimal: { precision: 38, scale: 0 } },
+  { boolean: {} },
+  { date: {} },
+  { time: {} },
+  { timestamp: "utc" },
+  { uuid: {} },
+  { utf8: {} },
+  { binary: {} },
+];
+type Atom = Extract<Extract<LogicalCell, { value: unknown }>["value"], { atom: unknown }>["atom"];
+const scalar = (value: Atom) => scalarTypes.some((type) => logicalAtomValid(value, type));
 export type { RelationalRequest, RelationalResponse } from "./types";
 type Result = Extract<RelationalResponse, { query: unknown }>["query"];
 type Description = Extract<Result, { explained: unknown }>["explained"];
@@ -24,11 +46,6 @@ function decimal(value: string, signed = false, nonzero = false): boolean {
   return signed
     ? number >= -(1n << 63n) && number < 1n << 63n
     : number >= (nonzero ? 1n : 0n) && number < 1n << 64n;
-}
-function textScalar(value: string): boolean {
-  if (value.length > 1024 * 1024) return false;
-  const encoded = new TextEncoder().encode(value);
-  return encoded.length <= 1024 * 1024 && new TextDecoder().decode(encoded) === value;
 }
 function reference(value: RelationalReference): boolean {
   return hex(value.id, 16) && !/^0+$/.test(value.id) && hex(value.plan, 32) && hex(value.basis, 32);
@@ -99,14 +116,14 @@ function description(value: Description): boolean {
         decimal(source.position.next_lsn, false, true) &&
         sameConnection(source.binding.connection, value.sources[0]!.binding.connection),
     ) &&
-    value.columns.length >= 1 &&
+    logicalColumnsValid(value.columns) &&
     value.columns.every(
-      (c) => !c.optional && ("int64" in c.type || "uint64" in c.type || "utf8" in c.type),
+      (c) => !c.optional && scalarTypes.some((type) => Object.keys(type)[0]! in c.type),
     )
   );
 }
 export function validateRelational(value: unknown): value is RelationalResponse {
-  if (!responseSchema(value)) return false;
+  if (!boundedQueryJson(value, 256 * 1024) || !responseSchema(value)) return false;
   const response = value as RelationalResponse;
   if ("description" in response) {
     const { capabilities, routes, recovery, active } = response.description;
@@ -205,24 +222,14 @@ export function validateRelational(value: unknown): value is RelationalResponse 
         (identity.pair.right !== null && !hex(identity.pair.right, 20))
       )
         return false;
-    } else if (
-      !identity.group.every(
-        (key) =>
-          key === null || ("signed" in key ? decimal(key.signed, true) : textScalar(key.utf8)),
-      )
-    )
-      return false;
+    } else if (!identity.group.every((key) => key === null || scalar(key))) return false;
     return (
       value.row.cells.length >= 1 &&
       value.row.cells.every((cell) => {
         if ("null" in cell) return true;
         if (!("value" in cell) || !("atom" in cell.value)) return false;
         const atom = cell.value.atom;
-        return "signed" in atom
-          ? decimal(atom.signed, true)
-          : "unsigned" in atom
-            ? decimal(atom.unsigned)
-            : "utf8" in atom && textScalar(atom.utf8);
+        return scalar(atom);
       })
     );
   }

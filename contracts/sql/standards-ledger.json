@@ -360,10 +360,11 @@
       "dependencies": [
         "UCS_BASIC"
       ],
-      "deviations": "Selected scalar types and collations. DECIMAL arithmetic uses bounded explicit DECIMAL_* functions with declared result precision, scale and rounding; ordered SUM widens to DECIMAL(38,s). Frozen column semantics carry exact TZif artifacts for AT TIME ZONE, TIME_BUCKET and LOCAL_TO_UTC. General infix arithmetic and host timezone lookup are not admitted. Installed native SQL exercises stored values, scalar expressions, decimal SUM and gateway restart. PostgreSQL/MySQL expose admitted boolean/float and exact decimal results (MySQL scale at most 30); range result columns remain unsupported.",
+      "deviations": "Selected scalar types and collations. DECIMAL arithmetic uses bounded explicit DECIMAL_* functions with declared result precision, scale and rounding; single-source logical SUM widens to DECIMAL(38,s), while relational grouped SUM preserves its declared precision and scale. Finite Table GROUP BY/HAVING/ORDER BY/LIMIT admit core scalar keys and typed parameters; single-Table scalar projections share bounded scalar programs. Frozen column semantics carry exact TZif artifacts for AT TIME ZONE, TIME_BUCKET and LOCAL_TO_UTC. General infix arithmetic and host timezone lookup are not admitted. Installed native SQL exercises stored values, scalar expressions, decimal SUM and gateway restart. PostgreSQL/MySQL expose admitted boolean/float and exact decimal results (MySQL scale at most 30); range result columns remain unsupported.",
       "corpus_sources": [
         "contracts/sql/corpus/statements.json",
-        "contracts/sql/corpus/parameters.json"
+        "contracts/sql/corpus/parameters.json",
+        "contracts/sql/corpus/relational.json"
       ],
       "states": {
         "parse": "implemented",
@@ -379,7 +380,9 @@
         "tests/interfaces/sql_sessions/native.py",
         "packages/zig/transit-fuze/src/scalar_query_test.zig",
         "tests/query/logical/scalar_programs.py",
-        "tests/interfaces/sql_sessions/history.py"
+        "tests/interfaces/sql_sessions/history.py",
+        "packages/zig/transit-fuze/src/relational_execution_test.zig",
+        "tests/interfaces/sql_wire/types.py"
       ]
     },
     {
@@ -1103,7 +1106,7 @@
       ]
     }
   ],
-  "sha256": "9d3d477837ef284578c47a03a1cc71a8f1d5953f93f0f7b4bcd97e339debae96",
+  "sha256": "6eaece580530191cfcc59e0d04180c09b4b1bf00f4df8530dd9397a134ef9442",
   "scope": "States describe public runtime entry points, not helper availability or ISO conformance. Physical codecs describe typed TableSchema admission; ENCODING syntax remains reference-only. An implemented feature covers only the stated deviations and fixtures.",
   "compiler_cases": [
     {

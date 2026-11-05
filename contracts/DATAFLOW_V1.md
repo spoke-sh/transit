@@ -118,7 +118,7 @@ authorizes expiry, silent cancellation or discarding accepted work.
 `transit-query-direct.ManagedTable` owns `DFD1` declarations, `DFW1` work and
 `DFP1` immutable row pages (up to 64 rows and 128 KiB of encoded rows per page,
 carrying `sequence`, `first_ordinal`, `previous` and `rows`, staged as one
-batched `INSERT` statement per page) and `DFR1` completed revision manifests. A named direct
+batched `INSERT` statement per page) and `DFL1` forward page-reference links and `DFR1` completed revision manifests. A named direct
 binary KV owns the current control,
 pending original work identity and paged completed revision keys. The logical
 computation definition hashes the declaration; it is distinct from the KV
@@ -187,7 +187,8 @@ can be followed by a new finite attempt only after the original decision closes.
 No source LSN is compared with another partition's clock.
 
 The native cohosted SQL service accepts `CREATE DATAFLOW name INTO output AS
-SELECT ...`, AUTHORIZE/ACTIVATE/SUSPEND/RESUME/REFRESH/RETIRE DATAFLOW, SHOW
+SELECT ...` (including `GROUP BY`, `HAVING`, `ORDER BY` and `LIMIT` over one
+Table), AUTHORIZE/ACTIVATE/SUSPEND/RESUME/REFRESH/RETIRE DATAFLOW, SHOW
 DATAFLOW, SHOW DATAFLOW name REVISION number and metadata-only EXPLAIN CREATE
 DATAFLOW. SQL operation kind `dataflow`
 and command kinds `create_dataflow`/`control_dataflow` preserve the original
@@ -208,7 +209,7 @@ transaction cleanup releases its source pins and preparation barriers.
 ## Retained finite revision reads
 
 Result pages and manifests use transaction-owned `TXR1` envelopes containing
-guarded `DFP1`/`DFR1` payloads. Their immutable envelopes bind read requirements
+guarded `DFP1`/`DFL1`/`DFR1` payloads. Their immutable envelopes bind read requirements
 for the source Table, output Table
 and control KV. The catalog enforces those requirements on raw record reads as
 well as through the shared revision reader. Changing the format or stripping
@@ -224,9 +225,15 @@ decision; a descriptor alone does not prove completion.
 It loads the retained schema and manifest without consulting the mutable output
 rows or acquiring a new source snapshot. `next` traverses the retained page chain
 and copies decoded rows into the caller's output arena. The reader reuses bounded
-scratch and retains no row backlog. Rows follow descending staging ordinal; this
-does not establish SQL ordering. Defaults allow 10,000 rows and 16 MiB of encoded
-manifest/page bytes per reader. Limits are consumption bounds, not completion.
+scratch and retains no row backlog. After evaluation, the owner traverses the
+backward staging chain once and builds immutable forward `DFL1` links using one
+page of scratch. Links count toward retained-result bytes and the work budget.
+The manifest points to the first link. Reads verify page sequence, predecessor,
+row ordinal and terminal coverage, returning ascending evaluation ordinals across
+pages. ORDER BY determines those evaluation values, with LIMIT applied afterward.
+Unordered SQL scans of the mutable output Table promise no evaluation order:
+page operation identities are hashed. Use ORDER BY on that Table when required. Defaults allow 10,000 rows and 16 MiB of encoded
+manifest/link/page bytes per reader. Limits are consumption bounds, not completion.
 
 Every disclosure requires current read access to the exact source, output and
 control KV. `validateDisclosure` rechecks these rights and the published root

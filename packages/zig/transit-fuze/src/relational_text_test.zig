@@ -38,8 +38,15 @@ const Groups = struct {
         try self.rows.append(t.allocator, copied);
     }
     pub fn next(self: *Groups, after: ?e.Key) !?e.Group {
+        return self.nextKind(after, false);
+    }
+    pub fn nextSorted(self: *Groups, after: ?e.Key) !?e.Group {
+        return self.nextKind(after, true);
+    }
+    fn nextKind(self: *Groups, after: ?e.Key, sorted: bool) !?e.Group {
         var selected: ?e.Group = null;
         for (self.rows.items) |group| {
+            if (group.key.sorted != sorted) continue;
             if (after) |key| if (try group.key.order(key, self.plan) != .gt) continue;
             if (selected == null or try group.key.order(selected.?.key, self.plan) == .lt) selected = group;
         }

@@ -300,7 +300,7 @@ pub fn tableSelect(text: []const u8, cause: anyerror, location: sql.Location) ?S
     var result = tableDml(text, cause, location) orelse return null;
     result.route = .query;
     result.summary = "Table SELECT cannot be compiled";
-    result.hint = "Use .schema NAME for current columns and .help SQL for finite SELECT. Joins and grouped aggregates require configured relational consistency and budgets and int64 columns.";
+    result.hint = "Use .schema NAME for current columns and .help SQL for finite SELECT. Joins and grouped aggregates require configured relational consistency and budgets and supported scalar columns.";
     for (@import("SqlCodes.zig").entries) |entry| if (entry.cause == cause) {
         if (entry.summary) |summary| {
             result.summary = summary;

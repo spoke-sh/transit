@@ -765,8 +765,8 @@
       }
     },
     {
-      "id": "utf8='it''s \u6771\u4eac'",
-      "sql": "SELECT * FROM items WHERE value = 'it''s \u6771\u4eac'",
+      "id": "utf8='it''s 東京'",
+      "sql": "SELECT * FROM items WHERE value = 'it''s 東京'",
       "schema": {
         "name": "items",
         "columns": [
@@ -801,8 +801,8 @@
       }
     },
     {
-      "id": "utf8<>'it''s \u6771\u4eac'",
-      "sql": "SELECT * FROM items WHERE value <> 'it''s \u6771\u4eac'",
+      "id": "utf8<>'it''s 東京'",
+      "sql": "SELECT * FROM items WHERE value <> 'it''s 東京'",
       "schema": {
         "name": "items",
         "columns": [
@@ -2165,7 +2165,8 @@
     {
       "id": "excluded-6",
       "sql": "SELECT * FROM items ORDER BY id",
-      "postgres": true
+      "postgres": true,
+      "reference": true
     },
     {
       "id": "excluded-7",
@@ -2215,7 +2216,8 @@
     {
       "id": "source-alias-required-as",
       "sql": "SELECT * FROM items x",
-      "postgres": true
+      "postgres": true,
+      "reference": true
     },
     {
       "id": "source-alias-missing-name",

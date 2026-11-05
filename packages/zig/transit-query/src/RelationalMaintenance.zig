@@ -306,6 +306,9 @@ const Groups = struct {
     pub fn next(self: *Groups, after: ?f.RelationalExecution.Key) !?f.RelationalExecution.Group {
         return self.index.next(self.candidate, after);
     }
+    pub fn nextSorted(self: *Groups, after: ?f.RelationalExecution.Key) !?f.RelationalExecution.Group {
+        return self.index.nextSorted(self.candidate, after);
+    }
 };
 fn advanceInner(turn: *Turn, stored: r.Head, clients: []const Client, workspace: []u8, waking: bool) !Advance {
     const grant = (try q.RelationalCapture.policy(turn, stored.peer)) orelse return error.QueryDenied;
