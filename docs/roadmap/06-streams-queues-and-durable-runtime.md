@@ -14,9 +14,9 @@ The [current completion plan](#first-implementation-changes), refreshed on
 caller operations, transaction qualification, Station cutover and performance
 work. Start there for the source assessment, milestone handoffs, review boundaries
 and acceptance gates. The shared SQL wait contract and unfiltered Queue WAIT
-(4b.2) are implemented by the first follow-up below. Stream WAIT (4a.2) is the
-next feature unit, specified in the [Stream WAIT slice plan](#next-slice-sql-stream-wait-4a2--2026-11-05)
-against merged PR #386; grouped Stream consumption and offset settlement (4a.1),
+(4b.2) and bounded SQL Stream WAIT (4a.2) are implemented in the follow-ups
+below. The [Stream WAIT slice plan](#next-slice-sql-stream-wait-4a2--2026-11-05)
+records its source basis at merged PR #386; grouped Stream consumption and offset settlement (4a.1),
 NACK and original renewal results remain regression inputs.
 The [earlier source audit](#source-baseline-and-remaining-gaps) and dated progress
 records preserve their original attribution. Delivery-sequence SQL examples
@@ -1383,7 +1383,7 @@ to **Completed** only when R0–R10 and the applicable completion criteria agree
 
 #### Next slice: SQL Stream WAIT (4a.2) — 2026-11-05
 
-**Status: Planned. Source basis:** `origin/main` at
+**Status: Implemented; qualification recorded separately. Plan source basis:** `origin/main` at
 `d8b756f08116ac50c53b72886dca239abb74cbb3`, including merged
 [PR #386](https://github.com/spoke-sh/transit/pull/386). That change delivers
 shared SQL wait recovery and unfiltered Queue WAIT (4b.2). This plan selects one
@@ -1397,14 +1397,16 @@ original operation after timeout. Explicit resume preserves the same request.
 Grouped consumption retains authenticated progress for a separate `COMMIT OFFSET`.
 Reading, waiting, closing delivery and inspecting status never commit progress.
 
-The proposed executable forms reuse the already parsed grammar:
+The implemented forms reuse the existing grammar:
 
 ```sql
 CONSUME value, _offset FROM events WHERE _offset >= $1 LIMIT 128 WAIT '1s';
 CONSUME value, _offset FROM events GROUP $1 LIMIT $2 WAIT $3;
 ```
 
-These forms remain refused by the Catalog binder at the source revision above.
+The source revision above refused these forms. The slice now binds and dispatches
+the saved native Stream wait through shared SQL recovery. Current semantics live
+in the [SQL reference](../handbook/reference/sql/streaming.md#wait-for-a-stream-frontier).
 The group parameter is the existing binary `StreamHandle.Group`, the limit is
 an unsigned row count, and the wait parameter is a duration string. SQL still
 selects exactly one partition. Follow the current
@@ -1671,7 +1673,7 @@ Preserve the following evidence and remaining blockers separately:
 | [Installed scenarios](../history/qualification/performance.md#installed-scenario-qualification--2026-11-04) and [scalar interface parity](../history/qualification/sql.md#scalar-parity-across-sql-interfaces--2026-11-04) | Preserve verified values/recovery and the existing console budget gate. Scenario observations are not a paired speedup, and passing smoke ceilings does not meet M6's Table targets or supply complete Stream/Queue/Station baselines |
 
 **Immediate order:** preserve 4a.1, 4b.1 and the Queue WAIT implementation
-(4b.2) below as regression inputs. Next implement **Stream WAIT (4a.2)** against
+(4b.2) and **Stream WAIT (4a.2)** below as regression inputs. The latter uses
 the shared wait identity/result/recovery contract, extending its Queue-only
 validation deliberately and reusing group coverage rather than redefining it. Batch 0 investigates the original
 maintenance failure and distinct setup/BEGIN uncertainties, using the later
@@ -1759,7 +1761,7 @@ estimates.
 | 1 | R9 | Existing drivers; current-definition controls; Batch 0 for blocked profiles | All six log profiles plus required extended scenarios and preserved Station comparison, with measured budgets |
 | 2 | R0/R4/R5 | Existing mixed/DLQ owners | Complete common-decision faults, correspondence and integrated automatic transfer proof |
 | 3 | R0/R6 | Existing workload results/closures, delivered group coverage and ACK/NACK/renewal, latest admission tracking | Wait contract/recovery first, then predicate and mixed-statement semantics with shared caller composition |
-| 4a–4d | R3/R4/R6 | Batch 3 per verb; Batch 2 for mixed SQL; 4a.1 and 4b.1 delivered | Queue WAIT (4b.2) implemented; Stream WAIT (4a.2) next; native predicates (4b.3), finite TVF (4c), mixed SQL (4d) as separate units; groups/offsets and renewal remain regression gates |
+| 4a–4d | R3/R4/R6 | Batch 3 per verb; Batch 2 for mixed SQL; 4a.1 and 4b.1 delivered | Queue WAIT (4b.2) and Stream WAIT (4a.2) implemented; native predicates (4b.3), finite TVF (4c), mixed SQL (4d) as separate units; groups/offsets and renewal remain regression gates |
 | 5 | R0/R7 | Batch 2, replacement contracts, saved Station baseline | One real handler commits inbox ACK, Table/KV state, journal and output together |
 | 6 | R7 | Batch 5 | Durable calls, names, timers and supervision migrated |
 | 7 | R8 | Batches 5–6, owner gates for affected consumers | Effects/SDKs/query consumers migrated; replacement activated and old delivery removed |
@@ -2117,7 +2119,8 @@ Native saturation, lease algorithms and broader milestone profiles retain their
 independent qualification owners.
 
 The review units below remain the regression map for **4b.2** and prerequisites
-for the planned **4b.3** extension. Stream WAIT is still a separate **4a.2** unit.
+for the planned **4b.3** extension. Stream WAIT is delivered by the separate
+**4a.2** unit above.
 
 | Review unit | Owning change | Required exit |
 | --- | --- | --- |

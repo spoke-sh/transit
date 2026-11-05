@@ -86,8 +86,8 @@ their shared transaction lowering is implemented.
 
 `LogConsumeSql.Prepared` is a pure compiler with a separate checked
 `logConsumeStatement` root and a command in the ordinary statement grammar.
-The SQL service admits positional and explicitly assigned grouped reads; WAIT
-remains preparation only:
+The SQL service admits positional and explicitly assigned grouped reads,
+including bounded WAIT:
 
 ```text
 CONSUME * | column [AS name] [, column [AS name]]
@@ -116,8 +116,11 @@ then freezes its plan as an original workload result. A multi-partition Stream
 requires a predicate whose conservative metadata bounds select one partition,
 or a matching explicit group descriptor.
 Lower offset bounds select the starting position; upper comparisons remain row
-predicates within the accepted native cut. Ambiguous or contradictory routing,
-WAIT is refused by this adapter. A group starts at its supplied checkpoint;
+predicates within the accepted native cut. Ambiguous or contradictory routing
+is refused by this adapter. WAIT freezes a 1–1000 ms policy with the original
+SQL operation; its open upper frontier waits for an offset after the saved
+start/checkpoint. Filters and LIMIT do not change readiness. Timeout leaves
+pending original work, and only explicit resume begins another bounded attempt. A group starts at its supplied checkpoint;
 offset predicates cannot skip untraversed group input. The [consumption corpus](corpus/log-consumes.json)
 uses independent expected layouts and five-row predicate outcomes through
 `just test::table-dml-sql`; those checks establish preparation only.
@@ -153,7 +156,7 @@ the exact accepted selection. This compiler is not a native selector or a
 post-filter for original claim results. The shared SQL service admits a narrower
 partition-routed profile: no predicate for one partition, or a single exact
 `_partition` equality. Catalog discharges that routing into the native target and
-freezes an unfiltered original-result projection. Other predicates and WAIT
+freezes an unfiltered original-result projection. Other predicates
 refuse before admission. Receipt handles, ACK/NACK and lease extension use the
 Catalog settlement adapter and shared original-result lifecycle. The
 [claim corpus](corpus/log-claims.json) independently checks
