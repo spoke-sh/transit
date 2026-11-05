@@ -10,10 +10,12 @@ declarative database primitives with dedicated SQL and typed-caller grammar over
 of those database primitives and [supported transactions](05-transactions-and-atomic-composition.md).
 
 The [current completion plan](#first-implementation-changes), refreshed on
-2026-11-03 from `origin/main` at `63f6369d5`, sequences the remaining contracts,
+2026-11-05 from `origin/main` at `c4dd89c22`, sequences the remaining contracts,
 caller operations, transaction qualification, Station cutover and performance
 work. Start there for the source assessment, milestone handoffs, review boundaries
-and acceptance gates.
+and acceptance gates. The next feature unit is the shared SQL wait contract and
+unfiltered Queue WAIT (4b.2); grouped Stream consumption and offset settlement
+(4a.1), NACK and original renewal results are delivered regression inputs.
 The [earlier source audit](#source-baseline-and-remaining-gaps) and dated progress
 records preserve their original attribution. Delivery-sequence SQL examples
 below illustrate proposed scope; use the [SQL reference](../handbook/reference/sql/streaming.md)
@@ -1377,26 +1379,28 @@ to **Completed** only when R0–R10 and the applicable completion criteria agree
 
 ### First implementation changes
 
-#### Completion plan at current main — 2026-11-03
+#### Completion plan at current main — 2026-11-05
 
 **Source basis:** fetched `origin/main` at
-`63f6369d553dd71abfbb6a06f0867b8ce7c0cb4a`. This includes M6 renewal #341 and
-its post-merge qualification/fixture follow-ups, M8/M12 publication attribution
-#347 and current-pin/multi-row staging #356, M14 owned predicates #348 and plan
-#357, M16 MIME construction #349, M7 ordered Document storage #354, M20 immutable
-forks #353, M10 retained-history qualification #355, and SQL/local collection
-repairs #359. Earlier database separation, native mixed decisions, automatic DLQ,
-owned staging and shared-client foundations remain available. The #358 workload
-roadmap is planning input, not implemented Stream/Queue or spatial behavior.
+`c4dd89c2224ab53fd9139f2f89c328e8ca0b3f25`. Since the November 3 plan at
+`63f6369d5`, main includes M6 explicit Stream groups/offsets #367, M7 retained
+Document collection cuts #370, M12 owned progress/original staging and closure
+#361/#365, M8 local SQL lane coordination #362, console/scenario gates #366/#369,
+SQL scalar parity #374, original wire-write conflict recovery #381, relational
+ordering/grouping and forward Dataflow revisions #383, and filesystem publication
+#384. The nightly published-image campaign #379 supplies a separate measurement
+workflow. Earlier database separation, native mixed decisions, automatic DLQ,
+renewal, retained reads and shared-client foundations remain available.
 The mandatory shared definition in `transit-protocol.Growth` is
-`1a81487b17b998cf1e5c89eaf621d7c97cbecb389f13fedfc3c0691125beb141`.
+`4a79430a0f740284cda72df8341f0af87a87a63a599d7a81c62a934778875e1a`.
 This plan uses merged source only. Other
 worktrees, proposed APIs and earlier component passes are not prerequisites
 that can be treated as delivered or qualified at this revision.
 
-This refresh updates the November 2 plan at `edeb8618c` in place and retains
+This refresh updates the November 3 plan at `63f6369d5` in place and retains
 its R0–R10 owners and Batch 0–9 acceptance scope. It replaces that plan's
-next-change ordering and the ordering after PR #303, while preserving that
+next-change ordering, the November 2 ordering at `edeb8618c` and the ordering
+after PR #303, while preserving that
 [review's attribution](#review-baseline-after-pr-303--2026-11-01), the earlier
 source audit and each dated implementation/evidence record. The linked accounts
 record executed checks at their own revisions; this planning change adds no
@@ -1424,29 +1428,37 @@ requirement. SQL result tags or compiler helpers alone do not prove admission.
 | --- | --- | --- |
 | Database independence | `DatabaseRuntime`, direct tokens/read cuts and transitive Station import gates in Catalog, SQL, direct Query and data-client packages | Preserve through runtime migration; complete account-token/partition commit composition and installed Table latency gates |
 | Storage and declarations | `StreamPartition`, `QueuePartition`, direct KV, `.tseg`, `.tack`, shared Roaring directories, retained graphs and signed declaration/inspection SQL | Common-revision disk, corruption, growth, retention and resource qualification; no replacement partition engine |
-| Stream operations | Producer deduplication, retained finite reads, explicit group generations, authenticated interval settlement, native waits and maintenance | SQL groups/WAIT/offset settlement, finite retained `STREAM_SLICE`, Arrow/batch ingress qualification and full integrated evidence |
+| Stream operations | Producer deduplication, retained finite reads, explicit group generations, authenticated interval settlement, native waits and maintenance; SQL group descriptors and original offset settlement | SQL WAIT, finite retained `STREAM_SLICE`, Arrow/batch ingress qualification and full integrated evidence; assignment and read release remain native, with no automatic rebalance service |
 | Queue operations | Exact claims/pages, ACK/NACK/renewal, bounded native waits, durable scheduling, FIFO affinity, terminal retention and explicit read release | Predicate-aware native acquisition and SQL waits; integrated concurrency, time and resource evidence |
 | Mixed decisions and DLQ | `DirectTransaction`, private state/log workspaces and `TransactionDecisionLog` compose Table/KV, Stream/Queue appends and offset/ACK settlements. Protected automatic transfers use that same owner; the #333 clean storage/query lane includes these installed schedules | Extend the remaining preparation/decision/finalization fault and correspondence matrix, especially collection and reserved control under pressure; an installed mixed pass is not a Station-handler proof |
-| Transaction-owned records | M12's `DirectTransactionRecord` registers ownership before staging, retains ready `TXR1` candidates and permits collection after authoritative abort cleanup. `ManagedTable` now packs bounded multi-row `DFP1` pages and batches output statements | Reuse this ownership contract for runtime candidates; do not repeat the former one-row-page optimization. Generic declaration/work records and completed revisions are still retained; do not make all `DirectRecord` objects collectible |
+| Owned records and progress | M12's `DirectTransactionRecord` retains ready `TXR1` candidates; `DirectClientToken` owns `CPR1` progress and `SOR1` original reservation/readiness/attachment/closure. `ManagedTable` packs bounded multi-row `DFP1` pages | Reuse the appropriate ownership family for runtime candidates and work. Closed owned originals can be collected under their contract; published declarations/revisions and generic unowned `DirectRecord` objects do not thereby become collectible |
 | Workload identity/results | [`DirectWorkloadIntent`](../../packages/zig/transit-catalog/src/DirectWorkloadIntent.zig), [`DirectWorkloadResult`](../../packages/zig/transit-catalog/src/DirectWorkloadResult.zig), [`WorkloadOperations`](../../packages/zig/transit-sql/src/WorkloadOperations.zig) and [`WorkloadRead`](../../packages/zig/transit-sql/src/WorkloadRead.zig) retain outcomes, closures and original bounded results | Extend these owners for the missing verbs and wait/progress handoff; do not implement another outcome/result protocol |
-| Executable workload SQL | Single-partition PRODUCE/ENQUEUE with RETURNING, positional CONSUME, partition-routed CLAIM, binary-receipt ACK/NACK and EXTEND LEASE returning the original renewed handle. NACK freezes optional absolute UTC visibility | Finish groups/offset settlement, waits, payload acquisition predicates, finite TVF and mixed SQL. Preserve renewal's descriptor-only result and ACK/NACK command completion. NACK reasons/relative delays need a separate contract |
+| Executable workload SQL | Single-partition PRODUCE/ENQUEUE with RETURNING, positional/explicitly grouped CONSUME, authenticated COMMIT OFFSET, partition-routed CLAIM, binary-receipt ACK/NACK and EXTEND LEASE returning the original renewed handle | Finish waits, payload acquisition predicates, finite TVF and mixed SQL. Preserve authenticated coverage separately from row counts, descriptor-only renewal results and ACK/NACK command completion. NACK reasons/relative delays need a separate contract |
 | Admission and retained reads | `DatabaseRuntime.submitPrepared`/SQL `Registry` now track possible acceptance at the actual token boundary; current Table capture binds an explicit interpretation and preserves the first accepted cut | Apply exact uncertainty to new workload verbs. The latest generic pending projection deliberately excludes workload intents; it is not a ready WAIT/result adapter. Table capture changes do not authorize recapturing accepted Stream reads |
 | Collection and historical obligations | #355 adds signed/typed disk schedules for original historical acquisitions and closures; #359 batches collection mark work and reuses existing Catalog views | Requalify log/runtime roots under the changed collectors. Neither Table-only collection evidence nor the repair commit establishes the cause of the retained Queue maintenance failure |
+| Document integration | M7 stores retained collection membership and bounded head pages with exact raw-part/topology roots | Direct public lifecycle, protected Document staging and mixed participation remain M7 gates; collection cuts alone cannot admit Document turns |
+| Finite relational execution | #383 adds typed GROUP BY/HAVING/ORDER BY/LIMIT and forward retained Dataflow revisions | Reuse supported operators and result ownership when adding the Stream source. A Table relational pass or standalone array TVF is not an executable `STREAM_SLICE` adapter |
+| Publication and installed paths | #384 publishes named immutable files and recoverable directory assemblies without rename flags; #381 recovers admitted wire writes after foreground owner conflicts | Preserve durability, exact identity and publication fault regressions; the filesystem change does not qualify EFS or explain earlier maintenance/setup timeouts |
 | Station | Native GenServer, durable calls/timers/names/supervision, private Table/Query helpers and recorded effects retain their existing semantics | Real database-transaction handlers, durable service migration and coherent consumer/effect/delivery cutover |
 | Performance tools | Registered `log-runtime-baseline` and `station-turn-baseline` drivers with independent oracles | Preserve the passing profile 4 recovery gate, complete all baseline profiles and broaden coverage; compare the new runtime with the existing measured Station workload |
 | Formal adapter | `transaction_workspace_state.zig` now uses `StatementWork` variants and `statement()` | The old compilation repair is no longer a new task. Establish concrete Stream/Queue/mixed/runtime correspondence and run the integrated formal gate |
 
 The source checks that fix the next implementation boundary are
 [`DirectLogPreparedConsume.freeze`](../../packages/zig/transit-catalog/src/DirectLogPreparedConsume.zig)
-(GROUP/WAIT still refuse),
+(GROUP binds an explicit assignment; WAIT still refuses),
 [`DirectLogPreparedClaim`](../../packages/zig/transit-catalog/src/DirectLogPreparedClaim.zig)
 (routing-only selection; WAIT/payload predicates refuse),
 [`DirectLogPreparedSettlement`](../../packages/zig/transit-catalog/src/DirectLogPreparedSettlement.zig)
 (renewal now freezes its result projection), and
 [`TransactionWork`](../../packages/zig/transit-sql/src/TransactionWork.zig)
 (attached mutations still require Table DML).
-`WorkloadOperations` recognizing `commit_offset` and `WorkloadRead` testing
-grouped native evidence do not supply SQL group binding or offset admission.
+[`DirectLogPreparedOffset`](../../packages/zig/transit-catalog/src/DirectLogPreparedOffset.zig)
+and `Statement` now supply offset admission; `WorkloadRead` retains the original
+authenticated coverage. Conversely, `WorkloadOperations.advance` still observes
+then executes ordinary original work: merely admitting WAIT in a binder would
+allow recovery to consume/claim without waiting. Its recovery semantics must
+change with the wait contract. `BitemporalAndTvf` remains an array-backed helper;
+the production relational path has no retained Stream source.
 `Transaction.Participant.requireLocalState` and Catalog selection still reject
 Documents. These are source observations, not newly executed tests.
 
@@ -1469,21 +1481,29 @@ Preserve the following evidence and remaining blockers separately:
 | The renewal follow-up retains two local `direct-workload-result` preparation timeouts at the unchanged 180-second deadline, before result-recovery assertions; one saved cancellation lacks a captured reply | Track setup latency and original cancellation uncertainty separately from the older Queue maintenance case. Joined proxy cleanup fixed interpreter teardown, not setup latency. A hosted pass does not explain either local timeout |
 | [Profile 4 recovery closure](../history/qualification/performance.md#queue-profile-4-recovery-gate-closure--2026-11-01) under the original budgets | Do not reopen the fixed large unordered Queue replay implementation without a new failure. Finish the six-profile log campaign and its missing group/wait/maintenance/concurrency coverage |
 | [Station baseline](../history/qualification/performance.md#installed-station-handler-baseline--2026-11-01): 20 turns plus restart at `6c4e10116`, p50 440.153 ms / p95 607.804 ms | Preserve its actual handler/input/state/output oracle and repeat a matching control before replacement. It measures the old native runtime, not transactional Station or zero server allocations |
-| [Transaction-owned candidate evidence](../history/qualification/query.md#transaction-owned-managed-result-candidates--2026-11-02) | Preserve registration/creation/collection races and retained revisions in mixed/runtime tests. Declaration/work-record reclamation, the complete crash matrix and managed performance remain open |
+| [Transaction-owned candidate evidence](../history/qualification/query.md#transaction-owned-managed-result-candidates--2026-11-02) and [original staging/closure](../history/qualification/query.md#owned-original-staging-and-closure--2026-11-03) | Preserve registration/creation/collection races, retained revisions and delivered closure of owned originals. Generic work records retain their own lifetime; the full mixed/runtime crash matrix and managed performance remain open |
 | [Historical collection schedules](../history/qualification/catalog.md#native-historical-obligations-through-disk-collection--2026-11-03), ordered Document/fork evidence and [owned predicate qualification](../history/qualification/query.md#owned-predicate-preparation-and-codec-reuse--2026-11-02) | Reuse their independent oracles and exact source records. Graceful disk reopen, Table filtering and Document component passes do not establish Queue fault recovery, predicate acquisition or Station composition |
 | [F0 diagnostic scorecard](../history/qualification/performance.md#managed-staging-and-sdk-diagnostic-baselines--2026-11-02) precedes current capture and multi-row staging | Preserve failed managed successors and original SDK/console observations; remeasure at the new definition. Old per-row publication counts and timing are controls to update, not current-main results or M6 budgets |
+| [Grouped SQL qualification and M8/M12 integration](../history/qualification/query.md#sql-stream-groups-and-authenticated-offsets--2026-11-03) | 4a.1 is delivered, including four SQL callers and negative coverage controls. Keep the recorded MySQL BEGIN uncertainty, workload-token/result setup failures and interrupted growth attempt distinct from subsequent core/SDK/individual SQL passes; they do not form one passing integrated lane |
+| [M7 collection/closure integration](../history/qualification/storage.md#integration-with-original-operation-staging-closure--2026-11-04) at `501d5532be3b` | Core 28/28, SDK conformance 7/7 and storage-query 33/33 passed, including both workload setup deadlines. These are later source-specific passes, not explanations of earlier timeouts or qualification of today's definition |
+| [Installed scenarios](../history/qualification/performance.md#installed-scenario-qualification--2026-11-04) and [scalar interface parity](../history/qualification/sql.md#scalar-parity-across-sql-interfaces--2026-11-04) | Preserve verified values/recovery and the existing console budget gate. Scenario observations are not a paired speedup, and passing smoke ceilings does not meet M6's Table targets or supply complete Stream/Queue/Station baselines |
 
-**Immediate order:** preserve 4b.1 as delivered, then specify group/coverage
-handoff in Batch 3 and implement **4a.1**. Batch 0 closes the distinct retained
-maintenance and local setup investigations; Batch 1 establishes new-definition
-controls without concurrent heavy runs. Batch 2 extends mixed-decision/root
-correspondence against the changed collection and candidate owners. These are
-independent development tracks, not a request to run benchmarks concurrently.
-Station's first real handler (Batch 5) depends on Batch 2's decision/authority
-gates and its own actor guard contract, not all SQL syntax. Unfiltered Queue WAIT
-(4b.2) and finite `STREAM_SLICE` (4c) can follow their own contracts independently.
-Do not rebuild delivered storage, DLQ, renewal, current Table capture or managed
-page batching. M6 stays In Progress until the remaining R0–R10 gates pass.
+**Immediate order:** preserve 4a.1 and 4b.1 as delivered. Implement Batch 3's
+wait identity/result/recovery contract, then **unfiltered Queue WAIT (4b.2)**.
+It exercises the shared parked-work boundary needed by later services without
+depending on native payload predicates. Follow with Stream WAIT (4a.2), reusing
+group coverage rather than redefining it. Batch 0 investigates the original
+maintenance failure and distinct setup/BEGIN uncertainties, using the later
+passing revisions as controls. Batch 1 freezes current-definition baselines;
+Batch 2 extends mixed-decision/retained-root correspondence. These are separate
+work tracks; benchmarks run without concurrent heavy builds or fault suites.
+
+Finite `STREAM_SLICE` (4c) can proceed after its own source/closure contract;
+mixed SQL (4d) requires Batch 2 and its statement contract. Station's first real
+handler (Batch 5) requires Batch 2's decision/authority gates and the actor guard
+contract, independently of SQL syntax. Do not rebuild delivered groups, storage,
+DLQ, renewal, record closure, current Table capture or managed page batching.
+M6 stays In Progress until the remaining R0–R10 gates pass.
 
 #### Recent milestones and upcoming handoffs
 
@@ -1492,12 +1512,12 @@ page batching. M6 stays In Progress until the remaining R0–R10 gates pass.
 | [M1–M3](03-live-storage-and-sql-cutover.md), storage/lifecycle | Stable identities, direct catalog, retained cuts, local maintenance and installed recovery owners; M3 remains In Progress | Register every new preparation/runtime/result root in the existing graph. M3 keeps its installed storage gates; M6 R9 shares its write-path work |
 | [M4](04-statement-results-and-consumption.md), Completed | Logical statement outcomes, bounded ResultSet delivery, completion evidence and original-attempt settlement | Reuse command/row distinctions and current disclosure checks, including empty and repeated batches. Workload completion is separate from result delivery |
 | [M5](05-transactions-and-atomic-composition.md), Completed for local Tables | Common cuts, private statements/savepoints and original commit/abort decisions | Extend the delivered M6 mixed owner and qualify its extra participants; M5 completion is not mixed/Document/distributed proof |
-| [M7](07-document-storage-and-station-decoupling.md#implementation-plan-for-remaining-work), In Progress; #354 merged | Causal maps plus conditional ordered/versioned trees, persisted BP/raw parts, bounded topology inspection and verified MIME candidate handoff in `DocumentPartition` | C1 merge/physical-layout gaps and public C4 lifecycle remain; C5 adds partition-aware Document cuts/workspaces/preparations to M6 R5. C7 joins R7/R8's consumer cutover. Table/KV Station work proceeds first; storage acceptance alone cannot admit Document transactions or close the old runtime |
+| [M7](07-document-storage-and-station-decoupling.md#implementation-plan-for-remaining-work), In Progress; #354/#370 merged | Causal maps, ordered/versioned trees, BP/raw parts, verified MIME candidates and retained collection membership/head pages in `DocumentPartition` | Public C4 lifecycle and protected staging remain; C5 must integrate partition-aware cuts, workspaces and preparation with M6 R5. C7 joins R7/R8's consumer cutover. Table/KV Station work proceeds first; retained membership alone cannot admit Document transactions or close the old runtime |
 | [M8](08-gateway-architecture-and-protocol-ingress.md#next-performance-implementation-after-milestones--2026-11-02), In Progress; #347/#356/#359 merged | Co-hosted/event-driven SQL, owner-attribution counters, explicit current Table pin capture, acceptance-boundary tracking and fresh session-recovery repairs | Reuse F0/R1/M3/C4/D5/S6/E7/Q8 owners and measure the changed path. Do not repeat current-pin capture or one-row managed-page work as pending implementation. Workload pending evidence still needs its own contract; WAIT must park through native notifications with bounded service capacity. Deadlines, core-bounded scheduling and coarse remote placement remain M8 gates |
 | [M9](09-client-foundation-and-language-apis.md#remaining-implementation-plan--2026-11-01), In Progress | Independent data client, bounded Context/admission, SQL recovery store, direct KV recovery and generated installed Node validators from #330 | Supply exact log/result/transaction semantics and saved-attempt adapters through that Context/store. Reuse generated validation in affected packages; faster imports do not qualify Stream/Queue APIs. M9 owns managed handles/data bindings; M21 owns broader coverage. M6 still migrates every affected existing consumer |
 | [M10](10-standards-and-catalogs.md), In Progress; #355 merged | Current column/type/collation and retained catalog semantics; independent signed/typed historical acquisition/closure schedules through disk collection | Bind exact interpretation and canonical key semantics during log preparation. Extend root/closure cases to claims, Stream reads and transaction work; the existing Table fixture does not prove those owners. No private Stream snapshot namespace or implied runtime support from schema acceptance |
 | [M11](11-indexing-and-access-paths.md), Planned | Neutral index identity/coverage contracts; executable secondary-index lifecycle remains future work | Queue predicates must be correct under bounded native scans now. Future access paths can accelerate selection only with exact coverage and canonical key semantics; keep existing transaction guards until narrower conflict validation is qualified |
-| [M12](12-sql-and-dataflows.md#next-implementation-slice-owned-staging-and-finite-qualification), In Progress; #324/#328/#356 merged | Retained result manifests/readers, transaction-owned candidate registration/readiness/abort collection, bounded multi-row pages and output-statement batching | Reuse the neutral owned-record graph, preparation barriers and full multi-row coverage. M6 supplies finite retained Stream sources and atomic progress/output decisions; M12 owns WAL activation, complete-commit feed coverage, incremental execution and sink composition. Batched finite recomputation does not implement continuous Stream consumers; generic work-record closure remains separate |
+| [M12](12-sql-and-dataflows.md#next-implementation-slice-owned-staging-and-finite-qualification), In Progress; #361/#365/#383 merged | Transaction-owned candidates, catalog-owned progress, protected original attachment/closure, bounded multi-row results and forward retained revisions with finite grouping/ordering | Reuse the distinct TXR1/CPR1/SOR1 owners and their collection rules. Do not rebuild delivered original closure or treat arbitrary work records as collectible. M6 supplies finite Stream sources and atomic progress/output decisions; continuous activation, complete-commit feed coverage, incremental execution and sink composition remain M12 work |
 | [M13](13-data-structures-and-performance.md), [M14](14-vectorized-strings-and-search.md), [M15](15-data-centric-compilation-and-specialization.md); #348/#357 merged | Resource meters, compact Batch strings, shared encoded traversal and execution-owned `PreparedPredicate` literal/schema/collation binding reused within filtered Table requests | Reuse these package interfaces for selection and `STREAM_SLICE`; preserve owned literal lifetimes, charged scratch, ordered failures and post-compute authorization. A Table predicate cache is not an acquisition index or Queue authority. M11 indexes, broader M13 metering and M15 compilation can optimize only after M6 finite semantics and budgets pass |
 | [M16](16-document-profiles-and-gateway-exchange-lifecycle.md), In Progress; #349/#354 merged | Bounded JSON/XML/MIME construction, verification and ordered-storage candidate composition | Coordinate raw-part/candidate lifetime with M7 C3/C4/C5 and M6 mixed decisions. Exchange representation and gateway capture stay with M16; preserve current effect intent/attempt/unknown outcomes during Station migration. A verified MIME candidate is not an installed connector exchange |
 | [M20](20-branches-merges-and-restore.md), In Progress; #353 merged | Immutable single-Table forks have independent pins and survive source-branch retirement | Keep branch identity and retained dependencies in read/collection tests. A Table fork grants no Stream/Queue branch or cross-branch transaction capability; preserve `Transaction.Domain`'s local branch-one refusal until its owner deliberately extends it |
@@ -1529,14 +1549,14 @@ remaining decisions in the owning [Stream](../../contracts/STREAM_V1.md),
 | Execution domain | Local disk-backed catalog, branch one for log work, explicit logical partitions and the existing common decision domain. Preserve separately supported immutable Table branches; reject unsupported cross-branch/distributed composition |
 | Timed work | Validate the trusted interval and current lease under the publication guard; retain accepted clock floors. Fix work on the critical path rather than extending leases/deadlines or weakening time checks to make a proof pass |
 | Admission uncertainty | Preserve #359's distinction between preparation failure and possibly accepted token binding. Workload status must carry original typed evidence; do not reuse the non-workload pending projection to manufacture success, absence or a new token |
-| SQL WAIT | Persist the original consume/claim before dispatch; distinguish its immutable native identity from the bounded wait attempt (the native wait duration is not durable work). A timeout is an observation, not an empty claim, success receipt or durable rejection. Define same-token resume/explicit closure and background recovery so a timed-out wait cannot become an unconditional non-waiting consume/claim |
-| Group progress | Bind assignment generation, expected next offset and owner-issued coverage to the original read. Define the SQL/shared-client encoding of that handoff before `COMMIT OFFSET` admission. Never accept a bare caller-chosen offset as traversal evidence |
+| SQL WAIT | Persist the original consume/claim and SQL wait policy before dispatch; distinguish immutable native identity from each bounded wait attempt. Choose explicit same-token resume after timeout/service loss; background recovery observes original receipts or executes an explicitly requested cancellation, never starts an ordinary non-waiting consume/claim. A timeout is a nonterminal observation, not an empty result, success receipt or durable rejection; specify its shared result/status carriage before syntax admission |
+| Group progress (delivered) | Preserve SGH1 assignment/checkpoint binding and SPH1 authenticated interval handoff through the original read. Extend waits/mixed SQL around these exact owners. Never accept a bare caller-chosen offset or returned row count as traversal evidence |
 | Filtered acquisition | Bind a deterministic typed predicate before native selection. A failing FIFO head still blocks its key; a later matching item cannot leapfrog it. Search limits yield explicit incomplete/refused work, not a false empty selection. Post-claim display filtering cannot hide acquired messages |
-| Lease renewal (delivered) | Preserve one typed row containing the renewed binary `_receipt_handle`, bound to the original accepted settlement through M4's result/evidence types. Reopening returns the same handle, even if no longer live; old handles cannot authorize fresh settlement after the lease changes. No redesign is required for 4a.1 |
+| Lease renewal (delivered) | Preserve one typed row containing the renewed binary `_receipt_handle`, bound to the original accepted settlement through M4's result/evidence types. Reopening returns the same handle, even if no longer live; old handles cannot authorize fresh settlement after the lease changes. Wait work requires no renewal redesign |
 | Transactional consumption | Acquisition is a separately accepted claim; the later transaction composes ACK, state and outputs. Abort leaves that acquisition subject to explicit settlement/expiry. Offset settlement similarly requires authentic read coverage; no handler-local counter substitutes |
 | Station identity and authority | Retain stable actor/call identity, authority-derived origin, original destinations, activation generation and permanent retirement. Queue lease authority and execution ownership are independent guards checked at decision |
 | Runtime rollout | Develop private replacement modules, then activate and remove superseded public paths in one coordinated current-v1 cutover. No v2, fallback decoder, parallel writable runtime or automatic history reset |
-| Candidate ownership | Reuse M12's transaction-owned registration/readiness and graph traversal for candidates that fit its contract. Specify any additional runtime-record family before collection; abort, retirement, read close and terminal Queue bits are distinct from deletion authority |
+| Candidate ownership | Select M12's transaction candidate, replaceable progress or protected original owner according to the record's lifetime; preserve registration/readiness/attachment/closure and retained traversal. Specify additional runtime families before collection; abort, retirement, read close and terminal Queue bits are distinct from deletion authority |
 | Effects and retention | Atomic intent publication does not make remote execution atomic. Preserve unknown outcomes, recorded attempts, secret references and connector retry policy. Unlimited retention stays default; terminal bits alone authorize no deletion |
 
 For any incompatible wire, stored framework or ABI change, replace the mandatory
@@ -1554,11 +1574,11 @@ estimates.
 
 | Batch | Owners | Start gate | Reviewable exit |
 | --- | --- | --- | --- |
-| 0 | R0/R1/R3/R4/R6/R10 | Original Queue records observed; maintenance cause/terminal retention and local result-setup timeouts remain open | Distinct causes/original uncertainties resolved with controlled regressions; preserve #359 fixes without attributing unrelated failures to them |
+| 0 | R0/R1/R3/R4/R6/R10 | Original Queue records observed; later setup passes coexist with earlier failed/uncertain cases | Distinct maintenance, setup and BEGIN cases resolved with controlled regressions and original identities; unexplained failures or uncertain outcomes keep this exit open |
 | 1 | R9 | Existing drivers; current-definition controls; Batch 0 for blocked profiles | All six log profiles plus required extended scenarios and preserved Station comparison, with measured budgets |
 | 2 | R0/R4/R5 | Existing mixed/DLQ owners | Complete common-decision faults, correspondence and integrated automatic transfer proof |
-| 3 | R0/R6 | Existing workload results/closures, delivered ACK/NACK/renewal and latest admission tracking | Group/coverage contract first, then wait/predicate semantics and shared caller composition |
-| 4a–4d | R3/R4/R6 | Batch 3 per verb; Batch 2 for mixed SQL; 4b.1 delivered | Groups/offsets (4a.1) next; bounded waits (4a.2/4b.2), native predicates (4b.3), finite TVF (4c), mixed SQL (4d) as separate review units; renewal remains a required regression |
+| 3 | R0/R6 | Existing workload results/closures, delivered group coverage and ACK/NACK/renewal, latest admission tracking | Wait contract/recovery first, then predicate and mixed-statement semantics with shared caller composition |
+| 4a–4d | R3/R4/R6 | Batch 3 per verb; Batch 2 for mixed SQL; 4a.1 and 4b.1 delivered | Queue WAIT (4b.2) next, then Stream WAIT (4a.2); native predicates (4b.3), finite TVF (4c), mixed SQL (4d) as separate units; groups/offsets and renewal remain regression gates |
 | 5 | R0/R7 | Batch 2, replacement contracts, saved Station baseline | One real handler commits inbox ACK, Table/KV state, journal and output together |
 | 6 | R7 | Batch 5 | Durable calls, names, timers and supervision migrated |
 | 7 | R8 | Batches 5–6, owner gates for affected consumers | Effects/SDKs/query consumers migrated; replacement activated and old delivery removed |
@@ -1567,8 +1587,8 @@ estimates.
 
 The runtime path is **2 → 5 → 6 → 7 → 9**. The SQL path is
 **3 → 4a/4b/4c → 9**, with **2 + 3 → 4d → 9** for mixed SQL.
-Batches 0, 1 and 8 also gate completion. Group/offset work can ship before SQL
-waits; predicate support is not a prerequisite for unfiltered waits.
+Batches 0, 1 and 8 also gate completion. Delivered group/offset work supplies
+Stream progress evidence; predicate support is not a prerequisite for unfiltered waits.
 Finite TVF work uses existing retained readers and can proceed once its own
 contract is fixed. Station uses typed callers and does not
 wait for SQL syntax; SQL does not wait for Station. Baseline diagnosis, contract
@@ -1584,12 +1604,18 @@ The reachable-candidate, verified-cache and profile 4 replay improvements and
 the initial clean-lane fixture repairs have landed. This batch does not repeat
 their implementation.
 
-There are two independent investigations: the preserved Queue maintenance/
-terminal-retention failure and local `direct-workload-result` setup timeouts.
+Keep three distinct case families: the preserved Queue maintenance/
+terminal-retention failure, workload-token/result setup timeouts, and the
+integrated SQL gateway's uncertain MySQL BEGIN. Later M7 collection/closure
+qualification passes both unchanged setup deadlines. Use that source as a
+control; it neither diagnoses the earlier timeouts nor settles the original
+BEGIN. The local setup cancellation with no captured reply also stays uncertain.
 The matching-binary read-only observation and joined proxy teardown are already
 recorded. #359 changes collector batching, resident mark pages, Catalog view
 reuse and SQL acceptance reporting; inspect those changes as hypotheses against
-controlled cases, without treating their merge as an explanation of either case.
+controlled cases. Apply the same discipline to #362's lane coordination, #381's
+foreground conflict recovery and #384's publication changes: none of their merges
+establishes a cause for these particular failures.
 
 1. Reproduce the recorded cases with matching source/definition/binary/configuration
    manifests. Preserve original requests and receipts. Inspect old failed work
@@ -1626,6 +1652,13 @@ controlled cases, without treating their merge as an explanation of either case.
    maintenance. A setup pass must reach all original result/revocation assertions;
    a setup timeout supplies no result-recovery pass. Include #359's admission
    boundary cases without weakening unknown-outcome handling for workload tokens.
+7. Preserve `direct-workload-token`'s 257 distinct cancellations per partition
+   and unchanged 180-second preparation deadline. Compare its failed and passed
+   sources/configurations without reducing the cold-recovery threshold. For the
+   recorded MySQL BEGIN, inspect the saved original token with compatible
+   artifacts before any new transaction; unknown is neither rollback nor rejection.
+   Re-run the SQL gateway fault profile and record the owner conflict/timeout
+   boundary actually reached, independently of workload setup and Queue retention.
 
 **PR units:** original-outcome investigation and independent regression; any
 demonstrated owner fix with disk/recovery cases; installed evidence. Commit subjects
@@ -1730,6 +1763,13 @@ protected Queue transfer worker. Use the existing coordinator and node schedulin
    fork pins and multi-row managed candidates. Verify exact original contents and
    continued collection of a known orphan; a collector step count or lower object
    count alone establishes neither safety nor liveness.
+9. Extend those schedules to CPR1 replacement and SOR1 attachment/closure,
+   including creation after a collector cut, lost readiness replies, a late
+   writer after closure and retained terminal lookup after byte collection.
+   Reuse M7's retained Document membership/head-page evidence when C5 joins;
+   neither independent Table forks nor independent Document cuts imply a common
+   transaction cut. Preserve #384's named-publication durability/fault boundary
+   when preparing or reclaiming new runtime artifacts.
 
 M7 C5 supplies a separate Document participant packet: partition-aware common
 cuts, private logical changes/raw-part roots, prepare/finalize and savepoint
@@ -1751,19 +1791,19 @@ formal and resource evidence separately.
 **Owners:** neutral workload/lease/progress types, `DirectWorkloadIntent`,
 `DirectWorkloadResult`, SQL results/service/client and M9's existing Context/store.
 
-1. Keep delivered durable closure/cancellation, original-result reopening and
-   receipt-bound ACK/NACK/renewal. Define group assignment binding and authenticated
-   progress handoff first, then SQL WAIT timeout/recovery and native acquisition
-   predicate semantics before compiler/service integration. Reuse renewal's
-   returned-handle contract rather than inventing another evidence family.
+1. Keep delivered durable closure/cancellation, original-result reopening,
+   receipt-bound ACK/NACK/renewal and SGH1/SPH1 group progress. Define SQL WAIT
+   timeout/resume/recovery first, then native acquisition predicates and mixed
+   SQL statement attribution before their compiler/service integration.
 2. Persist complete canonical requests before dispatch, including parameters,
    exact interpretation, original native identity and any projection/predicate.
    Resume the original owner after lost replies. Missing receipt, recovering
    owner, stopped wait and durable rejection remain distinct outcomes.
-3. Specify empty/partial/terminal consumption metadata and interval settlement
-   after a SQL LIMIT. Prove both cursor endpoints originate from the same live
-   read; neither display exhaustion nor a filtered row count establishes coverage.
-   Make pin release explicit and independent of ACK/offset progress.
+3. Preserve delivered empty/partial/terminal consumption metadata and interval
+   settlement after a SQL LIMIT. Extend its proof through wait/resume and mixed
+   SQL: both endpoints come from the same live read, while display exhaustion
+   and filtered row counts establish no coverage. Keep pin release explicit and
+   independent of ACK/offset progress.
 4. Compose saved log attempts, result readers and native transactions through the
    existing shared client ownership model. Coordinate M9's handles and recovery
    adapters; do not add per-language recovery state machines or another recovery
@@ -1788,37 +1828,38 @@ independent malformed/foreign-definition fixture and a complete recovery path.
 Each slice includes contract-approved grammar, compiler/corpus diagnostics,
 Catalog binding, shared service/client integration, actual native SQL/console/
 PostgreSQL/MySQL callers and the owning public references. Existing append,
-positional consume, claim, ACK/NACK and original renewal results form the
-regression baseline. Extend the existing owners, not a transport-specific
+positional/grouped consume, offset settlement, claim, ACK/NACK and original
+renewal results form the regression baseline. Extend the existing owners, not a transport-specific
 workload runner.
 
 **4a — Stream groups, waits and offset settlement (R3/R6).**
 
-Split into **4a.1** (explicit assignment/group binding and authenticated offset
-handoff/settlement) and **4a.2** (bounded WAIT). Deliver 4a.1 without requiring
-a new continuous-query or automatic group-rebalancing service. Keep assignment
-explicit through the native owner until a separately specified SQL form exists.
+**4a.1 is delivered** by #367; retain it as a regression gate. Its
+[qualification](../history/qualification/query.md#sql-stream-groups-and-authenticated-offsets--2026-11-03)
+does not close **4a.2** (bounded WAIT), automatic assignment/rebalancing or a
+continuous-query service. Preserve explicit native assignment and read release.
 
-The next review units are contract/fixtures, grouped read composition, then
-offset admission and installed recovery. Target `LogReadSql`,
-`DirectLogPreparedConsume`, `DirectWorkloadIntent`/`DirectWorkloadResult`,
-`WorkloadRead`, `Statement` and the shared result/client owners:
+The implementation owners are `LogConsumeSql`, `DirectLogPreparedConsume`,
+`DirectLogPreparedOffset`, `DirectWorkloadIntent`/`DirectWorkloadResult`,
+`WorkloadRead`, `Statement` and the shared result/client packages:
 
-| Review unit | Concrete output | Acceptance before the next unit |
+| Delivered boundary | Implementation to preserve | Regression obligation |
 | --- | --- | --- |
-| 4a.1 contract | Define how SQL's group operand binds an existing native group ID, assignment generation/principal and expected checkpoint; freeze the shared progress-handoff encoding and COMMIT OFFSET grammar | Independent fixtures reject foreign groups/definitions and forged or mismatched cursors. No implicit assignment, string-to-ID hash convention or grant from session membership |
-| 4a.1 grouped consume | Bind the authorized assignment and original finite cut; expose authenticated interval progress separately from row count through shared result evidence | LIMIT 0, filtered/empty pages, partial LIMIT, repeated fetch and released pins preserve exact traversed coverage; a later reassignment fences fresh work without rewriting an original receipt |
-| 4a.1 offset settlement | Lower the verified handoff into the existing native offset owner and Catalog token; command outcome derives from original receipt | Lost execute/status replies, node/service replacement, stale generation/checkpoint, forged boundaries and revocation after buffering through native SQL, console, PostgreSQL and MySQL; no hidden offset advancement on close |
+| Assignment and descriptors | SGH1 binds exact target, group ID, generation, principal and expected checkpoint; SPH1 carries owner-authenticated read progress | Independent fixtures reject foreign definitions and forged/mismatched cursors; descriptors grant no assignment or permission |
+| Grouped consume | Original finite read starts at the checkpoint; shared completion carries interval coverage separately from row count | LIMIT 0, filtered/empty results, partial LIMIT and repeated fetch; reassignment fences delivery/reopening without rewriting the original outcome |
+| Offset settlement | `COMMIT OFFSET ... RECEIPT` uses the native owner and original Catalog token | Lost replies, replacement, stale checkpoint/generation, released reads, forged MAC and buffered revocation through all four SQL callers; close neither settles nor releases |
 
-- Bind local explicit assignments, their generations and expected checkpoints
-  before grouped consumption. Return a finite original cut, examined coverage,
-  continuation and observed high watermark/lag with a stated observation basis.
-- Lower WAIT through the existing bounded native wait owner and Batch 3's token
-  semantics. Test register/recheck races, publication at timeout, cancellation,
-  revocation while parked and wait saturation. Do not park holding data locks.
-- Lower `COMMIT OFFSET` through authenticated complete/interval progress. Prove
-  duplicate recovery, out-of-order/stale generation rejection, empty/filtered
-  reads, compaction gaps, SQL LIMIT and released/unavailable history.
+For **4a.2**, reuse 4b.2's shared wait recovery/result contract and dispatch the
+existing native Stream wait with the exact consume request. Wait for the declared
+offset frontier, not a matching payload or a row-count threshold. Test explicit
+upper/open-ended bounds, register/recheck races, publication at timeout,
+cancellation, revocation/reassignment while parked and saturation. A successful
+wait yields one finite retained cut; later appends never extend it. Preserve
+observed high watermark/lag attribution and keep data locks out of parked work.
+
+- Extend the delivered offset regression through waited reads, compaction gaps
+  and released/unavailable history. Reopening an accepted wait result must return
+  the original finite read without waiting or assigning again.
 - Qualify producer-sequence duplicate/conflicting requests and declared Arrow
   batch ingress without claiming unsupported Flight or cross-partition append.
 
@@ -1828,7 +1869,7 @@ NACK with an optional absolute `visible_at` is delivered by #336; receipt-return
 renewal is delivered by #341. Preserve both as settlement regressions; reason
 strings and relative-delay operands are not current native capabilities.
 Remaining review units are **4b.2** (unfiltered WAIT) and **4b.3** (native predicate
-selection), independently of 4a.1 after their Batch 3 contracts.
+selection), after their respective Batch 3 contracts. Start with 4b.2.
 
 **4b.1 — Original renewed lease through SQL (delivered; regression gate).**
 
@@ -1862,6 +1903,27 @@ artifacts use the integrated definition above. Keep foreign/missing-definition
 refusal and generated fixture parity when later incompatible changes land.
 
 **4b.2/4b.3 — Wait and predicate acquisition.**
+
+Make 4b.2 concrete in the following order. These are planned changes, not
+additional capabilities of the current SQL result/status contract.
+
+| Review unit | Owning change | Required exit |
+| --- | --- | --- |
+| Wait contract and fixtures | Extend Stream/Queue, direct workload and shared SQL session/result contracts with canonical wait policy, transient attempt deadline, timeout observation, explicit same-token resume and durable closure | Model/fixtures distinguish no native receipt, accepted empty claim, accepted nonempty claim, stopped wait, durable refusal and lost response. Specify carriage for native SQL, console, PostgreSQL and MySQL without reporting a timeout as successful empty completion |
+| Saved work and recovery | Extend `DirectWorkloadIntent` and `WorkloadOperations`; adapt `DatabaseRuntime` and the shared SQL caller's saved-attempt path | Receipt-first lookup always wins. Passive recovery after timeout/service restart cannot call ordinary claim/consume. Explicit resume invokes native wait with the same operation; cancellation races through the existing native closure owner |
+| Admission and parking | Extend `DirectLogPreparedClaim`, `Statement` and SQL service scheduling through the existing native Queue waiter | Admit unfiltered routed WAIT only after the contract is executable. Park without data locks, respect native/declaration waiter bounds and reserve control capacity. Session loss cancels/joins local work without claiming durable rollback |
+| Original result and installed proof | Reuse `DirectWorkloadResult`/`WorkloadRead`, SQL results/client and the existing installed log-session/fault drivers | Lost wait/execute/fetch responses, timeout/enqueue races, explicit resume, accepted empty/nonempty replay, replacement and post-buffer revocation pass through all four callers; no reselection, implicit renewal or hidden ACK |
+
+Bind the SQL wait policy into the saved canonical request/fingerprint. A resumed
+attempt may use a fresh bounded transport deadline but must not replace the
+native operation, frozen definition, routing, claim maximum or lease duration.
+When a native response is lost, retain uncertainty until original lookup or
+explicit native cancellation establishes an outcome; absence alone does not
+fence a request still in flight. Reuse ordinary result delivery only once the
+original claim/read actually exists. Reject unsupported wire carriage until its
+shared adapter can preserve those distinctions.
+
+Use these acceptance cases across 4b.2 and 4b.3:
 
 - Add native deterministic predicate selection before SQL exposes it. Bind
   parameters/schema/collation and bound examined candidates independently of
@@ -1899,6 +1961,10 @@ refusal and generated fixture parity when later incompatible changes land.
 - Integrate bounded projections, filters and supported finite joins. Record each
   source cut; independent cuts are not a global atomic snapshot. Close pins on
   success, early close and failure, preserving uncertain acquisitions.
+  Use #383's shared grouping, HAVING, ordering and LIMIT operators where the
+  new source meets their typed contracts; do not implement a Stream-only sorter
+  or aggregator. Bound sort/aggregate state and preserve ordered failures,
+  complete source coverage and current authorization before result disclosure.
 - Prove no group/Queue progress changes, current rights after buffering, pin
   survival through compaction/restart and explicit unavailable-history failure.
   Hand this source and exact coverage to M12; continuous activation and complete
@@ -1957,6 +2023,11 @@ shared data callers and the qualified mixed decision owner.
    with explicit retained roots for actor definitions, input claims, pending
    decisions, journals and output intents. New record families need their own
    registration/closure rules before collection can remove them.
+   Separate transaction-owned candidate bytes from replaceable recovery progress
+   and original work. Reuse `DirectTransactionRecord`, `DirectProgressRecord`
+   and `DirectOwnedRecord` only for lifetimes they support; do not store an actor's
+   permanent identity in a collectible progress slot. Include attachment/closure
+   races and receipt persistence after worker replacement in the recovery proof.
    Reuse M12's bounded multi-row candidate/page machinery only through its owning
    interfaces and schema; runtime journals and pending decisions retain their own
    declared identities. A `DFP1` result page is not an actor journal or authority
@@ -1998,6 +2069,18 @@ behavior survives worker/controller replacement on the replacement runtime.
 
 **Owners:** Station/connector bindings, SDKs, private Table/Query consumers,
 query-host, runtime controllers, launchers/examples and public Board reads.
+
+Start the removal inventory with these existing owners; expand it by references
+before the cutover. The table names migration obligations, not delivered replacements.
+
+| Existing surface | Replacement and gate | Consumers that must move together |
+| --- | --- | --- |
+| `transit-station` GenServer/Turn and native framework records | Batch 5 actor identity/guard and one mixed transaction; Batch 6 calls/timers/lifecycle | Station bindings/host, every existing SDK handler, controllers and installed applications |
+| Private Table creation/write/statement/read helpers and `TableBridge` actions | Declared Table/KV plus exact retained sources and common-decision state/output/settlement | Query capture, foreign turn actions, SDK fixtures/examples and Board metadata; keep Catalog `DirectTableBridge` |
+| `transit-station-document` service and Document worker | M7 C4/C5/C7 public lifecycle, participant and consumer gates | Document APIs, Query adapters, installation/bootstrap and connector Document consumers |
+| Exchange and HTTP/gRPC/Flight connector workers | Declared intent/attempt/outcome records with authorized dispatch and explicit unknown-outcome policy | Connector bindings, capture/replay readers and installed fault suites |
+| `transit-delivery` and query-host courier roles | Transactional outboxes, native Queue waits and bounded original-work discovery | Node/server composition, launchers, service configurations, tests and examples |
+| Station-specific stored/wire/ABI declarations | One current-v1 definition and regenerated fixtures; old artifact refusal | Protocol/schema generators, signing fixtures, SDK resources, public reads and inspection renderers |
 
 1. Maintain a concrete removal matrix: old module/ABI/action/executable/config,
    replacement owner, affected callers, persisted artifacts, contract definition,
@@ -2088,6 +2171,14 @@ Begin this work alongside the runtime batches; it remains an M6 completion gate.
    a lower counter nor multi-row packing establishes fewer physical syncs or a
    latency win. Add Stream/Queue and Station timings only after their actual
    value/outcome/recovery oracles pass.
+6. Retain the separate console latency and installed scenario gates now on main.
+   Passing their budgets is required where affected, but does not discharge the
+   19-ms/10–20-ms targets below. The nightly container campaign measures a frozen
+   promoted image, not this checkout: follow its
+   [campaign guide](../../tests/performance/load/containers.md) if extending it,
+   keep one-/three-node campaigns sequential, and do not substitute client-routed
+   independent authorities for distributed transaction or Station evidence. M13 owns
+   the broader scorecard; this plan adds no new nightly workload or benchmark run.
 
 **PR units:** token/routing contract and model; common WAL/reconstruction path;
 read-after-write refinement; TRUNCATE; matched installed performance evidence.
@@ -2134,6 +2225,34 @@ core/storage-query, formal, interfaces, SDK families, browser, installation and
 launchers, plus explicit applicable provider/deployment checks outside those
 lanes. An incomplete lane or unavailable provider proof is not a pass. Performance
 runs remain separate from heavy qualification workloads.
+
+Every PR, including a plan-only update, first runs the repository's independent
+baseline gates from the root:
+
+```sh
+nix develop --command just check fast
+nix develop .#docs --command just transit-docs::install
+nix develop .#docs --command just transit-docs::check
+```
+
+The install command prepares dependencies; only the check supplies a handbook
+pass. The fast gate includes source links but cannot replace the production
+handbook build. For implementation review units, add the checks selected by the
+actual diff before opening/updating the PR:
+
+| Changed boundary | Required additions |
+| --- | --- |
+| Public types, saved work, wire/ABI or generated resources | `just check contracts` plus dependent package/caller checks and affected clean lanes |
+| SQL wait/source/transaction, console, server or gateway startup | `just test console-latency-gate` in the pinned `ci-experience` shell and `just test server-sql-types`, plus owning installed workload/fault checks and `interfaces-sql` |
+| SQL scalar or PostgreSQL/MySQL adaptation | The [SQL interface validation loop](../../tasks/README.md#sql-interface-validation), including `just test sql-wire-contracts` and `just test sql-wire-types` |
+| Storage/participant/runtime behavior | Owning disk/fault/model checks, then affected `core`/`storage-query` and caller/installation/provider lanes; a unit test does not qualify replacement or physical recovery |
+| Board/browser contracts or handbook behavior | `just transit-board::check` and affected browser proofs, or the [handbook browser proof](../handbook/README.md#validation-and-hosting) for navigation/rendering/hosting changes |
+
+Run added commands inside their pinned Nix shells with locked dependencies.
+Record commands, source/definition, outcomes and omissions in each PR. Rerun
+affected gates after further edits; do not push/open/update a PR with required
+checks failing or incomplete. Planning alone needs no runtime suite and provides
+no runtime evidence.
 
 For every delivered slice, update its public reference/component/contract owner:
 Streams, SQL streaming/results, Station, state, callers, retention, storage,
