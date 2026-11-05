@@ -187,7 +187,8 @@ can be followed by a new finite attempt only after the original decision closes.
 No source LSN is compared with another partition's clock.
 
 The native cohosted SQL service accepts `CREATE DATAFLOW name INTO output AS
-SELECT ...`, AUTHORIZE/ACTIVATE/SUSPEND/RESUME/REFRESH/RETIRE DATAFLOW, SHOW
+SELECT ...` (including `GROUP BY`, `HAVING`, `ORDER BY` and `LIMIT` over one
+Table), AUTHORIZE/ACTIVATE/SUSPEND/RESUME/REFRESH/RETIRE DATAFLOW, SHOW
 DATAFLOW, SHOW DATAFLOW name REVISION number and metadata-only EXPLAIN CREATE
 DATAFLOW. SQL operation kind `dataflow`
 and command kinds `create_dataflow`/`control_dataflow` preserve the original

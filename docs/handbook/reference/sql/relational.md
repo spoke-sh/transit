@@ -18,7 +18,11 @@ FROM observations AS l LEFT JOIN readings AS r ON l.key = r.key
 GROUP BY l.key;
 
 SELECT key, COUNT(*) AS rows, SUM(value) AS total
-FROM observations WHERE value >= 0 GROUP BY key;
+FROM observations WHERE value >= 0
+GROUP BY key
+HAVING COUNT(*) > 1
+ORDER BY total DESC NULLS LAST, key ASC
+LIMIT 10;
 ```
 
 The console uses the selected account's service-owned catalog, independent
@@ -41,9 +45,17 @@ comparisons and `IS [NOT] NULL`.
 stable left/right row-identity order and preserves the first overflowing
 contributor, even if later values would reduce the mathematical total. It does
 not widen to PostgreSQL's numeric result. Ungrouped empty input returns zero
-counts and null sums; grouped empty input returns no rows. Group output is
-lexicographic under the declared collations with NULL first. A text group retains
-the first contributor’s original spelling, including under ASCII_CI. This canonical order does not enable `ORDER BY`.
+counts and null sums; grouped empty input returns no rows. `HAVING` filters
+completed groups using the same three-valued Boolean predicate semantics over
+grouped columns and `COUNT`/`SUM` aggregates. Without `ORDER BY`, group output is
+lexicographic under the declared collations with NULL first. `ORDER BY` sorts
+grouped or ungrouped rows by one or more column or aggregate expressions (`ASC`
+or `DESC`, with `NULLS FIRST` default for `ASC`, `NULLS LAST` default for `DESC`,
+and explicit `NULLS FIRST`/`NULLS LAST` overrides), breaking ties by canonical
+group key or row-pair identity. Unqualified identifiers in `HAVING` and `ORDER BY`
+resolve explicit `AS` output aliases before source columns. `LIMIT` truncates the
+final ordered output. A text group retains
+the first contributor’s original spelling, including under ASCII_CI.
 
 Direct Tables have separate partition cuts even within one catalog resource.
 Repeated aliases of the same Table share one retained pin. This independent
@@ -61,7 +73,7 @@ spill file and returns a null execution basis. Concurrent metadata revision
 changes reject preparation. A later SELECT acquires its own basis and checks
 read access independently.
 
-The profile excludes LIMIT, HAVING, DISTINCT, arbitrary ORDER BY, more than one
+The profile excludes DISTINCT, OFFSET, more than one
 join, right/full/cross/non-equality joins, general subqueries, parameters,
 implicit type coercion and float sums. Existing single-source limits retain
 their own semantics. Board, Flight and foreign-language query bindings retain

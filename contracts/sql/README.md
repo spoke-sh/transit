@@ -346,18 +346,20 @@ are outside the grammar. `AS OF` remains a separately checked fragment.
 `relationalQuery` is a separate checked root for the explicit Table relational
 profile. It accepts optional EXPLAIN, one or two Table targets with explicit or
 implicit aliases, one inner/left equijoin, mixed column/COUNT/SUM selections,
-Boolean WHERE and GROUP BY. The [relational corpus](corpus/relational.json)
-compares normalized sources, aliases, outputs, joins, group keys and predicate
+Boolean WHERE, GROUP BY, HAVING, ORDER BY (`ASC`/`DESC`, `NULLS FIRST`/`NULLS LAST`)
+and LIMIT. The [relational corpus](corpus/relational.json)
+compares normalized sources, aliases, outputs, joins, group keys, HAVING
+predicates, ORDER BY items, LIMIT and predicate
 instruction order across ANTLR, PostgreSQL and production Zig. `just
 test::relational-sql` executes this comparison and is included in `test::sql`.
 The ordinary grammar root retains its existing one-source/subquery/LIMIT
-profile. Contextual join/group words remain identifiers where the existing
+profile. Contextual join/group/order words remain identifiers where the existing
 language allows them; unquoted implicit source aliases cannot consume clause
 words. Type admission, distinct output names, grouping legality, source rights
-and execution budgets remain semantic checks. LIMIT, HAVING, DISTINCT, ORDER BY,
+and execution budgets remain semantic checks. DISTINCT, OFFSET,
 parameters, additional joins and arbitrary expressions are excluded from the
 relational root. Reference grammar predicates share literal syntax; executable
-relational binding admits only exact int64 comparisons and NULL-state tests.
+relational binding admits only exact int64 and UTF-8 comparisons and NULL-state tests.
 
 `TableDdl.compile` owns general CREATE/ALTER/DROP compilation. CREATE defaults
 to nullable columns and supports aliases, logical descriptors, deterministic

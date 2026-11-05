@@ -286,7 +286,8 @@ DECIMAL SUM adds the selected values of one declared source.
 Those single-source interfaces retain their original cut and operator profile.
 The separate [finite relational contract](../../../contracts/RELATIONAL_V1.md)
 supports one or two explicitly routed Tables, one inner/left int64 or UTF-8 equijoin,
-grouping by int64 or UTF-8 columns, projection, COUNT and ordered checked int64 SUM.
+grouping by int64 or UTF-8 columns, `HAVING`, `ORDER BY` (`ASC`/`DESC`,
+`NULLS FIRST`/`NULLS LAST`), `LIMIT`, projection, COUNT and ordered checked int64 SUM.
 SQL declares int64 as BIGINT and UTF-8 as TEXT. Join columns require matching
 types and collations. Text comparison, grouping and routing honor UTF8_BINARY,
 ASCII_CI or EBCDIC_CP037 with NO PAD semantics. Join nulls do not match; grouping
@@ -587,7 +588,7 @@ themselves. Calling the lower-level immutable-record API cannot bypass them.
 
 This profile accepts one ordinary Table source in the same connection and
 namespace as the output. It uses the existing finite relational projection,
-filter and grouped COUNT/SUM compiler. Output column names, logical types and
+filter, grouped COUNT/SUM, `HAVING`, `ORDER BY` and `LIMIT` compiler. Output column names, logical types and
 nullability must match the SELECT. Source/output/control objects are distinct;
 managed output chaining and multiple managed writers are refused. PostgreSQL,
 MySQL and standalone remote gateways do not execute these declarations.

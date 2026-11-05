@@ -46,8 +46,8 @@ explicit and unique. Storage support does not widen operator admission.
 | Dimension                             | Limit                                                   |
 | ------------------------------------- | ------------------------------------------------------- |
 | Sources / joins                       | 1–2 / zero for one source, one for two                  |
-| Outputs / group columns               | 1–128 / 0–128                                           |
-| Each source-local or joined predicate | 0–64 postfix instructions                               |
+| Outputs / group / order columns       | 1–128 / 0–128 / 0–128                                   |
+| Each source, joined or HAVING filter  | 0–64 postfix instructions                               |
 | Names                                 | 1–255 UTF-8 bytes, no NUL; 4096 output-name bytes total |
 | Prepared identity preimage            | 8192 bytes                                              |
 
@@ -62,7 +62,8 @@ discard accepted work or expire data.
 ## Evaluation and canonical order
 
 Logical stages are source row validation, source-local filtering, join, joined
-filtering, grouped/ungrouped aggregation and projection. Local filters reference
+filtering, grouped/ungrouped aggregation, HAVING filtering, ORDER BY sorting,
+projection and LIMIT truncation. Local filters reference
 only their source. Predicates are eager postfix comparisons, state tests, NOT,
 AND and OR using three-valued logic: NULL comparison is unknown and only true
 selects. IS NULL/IS NOT NULL are exact tests. Native integration must define and
@@ -71,9 +72,11 @@ preserve validation-page/error precedence independently of execution batches.
 The finite executor advances at most one ordered source row and one group update
 per step. Its initial join strategy rescans the frozen right input for each
 selected left row, preserving canonical order without buffering a relation.
-Group updates process all aggregates provisionally before storing the group.
-Group output starts only after input completion and sorts by the entire key
-tuple. The host validates every dependency before disclosure and completion,
+Group updates process all state expressions provisionally before storing the group.
+Group output starts only after input completion, filters groups through HAVING,
+sorts qualifying groups or ordered rows by ORDER BY (breaking ties by group key
+or row-pair identity), and truncates at the optional LIMIT. The host validates
+every dependency before disclosure and completion,
 including empty or fully filtered inputs. A failed execution is terminal.
 
 The interactive owner uses an AVL index in an exclusively created, immediately
@@ -86,11 +89,14 @@ accounts all query heap allocations and reserves its bounded working frames;
 the supplied native Client owns its separate transport memory.
 
 SQL admits explicit columns and multiple COUNT/SUM expressions, AS output names,
-one optional INNER/LEFT [OUTER] JOIN with one column equality, WHERE predicates
-and GROUP BY columns. `RelationalSql.parse` owns its syntax; `bind` borrows the
-acquired immutable Table descriptors. Source-local filters are typed-plan fields;
+one optional INNER/LEFT [OUTER] JOIN with one column equality, WHERE predicates,
+GROUP BY columns, HAVING predicates, ORDER BY expressions (`ASC`/`DESC`,
+`NULLS FIRST`/`NULLS LAST`) and LIMIT. `RelationalSql.parse` owns its syntax;
+`bind` borrows the acquired immutable Table descriptors. Unqualified single-word
+identifiers in HAVING and ORDER BY resolve to explicit `AS` output aliases before
+source column lookup. Source-local filters are typed-plan fields;
 SQL WHERE lowers after the join. No parameter substitution or implicit coercion
-is added. Unsupported LIMIT/HAVING/ORDER BY/DISTINCT and additional joins reject.
+is added. Unsupported DISTINCT, OFFSET and additional joins reject.
 
 Canonical source order for this new profile is lexicographic Table row identity
 order (`TableRow.Identity.encode`). Join order is left identity then right
@@ -124,7 +130,7 @@ to one aggregate; hosts must discard an entire provisional step when a later
 aggregate fails. Scalar rollback is not atomic result publication. The independent
 oracle receives validated rows and does not qualify native page-error precedence.
 
-LIMIT, HAVING, arbitrary ORDER BY, DISTINCT, additional/multiple joins, implicit
+DISTINCT, OFFSET, additional/multiple joins, implicit
 coercion, richer aggregates, windows, recursion and file/KV/Document or cross-realm
 joins have no representation in this profile.
 
@@ -157,7 +163,7 @@ of these lifecycle operations.
 
 ## Canonical identity preimages
 
-Domain: `transit.fuze.relational.v1.2026-10-26`. Names have one-byte byte-length
+Domain: `transit.fuze.relational.v1.2026-11-05`. Names have one-byte byte-length
 prefixes; integers are little endian. SHA-256 hashes the following prepared bytes:
 
 1. Domain, NUL, `prepared`, NUL, one-byte source count.
@@ -170,9 +176,13 @@ prefixes; integers are little endian. SHA-256 hashes the following prepared byte
    (equal 0, not-equal 1, less 2, less-equal 3, greater 4, greater-equal 5), then
    a typed literal: tag 1 and int64, or tag 2, uint32 byte length and UTF-8 bytes.
    State tests carry a column; Boolean operators have no payload.
-5. One-byte group count and columns; one-byte output count, then output names
-   and expression tags (column 0, count-all 1, count-column 2, sum 3). Expressions
-   other than count-all carry a column.
+5. One-byte group count and columns; one-byte HAVING instruction count and
+   instructions (replacing column operands with expression tags/columns);
+   one-byte output count, then output names and expression tags (column 0,
+   count-all 1, count-column 2, sum 3; expressions other than count-all carry a
+   column); one-byte ORDER BY count, then each item's expression, direction byte
+   (asc 0, desc 1) and null-order byte (first 0, last 1); then optional LIMIT
+   (Boolean presence byte followed by uint64 when present).
 6. Lifetime byte (interactive 0, captured 1, maintained 2), uint64 resident/spill/result bytes,
    output rows and work steps, then one-byte pin capacity.
 
@@ -211,7 +221,9 @@ A reference contains uint64 record ID, uint32 byte length, 32-byte SHA-256 of th
 record, uint8 height and uint64 entry count. Optional references use a Boolean
 byte followed by that payload only when present. `FRN1` nodes contain magic,
 32-byte shared native definition, 32-byte bound fingerprint, optional left/right
-references, one-byte group/output counts, typed nullable keys, then per-output
+references, one-byte key/state-expression counts, typed nullable keys, an optional
+pair-identity tiebreaker (left identity and optional right identity) when the plan
+is ungrouped with `ORDER BY`, then per-state-expression
 uint64 row/value counts and nullable int64 sum. Keys and source values use tag 0
 for NULL with no payload, tag 1 followed by int64, or tag 2 followed by uint32
 byte length and UTF-8 bytes. A key vector contains at most 1 MiB of text. Aggregate
@@ -226,13 +238,14 @@ encoding has magic, shared native definition, bound fingerprint, optional root,
 phase byte (input 1, empty-right coverage 2, grouped output 3, complete 4, failed
 5), optional left/right continuation row identities, optional retained left row,
 matched and right-covered Booleans, uint64 group/work/result-row/result-byte
-counts, optional last output group and optional failure witness. Optional
+counts, optional last output key (with optional pair identity for ungrouped
+`ORDER BY`) and optional failure witness. Optional
 identities have a Boolean prefix and the Table's 20-byte stable identity. A
 retained row contains its identity and one typed nullable scalar per schema
 column; unsupported unreferenced types remain null. Group keys have the prepared
 number of typed nullable scalars. Each source-row or group-key vector contains
 at most 1 MiB of text. A failure records left identity, optional right identity,
-one-byte output ordinal and group key. Decoders reject noncanonical Booleans,
+one-byte state-expression ordinal and group key. Decoders reject noncanonical Booleans,
 truncation, trailing bytes, wrong definitions/bindings and inconsistent progress.
 The record is bounded by 8192 fixed bytes plus two 1 MiB text vectors; it is
 not a native inline value. Hosts allocate actual encoded sizes for reads.

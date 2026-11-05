@@ -189,9 +189,11 @@ oversized cells. The compiler returns no successful prefix or approximate plan.
 compiler APIs and errors.
 
 The separately configured [finite relational console profile](../../../../apps/transit-cli/docs/console.md#finite-relational-queries)
-adds one inner/left int64 or UTF-8 equijoin and grouped COUNT/SUM over explicit Tables.
-The single-source interfaces above do not inherit those operators. Sorting,
-arithmetic, general casts, historical clauses and continuous queries remain
+adds one inner/left int64 or UTF-8 equijoin, grouped COUNT/SUM, `HAVING`,
+`ORDER BY` (`ASC`/`DESC`, `NULLS FIRST`/`NULLS LAST`) and `LIMIT` over explicit Tables.
+The single-source interfaces above do not inherit those operators; catalog Table
+queries containing `GROUP BY`, `HAVING` or `ORDER BY` route through the finite
+relational profile. Arithmetic, general casts, historical clauses and continuous queries remain
 unsupported. This is a selected SQL subset, with
 parser agreement on a checked PostgreSQL corpus; it is not PostgreSQL execution
 compatibility. In particular, int64 sums remain checked int64 rather than widened
