@@ -182,8 +182,12 @@ def header_deadline(root, port):
                     assert not data, ('incomplete header produced output', data)
                     break
                 except socket.timeout:
-                    connection.sendall(b'x')
+                    pass
                 except (ConnectionResetError, ssl.SSLEOFError):
+                    break
+                try:
+                    connection.sendall(b'x')
+                except (BrokenPipeError, ConnectionResetError, ssl.SSLEOFError):
                     break
             else:
                 raise AssertionError('TLS header fragments renewed the HTTP deadline')

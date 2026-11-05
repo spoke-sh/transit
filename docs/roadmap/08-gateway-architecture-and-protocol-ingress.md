@@ -318,6 +318,28 @@ independently. M6/M7 gate their own incoming capabilities, not existing Table SQ
 
 #### Current implementation and evidence
 
+**First deadline slice after this audit:** the HTTP owner now sets absolute
+socket deadlines for plain and native TLS headers without a header timer/work
+pair. Buffered parsing checks the same deadline; body, output and joined
+non-socket handler cancellation use the original request budget. PG/MySQL
+authentication shares one timestamp across startup I/O and an event waiter,
+replacing the five-millisecond polling loop. Output caps use exact timestamps.
+The [SQL host ownership matrix](../../packages/zig/transit-sql-host/README.md)
+records the affected borrows, authority and cancellation owners; the
+[HTTP](../../contracts/HTTP_SERVING_V1.md) and
+[wire](../../contracts/SQL_GATEWAY_V1.md) contracts retain their existing limits.
+These are implementation changes within the current definition.
+
+Package controls cover expired buffered input, stalled headers without timer
+tasks, body/handler cancellation and joins, pipelined reuse, spurious event wakes,
+expiry, cancellation and exact output caps. The independent native TLS schedule
+adds fragmented-header expiry before ordinary authenticated session use. PR
+validation records the executed integration and clean-checkout outcomes.
+P3 remains open: command/handler cancellation tasks, signed-client propagation,
+resumable host progress, fair queues and CPU-sized worker defaults still require
+their remaining contracts and proofs. This slice does not close P0/P5 measurement
+controls, local configuration handoff, remote authority, or M6/M7 incoming gates.
+
 The public [runtime owner](../../packages/zig/transit-sql/docs/runtime.md),
 [SQL host](../../packages/zig/transit-sql-host/README.md),
 [wire contract](../../contracts/SQL_GATEWAY_V1.md) and
