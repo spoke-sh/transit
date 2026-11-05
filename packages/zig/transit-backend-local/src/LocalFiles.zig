@@ -26,7 +26,7 @@ pub fn stage(io: std.Io, directory: std.Io.Dir, name: []const u8, bytes: []const
 
 pub fn publishStaged(io: std.Io, temporary: *std.Io.File.Atomic, replace: bool) !void {
     try temporary.file.sync(io);
-    if (replace) try temporary.replace(io) else try temporary.link(io);
+    if (replace) try temporary.replace(io) else try @import("transit_storage").FilePublication.link(io, temporary);
 }
 
 pub fn read(io: std.Io, directory: std.Io.Dir, name: []const u8, output: []u8) !?[]const u8 {

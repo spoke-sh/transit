@@ -43,7 +43,7 @@ fn publishName(io: std.Io, dir: std.Io.Dir, path: []const u8, bytes: []const u8,
     defer temporary.deinit(io);
     try temporary.file.writeStreamingAll(io, bytes);
     try temporary.file.sync(io);
-    if (replace) try temporary.replace(io) else try temporary.link(io);
+    if (replace) try temporary.replace(io) else try @import("FilePublication.zig").link(io, &temporary);
 }
 fn publish(io: std.Io, dir: std.Io.Dir, path: []const u8, bytes: []const u8, replace: bool) !void {
     try publishName(io, dir, path, bytes, replace);
@@ -230,7 +230,7 @@ fn publishContentFile(self: *Self, temporary: *std.Io.File.Atomic, filename: []c
     try self.linkContentFile(temporary, filename, bytes, is_checks);
 }
 fn linkContentFile(self: *Self, temporary: *std.Io.File.Atomic, filename: []const u8, bytes: []const u8, is_checks: bool) !void {
-    temporary.link(self.io) catch |err| switch (err) {
+    @import("FilePublication.zig").link(self.io, temporary) catch |err| switch (err) {
         error.PathAlreadyExists => {
             const file = try self.objects_dir.openFile(self.io, filename, .{ .follow_symlinks = false });
             defer file.close(self.io);
