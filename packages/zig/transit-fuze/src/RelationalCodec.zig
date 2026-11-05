@@ -88,20 +88,30 @@ pub fn decodeInto(arena: std.mem.Allocator, bytes: []const u8) !r.Plan {
     const outputs = try arena.alloc(r.Output, output_count);
     for (outputs) |*output| {
         output.name = try text(arena, &input);
-        const tag = std.enums.fromInt(std.meta.Tag(r.Expression), try input.takeByte()) orelse return error.InvalidRelationalEncoding;
-        output.expression = switch (tag) {
-            .count_all => .count_all,
-            .column => .{ .column = try column(&input) },
-            .count => .{ .count = try column(&input) },
-            .sum => .{ .sum = try column(&input) },
+        output.expression = try expression(&input);
+    }
+    const having_pred = try having(arena, &input);
+    const order_count = try input.takeByte();
+    if (order_count > r.max_groups) return error.InvalidRelationalGroups;
+    const order_by = try arena.alloc(r.OrderBy, order_count);
+    for (order_by) |*item| {
+        item.* = .{
+            .expression = try expression(&input),
+            .direction = std.enums.fromInt(r.Direction, try input.takeByte()) orelse return error.InvalidRelationalEncoding,
+            .nulls = std.enums.fromInt(r.NullOrder, try input.takeByte()) orelse return error.InvalidRelationalEncoding,
         };
     }
+    const limit: ?u64 = switch (try input.takeByte()) {
+        0 => null,
+        1 => try input.takeInt(u64, .little),
+        else => return error.InvalidRelationalEncoding,
+    };
     const lifetime = std.enums.fromInt(r.Lifetime, try input.takeByte()) orelse return error.InvalidRelationalEncoding;
     var budgets: r.Budgets = undefined;
     inline for (.{ "resident_bytes", "spill_bytes", "result_bytes", "output_rows", "work_steps" }) |field| @field(budgets, field) = try input.takeInt(u64, .little);
     budgets.source_pins = try input.takeByte();
     if (input.bufferedLen() != 0) return error.InvalidRelationalEncoding;
-    const plan: r.Plan = .{ .sources = sources, .join = join, .source_filters = filters, .filter = filter, .group_by = groups, .outputs = outputs, .lifetime = lifetime, .budgets = budgets };
+    const plan: r.Plan = .{ .sources = sources, .join = join, .source_filters = filters, .filter = filter, .group_by = groups, .having = having_pred, .outputs = outputs, .order_by = order_by, .limit = limit, .lifetime = lifetime, .budgets = budgets };
     try plan.validate();
     var canonical: [max_bytes]u8 = undefined;
     if (!std.mem.eql(u8, bytes, try encode(plan, &canonical))) return error.InvalidRelationalEncoding;
@@ -113,6 +123,15 @@ fn text(arena: std.mem.Allocator, reader: *std.Io.Reader) ![]const u8 {
 fn column(reader: *std.Io.Reader) !r.Column {
     return .{ .source = try reader.takeByte(), .id = try reader.takeInt(u64, .little) };
 }
+fn expression(reader: *std.Io.Reader) !r.Expression {
+    const tag = std.enums.fromInt(std.meta.Tag(r.Expression), try reader.takeByte()) orelse return error.InvalidRelationalEncoding;
+    return switch (tag) {
+        .count_all => .count_all,
+        .column => .{ .column = try column(reader) },
+        .count => .{ .count = try column(reader) },
+        .sum => .{ .sum = try column(reader) },
+    };
+}
 fn predicate(arena: std.mem.Allocator, reader: *std.Io.Reader) !r.Predicate {
     const count = try reader.takeByte();
     if (count > r.max_instructions) return error.InvalidRelationalPredicate;
@@ -123,6 +142,23 @@ fn predicate(arena: std.mem.Allocator, reader: *std.Io.Reader) !r.Predicate {
             .compare => .{ .compare = .{ .column = try column(reader), .op = std.enums.fromInt(r.Comparison, try reader.takeByte()) orelse return error.InvalidRelationalEncoding, .value = try literal(arena, reader) } },
             .is_null => .{ .is_null = try column(reader) },
             .is_not_null => .{ .is_not_null = try column(reader) },
+            .negate => .negate,
+            .conjunction => .conjunction,
+            .disjunction => .disjunction,
+        };
+    }
+    return .{ .instructions = instructions };
+}
+fn having(arena: std.mem.Allocator, reader: *std.Io.Reader) !r.Having {
+    const count = try reader.takeByte();
+    if (count > r.max_instructions) return error.InvalidRelationalPredicate;
+    const instructions = try arena.alloc(r.HavingInstruction, count);
+    for (instructions) |*instruction| {
+        const tag = std.enums.fromInt(std.meta.Tag(r.HavingInstruction), try reader.takeByte()) orelse return error.InvalidRelationalEncoding;
+        instruction.* = switch (tag) {
+            .compare => .{ .compare = .{ .expression = try expression(reader), .op = std.enums.fromInt(r.Comparison, try reader.takeByte()) orelse return error.InvalidRelationalEncoding, .value = try literal(arena, reader) } },
+            .is_null => .{ .is_null = try expression(reader) },
+            .is_not_null => .{ .is_not_null = try expression(reader) },
             .negate => .negate,
             .conjunction => .conjunction,
             .disjunction => .disjunction,

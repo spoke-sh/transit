@@ -5,7 +5,7 @@ const table = @import("TableSchema.zig");
 const types = @import("Types.zig");
 pub const RowIdentity = @import("TableRow.zig").Identity;
 
-pub const definition = "transit.fuze.relational.v1.2026-10-26";
+pub const definition = "transit.fuze.relational.v1.2026-11-05";
 pub const max_sources = 2;
 pub const max_outputs = 128;
 pub const max_groups = 128;
@@ -38,6 +38,14 @@ pub const Expression = union(enum(u8)) {
     count_all,
     count: Column,
     sum: Column,
+
+    pub fn eql(a: Expression, b: Expression) bool {
+        if (std.meta.activeTag(a) != std.meta.activeTag(b)) return false;
+        return switch (a) {
+            .count_all => true,
+            inline else => |col, tag| col.eql(@field(b, @tagName(tag))),
+        };
+    }
 };
 pub const Output = struct { name: []const u8, expression: Expression };
 pub const Comparison = enum(u8) { equal, not_equal, less, less_equal, greater, greater_equal };
@@ -52,6 +60,35 @@ pub const Instruction = union(enum(u8)) {
 pub const Predicate = struct {
     /// Empty means true; otherwise an eager postfix program with one result.
     instructions: []const Instruction = &.{},
+};
+pub const HavingInstruction = union(enum(u8)) {
+    compare: struct { expression: Expression, op: Comparison, value: @import("RelationalValues.zig").Literal },
+    is_null: Expression,
+    is_not_null: Expression,
+    negate,
+    conjunction,
+    disjunction,
+};
+pub const Having = struct {
+    /// Post-aggregation group predicate; empty means true.
+    instructions: []const HavingInstruction = &.{},
+};
+pub const Direction = enum(u8) { asc = 1, desc = 2 };
+pub const NullOrder = enum(u8) {
+    first = 1,
+    last = 2,
+
+    pub fn default(direction: Direction) NullOrder {
+        return switch (direction) {
+            .asc => .first,
+            .desc => .last,
+        };
+    }
+};
+pub const OrderBy = struct {
+    expression: Expression,
+    direction: Direction = .asc,
+    nulls: NullOrder = .first,
 };
 pub const Lifetime = enum(u8) { interactive, captured, maintained };
 pub const Budgets = struct {
@@ -70,9 +107,84 @@ pub const Plan = struct {
     /// Evaluated after the join, including null extension, before aggregation.
     filter: Predicate = .{},
     group_by: []const Column = &.{},
+    having: Having = .{},
     outputs: []const Output,
+    order_by: []const OrderBy = &.{},
+    limit: ?u64 = null,
     lifetime: Lifetime,
     budgets: Budgets,
+
+    pub fn isGrouped(self: Plan) bool {
+        if (self.group_by.len != 0) return true;
+        for (self.outputs) |output| if (output.expression != .column) return true;
+        return false;
+    }
+
+    pub fn usesGroups(self: Plan) bool {
+        return self.isGrouped() or self.order_by.len != 0;
+    }
+
+    pub fn hasAggregateOrder(self: Plan) bool {
+        for (self.order_by) |item| if (item.expression != .column) return true;
+        return false;
+    }
+
+    pub fn ordersByColumn(self: Plan, column: Column) bool {
+        for (self.order_by) |item| if (item.expression == .column and item.expression.column.eql(column)) return true;
+        return false;
+    }
+
+    pub fn keyColumns(self: Plan, buffer: *[max_groups]Column) []const Column {
+        if (self.isGrouped()) return self.group_by;
+        if (self.order_by.len == 0) return &.{};
+        var len: usize = 0;
+        for (self.order_by) |item| {
+            if (item.expression == .column and !containsColumn(buffer[0..len], item.expression.column)) {
+                buffer[len] = item.expression.column;
+                len += 1;
+            }
+        }
+        for (self.outputs) |item| {
+            if (item.expression == .column and !containsColumn(buffer[0..len], item.expression.column)) {
+                buffer[len] = item.expression.column;
+                len += 1;
+            }
+        }
+        return buffer[0..len];
+    }
+
+    pub fn stateExpressions(self: Plan, buffer: *[max_outputs]Expression) ![]const Expression {
+        if (self.outputs.len > max_outputs) return error.InvalidRelationalOutputs;
+        var len: usize = self.outputs.len;
+        for (self.outputs, 0..) |output, i| buffer[i] = output.expression;
+        for (self.having.instructions) |inst| {
+            const expr: Expression = switch (inst) {
+                .compare => |cmp| cmp.expression,
+                .is_null, .is_not_null => |e| e,
+                .negate, .conjunction, .disjunction => continue,
+            };
+            if (expr != .column and !containsExpression(buffer[0..len], expr)) {
+                if (len == max_outputs) return error.InvalidRelationalOutputs;
+                buffer[len] = expr;
+                len += 1;
+            }
+        }
+        for (self.order_by) |item| {
+            if (item.expression != .column and !containsExpression(buffer[0..len], item.expression)) {
+                if (len == max_outputs) return error.InvalidRelationalOutputs;
+                buffer[len] = item.expression;
+                len += 1;
+            }
+        }
+        return buffer[0..len];
+    }
+
+    pub fn findStateSlot(self: Plan, expression: Expression) ?usize {
+        var buffer: [max_outputs]Expression = undefined;
+        const list = self.stateExpressions(&buffer) catch return null;
+        for (list, 0..) |item, i| if (item.eql(expression)) return i;
+        return null;
+    }
 
     pub fn validate(self: Plan) !void {
         _ = try self.traits();
@@ -120,10 +232,7 @@ pub const Plan = struct {
             _ = try self.resolveColumn(column);
             for (self.group_by[0..i]) |earlier| if (column.eql(earlier)) return error.DuplicateRelationalGroup;
         }
-        var aggregate = false;
-        for (self.outputs) |output| if (output.expression != .column) {
-            aggregate = true;
-        };
+        const grouped = self.isGrouped();
         var output_name_bytes: usize = 0;
         for (self.outputs, 0..) |output, i| {
             try name(output.name);
@@ -133,18 +242,48 @@ pub const Plan = struct {
                 .count_all => {},
                 .column => |column| {
                     _ = try self.resolveColumn(column);
-                    if (aggregate or self.group_by.len != 0) {
-                        var grouped = false;
-                        for (self.group_by) |key| if (key.eql(column)) {
-                            grouped = true;
-                        };
-                        if (!grouped) return error.UngroupedRelationalColumn;
-                    }
+                    if (grouped and !containsColumn(self.group_by, column)) return error.UngroupedRelationalColumn;
                 },
                 .count => |column| _ = try self.resolveColumn(column),
                 .sum => |column| if ((try self.resolveColumn(column)).type != .int64) return error.UnsupportedRelationalType,
             }
         }
+        try self.validateHaving(self.having, grouped);
+        if (self.order_by.len > max_groups) return error.InvalidRelationalGroups;
+        for (self.order_by, 0..) |item, i| {
+            for (self.order_by[0..i]) |earlier| if (item.expression.eql(earlier.expression)) return error.DuplicateRelationalGroup;
+            switch (item.expression) {
+                .column => |column| {
+                    _ = try self.resolveColumn(column);
+                    if (grouped and !containsColumn(self.group_by, column)) return error.UngroupedRelationalColumn;
+                },
+                .count_all => if (!grouped) return error.UngroupedRelationalColumn,
+                .count => |column| {
+                    if (!grouped) return error.UngroupedRelationalColumn;
+                    _ = try self.resolveColumn(column);
+                },
+                .sum => |column| {
+                    if (!grouped) return error.UngroupedRelationalColumn;
+                    if ((try self.resolveColumn(column)).type != .int64) return error.UnsupportedRelationalType;
+                },
+            }
+        }
+        if (!grouped and self.order_by.len != 0) {
+            var unique_count: usize = 0;
+            var unique_cols: [max_groups]Column = undefined;
+            for (self.order_by) |item| if (item.expression == .column and !containsColumn(unique_cols[0..unique_count], item.expression.column)) {
+                if (unique_count == max_groups) return error.InvalidRelationalGroups;
+                unique_cols[unique_count] = item.expression.column;
+                unique_count += 1;
+            };
+            for (self.outputs) |item| if (item.expression == .column and !containsColumn(unique_cols[0..unique_count], item.expression.column)) {
+                if (unique_count == max_groups) return error.InvalidRelationalOutputs;
+                unique_cols[unique_count] = item.expression.column;
+                unique_count += 1;
+            };
+        }
+        var states_buf: [max_outputs]Expression = undefined;
+        _ = try self.stateExpressions(&states_buf);
         const type_limits: types.Limits = .{};
         if (output_name_bytes > type_limits.name_bytes) return error.InvalidRelationalOutputs;
         const budgets = self.budgets;
@@ -189,6 +328,49 @@ pub const Plan = struct {
             }
         }
         if (predicate.instructions.len != 0 and depth != 1) return error.InvalidRelationalPredicate;
+    }
+
+    fn validateHaving(self: Plan, having: Having, grouped: bool) !void {
+        if (having.instructions.len == 0) return;
+        if (!grouped) return error.UngroupedRelationalColumn;
+        if (having.instructions.len > max_instructions) return error.InvalidRelationalPredicate;
+        var depth: usize = 0;
+        for (having.instructions) |instruction| {
+            const expression: ?Expression = switch (instruction) {
+                .compare => |item| item.expression,
+                .is_null, .is_not_null => |item| item,
+                else => null,
+            };
+            if (expression) |expr| {
+                const descriptor: table.Column = switch (expr) {
+                    .column => |column| blk: {
+                        const col = try self.resolveColumn(column);
+                        if (!containsColumn(self.group_by, column)) return error.UngroupedRelationalColumn;
+                        break :blk col;
+                    },
+                    .count_all => .{ .id = 1, .name = "count", .type = .int64 },
+                    .count => |column| blk: {
+                        _ = try self.resolveColumn(column);
+                        break :blk .{ .id = 1, .name = "count", .type = .int64 };
+                    },
+                    .sum => |column| blk: {
+                        const col = try self.resolveColumn(column);
+                        if (col.type != .int64) return error.UnsupportedRelationalType;
+                        break :blk .{ .id = 1, .name = "sum", .type = .int64 };
+                    },
+                };
+                if (instruction == .compare) try @import("RelationalValues.zig").validate(instruction.compare.value, descriptor);
+                depth += 1;
+            } else switch (instruction) {
+                .negate => if (depth == 0) return error.InvalidRelationalPredicate,
+                .conjunction, .disjunction => {
+                    if (depth < 2) return error.InvalidRelationalPredicate;
+                    depth -= 1;
+                },
+                else => unreachable,
+            }
+        }
+        if (depth != 1) return error.InvalidRelationalPredicate;
     }
 
     /// Names, schema defaults/keys, routing, filters, budgets and lifetime all
@@ -252,12 +434,17 @@ pub const Plan = struct {
         try writer.writeByte(@intCast(self.outputs.len));
         for (self.outputs) |output| {
             try text(writer, output.name);
-            try writer.writeByte(@backingInt(std.meta.activeTag(output.expression)));
-            switch (output.expression) {
-                .count_all => {},
-                inline else => |column| try writeColumn(writer, column),
-            }
+            try writeExpression(writer, output.expression);
         }
+        try writeHaving(writer, self.having);
+        try writer.writeByte(@intCast(self.order_by.len));
+        for (self.order_by) |item| {
+            try writeExpression(writer, item.expression);
+            try writer.writeByte(@backingInt(item.direction));
+            try writer.writeByte(@backingInt(item.nulls));
+        }
+        try writer.writeByte(@intFromBool(self.limit != null));
+        if (self.limit) |limit| try writer.writeInt(u64, limit, .little);
         try writer.writeByte(@backingInt(self.lifetime));
         inline for (.{ "resident_bytes", "spill_bytes", "result_bytes", "output_rows", "work_steps" }) |field| {
             try writer.writeInt(u64, @field(self.budgets, field), .little);
@@ -385,6 +572,14 @@ pub const AggregateState = struct {
     }
 };
 
+fn containsColumn(list: []const Column, target: Column) bool {
+    for (list) |item| if (item.eql(target)) return true;
+    return false;
+}
+fn containsExpression(list: []const Expression, target: Expression) bool {
+    for (list) |item| if (item.eql(target)) return true;
+    return false;
+}
 fn name(value: []const u8) !void {
     if (value.len == 0 or value.len > 255 or !std.unicode.utf8ValidateSlice(value) or std.mem.indexOfScalar(u8, value, 0) != null) return error.InvalidRelationalName;
 }
@@ -395,6 +590,13 @@ fn text(writer: *std.Io.Writer, value: []const u8) !void {
 fn writeColumn(writer: *std.Io.Writer, column: Column) !void {
     try writer.writeByte(column.source);
     try writer.writeInt(u64, column.id, .little);
+}
+fn writeExpression(writer: *std.Io.Writer, expression: Expression) !void {
+    try writer.writeByte(@backingInt(std.meta.activeTag(expression)));
+    switch (expression) {
+        .count_all => {},
+        inline else => |column| try writeColumn(writer, column),
+    }
 }
 fn writePredicate(writer: *std.Io.Writer, predicate: Predicate) !void {
     try writer.writeByte(@intCast(predicate.instructions.len));
@@ -407,6 +609,21 @@ fn writePredicate(writer: *std.Io.Writer, predicate: Predicate) !void {
                 try @import("RelationalValues.zig").write(writer, item.value);
             },
             .is_null, .is_not_null => |column| try writeColumn(writer, column),
+            else => {},
+        }
+    }
+}
+fn writeHaving(writer: *std.Io.Writer, having: Having) !void {
+    try writer.writeByte(@intCast(having.instructions.len));
+    for (having.instructions) |instruction| {
+        try writer.writeByte(@backingInt(std.meta.activeTag(instruction)));
+        switch (instruction) {
+            .compare => |item| {
+                try writeExpression(writer, item.expression);
+                try writer.writeByte(@backingInt(item.op));
+                try @import("RelationalValues.zig").write(writer, item.value);
+            },
+            .is_null, .is_not_null => |expression| try writeExpression(writer, expression),
             else => {},
         }
     }

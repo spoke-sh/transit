@@ -53,3 +53,27 @@ test "relational artifact rejects truncation foreign definitions and trailing by
     bytes[schema_hash] ^= 1;
     try t.expectError(error.RelationalSourceChanged, codec.decode(t.allocator, encoded));
 }
+test "relational artifact round-trips HAVING ORDER BY and LIMIT" {
+    const having_instructions = [_]r.HavingInstruction{
+        .{ .compare = .{ .expression = .count_all, .op = .greater_equal, .value = .{ .integer = 2 } } },
+        .{ .is_not_null = .{ .sum = .{ .source = 1, .id = 2 } } },
+        .conjunction,
+    };
+    const order_items = [_]r.OrderBy{
+        .{ .expression = .{ .sum = .{ .source = 1, .id = 2 } }, .direction = .desc, .nulls = .last },
+        .{ .expression = .{ .column = .{ .source = 0, .id = 1 } }, .direction = .asc, .nulls = .first },
+    };
+    var extended = plan;
+    extended.having = .{ .instructions = &having_instructions };
+    extended.order_by = &order_items;
+    extended.limit = 25;
+    var bytes: [codec.max_bytes]u8 = undefined;
+    const encoded = try codec.encode(extended, &bytes);
+    var decoded = try codec.decode(t.allocator, encoded);
+    defer decoded.deinit();
+    try t.expectEqualSlices(u8, &try extended.fingerprint(), &try decoded.plan.fingerprint());
+    try t.expectEqual(@as(?u64, 25), decoded.plan.limit);
+    try t.expectEqual(@as(usize, 2), decoded.plan.order_by.len);
+    try t.expectEqual(r.Direction.desc, decoded.plan.order_by[0].direction);
+    try t.expectEqual(r.NullOrder.last, decoded.plan.order_by[0].nulls);
+}

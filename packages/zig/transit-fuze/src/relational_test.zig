@@ -344,3 +344,56 @@ test "relational plan byte budget rejects a wide valid descriptor before fingerp
     try value.validate();
     _ = try value.fingerprint();
 }
+
+test "relational HAVING ORDER BY and LIMIT validate grouping scope and change prepared identity" {
+    const base_hash = try plan().fingerprint();
+    const having_instructions = [_]r.HavingInstruction{
+        .{ .compare = .{ .expression = .count_all, .op = .greater, .value = .{ .integer = 1 } } },
+        .{ .is_not_null = .{ .sum = right_value } },
+        .conjunction,
+    };
+    const order_items = [_]r.OrderBy{
+        .{ .expression = .{ .sum = right_value }, .direction = .desc, .nulls = .last },
+        .{ .expression = .{ .column = left_key }, .direction = .asc, .nulls = .first },
+    };
+    var value = plan();
+    value.having = .{ .instructions = &having_instructions };
+    try value.validate();
+    const with_having = try value.fingerprint();
+    try testing.expect(!std.mem.eql(u8, &base_hash, &with_having));
+
+    value.order_by = &order_items;
+    try value.validate();
+    const with_order = try value.fingerprint();
+    try testing.expect(!std.mem.eql(u8, &with_having, &with_order));
+
+    var flipped_nulls = order_items;
+    flipped_nulls[0].nulls = .first;
+    value.order_by = &flipped_nulls;
+    try value.validate();
+    try testing.expect(!std.mem.eql(u8, &with_order, &try value.fingerprint()));
+
+    value.order_by = &order_items;
+    value.limit = 5;
+    try value.validate();
+    try testing.expect(!std.mem.eql(u8, &with_order, &try value.fingerprint()));
+
+    // Ungrouped column in HAVING or grouped ORDER BY rejects.
+    const bad_having = [_]r.HavingInstruction{
+        .{ .is_not_null = .{ .column = left_value } },
+    };
+    value = plan();
+    value.having = .{ .instructions = &bad_having };
+    try testing.expectError(error.UngroupedRelationalColumn, value.validate());
+
+    value = plan();
+    value.order_by = &.{.{ .expression = .{ .column = left_value } }};
+    try testing.expectError(error.UngroupedRelationalColumn, value.validate());
+
+    // Aggregate ORDER BY on an ungrouped row projection rejects.
+    value = plan();
+    value.group_by = &.{};
+    value.outputs = &.{.{ .name = "key", .expression = .{ .column = left_key } }};
+    value.order_by = &.{.{ .expression = .count_all }};
+    try testing.expectError(error.UngroupedRelationalColumn, value.validate());
+}

@@ -8,7 +8,7 @@ const values = @import("RelationalValues.zig");
 const native = @import("transit_protocol").Growth;
 const Self = @This();
 pub const max_height = 94;
-const fixed_record_bytes = 4 + 32 + 32 + 2 * 54 + 2 + r.max_groups * 9 + r.max_outputs * 25;
+const fixed_record_bytes = 4 + 32 + 32 + 2 * 54 + 2 + 41 + r.max_groups * 9 + r.max_outputs * 25;
 pub const max_record_bytes = fixed_record_bytes + values.max_text_bytes;
 pub const max_candidate_records = 3 * max_height + 1;
 const Node = struct { left: ?Reference = null, right: ?Reference = null, group: e.Group };
@@ -156,9 +156,18 @@ pub fn validateReference(reference: Reference) !void {
     if (reference.id == 0 or reference.bytes == 0 or reference.bytes > max_record_bytes or reference.height == 0 or reference.height >= max_height or reference.entries == 0) return error.InvalidRelationalIndex;
 }
 fn checkKey(self: Self, key: e.Key) !void {
-    if (key.len != self.plan.group_by.len) return error.InvalidRelationalGroup;
+    var keys_buf: [r.max_groups]r.Column = undefined;
+    const keys = self.plan.keyColumns(&keys_buf);
+    if (key.len != keys.len or self.plan.isGrouped() != (key.pair == null)) return error.InvalidRelationalGroup;
+    if (key.pair) |pair| {
+        try pair.left.validate();
+        if (pair.right) |right| {
+            if (self.plan.join == null) return error.InvalidRelationalGroup;
+            try right.validate();
+        }
+    }
     var payload: usize = 0;
-    for (key.values[0..key.len], self.plan.group_by) |value, reference| {
+    for (key.values[0..key.len], keys) |value, reference| {
         var column = try self.plan.resolveColumn(reference);
         column.nullable = true;
         try values.validate(value, column);
@@ -171,21 +180,31 @@ fn checkKey(self: Self, key: e.Key) !void {
 }
 fn checkGroup(self: Self, group: e.Group) !void {
     try self.checkKey(group.key);
-    for (self.plan.outputs, group.states[0..self.plan.outputs.len]) |output, state| {
+    if (!self.plan.isGrouped()) {
+        for (group.states) |state| if (state.rows != 0 or state.values != 0 or state.sum != null) return error.InvalidRelationalGroup;
+        return;
+    }
+    var states_buf: [r.max_outputs]r.Expression = undefined;
+    const states = try self.plan.stateExpressions(&states_buf);
+    for (states, group.states[0..states.len]) |expr, state| {
         if (state.values > state.rows) return error.InvalidRelationalGroup;
-        switch (output.expression) {
+        switch (expr) {
             .column => if (state.rows != 0 or state.values != 0 or state.sum != null) return error.InvalidRelationalGroup,
             .count_all => if (state.values != 0 or state.sum != null) return error.InvalidRelationalGroup,
             .count => if (state.sum != null) return error.InvalidRelationalGroup,
             .sum => if ((state.values == 0) != (state.sum == null)) return error.InvalidRelationalGroup,
         }
     }
+    for (group.states[states.len..]) |state| if (state.rows != 0 or state.values != 0 or state.sum != null) return error.InvalidRelationalGroup;
 }
 fn save(self: Self, store: anytype, node: Node) !Reference {
     try self.checkGroup(node.group);
     const h = 1 + @max(height(node.left), height(node.right));
     if (h >= max_height or @abs(height(node.left) - height(node.right)) > 1) return error.InvalidRelationalIndex;
-    var length: usize = 4 + 32 + 32 + 2 + @as(usize, if (node.left != null) 54 else 1) + @as(usize, if (node.right != null) 54 else 1) + self.plan.outputs.len * 25;
+    var states_buf: [r.max_outputs]r.Expression = undefined;
+    const state_count: usize = if (self.plan.isGrouped()) (try self.plan.stateExpressions(&states_buf)).len else 0;
+    const pair_bytes: usize = if (node.group.key.pair) |pair| 20 + 1 + @as(usize, if (pair.right != null) 20 else 0) else 0;
+    var length: usize = 4 + 32 + 32 + 2 + @as(usize, if (node.left != null) 54 else 1) + @as(usize, if (node.right != null) 54 else 1) + pair_bytes + state_count * 25;
     for (node.group.key.values[0..node.group.key.len]) |value| length += if (value) |present| switch (present) {
         .integer => 9,
         .text => |bytes| 5 + bytes.len,
@@ -200,9 +219,14 @@ fn save(self: Self, store: anytype, node: Node) !Reference {
     try writer.writeAll(&self.binding);
     try writeReference(writer, node.left);
     try writeReference(writer, node.right);
-    try writer.writeAll(&.{ node.group.key.len, @intCast(self.plan.outputs.len) });
+    try writer.writeAll(&.{ node.group.key.len, @intCast(state_count) });
+    if (node.group.key.pair) |pair| {
+        try writer.writeAll(&try pair.left.encode());
+        try writer.writeByte(@intFromBool(pair.right != null));
+        if (pair.right) |right| try writer.writeAll(&try right.encode());
+    }
     for (node.group.key.values[0..node.group.key.len]) |value| try values.write(writer, value);
-    for (node.group.states[0..self.plan.outputs.len]) |state| {
+    for (node.group.states[0..state_count]) |state| {
         try writer.writeInt(u64, state.rows, .little);
         try writer.writeInt(u64, state.values, .little);
         try writeOptional(writer, state.sum);
@@ -229,10 +253,23 @@ fn load(self: Self, store: anytype, reference: Reference) !Node {
     if (!std.mem.eql(u8, try reader.take(32), &definition())) return error.IncompatibleDefinition;
     if (!std.mem.eql(u8, try reader.take(32), &self.binding)) return error.RelationalSourceChanged;
     var node: Node = .{ .left = try readReference(&reader), .right = try readReference(&reader), .group = .{ .key = .{ .len = try reader.takeByte() } } };
-    if (try reader.takeByte() != self.plan.outputs.len) return error.InvalidRelationalGroup;
-    if (node.group.key.len != self.plan.group_by.len) return error.InvalidRelationalGroup;
+    var states_buf: [r.max_outputs]r.Expression = undefined;
+    const state_count: usize = if (self.plan.isGrouped()) (try self.plan.stateExpressions(&states_buf)).len else 0;
+    var keys_buf: [r.max_groups]r.Column = undefined;
+    const keys = self.plan.keyColumns(&keys_buf);
+    if (try reader.takeByte() != state_count) return error.InvalidRelationalGroup;
+    if (node.group.key.len != keys.len) return error.InvalidRelationalGroup;
+    if (!self.plan.isGrouped()) {
+        const left_id = try r.RowIdentity.decode(try reader.takeArray(20));
+        const right_id: ?r.RowIdentity = switch (try reader.takeByte()) {
+            0 => null,
+            1 => try r.RowIdentity.decode(try reader.takeArray(20)),
+            else => return error.InvalidRelationalIndex,
+        };
+        node.group.key.pair = .{ .left = left_id, .right = right_id };
+    }
     for (node.group.key.values[0..node.group.key.len]) |*value| value.* = try values.read(&reader);
-    for (node.group.states[0..self.plan.outputs.len]) |*state| state.* = .{ .rows = try reader.takeInt(u64, .little), .values = try reader.takeInt(u64, .little), .sum = try readOptional(&reader) };
+    for (node.group.states[0..state_count]) |*state| state.* = .{ .rows = try reader.takeInt(u64, .little), .values = try reader.takeInt(u64, .little), .sum = try readOptional(&reader) };
     try self.checkGroup(node.group);
     if (reader.bufferedLen() != 0 or @abs(height(node.left) - height(node.right)) > 1 or reference.height != 1 + @max(height(node.left), height(node.right)) or reference.entries != try std.math.add(u64, try std.math.add(u64, entries(node.left), entries(node.right)), 1)) return error.InvalidRelationalIndex;
     for ([_]?Reference{ node.left, node.right }) |child| if (child) |value| if (value.id >= reference.id) return error.InvalidRelationalIndex;

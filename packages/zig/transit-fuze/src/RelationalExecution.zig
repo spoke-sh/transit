@@ -44,6 +44,7 @@ pub const Row = struct {
 };
 pub const Pair = struct { left: r.RowIdentity, right: ?r.RowIdentity };
 pub const Key = struct {
+    pair: ?Pair = null,
     values: [r.max_groups]v.Value = @splat(null),
     len: u8 = 0,
     buffer: v.Buffer = .{},
@@ -62,12 +63,25 @@ pub const Key = struct {
         self.* = undefined;
     }
     pub fn order(a: Key, b: Key, plan: r.Plan) !std.math.Order {
-        if (a.len != plan.group_by.len or b.len != plan.group_by.len) return error.InvalidRelationalGroup;
-        for (a.values[0..a.len], b.values[0..b.len], plan.group_by) |left, right, column| {
-            const result = try v.order(left, right, try plan.resolveColumn(column));
+        var columns_buf: [r.max_groups]r.Column = undefined;
+        const columns = plan.keyColumns(&columns_buf);
+        if (a.len != columns.len or b.len != columns.len) return error.InvalidRelationalGroup;
+        if (plan.isGrouped() != (a.pair == null) or plan.isGrouped() != (b.pair == null)) return error.InvalidRelationalGroup;
+        for (plan.order_by) |item| {
+            if (item.expression != .column) continue;
+            const index = findColumnIndex(columns, item.expression.column) orelse return error.InvalidRelationalGroup;
+            const result = try orderValue(a.values[index], b.values[index], try plan.resolveColumn(item.expression.column), item.direction, item.nulls);
             if (result != .eq) return result;
         }
-        return .eq;
+        if (plan.isGrouped()) {
+            for (columns, 0..) |column, index| {
+                if (plan.ordersByColumn(column)) continue;
+                const result = try v.order(a.values[index], b.values[index], try plan.resolveColumn(column));
+                if (result != .eq) return result;
+            }
+            return .eq;
+        }
+        return pairOrder(a.pair.?, b.pair.?);
     }
 };
 pub const Group = struct {
@@ -297,12 +311,12 @@ pub fn Execution(comptime Sources: type, comptime Groups: type) type {
             return self.endInput();
         }
         fn endInput(self: *Self) !Event {
-            if (!self.grouped) {
+            if (!self.bound.plan.usesGroups()) {
                 try self.sources.validate(self.bound);
                 self.phase = .complete;
                 return .complete;
             }
-            if (self.group_count == 0 and self.bound.plan.group_by.len == 0) {
+            if (self.grouped and self.group_count == 0 and self.bound.plan.group_by.len == 0) {
                 try self.groups.put(.{ .key = .{} });
                 self.group_count = 1;
             }
@@ -313,62 +327,216 @@ pub fn Execution(comptime Sources: type, comptime Groups: type) type {
             const plan = self.bound.plan;
             if (!self.kernel.predicate.matches(left, right)) return .progress;
             const pair: Pair = .{ .left = left.identity, .right = if (right) |row| row.identity else null };
-            if (!self.grouped) {
+            if (!plan.usesGroups()) {
+                if (plan.limit) |limit| if (self.result_rows >= limit) {
+                    try self.sources.validate(self.bound);
+                    self.phase = .complete;
+                    return .complete;
+                };
                 var result: Output = .{ .identity = .{ .pair = pair }, .len = @intCast(plan.outputs.len) };
                 for (self.kernel.outputs[0..plan.outputs.len], 0..) |column, i| result.cells[i] = v.cell(Kernel.cell(column, left, right));
-                return self.emit(result);
+                const emitted = try self.emit(result);
+                if (plan.limit) |limit| if (self.result_rows >= limit) {
+                    self.phase = .complete;
+                };
+                return emitted;
             }
-            var key: Key = .{ .len = @intCast(plan.group_by.len) };
-            for (self.kernel.groups[0..plan.group_by.len], 0..) |column, i| key.values[i] = Kernel.cell(column, left, right);
-            const previous = try self.groups.get(key);
+            var keys_buf: [r.max_groups]r.Column = undefined;
+            const keys = plan.keyColumns(&keys_buf);
+            var key: Key = .{ .pair = if (self.grouped) null else pair, .len = @intCast(keys.len) };
+            for (self.kernel.groups[0..keys.len], 0..) |column, i| key.values[i] = Kernel.cell(column, left, right);
+            const previous = if (self.grouped) try self.groups.get(key) else null;
             var group = previous orelse Group{ .key = try key.clone(self.allocator) };
             defer group.deinit();
-            // Preserve first failure by contributor then output position. The
-            // store sees nothing until every candidate aggregate succeeds.
-            for (plan.outputs, 0..) |field, i| {
-                const observed: error{Overflow}!void = switch (field.expression) {
-                    .column => {},
-                    .count_all => group.states[i].observe(.count_all, null),
-                    .count => group.states[i].observe(.count, if (Kernel.cell(self.kernel.outputs[i], left, right) != null) 0 else null),
-                    .sum => group.states[i].observe(.sum, if (Kernel.cell(self.kernel.outputs[i], left, right)) |value| value.integer else null),
-                };
-                observed catch |err| {
-                    // Preserve an observed arithmetic witness without making
-                    // another allocation after that failure. The candidate
-                    // already owns the group's canonical representative.
-                    self.failure = .{ .pair = pair, .output = @intCast(i), .group = group.key };
-                    group.key = .{};
-                    return err;
-                };
+            if (self.grouped) {
+                var states_buf: [r.max_outputs]r.Expression = undefined;
+                const states = plan.stateExpressions(&states_buf) catch unreachable;
+                // Preserve first failure by contributor then output position. The
+                // store sees nothing until every candidate aggregate succeeds.
+                for (states, 0..) |expr, i| {
+                    const observed: error{Overflow}!void = switch (expr) {
+                        .column => {},
+                        .count_all => group.states[i].observe(.count_all, null),
+                        .count => group.states[i].observe(.count, if (Kernel.cell(self.kernel.outputs[i], left, right) != null) 0 else null),
+                        .sum => group.states[i].observe(.sum, if (Kernel.cell(self.kernel.outputs[i], left, right)) |value| value.integer else null),
+                    };
+                    observed catch |err| {
+                        // Preserve an observed arithmetic witness without making
+                        // another allocation after that failure. The candidate
+                        // already owns the group's canonical representative.
+                        self.failure = .{ .pair = pair, .output = @intCast(i), .group = group.key };
+                        group.key = .{};
+                        return err;
+                    };
+                }
             }
             try self.groups.put(group);
             if (previous == null) self.group_count = try std.math.add(u64, self.group_count, 1);
             return .progress;
         }
         fn output(self: *Self) !Event {
-            var group = (try self.groups.next(self.after_group)) orelse {
-                if (self.result_rows != self.group_count) return error.IncompleteRelationalGroups;
+            const plan = self.bound.plan;
+            if (plan.limit) |limit| if (self.result_rows >= limit) {
+                try self.sources.validate(self.bound);
+                self.phase = .complete;
+                return .complete;
+            };
+            var group = (try self.nextGroup()) orelse {
+                if (plan.having.instructions.len == 0 and plan.limit == null and self.result_rows != self.group_count) return error.IncompleteRelationalGroups;
                 try self.sources.validate(self.bound);
                 self.phase = .complete;
                 return .complete;
             };
             defer group.deinit();
-            if (self.after_group) |after| if (try group.key.order(after, self.bound.plan) != .gt) return error.InvalidRelationalGroupOrder;
-            if (group.key.len != self.bound.plan.group_by.len) return error.InvalidRelationalGroup;
-            var result: Output = .{ .identity = .{ .group = group.key }, .len = @intCast(self.bound.plan.outputs.len) };
-            for (self.bound.plan.outputs, 0..) |field, i| result.cells[i] = switch (field.expression) {
+            var keys_buf: [r.max_groups]r.Column = undefined;
+            const keys = plan.keyColumns(&keys_buf);
+            if (group.key.len != keys.len or self.grouped != (group.key.pair == null)) return error.InvalidRelationalGroup;
+            const next = try group.key.clone(self.allocator);
+            if (self.after_group) |*after| after.deinit();
+            self.after_group = next;
+            if (self.grouped and !try self.matchesHaving(group)) return .progress;
+            var result: Output = .{
+                .identity = if (self.grouped) .{ .group = group.key } else .{ .pair = group.key.pair.? },
+                .len = @intCast(plan.outputs.len),
+            };
+            for (plan.outputs, 0..) |field, i| result.cells[i] = switch (field.expression) {
                 .column => |column| value: {
-                    for (self.bound.plan.group_by, 0..) |key, j| if (key.eql(column)) break :value v.cell(group.key.values[j]);
+                    for (keys, 0..) |key, j| if (key.eql(column)) break :value v.cell(group.key.values[j]);
                     unreachable;
                 },
                 .count_all => .{ .value = .{ .atom = .{ .unsigned = group.states[i].rows } } },
                 .count => .{ .value = .{ .atom = .{ .unsigned = group.states[i].values } } },
                 .sum => integer(group.states[i].sum),
             };
-            const next = try group.key.clone(self.allocator);
-            if (self.after_group) |*after| after.deinit();
-            self.after_group = next;
-            return self.emit(result);
+            const emitted = try self.emit(result);
+            if (plan.limit) |limit| if (self.result_rows >= limit) {
+                self.phase = .complete;
+            };
+            return emitted;
+        }
+        fn nextGroup(self: *Self) !?Group {
+            if (!self.bound.plan.hasAggregateOrder()) {
+                var group = (try self.groups.next(self.after_group)) orelse return null;
+                errdefer group.deinit();
+                if (self.after_group) |after| if (try group.key.order(after, self.bound.plan) != .gt) return error.InvalidRelationalGroupOrder;
+                return group;
+            }
+            var after_group: ?Group = null;
+            defer if (after_group) |*g| g.deinit();
+            if (self.after_group) |after_key| {
+                after_group = (try self.groups.get(after_key)) orelse return error.InvalidRelationalGroupOrder;
+            }
+            var cursor: ?Key = null;
+            defer if (cursor) |*k| k.deinit();
+            var selected: ?Group = null;
+            errdefer if (selected) |*g| g.deinit();
+            var visited: u64 = 0;
+            while (try self.groups.next(cursor)) |candidate| {
+                var current = candidate;
+                errdefer current.deinit();
+                if (cursor) |prev_cursor| if (try current.key.order(prev_cursor, self.bound.plan) != .gt) return error.InvalidRelationalGroupOrder;
+                visited = try std.math.add(u64, visited, 1);
+                const next_cursor = try current.key.clone(self.allocator);
+                if (cursor) |*prev_cursor| prev_cursor.deinit();
+                cursor = next_cursor;
+                if (!try self.matchesHaving(current)) {
+                    current.deinit();
+                    continue;
+                }
+                if (after_group) |prev| if (try self.compareGroups(current, prev) != .gt) {
+                    current.deinit();
+                    continue;
+                };
+                if (selected == null or try self.compareGroups(current, selected.?) == .lt) {
+                    if (selected) |*prev_selected| prev_selected.deinit();
+                    selected = current;
+                } else {
+                    current.deinit();
+                }
+            }
+            if (visited != self.group_count) return error.IncompleteRelationalGroups;
+            return selected;
+        }
+        fn matchesHaving(self: *Self, group: Group) !bool {
+            const instructions = self.bound.plan.having.instructions;
+            if (instructions.len == 0) return true;
+            var stack: [r.max_instructions]Truth = undefined;
+            var depth: usize = 0;
+            for (instructions) |instruction| switch (instruction) {
+                .compare => |item| {
+                    const truth: Truth = switch (item.expression) {
+                        .column => |column| blk: {
+                            const index = findColumnIndex(self.bound.plan.group_by, column) orelse return error.InvalidRelationalGroup;
+                            const val = group.key.values[index] orelse break :blk .unknown;
+                            const cmp = try v.order(val, item.value, try self.bound.plan.resolveColumn(column));
+                            break :blk Truth.fromBool(matchesComparison(cmp, item.op));
+                        },
+                        .count_all, .count => blk: {
+                            const slot = self.bound.plan.findStateSlot(item.expression) orelse return error.InvalidRelationalGroup;
+                            const count_val: u64 = if (item.expression == .count_all) group.states[slot].rows else group.states[slot].values;
+                            const rhs = item.value.integer;
+                            const cmp: std.math.Order = if (rhs < 0) .gt else std.math.order(count_val, @as(u64, @intCast(rhs)));
+                            break :blk Truth.fromBool(matchesComparison(cmp, item.op));
+                        },
+                        .sum => blk: {
+                            const slot = self.bound.plan.findStateSlot(item.expression) orelse return error.InvalidRelationalGroup;
+                            const sum_val = group.states[slot].sum orelse break :blk .unknown;
+                            const cmp = std.math.order(sum_val, item.value.integer);
+                            break :blk Truth.fromBool(matchesComparison(cmp, item.op));
+                        },
+                    };
+                    stack[depth] = truth;
+                    depth += 1;
+                },
+                .is_null, .is_not_null => |expr| {
+                    const is_null: bool = switch (expr) {
+                        .column => |column| blk: {
+                            const index = findColumnIndex(self.bound.plan.group_by, column) orelse return error.InvalidRelationalGroup;
+                            break :blk group.key.values[index] == null;
+                        },
+                        .count_all, .count => false,
+                        .sum => blk: {
+                            const slot = self.bound.plan.findStateSlot(expr) orelse return error.InvalidRelationalGroup;
+                            break :blk group.states[slot].sum == null;
+                        },
+                    };
+                    const matched = if (instruction == .is_null) is_null else !is_null;
+                    stack[depth] = Truth.fromBool(matched);
+                    depth += 1;
+                },
+                .negate => stack[depth - 1] = stack[depth - 1].negate(),
+                .conjunction, .disjunction => {
+                    depth -= 1;
+                    stack[depth - 1] = if (instruction == .conjunction) stack[depth - 1].conjunction(stack[depth]) else stack[depth - 1].disjunction(stack[depth]);
+                },
+            };
+            return stack[0].selects();
+        }
+        fn compareGroups(self: *Self, a: Group, b: Group) !std.math.Order {
+            const plan = self.bound.plan;
+            for (plan.order_by) |item| {
+                const cmp: std.math.Order = switch (item.expression) {
+                    .column => |column| blk: {
+                        const index = findColumnIndex(plan.group_by, column) orelse return error.InvalidRelationalGroup;
+                        break :blk try orderValue(a.key.values[index], b.key.values[index], try plan.resolveColumn(column), item.direction, item.nulls);
+                    },
+                    .count_all, .count => blk: {
+                        const slot = plan.findStateSlot(item.expression) orelse return error.InvalidRelationalGroup;
+                        const va: u64 = if (item.expression == .count_all) a.states[slot].rows else a.states[slot].values;
+                        const vb: u64 = if (item.expression == .count_all) b.states[slot].rows else b.states[slot].values;
+                        const raw = std.math.order(va, vb);
+                        break :blk if (item.direction == .asc or raw == .eq) raw else if (raw == .lt) .gt else .lt;
+                    },
+                    .sum => blk: {
+                        const slot = plan.findStateSlot(item.expression) orelse return error.InvalidRelationalGroup;
+                        const va: v.Value = if (a.states[slot].sum) |s| .{ .integer = s } else null;
+                        const vb: v.Value = if (b.states[slot].sum) |s| .{ .integer = s } else null;
+                        break :blk try orderValue(va, vb, .{ .id = 1, .name = "sum", .type = .int64 }, item.direction, item.nulls);
+                    },
+                };
+                if (cmp != .eq) return cmp;
+            }
+            return a.key.order(b.key, plan);
         }
         fn emit(self: *Self, result: Output) !Event {
             if (self.result_rows == self.bound.plan.budgets.output_rows) return error.RelationalResultBudget;
@@ -390,6 +558,35 @@ pub fn identityOrder(a: r.RowIdentity, b: r.RowIdentity) std.math.Order {
         if (order != .eq) return order;
     }
     return .eq;
+}
+pub fn pairOrder(a: Pair, b: Pair) std.math.Order {
+    const left_cmp = identityOrder(a.left, b.left);
+    if (left_cmp != .eq) return left_cmp;
+    if (a.right == null and b.right == null) return .eq;
+    if (a.right == null) return .lt;
+    if (b.right == null) return .gt;
+    return identityOrder(a.right.?, b.right.?);
+}
+pub fn orderValue(left: v.Value, right: v.Value, descriptor: table.Column, direction: r.Direction, nulls: r.NullOrder) !std.math.Order {
+    if (left == null and right == null) return .eq;
+    if (left == null) return if (nulls == .first) .lt else .gt;
+    if (right == null) return if (nulls == .first) .gt else .lt;
+    const cmp = try v.order(left, right, descriptor);
+    return if (direction == .asc or cmp == .eq) cmp else if (cmp == .lt) .gt else .lt;
+}
+fn findColumnIndex(columns: []const r.Column, target: r.Column) ?usize {
+    for (columns, 0..) |column, i| if (column.eql(target)) return i;
+    return null;
+}
+fn matchesComparison(cmp: std.math.Order, op: r.Comparison) bool {
+    return switch (op) {
+        .equal => cmp == .eq,
+        .not_equal => cmp != .eq,
+        .less => cmp == .lt,
+        .less_equal => cmp != .gt,
+        .greater => cmp == .gt,
+        .greater_equal => cmp != .lt,
+    };
 }
 fn integer(value: ?i64) Cell {
     return if (value) |number| .{ .value = .{ .atom = .{ .signed = number } } } else .null;

@@ -358,6 +358,102 @@ test "checkpoint admission rejects changed cuts corrupt counters truncation and 
     try t.expectError(error.AccessDenied, Engine.restore(t.allocator, bound, &input, &groups, saved));
 }
 
+test "grouped HAVING ORDER BY and LIMIT survive checkpoint restarts across durable AVL spill" {
+    const basis = try cuts();
+    var plan = base();
+    plan.lifetime = .captured;
+    plan.budgets.resident_bytes = 4 * 1024 * 1024;
+    plan.sources = &sources;
+    plan.join = .{ .kind = .left, .left = .{ .source = 0, .id = 1 }, .right = .{ .source = 1, .id = 1 } };
+    plan.group_by = &.{.{ .source = 0, .id = 1 }};
+    const having_instructions = [_]r.HavingInstruction{
+        .{ .compare = .{ .expression = .count_all, .op = .greater_equal, .value = .{ .integer = 1 } } },
+        .{ .compare = .{ .expression = .{ .column = .{ .source = 0, .id = 1 } }, .op = .not_equal, .value = .{ .integer = 99 } } },
+        .conjunction,
+    };
+    plan.having = .{ .instructions = &having_instructions };
+    plan.outputs = &.{
+        .{ .name = "key", .expression = .{ .column = .{ .source = 0, .id = 1 } } },
+        .{ .name = "total", .expression = .{ .sum = .{ .source = 1, .id = 2 } } },
+    };
+    plan.order_by = &.{
+        .{ .expression = .{ .sum = .{ .source = 1, .id = 2 } }, .direction = .desc, .nulls = .last },
+        .{ .expression = .{ .column = .{ .source = 0, .id = 1 } }, .direction = .asc, .nulls = .first },
+    };
+    plan.limit = 3;
+    const bound: r.Bound = .{ .plan = plan, .cuts = &basis };
+    var input: Input = .{ .rows = .{
+        &.{ .{ 1, 10, 1 }, .{ 2, 20, 1 }, .{ 3, 30, 1 }, .{ 4, 40, 1 }, .{ 5, 99, 1 } },
+        &.{ .{ 1, 10, 5 }, .{ 2, 20, 50 }, .{ 3, 20, 25 }, .{ 4, 30, 5 }, .{ 5, 99, 1000 } },
+    } };
+    var groups: ImmutableGroups = .{ .tree = try Index.init(t.allocator, bound, null) };
+    defer groups.deinit();
+    const Engine = e.Execution(*Input, *ImmutableGroups);
+    var run = try Engine.init(t.allocator, bound, &input, &groups);
+    const expected = [_][2]?i64{
+        .{ 20, 75 },
+        .{ 10, 5 },
+        .{ 30, 5 },
+    };
+    var seen: usize = 0;
+    while (true) {
+        try restart(Engine, &run, &input, &groups);
+        switch (try run.step()) {
+            .progress => {},
+            .row => |row| {
+                try t.expect(seen < expected.len);
+                try t.expectEqual(expected[seen][0].?, @as(i64, @intCast(row.cells[0].value.atom.signed)));
+                const total: ?i64 = if (row.cells[1] == .null) null else @intCast(row.cells[1].value.atom.signed);
+                try t.expectEqual(expected[seen][1], total);
+                seen += 1;
+            },
+            .complete => break,
+        }
+    }
+    try t.expectEqual(expected.len, seen);
+}
+
+test "ungrouped ORDER BY with NULLS FIRST LAST and LIMIT preserves pair tiebreaking across restarts" {
+    const basis = try cuts();
+    var plan = base();
+    plan.lifetime = .captured;
+    plan.budgets.resident_bytes = 4 * 1024 * 1024;
+    plan.outputs = &.{
+        .{ .name = "key", .expression = .{ .column = .{ .source = 0, .id = 1 } } },
+    };
+    plan.order_by = &.{
+        .{ .expression = .{ .column = .{ .source = 0, .id = 2 } }, .direction = .desc, .nulls = .last },
+    };
+    plan.limit = 4;
+    const bound: r.Bound = .{ .plan = plan, .cuts = basis[0..1] };
+    var input: Input = .{ .rows = .{
+        &.{ .{ 1, 100, null }, .{ 2, 200, 10 }, .{ 3, 300, 20 }, .{ 4, 400, 10 }, .{ 5, 500, 5 } },
+        &.{},
+    } };
+    var groups: ImmutableGroups = .{ .tree = try Index.init(t.allocator, bound, null) };
+    defer groups.deinit();
+    const Engine = e.Execution(*Input, *ImmutableGroups);
+    var run = try Engine.init(t.allocator, bound, &input, &groups);
+    // Ordered by value DESC NULLS LAST, with equal value=10 broken by row identity (op 2 -> 200 before op 4 -> 400).
+    const expected_keys = [_]i64{ 300, 200, 400, 500 };
+    const expected_ops = [_]u64{ 3, 2, 4, 5 };
+    var seen: usize = 0;
+    while (true) {
+        try restart(Engine, &run, &input, &groups);
+        switch (try run.step()) {
+            .progress => {},
+            .row => |row| {
+                try t.expect(seen < expected_keys.len);
+                try t.expectEqual(expected_ops[seen], row.identity.pair.left.operation);
+                try t.expectEqual(expected_keys[seen], row.cells[0].value.atom.signed);
+                seen += 1;
+            },
+            .complete => break,
+        }
+    }
+    try t.expectEqual(expected_keys.len, seen);
+}
+
 fn scalar(value: ?i64) @import("RelationalValues.zig").Value {
     return if (value) |integer| .{ .integer = integer } else null;
 }

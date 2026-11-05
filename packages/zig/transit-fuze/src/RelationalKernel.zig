@@ -58,11 +58,15 @@ groups: [r.max_groups]u8 = undefined,
 pub fn bind(plan: r.Plan) Self {
     var self: Self = .{ .filters = .{ Predicate.bind(plan, plan.source_filters[0]), Predicate.bind(plan, plan.source_filters[1]) }, .predicate = Predicate.bind(plan, plan.filter) };
     if (plan.join) |join| self.join = .{ bindColumn(plan, join.left), bindColumn(plan, join.right) };
-    for (plan.outputs, self.outputs[0..plan.outputs.len]) |field, *out| out.* = switch (field.expression) {
+    var states_buf: [r.max_outputs]r.Expression = undefined;
+    const states = plan.stateExpressions(&states_buf) catch unreachable;
+    for (states, self.outputs[0..states.len]) |expr, *out| out.* = switch (expr) {
         .column, .count, .sum => |column| bindColumn(plan, column),
         .count_all => 0,
     };
-    for (plan.group_by, self.groups[0..plan.group_by.len]) |column, *out| out.* = bindColumn(plan, column);
+    var keys_buf: [r.max_groups]r.Column = undefined;
+    const keys = plan.keyColumns(&keys_buf);
+    for (keys, self.groups[0..keys.len]) |column, *out| out.* = bindColumn(plan, column);
     return self;
 }
 fn bindColumn(plan: r.Plan, column: r.Column) u8 {
