@@ -158,6 +158,9 @@ separate bounded work and spill. The wire contract lists configurable ceilings.
 Current account credentials, role and object permissions govern metadata, rows
 and terminal counts. An unavailable authority prevents disclosure. A socket
 failure, deadline or cancellation cannot establish rollback of accepted work.
+After a transient owner conflict interrupts an already accepted Table write,
+the gateway waits for recovery of the original operation within the same command
+deadline. Completion retains that operation's original outcome and counts.
 The PostgreSQL/MySQL protocols do not carry the native admission token: submitting
 the SQL again creates new work. Inspect the original operation through the
 account's recovery controls when a mutation outcome is uncertain.

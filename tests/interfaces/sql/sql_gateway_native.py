@@ -42,6 +42,8 @@ def run(node, catalog, gateway):
         capacity_binding = capacity_receipt = None
         capacity_armed = False
         capacity_repeats = 0
+        foreground_binding = foreground_receipt = foreground_saved = foreground_result = None
+        foreground_repeats = 0
         sends = turns = table_calls = 0
         upstream_calls = 0
         failures = []
@@ -73,16 +75,25 @@ def run(node, catalog, gateway):
                 nonlocal saved_recoveries, committed_saved
                 nonlocal upstream_calls
                 nonlocal capacity_binding, capacity_receipt, capacity_repeats, capacity_armed
+                nonlocal foreground_binding, foreground_receipt, foreground_saved, foreground_result, foreground_repeats
                 body = self.rfile.read(int(self.headers['Content-Length']))
                 upstream_calls += 1
                 connection = getattr(upstream, 'conn', None)
                 if connection is None:
                     connection = upstream.conn = HTTPConnection('127.0.0.1', port, timeout=15)
                 try:
-                    connection.request('POST', self.path, body, {'Content-Type': 'application/json'})
-                    response = connection.getresponse()
-                    data, status = response.read(), response.status
                     request = json.loads(body)
+                    saved_request = request.get('action', {}).get('commit_saved') if self.path == '/table/v1' else None
+                    if armed == 'foreground-before' and saved_request:
+                        # A storage epoch fence can refuse a private candidate
+                        # after the SQL token was accepted, before Table commit.
+                        foreground_saved = saved_request
+                        armed = None
+                        data, status = b'{"err":"Conflict"}', 409
+                    else:
+                        connection.request('POST', self.path, body, {'Content-Type': 'application/json'})
+                        response = connection.getresponse()
+                        data, status = response.read(), response.status
                     if self.path == '/v1/command':
                         command = request['request']['command']
                         sends += int('send' in command)
@@ -94,6 +105,25 @@ def run(node, catalog, gateway):
                         saved = action.get('commit_saved')
                         binding = action.get('client_token', {}).get('bind')
                         settlement = action.get('client_progress', {}).get('update')
+                        if status == 200 and binding and armed in ('foreground-before', 'foreground-after'):
+                            assert foreground_binding is None, 'Foreground recovery admitted a second SQL token'
+                            foreground_binding = binding
+                            foreground_receipt = json.loads(data)['result']['client_token']
+                        if saved and foreground_saved is not None:
+                            assert saved == foreground_saved, 'Foreground recovery changed the frozen intent'
+                            if status == 200:
+                                outcome = json.loads(data)['result']
+                                if foreground_result is not None:
+                                    assert outcome == foreground_result, 'Foreground recovery replaced the original outcome'
+                                foreground_result = outcome
+                                foreground_repeats += 1
+                        if status == 200 and saved and armed == 'foreground-after':
+                            # The same refusal may follow acceptance. Recover
+                            # the original receipt rather than submit SQL again.
+                            foreground_saved = saved
+                            foreground_result = json.loads(data)['result']
+                            armed = None
+                            data, status = b'{"err":"Conflict"}', 409
                         if status == 200 and binding and 'table' in binding['intent']:
                             if capacity_armed:
                                 # Acceptance happened, but its response looks
@@ -272,6 +302,18 @@ def run(node, catalog, gateway):
             settled = call(gateway, 'runtime-settlement', 'UPDATE wire_data SET value = 21 WHERE id = 2')
             assert armed is None and settled['pending'] is False, settled
             assert (settled['outcome']['state'], settled['outcome']['matched'], settled['outcome']['changed']) == ('applied', 1, 0), settled
+            for boundary, value in (('before', 22), ('after', 21)):
+                foreground_binding = foreground_receipt = foreground_saved = foreground_result = None
+                foreground_repeats = 0
+                armed = 'foreground-'+boundary
+                result = call(gateway, 'runtime-settlement', f'UPDATE wire_data SET value = {value} WHERE id = 2')
+                assert armed is None and foreground_binding and foreground_saved and foreground_result
+                assert foreground_binding['intent']['table'] == foreground_saved
+                assert result['operation'] == int(foreground_receipt['position']['next_lsn'])
+                assert (result['outcome']['state'], result['outcome']['matched'], result['outcome']['changed']) == ('applied', 1, 1), result
+                assert result['pending'] is False and foreground_repeats >= 1, result
+                assert call(gateway, 'read', 'mysql', 'SELECT value FROM wire_data WHERE id = ?', 2)['rows'] == [[value]]
+            foreground_saved = None
             values = ', '.join(f'({i}, {i * 10})' for i in range(4, 71))
             seeded = call(gateway, 'enqueue', 9001, f'INSERT INTO wire_data (id, value) VALUES {values}')
             call(gateway, 'run')
@@ -322,6 +364,7 @@ def run(node, catalog, gateway):
                                   workload_recovery=workload_recovered, workload_process_deaths=2,
                                   settled_idle_upstream_requests=idle_requests,
                                   lost_foreground_bind_recovered=True, lost_settlement_reply_recovered=True,
+                                  foreground_conflicts_recovered_before_and_after_commit=True,
                                   station_sends=sends, station_turns=turns,
                                   table_requests=table_calls, seconds=round(time.monotonic()-started, 3))))
         finally:

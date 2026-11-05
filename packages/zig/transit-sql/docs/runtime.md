@@ -75,6 +75,12 @@ unresolved obligations use bounded retry delays. Denial or a failed scan cannot
 certify an empty backlog. A crash loses the volatile signals, so replacement
 always rediscovers the durable pending index and original read-pin slots.
 Successful foreground DML does not require another recovery execution.
+If a synchronous wire DML attempt encounters a transient owner conflict after
+token acceptance, it releases its scheduling claim and waits for recovery of
+that original frozen operation within the statement deadline. This includes
+storage collection fencing a private candidate and a conflict response received
+after commit. Only the matching, currently authorized terminal outcome completes
+the statement; recovery preserves the original token, intent and counts.
 Foreground activation failures withdraw readiness and notify the same recovery
 owner. A settled account's health observation is not a cached permission grant;
 foreground execution and buffered disclosure still require current authority.
