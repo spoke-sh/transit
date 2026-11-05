@@ -11,6 +11,7 @@
 | Installed Station handler turns | [Workload and limits](load/station_turn.md), [handler driver](load/station_turn.zig), [state/outbox oracle](load/station_turn.py) |
 | Structural page experiments | [Geometry/codec runner](storage/page_layout.py), [native probe](storage/page_layout.zig); private variants, without provider I/O or native latency claims |
 | Offered load and scale | [Load driver](load/growing_load.py), [scale matrix](scale/scale.json), [matrix runner](scale/scale.py) |
+| Published nightly containers | [Single/three-node workloads, provenance and limits](load/containers.md), [runner](load/container_suite.py); separate daily schedule |
 | Console, startup and mutation latency | [Console runner](console/console_latency.py), [startup workload](console/startup.py), [latency gate](console/gate.py), [active budgets](console/budgets.json), [mutation runner](mutations/mutation_latency.py), [transport probe](../harness/http_probe.py) |
 | Installed SDK costs | [Catalog/Query workload, packaging and report guide](sdk/README.md) |
 | Managed computations and connection pressure | [Installed experiment guide](load/installed.md), [runner](load/installed.py), [reporter](load/report.py) |

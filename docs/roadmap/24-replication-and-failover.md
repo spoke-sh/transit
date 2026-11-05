@@ -102,6 +102,17 @@ claim replicated safety or replace this milestone's physical failure evidence.
 
 ## Completion evidence
 
+Add a separately identified replicated topology to the
+[nightly scorecard](13-data-structures-and-performance.md#nightly-container-scorecard-and-distributed-handoffs)
+under [tracker #378](https://github.com/spoke-sh/transit/issues/378), only after its
+commit, membership and promotion contracts execute. Measure acknowledged commit
+latency, durable/applied lag, required object coverage, catch-up and promotion
+under network/storage faults, including maintenance contention and reserved
+control progress. Compare equal failure guarantees; independent local containers
+are not replicas. Reuse provider-owned consensus where qualified. Compose
+replication/recovery libraries into node roles; add another executable only for
+an independently placed responsibility, never another manifest/commit authority.
+
 Include [index definitions, coverage and build state](11-indexing-and-access-paths.md)
 in the recovery inventory. Decide which physical generations replicate and which
 are rebuilt from retained authoritative data. Promotion must preserve constraint

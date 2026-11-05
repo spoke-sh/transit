@@ -93,6 +93,16 @@ finite model success does not qualify a provider's physical durability.
 
 ## Completion evidence and later owners
 
+Extend the [nightly scorecard](13-data-structures-and-performance.md#nightly-container-scorecard-and-distributed-handoffs)
+and [tracker #378](https://github.com/spoke-sh/transit/issues/378) from local disk
+containers to the selected real provider profile. Prove that independent
+partition writers can progress without one local backend publication mutex while
+enforcing policy/writer fencing at actual append/publication. Measure same versus
+disjoint keys/partitions, token and transaction coordination, provider requests,
+syncs, cold-cache I/O and foreground/control progress under maintenance. Keep
+local control results and remote-provider results distinct; a process/container
+count establishes no shared authority or horizontal throughput guarantee.
+
 Qualify [index maintenance and coverage](11-indexing-and-access-paths.md) through
 the same provider acceptance boundary: concurrent builds, same/different primary
 keys colliding on a secondary unique key, stale build owners and partial index

@@ -66,6 +66,21 @@ SDK and installer matrix must complete before closing their acceptance items.
 
 ## Remaining dependencies
 
+- Deliver explicit local/node/edge/worker and development-tool artifact profiles
+  under [tracker #378](https://github.com/spoke-sh/transit/issues/378). Retain one
+  implementation per role and keep the convenient embedded `transit` distribution.
+  Narrow build inputs, isolate Board asset preparation from headless artifacts
+  and separate generators/examples/proofs from normal runtime outputs. Measure
+  compilation, linking, frontend preparation and image size independently;
+  source-module reuse does not prove executable-link reuse. Preserve exact
+  versions, definitions and matched upgrade inventories across profiles.
+- Qualify the [nightly container workflow](../../tests/performance/load/containers.md)
+  twelve hours after release scheduling. Consume the existing promoted channel
+  and immutable OCI digest; never rebuild the measured server or implicitly use
+  an unpromoted candidate. Missing promotion is a failed prerequisite. Keep
+  campaign publication separate from release/channel promotion, and preserve
+  driver and runtime identities when the performance checkout is newer.
+
 - Qualify and publish the first tagged release, including anonymous registry
   visibility. Preserve any failed or incomplete hosted result in the PR handoff.
 - macOS requires replacements for Linux terminal/inotify handling, parent-death

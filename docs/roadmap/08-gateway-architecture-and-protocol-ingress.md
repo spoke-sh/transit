@@ -18,6 +18,17 @@ and physical publication are separate, coordinated optimization boundaries.
 
 ## Prerequisites and architectural rationale
 
+The [nightly container performance tracker #378](https://github.com/spoke-sh/transit/issues/378)
+connects this milestone's ingress/scheduler work to the
+[local-to-distributed scorecard](13-data-structures-and-performance.md#nightly-container-scorecard-and-distributed-handoffs).
+Measure current connection-driven worker sizing, admission waits and complete
+statement costs before replacing the host driver. Runnable capacity must follow
+effective CPU budgets; parked connection state has a separate bound. Preserve
+control/recovery capacity under pressure. Qualify the existing coarse remote
+statement plan before adding an independently placed protocol-edge campaign;
+local console pipes do not measure remote SQL latency. Build profiles compose the
+same owners and cannot introduce a second token, recovery or permission authority.
+
 Build on [data identities](01-declarative-data-lifecycle.md),
 [local storage](02-storage-and-query-performance.md),
 [live storage/SQL integration](03-live-storage-and-sql-cutover.md),

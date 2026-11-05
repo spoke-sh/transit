@@ -224,6 +224,16 @@
         ]
       },
       {
+        "id": "nightly_container_performance_controls",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/performance/load/test_container_suite.py"
+        ]
+      },
+      {
         "id": "scenario_performance_report",
         "phase": "static",
         "command": [

@@ -1,0 +1,83 @@
+name: Nightly container performance
+on:
+  schedule:
+    # Twelve hours after nightly.yml (07:17 UTC). Resolve its last promoted image.
+    - cron: '17 19 * * *'
+  workflow_dispatch:
+    inputs:
+      candidate_tag:
+        description: 'Optional immutable nightly tag for an explicitly unpromoted investigation'
+        type: string
+        default: ''
+permissions:
+  contents: read
+concurrency:
+  group: transit-nightly-performance
+  cancel-in-progress: false
+jobs:
+  select:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Freeze the published image and source identity
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CANDIDATE_TAG: ${{ inputs.candidate_tag }}
+        run: |
+          args=()
+          if [[ -n "$CANDIDATE_TAG" ]]; then args+=(--candidate-tag "$CANDIDATE_TAG"); fi
+          python3 -B tasks/performance_image.py --output .cache/performance/selection.json "${args[@]}"
+      - name: Preserve selection, including failed publication resolution
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: performance-image-selection
+          path: .cache/performance/selection.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 30
+  measure:
+    needs: select
+    strategy:
+      fail-fast: false
+      matrix:
+        nodes: [1, 3]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/download-artifact
+        with:
+          name: performance-image-selection
+          path: .cache/performance
+      - name: Measure the frozen nightly on disk with equal aggregate resource limits
+        env:
+          NODES: ${{ matrix.nodes }}
+        run: |
+          python3 -B tests/runner/launch.py tests/performance/load/container_suite.py \
+            --selection .cache/performance/selection.json --nodes "$NODES" \
+            --output .cache/performance/results --clients 6 --rows 64 --repeat 32 --warmup 2 \
+            --total-cpus 4 --total-memory-gib 6
+      - name: Summarize verified observations
+        if: always()
+        run: |
+          if [[ -f .cache/performance/results/summary.md ]]; then
+            cat .cache/performance/results/summary.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Campaign incomplete or failed; inspect the retained records. No performance pass.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Preserve completed and incomplete measurements
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: nightly-performance-${{ matrix.nodes }}-nodes-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .cache/performance/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 30

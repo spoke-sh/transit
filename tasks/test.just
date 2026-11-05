@@ -801,6 +801,11 @@ installed-performance profile *args:
     nix develop .#sql-wire --command zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe --prefix .cache/transit-installed-performance/release 1>&2
     nix develop .#sql-wire --command python3 -B tests/runner/launch.py tests/performance/load/installed.py --cli .cache/transit-installed-performance/release/bin/transit --node .cache/transit-installed-performance/release/bin/transit-node --host .cache/transit-installed-performance/release/bin/transit-query-host --binary-revision "$(git rev-parse HEAD)" --profile {{quote(profile)}} "${@:2}"
 
+# Frozen published nightly image; this task never builds a server from the checkout.
+[positional-arguments]
+nightly-performance selection output nodes *args:
+    python3 -B tests/runner/launch.py tests/performance/load/container_suite.py --selection {{quote(selection)}} --output {{quote(output)}} --nodes {{quote(nodes)}} "${@:4}"
+
 # Matching TLS component control for the persistent console statement workload.
 [positional-arguments]
 console-latency-tls repeat="5" *args:

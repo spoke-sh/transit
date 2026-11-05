@@ -23,6 +23,14 @@ gateway and Board entry-point modules. The standalone artifacts and private
 local roles share those modules and package identities. Board assets are linked
 into the executable; the supervisor launches independent role processes from it.
 
+Artifact composition, process placement and durable partition authority are
+separate decisions. A single `transit` executable can start several role
+processes; installing a standalone role does not give it shared-data or
+replication semantics. The [nightly container campaign](../tests/performance/load/containers.md)
+measures the published runtime image without rebuilding these targets. Build
+profile and distributed-runtime follow-up is tracked in
+[issue #378](https://github.com/spoke-sh/transit/issues/378).
+
 The CLI's streaming executable hash directly links the pinned OpenSSL crypto
 library already used by SQL TLS. Runtime CPU dispatch accelerates full SHA-256
 verification without raising the portable binary's CPU requirement. The CLI

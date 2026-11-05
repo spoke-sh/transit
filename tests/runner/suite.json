@@ -352,6 +352,7 @@
       "bindings::feedback",
       "test::sdk-performance",
       "test::installed-performance",
+      "test::nightly-performance",
       "test::sdk-import-cost",
       "test::log-runtime-baseline",
       "test::station-turn-baseline"
