@@ -84,6 +84,13 @@ start this bound; later fragments do not renew it. Handshake, frame, command and
 output deadlines remain finite when idle expiry is disabled. Native HTTP session
 leases are independent of this wire timeout.
 
+The host captures the authentication deadline before scheduling startup and shares
+that absolute timestamp with socket/TLS I/O and the authentication event wait.
+Authentication completion wakes the waiter; spurious wakes never renew the
+deadline. The outer cancellation owner remains necessary for non-socket
+credential and admission work and joins it before erasing or reusing the slot.
+Each output uses the earlier exact active-operation or write deadline.
+
 Interactive reads admit at most 10000 output rows, 16 MiB result bytes and 10000
 native requests. Relational reads additionally bound resident/spill bytes to
 16 MiB each, work to one million steps, source pins to two and spill operations to

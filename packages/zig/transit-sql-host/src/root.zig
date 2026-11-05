@@ -25,7 +25,7 @@ const Worker = struct {
     done: std.atomic.Value(bool) = .init(true),
     active: std.atomic.Value(bool) = .init(false),
     cancelled: std.atomic.Value(bool) = .init(false),
-    authenticated: std.atomic.Value(bool) = .init(false),
+    authenticated: std.Io.Event = .unset,
     future: ?std.Io.Future(void) = null,
     id: u32 = 0,
     secret: u32 = 0,
@@ -119,18 +119,11 @@ const Server = struct {
             self.diagnostics.event(.{ .name = "sql.connection.closed", .level = .debug, .outcome = .failed, .error_type = @errorName(err) });
         };
     }
-    fn protocolTask(self: *Server, slot: *Worker, stream: std.Io.net.Stream, allocator: std.mem.Allocator, cancellation_only: bool, protocol: Protocol) anyerror!void {
+    fn protocolTask(self: *Server, slot: *Worker, stream: std.Io.net.Stream, allocator: std.mem.Allocator, cancellation_only: bool, protocol: Protocol, until: std.Io.Clock.Timestamp) anyerror!void {
         return switch (protocol) {
-            .postgres => self.postgres(slot, stream, allocator, cancellation_only),
-            .mysql => self.mysqlConnection(slot, stream, allocator, cancellation_only),
+            .postgres => self.postgres(slot, stream, allocator, cancellation_only, until),
+            .mysql => self.mysqlConnection(slot, stream, allocator, cancellation_only, until),
         };
-    }
-    fn authenticationDeadline(self: *Server, slot: *Worker) anyerror!void {
-        const started = std.Io.Clock.awake.now(self.io);
-        while (!slot.authenticated.load(.acquire)) {
-            if (started.durationTo(std.Io.Clock.awake.now(self.io)).toMilliseconds() >= self.config.limits.handshake_ms) return error.GatewayDeadline;
-            try self.io.sleep(.fromMilliseconds(5), .awake);
-        }
     }
     fn connectionDeadline(self: *Server, slot: *Worker, stream: std.Io.net.Stream, allocator: std.mem.Allocator, cancellation_only: bool, protocol: Protocol) !void {
         const Result = union(enum) { connection: anyerror!void, authentication: anyerror!void };
@@ -141,8 +134,9 @@ const Server = struct {
         // has no owner/defer yet. The connection wrapper releases it exactly once.
         var started = false;
         errdefer if (!started and !cancellation_only) self.authenticated();
-        try select.concurrent(.authentication, Server.authenticationDeadline, .{ self, slot });
-        try select.concurrent(.connection, Server.protocolTask, .{ self, slot, stream, allocator, cancellation_only, protocol });
+        const until: std.Io.Clock.Timestamp = .fromNow(self.io, .{ .clock = .awake, .raw = .fromMilliseconds(self.config.limits.handshake_ms) });
+        try select.concurrent(.authentication, waitAuthentication, .{ self.io, &slot.authenticated, until });
+        try select.concurrent(.connection, Server.protocolTask, .{ self, slot, stream, allocator, cancellation_only, protocol, until });
         started = true;
         switch (try select.await()) {
             .connection => |result| return result,
@@ -153,11 +147,10 @@ const Server = struct {
             .authentication => unreachable,
         }
     }
-    fn postgres(self: *Server, slot: *Worker, stream: std.Io.net.Stream, allocator: std.mem.Allocator, cancellation_only: bool) !void {
+    fn postgres(self: *Server, slot: *Worker, stream: std.Io.net.Stream, allocator: std.mem.Allocator, cancellation_only: bool, until: std.Io.Clock.Timestamp) !void {
         var authentication_pending = !cancellation_only;
         defer if (authentication_pending) self.authenticated();
-        var transport: tls.Transport = .{ .io = self.io, .stream = stream, .deadline = .none };
-        try transport.resetDeadline(self.config.limits.handshake_ms);
+        var transport: tls.Transport = .{ .io = self.io, .stream = stream, .deadline = .{ .deadline = until } };
         var channel: Connection = .{ .transport = &transport };
         defer channel.deinit();
         var tx: Output = .{ .session = &channel, .write_ms = self.config.limits.write_ms };
@@ -184,7 +177,7 @@ const Server = struct {
         _ = try authentication.drive(&startup);
         self.authenticated();
         authentication_pending = false;
-        slot.authenticated.store(true, .release);
+        slot.authenticated.set(self.io);
         const backend = &startup.backend;
         while (true) {
             const idle = engine.session.cycle.state == .idle;
@@ -209,12 +202,11 @@ const Server = struct {
         try transport.resetDeadline(self.config.limits.write_ms);
         try channel.finish();
     }
-    fn mysqlConnection(self: *Server, slot: *Worker, stream: std.Io.net.Stream, allocator: std.mem.Allocator, cancellation_only: bool) !void {
+    fn mysqlConnection(self: *Server, slot: *Worker, stream: std.Io.net.Stream, allocator: std.mem.Allocator, cancellation_only: bool, until: std.Io.Clock.Timestamp) !void {
         if (cancellation_only) return error.GatewayConnectionCapacity;
         var authentication_pending = true;
         defer if (authentication_pending) self.authenticated();
-        var transport: tls.Transport = .{ .io = self.io, .stream = stream, .deadline = .none };
-        try transport.resetDeadline(self.config.limits.handshake_ms);
+        var transport: tls.Transport = .{ .io = self.io, .stream = stream, .deadline = .{ .deadline = until } };
         var nonce: [20]u8 = undefined;
         try self.io.randomSecure(&nonce);
         for (&nonce) |*byte| while (byte.* == 0) try self.io.randomSecure(std.mem.asBytes(byte));
@@ -245,7 +237,7 @@ const Server = struct {
         _ = try authentication.drive(&startup);
         self.authenticated();
         authentication_pending = false;
-        slot.authenticated.store(true, .release);
+        slot.authenticated.set(self.io);
         const backend = &startup.backend;
         while (true) {
             try transport.idle(limits.idle_ms, host.commandMilliseconds());
@@ -299,7 +291,8 @@ const Server = struct {
             };
             slot.done.store(false, .release);
             slot.cancelled.store(false, .release);
-            slot.authenticated.store(false, .release);
+            // The previous future and its authentication waiter have joined.
+            slot.authenticated.reset();
             if (index < self.config.limits.connections and !self.registry.acquireAuthentication()) {
                 slot.done.store(true, .release);
                 self.mutex.unlock(self.io);
@@ -319,6 +312,20 @@ const Server = struct {
         }
     }
 };
+// Socket deadlines cover protocol I/O. This event also bounds credential and
+// admission work; its owner cancels and joins the protocol before slot reuse.
+fn waitAuthentication(io: std.Io, authenticated: *std.Io.Event, until: std.Io.Clock.Timestamp) anyerror!void {
+    while (!authenticated.isSet()) {
+        if (until.durationFromNow(io).raw.nanoseconds <= 0) return error.GatewayDeadline;
+        authenticated.waitTimeout(io, .{ .deadline = until }) catch |err| switch (err) {
+            // Event.waitTimeout may wake spuriously. Preserve the original
+            // absolute deadline on every wait, without periodic polling.
+            error.Timeout => continue,
+            else => return err,
+        };
+    }
+}
+
 // Effect adapter for pure connection admission. The connection task owns and
 // joins these effects before any startup buffer, credential or slot is freed.
 const Authentication = struct {
@@ -437,12 +444,20 @@ const Output = struct {
         const transport = self.session.transport;
         const saved = transport.deadline;
         defer transport.deadline = saved;
-        const remaining = if (saved.toDurationFromNow(transport.io)) |duration| duration.raw.toMilliseconds() else self.write_ms;
-        if (remaining <= 0) return error.GatewayDeadline;
-        try transport.resetDeadline(@intCast(@min(remaining, self.write_ms)));
+        transport.deadline = .{ .deadline = try writeDeadline(transport.io, saved, self.write_ms) };
         try self.session.writeAll(bytes);
     }
 };
+fn writeDeadline(io: std.Io, active: std.Io.Timeout, milliseconds: u32) !std.Io.Clock.Timestamp {
+    const output_until: std.Io.Clock.Timestamp = .fromNow(io, .{ .clock = .awake, .raw = .fromMilliseconds(milliseconds) });
+    const until = switch (active.toDeadline(io)) {
+        .none => output_until,
+        .deadline => |until| if (until.compare(.lt, output_until)) until else output_until,
+        .duration => unreachable,
+    };
+    if (until.durationFromNow(io).raw.nanoseconds <= 0) return error.GatewayDeadline;
+    return until;
+}
 fn runAccount(runtime: *g.DatabaseRuntime, diagnostics: *telemetry.Runtime) void {
     var interval_ms: u32 = 2;
     var cleanup_failure: u16 = 0;
@@ -672,6 +687,64 @@ fn workerReserveFailures(allocator: std.mem.Allocator) !void {
 }
 test "wire worker admission rolls back partial reserves" {
     try std.testing.checkAllAllocationFailures(std.testing.allocator, workerReserveFailures, .{});
+}
+test "authentication event preserves the deadline across spurious wakes and slot reuse" {
+    const Fixture = struct {
+        mode: enum { complete, expire, cancel } = .complete,
+        event: std.Io.Event = .unset,
+        time: i96 = 0,
+        waits: usize = 0,
+        fn now(raw: ?*anyopaque, clock: std.Io.Clock) std.Io.Timestamp {
+            std.debug.assert(clock == .awake);
+            const self: *@This() = @ptrCast(@alignCast(raw.?));
+            return .{ .nanoseconds = self.time };
+        }
+        fn wait(raw: ?*anyopaque, _: *const u32, _: u32, timeout_value: std.Io.Timeout) std.Io.Cancelable!void {
+            const self: *@This() = @ptrCast(@alignCast(raw.?));
+            // Every spurious wake must use the same absolute budget, including
+            // the final wait. Relative or renewed deadlines fail this control.
+            std.debug.assert(timeout_value.deadline.clock == .awake);
+            std.debug.assert(timeout_value.deadline.raw.nanoseconds == 100);
+            self.waits += 1;
+            switch (self.mode) {
+                .complete => {
+                    self.time += 10;
+                    if (self.waits == 3) self.event.set(std.testing.io);
+                },
+                .expire => self.time = 100,
+                .cancel => return error.Canceled,
+            }
+        }
+    };
+    var fixture: Fixture = .{};
+    var vtable = std.testing.io.vtable.*;
+    vtable.now = Fixture.now;
+    vtable.futexWait = Fixture.wait;
+    const io: std.Io = .{ .userdata = &fixture, .vtable = &vtable };
+    const until: std.Io.Clock.Timestamp = .{ .clock = .awake, .raw = .{ .nanoseconds = 100 } };
+    try waitAuthentication(io, &fixture.event, until);
+    try std.testing.expectEqual(3, fixture.waits);
+    // Output uses the earlier exact timestamp, including a sub-millisecond
+    // remainder. A new write budget cannot round or extend the handshake.
+    try std.testing.expectEqual(until, try writeDeadline(io, .{ .deadline = until }, 1));
+    try std.testing.expectEqual(1000030, (try writeDeadline(io, .none, 1)).raw.nanoseconds);
+    try std.testing.expectEqual(1000030, (try writeDeadline(io, .{ .deadline = .{ .clock = .awake, .raw = .{ .nanoseconds = 2000000 } } }, 1)).raw.nanoseconds);
+    try waitAuthentication(io, &fixture.event, until);
+    try std.testing.expectEqual(3, fixture.waits);
+    fixture.event.reset();
+    fixture.mode = .expire;
+    try std.testing.expectError(error.GatewayDeadline, waitAuthentication(io, &fixture.event, until));
+    try std.testing.expectEqual(4, fixture.waits);
+    try std.testing.expectError(error.GatewayDeadline, writeDeadline(io, .{ .deadline = until }, 1));
+    // An expired wait does not sleep, and does not grant authentication.
+    try std.testing.expectError(error.GatewayDeadline, waitAuthentication(io, &fixture.event, until));
+    try std.testing.expectEqual(4, fixture.waits);
+    try std.testing.expect(!fixture.event.isSet());
+    fixture.event.reset();
+    fixture.time = 0;
+    fixture.mode = .cancel;
+    try std.testing.expectError(error.Canceled, waitAuthentication(io, &fixture.event, until));
+    try std.testing.expectEqual(5, fixture.waits);
 }
 test "wire frame reserves reuse independently of cancellation capacity" {
     const t = std.testing;
