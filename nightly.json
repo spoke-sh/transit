@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "identity": {
+    "version": 1,
+    "channel": "nightly",
+    "base_version": "0.0.1",
+    "release": "0.0.1-nightly.20261105.gd4d4b637adc6",
+    "tag": "nightly-20261105-gd4d4b637adc6",
+    "source_revision": "d4d4b637adc63857a092ecd88a7854cbfb901bf3",
+    "source_date_epoch": 1793844145,
+    "date": "20261105",
+    "package_versions": {
+      "python": "0.0.1.dev20261105+gd4d4b637adc6",
+      "node": "0.0.1-nightly.20261105.gd4d4b637adc6",
+      "rust": "0.0.1-nightly.20261105.gd4d4b637adc6",
+      "ruby": "0.0.1.nightly.20261105.gd4d4b637adc6",
+      "c": "0.0.1-nightly.20261105.gd4d4b637adc6",
+      "java": "0.0.1-nightly.20261105.gd4d4b637adc6",
+      "dotnet": "0.0.1-nightly.20261105.gd4d4b637adc6",
+      "beam": "0.0.1-nightly.20261105.gd4d4b637adc6",
+      "go": "0.0.1-nightly.20261105.gd4d4b637adc6",
+      "zig": "0.0.1-dev.gd4d4b637adc6"
+    }
+  },
+  "manifest_sha256": "6e6aa8fdddfd05e6cd9d74e23434f265a8c0274924b3e2c61e3aaa8500f488c8",
+  "checksums_sha256": "60fa88408d5b20f90c23b768690f177fe6fd6bec3abdf9ae1c489c6859f2622b",
+  "workflow_run": 41952542000
+}
