@@ -20,6 +20,8 @@ The header deadline bounds idle reuse and the final response advertises closure.
 Plain sockets and the SQL TLS adapter use `io.operateTimeout` with an absolute
 header deadline, without spawning header timer/work tasks. Partial reads do not
 renew the deadline. Buffered pipelined headers also check it before admission.
+The adapter checks expiry before submitting I/O even when a socket is ready;
+a zero-duration readiness poll alone does not enforce this boundary.
 Body reads and response writes share the original total request deadline;
 header parsing cannot renew or round that budget into another request interval.
 The shared `respond` helper ends reuse even when a handler has consumed the body;

@@ -90,6 +90,8 @@ Authentication completion wakes the waiter; spurious wakes never renew the
 deadline. The outer cancellation owner remains necessary for non-socket
 credential and admission work and joins it before erasing or reusing the slot.
 Each output uses the earlier exact active-operation or write deadline.
+Socket and TLS operations check expiry before execution, including ready sockets,
+buffered plaintext and control-record loops; readiness alone cannot extend a budget.
 
 Interactive reads admit at most 10000 output rows, 16 MiB result bytes and 10000
 native requests. Relational reads additionally bound resident/spill bytes to

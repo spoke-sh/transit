@@ -80,7 +80,14 @@ pub const Transport = struct {
         self.input_timeout_ms = null;
         self.deadline = (std.Io.Timeout{ .duration = .{ .clock = .awake, .raw = .fromMilliseconds(milliseconds) } }).toDeadline(self.io);
     }
+    fn checkDeadline(self: *const Transport) error{Timeout}!void {
+        // Polling with timeout zero may still complete ready I/O. Check before
+        // every operation, including buffered TLS work and control-record loops.
+        if (self.deadline.toDurationFromNow(self.io)) |remaining|
+            if (remaining.raw.nanoseconds <= 0) return error.Timeout;
+    }
     pub fn read(self: *Transport, bytes: []u8) !usize {
+        try self.checkDeadline();
         var vectors = [_][]u8{bytes};
         const count = try (try self.io.operateTimeout(.{ .net_read = .{ .socket_handle = self.stream.socket.handle, .data = &vectors } }, self.deadline)).net_read;
         if (count != 0) try self.inputStarted();
@@ -97,6 +104,7 @@ pub const Transport = struct {
     pub fn writeAll(self: *Transport, bytes: []const u8) !void {
         var offset: usize = 0;
         while (offset < bytes.len) {
+            try self.checkDeadline();
             const vectors = [_][]const u8{bytes[offset..]};
             const count = try (try self.io.operateTimeout(.{ .net_write = .{ .socket_handle = self.stream.socket.handle, .header = &.{}, .data = &vectors, .splat = 1 } }, self.deadline)).net_write;
             if (count == 0) return error.EndOfStream;
@@ -111,6 +119,7 @@ pub const Session = struct {
     transport: *Transport,
     closed: bool = false,
     pub fn accept(context: *const Context, transport: *Transport) !Session {
+        try transport.checkDeadline();
         const raw = c.SSL_new(context.raw) orelse return error.TlsAllocationFailed;
         errdefer c.SSL_free(raw);
         const input = c.BIO_new(c.BIO_s_mem()) orelse return error.TlsAllocationFailed;
@@ -123,6 +132,7 @@ pub const Session = struct {
         var self: Session = .{ .raw = raw, .input = input, .output = output, .transport = transport };
         var received: usize = 0;
         while (true) {
+            try transport.checkDeadline();
             c.ERR_clear_error();
             const result = c.SSL_accept(raw);
             const failure = if (result == 1) 0 else c.SSL_get_error(raw, result);
@@ -152,6 +162,7 @@ pub const Session = struct {
         if (bytes.len == 0 or self.closed) return 0;
         var received: usize = 0;
         while (true) {
+            try self.transport.checkDeadline();
             c.ERR_clear_error();
             const count = c.SSL_read(self.raw, bytes.ptr, @intCast(@min(bytes.len, 16384)));
             const failure = if (count > 0) 0 else c.SSL_get_error(self.raw, count);
@@ -179,6 +190,7 @@ pub const Session = struct {
         var offset: usize = 0;
         var received: usize = 0;
         while (offset < bytes.len) {
+            try self.transport.checkDeadline();
             c.ERR_clear_error();
             const count = c.SSL_write(self.raw, bytes[offset..].ptr, @intCast(@min(bytes.len - offset, 16384)));
             const failure = if (count > 0) 0 else c.SSL_get_error(self.raw, count);
@@ -194,6 +206,7 @@ pub const Session = struct {
     /// Sends close_notify without waiting for the peer. The caller always owns
     /// socket shutdown/close and may abandon this on an expired deadline.
     pub fn finish(self: *Session) !void {
+        try self.transport.checkDeadline();
         c.ERR_clear_error();
         _ = c.SSL_shutdown(self.raw);
         try self.flush();
@@ -208,4 +221,33 @@ pub const Session = struct {
 test "pinned OpenSSL server API rejects missing credential files" {
     try std.testing.expectEqual(@as(c_ulong, 0x30600040), c.OpenSSL_version_num());
     try std.testing.expectError(error.InvalidTlsCredentials, Context.init("/nonexistent/transit-certificate.pem", "/nonexistent/transit-key.pem"));
+}
+
+test "expired transport refuses ready reads and writes without consuming bytes" {
+    const io = std.testing.io;
+    var listener = try (try std.Io.net.IpAddress.parseIp4("127.0.0.1", 0)).listen(io, .{ .reuse_address = true });
+    defer listener.deinit(io);
+    const client = try listener.socket.address.connect(io, .{ .mode = .stream });
+    defer client.close(io);
+    const server = try listener.accept(io);
+    defer server.close(io);
+    var output = client.writer(io, &.{});
+    try output.interface.writeAll("ready");
+    var descriptors = [_]std.posix.pollfd{.{ .fd = server.socket.handle, .events = std.posix.POLL.IN, .revents = 0 }};
+    try std.testing.expectEqual(1, std.posix.system.poll(&descriptors, 1, 1000));
+    var transport: Transport = .{ .io = io, .stream = server, .deadline = .{ .deadline = .{
+        .clock = .awake,
+        .raw = std.Io.Clock.awake.now(io).addDuration(.fromSeconds(-1)),
+    } } };
+    var bytes: [5]u8 = undefined;
+    try std.testing.expectError(error.Timeout, transport.read(&bytes));
+    try std.testing.expectError(error.Timeout, transport.writeAll("expired"));
+    try transport.resetDeadline(5000);
+    try transport.readExact(&bytes);
+    try std.testing.expectEqualStrings("ready", &bytes);
+    try transport.writeAll("fresh");
+    var reply: Transport = .{ .io = io, .stream = client, .deadline = .none };
+    try reply.resetDeadline(5000);
+    try reply.readExact(&bytes);
+    try std.testing.expectEqualStrings("fresh", &bytes);
 }

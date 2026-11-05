@@ -31,8 +31,9 @@ close`. Responses that close or transfer to an upgraded protocol end the loop.
 There is no automatic retry or concurrent dispatch within one connection.
 
 Header reads use an absolute socket deadline without separate timer/work tasks.
-Fragmented headers do not renew it, and buffered headers are checked before
-admission. The original total request deadline bounds body reads, response writes
+Fragmented headers do not renew it. Socket/TLS steps reject expired deadlines
+even when I/O is ready or plaintext is already decrypted, and buffered headers
+are checked before admission. The original total request deadline bounds body reads, response writes
 and handler work; finishing a header does not start a new request budget.
 Timer and handler tasks for non-socket work are joined before socket/buffer reuse,
 including parent cancellation and scheduling failure. Handlers must be bounded and cooperative;

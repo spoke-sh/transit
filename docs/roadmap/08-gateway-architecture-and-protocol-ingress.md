@@ -324,6 +324,8 @@ pair. Buffered parsing checks the same deadline; body, output and joined
 non-socket handler cancellation use the original request budget. PG/MySQL
 authentication shares one timestamp across startup I/O and an event waiter,
 replacing the five-millisecond polling loop. Output caps use exact timestamps.
+Socket and TLS guards also reject expired operations when the socket is ready
+or decrypted bytes are buffered, before consuming input or advancing TLS output.
 The [SQL host ownership matrix](../../packages/zig/transit-sql-host/README.md)
 records the affected borrows, authority and cancellation owners; the
 [HTTP](../../contracts/HTTP_SERVING_V1.md) and
@@ -333,7 +335,9 @@ These are implementation changes within the current definition.
 Package controls cover expired buffered input, stalled headers without timer
 tasks, body/handler cancellation and joins, pipelined reuse, spurious event wakes,
 expiry, cancellation and exact output caps. The independent native TLS schedule
-adds fragmented-header expiry before ordinary authenticated session use. PR
+adds fragmented-header expiry before ordinary authenticated session use. The TLS
+probe covers expired buffered reads/writes and unchanged byte/record sequencing
+through both protocol upgrades and TLS versions. PR
 validation records the executed integration and clean-checkout outcomes.
 P3 remains open: command/handler cancellation tasks, signed-client propagation,
 resumable host progress, fair queues and CPU-sized worker defaults still require

@@ -21357,8 +21357,9 @@
     "packages/zig/transit-http-server/src/Socket.zig": {
       "errors": {
         "EndOfStream": 1,
-        "ReadFailed": 2,
-        "WriteFailed": 2
+        "ReadFailed": 3,
+        "Timeout": 1,
+        "WriteFailed": 3
       },
       "outcomes": {},
       "error_sets": {},
@@ -43057,6 +43058,7 @@
     "packages/zig/transit-tls-server/src/probe.zig": {
       "errors": {
         "InvalidSslRequest": 2,
+        "Timeout": 2,
         "Usage": 3
       },
       "outcomes": {},
@@ -43067,7 +43069,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 23,
+        "try": 26,
         "catch": 0
       },
       "imports": [
@@ -43083,6 +43085,7 @@
         "InvalidTimeout": 2,
         "InvalidTlsCredentials": 4,
         "InvalidTlsTrust": 2,
+        "Timeout": 1,
         "TlsAllocationFailed": 6,
         "TlsConfiguration": 2,
         "TlsControlBudget": 2,
@@ -43093,7 +43096,11 @@
         "UnsupportedTlsLibrary": 1
       },
       "outcomes": {},
-      "error_sets": {},
+      "error_sets": {
+        "Transport.checkDeadline().<error>": [
+          "Timeout"
+        ]
+      },
       "error_returns": {
         "Context.init()": "<inferred>",
         "Context.verifyLocalTrust()": "<inferred>",
@@ -43104,6 +43111,7 @@
         "Session.read()": "<inferred>",
         "Session.readExact()": "<inferred>",
         "Session.writeAll()": "<inferred>",
+        "Transport.checkDeadline()": "error { Timeout }",
         "Transport.idle()": "<inferred>",
         "Transport.inputStarted()": "<inferred>",
         "Transport.read()": "<inferred>",
@@ -43113,7 +43121,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 17,
+        "try": 24,
         "catch": 0
       },
       "imports": [

@@ -31,6 +31,10 @@ BIOs; network I/O passes through Zig's cancellation and timeout boundary.
 Handshake input is bounded at 64 KiB plus one 18 KiB receive buffer; encrypted
 output is drained after every TLS operation. Application writes use at most
 16 KiB per TLS call. Slow partial messages do not reset the caller's deadline.
+Expiry is checked before each socket and TLS operation, including reads of
+already decrypted bytes and control-record loops. Socket readiness cannot admit
+another operation after expiry. The independent probe verifies rejected buffered
+reads/writes without consuming plaintext or advancing the TLS output sequence.
 `finish` sends close-notify without waiting; `deinit` releases TLS memory and
 does not close the caller's socket. Truncated TLS input is an error.
 

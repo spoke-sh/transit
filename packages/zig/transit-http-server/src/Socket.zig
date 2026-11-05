@@ -48,6 +48,10 @@ fn read(input: *Io.Reader, output: *Io.Writer, limit: Io.Limit) Io.Reader.Stream
 
 fn readVec(input: *Io.Reader, data: [][]u8) Io.Reader.Error!usize {
     const self: *Self = @alignCast(@fieldParentPtr("input", input));
+    if (self.expired()) {
+        self.read_error = error.Timeout;
+        return error.ReadFailed;
+    }
     var vectors: [8][]u8 = undefined;
     const vector_count, const data_bytes = try input.writableVector(&vectors, data);
     const result = self.io.operateTimeout(.{ .net_read = .{
@@ -71,6 +75,7 @@ fn readVec(input: *Io.Reader, data: [][]u8) Io.Reader.Error!usize {
 
 fn write(output: *Io.Writer, data: []const []const u8, splat: usize) Io.Writer.Error!usize {
     const self: *Self = @alignCast(@fieldParentPtr("output", output));
+    if (self.expired()) return error.WriteFailed;
     const result = self.io.operateTimeout(.{ .net_write = .{
         .socket_handle = self.stream.socket.handle,
         .header = output.buffered(),
@@ -78,4 +83,42 @@ fn write(output: *Io.Writer, data: []const []const u8, splat: usize) Io.Writer.E
         .splat = splat,
     } }, self.until) catch return error.WriteFailed;
     return output.consume(result.net_write catch return error.WriteFailed);
+}
+
+fn expired(self: *const Self) bool {
+    // A readiness backend may complete a ready operation even at timeout zero.
+    // Enforce the phase boundary before submitting any new socket operation.
+    return if (self.until.toDurationFromNow(self.io)) |remaining| remaining.raw.nanoseconds <= 0 else false;
+}
+
+test "expired HTTP socket operations leave ready bytes untouched" {
+    const io = std.testing.io;
+    var listener = try (try Io.net.IpAddress.parseIp4("127.0.0.1", 0)).listen(io, .{ .reuse_address = true });
+    defer listener.deinit(io);
+    const client = try listener.socket.address.connect(io, .{ .mode = .stream });
+    defer client.close(io);
+    const server = try listener.accept(io);
+    defer server.close(io);
+    var client_output = client.writer(io, &.{});
+    try client_output.interface.writeAll("ready");
+    // Prove readiness without consuming the bytes. Timeout-only polling would
+    // otherwise be allowed to read them after the absolute deadline expires.
+    var descriptors = [_]std.posix.pollfd{.{ .fd = server.socket.handle, .events = std.posix.POLL.IN, .revents = 0 }};
+    try std.testing.expectEqual(1, std.posix.system.poll(&descriptors, 1, 1000));
+    var socket: Self = undefined;
+    socket.init(io, server, &.{}, &.{});
+    socket.setDeadline(.{ .clock = .awake, .raw = Io.Clock.awake.now(io).addDuration(.fromSeconds(-1)) });
+    var bytes: [5]u8 = undefined;
+    try std.testing.expectError(error.ReadFailed, socket.reader().readSliceAll(&bytes));
+    try std.testing.expectEqual(error.Timeout, socket.readError().?);
+    try std.testing.expectError(error.WriteFailed, socket.writer().writeAll("expired"));
+    socket.setDeadline(.fromNow(io, .{ .clock = .awake, .raw = .fromSeconds(5) }));
+    try socket.reader().readSliceAll(&bytes);
+    try std.testing.expectEqualStrings("ready", &bytes);
+    try socket.writer().writeAll("fresh");
+    var reply: Self = undefined;
+    reply.init(io, client, &.{}, &.{});
+    reply.setDeadline(.fromNow(io, .{ .clock = .awake, .raw = .fromSeconds(5) }));
+    try reply.reader().readSliceAll(&bytes);
+    try std.testing.expectEqualStrings("fresh", &bytes);
 }

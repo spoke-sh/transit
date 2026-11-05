@@ -71,7 +71,7 @@ def main(binary):
                     if child.poll() is None:
                         child.kill()
                     child.communicate(timeout=10)
-        print('Zig/OpenSSL server: both upgrade frames, TLS 1.2/1.3, fragmented input, identity/trust denial, plaintext refusal and deadline pass.')
+        print('Zig/OpenSSL server: both upgrade frames, TLS 1.2/1.3, fragmented input, identity/trust denial, plaintext refusal, expired buffered reads/writes and deadline pass.')
         for protocol in ('postgres', 'mysql'):
             listen = port()
             child = subprocess.Popen([binary, str(cert), str(key), str(listen), protocol, '100'],
