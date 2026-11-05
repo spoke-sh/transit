@@ -313,3 +313,6 @@ pending status. `Executor.resumeWorkload` accepts that unresolved original and
 makes at most one explicit attempt, validating instance, account, token, operation,
 saved content and eventual receipt. Transport loss falls back to status; no wait
 or SQL is automatically replayed. Cancellation remains an explicit operation.
+If that status observation fails or is denied, the unresolved result retains the
+known original operation and wait policy. It clears the earlier timeout cut,
+which cannot establish the outcome of the latest attempt.

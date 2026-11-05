@@ -9,7 +9,7 @@ const t = std.testing;
 const instance: api.Instance = @splat(7);
 const session: api.Id = @splat(8);
 const account: api.Account = @splat(9);
-const Mode = enum { direct, lost_reply, lost_session, foreign_result, denied_disclosure, waiting, lost_wait_reply, lost_resume_reply };
+const Mode = enum { direct, lost_reply, lost_session, foreign_result, denied_disclosure, waiting, lost_wait_reply, lost_resume_reply, denied_resume_observation };
 
 test "pending waits reject foreign identity policy terminal evidence and completion" {
     const evidence = try Peer.evidence();
@@ -116,7 +116,7 @@ const Peer = struct {
                     try t.expectEqual(1, self.resumes);
                     try t.expectEqualDeep(r.Operation{ .account = account, .id = 15, .kind = .workload }, identity);
                     try t.expect(data_lane);
-                    if (self.mode == .lost_resume_reply) continue;
+                    if (self.mode == .lost_resume_reply or self.mode == .denied_resume_observation) continue;
                 },
                 .status => |target| {
                     self.statuses += 1;
@@ -124,6 +124,10 @@ const Peer = struct {
                     if (self.mode == .lost_session and self.statuses == 1) {
                         control_response = true;
                         response.result = .{ .err = .{ .code = "SqlSessionExpired", .sqlstate = "55000".*, .message = "expired", .retry = .control } };
+                    }
+                    if (self.mode == .denied_resume_observation) {
+                        control_response = true;
+                        response.result = .{ .err = .{ .code = "AccessDenied", .sqlstate = "42501".*, .message = "revoked", .retry = .never } };
                     }
                 },
                 .result => |operation| {
@@ -157,13 +161,14 @@ const Peer = struct {
                     try request.respond(frame_bytes, .{ .keep_alive = false, .extra_headers = &.{.{ .name = "content-type", .value = api.ResultFrame.content_type }} });
                     continue;
                 }
-            } else if ((self.mode == .waiting or self.mode == .lost_wait_reply or self.mode == .lost_resume_reply) and self.resumes == 0) {
+            } else if ((self.mode == .waiting or self.mode == .lost_wait_reply or self.mode == .lost_resume_reply or self.mode == .denied_resume_observation) and self.resumes == 0) {
                 const saved = try evidence();
                 response.result = .{ .operation = .{ .identity = .{ .account = account, .id = 15, .kind = .workload }, .command = .claim, .token = self.token.?, .phase = .ready, .result_kind = .rows, .wait = .{ .intent = saved.intent, .binding = saved.binding, .milliseconds = 100, .timed_out = if (parsed.value.action == .execute) .{ .target = selection().claim.target, .accepted = selection().accepted, .retained_from = 0, .next = 0 } else null } } };
             } else response.result = .{ .operation = .{ .identity = .{ .account = account, .id = 15, .kind = .workload }, .command = .claim, .token = self.token.?, .phase = .terminal, .outcome = .applied, .result_kind = .rows, .workload = try evidence() } };
             const reply = try api.Json.valueAlloc(t.allocator, response);
             defer t.allocator.free(reply);
             try request.respond(reply, .{ .keep_alive = false, .extra_headers = &.{.{ .name = "content-type", .value = "application/json" }} });
+            if (self.mode == .denied_resume_observation and self.statuses != 0) return;
         }
         return error.WorkloadClientRequestBudget;
     }
@@ -198,12 +203,30 @@ test "workload settlement opens only original rows after lost execute and checks
         } else {
             var outcome = try result;
             defer outcome.deinit();
-            if (mode == .waiting or mode == .lost_wait_reply or mode == .lost_resume_reply) {
+            if (mode == .waiting or mode == .lost_wait_reply or mode == .lost_resume_reply or mode == .denied_resume_observation) {
                 try t.expect(outcome.value == .unresolved);
                 try t.expectEqual(.waiting, outcome.value.unresolved.reason);
                 try t.expectEqual(mode != .lost_wait_reply, outcome.value.unresolved.wait.?.timed_out != null);
                 try t.expectEqual(0, peer.results);
                 const resumed = try executor.resumeWorkload(outcome.value.unresolved, .{});
+                if (mode == .denied_resume_observation) {
+                    defer resumed.deinit();
+                    try t.expect(resumed.value == .unresolved);
+                    try t.expectEqual(.denied, resumed.value.unresolved.reason);
+                    try t.expectEqualDeep(outcome.value.unresolved.operation, resumed.value.unresolved.operation);
+                    try t.expectEqualDeep(outcome.value.unresolved.token, resumed.value.unresolved.token);
+                    try t.expectEqualDeep(outcome.value.unresolved.account, resumed.value.unresolved.account);
+                    try t.expectEqualDeep(outcome.value.unresolved.instance, resumed.value.unresolved.instance);
+                    try outcome.value.unresolved.wait.?.requireSame(resumed.value.unresolved.wait.?);
+                    try t.expectEqual(null, resumed.value.unresolved.wait.?.timed_out);
+                    try task.await(io);
+                    try t.expectEqual(1, peer.executes);
+                    try t.expectEqual(1, peer.resumes);
+                    try t.expectEqual(1, peer.statuses);
+                    try t.expectEqual(0, peer.results);
+                    try t.expectEqual(0, peer.closes);
+                    continue;
+                }
                 outcome.deinit();
                 outcome = resumed;
             }

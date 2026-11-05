@@ -283,13 +283,18 @@ fn settle(self: *Self, pending: *sdk.Pending, cancel: bool, out: *Outcome, optio
     defer self.session_lost = self.session_lost or pending.session_lost;
     const value = self.awaitPending(pending, cancel) catch |err| {
         self.access_lost = self.access_lost or err == error.SqlObservationDenied;
-        return .{ .unresolved = .{
-            .account = pending.account,
-            .instance = self.client.instance.?,
-            .token = pending.token,
-            .operation = if (pending.operation) |operation| operation.identity else null,
-            .reason = if (err == error.SqlObservationDenied) .denied else if (self.interrupted) .interrupted else if (err == error.SqlInstanceChanged or err == error.IncompatibleSqlDefinition) .identity_changed else .unavailable,
-        } };
+        return .{
+            .unresolved = .{
+                .account = pending.account,
+                .instance = self.client.instance.?,
+                .token = pending.token,
+                .operation = if (pending.operation) |operation| operation.identity else pending.expected_operation,
+                // A failed observation retains the original wait policy, but an
+                // earlier timeout cut cannot describe the uncertain latest attempt.
+                .wait = if (pending.expected_wait) |wait| .{ .intent = wait.intent, .binding = wait.binding, .milliseconds = wait.milliseconds } else null,
+                .reason = if (err == error.SqlObservationDenied) .denied else if (self.interrupted) .interrupted else if (err == error.SqlInstanceChanged or err == error.IncompatibleSqlDefinition) .identity_changed else .unavailable,
+            },
+        };
     };
     if (value.wait) |wait| return .{ .unresolved = .{ .account = pending.account, .instance = self.client.instance.?, .token = pending.token, .operation = value.identity, .reason = .waiting, .wait = wait } };
     if (value.result_kind == .rows) return self.openWorkload(value, pending.session_lost, out, options);
