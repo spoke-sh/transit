@@ -1912,8 +1912,9 @@ A timeout leaves the SQL operation pending with typed `Workload.Wait` evidence;
 only the actual timeout response carries its cut. Passive status, same-token
 execute and background recovery cannot claim later arrivals. Explicit workload
 resume borrows the data lane and reuses the saved native operation; cancellation
-and accepted-receipt replay retain their native owners. PostgreSQL/MySQL return
-SQLSTATE 57014 with the original operation ID when no claim completed; the
+and accepted-receipt replay retain their native owners. PostgreSQL returns
+SQLSTATE 57014; MySQL maps it to error 1317 / SQLSTATE 70100. Both include the
+original operation ID when no claim completed; the
 console emits an unresolved JSON outcome and exits nonzero. Current syntax and
 caller semantics live in the [SQL reference](../handbook/reference/sql/streaming.md#wait-for-eligible-queue-work)
 and [session contract](../../contracts/SQL_SESSION_V1.md#queue-wait-attempts).

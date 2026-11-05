@@ -135,7 +135,7 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
             try:
                 cursor.execute("CLAIM value FROM wait_mysql WITH LEASE '1s' WAIT '50ms'")
             except mysql.connector.Error as error:
-                assert error.sqlstate == '57014', error
+                assert error.errno == 1317 and error.sqlstate == '70100', error
                 wire_ids.append(int(re.search(r'Gateway operation (\d+)', error.msg).group(1)))
             else:
                 raise AssertionError('MySQL timeout returned successful rows')
@@ -154,7 +154,13 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
     assert len(frames) == 1 and frames[0]['unresolved']['reason'] == 'waiting', frames
     unresolved = frames[0]['unresolved']
     assert unresolved['wait']['timed_out'] is not None
-    assert client.terminal(client.call(dict(cancel=dict(operation=unresolved['operation'])))['operation'], outcomes=('cancelled',))['outcome'] == 'cancelled'
+    assert unresolved['account'] == client.account and unresolved['instance'] == client.instance
+    # Console presentation preserves wide integers as decimal strings; native
+    # requests use integer carriage. Verify token recovery names that same ID.
+    console_identity = dict(unresolved['operation'], id=int(unresolved['operation']['id']))
+    recovered = pending(client.call(dict(status=dict(token=unresolved['token'])))['operation'])
+    assert recovered['identity'] == console_identity
+    assert client.terminal(client.call(dict(cancel=dict(operation=console_identity)))['operation'], outcomes=('cancelled',))['outcome'] == 'cancelled'
     client.close()
     print(json.dumps(dict(profile='sql_queue_wait', timeout_nonterminal=True, passive_recovery=True,
                           original_resume_after_replacement=True, original_receipt_replay=True,

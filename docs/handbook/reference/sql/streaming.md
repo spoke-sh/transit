@@ -290,8 +290,9 @@ service replacement. Same-token execute observes the original work without anoth
 attempt. Once accepted, resume and result reopening preserve the original rows
 and lease handles without renewal or reselection.
 
-PostgreSQL and MySQL report SQLSTATE 57014 and the original operation ID when
-waiting ends without completion. The console exits nonzero and its JSON output
+When waiting ends without completion, PostgreSQL reports SQLSTATE 57014 and
+MySQL reports error 1317 / SQLSTATE 70100. Both include the original operation ID.
+The console exits nonzero and its JSON output
 includes the pending identity and wait observation. Repeating the SQL creates a
 new operation; use the shared client or native operation interface to resume or
 cancel the original. See the [wait contract](../../../../contracts/SQL_SESSION_V1.md#queue-wait-attempts)

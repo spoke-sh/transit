@@ -202,8 +202,9 @@ Cancellation races resolve through the native original-operation owner.
 The shared client returns `StatementOutcome.unresolved` with reason `waiting`
 and this typed observation. `Executor.resumeWorkload` explicitly resumes that
 original account/instance/token/operation, then either returns another pending
-observation or opens its original result. PostgreSQL and MySQL return SQLSTATE
-57014 with the original gateway operation ID when no claim completed; neither
+observation or opens its original result. PostgreSQL returns SQLSTATE 57014;
+MySQL uses its existing error 1317 / SQLSTATE 70100 mapping. Both include the
+original gateway operation ID when no claim completed; neither
 returns `CLAIM 0` or successful empty rows. The console reports a nonzero outcome
 and includes original recovery identity in JSON. These callers may use native
 status/resume/cancel under current authorization; repeating SQL creates new work.
