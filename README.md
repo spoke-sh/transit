@@ -1,6 +1,6 @@
 # Transit
 
-[![CI](https://github.com/spoke-sh/transit/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/spoke-sh/transit/actions/workflows/ci.yml)
+[![Nightly build](https://github.com/spoke-sh/transit/actions/workflows/nightly.yml/badge.svg?branch=main)](https://github.com/spoke-sh/transit/actions/workflows/nightly.yml)
 
 **Transit is a declarative, versioned multi-model database, vectorized/incremental
 query engine, and durable execution runtime.** It's written in Zig and provides
