@@ -93,7 +93,7 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
     lost_sql = "CLAIM value FROM wait_cancel WITH LEASE '1s' WAIT '50ms'"
     client.call(dict(execute=dict(sql=lost_sql, token=lost_token)), discard_response=True)
     lost = pending(client.call(dict(status=dict(token=lost_token)))['operation'])
-    cancelled = client.terminal(client.call(dict(cancel=dict(operation=lost['identity'])))['operation'])
+    cancelled = client.terminal(client.call(dict(cancel=dict(operation=lost['identity'])))['operation'], outcomes=('cancelled',))
     assert cancelled['outcome'] == 'cancelled'
     submit('ENQUEUE INTO wait_cancel VALUES (43)')
     assert client.call(dict(resume=lost['identity']))['operation'] == cancelled
@@ -142,7 +142,7 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
     for id_ in wire_ids:
         original_id = dict(account=client.account, id=id_, kind='workload')
         pending(client.call(dict(status=dict(operation=original_id)))['operation'])
-        assert client.terminal(client.call(dict(cancel=dict(operation=original_id)))['operation'])['outcome'] == 'cancelled'
+        assert client.terminal(client.call(dict(cancel=dict(operation=original_id)))['operation'], outcomes=('cancelled',))['outcome'] == 'cancelled'
 
     script = consumer / 'wait.sql'
     script.write_text("CLAIM value FROM wait_console WITH LEASE '1s' WAIT '50ms';\n")
@@ -154,7 +154,7 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
     assert len(frames) == 1 and frames[0]['unresolved']['reason'] == 'waiting', frames
     unresolved = frames[0]['unresolved']
     assert unresolved['wait']['timed_out'] is not None
-    assert client.terminal(client.call(dict(cancel=dict(operation=unresolved['operation'])))['operation'])['outcome'] == 'cancelled'
+    assert client.terminal(client.call(dict(cancel=dict(operation=unresolved['operation'])))['operation'], outcomes=('cancelled',))['outcome'] == 'cancelled'
     client.close()
     print(json.dumps(dict(profile='sql_queue_wait', timeout_nonterminal=True, passive_recovery=True,
                           original_resume_after_replacement=True, original_receipt_replay=True,
