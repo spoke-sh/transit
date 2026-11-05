@@ -6701,7 +6701,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 73,
+        "try": 74,
         "catch": 0
       },
       "imports": [

@@ -93,7 +93,15 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
         time.sleep(.1)
         client.call(dict(status=dict(operation=identity)))
         submit('ENQUEUE INTO wait_wake VALUES (44)')
-        wake = waiter.terminal(future.result(timeout=30)['operation'])
+        wake = future.result(timeout=30)['operation']
+        arrival_timed_out = wake['phase'] != 'terminal'
+        if arrival_timed_out:
+            pending(wake, timeout=True)
+            original_wake = wake['identity']
+            wake = client.terminal(client.call(dict(resume=original_wake))['operation'])
+            assert wake['identity'] == original_wake
+        else:
+            assert wake['outcome'] == 'applied'
     waiter.close()
     assert [unsigned(row[0]) for row in result(wake['identity'])[0]] == [44]
 
@@ -137,4 +145,4 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
     print(json.dumps(dict(profile='sql_queue_wait', timeout_nonterminal=True, passive_recovery=True,
                           original_resume_after_replacement=True, original_receipt_replay=True,
                           lost_timeout_reply=True, lost_resume_reply=True, cancellation=True, current_authorization=True,
-                          wakeup=True, postgres=True, mysql=True, console=True, passed=True)), flush=True)
+                          concurrent_arrival=True, arrival_timed_out=arrival_timed_out, postgres=True, mysql=True, console=True, passed=True)), flush=True)

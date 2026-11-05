@@ -155,5 +155,6 @@ original token through timeout, lost reply and service replacement, proves
 passive observation cannot acquire later arrivals, then explicitly resumes or
 cancels that original. Receipt replay preserves original selection and lease
 handles. Revocation rejects status/resume; a separate waiter exercises arrival
-while control remains available. Native waiter saturation and lease algorithms
+while control remains available. If arrival loses the timeout race, the test
+validates timeout evidence and explicitly resumes that same original operation. Native waiter saturation and lease algorithms
 retain their separate storage/runtime proofs.
