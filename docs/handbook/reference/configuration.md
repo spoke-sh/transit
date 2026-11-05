@@ -125,10 +125,11 @@ and output retain finite deadlines.
 
 ## Startup policy
 
-`transit server` initializes a missing or empty installation directory and opens
+`transit server` initializes an absent installation path and opens
 or resumes an existing installation. `startup.require_existing` defaults to
-false. Set it to true after provisioning a managed deployment to refuse a missing
-or empty installation, including a missing volume or mistaken path. Its
+false. Existing empty directories are always refused without removal. Set this
+policy to true after provisioning to also refuse an absent path, including a
+missing volume or mistaken path. Its
 environment override is `TRANSIT_STARTUP__REQUIRE_EXISTING=true`; changes require
 restart and are visible through `SHOW startup.require_existing`.
 

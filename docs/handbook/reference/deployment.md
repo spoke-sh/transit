@@ -36,6 +36,22 @@ pinned neighborhood binaries. Stop/start, build/update and destructive reset hav
 different meanings. Follow the owning guide; a package upgrade alone cannot
 initialize authority or migrate data.
 
+## Filesystem publication and hosted qualification
+
+Fresh local installations require an absent child path, not an existing empty
+mount point. Publication uses exclusive directory creation and nonreplacing hard
+links with explicit claim/commit records. Regular immutable files use hard links
+when unnamed temporary files are unavailable. These paths do not require Linux
+`RENAME_NOREPLACE`; they preserve existing files, directories and symlinks.
+
+Local syscall restrictions and injected failures qualify those code paths only.
+They do not establish EFS sync durability, cross-client locks, lock-loss fencing
+or retained replacement under Fargate's resource envelope. Those remain deployment
+acceptance checks against the exact published artifact; see the
+[filesystem procedure](../../../tests/interfaces/installation/filesystems.md).
+Preserve earlier failed assemblies and installations with their matching builds.
+Do not adopt, delete or relabel them to make a new build start.
+
 ## Physical execution and durable ownership
 
 A runtime binding maps a logical PID to provider identity. Substrate manages

@@ -7,6 +7,15 @@ directory; request-owned `Store` and `PageStore` instances borrow it.
 `transit server` selects it by default. See the [node configuration](../../../apps/transit-node/docs/growing.md)
 for supported operations and current maintenance/diagnostic limits.
 
+Named temporary immutable files publish through the storage package's
+`FilePublication` helper: sync contents, create a nonreplacing hard link, remove
+the temporary name, then sync the parent before acknowledging success. Unnamed
+temporary files retain their direct link path. Existing names never get replaced;
+cleanup or sync failure preserves uncertainty and requires the owner's existing
+recovery protocol. This removes a dependency on `RENAME_NOREPLACE`, but does not
+qualify NFS/EFS durability or lock-loss behavior. See the
+[filesystem checks](../../../tests/interfaces/installation/filesystems.md).
+
 The core engine remains the authority for permissions, sequences, ownership,
 retirement, resource versions, input progress, outputs and effect intents. Pages
 and blocks are staged as verified immutable objects. A single conditional WAL

@@ -1,7 +1,6 @@
 # Local server
 
-`transit server` creates a private installation when its directory is missing
-or empty, then runs it in the foreground. The same command opens an existing
+`transit server` creates a private installation when its directory is missing, then runs it in the foreground. The same command opens an existing
 installation or resumes its recorded setup. The executable includes the node,
 query host, SQL gateway and Board. The server supervises them as separate
 processes launched from that same executable. Board runs by default, with its
@@ -13,8 +12,8 @@ in the [test guide](../../../tests/README.md).
 
 ## First startup and recovery
 
-Use the same `transit server` command for every start. A missing or empty
-installation directory is initialized automatically. A valid existing record
+Use the same `transit server` command for every start. A missing installation directory is initialized automatically. An existing empty
+directory is refused without removal; select an absent child path instead. A valid existing record
 opens the same installation; an interrupted setup resumes its recorded operations
 and receipts. Files, symbolic links, unrecognized directory contents, malformed
 records and incompatible definitions reject without changing their contents.
@@ -33,18 +32,37 @@ startup:
   require_existing: true
 ```
 
-This refuses a missing or empty installation before creating data or starting
+This refuses a missing installation before creating data or starting
 services, including when a volume is absent or the installation path is wrong.
 It still permits resuming recorded incomplete setup. The equivalent environment
 override is `TRANSIT_STARTUP__REQUIRE_EXISTING=true`. `SHOW startup.require_existing`
 reports the active policy; reloading a changed value reports a pending restart.
 
-Creation holds the installation lock and assembles private files in a sibling
-directory before publishing them. An empty destination is removed with a
-nonrecursive directory operation; if contents appear, creation fails. Use a
-directory inside a mounted volume rather than the mount point itself, and ensure
-its parent is writable. Abandoned `.creating-*` directories are unpublished setup
-files and are never adopted as recovery evidence.
+Creation holds the installation lock and probes the actual parent with synthetic
+files before writing credentials. It requires exclusive directory creation,
+nonreplacing hard links, ordinary atomic replacement, file/directory sync and
+reliable exclusive locks. It does not require `RENAME_NOREPLACE` or `O_TMPFILE`.
+Use an absent child path inside a mounted volume, with a writable parent; an
+existing empty directory, file, symlink or populated foreign directory is never
+removed or overwritten.
+
+Private files are assembled in a `.creating-*` sibling. A durable
+`.publishing-<destination>` intent binds the current contract definition,
+installation identity, destination, source and initial file sizes/digests. Exclusive
+`mkdir` reserves the destination, `.transit-claim` records ownership, hard links
+populate its files, and `.transit-published` commits the assembly after sync.
+Readers require that commit before starting providers or native operations. The
+same protocol covers SQL enrollment and application records. Initial assemblies
+are bounded to 128 entries, 1 MiB of file contents, eight path components and a
+256 KiB manifest; these are setup bounds, not durable data cardinality limits.
+
+Recovery resumes only the exact recorded intent and claim. A crash after `mkdir`
+but before its claim leaves ambiguous ownership: startup refuses it and retains
+the evidence. Unjournaled or older `.creating-*` directories are never adopted
+or automatically deleted. A committed target is never repopulated from initial
+files; cleanup removes only its recorded assembly. Missing storage still fails.
+The [filesystem qualification procedure](../../../tests/interfaces/installation/filesystems.md)
+distinguishes local syscall regression coverage from hosted EFS acceptance.
 
 ## Logging and readiness
 
@@ -384,9 +402,10 @@ The list is a reloadable setting. See [configuration and settings](../../../docs
 The installation has a random identity, private credential files, artifact and
 configuration hashes, accepted provisioning receipts and a monotonic observed
 authority position. A sibling OS lock serializes initialization and management.
-Initial files are assembled in a private sibling directory and renamed into
-place before any provider or native operation starts. A leftover `.creating-*`
-directory contains no accepted native work and is never automatically adopted.
+Initial files use the [explicit publication protocol](#first-startup-and-recovery)
+before any provider or native operation starts. Only a matching durable publication
+intent and ownership claim authorize resuming an interrupted assembly. Unjournaled
+staging directories contain no accepted native work and are never adopted.
 
 Every provisioning request is signed and fsynced before dispatch. Its exact
 pending representation survives interruption. A receipt is recorded before its
