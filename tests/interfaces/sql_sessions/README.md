@@ -158,3 +158,8 @@ handles. Revocation rejects status/resume; a separate waiter exercises arrival
 while control remains available. If arrival loses the timeout race, the test
 validates timeout evidence and explicitly resumes that same original operation. Native waiter saturation and lease algorithms
 retain their separate storage/runtime proofs.
+
+For iteration on WAIT alone, the same installed driver accepts `sessions-wait`:
+`nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe -- sessions-wait`.
+This focused selection does not qualify the broader declaration, append,
+consume, claim and settlement regressions in `just test::sql-log-declarations`.

@@ -10,6 +10,20 @@ from interfaces.sql_sessions.native import Client
 from interfaces.sql_sessions.storage import unsigned
 
 
+def isolated(root, port, postgres, mysql_options, restart, authorize, console):
+    """Focused selection of the same assertions included in sessions-log."""
+    consumer = root / 'wait-console'
+    consumer.mkdir()
+    home = consumer / 'home'
+    home.mkdir()
+    password = consumer / 'password'
+    password.write_text('proof-password')
+    password.chmod(0o600)
+    config = consumer / 'connection.yaml'
+    config.write_text(f'version: 1\nendpoint: https://localhost:{port}\naccount: proof\ndatabase: data\nauthentication: scram\nca_file: {root/"certificate.pem"}\npassword_file: {password}\nformat: json\n')
+    run(root, port, postgres, mysql_options, restart, authorize, console, config, consumer, home)
+
+
 def run(root, port, postgres, mysql_options, restart, authorize, console, config, consumer, home):
     import psycopg
     import mysql.connector
