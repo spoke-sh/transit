@@ -6,6 +6,33 @@ const r = @import("root.zig");
 const p = r.protocol;
 const d = p.DataLifecycle;
 
+/// Nonterminal observation of a frozen wait. A timeout cut proves only that
+/// attempt ended without acceptance; it is neither an empty claim nor a pin.
+/// Absence of a cut means observation only, not an assertion about an attempt.
+pub const Wait = struct {
+    intent: d.Content,
+    binding: p.LogWorkload.Binding,
+    milliseconds: u32,
+    timed_out: ?p.StreamQueue.Cut = null,
+
+    pub fn validate(self: Wait) !void {
+        try self.intent.validate();
+        try self.binding.validate();
+        if (self.binding != .queue or self.binding.queue.kind != .claim or
+            self.milliseconds == 0 or self.milliseconds > 1000) return error.InvalidWorkloadWait;
+        if (self.timed_out) |cut| {
+            try cut.validate();
+            try self.binding.target().requireSame(cut.target);
+        }
+    }
+    pub fn requireSame(self: Wait, other: Wait) !void {
+        try self.validate();
+        try other.validate();
+        if (!std.meta.eql(self.intent, other.intent) or self.milliseconds != other.milliseconds) return error.InvalidWorkloadWait;
+        try self.binding.requireSame(other.binding);
+    }
+};
+
 /// Original native owner evidence, separate from result delivery. It can settle
 /// an accepted operation while its returned rows remain undisclosed/incomplete.
 pub const Evidence = struct {

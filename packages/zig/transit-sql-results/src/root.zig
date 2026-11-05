@@ -145,7 +145,8 @@ pub const Unresolved = struct {
     instance: [16]u8,
     token: [16]u8,
     operation: ?Operation,
-    reason: enum { unavailable, interrupted, denied, identity_changed },
+    reason: enum { unavailable, interrupted, denied, identity_changed, waiting },
+    wait: ?Workload.Wait = null,
 };
 pub const StatementOutcome = union(enum) {
     command: CommandCompletion,

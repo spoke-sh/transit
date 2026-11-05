@@ -132,11 +132,17 @@ pub const Saved = struct {
     source: c.DirectLogProtocol.Definition,
     work: Work,
     projection: ?Projection,
+    // Mandatory in persisted bodies; null means ordinary non-waiting work.
+    wait_ms: ?u32,
 
     pub fn validate(self: Saved, allocator: std.mem.Allocator) !void {
         if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
         try self.connection.validate();
         try self.work.validate(self.connection);
+        if (self.wait_ms) |milliseconds| {
+            if (self.work != .queue or self.work.queue.work != .claim) return error.InvalidWorkloadWait;
+            try (c.DirectQueue.Request{ .wait = .{ .claim = self.work.queue.work.claim, .milliseconds = milliseconds } }).validate(self.connection.principal, self.connection.scope);
+        }
         const target = self.work.target();
         if (self.source.declaration.stored.retired or
             !sourceMatches(target, self.source.declaration.stored, self.work.control()) or
@@ -213,7 +219,7 @@ pub const Reference = struct {
             } }),
             .queue => |work| client.call(.{ .queue = switch (command) {
                 .inspect => .{ .operation = work.work },
-                .execute => .{ .mutate = work },
+                .execute => if (intent.parsed.value.wait_ms) |milliseconds| .{ .wait = .{ .claim = work.work.claim, .milliseconds = milliseconds } } else .{ .mutate = work },
                 .cancel => .{ .cancel = work.work },
             } }),
         };
@@ -228,7 +234,10 @@ pub fn create(allocator: std.mem.Allocator, connection: w.Connection, source: c.
     return createProjected(allocator, connection, source, work, null);
 }
 pub fn createProjected(allocator: std.mem.Allocator, connection: w.Connection, source: c.DirectLogProtocol.Definition, work: Work, projection: ?Projection) !Self {
-    const value: Saved = .{ .definition = p.Growth.current_definition, .connection = connection, .source = source, .work = work, .projection = projection };
+    return createWaited(allocator, connection, source, work, projection, null);
+}
+pub fn createWaited(allocator: std.mem.Allocator, connection: w.Connection, source: c.DirectLogProtocol.Definition, work: Work, projection: ?Projection, wait_ms: ?u32) !Self {
+    const value: Saved = .{ .definition = p.Growth.current_definition, .connection = connection, .source = source, .work = work, .projection = projection, .wait_ms = wait_ms };
     try value.validate(allocator);
     const bytes = p.Json.valueAllocBounded(allocator, value, c.DirectRecord.max_bytes) catch |err| return if (err == error.WriteFailed) error.CatalogRecordTooLarge else err;
     errdefer allocator.free(bytes);
@@ -243,7 +252,8 @@ pub fn restore(allocator: std.mem.Allocator, bytes: []const u8) !Self {
     if (bytes.len == 0 or bytes.len > c.DirectRecord.max_bytes) return error.InvalidWorkloadIntent;
     const parsed = try p.Json.parseFromSlice(Saved, allocator, bytes);
     defer parsed.deinit();
-    var result = try createProjected(allocator, parsed.value.connection, parsed.value.source, parsed.value.work, parsed.value.projection);
+    try parsed.value.validate(allocator);
+    var result = try createWaited(allocator, parsed.value.connection, parsed.value.source, parsed.value.work, parsed.value.projection, parsed.value.wait_ms);
     errdefer result.deinit();
     if (!std.mem.eql(u8, bytes, result.bytes)) return error.InvalidWorkloadIntent;
     return result;
