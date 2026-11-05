@@ -13,9 +13,10 @@ The [current completion plan](#first-implementation-changes), refreshed on
 2026-11-05 from `origin/main` at `c4dd89c22`, sequences the remaining contracts,
 caller operations, transaction qualification, Station cutover and performance
 work. Start there for the source assessment, milestone handoffs, review boundaries
-and acceptance gates. The next feature unit is the shared SQL wait contract and
-unfiltered Queue WAIT (4b.2); grouped Stream consumption and offset settlement
-(4a.1), NACK and original renewal results are delivered regression inputs.
+and acceptance gates. The shared SQL wait contract and unfiltered Queue WAIT
+(4b.2) are implemented by the first follow-up below. Stream WAIT (4a.2) is the
+next feature unit; grouped Stream consumption and offset settlement (4a.1),
+NACK and original renewal results remain regression inputs.
 The [earlier source audit](#source-baseline-and-remaining-gaps) and dated progress
 records preserve their original attribution. Delivery-sequence SQL examples
 below illustrate proposed scope; use the [SQL reference](../handbook/reference/sql/streaming.md)
@@ -1488,11 +1489,10 @@ Preserve the following evidence and remaining blockers separately:
 | [M7 collection/closure integration](../history/qualification/storage.md#integration-with-original-operation-staging-closure--2026-11-04) at `501d5532be3b` | Core 28/28, SDK conformance 7/7 and storage-query 33/33 passed, including both workload setup deadlines. These are later source-specific passes, not explanations of earlier timeouts or qualification of today's definition |
 | [Installed scenarios](../history/qualification/performance.md#installed-scenario-qualification--2026-11-04) and [scalar interface parity](../history/qualification/sql.md#scalar-parity-across-sql-interfaces--2026-11-04) | Preserve verified values/recovery and the existing console budget gate. Scenario observations are not a paired speedup, and passing smoke ceilings does not meet M6's Table targets or supply complete Stream/Queue/Station baselines |
 
-**Immediate order:** preserve 4a.1 and 4b.1 as delivered. Implement Batch 3's
-wait identity/result/recovery contract, then **unfiltered Queue WAIT (4b.2)**.
-It exercises the shared parked-work boundary needed by later services without
-depending on native payload predicates. Follow with Stream WAIT (4a.2), reusing
-group coverage rather than redefining it. Batch 0 investigates the original
+**Immediate order:** preserve 4a.1, 4b.1 and the Queue WAIT implementation
+(4b.2) below as regression inputs. Next implement **Stream WAIT (4a.2)** against
+the shared wait identity/result/recovery contract, extending its Queue-only
+validation deliberately and reusing group coverage rather than redefining it. Batch 0 investigates the original
 maintenance failure and distinct setup/BEGIN uncertainties, using the later
 passing revisions as controls. Batch 1 freezes current-definition baselines;
 Batch 2 extends mixed-decision/retained-root correspondence. These are separate
@@ -1578,7 +1578,7 @@ estimates.
 | 1 | R9 | Existing drivers; current-definition controls; Batch 0 for blocked profiles | All six log profiles plus required extended scenarios and preserved Station comparison, with measured budgets |
 | 2 | R0/R4/R5 | Existing mixed/DLQ owners | Complete common-decision faults, correspondence and integrated automatic transfer proof |
 | 3 | R0/R6 | Existing workload results/closures, delivered group coverage and ACK/NACK/renewal, latest admission tracking | Wait contract/recovery first, then predicate and mixed-statement semantics with shared caller composition |
-| 4a–4d | R3/R4/R6 | Batch 3 per verb; Batch 2 for mixed SQL; 4a.1 and 4b.1 delivered | Queue WAIT (4b.2) next, then Stream WAIT (4a.2); native predicates (4b.3), finite TVF (4c), mixed SQL (4d) as separate units; groups/offsets and renewal remain regression gates |
+| 4a–4d | R3/R4/R6 | Batch 3 per verb; Batch 2 for mixed SQL; 4a.1 and 4b.1 delivered | Queue WAIT (4b.2) implemented; Stream WAIT (4a.2) next; native predicates (4b.3), finite TVF (4c), mixed SQL (4d) as separate units; groups/offsets and renewal remain regression gates |
 | 5 | R0/R7 | Batch 2, replacement contracts, saved Station baseline | One real handler commits inbox ACK, Table/KV state, journal and output together |
 | 6 | R7 | Batch 5 | Durable calls, names, timers and supervision migrated |
 | 7 | R8 | Batches 5–6, owner gates for affected consumers | Effects/SDKs/query consumers migrated; replacement activated and old delivery removed |
@@ -1868,8 +1868,9 @@ observed high watermark/lag attribution and keep data locks out of parked work.
 NACK with an optional absolute `visible_at` is delivered by #336; receipt-returning
 renewal is delivered by #341. Preserve both as settlement regressions; reason
 strings and relative-delay operands are not current native capabilities.
-Remaining review units are **4b.2** (unfiltered WAIT) and **4b.3** (native predicate
-selection), after their respective Batch 3 contracts. Start with 4b.2.
+Unfiltered WAIT (**4b.2**) now uses the shared original-operation contract below.
+Native predicate selection (**4b.3**) remains a separate review unit after its
+Batch 3 acquisition contract.
 
 **4b.1 — Original renewed lease through SQL (delivered; regression gate).**
 
@@ -1904,8 +1905,34 @@ refusal and generated fixture parity when later incompatible changes land.
 
 **4b.2/4b.3 — Wait and predicate acquisition.**
 
-Make 4b.2 concrete in the following order. These are planned changes, not
-additional capabilities of the current SQL result/status contract.
+The selected **4b.2** profile now freezes a mandatory nullable `wait_ms` in
+`DirectWorkloadIntent`. A Queue WAIT uses the native 1–1000 ms attempt bound,
+exact partition, claim maximum, lease policy and unfiltered result projection.
+A timeout leaves the SQL operation pending with typed `Workload.Wait` evidence;
+only the actual timeout response carries its cut. Passive status, same-token
+execute and background recovery cannot claim later arrivals. Explicit workload
+resume borrows the data lane and reuses the saved native operation; cancellation
+and accepted-receipt replay retain their native owners. PostgreSQL/MySQL return
+SQLSTATE 57014 with the original operation ID when no claim completed; the
+console emits an unresolved JSON outcome and exits nonzero. Current syntax and
+caller semantics live in the [SQL reference](../handbook/reference/sql/streaming.md#wait-for-eligible-queue-work)
+and [session contract](../../contracts/SQL_SESSION_V1.md#queue-wait-attempts).
+
+The current-v1 cutover replaces the definition and regenerates schemas, bindings
+and signed fixtures. Missing saved wait policy and foreign definitions reject.
+The Catalog tests cover owned parameters, allocation failure and restored intent
+identity; shared-client peer tests cover lost wait/resume replies and foreign
+observations. The installed [WAIT schedule](../../tests/interfaces/sql_sessions/waits.py)
+is included in the full log-session gate and also has a focused selector. It
+checks pending timeout, late arrival, original replay, replacement, cancellation,
+revocation and caller-specific carriage. An arrival that loses the timeout race
+requires explicit same-original resume. These test definitions are acceptance
+obligations; executed commands and outcomes must accompany the implementation PR.
+Native saturation, lease algorithms and broader milestone profiles retain their
+independent qualification owners.
+
+The review units below remain the regression map for **4b.2** and prerequisites
+for the planned **4b.3** extension. Stream WAIT is still a separate **4a.2** unit.
 
 | Review unit | Owning change | Required exit |
 | --- | --- | --- |
