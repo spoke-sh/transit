@@ -5,8 +5,8 @@ const e = @import("RelationalExecution.zig");
 const values = @import("RelationalValues.zig");
 const native = @import("transit_protocol").Growth;
 const Self = @This();
-pub const fixed_bytes = 4 + 32 + 32 + 8 + 1 + @max(41, 1 + r.max_groups * 9) + 1 + r.max_outputs * 9;
-pub const max_bytes = fixed_bytes + 2 * values.max_text_bytes;
+pub const fixed_bytes = 4 + 32 + 32 + 8 + 1 + @max(41, 1 + r.max_groups * values.fixed_bytes) + 1 + r.max_outputs * values.fixed_bytes + 1 + 44 + 2 * r.max_groups * values.fixed_bytes;
+pub const max_bytes = fixed_bytes + 4 * values.max_text_bytes;
 binding: [32]u8,
 ordinal: u64,
 row: e.Output,
@@ -62,32 +62,33 @@ pub fn writeTo(self: Self, bound: r.Bound, writer: *std.Io.Writer) !void {
             for (key.values[key.len..]) |value| if (value != null) return error.InvalidRelationalOutput;
         },
     }
+    if ((self.row.ordering != null) != (bound.plan.order_by.len != 0)) return error.InvalidRelationalOutput;
+    try writer.writeByte(@intFromBool(self.row.ordering != null));
+    if (self.row.ordering) |key| {
+        try key.validate(bound.plan);
+        if (key.sorted != bound.plan.hasAggregateOrder()) return error.InvalidRelationalOutput;
+        switch (self.row.identity) {
+            .pair => |pair| if (key.pair == null or e.Key.pairOrder(pair, key.pair.?) != .eq) return error.InvalidRelationalOutput,
+            .group => |identity| {
+                var canonical = key;
+                canonical.sorted = false;
+                if (try canonical.order(identity, bound.plan) != .eq) return error.InvalidRelationalOutput;
+            },
+        }
+        try key.write(writer);
+    }
     try writer.writeByte(self.row.len);
     var fields: [r.max_outputs]@import("Types.zig").Field = undefined;
     const schema = try bound.plan.outputSchema(&fields);
     var text_bytes: usize = 0;
     for (self.row.cells[0..self.row.len], schema.structure) |cell, field| {
-        if (cell == .null) {
-            if (!field.nullable) return error.InvalidRelationalOutput;
-            try writer.writeByte(0);
-        } else {
-            if (cell != .value or cell.value != .atom) return error.InvalidRelationalOutput;
-            if (field.type == .uint64) {
-                if (cell.value.atom != .unsigned) return error.InvalidRelationalOutput;
-                try writer.writeByte(3);
-                try writer.writeInt(u64, std.math.cast(u64, cell.value.atom.unsigned) orelse return error.InvalidRelationalOutput, .little);
-            } else if (field.type == .utf8) {
-                if (cell.value.atom != .bytes or cell.value.atom.bytes.len > values.max_text_bytes - text_bytes) return error.InvalidRelationalOutput;
-                const bytes = cell.value.atom.bytes;
-                try @import("Types.zig").Semantics.validate(cell.value.atom, .utf8);
-                text_bytes += bytes.len;
-                try values.write(writer, .{ .text = bytes });
-            } else {
-                if (field.type != .int64 or cell.value.atom != .signed) return error.InvalidRelationalOutput;
-                try writer.writeByte(1);
-                try writer.writeInt(i64, std.math.cast(i64, cell.value.atom.signed) orelse return error.InvalidRelationalOutput, .little);
-            }
+        const value = try values.fromCell(cell, .{ .id = 1, .name = field.name, .type = field.type, .nullable = field.nullable });
+        if (cell == .value and cell.value.atom == .bytes) {
+            const bytes = cell.value.atom.bytes;
+            if (bytes.len > values.max_text_bytes - text_bytes) return error.InvalidRelationalOutput;
+            text_bytes += bytes.len;
         }
+        try values.write(writer, value);
     }
 }
 pub fn decode(allocator: std.mem.Allocator, bound: r.Bound, bytes: []const u8) !Self {
@@ -115,19 +116,14 @@ pub fn decode(allocator: std.mem.Allocator, bound: r.Bound, bytes: []const u8) !
         },
         else => return error.InvalidRelationalOutput,
     }
-    result.row.len = try reader.takeByte();
-    if (result.row.len != bound.plan.outputs.len) return error.InvalidRelationalOutput;
-    for (result.row.cells[0..result.row.len]) |*cell| cell.* = switch (try reader.takeByte()) {
-        0 => .null,
-        1 => .{ .value = .{ .atom = .{ .signed = try reader.takeInt(i64, .little) } } },
-        2 => value: {
-            const length = try reader.takeInt(u32, .little);
-            if (length > values.max_text_bytes) return error.InvalidRelationalOutput;
-            break :value .{ .value = .{ .atom = .{ .bytes = try reader.take(length) } } };
-        },
-        3 => .{ .value = .{ .atom = .{ .unsigned = try reader.takeInt(u64, .little) } } },
+    result.row.ordering = switch (try reader.takeByte()) {
+        0 => null,
+        1 => try e.Key.read(&reader, bound.plan),
         else => return error.InvalidRelationalOutput,
     };
+    result.row.len = try reader.takeByte();
+    if (result.row.len != bound.plan.outputs.len) return error.InvalidRelationalOutput;
+    for (result.row.cells[0..result.row.len]) |*cell| cell.* = values.cell(try values.read(&reader));
     if (reader.bufferedLen() != 0) return error.InvalidRelationalOutput;
     values.checkEncoding(bytes, result, bound) catch |err| return switch (err) {
         error.WriteFailed, error.InvalidRelationalEncoding => error.InvalidRelationalOutput,
@@ -135,4 +131,14 @@ pub fn decode(allocator: std.mem.Allocator, bound: r.Bound, bytes: []const u8) !
     };
     result.row = try result.row.clone(allocator);
     return result;
+}
+
+/// Validate adjacent output occurrences using their persisted ordering evidence.
+pub fn order(a: e.Output, b: e.Output, plan: r.Plan) !std.math.Order {
+    if (plan.order_by.len != 0) {
+        const left = a.ordering orelse return error.InvalidRelationalOutput;
+        const right = b.ordering orelse return error.InvalidRelationalOutput;
+        return left.order(right, plan);
+    }
+    return @import("RelationalDelta.zig").identityOrder(a.identity, b.identity, plan);
 }

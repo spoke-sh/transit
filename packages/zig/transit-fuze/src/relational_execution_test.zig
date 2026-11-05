@@ -78,6 +78,16 @@ const Groups = struct {
     pub fn next(self: *Groups, after: ?e.Key) !?e.Group {
         var result: ?e.Group = null;
         for (self.items.items) |group| {
+            if (group.key.sorted) continue;
+            if (after) |key| if (try group.key.order(key, self.plan) != .gt) continue;
+            if (result == null or try group.key.order(result.?.key, self.plan) == .lt) result = group;
+        }
+        return result;
+    }
+    pub fn nextSorted(self: *Groups, after: ?e.Key) !?e.Group {
+        var result: ?e.Group = null;
+        for (self.items.items) |group| {
+            if (!group.key.sorted) continue;
             if (after) |key| if (try group.key.order(key, self.plan) != .gt) continue;
             if (result == null or try group.key.order(result.?.key, self.plan) == .lt) result = group;
         }
@@ -311,11 +321,14 @@ const ImmutableGroups = struct {
     pub fn next(self: *ImmutableGroups, after: ?e.Key) !?e.Group {
         return self.tree.next(&self.store, after);
     }
+    pub fn nextSorted(self: *ImmutableGroups, after: ?e.Key) !?e.Group {
+        return self.tree.nextSorted(&self.store, after);
+    }
     fn deinit(self: *ImmutableGroups) void {
         self.store.deinit();
     }
 };
-fn restart(comptime Engine: type, run: *Engine, input: *Input, groups: *ImmutableGroups) !void {
+fn restart(comptime Engine: type, run: *Engine, input: anytype, groups: *ImmutableGroups) !void {
     var bytes: [Checkpoint.fixed_bytes]u8 = undefined;
     const saved = try run.checkpoint(groups.tree.root);
     const decoded = try Checkpoint.decode(t.allocator, run.bound, try saved.encode(run.bound, &bytes));
@@ -456,6 +469,168 @@ test "ungrouped ORDER BY with NULLS FIRST LAST and LIMIT preserves pair tiebreak
 
 fn scalar(value: ?i64) @import("RelationalValues.zig").Value {
     return if (value) |integer| .{ .integer = integer } else null;
+}
+
+test "relational scalar groups decimal sums and ordered records survive every checkpoint" {
+    const v = @import("RelationalValues.zig");
+    const ScalarInput = struct {
+        rows: []const e.Row,
+        pub fn validate(_: *@This(), bound: r.Bound) !void {
+            try bound.validate();
+        }
+        pub fn next(self: *@This(), _: u8, after: ?r.RowIdentity) !?e.Row {
+            for (self.rows) |row| {
+                if (after) |id| if (e.identityOrder(row.identity, id) != .gt) continue;
+                return try row.clone(t.allocator);
+            }
+            return null;
+        }
+    };
+    const cases = [_]struct { kind: @import("Types.zig").Type, first: v.Literal, second: v.Literal }{
+        .{ .kind = .boolean, .first = .{ .boolean = false }, .second = .{ .boolean = true } },
+        .{ .kind = .uint64, .first = .{ .unsigned = 9223372036854775808 }, .second = .{ .unsigned = std.math.maxInt(u64) } },
+        .{ .kind = .float64, .first = .{ .float = -1.25 }, .second = .{ .float = 2.5 } },
+        .{ .kind = .{ .decimal = .{ .precision = 38, .scale = 2 } }, .first = .{ .decimal = -9223372036854775809 }, .second = .{ .decimal = 9223372036854775809 } },
+        .{ .kind = .date, .first = .{ .date = -1 }, .second = .{ .date = 1 } },
+        .{ .kind = .time, .first = .{ .time = 0 }, .second = .{ .time = 86399999999999 } },
+        .{ .kind = .{ .timestamp = .utc }, .first = .{ .timestamp = -1 }, .second = .{ .timestamp = 1 } },
+        .{ .kind = .uuid, .first = .{ .uuid = @splat(0) }, .second = .{ .uuid = @splat(255) } },
+        .{ .kind = .binary, .first = .{ .binary = "\x00\xff" }, .second = .{ .binary = "\xff\x00" } },
+    };
+    for (cases) |case| {
+        var cols = columns;
+        cols[0].type = case.kind;
+        cols[1].type = .{ .decimal = .{ .precision = 38, .scale = 2 } };
+        var inputs = sources;
+        inputs[0].schema.columns = &cols;
+        var plan = base();
+        plan.sources = inputs[0..1];
+        plan.lifetime = .captured;
+        plan.budgets.resident_bytes = 8 * 1024 * 1024;
+        plan.group_by = &.{.{ .source = 0, .id = 1 }};
+        plan.outputs = &.{ .{ .name = "key", .expression = .{ .column = .{ .source = 0, .id = 1 } } }, .{ .name = "total", .expression = .{ .sum = .{ .source = 0, .id = 2 } } } };
+        plan.order_by = &.{.{ .expression = .{ .sum = .{ .source = 0, .id = 2 } }, .direction = .desc, .nulls = .last }};
+        plan.having = .{ .instructions = &.{.{ .compare = .{ .expression = .{ .sum = .{ .source = 0, .id = 2 } }, .op = .greater, .value = .{ .decimal = 1 } } }} };
+        var basis = try cuts();
+        basis[0].schema = try inputs[0].schema.fingerprint();
+        const bound: r.Bound = .{ .plan = plan, .cuts = basis[0..1] };
+        var rows: [3]e.Row = undefined;
+        for (&rows, 0..) |*row, i| {
+            row.* = .{ .identity = .{ .origin = 1, .operation = i + 1, .ordinal = 0 } };
+            row.values[0] = if (i == 1) case.second else case.first;
+            row.values[1] = .{ .decimal = if (i == 1) 5 else 9223372036854775809 };
+        }
+        var input: ScalarInput = .{ .rows = &rows };
+        var groups: ImmutableGroups = .{ .tree = try Index.init(t.allocator, bound, null) };
+        defer groups.deinit();
+        const Engine = e.Execution(*ScalarInput, *ImmutableGroups);
+        var run = try Engine.init(t.allocator, bound, &input, &groups);
+        defer run.deinit();
+        var seen: usize = 0;
+        while (true) {
+            // Clone encoded progress before releasing its current owned buffers.
+            const saved = try run.checkpoint(groups.tree.root);
+            const encoded = try saved.encodeAlloc(t.allocator, bound);
+            defer t.allocator.free(encoded);
+            var decoded = try Checkpoint.decode(t.allocator, bound, encoded);
+            defer decoded.deinit();
+            run.deinit();
+            run = try Engine.restore(t.allocator, bound, &input, &groups, decoded);
+            switch (try run.step()) {
+                .progress => {},
+                .complete => break,
+                .row => |owned| {
+                    var row = owned;
+                    defer row.deinit();
+                    try t.expect(seen < 2);
+                    try t.expectEqual(@as(i128, if (seen == 0) 18446744073709551618 else 5), row.cells[1].value.atom.decimal);
+                    try t.expectEqual(std.math.Order.eq, try v.order(if (seen == 0) case.first else case.second, try v.fromCell(row.cells[0], cols[0]), cols[0]));
+                    const Record = @import("RelationalOutput.zig");
+                    const record: Record = .{ .binding = try bound.fingerprint(), .ordinal = seen, .row = row };
+                    const bytes = try record.encodeAlloc(t.allocator, bound);
+                    defer t.allocator.free(bytes);
+                    var readback = try Record.decode(t.allocator, bound, bytes);
+                    defer readback.deinit();
+                    try t.expectEqual(std.math.Order.eq, try Record.order(row, readback.row, plan));
+                    seen += 1;
+                },
+            }
+        }
+        try t.expectEqual(@as(usize, 2), seen);
+        try t.expectEqual(@as(u64, 2), run.sorted_count);
+        try t.expectEqual(@as(u64, 4), groups.tree.root.?.entries);
+    }
+}
+
+test "relational scalar projection sorts after filtering and retains the source failure frontier" {
+    const types = @import("Types.zig");
+    const sql = @import("RelationalSql.zig");
+    const cols = [_]@import("TableSchema.zig").Column{
+        .{ .id = 1, .name = "keep", .type = .boolean },
+        .{ .id = 2, .name = "a", .type = .{ .decimal = .{ .precision = 8, .scale = 2 } } },
+        .{ .id = 3, .name = "b", .type = .{ .decimal = .{ .precision = 8, .scale = 2 } } },
+    };
+    var source = sources[0];
+    source.schema.columns = &cols;
+    source.schema.next_column = 4;
+    var syntax = try sql.parse(t.allocator, "SELECT DECIMAL_DIVIDE(a,b,8,2,HALF_EVEN) AS q FROM items l WHERE keep = TRUE ORDER BY q DESC LIMIT 1", null);
+    defer syntax.deinit();
+    var plan = try syntax.bind(&.{source}, .captured, base().budgets, null);
+    plan.budgets.resident_bytes = 8 * 1024 * 1024;
+    var basis = try cuts();
+    basis[0].schema = try source.schema.fingerprint();
+    const bound: r.Bound = .{ .plan = plan, .cuts = basis[0..1] };
+    const ProjectedInput = struct {
+        projection: e.Projection,
+        include_failure: bool,
+        reads: u64 = 0,
+        pub fn validate(_: *@This(), value: r.Bound) !void {
+            try value.validate();
+        }
+        pub fn next(self: *@This(), _: u8, after: ?r.RowIdentity) !?e.Row {
+            const index: u64 = if (after) |id| id.operation else 0;
+            if (index == 3) return null;
+            self.reads += 1;
+            const cells = [_]types.Values.Cell{
+                .{ .value = .{ .atom = .{ .boolean = index != 2 or self.include_failure } } },
+                .{ .value = .{ .atom = .{ .decimal = if (index == 0) 200 else 600 } } },
+                .{ .value = .{ .atom = .{ .decimal = if (index == 2) 0 else 200 } } },
+            };
+            return try self.projection.row(t.allocator, .{ .origin = 1, .operation = index + 1, .ordinal = 0 }, 0, &cols, &cells);
+        }
+    };
+    for ([_]bool{ false, true }) |include_failure| {
+        var input: ProjectedInput = .{ .projection = try e.Projection.init(plan), .include_failure = include_failure };
+        var groups: ImmutableGroups = .{ .tree = try Index.init(t.allocator, bound, null) };
+        defer groups.deinit();
+        var run = try e.Execution(*ProjectedInput, *ImmutableGroups).init(t.allocator, bound, &input, &groups);
+        defer run.deinit();
+        var seen: usize = 0;
+        while (true) {
+            const event = run.step() catch |err| {
+                try t.expect(include_failure);
+                try t.expectEqual(error.DivisionByZero, err);
+                try t.expectEqual(@as(usize, 0), seen);
+                try t.expectEqual(@as(u64, 3), input.reads);
+                break;
+            };
+            switch (event) {
+                .progress => {},
+                .complete => {
+                    try t.expect(!include_failure);
+                    try t.expectEqual(@as(usize, 1), seen);
+                    break;
+                },
+                .row => |owned| {
+                    var row = owned;
+                    defer row.deinit();
+                    try t.expectEqual(@as(u64, 3), input.reads);
+                    try t.expectEqual(@as(i128, 300), row.cells[0].value.atom.decimal);
+                    seen += 1;
+                },
+            }
+        }
+    }
 }
 fn number(value: @import("RelationalValues.zig").Value) ?i64 {
     return if (value) |present| present.integer else null;

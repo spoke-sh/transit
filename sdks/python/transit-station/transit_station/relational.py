@@ -14,7 +14,7 @@ from transit_client.types import integer
 from .catalog_values import Connection, Basis, Snapshot, Position, ObjectIdentity
 from . import catalog_values as v
 from .table import RowIdentity
-from .logical_values import ScalarKind, ScalarType
+from .logical_values import Descriptor, ScalarType, DecimalType, TimestampType, type_from_wire, atom_from_wire
 
 T = TypeVar('T')
 
@@ -99,7 +99,7 @@ def _reference(value: object) -> Reference:
 @dataclass(frozen=True, slots=True)
 class Column:
     name: str
-    type: ScalarType
+    type: Descriptor
     nullable: bool
 
 
@@ -146,10 +146,11 @@ def _description(value: object) -> Description:
     columns = []
     for item in _array(value['columns'], 1, 128):
         item = v._object(item, 'name type nullable optional')
-        kind, payload = v._variant(item['type'])
-        if kind not in ('int64', 'uint64', 'utf8') or payload != {} or v._boolean(item['optional']):
+        kind = type_from_wire(item['type'])
+        if v._boolean(item['optional']) or not (isinstance(kind, (DecimalType, TimestampType)) or
+                isinstance(kind, ScalarType) and kind.kind in ('int64', 'uint64', 'float64', 'boolean', 'date', 'time', 'uuid', 'utf8', 'binary')):
             raise ValueError('Unsupported relational output type')
-        columns.append(Column(v._text(item['name'], 255), ScalarType(cast(ScalarKind, kind)), v._boolean(item['nullable'])))
+        columns.append(Column(v._text(item['name'], 255), kind, v._boolean(item['nullable'])))
     join = value['join']
     if join not in (None, 'inner', 'left'): raise ValueError('Invalid relational join')
     return Description(v._digest(value['plan']), tuple(sources), tuple(columns), join, v._boolean(value['grouped']))
@@ -196,20 +197,13 @@ class PairIdentity:
 
 @dataclass(frozen=True, slots=True)
 class GroupIdentity:
-    keys: tuple[int | str | None, ...]
+    keys: tuple[int | str | float | bool | bytes | None, ...]
 
 
 @dataclass(frozen=True, slots=True)
 class Row:
     identity: PairIdentity | GroupIdentity
-    cells: tuple[int | str | None, ...]
-
-
-def _signed(value: object) -> int:
-    if not isinstance(value, str) or not 1 <= len(value) <= 20: raise ValueError('Invalid int64')
-    result = int(value)
-    if str(result) != value or not -(1 << 63) <= result < (1 << 63): raise ValueError('Invalid canonical int64')
-    return result
+    cells: tuple[int | str | float | bool | bytes | None, ...]
 
 
 def _text_scalar(value: object) -> str:
@@ -217,11 +211,20 @@ def _text_scalar(value: object) -> str:
     return value
 
 
-def _group_scalar(value: object) -> int | str:
-    kind, payload = v._variant(value)
-    if kind == 'signed': return _signed(payload)
-    if kind == 'utf8': return _text_scalar(payload)
-    raise ValueError('Invalid relational group key')
+def _group_scalar(value: object) -> int | str | float | bool | bytes:
+    atom = atom_from_wire(value)
+    if atom.kind == 'interval': raise ValueError('Unsupported relational scalar')
+    ranges = {
+        'signed': (-(1 << 63), 1 << 63), 'unsigned': (0, 1 << 64),
+        'decimal': (-10**38 + 1, 10**38), 'date_days': (-(1 << 31), 1 << 31),
+        'time_nanos': (0, 86400000000000), 'timestamp_micros': (-(1 << 63), 1 << 63),
+    }
+    if atom.kind in ranges:
+        lower, upper = ranges[atom.kind]
+        if not isinstance(atom.value, int) or not lower <= atom.value < upper: raise ValueError('Relational scalar exceeds its type')
+    if atom.kind == 'float' and atom.width != 64: raise ValueError('Expected float64')
+    if atom.kind == 'utf8': return _text_scalar(cast(str, atom.value))
+    return cast(int | str | float | bool | bytes, atom.value)
 
 
 def _row(value: object) -> Row:
@@ -234,7 +237,7 @@ def _row(value: object) -> Row:
             None if payload['right'] is None else RowIdentity(v._hex(payload['right'], 20, True)))
     elif kind == 'group': identity = GroupIdentity(tuple(None if k is None else _group_scalar(k) for k in _array(payload, 0, 128)))
     else: raise ValueError('Unknown relational identity')
-    cells: list[int | str | None] = []
+    cells: list[int | str | float | bool | bytes | None] = []
     for item in _array(value['cells'], 1, 128):
         tag, cell = v._variant(item)
         if tag == 'null':
@@ -242,11 +245,7 @@ def _row(value: object) -> Row:
             cells.append(None)
         elif tag == 'value':
             atom = v._object(cell, 'atom')['atom']
-            scalar, data = v._variant(atom)
-            if scalar == 'signed': cells.append(_signed(data))
-            elif scalar == 'unsigned': cells.append(v._decimal(data, 0))
-            elif scalar == 'utf8': cells.append(_text_scalar(data))
-            else: raise ValueError('Unsupported relational scalar')
+            cells.append(_group_scalar(atom))
         else: raise ValueError('Unsupported relational cell')
     return Row(identity, tuple(cells))
 

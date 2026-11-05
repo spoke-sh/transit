@@ -602,7 +602,7 @@ pub fn main(init: std.process.Init) !void {
             snapshots[i] = try records[i].?.snapshot();
         }
         if (statement.plan == .relational) {
-            const query = try statement.openRelational(init.gpa, init.io, directory_handle, "gateway-read-spill", &read_caller, snapshots[0..count], read_options, null);
+            const query = try statement.openRelational(init.gpa, init.io, directory_handle, "gateway-read-spill", &read_caller, &.{}, snapshots[0..count], read_options, null);
             defer query.deinit();
             while (try query.next()) |value| {
                 var row = value;

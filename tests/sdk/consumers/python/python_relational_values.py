@@ -23,6 +23,20 @@ PAGE = dict(reference=REF, ordinal=str((1 << 64)-1), row=dict(identity=dict(grou
 
 
 class Values(unittest.TestCase):
+    def test_relational_scalar_rows_and_group_keys_share_lossless_decoding(self):
+        atoms = [dict(decimal='18446744073709551618'), dict(unsigned=str((1 << 64)-1)),
+                 dict(boolean=True), dict(date_days='-1'), dict(time_nanos='86399999999999'),
+                 dict(timestamp_micros=str(-(1 << 63))), dict(float_bits='000000000000f43f'),
+                 dict(uuid='ff'*16), dict(binary='00ff')]
+        row = r._row(dict(identity=dict(group=atoms), cells=[dict(value=dict(atom=atom)) for atom in atoms]))
+        expected = (18446744073709551618, (1 << 64)-1, True, -1, 86399999999999,
+                    -(1 << 63), 1.25, bytes([255])*16, bytes([0, 255]))
+        self.assertEqual(row.cells, expected)
+        self.assertEqual(row.identity.keys, expected)
+        for invalid in (dict(decimal=str(10**38)), dict(float_bits='000000000000f87f'),
+                        dict(time_nanos='86400000000000'), dict(uuid='ff')):
+            with self.assertRaises(ValueError): r._group_scalar(invalid)
+
     def test_semantic_descriptors_preserve_zero_digest_bytes_and_full_width_units(self):
         digest = bytearray(range(32))
         raw = bytearray(b'TZif\x00\xff')

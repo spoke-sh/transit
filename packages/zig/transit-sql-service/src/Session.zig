@@ -784,7 +784,7 @@ fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values
                 try self.io.randomSecure(&nonce);
                 var path: [64]u8 = undefined;
                 const name = try std.fmt.bufPrint(&path, "sql-{x}", .{nonce});
-                read.value = .{ .relational = try statement.openRelational(self.allocator, self.io, self.directory, name, &self.table, snapshots[0..count], self.readOptions(), self.cancellation) };
+                read.value = .{ .relational = try statement.openRelational(self.allocator, self.io, self.directory, name, &self.table, values, snapshots[0..count], self.readOptions(), self.cancellation) };
             } else read.value = .{ .single = try statement.openSelect(self.allocator, &self.table, values, snapshots[0], .{ .requests = 10000, .rows = 10000, .result_bytes = 16 * 1024 * 1024 }, self.cancellation) };
         },
     }

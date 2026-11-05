@@ -10,7 +10,7 @@ import type { ObjectIdentity, Position } from "./catalog.ts";
 import { RowIdentity } from "./table.ts";
 import { unhex } from "./framing.ts";
 import { nativeWide, wide } from "./values.ts";
-import { decodeType } from "./logical-values.ts";
+import { decodeType, decodeAtom } from "./logical-values.ts";
 import type { Descriptor } from "./logical-values.ts";
 import type { UnifiedQueryAction, UnifiedQueryResult } from "./wire.ts";
 import contract from "./contract.json" with { type: "json" };
@@ -148,7 +148,21 @@ function description(value: NativeDescription): Description {
       value.columns.map((column) => {
         if (column.optional) throw new IncompatibleNative("Relational columns cannot be missing");
         const type = decodeType(column.type);
-        if (type.kind !== "int64" && type.kind !== "uint64" && type.kind !== "utf8")
+        if (
+          ![
+            "int64",
+            "uint64",
+            "float64",
+            "decimal",
+            "boolean",
+            "date",
+            "time",
+            "timestamp",
+            "uuid",
+            "utf8",
+            "binary",
+          ].includes(type.kind)
+        )
           throw new IncompatibleNative("Unsupported relational output type");
         return Object.freeze({
           name: column.name,
@@ -174,12 +188,13 @@ export interface Opened {
   readonly cuts: readonly Cut[];
   readonly completeCoverage: false;
 }
+export type Scalar = bigint | string | number | boolean | Uint8Array;
 export type Identity =
   | { readonly kind: "pair"; readonly left: RowIdentity; readonly right: RowIdentity | undefined }
-  | { readonly kind: "group"; readonly keys: readonly (bigint | string | null)[] };
+  | { readonly kind: "group"; readonly keys: readonly (Scalar | null)[] };
 export interface Row {
   readonly identity: Identity;
-  readonly cells: readonly (bigint | string | null)[];
+  readonly cells: readonly (Scalar | null)[];
 }
 function textScalar(value: string): string {
   if (
@@ -189,6 +204,26 @@ function textScalar(value: string): string {
   )
     throw new IncompatibleNative("Invalid relational text");
   return value;
+}
+function scalar(value: Parameters<typeof decodeAtom>[0]): Scalar {
+  const atom = decodeAtom(value);
+  if (atom.kind === "interval") throw new IncompatibleNative("Unsupported relational scalar");
+  if (atom.kind === "utf8") return textScalar(atom.value);
+  const bounds = {
+    signed: [-(1n << 63n), 1n << 63n],
+    unsigned: [0n, 1n << 64n],
+    decimal: [-(10n ** 38n) + 1n, 10n ** 38n],
+    date_days: [-(1n << 31n), 1n << 31n],
+    time_nanos: [0n, 86400000000000n],
+    timestamp_micros: [-(1n << 63n), 1n << 63n],
+  } as const;
+  if (typeof atom.value === "bigint") {
+    const range = bounds[atom.kind as keyof typeof bounds];
+    if (atom.value < range[0] || atom.value >= range[1])
+      throw new IncompatibleNative("Relational scalar exceeds its type");
+  }
+  if (atom.kind === "float" && atom.width !== 64) throw new IncompatibleNative("Expected float64");
+  return atom.value;
 }
 function row(value: NativeRow): Row {
   const identity: Identity =
@@ -204,16 +239,7 @@ function row(value: NativeRow): Row {
       : Object.freeze({
           kind: "group",
           keys: Object.freeze(
-            value.identity.group.map((key) => {
-              if (key === null) return null;
-              if ("utf8" in key) return textScalar(key.utf8);
-              if (!("signed" in key) || !/^(0|-?[1-9][0-9]*)$/.test(key.signed))
-                throw new IncompatibleNative("Invalid relational group key");
-              const result = BigInt(key.signed);
-              if (result < -(1n << 63n) || result >= 1n << 63n)
-                throw new IncompatibleNative("Relational key exceeds int64");
-              return result;
-            }),
+            value.identity.group.map((key) => (key === null ? null : scalar(key))),
           ),
         });
   return Object.freeze({
@@ -223,15 +249,7 @@ function row(value: NativeRow): Row {
         if ("null" in cell) return null;
         if (!("value" in cell) || !("atom" in cell.value))
           throw new IncompatibleNative("Unsupported relational cell");
-        const atom = cell.value.atom;
-        if ("utf8" in atom) return textScalar(atom.utf8);
-        if ("unsigned" in atom) return nativeWide(atom.unsigned);
-        if (!("signed" in atom) || !/^(0|-?[1-9][0-9]*)$/.test(atom.signed))
-          throw new IncompatibleNative("Unsupported relational scalar");
-        const result = BigInt(atom.signed);
-        if (result < -(1n << 63n) || result >= 1n << 63n)
-          throw new IncompatibleNative("Relational scalar exceeds int64");
-        return result;
+        return scalar(cell.value.atom);
       }),
     ),
   });

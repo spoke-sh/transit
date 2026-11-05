@@ -17,6 +17,7 @@ clients: [r.max_sources]c.DirectTableClient,
 cuts: [r.max_sources]r.Cut = undefined,
 reads: u64 = 0,
 read_limit: u64,
+projection: f.RelationalExecution.Projection = .{},
 pub const resident_bytes = @sizeOf(Self) + 2 * f.TableRow.max_bytes + 2 * f.TableSchema.max_bytes;
 pub const Entry = struct { position: u64, record: Record };
 pub const Vector = struct {
@@ -169,6 +170,7 @@ fn openRouted(turn: *q.station.Turn, allocator: std.mem.Allocator, bundle: q.Rel
     if (read_limit == 0) return error.InvalidQueryBudget;
     if (bundle.plan.budgets.resident_bytes < resident_bytes) return error.RelationalResidentBudget;
     var self: Self = .{ .turn = turn, .allocator = allocator, .bundle = bundle, .vector = vector, .clients = clients, .read_limit = read_limit };
+    self.projection = try f.RelationalExecution.Projection.init(bundle.plan);
     try vector.boundCuts(bundle, &self.cuts);
     for (bundle.sources, bundle.plan.sources, vector.entries[0..vector.count], 0..) |source, declared, entry, i| {
         if (source.scope.realm != turn.delivery.realm) return error.CrossRealmRelationalQuery;
@@ -203,7 +205,7 @@ pub fn next(self: *Self, ordinal: u8, after: ?r.RowIdentity) !?f.RelationalExecu
     try self.validate(self.bound());
     if (batch.count == 0) return null;
     const owned = &batch.rows[0].?;
-    return try f.RelationalExecution.Row.fromCells(self.allocator, owned.identity, reader.schema.schema.columns, owned.row().cells);
+    return try self.projection.row(self.allocator, owned.identity, ordinal, reader.schema.schema.columns, owned.row().cells);
 }
 
 /// Physical traversal progress is distinct from a selected logical result cut.

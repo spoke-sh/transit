@@ -70,6 +70,7 @@ pub fn decodeInto(arena: std.mem.Allocator, bytes: []const u8) !r.Plan {
         inline for (.{ "realm", "resource", "catalog", "owner" }) |field| @field(source, field) = try input.takeInt(u64, .little);
         if (!std.mem.eql(u8, try input.take(32), &try source.schema.fingerprint())) return error.RelationalSourceChanged;
     }
+    const scalars = try r.ScalarProgram.read(arena, &input);
     const join_tag = try input.takeByte();
     const join: ?r.Join = switch (join_tag) {
         0 => null,
@@ -92,7 +93,7 @@ pub fn decodeInto(arena: std.mem.Allocator, bytes: []const u8) !r.Plan {
     }
     const having_pred = try having(arena, &input);
     const order_count = try input.takeByte();
-    if (order_count > r.max_groups) return error.InvalidRelationalGroups;
+    if (order_count > r.max_order_by) return error.InvalidRelationalGroups;
     const order_by = try arena.alloc(r.OrderBy, order_count);
     for (order_by) |*item| {
         item.* = .{
@@ -111,7 +112,7 @@ pub fn decodeInto(arena: std.mem.Allocator, bytes: []const u8) !r.Plan {
     inline for (.{ "resident_bytes", "spill_bytes", "result_bytes", "output_rows", "work_steps" }) |field| @field(budgets, field) = try input.takeInt(u64, .little);
     budgets.source_pins = try input.takeByte();
     if (input.bufferedLen() != 0) return error.InvalidRelationalEncoding;
-    const plan: r.Plan = .{ .sources = sources, .join = join, .source_filters = filters, .filter = filter, .group_by = groups, .having = having_pred, .outputs = outputs, .order_by = order_by, .limit = limit, .lifetime = lifetime, .budgets = budgets };
+    const plan: r.Plan = .{ .sources = sources, .scalars = scalars, .join = join, .source_filters = filters, .filter = filter, .group_by = groups, .having = having_pred, .outputs = outputs, .order_by = order_by, .limit = limit, .lifetime = lifetime, .budgets = budgets };
     try plan.validate();
     var canonical: [max_bytes]u8 = undefined;
     if (!std.mem.eql(u8, bytes, try encode(plan, &canonical))) return error.InvalidRelationalEncoding;
@@ -166,9 +167,13 @@ fn having(arena: std.mem.Allocator, reader: *std.Io.Reader) !r.Having {
     }
     return .{ .instructions = instructions };
 }
-fn literal(arena: std.mem.Allocator, reader: *std.Io.Reader) !@import("RelationalValues.zig").Literal {
-    const value = (try @import("RelationalValues.zig").read(reader)) orelse return error.InvalidRelationalEncoding;
-    return if (value == .text) .{ .text = try arena.dupe(u8, value.text) } else value;
+fn literal(arena: std.mem.Allocator, reader: *std.Io.Reader) !@import("RelationalValues.zig").Value {
+    const value = (try @import("RelationalValues.zig").read(reader)) orelse return null;
+    return switch (value) {
+        .text => |bytes| .{ .text = try arena.dupe(u8, bytes) },
+        .binary => |bytes| .{ .binary = try arena.dupe(u8, bytes) },
+        else => value,
+    };
 }
 
 test {

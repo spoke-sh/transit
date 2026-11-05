@@ -15,13 +15,13 @@ pub const Cell = @import("Types.zig").Values.Cell;
 /// copies of the same buffer.
 pub const Row = struct {
     identity: r.RowIdentity,
-    values: [table.max_columns]v.Value = @splat(null),
+    values: [r.row_columns]v.Value = @splat(null),
     buffer: v.Buffer = .{},
     pub fn fromCells(allocator: std.mem.Allocator, identity: r.RowIdentity, columns: []const table.Column, cells: []const Cell) !Row {
         if (columns.len != cells.len or columns.len > table.max_columns) return error.InvalidRelationalSourceRow;
         var result: Row = .{ .identity = identity };
         for (columns, cells, 0..) |column, value, i| {
-            if (column.type != .int64 and column.type != .utf8) continue;
+            if (!v.supported(column.type)) continue;
             result.values[i] = try v.fromCell(value, column);
         }
         result.buffer = try v.Buffer.copy(allocator, &result.values);
@@ -42,48 +42,41 @@ pub const Row = struct {
         self.* = undefined;
     }
 };
-pub const Pair = struct { left: r.RowIdentity, right: ?r.RowIdentity };
-pub const Key = struct {
-    pair: ?Pair = null,
-    values: [r.max_groups]v.Value = @splat(null),
-    len: u8 = 0,
-    buffer: v.Buffer = .{},
-    pub fn clone(self: Key, allocator: std.mem.Allocator) !Key {
-        var result = self;
-        result.buffer = try v.Buffer.copy(allocator, result.values[0..result.len]);
+/// Source adapters prepare the shared scalar program once, while they still
+/// have full typed cells (including ranges and vectors). Only computed scalar
+/// values cross the relational row/exchange boundary.
+pub const Projection = struct {
+    plan: ?r.Plan = null,
+    workspace: r.ScalarProgram.Workspace = .{},
+    pub fn init(plan: r.Plan) !Projection {
+        var result: Projection = .{ .plan = plan };
+        if (plan.scalars.instructions.len != 0) {
+            var fields: [table.max_columns]@import("Types.zig").Field = undefined;
+            try plan.scalars.prepare((try plan.sources[0].schema.rowType(&fields)).structure, &result.workspace);
+        }
         return result;
     }
-    pub fn borrow(self: Key) Key {
-        var result = self;
-        result.buffer = .{};
+    pub fn row(self: *Projection, allocator: std.mem.Allocator, identity: r.RowIdentity, source: u8, columns: []const table.Column, cells: []const Cell) !Row {
+        var result = try Row.fromCells(allocator, identity, columns, cells);
+        errdefer result.deinit();
+        const plan = self.plan orelse return result;
+        if (source != 0 or plan.scalars.instructions.len == 0) return result;
+        const kernel = Kernel.bind(plan);
+        // Preserve the existing filter-before-projection scalar failure frontier.
+        if (!kernel.filters[0].matches(result, null) or !kernel.predicate.matches(result, null)) return result;
+        const computed = try plan.scalars.evaluate(cells, &self.workspace);
+        for (computed, self.workspace.fields[0..computed.len], 0..) |cell, field, i| {
+            if (!v.supported(field.type)) continue;
+            result.values[table.max_columns + i] = try v.fromCell(cell, .{ .id = i + 1, .name = field.name, .type = field.type, .nullable = field.nullable });
+        }
+        const buffer = try v.Buffer.copy(allocator, &result.values);
+        result.buffer.deinit();
+        result.buffer = buffer;
         return result;
-    }
-    pub fn deinit(self: *Key) void {
-        self.buffer.deinit();
-        self.* = undefined;
-    }
-    pub fn order(a: Key, b: Key, plan: r.Plan) !std.math.Order {
-        var columns_buf: [r.max_groups]r.Column = undefined;
-        const columns = plan.keyColumns(&columns_buf);
-        if (a.len != columns.len or b.len != columns.len) return error.InvalidRelationalGroup;
-        if (plan.isGrouped() != (a.pair == null) or plan.isGrouped() != (b.pair == null)) return error.InvalidRelationalGroup;
-        for (plan.order_by) |item| {
-            if (item.expression != .column) continue;
-            const index = findColumnIndex(columns, item.expression.column) orelse return error.InvalidRelationalGroup;
-            const result = try orderValue(a.values[index], b.values[index], try plan.resolveColumn(item.expression.column), item.direction, item.nulls);
-            if (result != .eq) return result;
-        }
-        if (plan.isGrouped()) {
-            for (columns, 0..) |column, index| {
-                if (plan.ordersByColumn(column)) continue;
-                const result = try v.order(a.values[index], b.values[index], try plan.resolveColumn(column));
-                if (result != .eq) return result;
-            }
-            return .eq;
-        }
-        return pairOrder(a.pair.?, b.pair.?);
     }
 };
+pub const Key = @import("RelationalKey.zig");
+pub const Pair = Key.Pair;
 pub const Group = struct {
     key: Key,
     states: [r.max_outputs]r.AggregateState = @splat(.{}),
@@ -108,36 +101,30 @@ pub const Identity = union(enum) {
 };
 pub const Output = struct {
     identity: Identity,
+    ordering: ?Key = null,
     cells: [r.max_outputs]Cell = @splat(.null),
     len: u8,
     buffer: v.Buffer = .{},
     pub fn clone(self: Output, allocator: std.mem.Allocator) !Output {
         var result = self;
         result.buffer = .{};
+        result.ordering = null;
         if (self.identity == .group) result.identity.group = try self.identity.group.clone(allocator);
         errdefer if (result.identity == .group) result.identity.group.deinit();
+        if (self.ordering) |key| result.ordering = try key.clone(allocator);
+        errdefer if (result.ordering) |*key| key.deinit();
         result.buffer = try v.Buffer.copyCells(allocator, result.cells[0..result.len]);
         return result;
     }
     pub fn deinit(self: *Output) void {
         self.buffer.deinit();
         self.identity.deinit();
+        if (self.ordering) |*key| key.deinit();
         self.* = undefined;
     }
     pub fn canonicalBytes(self: Output) !u64 {
         var total: u64 = 0;
-        for (self.cells[0..self.len]) |cell| total = try std.math.add(u64, total, 5 + @as(u64, switch (cell) {
-            .null => 0,
-            .value => |value| switch (value) {
-                .atom => |atom| switch (atom) {
-                    .signed, .unsigned => 8,
-                    .bytes => |bytes| bytes.len,
-                    else => return error.InvalidRelationalOutput,
-                },
-                else => return error.InvalidRelationalOutput,
-            },
-            else => return error.InvalidRelationalOutput,
-        }));
+        for (self.cells[0..self.len]) |cell| total = try std.math.add(u64, total, try v.cellBytes(cell));
         return total;
     }
 };
@@ -166,6 +153,8 @@ pub fn Execution(comptime Sources: type, comptime Groups: type) type {
         right_covered: bool = false,
         grouped: bool,
         group_count: u64 = 0,
+        sorted_count: u64 = 0,
+        visited_groups: u64 = 0,
         after_group: ?Key = null,
         work: u64 = 0,
         result_rows: u64 = 0,
@@ -237,6 +226,7 @@ pub fn Execution(comptime Sources: type, comptime Groups: type) type {
             return switch (self.phase) {
                 .input => self.input(),
                 .empty_right => self.coverEmptyRight(),
+                .sorting => self.sorting(),
                 .output => self.output(),
                 else => unreachable,
             };
@@ -256,7 +246,7 @@ pub fn Execution(comptime Sources: type, comptime Groups: type) type {
             // this row. Storage's general schema validation remains its owner.
             const schema = self.bound.plan.sources[source].schema;
             for (schema.columns, 0..) |column, i| {
-                if (column.type == .int64 or column.type == .utf8) try v.validate(row.values[i], column) else if (row.values[i] != null) return error.InvalidRelationalSourceRow;
+                if (v.supported(column.type)) try v.validate(row.values[i], column) else if (row.values[i] != null) return error.InvalidRelationalSourceRow;
             }
             return row;
         }
@@ -320,7 +310,7 @@ pub fn Execution(comptime Sources: type, comptime Groups: type) type {
                 try self.groups.put(.{ .key = .{} });
                 self.group_count = 1;
             }
-            self.phase = .output;
+            self.phase = if (self.bound.plan.hasAggregateOrder()) .sorting else .output;
             return .progress;
         }
         fn contribute(self: *Self, left: Row, right: ?Row) !Event {
@@ -358,7 +348,14 @@ pub fn Execution(comptime Sources: type, comptime Groups: type) type {
                         .column => {},
                         .count_all => group.states[i].observe(.count_all, null),
                         .count => group.states[i].observe(.count, if (Kernel.cell(self.kernel.outputs[i], left, right) != null) 0 else null),
-                        .sum => group.states[i].observe(.sum, if (Kernel.cell(self.kernel.outputs[i], left, right)) |value| value.integer else null),
+                        .sum => |column| blk: {
+                            const kind = (plan.resolveColumn(column) catch unreachable).type;
+                            const value = Kernel.cell(self.kernel.outputs[i], left, right);
+                            break :blk if (kind == .decimal)
+                                group.states[i].observeDecimal(if (value) |present| present.decimal else null, kind)
+                            else
+                                group.states[i].observe(.sum, if (value) |present| present.integer else null);
+                        },
                     };
                     observed catch |err| {
                         // Preserve an observed arithmetic witness without making
@@ -382,7 +379,7 @@ pub fn Execution(comptime Sources: type, comptime Groups: type) type {
                 return .complete;
             };
             var group = (try self.nextGroup()) orelse {
-                if (plan.having.instructions.len == 0 and plan.limit == null and self.result_rows != self.group_count) return error.IncompleteRelationalGroups;
+                if (self.visited_groups != (if (plan.hasAggregateOrder()) self.sorted_count else self.group_count)) return error.IncompleteRelationalGroups;
                 try self.sources.validate(self.bound);
                 self.phase = .complete;
                 return .complete;
@@ -394,11 +391,19 @@ pub fn Execution(comptime Sources: type, comptime Groups: type) type {
             const next = try group.key.clone(self.allocator);
             if (self.after_group) |*after| after.deinit();
             self.after_group = next;
+            self.visited_groups = try std.math.add(u64, self.visited_groups, 1);
             if (self.grouped and !try self.matchesHaving(group)) return .progress;
             var result: Output = .{
                 .identity = if (self.grouped) .{ .group = group.key } else .{ .pair = group.key.pair.? },
                 .len = @intCast(plan.outputs.len),
+                .ordering = if (plan.order_by.len != 0) group.key.borrow() else null,
             };
+            if (result.identity == .group) {
+                result.identity.group = group.key.borrow();
+                result.identity.group.sorted = false;
+                result.identity.group.sort_len = 0;
+                result.identity.group.sort_values = @splat(null);
+            }
             for (plan.outputs, 0..) |field, i| result.cells[i] = switch (field.expression) {
                 .column => |column| value: {
                     for (keys, 0..) |key, j| if (key.eql(column)) break :value v.cell(group.key.values[j]);
@@ -406,7 +411,7 @@ pub fn Execution(comptime Sources: type, comptime Groups: type) type {
                 },
                 .count_all => .{ .value = .{ .atom = .{ .unsigned = group.states[i].rows } } },
                 .count => .{ .value = .{ .atom = .{ .unsigned = group.states[i].values } } },
-                .sum => integer(group.states[i].sum),
+                .sum => |column| sumCell(group.states[i].sum, (try plan.resolveColumn(column)).type),
             };
             const emitted = try self.emit(result);
             if (plan.limit) |limit| if (self.result_rows >= limit) {
@@ -414,48 +419,52 @@ pub fn Execution(comptime Sources: type, comptime Groups: type) type {
             };
             return emitted;
         }
+        /// One finalized group per step, with one bounded external-tree insert.
+        fn sorting(self: *Self) !Event {
+            var group = (try self.groups.next(self.after_group)) orelse {
+                if (self.visited_groups != self.group_count) return error.IncompleteRelationalGroups;
+                if (self.after_group) |*key| key.deinit();
+                self.after_group = null;
+                self.visited_groups = 0;
+                self.phase = .output;
+                return .progress;
+            };
+            defer group.deinit();
+            if (self.after_group) |after| if (try group.key.order(after, self.bound.plan) != .gt) return error.InvalidRelationalGroupOrder;
+            const cursor = try group.key.clone(self.allocator);
+            if (self.after_group) |*after| after.deinit();
+            self.after_group = cursor;
+            self.visited_groups = try std.math.add(u64, self.visited_groups, 1);
+            if (!try self.matchesHaving(group)) return .progress;
+            group.key.sorted = true;
+            group.key.sort_len = @intCast(self.bound.plan.order_by.len);
+            for (self.bound.plan.order_by, 0..) |item, i| {
+                group.key.sort_values[i] = try self.expressionValue(group, item.expression);
+            }
+            try self.groups.put(group);
+            self.sorted_count = try std.math.add(u64, self.sorted_count, 1);
+            return .progress;
+        }
+        fn expressionValue(self: *Self, group: Group, expression: r.Expression) !v.Value {
+            return switch (expression) {
+                .column => |column| group.key.values[findColumnIndex(self.bound.plan.group_by, column) orelse return error.InvalidRelationalGroup],
+                .count_all, .count => blk: {
+                    const slot = self.bound.plan.findStateSlot(expression) orelse return error.InvalidRelationalGroup;
+                    break :blk .{ .unsigned = if (expression == .count_all) group.states[slot].rows else group.states[slot].values };
+                },
+                .sum => |column| blk: {
+                    const slot = self.bound.plan.findStateSlot(expression) orelse return error.InvalidRelationalGroup;
+                    var descriptor = try self.bound.plan.resolveColumn(column);
+                    descriptor.nullable = true;
+                    break :blk try v.fromCell(sumCell(group.states[slot].sum, descriptor.type), descriptor);
+                },
+            };
+        }
         fn nextGroup(self: *Self) !?Group {
-            if (!self.bound.plan.hasAggregateOrder()) {
-                var group = (try self.groups.next(self.after_group)) orelse return null;
-                errdefer group.deinit();
-                if (self.after_group) |after| if (try group.key.order(after, self.bound.plan) != .gt) return error.InvalidRelationalGroupOrder;
-                return group;
-            }
-            var after_group: ?Group = null;
-            defer if (after_group) |*g| g.deinit();
-            if (self.after_group) |after_key| {
-                after_group = (try self.groups.get(after_key)) orelse return error.InvalidRelationalGroupOrder;
-            }
-            var cursor: ?Key = null;
-            defer if (cursor) |*k| k.deinit();
-            var selected: ?Group = null;
-            errdefer if (selected) |*g| g.deinit();
-            var visited: u64 = 0;
-            while (try self.groups.next(cursor)) |candidate| {
-                var current = candidate;
-                errdefer current.deinit();
-                if (cursor) |prev_cursor| if (try current.key.order(prev_cursor, self.bound.plan) != .gt) return error.InvalidRelationalGroupOrder;
-                visited = try std.math.add(u64, visited, 1);
-                const next_cursor = try current.key.clone(self.allocator);
-                if (cursor) |*prev_cursor| prev_cursor.deinit();
-                cursor = next_cursor;
-                if (!try self.matchesHaving(current)) {
-                    current.deinit();
-                    continue;
-                }
-                if (after_group) |prev| if (try self.compareGroups(current, prev) != .gt) {
-                    current.deinit();
-                    continue;
-                };
-                if (selected == null or try self.compareGroups(current, selected.?) == .lt) {
-                    if (selected) |*prev_selected| prev_selected.deinit();
-                    selected = current;
-                } else {
-                    current.deinit();
-                }
-            }
-            if (visited != self.group_count) return error.IncompleteRelationalGroups;
-            return selected;
+            var group = (if (self.bound.plan.hasAggregateOrder()) try self.groups.nextSorted(self.after_group) else try self.groups.next(self.after_group)) orelse return null;
+            errdefer group.deinit();
+            if (self.after_group) |after| if (try group.key.order(after, self.bound.plan) != .gt) return error.InvalidRelationalGroupOrder;
+            return group;
         }
         fn matchesHaving(self: *Self, group: Group) !bool {
             const instructions = self.bound.plan.having.instructions;
@@ -464,7 +473,7 @@ pub fn Execution(comptime Sources: type, comptime Groups: type) type {
             var depth: usize = 0;
             for (instructions) |instruction| switch (instruction) {
                 .compare => |item| {
-                    const truth: Truth = switch (item.expression) {
+                    const truth: Truth = if (item.value == null) .unknown else switch (item.expression) {
                         .column => |column| blk: {
                             const index = findColumnIndex(self.bound.plan.group_by, column) orelse return error.InvalidRelationalGroup;
                             const val = group.key.values[index] orelse break :blk .unknown;
@@ -474,14 +483,14 @@ pub fn Execution(comptime Sources: type, comptime Groups: type) type {
                         .count_all, .count => blk: {
                             const slot = self.bound.plan.findStateSlot(item.expression) orelse return error.InvalidRelationalGroup;
                             const count_val: u64 = if (item.expression == .count_all) group.states[slot].rows else group.states[slot].values;
-                            const rhs = item.value.integer;
+                            const rhs = item.value.?.integer;
                             const cmp: std.math.Order = if (rhs < 0) .gt else std.math.order(count_val, @as(u64, @intCast(rhs)));
                             break :blk Truth.fromBool(matchesComparison(cmp, item.op));
                         },
                         .sum => blk: {
                             const slot = self.bound.plan.findStateSlot(item.expression) orelse return error.InvalidRelationalGroup;
                             const sum_val = group.states[slot].sum orelse break :blk .unknown;
-                            const cmp = std.math.order(sum_val, item.value.integer);
+                            const cmp = std.math.order(sum_val, if (item.value.? == .decimal) item.value.?.decimal else @as(i128, item.value.?.integer));
                             break :blk Truth.fromBool(matchesComparison(cmp, item.op));
                         },
                     };
@@ -512,36 +521,10 @@ pub fn Execution(comptime Sources: type, comptime Groups: type) type {
             };
             return stack[0].selects();
         }
-        fn compareGroups(self: *Self, a: Group, b: Group) !std.math.Order {
-            const plan = self.bound.plan;
-            for (plan.order_by) |item| {
-                const cmp: std.math.Order = switch (item.expression) {
-                    .column => |column| blk: {
-                        const index = findColumnIndex(plan.group_by, column) orelse return error.InvalidRelationalGroup;
-                        break :blk try orderValue(a.key.values[index], b.key.values[index], try plan.resolveColumn(column), item.direction, item.nulls);
-                    },
-                    .count_all, .count => blk: {
-                        const slot = plan.findStateSlot(item.expression) orelse return error.InvalidRelationalGroup;
-                        const va: u64 = if (item.expression == .count_all) a.states[slot].rows else a.states[slot].values;
-                        const vb: u64 = if (item.expression == .count_all) b.states[slot].rows else b.states[slot].values;
-                        const raw = std.math.order(va, vb);
-                        break :blk if (item.direction == .asc or raw == .eq) raw else if (raw == .lt) .gt else .lt;
-                    },
-                    .sum => blk: {
-                        const slot = plan.findStateSlot(item.expression) orelse return error.InvalidRelationalGroup;
-                        const va: v.Value = if (a.states[slot].sum) |s| .{ .integer = s } else null;
-                        const vb: v.Value = if (b.states[slot].sum) |s| .{ .integer = s } else null;
-                        break :blk try orderValue(va, vb, .{ .id = 1, .name = "sum", .type = .int64 }, item.direction, item.nulls);
-                    },
-                };
-                if (cmp != .eq) return cmp;
-            }
-            return a.key.order(b.key, plan);
-        }
         fn emit(self: *Self, result: Output) !Event {
             if (self.result_rows == self.bound.plan.budgets.output_rows) return error.RelationalResultBudget;
             var bytes = self.result_bytes;
-            for (result.cells[0..result.len]) |value| bytes = std.math.add(u64, bytes, 5 + @as(u64, if (value == .null) 0 else if (value.value.atom == .bytes) value.value.atom.bytes.len else 8)) catch return error.RelationalResultBudget;
+            for (result.cells[0..result.len]) |value| bytes = std.math.add(u64, bytes, try v.cellBytes(value)) catch return error.RelationalResultBudget;
             if (bytes > self.bound.plan.budgets.result_bytes) return error.RelationalResultBudget;
             try self.sources.validate(self.bound);
             const owned = try result.clone(self.allocator);
@@ -595,4 +578,9 @@ fn integer(value: ?i64) Cell {
 test {
     _ = @import("relational_execution_test.zig");
     _ = @import("relational_text_test.zig");
+}
+
+fn sumCell(value: ?i128, kind: @import("Types.zig").Type) Cell {
+    const number = value orelse return .null;
+    return .{ .value = .{ .atom = if (kind == .decimal) .{ .decimal = number } else .{ .signed = number } } };
 }

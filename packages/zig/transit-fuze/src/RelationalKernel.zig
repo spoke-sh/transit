@@ -14,7 +14,7 @@ const Predicate = struct {
     fn bind(plan: r.Plan, predicate: r.Predicate) Predicate {
         var result: Predicate = .{ .len = @intCast(predicate.instructions.len) };
         for (predicate.instructions, result.instructions[0..result.len]) |input, *out| out.* = switch (input) {
-            .compare => |v| .{ .atom = k.Atom.bindCollation(.{ .compare = .{ .column = bindColumn(plan, v.column), .op = switch (v.op) {
+            .compare => |v| if (v.value == null) .{ .atom = k.Atom.bindType(.{ .null_compare = .{ .column = predicateColumn(plan, v.column), .op = .eq } }, (plan.resolveColumn(v.column) catch unreachable).type) } else .{ .atom = k.Atom.bindCollation(.{ .compare = .{ .column = predicateColumn(plan, v.column), .op = switch (v.op) {
                 .equal => .eq,
                 .not_equal => .ne,
                 .less => .lt,
@@ -22,7 +22,7 @@ const Predicate = struct {
                 .greater => .gt,
                 .greater_equal => .ge,
             }, .value = values.cell(v.value).value.atom } }, (plan.resolveColumn(v.column) catch unreachable).type, (plan.resolveColumn(v.column) catch unreachable).collation) },
-            .is_null, .is_not_null => |column| .{ .atom = k.Atom.bindType(.{ .state = .{ .column = bindColumn(plan, column), .value = if (input == .is_null) .null else .value } }, (plan.resolveColumn(column) catch unreachable).type) },
+            .is_null, .is_not_null => |column| .{ .atom = k.Atom.bindType(.{ .state = .{ .column = predicateColumn(plan, column), .value = if (input == .is_null) .null else .value } }, (plan.resolveColumn(column) catch unreachable).type) },
             .negate => .negate,
             .conjunction => .conjunction,
             .disjunction => .disjunction,
@@ -35,7 +35,7 @@ const Predicate = struct {
         var depth: usize = 0;
         for (self.instructions[0..self.len]) |instruction| switch (instruction) {
             .atom => |atom| {
-                const value = cell(atom.column, left, right);
+                const value = cell(@as(u16, atom.column & 127) | (@as(u16, atom.column >> 7) << 8), left, right);
                 var outcome: [1]k.Outcome = undefined;
                 atom.run(atom, .{ .constant = .{ .value = values.cell(value), .len = 1 } }, 0, &outcome);
                 stack[depth] = outcome[0].truth;
@@ -52,9 +52,9 @@ const Predicate = struct {
 };
 filters: [2]Predicate,
 predicate: Predicate,
-join: [2]u8 = undefined,
-outputs: [r.max_outputs]u8 = undefined,
-groups: [r.max_groups]u8 = undefined,
+join: [2]u16 = undefined,
+outputs: [r.max_outputs]u16 = undefined,
+groups: [r.max_groups]u16 = undefined,
 pub fn bind(plan: r.Plan) Self {
     var self: Self = .{ .filters = .{ Predicate.bind(plan, plan.source_filters[0]), Predicate.bind(plan, plan.source_filters[1]) }, .predicate = Predicate.bind(plan, plan.filter) };
     if (plan.join) |join| self.join = .{ bindColumn(plan, join.left), bindColumn(plan, join.right) };
@@ -69,10 +69,15 @@ pub fn bind(plan: r.Plan) Self {
     for (keys, self.groups[0..keys.len]) |column, *out| out.* = bindColumn(plan, column);
     return self;
 }
-fn bindColumn(plan: r.Plan, column: r.Column) u8 {
-    return @as(u8, @intCast(plan.sources[column.source].schema.index(column.id) catch unreachable)) | (column.source << 7);
+fn bindColumn(plan: r.Plan, column: r.Column) u16 {
+    if (column.source == r.computed_source) return @intCast(128 + column.id - 1);
+    return @as(u16, @intCast(plan.sources[column.source].schema.index(column.id) catch unreachable)) | (@as(u16, column.source) << 8);
 }
-pub fn cell(column: u8, left: ?Row, right: ?Row) values.Value {
-    const row = (if (column < 128) left else right) orelse return null;
-    return row.values[column & 127];
+pub fn cell(column: u16, left: ?Row, right: ?Row) values.Value {
+    const row = (if (column < 256) left else right) orelse return null;
+    return row.values[column & 255];
+}
+
+fn predicateColumn(plan: r.Plan, column: r.Column) u8 {
+    return @as(u8, @intCast(plan.sources[column.source].schema.index(column.id) catch unreachable)) | (column.source << 7);
 }

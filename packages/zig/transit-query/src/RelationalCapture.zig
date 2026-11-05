@@ -231,6 +231,9 @@ const Groups = struct {
     pub fn next(self: *Groups, after: ?f.RelationalExecution.Key) !?f.RelationalExecution.Group {
         return self.index.next(self.candidate, after);
     }
+    pub fn nextSorted(self: *Groups, after: ?f.RelationalExecution.Key) !?f.RelationalExecution.Group {
+        return self.index.nextSorted(self.candidate, after);
+    }
 };
 const Engine = f.RelationalExecution.Execution(*q.RelationalCaptured, *Groups);
 pub const Advance = enum { progress, complete, closed, duplicate };

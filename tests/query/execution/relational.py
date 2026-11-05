@@ -195,6 +195,7 @@ def identity_fixture():
     encoded = DEFINITION + b'\0prepared\0\2'
     for alias, resource, fingerprint in zip(['l', 'r'], [101, 202], schemas):
         encoded += text(alias) + struct.pack('<QQQQ', 1, resource, 9, 7) + fingerprint
+    encoded += b'\0'  # Empty shared scalar program.
     encoded += b'\2' + column(0, 1) + column(1, 1)  # left join
     encoded += b'\0\0\0'  # two source predicates and one joined predicate
     encoded += b'\1' + column(0, 1) + b'\4'

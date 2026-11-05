@@ -9,7 +9,7 @@ const values = q.fuze.RelationalValues;
 const Self = @This();
 // An AVL tree containing at most u64 nodes cannot reach this height.
 const max_height = 94;
-const max_record = 61 + r.max_groups * 9 + r.max_outputs * 25 + 32;
+const max_record = 62 + 41 + 2 * r.max_groups * values.fixed_bytes + r.max_outputs * 33 + 32;
 const Text = struct { offset: u64 = 0, length: u32 = 0, digest: [32]u8 = @splat(0) };
 const Node = struct { left: u64 = 0, right: u64 = 0, height: u8 = 1, text: Text = .{}, group: e.Group };
 pub const resident_bytes = @sizeOf(Self) + 8 * @sizeOf(Node) + 3 * max_record + max_height * 9;
@@ -22,6 +22,7 @@ plan: r.Plan,
 binding: [32]u8,
 key_count: u8,
 output_count: u8,
+sort_count: u8,
 record_bytes: u64,
 quota: u64,
 work_limit: u64,
@@ -49,7 +50,13 @@ pub fn open(allocator: std.mem.Allocator, io: std.Io, directory: std.Io.Dir, nam
     const text_file = try directory.createFile(io, text_name, .{ .read = true, .exclusive = true, .truncate = false, .permissions = .fromMode(0o600) });
     errdefer text_file.close(io);
     try directory.deleteFile(io, text_name);
-    return .{ .allocator = allocator, .io = io, .file = file, .text_file = text_file, .plan = bound.plan, .binding = binding, .key_count = @intCast(bound.plan.group_by.len), .output_count = @intCast(bound.plan.outputs.len), .record_bytes = 61 + 9 * bound.plan.group_by.len + 25 * bound.plan.outputs.len + 32, .quota = bound.plan.budgets.spill_bytes, .work_limit = work_limit, .cancellation = cancellation };
+    var keys: [r.max_groups]r.Column = undefined;
+    var states: [r.max_outputs]r.Expression = undefined;
+    const key_count = bound.plan.keyColumns(&keys).len;
+    const output_count = if (bound.plan.isGrouped()) (try bound.plan.stateExpressions(&states)).len else 0;
+    const sort_count = if (bound.plan.hasAggregateOrder()) bound.plan.order_by.len else 0;
+    const pair_bytes: usize = if (bound.plan.isGrouped()) 0 else 41;
+    return .{ .allocator = allocator, .io = io, .file = file, .text_file = text_file, .plan = bound.plan, .binding = binding, .key_count = @intCast(key_count), .output_count = @intCast(output_count), .sort_count = @intCast(sort_count), .record_bytes = 62 + pair_bytes + values.fixed_bytes * (key_count + sort_count) + 33 * output_count + 32, .quota = bound.plan.budgets.spill_bytes, .work_limit = work_limit, .cancellation = cancellation };
 }
 pub fn deinit(self: *Self) void {
     self.file.close(self.io);
@@ -81,6 +88,12 @@ pub fn get(self: *Self, key: e.Key) !?e.Group {
     return null;
 }
 pub fn next(self: *Self, after: ?e.Key) !?e.Group {
+    return self.nextKind(after, false);
+}
+pub fn nextSorted(self: *Self, after: ?e.Key) !?e.Group {
+    return self.nextKind(after, true);
+}
+fn nextKind(self: *Self, after: ?e.Key, sorted: bool) !?e.Group {
     errdefer self.failed = true;
     if (self.failed) return error.FailedRelationalSpill;
     if (after) |key| try self.checkKey(key);
@@ -92,7 +105,10 @@ pub fn next(self: *Self, after: ?e.Key) !?e.Group {
         if (depth == max_height) return error.InvalidRelationalSpill;
         var node = try self.read(current);
         errdefer node.group.deinit();
-        if (after == null or try node.group.key.order(after.?, self.plan) == .gt) {
+        if (node.group.key.sorted != sorted) {
+            current = if (sorted) node.right else node.left;
+            node.group.deinit();
+        } else if (after == null or try node.group.key.order(after.?, self.plan) == .gt) {
             if (selected) |*group| group.deinit();
             selected = node.group;
             current = node.left;
@@ -128,7 +144,7 @@ pub fn put(self: *Self, group: e.Group) !void {
     }
     const count = std.math.add(u64, self.count, 1) catch return error.RelationalSpillBudget;
     const size = std.math.mul(u64, count, self.record_bytes) catch return error.RelationalSpillBudget;
-    const payload = try values.payloadLength(group.key.values[0..group.key.len]);
+    const payload = try values.payloadLength(group.key.values[0..group.key.len]) + try values.payloadLength(group.key.sort_values[0..group.key.sort_len]);
     if (size > self.quota or self.text_bytes > self.quota - size or payload > self.quota - size - self.text_bytes) return error.RelationalSpillBudget;
     current = count;
     const text = try self.appendText(group.key);
@@ -145,13 +161,7 @@ pub fn put(self: *Self, group: e.Group) !void {
 }
 fn checkKey(self: *Self, key: e.Key) !void {
     if (self.failed) return error.FailedRelationalSpill;
-    if (key.len != self.key_count) return error.InvalidRelationalGroup;
-    _ = try values.payloadLength(key.values[0..key.len]);
-    for (key.values[0..key.len], self.plan.group_by) |value, reference| {
-        var column = try self.plan.resolveColumn(reference);
-        column.nullable = true;
-        try values.validate(value, column);
-    }
+    try key.validate(self.plan);
 }
 fn height(self: *Self, id: u64) !u8 {
     if (id == 0) return 0;
@@ -221,12 +231,17 @@ fn checksum(self: *const Self, id: u64, bytes: []const u8) [32]u8 {
 fn appendText(self: *Self, key: e.Key) !Text {
     var owned = try key.clone(self.allocator);
     defer owned.deinit();
-    if (owned.buffer.bytes.len == 0) return .{};
-    const end = std.math.add(u64, self.text_bytes, owned.buffer.bytes.len) catch return error.RelationalSpillBudget;
-    var result: Text = .{ .offset = self.text_bytes, .length = @intCast(owned.buffer.bytes.len) };
-    std.crypto.hash.sha2.Sha256.hash(owned.buffer.bytes, &result.digest, .{});
+    const length = owned.buffer.bytes.len + owned.sort_buffer.bytes.len;
+    if (length == 0) return .{};
+    const end = std.math.add(u64, self.text_bytes, length) catch return error.RelationalSpillBudget;
+    var result: Text = .{ .offset = self.text_bytes, .length = @intCast(length) };
+    var hash: std.crypto.hash.sha2.Sha256 = .init(.{});
+    hash.update(owned.buffer.bytes);
+    hash.update(owned.sort_buffer.bytes);
+    result.digest = hash.finalResult();
     try self.charge();
     try self.text_file.writePositionalAll(self.io, owned.buffer.bytes, self.text_bytes);
+    try self.text_file.writePositionalAll(self.io, owned.sort_buffer.bytes, self.text_bytes + owned.buffer.bytes.len);
     self.text_bytes = end;
     return result;
 }
@@ -245,26 +260,37 @@ fn read(self: *Self, id: u64) !Node {
     const body = try self.readRecord(id, &storage);
     var reader: std.Io.Reader = .fixed(body);
     var node: Node = .{ .left = try reader.takeInt(u64, .little), .right = try reader.takeInt(u64, .little), .height = try reader.takeByte(), .text = .{ .offset = try reader.takeInt(u64, .little), .length = try reader.takeInt(u32, .little), .digest = (try reader.takeArray(32)).* }, .group = .{ .key = .{ .len = self.key_count } } };
-    if (node.text.length > values.max_text_bytes or node.text.offset > self.text_bytes or node.text.length > self.text_bytes - node.text.offset) return error.InvalidRelationalSpill;
+    if (node.text.length > 2 * values.max_text_bytes or node.text.offset > self.text_bytes or node.text.length > self.text_bytes - node.text.offset) return error.InvalidRelationalSpill;
     if (node.text.length == 0 and (node.text.offset != 0 or !std.mem.allEqual(u8, &node.text.digest, 0))) return error.InvalidRelationalSpill;
-    var spans: [r.max_groups]struct { offset: u32, length: u32 } = undefined;
+    node.group.key.sorted = switch (try reader.takeByte()) {
+        0 => false,
+        1 => true,
+        else => return error.InvalidRelationalSpill,
+    };
+    node.group.key.sort_len = if (node.group.key.sorted) self.sort_count else 0;
+    if (!self.plan.isGrouped()) {
+        const left = try r.RowIdentity.decode(try reader.takeArray(20));
+        const has_right = try reader.takeByte();
+        const right = try reader.takeArray(20);
+        if (has_right > 1 or (has_right == 0 and !std.mem.allEqual(u8, right, 0))) return error.InvalidRelationalSpill;
+        node.group.key.pair = .{ .left = left, .right = if (has_right == 1) try r.RowIdentity.decode(right) else null };
+    }
+    var spans: [2 * r.max_groups]struct { offset: u32, length: u32 } = undefined;
     var text_at: u32 = 0;
-    for (node.group.key.values[0..self.key_count], 0..) |*value, i| switch (try reader.takeByte()) {
-        0 => {
-            if (try reader.takeInt(u64, .little) != 0) return error.InvalidRelationalSpill;
-            value.* = null;
-        },
-        1 => value.* = .{ .integer = try reader.takeInt(i64, .little) },
-        2 => {
-            const offset = try reader.takeInt(u32, .little);
-            const length = try reader.takeInt(u32, .little);
+    for (0..@as(usize, self.key_count) + self.sort_count) |i| {
+        const value = if (i < self.key_count) &node.group.key.values[i] else &node.group.key.sort_values[i - self.key_count];
+        var slot: std.Io.Reader = .fixed(try reader.take(values.fixed_bytes));
+        if (slot.buffer[0] == 2 or slot.buffer[0] == 11) {
+            const tag = try slot.takeByte();
+            const offset = try slot.takeInt(u32, .little);
+            const length = try slot.takeInt(u32, .little);
             if (offset != text_at or length > node.text.length - text_at) return error.InvalidRelationalSpill;
             spans[i] = .{ .offset = offset, .length = length };
             text_at += length;
-            value.* = .{ .text = "" };
-        },
-        else => return error.InvalidRelationalSpill,
-    };
+            value.* = if (tag == 2) .{ .text = "" } else .{ .binary = "" };
+        } else value.* = try values.read(&slot);
+        if (!std.mem.allEqual(u8, try slot.take(slot.bufferedLen()), 0)) return error.InvalidRelationalSpill;
+    }
     if (text_at != node.text.length) return error.InvalidRelationalSpill;
     for (node.group.states[0..self.output_count]) |*state| state.* = .{ .rows = try reader.takeInt(u64, .little), .values = try reader.takeInt(u64, .little), .sum = try readOptional(&reader) };
     if (reader.bufferedLen() != 0) return error.InvalidRelationalSpill;
@@ -277,9 +303,13 @@ fn read(self: *Self, id: u64) !Node {
         var digest: [32]u8 = undefined;
         std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
         if (!std.mem.eql(u8, &digest, &node.text.digest)) return error.InvalidRelationalSpill;
-        for (node.group.key.values[0..self.key_count], 0..) |*value, i| if (value.* != null and value.*.? == .text) {
-            value.* = .{ .text = bytes[spans[i].offset..][0..spans[i].length] };
-        };
+        for (0..@as(usize, self.key_count) + self.sort_count) |i| {
+            const value = if (i < self.key_count) &node.group.key.values[i] else &node.group.key.sort_values[i - self.key_count];
+            if (value.* != null and (value.*.? == .text or value.*.? == .binary)) {
+                const span = bytes[spans[i].offset..][0..spans[i].length];
+                value.* = if (value.*.? == .text) .{ .text = span } else .{ .binary = span };
+            }
+        }
     }
     try self.checkKey(node.group.key);
     return node;
@@ -295,24 +325,26 @@ fn write(self: *Self, id: u64, node: Node) !void {
     try writer.writeInt(u64, node.text.offset, .little);
     try writer.writeInt(u32, node.text.length, .little);
     try writer.writeAll(&node.text.digest);
+    try writer.writeByte(@intFromBool(node.group.key.sorted));
+    if (node.group.key.pair) |pair| {
+        try writer.writeAll(&try pair.left.encode());
+        try writer.writeByte(@intFromBool(pair.right != null));
+        try writer.writeAll(&if (pair.right) |right| try right.encode() else @as([20]u8, @splat(0)));
+    }
     var text_at: u32 = 0;
-    for (node.group.key.values[0..self.key_count]) |value| {
-        if (value) |present| switch (present) {
-            .integer => |integer| {
-                try writer.writeByte(1);
-                try writer.writeInt(i64, integer, .little);
-            },
-            .text => |text| {
-                if (text.len > node.text.length - text_at) return error.InvalidRelationalSpill;
-                try writer.writeByte(2);
-                try writer.writeInt(u32, text_at, .little);
-                try writer.writeInt(u32, @intCast(text.len), .little);
-                text_at += @intCast(text.len);
-            },
-        } else {
-            try writer.writeByte(0);
-            try writer.writeInt(u64, 0, .little);
-        }
+    for (0..@as(usize, self.key_count) + self.sort_count) |i| {
+        const value = if (i < self.key_count) node.group.key.values[i] else node.group.key.sort_values[i - self.key_count];
+        var slot_bytes: [values.fixed_bytes]u8 = @splat(0);
+        var slot: std.Io.Writer = .fixed(&slot_bytes);
+        if (value != null and (value.? == .text or value.? == .binary)) {
+            const text = if (value.? == .text) value.?.text else value.?.binary;
+            if (text.len > node.text.length - text_at) return error.InvalidRelationalSpill;
+            try slot.writeByte(if (value.? == .text) 2 else 11);
+            try slot.writeInt(u32, text_at, .little);
+            try slot.writeInt(u32, @intCast(text.len), .little);
+            text_at += @intCast(text.len);
+        } else try values.write(&slot, value);
+        try writer.writeAll(&slot_bytes);
     }
     if (text_at != node.text.length) return error.InvalidRelationalSpill;
     for (node.group.states[0..self.output_count]) |state| {
@@ -323,13 +355,13 @@ fn write(self: *Self, id: u64, node: Node) !void {
     @memcpy(bytes[writer.end..], &self.checksum(id, writer.buffered()));
     try self.file.writePositionalAll(self.io, bytes, (id - 1) * self.record_bytes);
 }
-fn writeOptional(writer: *std.Io.Writer, value: ?i64) !void {
+fn writeOptional(writer: *std.Io.Writer, value: ?i128) !void {
     try writer.writeByte(@intFromBool(value != null));
-    try writer.writeInt(i64, value orelse 0, .little);
+    try writer.writeInt(i128, value orelse 0, .little);
 }
-fn readOptional(reader: *std.Io.Reader) !?i64 {
+fn readOptional(reader: *std.Io.Reader) !?i128 {
     const present = try reader.takeByte();
-    const value = try reader.takeInt(i64, .little);
+    const value = try reader.takeInt(i128, .little);
     if (present > 1 or (present == 0 and value != 0)) return error.InvalidRelationalSpill;
     return if (present == 0) null else value;
 }

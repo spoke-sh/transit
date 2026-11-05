@@ -22,7 +22,7 @@ ordinal: u64 = 0,
 bytes: u64 = 0,
 canonical_bytes: u64,
 chain: [32]u8 = r.initialChain(),
-previous: ?@FieldType(f.RelationalExecution.Output, "identity") = null,
+previous: ?f.RelationalExecution.Output = null,
 requests: u64,
 request_limit: u64,
 complete: bool = false,
@@ -205,20 +205,13 @@ pub fn next(self: *Self) !?f.RelationalExecution.Output {
     var output = try f.RelationalOutput.decode(allocator, self.bound(), bytes);
     errdefer output.deinit();
     if (output.ordinal != self.ordinal) return error.InvalidRelationalRecord;
-    if (self.previous) |previous| switch (output.row.identity) {
-        .group => |key| if (previous != .group or try key.order(previous.group, self.bundle.plan) != .gt) return error.InvalidRelationalGroupOrder,
-        .pair => |pair| {
-            if (previous != .pair) return error.InvalidRelationalSourceOrder;
-            const order = f.RelationalExecution.identityOrder(pair.left, previous.pair.left);
-            if (order == .lt or (order == .eq and (pair.right == null or previous.pair.right == null or f.RelationalExecution.identityOrder(pair.right.?, previous.pair.right.?) != .gt))) return error.InvalidRelationalSourceOrder;
-        },
-    };
+    if (self.previous) |previous| if (try f.RelationalOutput.order(previous, output.row, self.bundle.plan) != .lt) return error.InvalidRelationalSourceOrder;
     const next_bytes = try std.math.add(u64, self.bytes, record.reference.spec.length);
     const canonical = try std.math.add(u64, self.canonical_bytes, try output.row.canonicalBytes());
     if (next_bytes > self.stored.output_bytes or canonical > self.progress.?.result_bytes) return error.IncompleteResult;
     try self.authorize(false);
     const chain = try record.extend(self.chain);
-    const identity = try output.row.identity.clone(allocator);
+    const identity = try output.row.clone(allocator);
     self.bytes = next_bytes;
     self.canonical_bytes = canonical;
     if (self.previous) |*previous| previous.deinit();

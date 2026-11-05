@@ -8,8 +8,8 @@ const values = @import("RelationalValues.zig");
 const native = @import("transit_protocol").Growth;
 const Self = @This();
 pub const max_height = 94;
-const fixed_record_bytes = 4 + 32 + 32 + 2 * 54 + 2 + 41 + r.max_groups * 9 + r.max_outputs * 25;
-pub const max_record_bytes = fixed_record_bytes + values.max_text_bytes;
+const fixed_record_bytes = 4 + 32 + 32 + 2 * 54 + 4 + 41 + 2 * r.max_groups * values.fixed_bytes + r.max_outputs * 33;
+pub const max_record_bytes = fixed_record_bytes + 2 * values.max_text_bytes;
 pub const max_candidate_records = 3 * max_height + 1;
 const Node = struct { left: ?Reference = null, right: ?Reference = null, group: e.Group };
 pub const resident_bytes = @sizeOf(Self) + max_height * (@sizeOf(Reference) + @sizeOf(bool)) + 6 * @sizeOf(Node) + 2 * fixed_record_bytes;
@@ -52,6 +52,12 @@ pub fn get(self: Self, store: anytype, key: e.Key) !?e.Group {
     return null;
 }
 pub fn next(self: Self, store: anytype, after: ?e.Key) !?e.Group {
+    return self.nextKind(store, after, false);
+}
+pub fn nextSorted(self: Self, store: anytype, after: ?e.Key) !?e.Group {
+    return self.nextKind(store, after, true);
+}
+fn nextKind(self: Self, store: anytype, after: ?e.Key, sorted: bool) !?e.Group {
     if (after) |key| try self.checkKey(key);
     var cursor = self.root;
     var selected: ?e.Group = null;
@@ -61,7 +67,10 @@ pub fn next(self: Self, store: anytype, after: ?e.Key) !?e.Group {
         if (depth == max_height) return error.InvalidRelationalIndex;
         var node = try self.load(store, reference);
         errdefer node.group.deinit();
-        if (after == null or try node.group.key.order(after.?, self.plan) == .gt) {
+        if (node.group.key.sorted != sorted) {
+            cursor = if (sorted) node.right else node.left;
+            node.group.deinit();
+        } else if (after == null or try node.group.key.order(after.?, self.plan) == .gt) {
             if (selected) |*group| group.deinit();
             selected = node.group;
             cursor = node.left;
@@ -156,27 +165,7 @@ pub fn validateReference(reference: Reference) !void {
     if (reference.id == 0 or reference.bytes == 0 or reference.bytes > max_record_bytes or reference.height == 0 or reference.height >= max_height or reference.entries == 0) return error.InvalidRelationalIndex;
 }
 fn checkKey(self: Self, key: e.Key) !void {
-    var keys_buf: [r.max_groups]r.Column = undefined;
-    const keys = self.plan.keyColumns(&keys_buf);
-    if (key.len != keys.len or self.plan.isGrouped() != (key.pair == null)) return error.InvalidRelationalGroup;
-    if (key.pair) |pair| {
-        try pair.left.validate();
-        if (pair.right) |right| {
-            if (self.plan.join == null) return error.InvalidRelationalGroup;
-            try right.validate();
-        }
-    }
-    var payload: usize = 0;
-    for (key.values[0..key.len], keys) |value, reference| {
-        var column = try self.plan.resolveColumn(reference);
-        column.nullable = true;
-        try values.validate(value, column);
-        if (value) |present| if (present == .text) {
-            if (present.text.len > values.max_text_bytes - payload) return error.RelationalResidentBudget;
-            payload += present.text.len;
-        };
-    }
-    for (key.values[key.len..]) |value| if (value != null) return error.InvalidRelationalGroup;
+    try key.validate(self.plan);
 }
 fn checkGroup(self: Self, group: e.Group) !void {
     try self.checkKey(group.key);
@@ -192,7 +181,13 @@ fn checkGroup(self: Self, group: e.Group) !void {
             .column => if (state.rows != 0 or state.values != 0 or state.sum != null) return error.InvalidRelationalGroup,
             .count_all => if (state.values != 0 or state.sum != null) return error.InvalidRelationalGroup,
             .count => if (state.sum != null) return error.InvalidRelationalGroup,
-            .sum => if ((state.values == 0) != (state.sum == null)) return error.InvalidRelationalGroup,
+            .sum => |column| {
+                if ((state.values == 0) != (state.sum == null)) return error.InvalidRelationalGroup;
+                if (state.sum) |sum| {
+                    const kind = (try self.plan.resolveColumn(column)).type;
+                    @import("Types.zig").Semantics.validate(if (kind == .decimal) .{ .decimal = sum } else .{ .signed = sum }, kind) catch return error.InvalidRelationalGroup;
+                }
+            },
         }
     }
     for (group.states[states.len..]) |state| if (state.rows != 0 or state.values != 0 or state.sum != null) return error.InvalidRelationalGroup;
@@ -203,12 +198,7 @@ fn save(self: Self, store: anytype, node: Node) !Reference {
     if (h >= max_height or @abs(height(node.left) - height(node.right)) > 1) return error.InvalidRelationalIndex;
     var states_buf: [r.max_outputs]r.Expression = undefined;
     const state_count: usize = if (self.plan.isGrouped()) (try self.plan.stateExpressions(&states_buf)).len else 0;
-    const pair_bytes: usize = if (node.group.key.pair) |pair| 20 + 1 + @as(usize, if (pair.right != null) 20 else 0) else 0;
-    var length: usize = 4 + 32 + 32 + 2 + @as(usize, if (node.left != null) 54 else 1) + @as(usize, if (node.right != null) 54 else 1) + pair_bytes + state_count * 25;
-    for (node.group.key.values[0..node.group.key.len]) |value| length += if (value) |present| switch (present) {
-        .integer => 9,
-        .text => |bytes| 5 + bytes.len,
-    } else 1;
+    const length: usize = 4 + 32 + 32 + 1 + @as(usize, if (node.left != null) 54 else 1) + @as(usize, if (node.right != null) 54 else 1) + node.group.key.encodedLength() + state_count * 33;
     var fixed: [fixed_record_bytes]u8 = undefined;
     const bytes = if (length <= fixed.len) fixed[0..length] else try self.allocator.alloc(u8, length);
     defer if (length > fixed.len) self.allocator.free(bytes);
@@ -219,13 +209,8 @@ fn save(self: Self, store: anytype, node: Node) !Reference {
     try writer.writeAll(&self.binding);
     try writeReference(writer, node.left);
     try writeReference(writer, node.right);
-    try writer.writeAll(&.{ node.group.key.len, @intCast(state_count) });
-    if (node.group.key.pair) |pair| {
-        try writer.writeAll(&try pair.left.encode());
-        try writer.writeByte(@intFromBool(pair.right != null));
-        if (pair.right) |right| try writer.writeAll(&try right.encode());
-    }
-    for (node.group.key.values[0..node.group.key.len]) |value| try values.write(writer, value);
+    try writer.writeByte(@intCast(state_count));
+    try node.group.key.write(writer);
     for (node.group.states[0..state_count]) |state| {
         try writer.writeInt(u64, state.rows, .little);
         try writer.writeInt(u64, state.values, .little);
@@ -252,23 +237,11 @@ fn load(self: Self, store: anytype, reference: Reference) !Node {
     if (!std.mem.eql(u8, try reader.take(4), "FRN1")) return error.InvalidRelationalIndex;
     if (!std.mem.eql(u8, try reader.take(32), &definition())) return error.IncompatibleDefinition;
     if (!std.mem.eql(u8, try reader.take(32), &self.binding)) return error.RelationalSourceChanged;
-    var node: Node = .{ .left = try readReference(&reader), .right = try readReference(&reader), .group = .{ .key = .{ .len = try reader.takeByte() } } };
+    var node: Node = .{ .left = try readReference(&reader), .right = try readReference(&reader), .group = undefined };
     var states_buf: [r.max_outputs]r.Expression = undefined;
     const state_count: usize = if (self.plan.isGrouped()) (try self.plan.stateExpressions(&states_buf)).len else 0;
-    var keys_buf: [r.max_groups]r.Column = undefined;
-    const keys = self.plan.keyColumns(&keys_buf);
     if (try reader.takeByte() != state_count) return error.InvalidRelationalGroup;
-    if (node.group.key.len != keys.len) return error.InvalidRelationalGroup;
-    if (!self.plan.isGrouped()) {
-        const left_id = try r.RowIdentity.decode(try reader.takeArray(20));
-        const right_id: ?r.RowIdentity = switch (try reader.takeByte()) {
-            0 => null,
-            1 => try r.RowIdentity.decode(try reader.takeArray(20)),
-            else => return error.InvalidRelationalIndex,
-        };
-        node.group.key.pair = .{ .left = left_id, .right = right_id };
-    }
-    for (node.group.key.values[0..node.group.key.len]) |*value| value.* = try values.read(&reader);
+    node.group = .{ .key = try e.Key.read(&reader, self.plan) };
     for (node.group.states[0..state_count]) |*state| state.* = .{ .rows = try reader.takeInt(u64, .little), .values = try reader.takeInt(u64, .little), .sum = try readOptional(&reader) };
     try self.checkGroup(node.group);
     if (reader.bufferedLen() != 0 or @abs(height(node.left) - height(node.right)) > 1 or reference.height != 1 + @max(height(node.left), height(node.right)) or reference.entries != try std.math.add(u64, try std.math.add(u64, entries(node.left), entries(node.right)), 1)) return error.InvalidRelationalIndex;
@@ -297,13 +270,13 @@ pub fn readReference(reader: *std.Io.Reader) !?Reference {
     try validateReference(value);
     return value;
 }
-pub fn writeOptional(writer: *std.Io.Writer, value: ?i64) !void {
+pub fn writeOptional(writer: *std.Io.Writer, value: ?i128) !void {
     try writer.writeByte(@intFromBool(value != null));
-    try writer.writeInt(i64, value orelse 0, .little);
+    try writer.writeInt(i128, value orelse 0, .little);
 }
-pub fn readOptional(reader: *std.Io.Reader) !?i64 {
+pub fn readOptional(reader: *std.Io.Reader) !?i128 {
     const present = try reader.takeByte();
-    const value = try reader.takeInt(i64, .little);
+    const value = try reader.takeInt(i128, .little);
     if (present > 1 or (present == 0 and value != 0)) return error.InvalidRelationalIndex;
     return if (present == 0) null else value;
 }

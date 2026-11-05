@@ -57,7 +57,7 @@ privilegeList: ALL PRIVILEGES? | privilege (COMMA privilege)*;
 grantOption: WITH GRANT OPTION;
 revokeBehavior: RESTRICT | CASCADE;
 membershipOption: (ADMIN | INHERIT | SET) (OPTION | TRUE | FALSE);
-// Explicit compiler entry; parameters are not accepted by ordinary statements.
+// Explicit template entry; execution still requires typed parameter binding.
 parameterTemplate: templateSelect SEMI? EOF;
 templateSelect
     : SELECT selection FROM identifier sourceAlias? templateWhereClause? templateLimitClause?
@@ -73,21 +73,21 @@ templateLimitClause: LIMIT (INTEGER | PARAMETER);
 // The single-source statement root retains its independent LIMIT/subquery profile.
 relationalQuery: EXPLAIN? relationalSelect snapshotClause? SEMI? EOF;
 relationalSelect
-    : SELECT relationalSelection (COMMA relationalSelection)* FROM relationalTarget
-      relationalJoin? whereClause? (GROUP BY columnReference (COMMA columnReference)*)?
+    : SELECT (STAR FROM relationalTarget | relationalSelection (COMMA relationalSelection)* FROM relationalTarget relationalJoin?)
+      whereClause? (GROUP BY columnReference (COMMA columnReference)*)?
       havingClause? orderByClause? limitClause?
     ;
 relationalExpression
-    : columnReference
-    | COUNT LPAREN (STAR | columnReference) RPAREN
-    | SUM LPAREN columnReference RPAREN
+    : (columnReference | scalarCall) (AT TIME ZONE STRING)?
+    | COUNT LPAREN (STAR | (columnReference | scalarCall) (AT TIME ZONE STRING)?) RPAREN
+    | SUM LPAREN (columnReference | scalarCall) (AT TIME ZONE STRING)? RPAREN
     ;
 relationalSelection: relationalExpression outputAlias?;
 havingClause: HAVING havingDisjunction;
 havingDisjunction: havingConjunction (OR havingConjunction)*;
 havingConjunction: havingNegation (AND havingNegation)*;
 havingNegation: NOT havingNegation | LPAREN havingDisjunction RPAREN | havingAtom;
-havingAtom: relationalExpression (IS NOT? NULL_ | comparison literal);
+havingAtom: relationalExpression (IS NOT? NULL_ | comparison (literal | PARAMETER));
 orderByClause: ORDER BY relationalOrderItem (COMMA relationalOrderItem)*;
 relationalOrderItem: relationalExpression (ASC | DESC)? (NULLS (FIRST | LAST))?;
 relationalTarget: identifier relationalAlias?;
@@ -100,7 +100,7 @@ relationalJoin: (INNER | LEFT OUTER?)? JOIN relationalTarget ON columnReference 
 // The one derived-table form spells filter -> limit -> aggregate without
 // misinterpreting SQL's outer LIMIT as an aggregate input limit.
 selectStatement
-    : SELECT selection FROM identifier sourceAlias? whereClause? limitClause?
+    : relationalSelect
     | SELECT aggregateSelection FROM LPAREN
         SELECT projection FROM identifier sourceAlias? whereClause? limitClause?
       RPAREN AS identifier limitClause?
@@ -122,7 +122,7 @@ predicate: disjunction;
 disjunction: conjunction (OR conjunction)*;
 conjunction: negation (AND negation)*;
 negation: NOT negation | LPAREN predicate RPAREN | predicateAtom;
-predicateAtom: columnReference (IS NOT? cellState | comparison literal);
+predicateAtom: columnReference (IS NOT? cellState | comparison (literal | PARAMETER));
 cellState: NULL_ | MISSING | TYPE_ERROR | VALUE | CONFLICT;
 comparison: EQ | NE | LT | LE | GT | GE;
 literal
@@ -134,7 +134,7 @@ literal
     ;
 signedNumber: (PLUS | MINUS)? NUMBER;
 signedInteger: (PLUS | MINUS)? INTEGER;
-limitClause: LIMIT INTEGER;
+limitClause: LIMIT (INTEGER | PARAMETER);
 
 // All mutations bind to a configured catalog and its current permissions.
 // Literal/descriptor parsing conveys neither row validity nor execution rights.

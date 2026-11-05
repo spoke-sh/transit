@@ -93,7 +93,7 @@ pub const Opened = struct {
     complete_coverage: bool = false,
     pub const json_schema_sequence_bounds = .{ .cuts = r.max_sources };
 };
-pub const GroupScalar = union(enum) { signed: []const u8, utf8: []const u8 };
+pub const GroupScalar = f.LogicalJson.Atom;
 pub const Identity = union(enum) {
     pair: struct { left: []const u8, right: ?[]const u8 },
     group: []const ?GroupScalar,
@@ -132,10 +132,19 @@ pub fn row(allocator: Allocator, value: f.RelationalExecution.Output, schema: f.
         .pair => |pair| .{ .pair = .{ .left = try v.hex(allocator, &try pair.left.encode()), .right = if (pair.right) |right| try v.hex(allocator, &try right.encode()) else null } },
         .group => |group| blk: {
             const keys = try allocator.alloc(?GroupScalar, group.len);
-            for (keys, group.values[0..group.len]) |*out, key| out.* = if (key) |scalar| switch (scalar) {
-                .integer => |number| .{ .signed = try std.fmt.allocPrint(allocator, "{d}", .{number}) },
-                .text => |text| .{ .utf8 = try allocator.dupe(u8, text) },
-            } else null;
+            for (keys, group.values[0..group.len]) |*out, key| out.* = if (key) |scalar| try f.LogicalJson.atomToForeign(allocator, f.RelationalValues.cell(scalar).value.atom, switch (scalar) {
+                .integer => .int64,
+                .unsigned => .uint64,
+                .float => .float64,
+                .decimal => .{ .decimal = .{ .precision = 38, .scale = 0 } },
+                .boolean => .boolean,
+                .date => .date,
+                .time => .time,
+                .timestamp => .{ .timestamp = .utc },
+                .uuid => .uuid,
+                .text => .utf8,
+                .binary => .binary,
+            }) else null;
             break :blk .{ .group = keys };
         },
     } };

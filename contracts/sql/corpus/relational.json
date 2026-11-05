@@ -38,7 +38,15 @@
     "SELECT k FROM t GROUP BY k ORDER BY k",
     "SELECT k FROM t GROUP BY k LIMIT 1",
     "SELECT l.k, COUNT(*) AS n, SUM(r.v) AS total FROM left_table AS l LEFT JOIN right_table r ON l.k = r.k WHERE l.v IS NOT NULL GROUP BY l.k HAVING NOT (COUNT(*) <= 1 OR SUM(r.v) IS NULL) AND l.k >= 0 ORDER BY SUM(r.v) DESC NULLS LAST, COUNT(*) ASC NULLS FIRST, l.k DESC LIMIT 5",
-    "SELECT k, v FROM t ORDER BY k ASC, v DESC NULLS FIRST LIMIT 10"
+    "SELECT k, v FROM t ORDER BY k ASC, v DESC NULLS FIRST LIMIT 10",
+    "SELECT COUNT(*) FROM t WHERE v=$1",
+    "SELECT k, SUM(v) AS total FROM t WHERE v >= $1 GROUP BY k HAVING total > $2 ORDER BY total DESC LIMIT $3",
+    "SELECT * FROM t ORDER BY k DESC LIMIT 2",
+    "SELECT DECIMAL_ADD(a,b,8,2,HALF_EVEN) AS total FROM t ORDER BY total DESC",
+    "SELECT k FROM t ORDER BY DECIMAL_DIVIDE(a,b,8,2,REJECT) ASC LIMIT 1",
+    "SELECT SUM(DECIMAL_RESCALE(v,8,2,HALF_EVEN)) AS total FROM t ORDER BY total",
+    "SELECT VECTOR_DISTANCE(a,b,L2_SQUARED) AS distance FROM t ORDER BY distance LIMIT 4",
+    "SELECT RANGE_OVERLAPS(a,b) AS intersecting FROM t ORDER BY intersecting DESC"
   ],
   "reject": [
     "SELECT * FROM t JOIN u ON t.k=u.k",
@@ -58,7 +66,6 @@
     "SELECT k+1 FROM t GROUP BY k",
     "SELECT k FROM (SELECT k FROM t) x GROUP BY k",
     "SELECT COUNT(*) FROM t GROUP BY",
-    "SELECT COUNT(*) FROM t WHERE v=$1",
     "SELECT k FROM t GROUP BY k; SELECT k FROM t",
     "SELECT t.k FROM t LEFT JOIN u ON t.k=u.k AND t.v=u.v",
     "SELECT k FROM t GROUP BY k,",

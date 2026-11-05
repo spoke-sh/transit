@@ -118,3 +118,34 @@ def run(postgres, mysql_options, inventory, external):
             except mysql.connector.Error as error: assert error.errno == 1235 and 'fraction' in str(error), error
             else: raise AssertionError('MySQL declared an unsupported decimal scale')
     print('SQL type drivers: unsupported declarations, numeric range/exactness and protocol scale limits passed.',flush=True)
+    ordered_results(postgres, mysql_options)
+
+
+def ordered_results(postgres, mysql_options):
+    # Keep this matrix in its own sessions so independent prepared-statement
+    # cases do not retain handles from the scalar-alias matrix.
+    with psycopg.connect(**postgres) as pg, mysql.connector.connect(**mysql_options) as my:
+        pg.execute('CREATE TABLE ordered_groups (id BIGINT, category BOOLEAN, amount DECIMAL(20,2))')
+        pg.execute('INSERT INTO ordered_groups VALUES (1,TRUE,12.50),(2,FALSE,7.25),(3,TRUE,5.25),(4,FALSE,NULL)')
+        ordered = 'SELECT category, SUM(amount) AS total FROM ordered_groups WHERE id >= %s GROUP BY category HAVING total > %s ORDER BY total DESC LIMIT %s'
+        projected = 'SELECT DECIMAL_ADD(amount,amount,20,2,REJECT) AS doubled FROM ordered_groups WHERE id >= %s ORDER BY doubled DESC NULLS LAST LIMIT %s'
+        # Reuse prepared statements with different bindings; do not mutate the
+        # template or retain parameter values from an earlier execution.
+        for binary in (False, True):
+            with pg.cursor(binary=binary) as reader:
+                for minimum, want in ((1, [(True, Decimal('17.75')), (False, Decimal('7.25'))]), (2, [(False, Decimal('7.25')), (True, Decimal('5.25'))])):
+                    reader.execute(ordered, (minimum, Decimal('0.00'), 2), prepare=True)
+                    assert reader.fetchall() == want
+                reader.execute(projected, (1, 2), prepare=True)
+                assert reader.fetchall() == [(Decimal('25.00'),), (Decimal('14.50'),)]
+                reader.execute(ordered, (None, Decimal('0.00'), 2), prepare=True)
+                assert reader.fetchall() == []
+            with my.cursor(prepared=binary) as reader:
+                for minimum, want in ((1, [(True, Decimal('17.75')), (False, Decimal('7.25'))]), (2, [(False, Decimal('7.25')), (True, Decimal('5.25'))])):
+                    reader.execute(ordered, (minimum, Decimal('0.00'), 2))
+                    assert reader.fetchall() == want
+                reader.execute(projected, (1, 2))
+                assert reader.fetchall() == [(Decimal('25.00'),), (Decimal('14.50'),)]
+                reader.execute(ordered, (None, Decimal('0.00'), 2))
+                assert reader.fetchall() == []
+        print('SQL type drivers: ordered decimal groups, scalar projections, prepared rebinding and NULL filtering passed.', flush=True)

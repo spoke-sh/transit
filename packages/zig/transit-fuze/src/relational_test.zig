@@ -89,7 +89,7 @@ test "relational null routing and canonical checked arithmetic match independent
             }
             try state.observe(.sum, value);
         }
-        if (sample.error_at == null) try testing.expectEqual(sample.value, state.sum);
+        if (sample.error_at == null) try testing.expectEqual(if (sample.value) |value| @as(?i128, value) else null, state.sum);
     }
     var count: r.AggregateState = .{ .rows = std.math.maxInt(u64) };
     try testing.expectError(error.Overflow, count.observe(.count_all, null));

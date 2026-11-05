@@ -38,6 +38,7 @@ const MeasuredPhase = enum { acquire, evaluate, prepare, execute, checkpoint_pre
 pub const declaration_format = c.ManagedTableRecords.declaration_format;
 pub const work_format = c.ManagedTableRecords.work_format;
 pub const page_format = c.ManagedTableRecords.page_format;
+pub const page_link_format = c.ManagedTableRecords.page_link_format;
 pub const revision_format = c.ManagedTableRecords.revision_format;
 pub const head_key = c.ManagedTableRecords.head_key;
 pub const max_definition_bytes = c.ManagedTableRecords.max_definition_bytes;
@@ -57,6 +58,7 @@ pub const Work = struct {
     phase: enum { acquiring, evaluating, staging, checkpoint, deciding, aborting, complete },
     failure: ?flow.Blocked,
     pages: ?c.DirectRecord.Reference,
+    ordered_pages: ?c.DirectRecord.Reference,
     page_count: u64,
     rows: u64,
     source: ?d.Position,
@@ -74,6 +76,14 @@ pub const Page = struct {
     first_ordinal: u64,
     previous: ?c.DirectRecord.Reference,
     rows: []const w.Binary,
+};
+/// A forward cursor over immutable result pages. Building this small reference
+/// chain from the staging chain uses one page of scratch, independent of rows.
+pub const PageLink = struct {
+    definition: p.Growth.Definition,
+    transaction: c.DirectClientToken.Key,
+    page: c.DirectRecord.Reference,
+    next: ?c.DirectRecord.Reference,
 };
 /// Immutable result root. The same transaction publishes this reference, the
 /// current checkpoint and output rows. DirectRecord retention protects the
@@ -141,6 +151,7 @@ fn workKey(self: Self, declaration: Declaration, attempt: u64, label: []const u8
 pub fn prepare(self: Self, namespace: u64, name: []const u8, object: u64, identity: u64, output: []const u8, sql: []const u8, options: q.DirectRelationalQuery.Options) !Declaration {
     var compiled = try q.DirectRelationalCompilation.prepare(self.client.allocator, &.{self.client}, namespace, sql, .maintained, options, null);
     defer compiled.deinit();
+    if (compiled.parameterTypes().len != 0) return error.UnboundParameters;
     const response = try self.client.call(.{ .lookup = .{ .namespace = namespace, .name = output } });
     defer response.deinit();
     const metadata = response.value.result.lookup orelse return error.TableNotFound;
@@ -189,7 +200,7 @@ fn storeRevision(self: Self, declaration: Declaration, value: Revision) !c.Direc
     return c.DirectTransactionRecord.stage(self.client, value.transaction, revision_format, guarded);
 }
 pub fn load(self: Self, comptime T: type, reference: c.DirectRecord.Reference, format: u32) !std.json.Parsed(T) {
-    const owned = format == page_format or format == revision_format;
+    const owned = format == page_format or format == page_link_format or format == revision_format;
     const original_owned = reference.format == c.DirectOwnedRecord.format;
     const progress_owned = format == work_format and reference.format == c.DirectProgressRecord.format;
     if ((!original_owned and !progress_owned and reference.format != (if (owned) c.DirectTransactionRecord.format else format)) or !std.meta.eql(reference.scope.connection, self.client.connection)) return error.InvalidManagedTableRecord;
@@ -227,7 +238,7 @@ pub fn load(self: Self, comptime T: type, reference: c.DirectRecord.Reference, f
         defer self.client.allocator.free(payload);
         const result = try p.Json.parseFromSliceOwned(T, self.client.allocator, payload);
         errdefer result.deinit();
-        if (comptime T == Page or T == Revision) {
+        if (comptime T == Page or T == PageLink or T == Revision) {
             try envelope.value.transaction.requireSame(result.value.transaction);
         } else return error.InvalidManagedTableRecord;
         return result;
@@ -511,6 +522,7 @@ fn startInner(self: Self, value: Declaration) !?c.DirectClientToken.Key {
         .phase = .acquiring,
         .failure = null,
         .pages = null,
+        .ordered_pages = null,
         .page_count = 0,
         .rows = 0,
         .source = null,
@@ -586,6 +598,7 @@ fn stepInner(self: Self, token: c.DirectClientToken.Key, io: std.Io, directory: 
     try work.lease.validate();
     try work.transaction.validate();
     if (!std.meta.eql(work.lease.target, try value.interpretation(self.client.allocator)) or !std.meta.eql(work.transaction.connection, self.client.connection) or (if (work.rows == 0) work.page_count != 0 else (work.page_count == 0 or work.page_count > work.rows)) or work.sequence > work.page_count + 2) return error.InvalidManagedTableRecord;
+    if ((work.rows == 0) != (work.pages == null) or (work.rows == 0) != (work.ordered_pages == null)) return error.InvalidManagedTableRecord;
     if (original.phase == .ready or original.phase == .attaching) {
         const attachment = work.attachment orelse return error.InvalidManagedTableRecord;
         var scratch: std.heap.ArenaAllocator = .init(self.client.allocator);
@@ -765,7 +778,7 @@ fn stepInner(self: Self, token: c.DirectClientToken.Key, io: std.Io, directory: 
                     .declaration = work.declaration,
                     .transaction = work.transaction,
                     .schema = output_metadata.schema,
-                    .pages = work.pages,
+                    .pages = work.ordered_pages,
                 };
                 try revision.validate();
                 const root = try self.storeRevision(value, revision);
@@ -882,11 +895,44 @@ fn evaluate(self: Self, value: Declaration, work: *Work, io: std.Io, directory: 
         _ = scratch.reset(.retain_capacity);
     }
     work.pages = previous;
+    if (page_count > value.options.budgets.work_steps - executor.execution.work) return error.RelationalWorkBudget;
+    work.ordered_pages = try self.orderPages(value, work.transaction, previous, page_count, rows, &retained_bytes, &scratch);
     work.next_page = previous;
     work.page_count = page_count;
     work.rows = rows;
     work.source = metadata.position;
     work.phase = .staging;
+}
+
+fn orderPages(self: Self, value: Declaration, transaction: c.DirectClientToken.Key, last: ?c.DirectRecord.Reference, pages: u64, rows: u64, retained_bytes: *u64, scratch: *std.heap.ArenaAllocator) !?c.DirectRecord.Reference {
+    var next: ?c.DirectRecord.Reference = null;
+    var previous = last;
+    var remaining_pages = pages;
+    var remaining_rows = rows;
+    while (previous) |reference| {
+        _ = scratch.reset(.retain_capacity);
+        var reader = self;
+        reader.client.allocator = scratch.allocator();
+        const parsed = try reader.load(Page, reference, page_format);
+        const page = parsed.value;
+        if (remaining_pages == 0 or page.definition != p.Growth.current_definition or !std.meta.eql(page.transaction, transaction) or
+            page.sequence != remaining_pages - 1 or page.rows.len == 0 or page.rows.len > max_page_rows or
+            page.rows.len > remaining_rows or page.first_ordinal != remaining_rows - page.rows.len or
+            (page.previous == null) != (remaining_pages == 1)) return error.IncompleteDataflowCoverage;
+        const link: PageLink = .{ .definition = p.Growth.current_definition, .transaction = transaction, .page = reference, .next = next };
+        const payload = try p.Json.valueAllocBounded(scratch.allocator(), link, c.DirectRecord.max_bytes);
+        const guarded = try c.DirectRecord.encodeGuarded(scratch.allocator(), self.client.connection, readObjects(value), payload);
+        const owned = try c.DirectTransactionRecord.encode(scratch.allocator(), transaction, page_link_format, guarded);
+        retained_bytes.* = try std.math.add(u64, retained_bytes.*, owned.len);
+        if (retained_bytes.* > value.options.budgets.result_bytes) return error.ManagedTableResultBudget;
+        next = try c.DirectTransactionRecord.stage(self.client, transaction, page_link_format, guarded);
+        diagnostics.add("result_record_bytes", owned.len);
+        previous = page.previous;
+        remaining_pages -= 1;
+        remaining_rows -= page.rows.len;
+    }
+    if (remaining_pages != 0 or remaining_rows != 0) return error.IncompleteDataflowCoverage;
+    return next;
 }
 
 fn abort(self: Self, value: Declaration, token: c.DirectClientToken.Key, progress: c.DirectClientToken.Progress, original: Work, reason: flow.Blocked) !bool {

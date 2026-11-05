@@ -218,7 +218,7 @@ pub fn forRelationalPlan(plan: Relational.Plan) !Summary {
     return .{
         .effects = effects,
         .deterministic = true,
-        .fallible = has_aggregate or has_filter or plan.join != null or plan.order_by.len != 0,
+        .fallible = has_aggregate or has_filter or plan.join != null or plan.order_by.len != 0 or plan.scalars.instructions.len != 0,
         .five_state_rule = if (has_aggregate)
             .checked_aggregate
         else if (has_filter)

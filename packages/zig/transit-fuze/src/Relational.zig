@@ -9,8 +9,13 @@ pub const definition = "transit.fuze.relational.v1.2026-11-05";
 pub const max_sources = 2;
 pub const max_outputs = 128;
 pub const max_groups = 128;
+pub const max_order_by = 8;
 pub const max_instructions = 64;
 pub const max_plan_bytes = 8192;
+pub const ScalarProgram = @import("ScalarProgram.zig");
+/// Computed columns use program ordinals, distinct from stable Table IDs.
+pub const computed_source = max_sources;
+pub const row_columns = table.max_columns + ScalarProgram.max_instructions;
 
 pub const Source = struct {
     alias: []const u8,
@@ -50,7 +55,7 @@ pub const Expression = union(enum(u8)) {
 pub const Output = struct { name: []const u8, expression: Expression };
 pub const Comparison = enum(u8) { equal, not_equal, less, less_equal, greater, greater_equal };
 pub const Instruction = union(enum(u8)) {
-    compare: struct { column: Column, op: Comparison, value: @import("RelationalValues.zig").Literal },
+    compare: struct { column: Column, op: Comparison, value: @import("RelationalValues.zig").Value },
     is_null: Column,
     is_not_null: Column,
     negate,
@@ -62,7 +67,7 @@ pub const Predicate = struct {
     instructions: []const Instruction = &.{},
 };
 pub const HavingInstruction = union(enum(u8)) {
-    compare: struct { expression: Expression, op: Comparison, value: @import("RelationalValues.zig").Literal },
+    compare: struct { expression: Expression, op: Comparison, value: @import("RelationalValues.zig").Value },
     is_null: Expression,
     is_not_null: Expression,
     negate,
@@ -102,6 +107,7 @@ pub const Budgets = struct {
 
 pub const Plan = struct {
     sources: []const Source,
+    scalars: ScalarProgram = .{},
     join: ?Join = null,
     source_filters: [max_sources]Predicate = .{ .{}, .{} },
     /// Evaluated after the join, including null extension, before aggregation.
@@ -179,6 +185,20 @@ pub const Plan = struct {
         return buffer[0..len];
     }
 
+    /// Descriptor for a finalized expression; aggregate counts are unsigned.
+    pub fn expressionColumn(self: Plan, expression: Expression) !table.Column {
+        return switch (expression) {
+            .column => |column| self.resolveColumn(column),
+            .count_all, .count => .{ .id = 1, .name = "count", .type = .uint64 },
+            .sum => |column| blk: {
+                var descriptor = try self.resolveColumn(column);
+                if (!sumType(descriptor.type)) return error.UnsupportedRelationalType;
+                descriptor.nullable = true;
+                break :blk descriptor;
+            },
+        };
+    }
+
     pub fn findStateSlot(self: Plan, expression: Expression) ?usize {
         var buffer: [max_outputs]Expression = undefined;
         const list = self.stateExpressions(&buffer) catch return null;
@@ -196,6 +216,12 @@ pub const Plan = struct {
     pub fn validateShape(self: Plan) !void {
         if (self.sources.len == 0 or self.sources.len > max_sources) return error.InvalidRelationalSources;
         if ((self.sources.len == 2) != (self.join != null)) return error.InvalidRelationalJoin;
+        if (self.scalars.instructions.len != 0) {
+            if (self.sources.len != 1) return error.UnsupportedRelationalType;
+            var fields: [table.max_columns]types.Field = undefined;
+            var computed: [ScalarProgram.max_instructions]types.Field = undefined;
+            _ = try self.scalars.validate((try self.sources[0].schema.rowType(&fields)).structure, &computed);
+        }
         if (self.outputs.len == 0 or self.outputs.len > max_outputs) return error.InvalidRelationalOutputs;
         if (self.group_by.len > max_groups) return error.InvalidRelationalGroups;
         var resources: u8 = 0;
@@ -225,7 +251,7 @@ pub const Plan = struct {
             if (join.left.source != 0 or join.right.source != 1) return error.InvalidRelationalJoin;
             const left = try self.resolveColumn(join.left);
             const right = try self.resolveColumn(join.right);
-            if (std.meta.activeTag(left.type) != std.meta.activeTag(right.type) or left.collation != right.collation) return error.InvalidRelationalJoin;
+            if (!std.meta.eql(left.type, right.type) or left.collation != right.collation) return error.InvalidRelationalJoin;
         }
         try self.validatePredicate(self.filter, null);
         for (self.group_by, 0..) |column, i| {
@@ -245,11 +271,11 @@ pub const Plan = struct {
                     if (grouped and !containsColumn(self.group_by, column)) return error.UngroupedRelationalColumn;
                 },
                 .count => |column| _ = try self.resolveColumn(column),
-                .sum => |column| if ((try self.resolveColumn(column)).type != .int64) return error.UnsupportedRelationalType,
+                .sum => |column| if (!sumType((try self.resolveColumn(column)).type)) return error.UnsupportedRelationalType,
             }
         }
         try self.validateHaving(self.having, grouped);
-        if (self.order_by.len > max_groups) return error.InvalidRelationalGroups;
+        if (self.order_by.len > max_order_by) return error.InvalidRelationalGroups;
         for (self.order_by, 0..) |item, i| {
             for (self.order_by[0..i]) |earlier| if (item.expression.eql(earlier.expression)) return error.DuplicateRelationalGroup;
             switch (item.expression) {
@@ -264,7 +290,7 @@ pub const Plan = struct {
                 },
                 .sum => |column| {
                     if (!grouped) return error.UngroupedRelationalColumn;
-                    if ((try self.resolveColumn(column)).type != .int64) return error.UnsupportedRelationalType;
+                    if (!sumType((try self.resolveColumn(column)).type)) return error.UnsupportedRelationalType;
                 },
             }
         }
@@ -297,10 +323,19 @@ pub const Plan = struct {
 
     /// Checks the selected operator capability, independently of Table storage.
     pub fn resolveColumn(self: Plan, reference: Column) !table.Column {
+        if (reference.source == computed_source) {
+            if (self.sources.len != 1 or reference.id == 0 or reference.id > self.scalars.instructions.len) return error.InvalidScalarReference;
+            var inputs: [table.max_columns]types.Field = undefined;
+            var fields: [ScalarProgram.max_instructions]types.Field = undefined;
+            const schema = try self.sources[0].schema.rowType(&inputs);
+            const field = (try self.scalars.validate(schema.structure, &fields))[reference.id - 1];
+            if (!@import("RelationalValues.zig").supported(field.type)) return error.UnsupportedRelationalType;
+            return .{ .id = reference.id, .name = field.name, .type = field.type, .nullable = field.nullable };
+        }
         if (reference.source >= self.sources.len) return error.UnknownRelationalSource;
         const schema = self.sources[reference.source].schema;
         const result = schema.columns[try schema.index(reference.id)];
-        if (result.type != .int64 and result.type != .utf8) return error.UnsupportedRelationalType;
+        if (!@import("RelationalValues.zig").supported(result.type)) return error.UnsupportedRelationalType;
         return result;
     }
 
@@ -314,8 +349,13 @@ pub const Plan = struct {
                 else => null,
             };
             if (reference) |column| {
+                if (column.source >= self.sources.len) return error.InvalidRelationalFilterScope;
                 const descriptor = try self.resolveColumn(column);
-                if (instruction == .compare) try @import("RelationalValues.zig").validate(instruction.compare.value, descriptor);
+                if (instruction == .compare) {
+                    var nullable = descriptor;
+                    nullable.nullable = true;
+                    try @import("RelationalValues.zig").validate(instruction.compare.value, nullable);
+                }
                 if (source) |index| if (column.source != index) return error.InvalidRelationalFilterScope;
                 depth += 1;
             } else switch (instruction) {
@@ -355,11 +395,15 @@ pub const Plan = struct {
                     },
                     .sum => |column| blk: {
                         const col = try self.resolveColumn(column);
-                        if (col.type != .int64) return error.UnsupportedRelationalType;
-                        break :blk .{ .id = 1, .name = "sum", .type = .int64 };
+                        if (!sumType(col.type)) return error.UnsupportedRelationalType;
+                        break :blk .{ .id = 1, .name = "sum", .type = col.type };
                     },
                 };
-                if (instruction == .compare) try @import("RelationalValues.zig").validate(instruction.compare.value, descriptor);
+                if (instruction == .compare) {
+                    var nullable = descriptor;
+                    nullable.nullable = true;
+                    try @import("RelationalValues.zig").validate(instruction.compare.value, nullable);
+                }
                 depth += 1;
             } else switch (instruction) {
                 .negate => if (depth == 0) return error.InvalidRelationalPredicate,
@@ -403,7 +447,7 @@ pub const Plan = struct {
                 .name = output.name,
                 .type = switch (output.expression) {
                     .column => |reference| (try self.resolveColumn(reference)).type,
-                    .sum => .int64,
+                    .sum => |reference| (try self.resolveColumn(reference)).type,
                     .count_all, .count => .uint64,
                 },
                 .nullable = nullable,
@@ -422,6 +466,7 @@ pub const Plan = struct {
             for ([_]u64{ source.realm, source.resource, source.catalog, source.owner }) |value| try writer.writeInt(u64, value, .little);
             try writer.writeAll(&try source.schema.fingerprint());
         }
+        try self.scalars.write(writer);
         try writer.writeByte(if (self.join) |join| 1 + @backingInt(join.kind) else 0);
         if (self.join) |join| {
             try writeColumn(writer, join.left);
@@ -560,17 +605,32 @@ pub fn groupOrder(left: @import("RelationalValues.zig").Value, right: @import("R
 pub const AggregateState = struct {
     rows: u64 = 0,
     values: u64 = 0,
-    sum: ?i64 = null,
+    sum: ?i128 = null,
     pub fn observe(self: *AggregateState, kind: enum { count_all, count, sum }, value: ?i64) !void {
         var next = self.*;
         next.rows = try std.math.add(u64, next.rows, 1);
         if (value != null) next.values = try std.math.add(u64, next.values, 1);
         if (kind == .sum) if (value) |integer| {
-            next.sum = try std.math.add(i64, next.sum orelse 0, integer);
+            next.sum = try std.math.add(i64, std.math.cast(i64, next.sum orelse 0) orelse return error.Overflow, integer);
         };
         self.* = next;
     }
+    pub fn observeDecimal(self: *AggregateState, value: ?i128, kind: types.Type) error{Overflow}!void {
+        var next = self.*;
+        next.rows = try std.math.add(u64, next.rows, 1);
+        if (value) |coefficient| {
+            next.values = try std.math.add(u64, next.values, 1);
+            const sum = try std.math.add(i128, next.sum orelse 0, coefficient);
+            types.Semantics.validate(.{ .decimal = sum }, kind) catch return error.Overflow;
+            next.sum = sum;
+        }
+        self.* = next;
+    }
 };
+
+pub fn sumType(kind: types.Type) bool {
+    return kind == .int64 or kind == .decimal;
+}
 
 fn containsColumn(list: []const Column, target: Column) bool {
     for (list) |item| if (item.eql(target)) return true;

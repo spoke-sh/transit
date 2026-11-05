@@ -21,6 +21,8 @@ decision: p.Transaction.Decision,
 scratch: std.heap.ArenaAllocator,
 limits: Limits,
 next_page: ?c.DirectRecord.Reference,
+previous_page: ?c.DirectRecord.Reference = null,
+sequence: u64 = 0,
 page_offset: u32 = 0,
 remaining: u64,
 read_rows: u64 = 0,
@@ -65,7 +67,8 @@ pub fn validateDisclosure(self: *Self) !void {
 
 /// Each successful row belongs to output and survives subsequent scratch reuse.
 /// The caller resets output per page/batch; this reader retains no row backlog.
-/// Rows follow descending staging ordinal; this adds no SQL ordering promise.
+/// Rows follow ascending evaluation ordinal. A SQL query over the mutable
+/// output Table still declares ORDER BY when it needs a particular order.
 pub fn next(self: *Self, output: *std.heap.ArenaAllocator) !?f.TableRow.Row {
     if (self.failed) return error.FailedManagedRevision;
     return self.nextInner(output) catch |err| {
@@ -87,26 +90,37 @@ fn nextInner(self: *Self, output: *std.heap.ArenaAllocator) !?f.TableRow.Row {
     var client = self.manager.client;
     client.allocator = self.scratch.allocator();
     const manager: M = .{ .client = client };
-    const parsed = try manager.load(M.Page, reference, M.page_format);
+    const linked = try manager.load(M.PageLink, reference, M.page_link_format);
+    const link = linked.value;
+    if (link.definition != p.Growth.current_definition or !std.meta.eql(link.transaction, self.manifest.value.transaction) or
+        link.page.format != c.DirectTransactionRecord.format or !std.meta.eql(link.page.scope, self.root.scope)) return error.InvalidManagedTableRecord;
+    if (link.next) |following| if (following.format != c.DirectTransactionRecord.format or !std.meta.eql(following.scope, self.root.scope)) return error.InvalidManagedTableRecord;
+    const page_bytes = try std.math.add(u64, reference.content.bytes, link.page.content.bytes);
+    if (self.page_offset == 0 and page_bytes > self.limits.bytes - self.read_bytes) return error.ManagedTableResultBudget;
+    const parsed = try manager.load(M.Page, link.page, M.page_format);
     // Parsed storage uses the reusable scratch arena and cannot escape this call.
     const page = parsed.value;
     if (page.definition != p.Growth.current_definition or !std.meta.eql(page.transaction, self.manifest.value.transaction) or
         page.rows.len == 0 or page.rows.len > M.max_page_rows or self.page_offset >= page.rows.len or
-        page.first_ordinal + page.rows.len != self.remaining + self.page_offset or
-        (page.previous == null) != (page.sequence == 0) or
-        (page.previous == null) != (page.first_ordinal == 0)) return error.IncompleteDataflowCoverage;
-    const row_index = page.rows.len - 1 - self.page_offset;
+        page.sequence != self.sequence or page.first_ordinal != self.read_rows - self.page_offset or
+        page.rows.len - self.page_offset > self.remaining or
+        !std.meta.eql(page.previous, self.previous_page) or
+        (link.next == null) != (page.rows.len - self.page_offset == self.remaining)) return error.IncompleteDataflowCoverage;
+    const row_index = self.page_offset;
     const encoded = try page.rows[row_index].decode(self.scratch.allocator(), f.TableRow.max_bytes);
     const decoded = try f.TableRow.decodeInto(output.allocator(), self.schema.schema, encoded);
     if (decoded.identity.ordinal != page.first_ordinal + row_index) return error.IncompleteDataflowCoverage;
-    const previous = page.previous;
+    const following = link.next;
+    const current_page = link.page;
     const page_len = page.rows.len;
     // Authorization may have changed during I/O or decode. Do not advance the
     // cursor or report a complete empty/last page before this disclosure check.
     try self.validateDisclosure();
-    if (self.page_offset == 0) self.read_bytes += reference.content.bytes;
+    if (self.page_offset == 0) self.read_bytes += page_bytes;
     if (self.page_offset + 1 == page_len) {
-        self.next_page = previous;
+        self.next_page = following;
+        self.previous_page = current_page;
+        self.sequence += 1;
         self.page_offset = 0;
     } else self.page_offset += 1;
     self.remaining -= 1;

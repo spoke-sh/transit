@@ -19,6 +19,7 @@ bases: [r.max_sources]c.DirectTableReader.Basis = undefined,
 cuts: [r.max_sources]r.Cut = undefined,
 reads: u64 = 0,
 read_limit: u64,
+projection: e.Projection = .{},
 pub const resident_bytes = @sizeOf(Self) + 2 * f.TableRow.max_bytes + 2 * f.TableSchema.max_bytes;
 
 /// Fixed-size commitments fit one native value. Full handles, interpretations
@@ -113,6 +114,7 @@ pub fn open(turn: *q.station.Turn, allocator: std.mem.Allocator, bundle: q.Relat
     if (clients.len != bundle.sources.len) return error.InvalidRelationalSources;
     if (bundle.plan.budgets.resident_bytes < resident_bytes) return error.RelationalResidentBudget;
     var self: Self = .{ .turn = turn, .allocator = allocator, .bundle = bundle, .job = job, .vector = vector, .clients = clients, .read_limit = read_limit };
+    self.projection = try e.Projection.init(bundle.plan);
     try vector.boundCuts(bundle, &self.cuts);
     var current = turn.committed();
     for (bundle.sources, bundle.plan.sources, 0..) |source, declared, i| {
@@ -146,7 +148,7 @@ pub fn next(self: *Self, ordinal: u8, after: ?r.RowIdentity) !?e.Row {
     try self.validate(self.bound());
     if (batch.count == 0) return null;
     const owned = batch.rows[0].?;
-    return try e.Row.fromCells(self.allocator, owned.identity, self.bundle.plan.sources[ordinal].schema.columns, owned.row().cells);
+    return try self.projection.row(self.allocator, owned.identity, ordinal, self.bundle.plan.sources[ordinal].schema.columns, owned.row().cells);
 }
 
 test {

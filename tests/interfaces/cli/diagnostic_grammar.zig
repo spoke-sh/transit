@@ -122,7 +122,8 @@ fn compile(allocator: std.mem.Allocator, case: Case, binding: *f.Sql.Binding, lo
             defer basis.deinit();
             var sources: [2]f.Relational.Source = undefined;
             for (syntax.targets, 0..) |target, i| sources[i] = .{ .alias = target.alias, .realm = 1, .resource = i + 1, .catalog = 1, .owner = i + 1, .schema = try basis.statement.create.bind(i + 1) };
-            _ = syntax.bind(sources[0..syntax.targets.len], .interactive, .{ .resident_bytes = 1048576, .spill_bytes = 1048576, .result_bytes = 1048576, .output_rows = 1000, .work_steps = 10000, .source_pins = 2 }, location) catch |err| {
+            var parameters: f.RelationalSql.Parameters = .{};
+            _ = syntax.bindParameters(allocator, sources[0..syntax.targets.len], .interactive, .{ .resident_bytes = 1048576, .spill_bytes = 1048576, .result_bytes = 1048576, .output_rows = 1000, .work_steps = 10000, .source_pins = 2 }, location, &parameters, null) catch |err| {
                 location.offset += start;
                 return err;
             };

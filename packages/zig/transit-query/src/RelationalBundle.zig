@@ -26,6 +26,9 @@ pub const Owned = struct {
 pub fn validate(self: Self) !void {
     if (self.authorization) |value| try value.validate();
     try self.plan.validate();
+    // Native maintained deltas merge canonical identities. Ordered finite
+    // results and managed DATAFLOW revisions have different owners.
+    if (self.plan.lifetime == .maintained and self.plan.order_by.len != 0) return error.UnsupportedRelationalClause;
     if (self.consistency != .independent_table_snapshots) return error.UnsupportedRelationalConsistency;
     if (self.plan.lifetime == .interactive or self.sources.len != self.plan.sources.len) return error.InvalidRelationalSources;
     if (self.retention.len != 0 and self.retention.len != self.sources.len) return error.InvalidRelationalSources;
