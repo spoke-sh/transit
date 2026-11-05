@@ -140,8 +140,16 @@ pub const Saved = struct {
         try self.connection.validate();
         try self.work.validate(self.connection);
         if (self.wait_ms) |milliseconds| {
-            if (self.work != .queue or self.work.queue.work != .claim) return error.InvalidWorkloadWait;
-            try (c.DirectQueue.Request{ .wait = .{ .claim = self.work.queue.work.claim, .milliseconds = milliseconds } }).validate(self.connection.principal, self.connection.scope);
+            switch (self.work) {
+                .stream => |value| {
+                    if (value.work != .consume) return error.InvalidWorkloadWait;
+                    try (c.DirectStream.Request{ .wait = .{ .consume = value.work.consume, .milliseconds = milliseconds } }).validate(self.connection.principal, self.connection.scope);
+                },
+                .queue => |value| {
+                    if (value.work != .claim) return error.InvalidWorkloadWait;
+                    try (c.DirectQueue.Request{ .wait = .{ .claim = value.work.claim, .milliseconds = milliseconds } }).validate(self.connection.principal, self.connection.scope);
+                },
+            }
         }
         const target = self.work.target();
         if (self.source.declaration.stored.retired or
@@ -214,7 +222,7 @@ pub const Reference = struct {
         return switch (intent.parsed.value.work) {
             .stream => |work| client.call(.{ .stream = switch (command) {
                 .inspect => .{ .operation = work.work },
-                .execute => .{ .mutate = work },
+                .execute => if (intent.parsed.value.wait_ms) |milliseconds| .{ .wait = .{ .consume = work.work.consume, .milliseconds = milliseconds } } else .{ .mutate = work },
                 .cancel => .{ .cancel = work.work },
             } }),
             .queue => |work| client.call(.{ .queue = switch (command) {

@@ -136,7 +136,6 @@ pub fn freeze(self: *const Self, allocator: std.mem.Allocator, operation: u64, v
     try identity.validate();
     var bound = try self.compiled.bind(allocator, values, diagnostic);
     defer bound.deinit();
-    if (bound.wait_ms != null) return error.UnsupportedConstruct;
     const selected = try bounds(&bound);
     if (selected.empty()) return error.UnsupportedConstruct;
     const count = self.definition.stored.declaration.configuration.partitioning.count;
@@ -176,7 +175,7 @@ pub fn freeze(self: *const Self, allocator: std.mem.Allocator, operation: u64, v
     const projection: c.DirectWorkloadIntent.Projection = .{ .fields = bound.fields, .plan = try w.Binary.encode(a, try f.WorkloadProjection.encode(input, bound.fields, bound.plan.plan, a, &plan_buffer)) };
     var schema_buffer: [f.TableSchema.max_bytes]u8 = undefined;
     const source: c.DirectLogProtocol.Definition = .{ .declaration = self.definition, .schema = try w.Binary.encode(a, try schema.encode(&schema_buffer)) };
-    return c.DirectWorkloadIntent.createProjected(allocator, self.connection, source, work, projection);
+    return c.DirectWorkloadIntent.createWaited(allocator, self.connection, source, work, projection, bound.wait_ms);
 }
 
 const TestFixture = struct {
@@ -217,7 +216,7 @@ const TestFixture = struct {
 
 fn testOwned(allocator: std.mem.Allocator, metadata: c.DirectLogProtocol.Definition) !void {
     const t = std.testing;
-    var prepared = try init(allocator, TestFixture.connection, 1, "CONSUME payload AS body, _offset FROM events WHERE _partition = $1 AND _offset >= $2 AND payload = $3 LIMIT $4", metadata, .transit, null);
+    var prepared = try init(allocator, TestFixture.connection, 1, "CONSUME payload AS body, _offset FROM events WHERE _partition = $1 AND _offset >= $2 AND payload = $3 LIMIT $4 WAIT '100ms'", metadata, .transit, null);
     var live = true;
     defer if (live) prepared.deinit();
     var text = "ALPHA".*;
@@ -230,6 +229,7 @@ fn testOwned(allocator: std.mem.Allocator, metadata: c.DirectLogProtocol.Definit
     defer restored.deinit();
     try t.expectEqualDeep(try intent.reference(@splat(17)), try restored.reference(@splat(17)));
     const saved = restored.parsed.value;
+    try t.expectEqual(@as(?u32, 100), saved.wait_ms);
     const request = saved.work.stream.work.consume;
     try t.expectEqual(@as(u32, 2), request.target.partition);
     try t.expectEqual(@as(u64, 10), request.from);
@@ -275,7 +275,7 @@ test "log consume Catalog routing conservatively encloses Boolean metadata predi
         .{ .predicate = "_partition = 0 AND NOT (_offset < 9)", .partition = 0, .from = 0 },
         .{ .predicate = "_partition = 2 AND _offset < 100", .partition = 2, .from = 0 },
     }) |case| {
-        const sql = try std.fmt.allocPrint(t.allocator, "CONSUME * FROM events WHERE {s} LIMIT 7", .{case.predicate});
+        const sql = try std.fmt.allocPrint(t.allocator, "CONSUME * FROM events WHERE {s} LIMIT 7 WAIT '1s'", .{case.predicate});
         defer t.allocator.free(sql);
         var prepared = try init(t.allocator, TestFixture.connection, 1, sql, fixture.metadata, .transit, null);
         defer prepared.deinit();
@@ -292,7 +292,8 @@ test "log consume Catalog routing conservatively encloses Boolean metadata predi
         .{ .sql = "CONSUME id FROM events WHERE _partition = 0 OR id = 1", .failure = error.LogPartitionRequired },
         .{ .sql = "CONSUME id FROM events WHERE _partition = 3", .failure = error.InvalidLogPartitioning },
         .{ .sql = "CONSUME id FROM events WHERE _partition = 0 AND _offset > 18446744073709551615", .failure = error.UnsupportedConstruct },
-        .{ .sql = "CONSUME id FROM events WAIT '1ms'", .failure = error.UnsupportedConstruct },
+        .{ .sql = "CONSUME id FROM events WAIT '1ms'", .failure = error.LogPartitionRequired },
+        .{ .sql = "CONSUME id FROM events WHERE _partition = 0 WAIT '1001ms'", .failure = error.InvalidStreamWait },
     }) |case| {
         var prepared = try init(t.allocator, TestFixture.connection, 1, case.sql, fixture.metadata, .transit, null);
         defer prepared.deinit();
@@ -311,7 +312,7 @@ test "group consume freezes the explicit assignment checkpoint and rejects misma
         .group = .{ .id = 19, .generation = 5, .principal = TestFixture.connection.principal },
         .next = 9,
     } };
-    var prepared = try init(t.allocator, TestFixture.connection, 1, "CONSUME id FROM events GROUP $1 WHERE _offset >= 30 LIMIT 0", fixture.metadata, .transit, null);
+    var prepared = try init(t.allocator, TestFixture.connection, 1, "CONSUME id FROM events GROUP $1 WHERE _offset >= 30 LIMIT 0 WAIT '1s'", fixture.metadata, .transit, null);
     defer prepared.deinit();
     const bytes = try p.StreamHandle.encode(t.allocator, handle);
     defer t.allocator.free(bytes);
@@ -323,10 +324,42 @@ test "group consume freezes the explicit assignment checkpoint and rejects misma
     try t.expectEqual(2, request.target.partition);
     try t.expectEqual(9, request.from);
     try t.expectEqual(null, request.until);
+    try t.expectEqual(@as(?u32, 1000), intent.parsed.value.wait_ms);
     handle.group.group.principal += 1;
     const foreign = try p.StreamHandle.encode(t.allocator, handle);
     defer t.allocator.free(foreign);
     try t.expectError(error.LogGroupFenced, prepared.freeze(t.allocator, 100, &.{.{ .bytes = foreign }}, null));
+}
+
+test "Stream wait policy is canonical without changing the native consume identity" {
+    const t = std.testing;
+    var fixture = try TestFixture.init(1);
+    defer fixture.deinit();
+    var prepared = try init(t.allocator, TestFixture.connection, 1, "CONSUME id FROM events WHERE _offset < 20 LIMIT 0 WAIT '100ms'", fixture.metadata, .transit, null);
+    defer prepared.deinit();
+    var intent = try prepared.freeze(t.allocator, 321, &.{}, null);
+    defer intent.deinit();
+    const saved = intent.parsed.value;
+    try t.expectEqual(@as(?u32, 100), saved.wait_ms);
+    try t.expectEqual(0, saved.work.stream.work.consume.from);
+    try t.expectEqual(null, saved.work.stream.work.consume.until);
+    var ordinary = try c.DirectWorkloadIntent.createProjected(t.allocator, saved.connection, saved.source, saved.work, saved.projection);
+    defer ordinary.deinit();
+    var longer = try c.DirectWorkloadIntent.createWaited(t.allocator, saved.connection, saved.source, saved.work, saved.projection, 101);
+    defer longer.deinit();
+    const reference = try intent.reference(@splat(1));
+    for ([_]*c.DirectWorkloadIntent{ &ordinary, &longer }) |other| {
+        const changed = try other.reference(@splat(1));
+        try t.expectEqualDeep(reference.binding, changed.binding);
+        try t.expect(!std.meta.eql(reference.record.content, changed.record.content));
+    }
+    for ([_]u32{ 0, 1001 }) |milliseconds| try t.expectError(error.InvalidStreamWait, c.DirectWorkloadIntent.createWaited(t.allocator, saved.connection, saved.source, saved.work, saved.projection, milliseconds));
+    const missing = try std.mem.replaceOwned(u8, t.allocator, intent.bytes, ",\"wait_ms\":100", "");
+    defer t.allocator.free(missing);
+    try t.expectError(error.MissingField, c.DirectWorkloadIntent.restore(t.allocator, missing));
+    const previous = try std.mem.replaceOwned(u8, t.allocator, intent.bytes, @tagName(p.Growth.current_definition), "72f8c8ee18d16bef3bff32bbc24973c9faebcc33aaad678d4fef0baa70a9c8d5");
+    defer t.allocator.free(previous);
+    try t.expectError(error.InvalidJsonShape, c.DirectWorkloadIntent.restore(t.allocator, previous));
 }
 
 test "SQL offset preparation owns authenticated boundaries and preserves an original control interpretation" {
