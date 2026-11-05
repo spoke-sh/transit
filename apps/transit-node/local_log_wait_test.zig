@@ -124,6 +124,30 @@ pub fn exercise(service: *Service, declaration: c.DirectLog.Definition, schema: 
         try transfer(service.engine, declaration.properties.authorization, owner_role);
         try t.expect((try endpoint.call(.{ .operation = .{ .consume = request } })).operation == null);
     }
+    {
+        // A parked group read must observe a replacement assignment before it
+        // can accept a cut, even though no new event offset was published.
+        const group: p.StreamQueue.Group = .{ .id = 71, .generation = 1, .principal = 101 };
+        var assignment: p.StreamQueue.GroupAssignment = .{
+            .operation = .{ .scope = request.operation.scope, .principal = 101, .operation = 355 },
+            .cut = (try endpoint.call(.{ .observe = target })).cut,
+            .expected = null,
+            .group = group,
+            .next = 2,
+        };
+        const assigned = (try endpoint.call(.{ .mutate = .{ .work = .{ .assign = assignment } } })).operation.?.assign;
+        request.operation.operation = 356;
+        request.group = group;
+        var task = try t.io.concurrent(wait, .{ &host, native, service.engine.genesis, request });
+        defer _ = task.cancel(t.io) catch undefined;
+        try parked(host.log_waits.?);
+        assignment.operation.operation = 357;
+        assignment.expected = try assigned.assignment.resulting();
+        assignment.group.generation += 1;
+        _ = try endpoint.call(.{ .mutate = .{ .work = .{ .assign = assignment } } });
+        try t.expectError(error.LogGroupFenced, task.await(t.io));
+        try t.expect((try endpoint.call(.{ .operation = .{ .consume = request } })).operation == null);
+    }
     try t.expectEqual(@as(usize, 0), host.log_waits.?.notification.active);
 }
 

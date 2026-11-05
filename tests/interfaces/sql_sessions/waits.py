@@ -1,4 +1,4 @@
-"""Installed Queue WAIT keeps one original operation across timeout and replacement."""
+"""Installed Stream/Queue WAIT keeps one original operation across timeout and replacement."""
 from concurrent.futures import ThreadPoolExecutor
 import json
 import os
@@ -25,6 +25,11 @@ def isolated(root, port, postgres, mysql_options, restart, authorize, console):
 
 
 def run(root, port, postgres, mysql_options, restart, authorize, console, config, consumer, home):
+    for kind in ('queue', 'stream'):
+        workload(kind, root, port, postgres, mysql_options, restart, authorize, console, config, consumer, home)
+
+
+def workload(kind, root, port, postgres, mysql_options, restart, authorize, console, config, consumer, home):
     import psycopg
     import mysql.connector
 
@@ -34,6 +39,20 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
         value = client.terminal(client.execute(sql, list(os.urandom(16)))['operation'])
         assert value['outcome'] == 'applied', value
         return value
+
+    def read(name, wait=None, receipt=False, limit=None):
+        projection = 'value, _receipt_handle' if receipt and kind == 'queue' else 'value, _offset' if receipt else 'value'
+        text = f'{"CLAIM" if kind == "queue" else "CONSUME"} {projection} FROM wait_{kind}_{name}'
+        if limit is not None:
+            text += f' LIMIT {limit}'
+        if kind == 'queue':
+            text += " WITH LEASE '30s'"
+        if wait is not None:
+            text += f" WAIT '{wait}'"
+        return text
+
+    def append(name, value):
+        return submit(f'{"ENQUEUE" if kind == "queue" else "PRODUCE"} INTO wait_{kind}_{name} VALUES ({value})')
 
     def pending(value, timeout=False):
         assert value['phase'] == 'ready' and value['outcome'] is None
@@ -48,13 +67,19 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
         client.call(dict(close_result=batch['cursor']))
         return batch['rows'], batch['observation'], batch['completion']
 
-    for name in ('wait_original', 'wait_cancel', 'wait_wake', 'wait_pg', 'wait_mysql', 'wait_console'):
-        submit(f'CREATE QUEUE {name} (value BIGINT NOT NULL)')
-    sql = "CLAIM value, _receipt_handle FROM wait_original LIMIT 1 WITH LEASE '30s' WAIT '100ms'"
+    for name in ('original', 'cancel', 'wake', 'pg', 'mysql', 'console'):
+        submit(f'CREATE {kind.upper()} wait_{kind}_{name} (value BIGINT NOT NULL)')
+    if kind == 'stream':
+        # LIMIT 0 still needs a ready native frontier. It cannot manufacture an
+        # accepted empty read on an empty Stream or advance a checkpoint.
+        zero = pending(client.execute(read('cancel', '1ms', limit=0), list(os.urandom(16)))['operation'], timeout=True)
+        closed = client.terminal(client.call(dict(cancel=dict(operation=zero['identity'])))['operation'], outcomes=('cancelled',))
+        assert closed['outcome'] == 'cancelled'
+    sql = read('original', '100ms', receipt=True, limit=1)
     token = list(os.urandom(16))
     original = pending(client.execute(sql, token)['operation'], timeout=True)
     identity = original['identity']
-    saved = root / 'sql-wait-original.json'
+    saved = root / f'sql-{kind}-wait-original.json'
     saved.write_text(json.dumps(dict(identity=identity, token=token, wait=original['wait'])))
     saved_bytes = saved.read_bytes()
     authorize(False)
@@ -63,7 +88,7 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
         client.call(dict(resume=identity), error='AccessDenied')
     finally:
         authorize(True)
-    submit('ENQUEUE INTO wait_original VALUES (41)')
+    append('original', 41)
     # Repeated status and same-token execute are observations. Even with newly
     # eligible work, neither they nor the recovery worker may acquire it.
     for _ in range(3):
@@ -82,31 +107,31 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
     assert accepted['identity'] == identity and accepted['wait'] is None and accepted['outcome'] == 'applied'
     first = result(identity)
     assert [unsigned(row[0]) for row in first[0]] == [41]
-    submit('ENQUEUE INTO wait_original VALUES (42)')
+    append('original', 42)
     assert client.call(dict(resume=identity))['operation'] == accepted
     assert result(identity) == first
     client.call(dict(execute=dict(sql=sql.replace('100ms', '200ms'), token=token)), error='SqlTokenConflict')
 
     # Losing the complete timeout response cannot let background recovery make
-    # an empty claim or silently begin another wait attempt.
+    # an empty result or silently begin another wait attempt.
     lost_token = list(os.urandom(16))
-    lost_sql = "CLAIM value FROM wait_cancel WITH LEASE '1s' WAIT '50ms'"
+    lost_sql = read('cancel', '50ms')
     client.call(dict(execute=dict(sql=lost_sql, token=lost_token)), discard_response=True)
     lost = pending(client.call(dict(status=dict(token=lost_token)))['operation'])
     cancelled = client.terminal(client.call(dict(cancel=dict(operation=lost['identity'])))['operation'], outcomes=('cancelled',))
     assert cancelled['outcome'] == 'cancelled'
-    submit('ENQUEUE INTO wait_cancel VALUES (43)')
+    append('cancel', 43)
     assert client.call(dict(resume=lost['identity']))['operation'] == cancelled
-    fresh = submit("CLAIM value FROM wait_cancel WITH LEASE '1s'")
+    fresh = submit(read('cancel'))
     assert [unsigned(row[0]) for row in result(fresh['identity'])[0]] == [43]
 
     # Separate sessions share native wakeups without monopolizing SQL control.
     waiter = Client(root, port).open()
     with ThreadPoolExecutor(max_workers=1) as pool:
-        future = pool.submit(waiter.execute, "CLAIM value FROM wait_wake WITH LEASE '30s' WAIT '1s'", list(os.urandom(16)))
+        future = pool.submit(waiter.execute, read('wake', '1s'), list(os.urandom(16)))
         time.sleep(.1)
         client.call(dict(status=dict(operation=identity)))
-        submit('ENQUEUE INTO wait_wake VALUES (44)')
+        append('wake', 44)
         wake = future.result(timeout=30)['operation']
         arrival_timed_out = wake['phase'] != 'terminal'
         if arrival_timed_out:
@@ -119,12 +144,12 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
     waiter.close()
     assert [unsigned(row[0]) for row in result(wake['identity'])[0]] == [44]
 
-    # Wire errors retain the original operation ID; timeout is never a CLAIM 0.
+    # Wire errors retain the original operation ID; timeout never returns successful empty rows.
     wire_ids = []
     with psycopg.connect(**postgres) as wire:
         with wire.cursor() as cursor:
             try:
-                cursor.execute("CLAIM value FROM wait_pg WITH LEASE '1s' WAIT '50ms'", prepare=True)
+                cursor.execute(read('pg', '50ms'), prepare=True)
             except psycopg.Error as error:
                 assert error.sqlstate == '57014', error
                 wire_ids.append(int(re.search(r'Gateway operation (\d+)', error.diag.message_detail).group(1)))
@@ -133,7 +158,7 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
     with mysql.connector.connect(**mysql_options) as wire:
         with wire.cursor(prepared=True) as cursor:
             try:
-                cursor.execute("CLAIM value FROM wait_mysql WITH LEASE '1s' WAIT '50ms'")
+                cursor.execute(read('mysql', '50ms'))
             except mysql.connector.Error as error:
                 assert error.errno == 1317 and error.sqlstate == '70100', error
                 wire_ids.append(int(re.search(r'Gateway operation (\d+)', error.msg).group(1)))
@@ -145,7 +170,7 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
         assert client.terminal(client.call(dict(cancel=dict(operation=original_id)))['operation'], outcomes=('cancelled',))['outcome'] == 'cancelled'
 
     script = consumer / 'wait.sql'
-    script.write_text("CLAIM value FROM wait_console WITH LEASE '1s' WAIT '50ms';\n")
+    script.write_text(read('console', '50ms') + ';\n')
     rendered = subprocess.run([console, 'console', '--config', str(config), '--no-rc', '-f', str(script)],
                               cwd=consumer, env={'PATH': '/unavailable', 'HOME': str(home), 'LANG': 'C'},
                               capture_output=True, text=True, timeout=60)
@@ -162,7 +187,7 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
     assert recovered['identity'] == console_identity
     assert client.terminal(client.call(dict(cancel=dict(operation=console_identity)))['operation'], outcomes=('cancelled',))['outcome'] == 'cancelled'
     client.close()
-    print(json.dumps(dict(profile='sql_queue_wait', timeout_nonterminal=True, passive_recovery=True,
+    print(json.dumps(dict(profile=f'sql_{kind}_wait', timeout_nonterminal=True, passive_recovery=True,
                           original_resume_after_replacement=True, original_receipt_replay=True,
                           lost_timeout_reply=True, lost_resume_reply=True, cancellation=True, current_authorization=True,
                           concurrent_arrival=True, arrival_timed_out=arrival_timed_out, postgres=True, mysql=True, console=True, passed=True)), flush=True)

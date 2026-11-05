@@ -94,3 +94,29 @@ test "Log wait registrations use stable partition budgets and retain pre-park pu
     try t.expectError(error.NotificationClosed, waits.register(target));
     try t.expectEqual(Notification.Outcome.closed, try waits.wait(revised, .none));
 }
+
+test "Log wait registration capacity is aggregate and reusable after release" {
+    const t = std.testing;
+    const waits = try Self.create(t.allocator, t.io);
+    defer waits.destroy();
+    var target: c.protocol.StreamQueue.Partition = .{
+        .definition = c.protocol.Growth.current_definition,
+        .interpretation = .{ .object = .{ .scope = .{ .realm = 1, .resource = 2, .catalog = 3 }, .branch = 1, .object = 4 }, .revision = 1, .digest = @splat(5) },
+        .partition = 0,
+    };
+    var tickets: [capacity]Ticket = undefined;
+    var active: usize = 0;
+    defer for (tickets[0..active]) |ticket| waits.release(ticket);
+    for (&tickets, 0..) |*ticket, index| {
+        target.partition = @intCast(index);
+        ticket.* = try waits.register(target);
+        active += 1;
+        try t.expectEqual(@as(u32, 1), try waits.count(ticket.*));
+    }
+    try t.expectError(error.NotificationCapacityExceeded, waits.register(target));
+    waits.release(tickets[active - 1]);
+    active -= 1;
+    tickets[active] = try waits.register(target);
+    active += 1;
+    try t.expectEqual(@as(usize, capacity), waits.notification.active);
+}
