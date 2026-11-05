@@ -31,8 +31,8 @@ def exercise(library, board, root, authority, service, profile, restart, policy,
     execute('CREATE TABLE rel_right (k BIGINT, v BIGINT)', 1002, '1002')
     execute('INSERT INTO rel_left VALUES (7,10),(7,20),(9,30),(NULL,40)', 1003)
     execute('INSERT INTO rel_right VALUES (7,7),(7,1),(NULL,4)', 1004)
-    execute('CREATE TABLE rel_typed (category BOOLEAN, amount DECIMAL(20,2))', 1005, '1005')
-    execute('INSERT INTO rel_typed VALUES (TRUE,12.50),(TRUE,5.25),(FALSE,7.25)', 1006)
+    execute('CREATE TABLE rel_typed (category BOOLEAN, amount DECIMAL(20,2))', 1101, '1101')
+    execute('INSERT INTO rel_typed VALUES (TRUE,12.50),(TRUE,5.25),(FALSE,7.25)', 1102)
     recovery = root / 'board-recovery'
     recovery.mkdir()
     seed = root / 'board-reader.seed'
