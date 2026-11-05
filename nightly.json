@@ -4,25 +4,25 @@
     "version": 1,
     "channel": "nightly",
     "base_version": "0.0.1",
-    "release": "0.0.1-nightly.20261105.gd4d4b637adc6",
-    "tag": "nightly-20261105-gd4d4b637adc6",
-    "source_revision": "d4d4b637adc63857a092ecd88a7854cbfb901bf3",
-    "source_date_epoch": 1793844145,
+    "release": "0.0.1-nightly.20261105.g07041b76ebda",
+    "tag": "nightly-20261105-g07041b76ebda",
+    "source_revision": "07041b76ebda5744492b2b5bc962aa57ba9fd440",
+    "source_date_epoch": 1793909407,
     "date": "20261105",
     "package_versions": {
-      "python": "0.0.1.dev20261105+gd4d4b637adc6",
-      "node": "0.0.1-nightly.20261105.gd4d4b637adc6",
-      "rust": "0.0.1-nightly.20261105.gd4d4b637adc6",
-      "ruby": "0.0.1.nightly.20261105.gd4d4b637adc6",
-      "c": "0.0.1-nightly.20261105.gd4d4b637adc6",
-      "java": "0.0.1-nightly.20261105.gd4d4b637adc6",
-      "dotnet": "0.0.1-nightly.20261105.gd4d4b637adc6",
-      "beam": "0.0.1-nightly.20261105.gd4d4b637adc6",
-      "go": "0.0.1-nightly.20261105.gd4d4b637adc6",
-      "zig": "0.0.1-dev.gd4d4b637adc6"
+      "python": "0.0.1.dev20261105+g07041b76ebda",
+      "node": "0.0.1-nightly.20261105.g07041b76ebda",
+      "rust": "0.0.1-nightly.20261105.g07041b76ebda",
+      "ruby": "0.0.1.nightly.20261105.g07041b76ebda",
+      "c": "0.0.1-nightly.20261105.g07041b76ebda",
+      "java": "0.0.1-nightly.20261105.g07041b76ebda",
+      "dotnet": "0.0.1-nightly.20261105.g07041b76ebda",
+      "beam": "0.0.1-nightly.20261105.g07041b76ebda",
+      "go": "0.0.1-nightly.20261105.g07041b76ebda",
+      "zig": "0.0.1-dev.g07041b76ebda"
     }
   },
-  "manifest_sha256": "6e6aa8fdddfd05e6cd9d74e23434f265a8c0274924b3e2c61e3aaa8500f488c8",
-  "checksums_sha256": "60fa88408d5b20f90c23b768690f177fe6fd6bec3abdf9ae1c489c6859f2622b",
-  "workflow_run": 41952542000
+  "manifest_sha256": "a5b3a0b695a5a8dd3335209023df9468493aa04cd3e0d8583e02cf556dd325c5",
+  "checksums_sha256": "d7ffbd39be7aa49113bc21739ed73ae3d6debb40d7b2b6fd8004bfbc0c95b0a4",
+  "workflow_run": 42100858807
 }
