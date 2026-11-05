@@ -7,7 +7,7 @@ const p = r.protocol;
 const d = p.DataLifecycle;
 
 /// Nonterminal observation of a frozen wait. A timeout cut proves only that
-/// attempt ended without acceptance; it is neither an empty claim nor a pin.
+/// attempt ended without acceptance; it is neither an empty result nor a pin.
 /// Absence of a cut means observation only, not an assertion about an attempt.
 pub const Wait = struct {
     intent: d.Content,
@@ -18,8 +18,11 @@ pub const Wait = struct {
     pub fn validate(self: Wait) !void {
         try self.intent.validate();
         try self.binding.validate();
-        if (self.binding != .queue or self.binding.queue.kind != .claim or
-            self.milliseconds == 0 or self.milliseconds > 1000) return error.InvalidWorkloadWait;
+        const supported = switch (self.binding) {
+            .stream => |value| value.kind == .consume,
+            .queue => |value| value.kind == .claim,
+        };
+        if (!supported or self.milliseconds == 0 or self.milliseconds > 1000) return error.InvalidWorkloadWait;
         if (self.timed_out) |cut| {
             try cut.validate();
             try self.binding.target().requireSame(cut.target);

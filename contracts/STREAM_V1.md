@@ -9,7 +9,11 @@ They perform no I/O and establish no permission, catalog publication, payload
 availability or durable acceptance. SQL declarations and named inspection use
 the [shared Catalog lifecycle](../docs/handbook/reference/sql/streaming.md#stream-and-queue-declarations).
 SQL also supports [PRODUCE and finite CONSUME](../docs/handbook/reference/sql/streaming.md#append-events-and-work).
-Explicitly assigned group consumption and authenticated `COMMIT OFFSET` use the same native owners. WAIT and `STREAM_SLICE` remain unavailable in SQL.
+Explicitly assigned group consumption, bounded WAIT and authenticated
+`COMMIT OFFSET` use the same native owners. `STREAM_SLICE` remains unavailable in SQL.
+SQL WAIT retains one original consume request and an open upper frontier;
+payload and upper-offset predicates filter output after acceptance. See the
+[SQL wait contract](SQL_SESSION_V1.md#stream-wait-attempts).
 
 The signed [original-result action](DIRECT_TABLE_V1.md#original-workload-result-delivery)
 reopens accepted append and finite consume results from frozen workload intents.
