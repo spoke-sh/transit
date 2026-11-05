@@ -664,16 +664,22 @@ pub fn executePrepared(self: *Self, allocator: std.mem.Allocator, observer: *g.C
     const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation, null, false, true, fresh_prepared, fresh_fenced);
     const intent = state.receipt.binding.intent;
     try requireRoute(state, table, statement.namespace);
-    if (try self.foreground(observer, table, state, deadline)) |terminal| return .{ .terminal = terminal, .completion = try terminal.completion(try g.IntentReference.commandKind(intent), .{ .account = self.execution.configuration.account, .id = state.id() }) };
+    // Catalog already owns this token and frozen intent. A private candidate
+    // fenced by collection must yield to original-work recovery, just as a
+    // conflict received after commit must resolve the original receipt.
+    const completed = self.foreground(observer, table, state, deadline) catch |err|
+        if (table.service.contended(err)) null else return err;
+    if (completed) |terminal| return .{ .terminal = terminal, .completion = try terminal.completion(try g.IntentReference.commandKind(intent), .{ .account = self.execution.configuration.account, .id = state.id() }) };
     claimed = false;
     selected.unlock(self.io);
     self.notify();
     while (true) {
         try deadline.check(self.io);
+        const epoch = self.progress_epoch.load(.acquire);
         const response = try self.available(observer, deadline, c.DirectIntent.Reference.operation, .{ intent, table.*, .inspect, 1 });
         defer response.deinit();
         if (try g.Terminal.fromReference(intent, response.value.result)) |terminal| return .{ .terminal = terminal, .completion = try terminal.completion(try g.IntentReference.commandKind(intent), .{ .account = self.execution.configuration.account, .id = state.id() }) };
-        try self.waitProgress(2);
+        try self.waitProgressAfter(epoch, deadline);
     }
 }
 pub fn status(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, namespace: u64, id: u64) !g.session_protocol.Operation {
