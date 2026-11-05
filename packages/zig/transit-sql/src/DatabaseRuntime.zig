@@ -468,6 +468,29 @@ pub fn resumeOperation(self: *Self, observer: *g.Client, id: u64) !void {
     errdefer self.notify();
     if (try self.recoverOne(&source, id)) self.notify();
 }
+/// One explicit attempt against the original workload; never retries a native
+/// wait automatically. The token lock coordinates recovery, not partition data.
+pub fn resumeWorkload(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, namespace: u64, id: u64, deadline: Deadline) !g.session_protocol.Operation {
+    var source = try observer.source();
+    const token = (try source.operation(id)).receipt.binding.key.token;
+    const selected = self.claim(token);
+    try selected.lock(self.io);
+    defer selected.unlock(self.io);
+    defer self.notify();
+    try deadline.check(self.io);
+    try self.fence(observer);
+    table.lease = self.lease();
+    const state = try source.operation(id);
+    try requireRoute(state, table, namespace);
+    if (state.receipt.binding.intent != .workload) return error.WorkloadOperationRequired;
+    const wait = try g.WorkloadOperations.attempt(table.*, state);
+    var result = try self.status(allocator, observer, table, namespace, id);
+    if (result.wait != null and wait != null) {
+        try result.wait.?.requireSame(wait.?);
+        result.wait = wait;
+    }
+    return result;
+}
 pub fn lookup(self: *Self, observer: *g.Client, nonce: [16]u8, fingerprint: ?[32]u8) !?g.OperationRecords.Operation {
     const state = (try lookupState(observer, nonce, fingerprint)) orelse return null;
     return try self.execution.operationFromState(state);
@@ -496,10 +519,11 @@ pub fn admit(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, tab
     try selected.lock(self.io);
     defer selected.unlock(self.io);
     defer self.notify();
-    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, null, true, false, false, false);
+    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, null, true, false, false, false, null);
     return self.execution.operationFromState(state);
 }
-fn admitWithWake(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64, acceptance_possible: ?*bool, wake: bool, fresh_nonce: bool, fresh_prepared: bool, fresh_fenced: bool) !c.DirectClientToken.Progress {
+fn admitWithWake(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64, acceptance_possible: ?*bool, wake: bool, fresh_nonce: bool, fresh_prepared: bool, fresh_fenced: bool, newly_bound: ?*bool) !c.DirectClientToken.Progress {
+    if (newly_bound) |flag| flag.* = false;
     if (acceptance_possible) |flag| flag.* = false;
     try deadline.check(self.io);
     if (!fresh_fenced) try self.available(observer, deadline, Self.fence, .{ self, observer });
@@ -554,6 +578,7 @@ fn admitWithWake(self: *Self, allocator: std.mem.Allocator, observer: *g.Client,
         }
         return err;
     };
+    if (newly_bound) |flag| flag.* = std.meta.eql(receipt.binding.intent, reference);
     operation.* = receipt.position.next_lsn;
     if (wake) self.notify();
     const state = c.DirectClientToken.Progress.initial(receipt);
@@ -571,8 +596,20 @@ pub fn submitPrepared(self: *Self, allocator: std.mem.Allocator, observer: *g.Cl
     try selected.lock(self.io);
     defer selected.unlock(self.io);
     errdefer self.notify();
-    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, acceptance_possible, false, true, fresh_prepared, fresh_fenced);
+    var newly_bound = false;
+    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, acceptance_possible, false, true, fresh_prepared, fresh_fenced, &newly_bound);
     try requireRoute(state, table, statement.namespace);
+    if (state.receipt.binding.intent == .workload and newly_bound) {
+        try deadline.check(self.io);
+        const wait = try g.WorkloadOperations.initialWait(table.*, state);
+        if (state.pending) self.notify();
+        var result = try self.status(allocator, observer, table, statement.namespace, state.id());
+        if (result.wait != null and wait != null) {
+            try result.wait.?.requireSame(wait.?);
+            result.wait = wait;
+        }
+        return result;
+    }
     const terminal = self.foreground(observer, table, state, deadline) catch |err| switch (err) {
         error.GatewayDeadline, error.Conflict => null,
         else => if (wire.Client.unavailable(err)) null else return err,
@@ -636,16 +673,23 @@ pub fn executeWorkloadPrepared(self: *Self, allocator: std.mem.Allocator, observ
     var claimed = true;
     defer if (claimed) selected.unlock(self.io);
     errdefer self.notify();
-    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation, null, false, true, fresh_prepared, fresh_fenced);
+    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation, null, false, true, fresh_prepared, fresh_fenced, null);
     try requireRoute(state, table, statement.namespace);
-    const pending = try g.WorkloadOperations.advance(table.*, state);
+    const wait = try g.WorkloadOperations.attempt(table.*, state);
     claimed = false;
     selected.unlock(self.io);
-    if (pending) self.notify();
+    if (state.pending) self.notify();
     while (true) {
         try deadline.check(self.io);
         const epoch = self.progress_epoch.load(.acquire);
-        const result = try self.status(allocator, observer, table, statement.namespace, state.id());
+        var result = try self.status(allocator, observer, table, statement.namespace, state.id());
+        if (result.wait != null) {
+            if (wait) |value| {
+                try result.wait.?.requireSame(value);
+                result.wait = value;
+            }
+            return result;
+        }
         if (result.phase == .terminal) return result;
         try self.waitProgressAfter(epoch, deadline);
     }
@@ -661,7 +705,7 @@ pub fn executePrepared(self: *Self, allocator: std.mem.Allocator, observer: *g.C
     var claimed = true;
     defer if (claimed) selected.unlock(self.io);
     errdefer self.notify();
-    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation, null, false, true, fresh_prepared, fresh_fenced);
+    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation, null, false, true, fresh_prepared, fresh_fenced, null);
     const intent = state.receipt.binding.intent;
     try requireRoute(state, table, statement.namespace);
     // Catalog already owns this token and frozen intent. A private candidate

@@ -682,6 +682,7 @@ pub fn openRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Value
 }
 
 fn requireWorkloadOutcome(result: g.session_protocol.Operation) !void {
+    if (result.wait != null) return error.SqlWorkloadWaiting;
     if (result.phase != .terminal) return error.MissingGatewayTerminal;
     switch (result.outcome orelse return error.MissingGatewayTerminal) {
         .applied, .unchanged => {},
@@ -891,7 +892,7 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
     const info: struct { [5]u8, []const u8 } = if (err == error.AuthorityUnavailable and (rejected == .HttpCapacity or rejected == .ControlCapacity or rejected == .StorageQuota)) .{ "53000".*, "Database capacity exhausted; inspect admitted writes before retrying SQL" } else if (err == error.Conflict and rejected == .Conflict) .{ "55000".*, "Current state changed; inspect admitted work before retrying SQL" } else switch (cause) {
         error.CatalogDenied, error.AccessDenied, error.GatewayDatabaseDenied, error.ConfigurationDenied => .{ "42501".*, "Current permission denied" },
         error.GatewayCredentialChanged, error.InvalidAuthentication => .{ "28000".*, "Credential changed or disabled" },
-        error.GatewayDeadline, error.GatewayWaitCancelled, error.Cancelled, error.Canceled, error.StatementTimedOut => .{ "57014".*, "Request wait ended; admitted work requires outcome inspection" },
+        error.SqlWorkloadWaiting, error.GatewayDeadline, error.GatewayWaitCancelled, error.Cancelled, error.Canceled, error.StatementTimedOut => .{ "57014".*, "Request wait ended; admitted work requires outcome inspection" },
         error.SettingOutOfRange, error.InvalidSettingValue, error.InvalidSettingUnit => .{ "22023".*, "Setting value exceeds its type or administrator ceiling" },
         error.UnknownSetting => .{ "42704".*, "Unknown registered setting" },
         error.InvalidDataflowRevision => .{ "22023".*, "Revision must be a positive unsigned 64-bit integer" },
@@ -1003,6 +1004,7 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
         error.QueueClaimLimitExceeded => .{ "54000".*, "Claim exceeds the declared Queue budget" },
         error.IncompatibleDefinition => .{ "0A000".*, "Retained descriptor belongs to another Transit definition" },
         error.InvalidQueueLeaseHandle, error.InvalidLogSettlementOperand => .{ "22023".*, "Queue lease receipt rejected" },
+        error.InvalidQueueWait => .{ "22023".*, "WAIT duration must be between 1 and 1000 milliseconds" },
         error.InvalidQueueLeaseDuration => .{ "22023".*, "Lease duration exceeds the declared Queue policy" },
         error.LogAppendLimitExceeded => .{ "54000".*, "Append exceeds the declared Stream or Queue budget" },
         error.LogPartitionRequired, error.LogPartitionKeyMismatch, error.InvalidLogAppendOperand, error.NullWorkloadParameter, error.InvalidLogVisibilityTime, error.InvalidLogProducer => .{ "22023".*, "Invalid Stream or Queue append routing or metadata operand" },

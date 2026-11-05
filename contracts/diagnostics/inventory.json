@@ -6683,7 +6683,7 @@
         "InvalidWorkloadIntent": 4,
         "LogPartitionRequired": 1,
         "QueueClaimLimitExceeded": 1,
-        "UnsupportedConstruct": 3,
+        "UnsupportedConstruct": 2,
         "WorkloadProjectionUnavailable": 1
       },
       "outcomes": {},
@@ -9154,6 +9154,7 @@
         "IncompatibleDefinition": 1,
         "InvalidWorkloadIntent": 6,
         "InvalidWorkloadProjection": 2,
+        "InvalidWorkloadWait": 1,
         "OutOfMemory": 1,
         "SourceChanged": 1,
         "WorkloadProjectionSourceChanged": 1,
@@ -9189,6 +9190,7 @@
         "Work.validate()": "<inferred>",
         "create()": "<inferred>",
         "createProjected()": "<inferred>",
+        "createWaited()": "<inferred>",
         "load()": "<inferred>",
         "reference()": "<inferred>",
         "restore()": "<inferred>",
@@ -9196,7 +9198,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 46,
+        "try": 48,
         "catch": 3
       },
       "imports": [
@@ -23601,7 +23603,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"4a79430a0f740284cda72df8341f0af87a87a63a599d7a81c62a934778875e1a\""
+          "@\"72f8c8ee18d16bef3bff32bbc24973c9faebcc33aaad678d4fef0baa70a9c8d5\""
         ],
         "Effect.phase": [
           "pending",
@@ -30605,15 +30607,16 @@
         "IncompatibleSqlDefinition": 2,
         "InvalidResultBudget": 1,
         "InvalidResultOperation": 1,
-        "InvalidSqlResponse": 6,
+        "InvalidSqlExecution": 1,
+        "InvalidSqlResponse": 8,
         "InvalidSqlSubmission": 1,
         "MissingResultObservation": 1,
-        "MissingWorkloadEvidence": 2,
+        "MissingWorkloadEvidence": 3,
         "ParameterCountMismatch": 1,
         "ReadOnlyStatementRequired": 3,
-        "ResultCancelled": 3,
-        "SqlInstanceChanged": 3,
-        "SqlObservationDenied": 5,
+        "ResultCancelled": 4,
+        "SqlInstanceChanged": 4,
+        "SqlObservationDenied": 6,
         "SqlOutcomeUnknown": 1,
         "SqlResponseBusy": 1,
         "SqlResponseCapacity": 1,
@@ -30659,12 +30662,13 @@
         "read()": "<inferred>",
         "renew()": "<inferred>",
         "requireRead()": "<inferred>",
+        "resumeWorkload()": "<inferred>",
         "settle()": "<inferred>"
       },
       "open_error_set_uses": 7,
       "propagation": {
-        "try": 50,
-        "catch": 7
+        "try": 56,
+        "catch": 8
       },
       "imports": [
         "NativeResult.zig",
@@ -30775,7 +30779,7 @@
       "errors": {
         "Canceled": 1,
         "IncompatibleSqlDefinition": 1,
-        "InvalidSqlResponse": 6,
+        "InvalidSqlResponse": 8,
         "OutOfMemory": 1,
         "SqlInstanceChanged": 1,
         "SqlObservationDenied": 2,
@@ -30796,7 +30800,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 13,
+        "try": 15,
         "catch": 1
       },
       "imports": [
@@ -31914,7 +31918,7 @@
         "InvalidScramMessage": 2,
         "InvalidSqlExecution": 1,
         "InvalidSqlName": 1,
-        "InvalidSqlOperation": 4,
+        "InvalidSqlOperation": 5,
         "InvalidSqlText": 1,
         "SqlInstanceRequired": 1,
         "SqlMessageTooLarge": 1,
@@ -32062,7 +32066,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 34,
+        "try": 35,
         "catch": 0
       },
       "imports": [
@@ -32378,6 +32382,7 @@
         "InvalidWorkloadEvidence": 3,
         "InvalidWorkloadObservation": 2,
         "InvalidWorkloadResultCount": 5,
+        "InvalidWorkloadWait": 2,
         "WorkloadResultConflict": 7,
         "WorkloadResultUnavailable": 2
       },
@@ -32398,11 +32403,13 @@
         "Completion.validateShape()": "<inferred>",
         "Evidence.requireObservation()": "<inferred>",
         "Evidence.validate()": "<inferred>",
-        "Observation.validate()": "<inferred>"
+        "Observation.validate()": "<inferred>",
+        "Wait.requireSame()": "<inferred>",
+        "Wait.validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 24,
+        "try": 31,
         "catch": 0
       },
       "imports": [
@@ -32488,7 +32495,8 @@
           "unavailable",
           "interrupted",
           "denied",
-          "identity_changed"
+          "identity_changed",
+          "waiting"
         ]
       },
       "error_sets": {},
@@ -32871,12 +32879,12 @@
         "GatewayCredentialChanged": 1,
         "GatewayDatabaseDenied": 4,
         "GatewayDeadline": 1,
-        "GatewayDenied": 4,
+        "GatewayDenied": 5,
         "GatewayWaitCancelled": 1,
         "InvalidAuthentication": 1,
         "InvalidSqlAction": 2,
         "InvalidSqlCursor": 2,
-        "InvalidSqlOperationReference": 3,
+        "InvalidSqlOperationReference": 4,
         "ManagedControlCancellationUnsupported": 1,
         "MissingGatewayOperation": 1,
         "OutOfMemory": 1,
@@ -32888,14 +32896,14 @@
         "SqlOperationBindingChanged": 1,
         "SqlParameterTypeMismatch": 3,
         "SqlPreparedCapacity": 1,
-        "SqlResultActive": 4,
+        "SqlResultActive": 5,
         "SqlResultIncomplete": 4,
         "SqlSessionBusy": 4,
         "SqlSessionExpired": 3,
         "SqlSourceIdentityMismatch": 1,
         "SqlStatementExpired": 1,
         "SqlTokenConflict": 1,
-        "SqlTransactionActive": 1,
+        "SqlTransactionActive": 2,
         "Timeout": 1,
         "WireParameterCountMismatch": 1
       },
@@ -32928,7 +32936,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 133,
+        "try": 136,
         "catch": 9
       },
       "imports": [
@@ -33004,6 +33012,7 @@
         "InvalidQueueLeaseHandle": 1,
         "InvalidQueuePartitionKey": 1,
         "InvalidQueuePolicy": 1,
+        "InvalidQueueWait": 1,
         "InvalidResultBudget": 1,
         "InvalidSchemaProjection": 1,
         "InvalidSettingUnit": 1,
@@ -33053,6 +33062,7 @@
         "SqlTransactionRequired": 1,
         "SqlWorkloadCancelled": 2,
         "SqlWorkloadRejected": 2,
+        "SqlWorkloadWaiting": 2,
         "StaleGatewayCoordinator": 1,
         "StandaloneConfigurationOperationRequired": 1,
         "StatementTimedOut": 1,
@@ -33462,7 +33472,8 @@
         "MissingGatewayOperation": 1,
         "MissingGatewayTerminal": 2,
         "StaleGatewayCoordinator": 4,
-        "Timeout": 2
+        "Timeout": 2,
+        "WorkloadOperationRequired": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -33495,6 +33506,7 @@
         "resumeOperation()": "<inferred>",
         "resumeTransactionClaimed()": "<inferred>",
         "resumeTransactionSubmission()": "<inferred>",
+        "resumeWorkload()": "<inferred>",
         "status()": "<inferred>",
         "submit()": "<inferred>",
         "submitPrepared()": "<inferred>",
@@ -33506,7 +33518,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 121,
+        "try": 136,
         "catch": 18
       },
       "imports": [
@@ -34030,7 +34042,7 @@
     "packages/zig/transit-sql/src/WorkloadOperations.zig": {
       "errors": {
         "CatalogIdentityConflict": 1,
-        "InvalidWorkloadEvidence": 4,
+        "InvalidWorkloadEvidence": 5,
         "MissingGatewayTerminal": 1,
         "UnsupportedSqlWorkload": 5,
         "WorkloadOperationRequired": 1
@@ -34040,20 +34052,28 @@
           "inspect",
           "execute",
           "cancel"
+        ],
+        "step().mode": [
+          "passive",
+          "explicit",
+          "initial_wait"
         ]
       },
       "error_sets": {},
       "error_returns": {
         "advance()": "<inferred>",
+        "attempt()": "<inferred>",
         "call()": "<inferred>",
         "command()": "<inferred>",
         "evidence()": "<inferred>",
+        "initialWait()": "<inferred>",
         "load()": "<inferred>",
-        "status()": "<inferred>"
+        "status()": "<inferred>",
+        "step()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 19,
+        "try": 23,
         "catch": 0
       },
       "imports": [

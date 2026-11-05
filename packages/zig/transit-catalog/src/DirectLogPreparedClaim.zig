@@ -47,7 +47,7 @@ pub fn bindPrepared(self: *const Self, allocator: std.mem.Allocator, client: c.D
 
 /// Admit only an unfiltered Queue acquisition on one exact partition. The
 /// native owner retains eligibility, FIFO, capacity, time and lease authority.
-/// Payload predicates and waits require their native admission owners first.
+/// Payload predicates remain outside the acquisition profile.
 fn partition(bound: *const f.LogClaimSql.Bound, count: u32) !u32 {
     if (count == 0) return error.InvalidLogPartitioning;
     const predicate = bound.plan.plan.predicate;
@@ -66,7 +66,6 @@ pub fn freeze(self: *const Self, allocator: std.mem.Allocator, operation: u64, v
     try identity.validate();
     var bound = try self.compiled.bind(allocator, values, diagnostic);
     defer bound.deinit();
-    if (bound.wait_ms != null) return error.UnsupportedConstruct;
     const selected = try partition(&bound, self.definition.stored.declaration.configuration.partitioning.count);
     const limits = self.definition.stored.declaration.limits;
     const maximum = bound.maximum orelse limits.claim_rows;
@@ -93,7 +92,7 @@ pub fn freeze(self: *const Self, allocator: std.mem.Allocator, operation: u64, v
     const projection: c.DirectWorkloadIntent.Projection = .{ .fields = bound.fields, .plan = try w.Binary.encode(a, try f.WorkloadProjection.encode(input, bound.fields, bound.plan.plan, a, &plan_buffer)) };
     var schema_buffer: [f.TableSchema.max_bytes]u8 = undefined;
     const source: c.DirectLogProtocol.Definition = .{ .declaration = self.definition, .schema = try w.Binary.encode(a, try schema.encode(&schema_buffer)) };
-    return c.DirectWorkloadIntent.createProjected(allocator, self.connection, source, work, projection);
+    return c.DirectWorkloadIntent.createWaited(allocator, self.connection, source, work, projection, bound.wait_ms);
 }
 
 const TestFixture = struct {
@@ -188,7 +187,7 @@ test "log claim Catalog binding refuses unsupported selection before admission" 
         .{ .suffix = "WHERE id = 1 WITH LEASE '1s'", .expected = error.UnsupportedConstruct },
         .{ .suffix = "WHERE _offset >= 1 WITH LEASE '1s'", .expected = error.UnsupportedConstruct },
         .{ .suffix = "WHERE _partition = 1 AND id = 1 WITH LEASE '1s'", .expected = error.UnsupportedConstruct },
-        .{ .suffix = "WHERE _partition = 1 WITH LEASE '1s' WAIT '1s'", .expected = error.UnsupportedConstruct },
+        .{ .suffix = "WHERE _partition = 1 WITH LEASE '1s' WAIT '1001ms'", .expected = error.InvalidQueueWait },
         .{ .suffix = "WHERE _partition = 1 LIMIT 4294967295 WITH LEASE '1s'", .expected = error.QueueClaimLimitExceeded },
         .{ .suffix = "WHERE _partition = 1 WITH LEASE '31s'", .expected = error.InvalidQueueLeaseDuration },
     }) |case| {
@@ -308,4 +307,27 @@ test "log settlement Catalog binding preserves an older lease and current prepar
     try t.expectError(error.InvalidQueueLeaseHandle, prepared.freeze(t.allocator, 99, &.{.{ .bytes = &handle }}, null));
     try p.QueueLeaseHandle.encode(lease, &handle);
     try t.expectError(error.InvalidQueueSettlement, prepared.freeze(t.allocator, lease.claim.operation, &.{.{ .bytes = &handle }}, null));
+}
+
+test "wait freezes canonical policy and rejects missing or foreign persisted definitions" {
+    const t = std.testing;
+    var fixture = try TestFixture.init(1);
+    defer fixture.deinit();
+    var prepared = try init(t.allocator, TestFixture.connection, 1, "CLAIM id FROM tasks WITH LEASE '1s' WAIT '100ms'", fixture.metadata, .transit, null);
+    defer prepared.deinit();
+    var intent = try prepared.freeze(t.allocator, 321, &.{}, null);
+    defer intent.deinit();
+    try t.expectEqual(@as(?u32, 100), intent.parsed.value.wait_ms);
+    var restored = try c.DirectWorkloadIntent.restore(t.allocator, intent.bytes);
+    defer restored.deinit();
+    try (try intent.reference(@splat(1))).requireSame(try restored.reference(@splat(1)));
+    var ordinary = try c.DirectWorkloadIntent.createProjected(t.allocator, intent.parsed.value.connection, intent.parsed.value.source, intent.parsed.value.work, intent.parsed.value.projection);
+    defer ordinary.deinit();
+    try t.expect(!std.meta.eql((try intent.reference(@splat(1))).record.content, (try ordinary.reference(@splat(1))).record.content));
+    const missing = try std.mem.replaceOwned(u8, t.allocator, intent.bytes, ",\"wait_ms\":100", "");
+    defer t.allocator.free(missing);
+    try t.expectError(error.MissingField, c.DirectWorkloadIntent.restore(t.allocator, missing));
+    const foreign = try std.mem.replaceOwned(u8, t.allocator, intent.bytes, @tagName(p.Growth.current_definition), "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+    defer t.allocator.free(foreign);
+    try t.expectError(error.InvalidJsonShape, c.DirectWorkloadIntent.restore(t.allocator, foreign));
 }

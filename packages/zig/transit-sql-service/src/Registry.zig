@@ -253,7 +253,7 @@ pub fn request(self: *Self, allocator: std.mem.Allocator, working: std.mem.Alloc
     if (!std.mem.eql(u8, &input.instance.?, &self.instance)) return error.SqlInstanceChanged;
     if (input.action == .open) return self.open(allocator, input.action.open, peer);
     if (input.action == .authenticate) return self.authenticate(allocator, input.action.authenticate);
-    if (input.action == .cancel or input.action == .status or input.action == .operations or input.action == .@"resume") return self.control(allocator, working, input);
+    if (input.action == .cancel or input.action == .status or input.action == .operations or (input.action == .@"resume" and input.action.@"resume".kind != .workload)) return self.control(allocator, working, input);
     try self.mutex.lock(self.io);
     const slot = self.locate(input.session.?) catch |err| {
         self.mutex.unlock(self.io);
@@ -465,6 +465,16 @@ fn action(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: api.Act
             return .closed;
         },
         .execute => |value| return self.execute(allocator, slot, value),
+        .@"resume" => |value| {
+            if (slot.cursor != null) return error.SqlResultActive;
+            if (host.transaction.handle != null) return error.SqlTransactionActive;
+            if (value.kind != .workload or !std.mem.eql(u8, &value.account, &host.account.execution.account)) return error.GatewayDenied;
+            const reference = try host.fresh(operationReference, .{ host, value.id });
+            if (reference.kind != .workload) return error.InvalidSqlOperationReference;
+            try host.fresh(selectOperation, .{ host, reference });
+            host.operation = value.id;
+            return .{ .operation = try host.runtime.resumeWorkload(host.allocator, &host.observer, &host.table, host.namespace, value.id, host.deadline) };
+        },
         .result => |value| {
             if (slot.cursor != null) return error.SqlResultActive;
             if ((value.kind != .captured and value.kind != .workload) or !std.mem.eql(u8, &value.account, &host.account.execution.account)) return error.GatewayDenied;
