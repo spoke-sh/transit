@@ -75,11 +75,21 @@ relationalQuery: EXPLAIN? relationalSelect snapshotClause? SEMI? EOF;
 relationalSelect
     : SELECT relationalSelection (COMMA relationalSelection)* FROM relationalTarget
       relationalJoin? whereClause? (GROUP BY columnReference (COMMA columnReference)*)?
+      havingClause? orderByClause? limitClause?
     ;
-relationalSelection
-    : (columnReference | COUNT LPAREN (STAR | columnReference) RPAREN
-       | SUM LPAREN columnReference RPAREN) outputAlias?
+relationalExpression
+    : columnReference
+    | COUNT LPAREN (STAR | columnReference) RPAREN
+    | SUM LPAREN columnReference RPAREN
     ;
+relationalSelection: relationalExpression outputAlias?;
+havingClause: HAVING havingDisjunction;
+havingDisjunction: havingConjunction (OR havingConjunction)*;
+havingConjunction: havingNegation (AND havingNegation)*;
+havingNegation: NOT havingNegation | LPAREN havingDisjunction RPAREN | havingAtom;
+havingAtom: relationalExpression (IS NOT? NULL_ | comparison literal);
+orderByClause: ORDER BY relationalOrderItem (COMMA relationalOrderItem)*;
+relationalOrderItem: relationalExpression (ASC | DESC)? (NULLS (FIRST | LAST))?;
 relationalTarget: identifier relationalAlias?;
 relationalAlias: AS identifier | relationalImplicitAlias;
 // Clause words cannot consume the next join/group token as an implicit alias.
@@ -391,7 +401,7 @@ legacyIdentifier
     | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES
     | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN
     | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | OFFSET | ROLLBACK | SAVEPOINT | RELEASE
-    | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE
+    | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | NULLS | FIRST | LAST | SOURCE | STORAGE
     | STREAM | QUEUE | PARTITION | PARTITIONS | HASH
     | PRODUCE | ENQUEUE | PRODUCER | ID | EPOCH | SEQUENCE | VISIBLE_AT | RETURNING
     | CONSUME | CLAIM | LEASE | WAIT | ACK | NACK | EXTEND | RECEIPT
@@ -475,6 +485,9 @@ DATABASES: 'DATABASES';
 SCHEMAS: 'SCHEMAS';
 ASC: 'ASC';
 DESC: 'DESC';
+NULLS: 'NULLS';
+FIRST: 'FIRST';
+LAST: 'LAST';
 
 ROLE: 'ROLE';
 LOGIN: 'LOGIN';

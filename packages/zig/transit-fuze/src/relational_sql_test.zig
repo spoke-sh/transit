@@ -35,6 +35,8 @@ test "relational routing distinguishes clause words from existing names" {
         "SELECT l.value FROM items AS \"left\" LEFT JOIN others r ON l.key=r.key",
         "SELECT key, COUNT(*) FROM group GROUP BY key",
         "SELECT key FROM items WHERE group = 1 GROUP BY key",
+        "SELECT key FROM items ORDER BY key",
+        "SELECT COUNT(*) FROM items HAVING COUNT(*) > 1",
         "SELECT COUNT(*), SUM(value) FROM items",
     }) |text| try t.expect(try sql.required(text));
 }
@@ -71,12 +73,11 @@ test "relational SQL binds shared three-valued predicates and precise unknown na
 test "relational compiler rejects unsupported composition before source binding" {
     for ([_][]const u8{
         "SELECT DISTINCT l.key FROM lefts l",
-        "SELECT l.key FROM lefts l LIMIT 1",
-        "SELECT l.key FROM lefts l ORDER BY l.key",
-        "SELECT l.key FROM lefts l GROUP BY l.key HAVING COUNT(*) > 1",
         "SELECT l.key FROM lefts l RIGHT JOIN rights r ON l.key = r.key",
         "SELECT l.key FROM lefts l JOIN rights r ON l.key > r.key",
         "SELECT l.key FROM lefts l JOIN rights r ON l.key = r.key JOIN more m ON l.key = m.key",
+        "SELECT l.key FROM lefts l ORDER BY l.key NULLS",
+        "SELECT l.key FROM lefts l GROUP BY l.key HAVING",
     }) |text| {
         if (sql.parse(t.allocator, text, null)) |value| {
             var owned = value;
@@ -84,6 +85,24 @@ test "relational compiler rejects unsupported composition before source binding"
             return error.UnexpectedSqlAcceptance;
         } else |_| {}
     }
+}
+test "relational SQL binds HAVING, ORDER BY and LIMIT with output alias resolution" {
+    var syntax = try sql.parse(
+        t.allocator,
+        "SELECT l.key AS k, COUNT(*) AS n, SUM(l.value) AS total FROM lefts l GROUP BY l.key HAVING n > 1 AND total IS NOT NULL ORDER BY total DESC NULLS FIRST, k ASC NULLS LAST LIMIT 5",
+        null,
+    );
+    defer syntax.deinit();
+    const plan = try syntax.bind(sources[0..1], .interactive, budgets, null);
+    try t.expectEqual(@as(usize, 4), plan.having.instructions.len);
+    try t.expectEqual(@as(usize, 2), plan.order_by.len);
+    try t.expect(plan.order_by[0].expression.eql(.{ .sum = .{ .source = 0, .id = 2 } }));
+    try t.expectEqual(r.Direction.desc, plan.order_by[0].direction);
+    try t.expectEqual(r.NullOrder.first, plan.order_by[0].nulls);
+    try t.expect(plan.order_by[1].expression.eql(.{ .column = .{ .source = 0, .id = 1 } }));
+    try t.expectEqual(r.Direction.asc, plan.order_by[1].direction);
+    try t.expectEqual(r.NullOrder.last, plan.order_by[1].nulls);
+    try t.expectEqual(@as(?u64, 5), plan.limit);
 }
 
 test "relational editor expectations and source discovery share the executable parser" {

@@ -428,6 +428,14 @@ pub fn verify(init: std.process.Init, client: c.DirectTableClient, path: []const
         _ = try admin.change(.{ .transfer_object = .{ .object = object, .owner = role } });
     }
     try retained(manager, declaration.value, 1, &.{ 1, 2, 3 });
+    const grouped = try manager.prepare(1, "managed_grouped_order", 650004, 652040, "managed_output", "SELECT id FROM managed_input GROUP BY id HAVING COUNT(*) >= 1 ORDER BY id DESC LIMIT 2", options);
+    _ = try manager.publish(grouped);
+    try control(manager, grouped, .authorize, 652041);
+    try control(manager, grouped, .activate, 652042);
+    try drain(manager, grouped, init.io, .cwd());
+    try retained(manager, grouped, 1, &.{ 3, 4 });
+    try control(manager, grouped, .retire, 652043);
+    try dml(client, "DELETE FROM managed_output", 652044);
 }
 
 pub fn incomplete(init: std.process.Init, client: c.DirectTableClient, path: []const u8) !void {

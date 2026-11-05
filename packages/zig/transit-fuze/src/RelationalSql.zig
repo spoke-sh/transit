@@ -46,20 +46,37 @@ pub fn requiredDialect(text: []const u8, dialect: sql.Dialect) !bool {
                     continue;
                 }
                 for ([_][]const u8{ "JOIN", "INNER", "LEFT", "RIGHT", "FULL", "CROSS", "NATURAL" }) |word| if (std.ascii.eqlIgnoreCase(token.text, word)) return true;
-                if (std.ascii.eqlIgnoreCase(token.text, "WHERE")) source = .done;
+                if (std.ascii.eqlIgnoreCase(token.text, "WHERE") or std.ascii.eqlIgnoreCase(token.text, "LIMIT")) source = .done;
             }
-            if (!selection and std.ascii.eqlIgnoreCase(token.text, "GROUP")) {
+            if (!selection and (std.ascii.eqlIgnoreCase(token.text, "GROUP") or std.ascii.eqlIgnoreCase(token.text, "ORDER"))) {
                 var lookahead = lexer;
                 const next = try lookahead.next();
                 if (next.tag == .word and std.ascii.eqlIgnoreCase(next.text, "BY")) return true;
+            }
+            if (!selection and std.ascii.eqlIgnoreCase(token.text, "HAVING")) {
+                var lookahead = lexer;
+                const next = try lookahead.next();
+                if (next.tag == .word or next.tag == .quoted or next.tag == .left) return true;
             }
         }
         if (selection and (std.ascii.eqlIgnoreCase(token.text, "COUNT") or std.ascii.eqlIgnoreCase(token.text, "SUM"))) aggregate = true;
     }
 }
+pub const Expression = union(enum) { column: Reference, count_all, count: Reference, sum: Reference };
 const Selection = struct {
-    expression: union(enum) { column: Reference, count_all, count: Reference, sum: Reference },
+    expression: Expression,
     name: []const u8,
+    explicit_alias: bool = false,
+};
+pub const HavingAtom = union(enum) {
+    state: struct { expression: Expression, value: @import("Types.zig").State },
+    compare: struct { expression: Expression, op: @import("Finite.zig").Comparison, value: union(enum) { literal: Parser.Literal, parameter: sql.Parameter } },
+};
+pub const HavingInstruction = @import("PredicateMachine.zig").Instruction(HavingAtom);
+pub const OrderBy = struct {
+    expression: Expression,
+    direction: r.Direction = .asc,
+    nulls: r.NullOrder = .first,
 };
 pub const Owned = struct {
     arena: std.heap.ArenaAllocator,
@@ -68,6 +85,9 @@ pub const Owned = struct {
     join: ?struct { kind: @FieldType(r.Join, "kind"), left: Reference, right: Reference },
     predicate: ?Predicate.Syntax,
     groups: []const Reference,
+    having: []const HavingInstruction = &.{},
+    order_by: []const OrderBy = &.{},
+    limit: ?u64 = null,
 
     pub fn deinit(self: *Owned) void {
         self.arena.deinit();
@@ -88,7 +108,13 @@ pub const Owned = struct {
         } };
         const groups = try allocator.alloc(r.Column, self.groups.len);
         for (self.groups, groups) |column, *bound| bound.* = try resolve(column, sources, location);
-        var plan: r.Plan = .{ .sources = sources, .outputs = outputs, .group_by = groups, .lifetime = lifetime, .budgets = budgets };
+        const order_by = try allocator.alloc(r.OrderBy, self.order_by.len);
+        for (self.order_by, order_by) |item, *bound| bound.* = .{
+            .expression = try self.resolveExpression(item.expression, sources, location),
+            .direction = item.direction,
+            .nulls = item.nulls,
+        };
+        var plan: r.Plan = .{ .sources = sources, .outputs = outputs, .group_by = groups, .order_by = order_by, .limit = self.limit, .lifetime = lifetime, .budgets = budgets };
         if (self.join) |join| {
             const left = try resolve(join.left, sources, location);
             const right = try resolve(join.right, sources, location);
@@ -126,8 +152,75 @@ pub const Owned = struct {
             };
             plan.filter = .{ .instructions = instructions };
         }
+        if (self.having.len != 0) {
+            const instructions = try allocator.alloc(r.HavingInstruction, self.having.len);
+            for (self.having, instructions) |input, *output| output.* = switch (input) {
+                .conjunction => .conjunction,
+                .disjunction => .disjunction,
+                .negate => .negate,
+                .atom => |atom| switch (atom) {
+                    .state => |state| if (state.value == .null) .{ .is_null = try self.resolveExpression(state.expression, sources, location) } else return error.UnsupportedRelationalPredicate,
+                    .compare => |compare| result: {
+                        const expression = try self.resolveExpression(compare.expression, sources, location);
+                        if (compare.value != .literal) return error.UnboundParameters;
+                        var failure: ?Parser.Literal.Span = null;
+                        const descriptor: @import("TableSchema.zig").Column = switch (expression) {
+                            .column => |column| try plan.resolveColumn(column),
+                            .count_all => .{ .id = 1, .name = "count", .type = .int64 },
+                            .count => |column| blk: {
+                                _ = try plan.resolveColumn(column);
+                                break :blk .{ .id = 1, .name = "count", .type = .int64 };
+                            },
+                            .sum => |column| blk: {
+                                const col = try plan.resolveColumn(column);
+                                if (col.type != .int64) return error.UnsupportedRelationalType;
+                                break :blk .{ .id = 1, .name = "sum", .type = .int64 };
+                            },
+                        };
+                        const value = compare.value.literal.bind(allocator, descriptor.type, &failure) catch |err| {
+                            if (location) |at| at.* = .{ .offset = (failure orelse compare.value.literal.span).start };
+                            return err;
+                        };
+                        if (value == .null) return error.UnsupportedNullComparison;
+                        const literal = (try @import("RelationalValues.zig").fromCell(value, descriptor)).?;
+                        break :result .{ .compare = .{ .expression = expression, .op = switch (compare.op) {
+                            .eq => .equal,
+                            .ne => .not_equal,
+                            .lt => .less,
+                            .le => .less_equal,
+                            .gt => .greater,
+                            .ge => .greater_equal,
+                        }, .value = literal } };
+                    },
+                },
+            };
+            plan.having = .{ .instructions = instructions };
+        }
         try plan.validate();
         return plan;
+    }
+
+    fn resolveExpression(self: *const Owned, expr: Expression, sources: []const r.Source, location: ?*sql.Location) !r.Expression {
+        return switch (expr) {
+            .count_all => .count_all,
+            .count => |column| .{ .count = try resolve(column, sources, location) },
+            .sum => |column| .{ .sum = try resolve(column, sources, location) },
+            .column => |column| blk: {
+                if (column.qualifier == null) {
+                    for (self.selections) |selection| {
+                        if (selection.explicit_alias and std.mem.eql(u8, selection.name, column.name)) {
+                            break :blk switch (selection.expression) {
+                                .count_all => .count_all,
+                                .column => |inner| .{ .column = try resolve(inner, sources, location) },
+                                .count => |inner| .{ .count = try resolve(inner, sources, location) },
+                                .sum => |inner| .{ .sum = try resolve(inner, sources, location) },
+                            };
+                        }
+                    }
+                }
+                break :blk .{ .column = try resolve(column, sources, location) };
+            },
+        };
     }
 };
 pub fn parse(allocator: std.mem.Allocator, text: []const u8, location: ?*sql.Location) !Owned {
@@ -150,28 +243,19 @@ pub fn parseWithContext(allocator: std.mem.Allocator, text: []const u8, location
     var count: usize = 0;
     while (true) {
         if (count == selections.len) return error.InvalidRelationalOutputs;
-        const is_count = parser.word("COUNT");
-        const is_sum = parser.word("SUM");
-        var selection: Selection = undefined;
-        if (is_count or is_sum) {
-            parser.annotate(.function);
-            try parser.advance();
-            try parser.require(.left);
-            if (try parser.take(.star)) {
-                if (is_sum) return error.UnsupportedAggregate;
-                selection.expression = .count_all;
-            } else {
-                if (parser.boundary()) |at| at.sum_only = is_sum;
-                const column = try Reference.parse(&parser);
-                selection.expression = if (is_sum) .{ .sum = column } else .{ .count = column };
-            }
-            try parser.require(.right);
-            selection.name = if (is_sum) "sum" else "count";
-        } else {
-            const column = try Reference.parse(&parser);
-            selection = .{ .expression = .{ .column = column }, .name = column.name };
+        const expression = try parseExpression(&parser);
+        var selection: Selection = .{
+            .expression = expression,
+            .name = switch (expression) {
+                .column => |column| column.name,
+                .sum => "sum",
+                .count_all, .count => "count",
+            },
+        };
+        if (try parser.takeWord("AS")) {
+            selection.name = try parser.name();
+            selection.explicit_alias = true;
         }
-        if (try parser.takeWord("AS")) selection.name = try parser.name();
         selections[count] = selection;
         count += 1;
         if (!try parser.take(.comma)) break;
@@ -206,12 +290,163 @@ pub fn parseWithContext(allocator: std.mem.Allocator, text: []const u8, location
             if (!try parser.take(.comma)) break;
         }
     }
+    var having: HavingParser = .{ .parser = &parser };
+    if (try parser.takeWord("HAVING")) try having.parse();
+    var order_by: [r.max_groups]OrderBy = undefined;
+    var order_count: usize = 0;
+    if (try parser.takeWord("ORDER")) {
+        try parser.requireWord("BY");
+        while (true) {
+            if (order_count == order_by.len) return error.InvalidRelationalGroups;
+            const expression = try parseExpression(&parser);
+            const direction: r.Direction = if (try parser.takeWord("DESC")) .desc else blk: {
+                _ = try parser.takeWord("ASC");
+                break :blk .asc;
+            };
+            const nulls: r.NullOrder = if (try parser.takeWord("NULLS")) blk: {
+                if (try parser.takeWord("FIRST")) break :blk .first;
+                if (try parser.takeWord("LAST")) break :blk .last;
+                return error.InvalidSqlSyntax;
+            } else switch (direction) {
+                .asc => .first,
+                .desc => .last,
+            };
+            order_by[order_count] = .{ .expression = expression, .direction = direction, .nulls = nulls };
+            order_count += 1;
+            if (!try parser.take(.comma)) break;
+        }
+    }
+    const limit: ?u64 = if (try parser.takeWord("LIMIT")) blk: {
+        if (parser.token.tag != .integer) return error.InvalidSqlSyntax;
+        parser.annotate(.number);
+        const value = std.fmt.parseInt(u64, parser.token.text, 10) catch return error.LiteralOutOfRange;
+        try parser.advance();
+        break :blk value;
+    } else null;
     try parser.finish();
     const inputs = try arena.allocator().dupe(Target, targets[0..target_count]);
     const outputs = try arena.allocator().dupe(Selection, selections[0..count]);
     const keys = try arena.allocator().dupe(Reference, groups[0..group_count]);
-    return .{ .arena = arena, .targets = inputs, .selections = outputs, .join = join, .predicate = predicate, .groups = keys };
+    const having_instructions = try arena.allocator().dupe(HavingInstruction, having.instructions[0..having.count]);
+    const orders = try arena.allocator().dupe(OrderBy, order_by[0..order_count]);
+    return .{
+        .arena = arena,
+        .targets = inputs,
+        .selections = outputs,
+        .join = join,
+        .predicate = predicate,
+        .groups = keys,
+        .having = having_instructions,
+        .order_by = orders,
+        .limit = limit,
+    };
 }
+fn parseExpression(parser: *Parser) !Expression {
+    const is_count = parser.word("COUNT");
+    const is_sum = parser.word("SUM");
+    if (is_count or is_sum) {
+        parser.annotate(.function);
+        try parser.advance();
+        try parser.require(.left);
+        const result: Expression = if (try parser.take(.star)) blk: {
+            if (is_sum) return error.UnsupportedAggregate;
+            break :blk .count_all;
+        } else blk: {
+            if (parser.boundary()) |at| at.sum_only = is_sum;
+            const column = try Reference.parse(parser);
+            break :blk if (is_sum) .{ .sum = column } else .{ .count = column };
+        };
+        try parser.require(.right);
+        return result;
+    }
+    if (parser.token.tag == .star) return error.UnsupportedConstruct;
+    return .{ .column = try Reference.parse(parser) };
+}
+const HavingParser = struct {
+    const Operator = enum { group, disjunction, conjunction, negate };
+    parser: *Parser,
+    instructions: [r.max_instructions]HavingInstruction = undefined,
+    count: usize = 0,
+    operators: [r.max_instructions]Operator = undefined,
+    pending: usize = 0,
+    fn append(self: *HavingParser, instruction: HavingInstruction) !void {
+        if (self.count == self.instructions.len) return error.PredicateTooComplex;
+        self.instructions[self.count] = instruction;
+        self.count += 1;
+    }
+    fn push(self: *HavingParser, operator: Operator) !void {
+        if (self.pending == self.operators.len) return error.PredicateTooDeep;
+        self.operators[self.pending] = operator;
+        self.pending += 1;
+    }
+    fn emit(self: *HavingParser) !void {
+        self.pending -= 1;
+        try self.append(switch (self.operators[self.pending]) {
+            .group => unreachable,
+            .disjunction => .disjunction,
+            .conjunction => .conjunction,
+            .negate => .negate,
+        });
+    }
+    fn parse(self: *HavingParser) !void {
+        var operand = true;
+        var groups: usize = 0;
+        while (true) {
+            if (operand) {
+                if (try self.parser.takeWord("NOT")) {
+                    try self.push(.negate);
+                    continue;
+                }
+                if (try self.parser.take(.left)) {
+                    try self.push(.group);
+                    groups += 1;
+                    continue;
+                }
+                try self.atom();
+                operand = false;
+                continue;
+            }
+            const operator: ?Operator = if (try self.parser.takeWord("AND")) .conjunction else if (try self.parser.takeWord("OR")) .disjunction else null;
+            if (operator) |next| {
+                while (self.pending > 0 and @backingInt(self.operators[self.pending - 1]) >= @backingInt(next)) try self.emit();
+                try self.push(next);
+                operand = true;
+                continue;
+            }
+            if (groups > 0) {
+                try self.parser.require(.right);
+                while (self.operators[self.pending - 1] != .group) try self.emit();
+                self.pending -= 1;
+                groups -= 1;
+                continue;
+            }
+            while (self.pending > 0) try self.emit();
+            return;
+        }
+    }
+    fn atom(self: *HavingParser) !void {
+        const expression = try parseExpression(self.parser);
+        if (try self.parser.takeWord("IS")) {
+            const negate = try self.parser.takeWord("NOT");
+            const state: @import("Types.zig").State = if (try self.parser.takeWord("NULL")) .null else if (try self.parser.takeWord("MISSING")) .missing else if (try self.parser.takeWord("TYPE_ERROR")) .type_error else if (try self.parser.takeWord("VALUE")) .value else if (try self.parser.takeWord("CONFLICT")) .conflict else return error.InvalidSqlSyntax;
+            try self.append(.{ .atom = .{ .state = .{ .expression = expression, .value = state } } });
+            if (negate) try self.append(.negate);
+            return;
+        }
+        const op: @import("Finite.zig").Comparison = switch (self.parser.token.tag) {
+            .eq => .eq,
+            .ne => .ne,
+            .lt => .lt,
+            .le => .le,
+            .gt => .gt,
+            .ge => .ge,
+            else => return error.UnsupportedRelationalPredicate,
+        };
+        try self.parser.advance();
+        const value: @FieldType(@FieldType(HavingAtom, "compare"), "value") = if (try self.parser.parameter()) |site| .{ .parameter = site } else .{ .literal = try self.parser.literal(null) };
+        try self.append(.{ .atom = .{ .compare = .{ .expression = expression, .op = op, .value = value } } });
+    }
+};
 /// Header discovery for authorized editor metadata, including an unfinished
 /// projection. Returned names borrow allocator-owned strings. This does not
 /// validate expressions, authorize a Table or create an execution plan.

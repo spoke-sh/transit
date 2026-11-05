@@ -16765,27 +16765,27 @@
         "AmbiguousRelationalColumn": 1,
         "CrossRealmRelationalQuery": 1,
         "DuplicateRelationalAlias": 2,
-        "DuplicateRelationalGroup": 1,
+        "DuplicateRelationalGroup": 2,
         "DuplicateRelationalOutput": 1,
         "IncompleteRelationalBasis": 1,
         "InconsistentRelationalCut": 3,
         "InvalidRelationalBudgets": 2,
         "InvalidRelationalCut": 2,
         "InvalidRelationalFilterScope": 1,
-        "InvalidRelationalGroups": 1,
+        "InvalidRelationalGroups": 3,
         "InvalidRelationalJoin": 3,
         "InvalidRelationalName": 1,
-        "InvalidRelationalOutputs": 2,
-        "InvalidRelationalPredicate": 4,
+        "InvalidRelationalOutputs": 6,
+        "InvalidRelationalPredicate": 8,
         "InvalidRelationalSourceIdentity": 1,
         "InvalidRelationalSources": 3,
         "RelationalOutputBufferTooSmall": 1,
         "RelationalPlanTooLarge": 1,
         "RelationalSourceChanged": 3,
-        "UngroupedRelationalColumn": 1,
+        "UngroupedRelationalColumn": 7,
         "UnknownColumn": 1,
         "UnknownRelationalSource": 2,
-        "UnsupportedRelationalType": 2
+        "UnsupportedRelationalType": 4
       },
       "outcomes": {
         "AggregateState.observe().kind": [
@@ -16805,11 +16805,23 @@
           "native_resource",
           "table_partition"
         ],
+        "Direction": [
+          "asc",
+          "desc"
+        ],
         "Expression": [
           "column",
           "count_all",
           "count",
           "sum"
+        ],
+        "HavingInstruction": [
+          "compare",
+          "is_null",
+          "is_not_null",
+          "negate",
+          "conjunction",
+          "disjunction"
         ],
         "Instruction": [
           "compare",
@@ -16827,6 +16839,10 @@
           "interactive",
           "captured",
           "maintained"
+        ],
+        "NullOrder": [
+          "first",
+          "last"
         ]
       },
       "error_sets": {},
@@ -16838,8 +16854,10 @@
         "Plan.fingerprint()": "<inferred>",
         "Plan.outputSchema()": "<inferred>",
         "Plan.resolveColumn()": "<inferred>",
+        "Plan.stateExpressions()": "<inferred>",
         "Plan.traits()": "<inferred>",
         "Plan.validate()": "<inferred>",
+        "Plan.validateHaving()": "<inferred>",
         "Plan.validatePredicate()": "<inferred>",
         "Plan.validateShape()": "<inferred>",
         "Plan.write()": "<inferred>",
@@ -16849,12 +16867,14 @@
         "resolve()": "<inferred>",
         "text()": "<inferred>",
         "writeColumn()": "<inferred>",
+        "writeExpression()": "<inferred>",
+        "writeHaving()": "<inferred>",
         "writePredicate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 67,
-        "catch": 0
+        "try": 90,
+        "catch": 1
       },
       "imports": [
         "OperatorTraits.zig",
@@ -16868,7 +16888,7 @@
     "packages/zig/transit-fuze/src/RelationalCheckpoint.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
-        "InvalidRelationalCheckpoint": 25,
+        "InvalidRelationalCheckpoint": 29,
         "RelationalSourceChanged": 1
       },
       "outcomes": {
@@ -16898,7 +16918,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 78,
+        "try": 87,
         "catch": 4
       },
       "imports": [
@@ -16914,10 +16934,10 @@
     "packages/zig/transit-fuze/src/RelationalCodec.zig": {
       "errors": {
         "IncompatibleDefinition": 2,
-        "InvalidRelationalEncoding": 10,
-        "InvalidRelationalGroups": 1,
+        "InvalidRelationalEncoding": 15,
+        "InvalidRelationalGroups": 2,
         "InvalidRelationalOutputs": 1,
-        "InvalidRelationalPredicate": 1,
+        "InvalidRelationalPredicate": 2,
         "InvalidRelationalSources": 2,
         "RelationalPlanTooLarge": 3,
         "RelationalSourceChanged": 1
@@ -16929,13 +16949,15 @@
         "decode()": "<inferred>",
         "decodeInto()": "<inferred>",
         "encode()": "<inferred>",
+        "expression()": "<inferred>",
+        "having()": "<inferred>",
         "literal()": "<inferred>",
         "predicate()": "<inferred>",
         "text()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 60,
+        "try": 77,
         "catch": 1
       },
       "imports": [
@@ -17018,9 +17040,9 @@
     "packages/zig/transit-fuze/src/RelationalExecution.zig": {
       "errors": {
         "FailedRelationalQuery": 1,
-        "IncompleteRelationalGroups": 1,
-        "InvalidRelationalGroup": 2,
-        "InvalidRelationalGroupOrder": 1,
+        "IncompleteRelationalGroups": 2,
+        "InvalidRelationalGroup": 12,
+        "InvalidRelationalGroupOrder": 3,
         "InvalidRelationalOutput": 3,
         "InvalidRelationalSourceOrder": 1,
         "InvalidRelationalSourceRow": 2,
@@ -17047,12 +17069,15 @@
       "error_returns": {
         "Execution().<return>.charge()": "<inferred>",
         "Execution().<return>.checkpoint()": "<inferred>",
+        "Execution().<return>.compareGroups()": "<inferred>",
         "Execution().<return>.contribute()": "<inferred>",
         "Execution().<return>.coverEmptyRight()": "<inferred>",
         "Execution().<return>.emit()": "<inferred>",
         "Execution().<return>.endInput()": "<inferred>",
         "Execution().<return>.init()": "<inferred>",
         "Execution().<return>.input()": "<inferred>",
+        "Execution().<return>.matchesHaving()": "<inferred>",
+        "Execution().<return>.nextGroup()": "<inferred>",
         "Execution().<return>.output()": "<inferred>",
         "Execution().<return>.read()": "<inferred>",
         "Execution().<return>.restore()": "<inferred>",
@@ -17063,12 +17088,13 @@
         "Output.canonicalBytes()": "<inferred>",
         "Output.clone()": "<inferred>",
         "Row.clone()": "<inferred>",
-        "Row.fromCells()": "<inferred>"
+        "Row.fromCells()": "<inferred>",
+        "orderValue()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 44,
-        "catch": 2
+        "try": 66,
+        "catch": 3
       },
       "imports": [
         "PredicateTruth.zig",
@@ -17086,8 +17112,8 @@
       "errors": {
         "IncompatibleDefinition": 1,
         "IncompleteRelationalIndex": 1,
-        "InvalidRelationalGroup": 9,
-        "InvalidRelationalIndex": 14,
+        "InvalidRelationalGroup": 12,
+        "InvalidRelationalIndex": 15,
         "RelationalResidentBudget": 2,
         "RelationalSourceChanged": 1
       },
@@ -17113,7 +17139,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 77,
+        "try": 92,
         "catch": 1
       },
       "imports": [
@@ -17132,7 +17158,7 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 0,
-        "catch": 4
+        "catch": 5
       },
       "imports": [
         "PredicateTruth.zig",
@@ -17176,23 +17202,42 @@
     },
     "packages/zig/transit-fuze/src/RelationalSql.zig": {
       "errors": {
-        "InvalidRelationalGroups": 1,
+        "InvalidRelationalGroups": 2,
         "InvalidRelationalOutputs": 1,
         "InvalidRelationalSources": 1,
-        "InvalidSqlSyntax": 1,
+        "InvalidSqlSyntax": 4,
+        "LiteralOutOfRange": 1,
+        "PredicateTooComplex": 1,
+        "PredicateTooDeep": 1,
         "RelationalSourceChanged": 1,
-        "UnboundParameters": 1,
+        "UnboundParameters": 2,
         "UnknownRelationalSource": 1,
         "UnsupportedAggregate": 1,
-        "UnsupportedNullComparison": 1,
-        "UnsupportedRelationalPredicate": 2
+        "UnsupportedConstruct": 1,
+        "UnsupportedNullComparison": 2,
+        "UnsupportedRelationalPredicate": 4,
+        "UnsupportedRelationalType": 1
       },
       "outcomes": {
-        "Selection.expression": [
+        "Expression": [
           "column",
           "count_all",
           "count",
           "sum"
+        ],
+        "HavingAtom": [
+          "state",
+          "compare"
+        ],
+        "HavingAtom.compare.value": [
+          "literal",
+          "parameter"
+        ],
+        "HavingParser.Operator": [
+          "group",
+          "disjunction",
+          "conjunction",
+          "negate"
         ],
         "requiredDialect().source": [
           "none",
@@ -17204,10 +17249,17 @@
       },
       "error_sets": {},
       "error_returns": {
+        "HavingParser.append()": "<inferred>",
+        "HavingParser.atom()": "<inferred>",
+        "HavingParser.emit()": "<inferred>",
+        "HavingParser.parse()": "<inferred>",
+        "HavingParser.push()": "<inferred>",
         "Owned.bind()": "<inferred>",
+        "Owned.resolveExpression()": "<inferred>",
         "discoverTargets()": "<inferred>",
         "parse()": "<inferred>",
         "parseDialect()": "<inferred>",
+        "parseExpression()": "<inferred>",
         "parseWithContext()": "<inferred>",
         "required()": "<inferred>",
         "requiredDialect()": "<inferred>",
@@ -17216,16 +17268,20 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 63,
-        "catch": 2
+        "try": 122,
+        "catch": 4
       },
       "imports": [
+        "Finite.zig",
+        "PredicateMachine.zig",
         "Relational.zig",
         "RelationalValues.zig",
         "Sql.zig",
         "SqlLogicalPredicate.zig",
         "SqlReference.zig",
         "SqlTyped.zig",
+        "TableSchema.zig",
+        "Types.zig",
         "std"
       ]
     },
@@ -43131,8 +43187,16 @@
       "templatePredicate": "columnReference ( IS cellState | comparison ( literal | PARAMETER ) )",
       "templateLimitClause": "LIMIT ( INTEGER | PARAMETER )",
       "relationalQuery": "EXPLAIN ? relationalSelect snapshotClause ? SEMI ? EOF",
-      "relationalSelect": "SELECT relationalSelection ( COMMA relationalSelection ) * FROM relationalTarget relationalJoin ? whereClause ? ( GROUP BY columnReference ( COMMA columnReference ) * ) ?",
-      "relationalSelection": "( columnReference | COUNT LPAREN ( STAR | columnReference ) RPAREN | SUM LPAREN columnReference RPAREN ) outputAlias ?",
+      "relationalSelect": "SELECT relationalSelection ( COMMA relationalSelection ) * FROM relationalTarget relationalJoin ? whereClause ? ( GROUP BY columnReference ( COMMA columnReference ) * ) ? havingClause ? orderByClause ? limitClause ?",
+      "relationalExpression": "columnReference | COUNT LPAREN ( STAR | columnReference ) RPAREN | SUM LPAREN columnReference RPAREN",
+      "relationalSelection": "relationalExpression outputAlias ?",
+      "havingClause": "HAVING havingDisjunction",
+      "havingDisjunction": "havingConjunction ( OR havingConjunction ) *",
+      "havingConjunction": "havingNegation ( AND havingNegation ) *",
+      "havingNegation": "NOT havingNegation | LPAREN havingDisjunction RPAREN | havingAtom",
+      "havingAtom": "relationalExpression ( IS NOT ? NULL_ | comparison literal )",
+      "orderByClause": "ORDER BY relationalOrderItem ( COMMA relationalOrderItem ) *",
+      "relationalOrderItem": "relationalExpression ( ASC | DESC ) ? ( NULLS ( FIRST | LAST ) ) ?",
       "relationalTarget": "identifier relationalAlias ?",
       "relationalAlias": "AS identifier | relationalImplicitAlias",
       "relationalImplicitAlias": "legacyIdentifier | STREAMS | QUEUES | BY",
@@ -43233,7 +43297,7 @@
       "explainStatement": "EXPLAIN selectStatement",
       "identifier": "settingIdentifier | STREAMS | QUEUES | SNAPSHOT | CURRENT | PROJECTING | DATAFLOW | REVISION | AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE",
       "settingIdentifier": "legacyIdentifier | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER",
-      "legacyIdentifier": "IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | INSERT | UPDATE | DELETE | SET | VALUES | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS | COLLATE | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | EBCDIC_037_PAD | EBCDIC_1047_NOPAD | AT | DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_MULTIPLY | DECIMAL_DIVIDE | DECIMAL_RESCALE | RANGE_OVERLAPS | RANGE_CONTAINS | RANGE_ADJACENT | RANGE_COMPARE | VECTOR_DISTANCE | TIME_BUCKET | LOCAL_TO_UTC | RANGE | MULTIRANGE | VECTOR | ROUNDING | METRIC | TIMEZONE | TZDB | TZIF | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | OFFSET | ROLLBACK | SAVEPOINT | RELEASE | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE | STREAM | QUEUE | PARTITION | PARTITIONS | HASH | PRODUCE | ENQUEUE | PRODUCER | ID | EPOCH | SEQUENCE | VISIBLE_AT | RETURNING | CONSUME | CLAIM | LEASE | WAIT | ACK | NACK | EXTEND | RECEIPT | CONSTRAINT | CHECK | FOREIGN | REFERENCES | ENFORCED | VALID | VALIDATE | NO | ACTION",
+      "legacyIdentifier": "IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | INSERT | UPDATE | DELETE | SET | VALUES | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS | COLLATE | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | EBCDIC_037_PAD | EBCDIC_1047_NOPAD | AT | DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_MULTIPLY | DECIMAL_DIVIDE | DECIMAL_RESCALE | RANGE_OVERLAPS | RANGE_CONTAINS | RANGE_ADJACENT | RANGE_COMPARE | VECTOR_DISTANCE | TIME_BUCKET | LOCAL_TO_UTC | RANGE | MULTIRANGE | VECTOR | ROUNDING | METRIC | TIMEZONE | TZDB | TZIF | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | OFFSET | ROLLBACK | SAVEPOINT | RELEASE | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | NULLS | FIRST | LAST | SOURCE | STORAGE | STREAM | QUEUE | PARTITION | PARTITIONS | HASH | PRODUCE | ENQUEUE | PRODUCER | ID | EPOCH | SEQUENCE | VISIBLE_AT | RETURNING | CONSUME | CLAIM | LEASE | WAIT | ACK | NACK | EXTEND | RECEIPT | CONSTRAINT | CHECK | FOREIGN | REFERENCES | ENFORCED | VALID | VALIDATE | NO | ACTION",
       "AT": "'AT'",
       "DECIMAL_ADD": "'DECIMAL_ADD'",
       "DECIMAL_SUBTRACT": "'DECIMAL_SUBTRACT'",
@@ -43309,6 +43373,9 @@
       "SCHEMAS": "'SCHEMAS'",
       "ASC": "'ASC'",
       "DESC": "'DESC'",
+      "NULLS": "'NULLS'",
+      "FIRST": "'FIRST'",
+      "LAST": "'LAST'",
       "ROLE": "'ROLE'",
       "LOGIN": "'LOGIN'",
       "NOLOGIN": "'NOLOGIN'",

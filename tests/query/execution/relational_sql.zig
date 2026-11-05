@@ -5,9 +5,18 @@ const Column = [2]?[]const u8;
 fn column(value: f.RelationalSql.Reference) Column {
     return .{ value.qualifier, value.name };
 }
+const Expr = struct { kind: []const u8, column: ?Column };
+fn expr(value: f.RelationalSql.Expression) Expr {
+    return .{ .kind = @tagName(value), .column = switch (value) {
+        .count_all => null,
+        inline else => |ref| column(ref),
+    } };
+}
 const Output = struct { kind: []const u8, column: ?Column, name: []const u8 };
 const Join = struct { kind: []const u8, left: Column, right: Column };
 const Instruction = struct { op: []const u8, column: ?Column = null, value: ?i64 = null };
+const HavingInstruction = struct { op: []const u8, expression: ?Expr = null, value: ?i64 = null };
+const OrderBy = struct { expression: Expr, direction: []const u8, nulls: []const u8 };
 fn emit(allocator: std.mem.Allocator, writer: *std.Io.Writer, text: []const u8) !void {
     var syntax = try f.RelationalSql.parse(allocator, text, null);
     defer syntax.deinit();
@@ -37,8 +46,42 @@ fn emit(allocator: std.mem.Allocator, writer: *std.Io.Writer, text: []const u8) 
         };
         count += 1;
     };
+    var having: [64]HavingInstruction = undefined;
+    var having_count: usize = 0;
+    for (syntax.having) |instruction| {
+        having[having_count] = switch (instruction) {
+            .conjunction => .{ .op = "and" },
+            .disjunction => .{ .op = "or" },
+            .negate => .{ .op = "not" },
+            .atom => |atom| switch (atom) {
+                .state => |state| if (state.value == .null) .{ .op = "is_null", .expression = expr(state.expression) } else return error.UnsupportedRelationalPredicate,
+                .compare => |value| result: {
+                    if (value.value != .literal) return error.UnboundParameters;
+                    const cell = try value.value.literal.bind(syntax.arena.allocator(), .int64, null);
+                    if (cell != .value or cell.value != .atom or cell.value.atom != .signed) return error.UnsupportedRelationalType;
+                    break :result .{ .op = @tagName(value.op), .expression = expr(value.expression), .value = @intCast(cell.value.atom.signed) };
+                },
+            },
+        };
+        having_count += 1;
+    }
+    var order_by: [128]OrderBy = undefined;
+    for (syntax.order_by, 0..) |item, i| order_by[i] = .{
+        .expression = expr(item.expression),
+        .direction = @tagName(item.direction),
+        .nulls = @tagName(item.nulls),
+    };
     const join: ?Join = if (syntax.join) |j| .{ .kind = @tagName(j.kind), .left = column(j.left), .right = column(j.right) } else null;
-    try std.json.Stringify.value(.{ .sources = syntax.targets, .outputs = outputs[0..syntax.selections.len], .join = join, .groups = groups[0..syntax.groups.len], .predicate = instructions[0..count] }, .{}, writer);
+    try std.json.Stringify.value(.{
+        .sources = syntax.targets,
+        .outputs = outputs[0..syntax.selections.len],
+        .join = join,
+        .groups = groups[0..syntax.groups.len],
+        .predicate = instructions[0..count],
+        .having = having[0..having_count],
+        .order_by = order_by[0..syntax.order_by.len],
+        .limit = syntax.limit,
+    }, .{}, writer);
 }
 pub fn main(init: std.process.Init) !void {
     const allocator = init.arena.allocator();

@@ -277,6 +277,73 @@
       }
     },
     {
+      "id": "relational-contextual-nulls",
+      "sql": "SELECT id AS NULLS FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "relational-contextual-first",
+      "sql": "SELECT id AS FIRST FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "relational-contextual-last",
+      "sql": "SELECT id AS LAST FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "relational-having-order-limit",
+      "sql": "SELECT id, COUNT(*) AS n FROM items GROUP BY id HAVING COUNT(*) > 1 AND id IS NULL OR SUM(value) = 0 ORDER BY id ASC NULLS FIRST LIMIT 1",
+      "profile": "relational",
+      "grammar": "sql",
+      "root": "relationalQuery",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "relational-having-boolean-order-two",
+      "sql": "SELECT id, value, COUNT(*) AS n FROM items GROUP BY id, value HAVING NOT (COUNT(*) > 1 OR id IS NOT NULL OR SUM(value) = 0) AND id >= 0 AND value <= 10 ORDER BY id DESC NULLS LAST, value",
+      "profile": "relational",
+      "grammar": "sql",
+      "root": "relationalQuery",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "relational-order-three",
+      "sql": "SELECT id, value, extra, COUNT(*) AS n FROM items GROUP BY id, value, extra ORDER BY id, value, extra",
+      "profile": "relational",
+      "grammar": "sql",
+      "root": "relationalQuery",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      },
+      "basis": "CREATE TABLE items (id INT64, value INT64, extra INT64)"
+    },
+    {
       "id": "relational-single",
       "sql": "SELECT id FROM items",
       "profile": "relational",
