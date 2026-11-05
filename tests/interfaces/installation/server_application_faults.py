@@ -95,6 +95,17 @@ def descendants(pid):
     return result
 
 
+def publish_evidence(path, value):
+    """Publish a complete peer observation before readers see its marker name."""
+    with tempfile.NamedTemporaryFile(mode='w', dir=path.parent, prefix='.peer-evidence-', delete=False) as staged:
+        temporary = Path(staged.name)
+        json.dump(value, staged)
+    try:
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def node(real, directory, args):
     """Explicit test node executable: real disk authority behind an owned peer.
 
@@ -172,7 +183,7 @@ def node(real, directory, args):
                 if self.path == '/v1/query' and body:
                     query = json.loads(body)['query']
                     if query['principal'] == 0 and 'capabilities' in query['kind'] and response.status != 200:
-                        (directory / 'probe-rejection.json').write_text(json.dumps(dict(status=response.status, body=data.decode())))
+                        publish_evidence(directory / 'probe-rejection.json', dict(status=response.status, body=data.decode()))
                     if query['principal'] == 0 and 'capabilities' in query['kind'] and response.status == 200 and (directory / 'capacity-probes').exists() and (directory / 'capacity-probes').read_text() == '0':
                         (directory / 'capacity-recovered').touch()
                 if self.path == '/table/v1' and response.status == 200:
@@ -186,7 +197,7 @@ def node(real, directory, args):
                             if (envelope['connection']['principal'] == selection['principal'] and
                                     record.get('format') == selection['format']):
                                 selected = selection['label']
-                                (directory / ('dropped-' + selected + '.json')).write_text(json.dumps(dict(body=body.hex(), receipt=data.hex(), peer=os.getpid(), node=process.pid)))
+                                publish_evidence(directory / ('dropped-' + selected + '.json'), dict(body=body.hex(), receipt=data.hex(), peer=os.getpid(), node=process.pid))
                                 armed.unlink()
                                 deadline = time.monotonic() + 8
                                 while not (directory / ('release-' + selected)).exists() and not stop.is_set() and time.monotonic() < deadline:
@@ -202,11 +213,11 @@ def node(real, directory, args):
                             frozen = json.loads(saved.read_text())
                             if body.hex() == frozen['body']:
                                 assert data.hex() == frozen['receipt']
-                                (directory / ('retried-' + saved.stem[8:])).write_text(json.dumps(dict(peer=os.getpid(), node=process.pid)))
+                                publish_evidence(directory / ('retried-' + saved.stem[8:]), dict(peer=os.getpid(), node=process.pid))
                         if envelope['request']['principal'] >= 2**52 and ('turn' in envelope['request']['command'] or 'turn_with_versions' in envelope['request']['command']):
                             frozen_worker = directory / 'accepted-worker.json'
                             if not frozen_worker.exists():
-                                frozen_worker.write_text(json.dumps(envelope))
+                                publish_evidence(frozen_worker, envelope)
                         armed = directory / 'drop-next'
                         if armed.exists():
                             selection = json.loads(armed.read_text())
@@ -217,11 +228,11 @@ def node(real, directory, args):
                                 binding = authorization.get('begin', {}).get('action', {}).get('bind_credential', {})
                                 if binding.get('role') == selection['binding_role']:
                                     selection['change'] = json.loads(data)['position']
-                                    armed.write_text(json.dumps(selection))
+                                    publish_evidence(armed, selection)
                                 matches = selection.get('change') is not None and authorization.get('publish') == selection['change']
                             if matches:
                                 frozen = dict(body=body.hex(), receipt=data.hex(), peer=os.getpid(), node=process.pid)
-                                (directory / ('dropped-' + selected + '.json')).write_text(json.dumps(frozen))
+                                publish_evidence(directory / ('dropped-' + selected + '.json'), frozen)
                                 armed.unlink()
                                 # Hold the reply so the test can kill management
                                 # after the native commit but before its receipt.
@@ -278,7 +289,7 @@ def wait_file(path, timeout=20):
 
 
 def arm(fixture, command, label=None, principal=None):
-    (fixture.root / 'drop-next').write_text(json.dumps(dict(command=command, label=label or command, principal=principal)))
+    publish_evidence(fixture.root / 'drop-next', dict(command=command, label=label or command, principal=principal))
 
 
 def recovered_operation(fixture, label, name):
