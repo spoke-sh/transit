@@ -103,6 +103,24 @@ test("explicit relational pages recover the same host and clear on current denia
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.getByRole("button", { name: "Close relational query", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Active query", exact: true })).toHaveCount(0);
+  await page
+    .getByLabel("Relational SQL", { exact: true })
+    .fill(
+      "SELECT category, SUM(amount) AS total FROM rel_typed GROUP BY category ORDER BY total DESC LIMIT 2",
+    );
+  await page.getByRole("button", { name: "Run relational query", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Active query", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Read current relational page", exact: true }).click();
+  const typedRow = page.getByRole("table", { name: "One current authorized row" });
+  await expect(typedRow).toContainText("true");
+  await expect(typedRow).toContainText("17.75");
+  await page.getByRole("button", { name: "Next relational page", exact: true }).click();
+  await expect(typedRow).toContainText("false");
+  await expect(typedRow).toContainText("7.25");
+  await page.getByRole("button", { name: "Next relational page", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Complete coverage · page 2" })).toBeVisible();
+  await page.getByRole("button", { name: "Close relational query", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Active query", exact: true })).toHaveCount(0);
   await page.getByLabel("Relational SQL", { exact: true }).fill(process.env.BOARD_RELATIONAL_SQL!);
   await page.getByRole("button", { name: "Add JOIN route", exact: true }).click();
   await page.getByLabel("JOIN route", { exact: true }).selectOption("1");

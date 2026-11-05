@@ -29,6 +29,39 @@ const page = {
 };
 afterEach(() => vi.unstubAllGlobals());
 describe("relational browser boundaries", () => {
+  it("validates typed scalar cells and grouping keys without numeric coercion", () => {
+    const values = [
+      { unsigned: "18446744073709551615" },
+      { decimal: "99999999999999999999999999999999999999" },
+      { float_bits: "000000000000f03f" },
+      { boolean: true },
+      { date_days: "-2147483648" },
+      { time_nanos: "86399999999999" },
+      { timestamp_micros: "-9223372036854775808" },
+      { uuid: "0123456789abcdef0123456789abcdef" },
+      { binary: "00ff" },
+    ];
+    const typed = (atoms: unknown[]) => ({
+      query: {
+        page: {
+          ...page,
+          row: { identity: { group: atoms }, cells: atoms.map((atom) => ({ value: { atom } })) },
+        },
+      },
+    });
+    expect(validateRelational(typed(values))).toBe(true);
+    for (const invalid of [
+      { decimal: "100000000000000000000000000000000000000" },
+      { float_bits: "000000000000f07f" },
+      { date_days: "2147483648" },
+      { time_nanos: "86400000000000" },
+      { timestamp_micros: "9223372036854775808" },
+      { uuid: "abcd" },
+      { binary: "AA" },
+      { interval: { months: "0", days: "0", nanos: "0" } },
+    ])
+      expect(validateRelational(typed([invalid]))).toBe(false);
+  });
   it("preserves integer bounds, nullable group identity and incomplete prefixes", () => {
     expect(validateRelational({ query: { page } })).toBe(true);
     for (const change of [
