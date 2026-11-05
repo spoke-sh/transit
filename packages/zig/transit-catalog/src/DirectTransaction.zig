@@ -139,12 +139,38 @@ pub fn inspectSelection(allocator: std.mem.Allocator, objects: c.storage.Transit
             switch (entry.participant) {
                 .state => try entry.participant.requireLocalState(reference.begin),
                 .log => if (reference.begin.selection != .explicit_objects) return error.InvalidTransactionBegin,
+                .document => return error.UnsupportedTransactionParticipant,
             }
             if (entry.participant.writes()) return error.InvalidTransactionBegin;
         };
         after = page.next orelse break;
     }
     if (count != directory.root.count or directory.root.writes != 0) return error.InvalidTransactionDirectory;
+}
+
+test "transaction admission rejects partitioned Document selection before execution" {
+    const t = std.testing;
+    const Fixture = struct { request: c.DirectTableProtocol.Request, public_key: [32]u8 };
+    const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-transaction-v1.json"));
+    defer parsed.deinit();
+    var reference = parsed.value.request.action.client_token.bind.intent.transaction;
+    reference.begin.selection = .explicit_objects;
+    reference.begin.limits.participants = 2;
+    var objects = c.storage.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var selected = try c.storage.TransactionDirectory.init(t.allocator, objects.objectStore(), reference.begin.identity, .participants, 2, 1, 1024 * 1024);
+    defer selected.deinit();
+    try selected.put(.{ .participant = .{ .document = .{ .access = .read, .guard = .{ .source = .{
+        .target = .{ .definition = p.Growth.current_definition, .interpretation = .{ .object = .{ .scope = reference.connection.scope, .branch = 1, .object = 7 }, .revision = 1, .digest = @splat(3) }, .partition = std.math.maxInt(u32) },
+        .observed = .{ .partition = 33, .next_lsn = 1 },
+        .changed_next_lsn = 1,
+        .heads_digest = null,
+    } } } } });
+    reference.begin.objects = try selected.seal();
+    var options: c.DirectCatalog.Options = .{};
+    options.transaction_limits = reference.begin.limits;
+    try t.expectError(error.UnsupportedTransactionParticipant, inspectSelection(t.allocator, objects.objectStore(), reference, options, false));
+    try t.expectError(error.UnsupportedTransactionParticipant, inspectSelection(t.allocator, objects.objectStore(), reference, options, true));
 }
 
 test "transaction admission signature binds the complete independent begin fixture" {

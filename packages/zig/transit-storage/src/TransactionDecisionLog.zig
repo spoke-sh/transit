@@ -89,7 +89,7 @@ fn participants(self: *Self) !Directory {
             count = try std.math.add(u64, count, 1);
             if (count > result.root.count) return error.InvalidTransactionDirectory;
             try value.participant.validate(self.binding.begin.identity);
-            if (value.participant == .state and value.participant.state.kind == .document) return error.UnsupportedTransactionParticipant;
+            if (value.participant == .document) return error.UnsupportedTransactionParticipant;
             if (self.binding.begin.mode == .read_only and value.participant.writes()) return error.ReadOnlyTransaction;
             if (value.participant.guard().accepted().partition == self.partition)
                 return error.InvalidTransactionPartition;

@@ -15,6 +15,7 @@ test "document fixture roundtrips and preserves wide identities and separate log
     try v.mutation.validate();
     try v.replica.validate();
     try v.checkpoint.validate();
+    try v.deletion.validate();
     try v.read.validate();
     try v.read_cursor.requireReceipt(v.read);
     try v.read_release.validate();
@@ -28,6 +29,40 @@ test "document fixture roundtrips and preserves wide identities and separate log
     const roundtrip = try p.Json.parseFromSlice(doc.SchemaTypes, t.allocator, encoded);
     defer roundtrip.deinit();
     try t.expectEqualDeep(v, roundtrip.value);
+}
+
+test "document deletion evidence binds the exact predecessor without expiring retained history" {
+    const parsed = try fixture();
+    defer parsed.deinit();
+    const receipt = parsed.value.deletion;
+    try receipt.requireDeletion(receipt.deletion);
+    try t.expectEqual(std.math.maxInt(u64), receipt.deleted_revision);
+    try receipt.deletion.expected.requireRevision(receipt.deletion.expected.retained_from);
+    inline for (.{ "operation", "head", "document", "ordinal", "epoch", "definition" }) |field| {
+        var changed = receipt.deletion;
+        if (comptime std.mem.eql(u8, field, "operation")) changed.operation.operation -= 1;
+        if (comptime std.mem.eql(u8, field, "head")) changed.expected.state.sha256[0] ^= 1;
+        if (comptime std.mem.eql(u8, field, "document")) changed.expected.target.document[0] ^= 1;
+        if (comptime std.mem.eql(u8, field, "ordinal")) changed.expected.target.partition.partition += 1;
+        if (comptime std.mem.eql(u8, field, "epoch")) changed.expected.merge_epoch += 1;
+        if (comptime std.mem.eql(u8, field, "definition")) changed.expected.target.partition.interpretation.digest[0] ^= 1;
+        try t.expectError(error.DocumentDeletionConflict, receipt.requireDeletion(changed));
+    }
+    var invalid = receipt;
+    invalid.deleted_revision -= 1;
+    try t.expectError(error.InvalidDocumentDeletionReceipt, invalid.validate());
+    invalid = receipt;
+    invalid.accepted.partition += 1;
+    try t.expectError(error.InvalidDocumentDeletionReceipt, invalid.validate());
+    invalid = receipt;
+    invalid.accepted = invalid.deletion.expected.accepted;
+    try t.expectError(error.InvalidDocumentDeletionReceipt, invalid.validate());
+    invalid = receipt;
+    invalid.deletion.operation.scope.catalog -= 1;
+    try t.expectError(error.DocumentPartitionConflict, invalid.validate());
+    invalid = receipt;
+    invalid.deletion.expected.accepted_revision = std.math.maxInt(u64);
+    try t.expectError(error.DocumentRevisionExhausted, invalid.validate());
 }
 
 test "document mutation receipt refuses modified payload lineage target or operation" {
@@ -189,6 +224,17 @@ test "document collection fixture validates exact cuts bounded owned pages and t
     request.page_bytes -= 1;
     try t.expectError(error.DocumentReadConflict, v.receipt.requireRequest(request));
     var page = v.page;
+    const document = try fixture();
+    defer document.deinit();
+    page.heads[0] = .{ .deleted = document.value.deletion.tombstone() };
+    try page.validate();
+    const head_json = try p.Json.valueAlloc(t.allocator, page.heads[0].?);
+    defer t.allocator.free(head_json);
+    try t.expect(std.mem.indexOf(u8, head_json, "operation") == null);
+    try t.expect(std.mem.indexOf(u8, head_json, "principal") == null);
+    page.heads[0].?.deleted.deleted_revision -= 1;
+    try t.expectError(error.InvalidDocumentDeletionReceipt, page.validate());
+    page = v.page;
     page.heads[0] = null;
     try t.expectError(error.InvalidDocumentCollection, page.validate());
     page = v.page;

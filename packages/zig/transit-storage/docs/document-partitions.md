@@ -76,7 +76,10 @@ that owns the receipt and current scoped authority. A page owns at most 16 heads
 inline; it does not borrow scratch storage or materialize revision values. Use
 its authenticated cursor until `coverage.complete`. Each ID appears once in
 ascending byte order, under the original directory even after live replacements
-or insertions. A vector of independently acquired partition cuts is not atomic.
+or insertions. Heads explicitly distinguish live cuts and permanent deletion
+metadata; both count toward coverage. Private deletion receipts remain with
+the original operation owner. A vector of independently acquired
+partition cuts is not atomic.
 
 `changed_next_lsn` tracks logical head changes separately from the observed WAL
 position. Acquiring/releasing reads, recording causal aliases and maintenance
@@ -90,10 +93,31 @@ have no implicit expiry; exact acquisition/release retries return their recorded
 outcomes. Preserve `read_secret` across reopen to continue cursors, or reissue a
 cursor from the same live receipt under current authority after changing the key.
 The retained graph preserves the source, heads and referenced logical storage
-until all dependencies permit collection. This API exposes neither operation
-records nor logical deletion, and does not implement transaction cut acquisition.
+until all dependencies permit collection. This API exposes no operation directory
+and does not implement transaction cut acquisition.
 The [neutral contract](../../../../contracts/DOCUMENT_V1.md#retained-partition-membership)
 defines coverage and failure behavior.
+
+## Logical deletion and partition guards
+
+Use `observeHead(target, guard)` to distinguish an absent ID, a live cut and a
+permanent tombstone under current authority. Submit `delete` with the exact live
+cut and original operation identity. The owner records one fenced WAL change;
+stale cuts conflict and uncertain appends fence the owner until recovery. Retry
+the original request to recover its receipt. A new write cannot reuse the ID.
+
+Deletion preserves already retained revision and collection reads. An older
+collection keeps its live head; a newer collection includes the tombstone. It
+does not release pins, expire revisions or authorize cleanup. Fresh revision-read
+acquisition against a deleted ID is refused; existing receipts continue to work
+under current authority. The [contract](../../../../contracts/DOCUMENT_V1.md#logical-deletion-and-retained-lifetimes)
+owns the exact lifetime and failure rules.
+
+`transactionGuard(guard)` returns the current declaration, logical partition
+ordinal, observed WAL position, logical frontier and directory digest. It covers
+absent IDs as well as live and deleted heads. Inserts, replacements and deletions
+invalidate an older guard; read-pin bookkeeping does not. It acquires no pin and
+does not enable Document transaction preparation or an installed service route.
 
 ## Verification
 

@@ -1,6 +1,6 @@
 {
   "declaration": {
-    "definition": "72f8c8ee18d16bef3bff32bbc24973c9faebcc33aaad678d4fef0baa70a9c8d5",
+    "definition": "240baa2bb21e59ab138b0b8a21097676d142d401f2a726e2a283d7ad01a885e5",
     "interpretation": {
       "object": {
         "scope": {
@@ -114,7 +114,7 @@
     "mutation": {
       "target": {
         "partition": {
-          "definition": "72f8c8ee18d16bef3bff32bbc24973c9faebcc33aaad678d4fef0baa70a9c8d5",
+          "definition": "240baa2bb21e59ab138b0b8a21097676d142d401f2a726e2a283d7ad01a885e5",
           "interpretation": {
             "object": {
               "scope": {
@@ -311,7 +311,7 @@
   "replica": {
     "target": {
       "partition": {
-        "definition": "72f8c8ee18d16bef3bff32bbc24973c9faebcc33aaad678d4fef0baa70a9c8d5",
+        "definition": "240baa2bb21e59ab138b0b8a21097676d142d401f2a726e2a283d7ad01a885e5",
         "interpretation": {
           "object": {
             "scope": {
@@ -409,7 +409,7 @@
     "checkpoint": {
       "target": {
         "partition": {
-          "definition": "72f8c8ee18d16bef3bff32bbc24973c9faebcc33aaad678d4fef0baa70a9c8d5",
+          "definition": "240baa2bb21e59ab138b0b8a21097676d142d401f2a726e2a283d7ad01a885e5",
           "interpretation": {
             "object": {
               "scope": {
@@ -531,7 +531,7 @@
     "cut": {
       "target": {
         "partition": {
-          "definition": "72f8c8ee18d16bef3bff32bbc24973c9faebcc33aaad678d4fef0baa70a9c8d5",
+          "definition": "240baa2bb21e59ab138b0b8a21097676d142d401f2a726e2a283d7ad01a885e5",
           "interpretation": {
             "object": {
               "scope": {
@@ -645,11 +645,145 @@
       }
     }
   },
+  "deletion": {
+    "deletion": {
+      "operation": {
+        "scope": {
+          "realm": 1,
+          "resource": 7,
+          "catalog": 18446744073709551615
+        },
+        "principal": 17,
+        "operation": 18446744073709551600
+      },
+      "expected": {
+        "target": {
+          "partition": {
+            "definition": "240baa2bb21e59ab138b0b8a21097676d142d401f2a726e2a283d7ad01a885e5",
+            "interpretation": {
+              "object": {
+                "scope": {
+                  "realm": 1,
+                  "resource": 7,
+                  "catalog": 18446744073709551615
+                },
+                "branch": 1,
+                "object": 18446744073709551614
+              },
+              "revision": 1,
+              "digest": [
+                47,
+                47,
+                47,
+                47,
+                47,
+                47,
+                47,
+                47,
+                47,
+                47,
+                47,
+                47,
+                47,
+                47,
+                47,
+                47,
+                47,
+                47,
+                47,
+                47,
+                47,
+                47,
+                47,
+                47,
+                47,
+                47,
+                47,
+                47,
+                47,
+                47,
+                47,
+                47
+              ]
+            },
+            "partition": 0
+          },
+          "document": [
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48
+          ]
+        },
+        "merge_epoch": 3,
+        "retained_from": 18446744073709551610,
+        "accepted_revision": 18446744073709551614,
+        "state": {
+          "bytes": 1024,
+          "sha256": [
+            59,
+            59,
+            59,
+            59,
+            59,
+            59,
+            59,
+            59,
+            59,
+            59,
+            59,
+            59,
+            59,
+            59,
+            59,
+            59,
+            59,
+            59,
+            59,
+            59,
+            59,
+            59,
+            59,
+            59,
+            59,
+            59,
+            59,
+            59,
+            59,
+            59,
+            59,
+            59
+          ]
+        },
+        "accepted": {
+          "partition": 93,
+          "next_lsn": 15
+        }
+      }
+    },
+    "deleted_revision": 18446744073709551615,
+    "accepted": {
+      "partition": 93,
+      "next_lsn": 18
+    }
+  },
   "read": {
     "request": {
       "target": {
         "partition": {
-          "definition": "72f8c8ee18d16bef3bff32bbc24973c9faebcc33aaad678d4fef0baa70a9c8d5",
+          "definition": "240baa2bb21e59ab138b0b8a21097676d142d401f2a726e2a283d7ad01a885e5",
           "interpretation": {
             "object": {
               "scope": {
@@ -734,7 +868,7 @@
     "cut": {
       "target": {
         "partition": {
-          "definition": "72f8c8ee18d16bef3bff32bbc24973c9faebcc33aaad678d4fef0baa70a9c8d5",
+          "definition": "240baa2bb21e59ab138b0b8a21097676d142d401f2a726e2a283d7ad01a885e5",
           "interpretation": {
             "object": {
               "scope": {
@@ -943,7 +1077,7 @@
       "cut": {
         "target": {
           "partition": {
-            "definition": "72f8c8ee18d16bef3bff32bbc24973c9faebcc33aaad678d4fef0baa70a9c8d5",
+            "definition": "240baa2bb21e59ab138b0b8a21097676d142d401f2a726e2a283d7ad01a885e5",
             "interpretation": {
               "object": {
                 "scope": {
@@ -1064,45 +1198,45 @@
       "complete": true
     },
     "authentication": [
-      191,
-      149,
-      40,
-      106,
-      0,
-      44,
-      206,
-      223,
-      11,
-      51,
-      1,
+      76,
+      133,
+      242,
+      70,
+      32,
+      139,
+      150,
+      30,
+      48,
+      143,
+      116,
+      194,
+      247,
+      90,
+      19,
+      173,
+      167,
       104,
-      147,
-      141,
-      75,
-      147,
-      54,
-      49,
-      162,
-      199,
+      253,
+      169,
+      114,
+      1,
+      69,
+      27,
       91,
-      113,
-      211,
-      135,
-      190,
-      240,
-      88,
-      35,
-      57,
-      12,
-      97,
-      27
+      30,
+      24,
+      28,
+      155,
+      205,
+      245,
+      33
     ]
   },
   "read_release": {
     "release": {
       "target": {
         "partition": {
-          "definition": "72f8c8ee18d16bef3bff32bbc24973c9faebcc33aaad678d4fef0baa70a9c8d5",
+          "definition": "240baa2bb21e59ab138b0b8a21097676d142d401f2a726e2a283d7ad01a885e5",
           "interpretation": {
             "object": {
               "scope": {

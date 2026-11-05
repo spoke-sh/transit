@@ -19,6 +19,18 @@ pub fn participant(object: u64) D.Entry {
     } } };
 }
 
+pub fn documentParticipant(ordinal: u32) D.Entry {
+    return .{ .participant = .{ .document = .{
+        .guard = .{ .source = .{
+            .target = .{ .definition = p.Growth.current_definition, .interpretation = participant(7).participant.state.guard.source.interpretation, .partition = ordinal },
+            .observed = .{ .partition = 100 + @as(u64, ordinal), .next_lsn = 5 },
+            .changed_next_lsn = 3,
+            .heads_digest = @splat(9),
+        } },
+        .access = .write,
+    } } };
+}
+
 pub fn begin(directory: x.Directory) x.Begin {
     return .{
         .definition = p.Growth.current_definition,

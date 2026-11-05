@@ -103,9 +103,37 @@ pub const Cursor = struct {
     }
 };
 
-pub const Head = struct {
+pub const LiveHead = struct {
     cut: doc.Cut,
     unresolved_conflicts: u16,
+};
+
+/// Every allocated logical ID remains enumerable after deletion. Absence is a
+/// missing entry, not a tombstone; the deleted variant omits private operations.
+pub const Head = union(enum) {
+    live: LiveHead,
+    deleted: doc.Tombstone,
+
+    pub fn validate(self: Head) !void {
+        switch (self) {
+            .live => |v| try v.cut.validate(),
+            .deleted => |v| try v.validate(),
+        }
+    }
+
+    pub fn basis(self: Head) doc.Cut {
+        return switch (self) {
+            .live => |v| v.cut,
+            .deleted => |v| v.previous,
+        };
+    }
+
+    pub fn position(self: Head) d.Position {
+        return switch (self) {
+            .live => |v| v.cut.accepted,
+            .deleted => |v| v.accepted,
+        };
+    }
 };
 
 pub const Page = struct {
@@ -124,12 +152,13 @@ pub const Page = struct {
                 continue;
             }
             const head = slot orelse return error.InvalidDocumentCollection;
-            try head.cut.validate();
+            try head.validate();
+            const cut = head.basis();
             if (previous) |id| {
-                if (std.mem.order(u8, &id, &head.cut.target.document) != .lt)
+                if (std.mem.order(u8, &id, &cut.target.document) != .lt)
                     return error.InvalidDocumentCollection;
             }
-            previous = head.cut.target.document;
+            previous = cut.target.document;
         }
         if (previous) |id| {
             if (!std.meta.eql(self.cursor.coverage.after, @as(?[16]u8, id)))

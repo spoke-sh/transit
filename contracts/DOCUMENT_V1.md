@@ -138,7 +138,10 @@ is the next LSN after the last head change, initially 1; read pins, receipt alia
 and archival/recovery maintenance do not advance it. A null directory denotes an
 accepted empty partition. Missing directory storage is an error. Independent
 partition cuts form a vector; they do not establish an atomic collection snapshot
-or a serializable transaction guard.
+or serializable isolation. The separate
+[`Transaction.DocumentGuard`](DATA_LIFECYCLE_V1.md#transaction-bindings-and-evidence)
+uses this whole-partition basis for conservative conflict comparison; observing
+that guard does not retain the directory or enlist a transaction participant.
 
 `Request` binds the owning operation, cumulative `max_steps`/`max_bytes`, and
 per-fetch `page_heads` (1–16) and `page_bytes` (positive, no larger than
@@ -152,9 +155,10 @@ does not reactivate the pin. These pins have no implicit expiry.
 `after` document ID, returned `heads`, consumed `steps`/`bytes`, and `complete`.
 Each `Page` owns an inline array of at most 16 nullable heads, a count and a
 successor cursor. Entries before `count` are present and strictly ordered by the
-16-byte document ID; all remaining entries are null. Each head contains its exact
-revision cut and unresolved-conflict count. A page does not materialize logical
-values. Prior pages survive scratch resets and later fetches.
+16-byte document ID; all remaining entries are null. Each head is either `live`
+(exact revision cut and unresolved-conflict count) or `deleted` (a
+`Tombstone`, excluding private operation identity). Deleted IDs count toward
+coverage and byte/work budgets. A page does not materialize logical values. Prior pages survive scratch resets and later fetches.
 
 A scan charges one step plus every visited directory page, including cache hits
 and bounded lookahead. Bytes count canonical encoded head values, excluding
@@ -178,10 +182,61 @@ Collection pins retain their immutable directory and its referenced revision
 states, logical indexes and segments through the shared storage graph. Release
 removes this dependency, but other accepted history, checkpoints or pins can
 still retain the same objects. Missing/corrupt sources or pages fail closed.
-There is no logical-document deletion operation in this component profile;
-absence means no head at this cut, not an invented deletion revision. Catalog
+Absence means no allocated ID at this cut; deletion is an explicit tombstone. Catalog
 DROP, staged-candidate ownership, operation discovery and Document transaction
 preparation are separate contracts not enabled by enumeration.
+
+## Logical deletion and retained lifetimes
+
+`Delete` binds the original scoped operation and an exact live `expected` cut.
+`DeleteReceipt` binds that request, the immediately succeeding `deleted_revision`,
+and a strictly later acceptance position in the same physical WAL partition.
+Revision exhaustion refuses before acceptance. A deletion receipt is distinct
+from a value revision: there is no synthetic empty tree, null value, or revision
+payload for the tombstone. Query-visible `Tombstone` metadata contains only
+`previous`, `deleted_revision` and `accepted`; it does not expose the deleting
+principal or operation. The full retry receipt remains in the operation owner.
+Validating either shape does not prove acceptance.
+
+The storage component's `DocumentPartition.delete` compares the complete current
+live cut, stages bounded immutable evidence and directory pages, and publishes
+one fenced `row_delta` WAL record. It advances the logical-head frontier and
+replaces the head with a permanent tombstone. A stale head conflicts; an unknown
+ID returns `DocumentNotFound`. A different operation against a deleted ID returns
+`DocumentDeleted`. The original operation recovers its exact receipt, including
+after a lost acknowledgement, replay, archival and checkpoint-based reopen.
+Changed requests cannot reuse that operation. Permission denial or a failed
+publication does not establish deletion; uncertain append outcomes require
+recovery before another operation. The host serializes calls and supplies current
+scoped mutation authority through `PublicationGuard`.
+
+`observeHead(target, guard)` returns an owned current `live` or `deleted` head,
+or null for an absent ID, checking current authority before and after lookup.
+It does not acquire retention or a common snapshot. Newly submitted mutations,
+checkpoints and revision-read acquisitions cannot reuse a deleted ID. Exact
+retries of already accepted operations still recover their original outcomes;
+their receipts never recreate a live head. Creating another logical document
+requires a different ID.
+
+Deletion does not expire revisions, release pins, retire the catalog declaration
+or authorize physical cleanup. Already retained revision and collection reads
+continue under their original bases and current permissions. A collection pinned
+before deletion retains its live head; one pinned afterward enumerates the
+tombstone. The retained graph follows both variants to the predecessor's state,
+including logical indexes and `.tseg` dependencies. Retention remains unlimited
+unless its owning policy explicitly permits expiry. Tombstone removal and ID
+reuse are not supported.
+
+Revision and collection pins have distinct persisted kinds. A receipt of one
+kind cannot release or read the other. Release, current permission and cursor
+authentication are independent checks. The host owns the private persistent
+signing key and must supply it before activation after bounded recovery. Rotation
+invalidates old cursors, but the authorized owner can issue a new cursor from
+the same live receipt without acquiring a replacement pin. Neither elapsed time,
+process exit nor key loss releases pins. Installed service integration must own
+key persistence, rotation, original-operation recovery and explicit pin cleanup;
+this component does not introduce an installed Document endpoint or change the
+Station lifecycle.
 
 ## Integrated causal map-tree storage slice
 
