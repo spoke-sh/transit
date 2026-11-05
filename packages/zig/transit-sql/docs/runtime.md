@@ -127,6 +127,11 @@ There are no per-query SQL pin files or local fsyncs. The installer retains
 recovery for disabled accounts with outstanding pins as well as pending writes.
 Denied cleanup remains visible and does not authorize expiry.
 
+When a recovery-slot update conflicts, reconciliation inspects the original slot
+before reporting the failure. Successful inspection preserves the update's native
+conflict diagnostic; a denied or invalid recovery read reports its own failure.
+Neither observation establishes rejection or retries the SQL statement.
+
 Only the acquisition identity and expected cut require a durable cache record;
 the returned handle stays in the resident entry. Recovery resolves that same
 identity with `pin_status`, including when the acquisition reply was lost. An
