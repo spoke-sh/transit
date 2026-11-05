@@ -186,24 +186,6 @@ def node(real, directory, args):
                         publish_evidence(directory / 'probe-rejection.json', dict(status=response.status, body=data.decode()))
                     if query['principal'] == 0 and 'capabilities' in query['kind'] and response.status == 200 and (directory / 'capacity-probes').exists() and (directory / 'capacity-probes').read_text() == '0':
                         (directory / 'capacity-recovered').touch()
-                if self.path == '/table/v1' and response.status == 200:
-                    envelope = json.loads(body)
-                    with mutex:
-                        armed = directory / 'drop-table-next'
-                        if armed.exists():
-                            selection = json.loads(armed.read_text())
-                            update = envelope['action'].get('client_progress', {}).get('update', {})
-                            record = update.get('record') or {}
-                            if (envelope['connection']['principal'] == selection['principal'] and
-                                    record.get('format') == selection['format']):
-                                selected = selection['label']
-                                publish_evidence(directory / ('dropped-' + selected + '.json'), dict(body=body.hex(), receipt=data.hex(), peer=os.getpid(), node=process.pid))
-                                armed.unlink()
-                                deadline = time.monotonic() + 8
-                                while not (directory / ('release-' + selected)).exists() and not stop.is_set() and time.monotonic() < deadline:
-                                    time.sleep(.02)
-                                self.close_connection = True
-                                return
                 if self.path == '/v1/command' and response.status == 200:
                     envelope = json.loads(body)
                     with mutex:

@@ -1292,7 +1292,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
             run.addDirectoryArg2(.{ .relative = .{ .base = .install_prefix } }, .{});
             run.step.dependOn(b.getInstallStep());
         } else {
-            for ([_]*std.Build.Step.Compile{ transit_cli, if (comptime std.mem.eql(u8, proof[0], "test-server-sql")) fault_node else node_artifact, query_host, board, sql_gateway_app }) |artifact| run.addArtifactArg(artifact);
+            for ([_]*std.Build.Step.Compile{ transit_cli, fault_node, query_host, board, sql_gateway_app }) |artifact| run.addArtifactArg(artifact);
         }
         run.step.dependOn(&operation_install.step);
         run.has_side_effects = true;

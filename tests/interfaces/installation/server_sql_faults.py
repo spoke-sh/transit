@@ -8,10 +8,9 @@ import shutil
 import socket
 import sys
 
-from harness.processes import joined
-from interfaces.installation.server import Fixture
-from interfaces.installation.server_application_faults import arm, descendants, install_peer, wait_file
-from interfaces.installation.server_sql import account, apply, call, freeze, wait_status
+from interfaces.installation.server_application_faults import publish_evidence, wait_file
+from interfaces.installation.server_direct_boundary import Boundary
+from interfaces.installation.server_sql import SQLFixture, account, apply, call, freeze, wait_status
 from harness.services import free_port
 
 
@@ -19,9 +18,9 @@ def run(cli, node, host, board, gateway):
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
     os.environ['TEST_TRANSIT_BOARD_BINARY'] = str(Path(board).resolve())
     os.environ['TEST_TRANSIT_SQL_GATEWAY_BINARY'] = str(Path(gateway).resolve())
-    fixture = Fixture(cli, node, host)
+    fixture = SQLFixture(cli, node, host)
     freeze(fixture)
-    install_peer(fixture)
+    fixture.boundary = Boundary(fixture)
     fixture.config['sql'] = {'native': {'local': False}}
     fixture.config['applications'] = {'port': free_port()}
     fixture.config['board'] = {'port': free_port()}
@@ -29,9 +28,7 @@ def run(cli, node, host, board, gateway):
     success = False
     print(f'Local SQL fault proof: {fixture.root}', flush=True)
     def kill():
-        owned = descendants(fixture.process.pid)
         fixture.stop(kill=True)
-        joined(owned)
     try:
         fixture.start(); fixture.ready(); fixture.stop()
         password = fixture.root / 'owner.password'
@@ -48,14 +45,17 @@ def run(cli, node, host, board, gateway):
         recovered = json.loads(path.read_text())
         assert recovered['identity'] == frozen['identity'] and recovered['principals'] == frozen['principals']
         assert set(recovered['principals']) == {'table'}
-        (fixture.root / 'drop-table-next').write_text(json.dumps(dict(label='sql-activation', principal=recovered['principals']['table'], format=0x53514131)))
+        publish_evidence(fixture.boundary.directory / 'drop-activation.json', dict(principal=recovered['principals']['table']))
         apply(fixture, fixture.installation / 'sql/accounts/owner/bind-credential.json', 'binding')
-        wait_file(fixture.root / 'dropped-sql-activation.json', timeout=120)
-        accepted = json.loads((fixture.root / 'dropped-sql-activation.json').read_text())
-        receipt = json.loads(bytes.fromhex(accepted['receipt']))['result']['client_progress']['state']
+        wait_file(fixture.boundary.directory / 'dropped-activation.json', timeout=120)
+        accepted = json.loads((fixture.boundary.directory / 'dropped-activation.json').read_text())
+        receipt = accepted['state']
+        assert receipt['receipt']['binding']['key'] == accepted['key']
+        assert receipt['revision']['partition'] == receipt['receipt']['position']['partition']
+        assert receipt['revision']['next_lsn'] > receipt['receipt']['position']['next_lsn']
         frozen_init = json.loads(path.read_text())
         kill()
-        (fixture.root / 'release-sql-activation').touch()
+        (fixture.boundary.directory / 'release-activation').touch()
         fixture.start(); fixture.ready(timeout=300)
         wait_status(fixture, lambda s: s['service']['state'] == 'accepting')
         retained = json.loads(path.read_text())
