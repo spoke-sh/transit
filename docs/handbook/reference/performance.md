@@ -20,6 +20,25 @@ measurements or latency promises for the current build.
 See [declarative benchmarks](benchmarks.md) for synthetic compiler/execution
 measurements and explicit TPC-C, TPC-E, TPC-H and TPC-DS coverage gaps.
 
+## Nightly container campaigns
+
+The nightly container performance workflow runs twelve hours after the regular
+nightly schedule, using the last successfully promoted image pinned by digest.
+It records the release and driver identities separately and never rebuilds the
+runtime. Missing promotion evidence fails selection; an explicitly selected
+unpromoted candidate remains labeled as an investigation.
+
+The initial campaign compares one server with three client-routed, independent
+servers on one Docker host under equal aggregate CPU and memory limits. It
+exercises point reads, scans, contended and disjoint writes, mixed reads/writes,
+and graceful restart with full readback. These are local disk authorities, not
+a replicated cluster or a multi-host network test. Timings include persistent
+console pipes and local SQL, with empirical percentiles and verified throughput.
+Failed or incomplete campaigns retain their records and cannot produce a passing
+summary. There is no calibrated performance budget yet. The
+[container campaign guide](https://github.com/spoke-sh/transit/blob/main/tests/performance/load/containers.md)
+owns reproduction, exact measurement boundaries and unavailable counters.
+
 ## Column execution measurements
 
 File and general Table queries use bounded typed columns. Resumable logical,

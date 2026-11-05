@@ -47,6 +47,10 @@ prerequisites and later phases remain outstanding.
 
 ## Delivery sequence
 
+The [nightly container scorecard](#nightly-container-scorecard-and-distributed-handoffs)
+provides a published-artifact measurement entry point. It does not replace the
+component, failure or allocation gates below.
+
 1. **Freeze workload contracts and establish baselines before choosing winners.**
    Define supported operations, correctness oracles, selected competitor versions,
    hardware/toolchains, resource budgets, durability, isolation, retained history
@@ -154,6 +158,40 @@ prerequisites and later phases remain outstanding.
    implementations as test oracles where useful, without introducing parallel
    legacy runtime protocols. Any incompatible format/ABI change follows the
    current-v1 cutover with consumer/fixture migration and accepted-work recovery.
+
+## Nightly container scorecard and distributed handoffs
+
+[Tracker #378](https://github.com/spoke-sh/transit/issues/378) coordinates build
+composition, runtime placement and partition authority as separate boundaries.
+The [container suite](../../tests/performance/load/containers.md) starts with one
+local authority and three explicitly client-routed independent authorities on
+one Docker host, using equal aggregate CPU/memory limits. Schedule the campaign
+at 19:17 UTC, twelve hours after the regular nightly release, against one frozen
+promoted OCI digest. Preserve separate driver/runtime revisions, all failed
+attempts and exact value/completion checks. Hosted execution and numerical
+regression budgets need attributable evidence before they can be claimed.
+
+Use shared/separate Tables, persistent clients, complete scans, writes, mixed
+load and retained restart to establish the first observations. Extend them with
+independently offered load, generator saturation, TCP/TLS clients, hot-key/skew
+profiles, larger-than-memory state and sustained flush/compaction/collection.
+Attribute backend-wide append locking, catalog directory/token/transaction
+serialization, resident-owner churn, durable publications/syncs, runnable threads
+and reserved control progress. Missing internal counters remain unavailable;
+Docker memory/I/O observations do not substitute for allocator or sync counts.
+
+Replace measured serialization with partition-scoped ownership only after the
+policy and publication contracts preserve current authorization and original
+accepted outcomes. Raising thread/lane/stripe constants is not the scaling plan.
+Keep local database operations independent of Station turns. Build/asset/link
+costs and deployment image sizes have separate measurements from runtime speed.
+
+M8 owns local/remote ingress and scheduling; M23 extends the workload to real
+providers and enforceably fenced independent writers; M24 adds complete-history
+replication and safe promotion; M25 adds operations under load; M26 adds automatic
+placement and distributed queries. M44 owns the combined comparisons and M45
+the artifact profiles. Three independent containers do not complete any of those
+distributed obligations. Keep all milestone statuses and earlier gates intact.
 
 ## Candidate structures and selection evidence
 

@@ -89,6 +89,17 @@ establish distributed memory, progress or snapshot guarantees.
 
 ## Completion evidence
 
+Deliver shared-data multi-node and physical multi-host profiles for the
+[nightly scorecard](13-data-structures-and-performance.md#nightly-container-scorecard-and-distributed-handoffs)
+and [tracker #378](https://github.com/spoke-sh/transit/issues/378). Replace the
+initial independent-authority comparison with explicitly qualified routed
+partitions, distributed Fuze exchanges and lease transfer; retain the local
+control as a separate case. Measure network shuffle, skew, spill, cache locality,
+warming, coordinator/participant work and control progress at equal aggregate
+resources and failure guarantees. Query and effect workers may have independent
+placement and budgets while sharing implementation libraries and release identity.
+Neither another executable nor another pod grants partition authority.
+
 Extend [index coverage](11-indexing-and-access-paths.md) and the
 [local cost/performance model](13-data-structures-and-performance.md) to routed
 partitions, transferred build ownership and distributed scans/probes. Qualify

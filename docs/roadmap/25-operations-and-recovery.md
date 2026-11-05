@@ -128,6 +128,16 @@ not establish installation recovery or authorize historical effects.
 
 ## Completion evidence
 
+Extend the [nightly scorecard](13-data-structures-and-performance.md#nightly-container-scorecard-and-distributed-handoffs)
+through [tracker #378](https://github.com/spoke-sh/transit/issues/378) with drain,
+aged/unclean recovery, independently verified backups/restores and supported
+artifact replacement under load. Preserve image, source, definition, driver and
+topology identities across each operation. Measure checkpoint loading, replay,
+cache warming and time to verified service separately. The initial container
+suite's graceful retained restart establishes neither disaster recovery nor
+upgrade compatibility; independent artifacts still obey coordinated current-v1
+cutover and complete transaction/receipt/policy recovery rules.
+
 Back up a changing installation with Table/KV/Document data, branch history,
 accepted unflushed writes, pending work and recorded effects. Destroy an isolated
 source fixture and restore using only the declared backup/recovery material.

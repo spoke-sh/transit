@@ -10,6 +10,17 @@ remains a gate for every preceding milestone.
 
 ## Remaining work
 
+- Own the combined [nightly container scorecard](13-data-structures-and-performance.md#nightly-container-scorecard-and-distributed-handoffs)
+  tracked by [#378](https://github.com/spoke-sh/transit/issues/378). Require one
+  digest-pinned promoted nightly across the scenario matrix, exact source/driver
+  attribution, raw failures and verified complete outcomes. Establish reviewed
+  regression budgets from matched repeated campaigns; exploratory distributions
+  alone are not budgets. Keep single-authority, independent-authority, replicated
+  and clustered/multi-host coverage separate, with unavailable topologies explicit.
+  Include offered-load saturation, maintenance debt, control progress, resource
+  bounds and retained recovery before claiming sustained capacity. Build/image
+  costs remain separate from operation timings.
+
 - Execute the [SQL grammar, standards comparison and dialect ergonomics corpus](43-sql-grammar-and-dialect-ergonomics.md)
   at the common committed revision: verify zero ANTLR/production grammar
   conflicts, byte-identical `FQP1`/`FDM1`/`FTS1` plan lowering for ergonomic

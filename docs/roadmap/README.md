@@ -62,6 +62,15 @@ scope and status; SDK gains require their own measured baselines.
 
 ## Delivery phases
 
+The [nightly container performance tracker #378](https://github.com/spoke-sh/transit/issues/378)
+connects build/deployment boundaries with the
+[local-to-distributed performance scorecard](13-data-structures-and-performance.md#nightly-container-scorecard-and-distributed-handoffs).
+The first campaign uses the last promoted nightly image, twelve hours after the
+release schedule, for single-authority and explicitly independent three-node
+controls. M8/M13 own local bottlenecks, M23–M26 add qualified distributed profiles,
+and M44/M45 own combined evidence and artifact composition. This cross-milestone
+work does not change statuses or qualify replication by running more containers.
+
 Seven phases group the linear milestone sequence by the capability an application
 or operator gains. The phase outcomes summarize their milestones' acceptance
 criteria; each numbered milestone remains the owner of scope, status and proof.
