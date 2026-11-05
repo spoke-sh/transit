@@ -132,16 +132,20 @@ Executing the SQL again requests new work.
 
 ## Finite relational queries
 
-The selected catalog admits a bounded INNER/LEFT equijoin over two Tables or a
-grouped single-Table query. Referenced columns use BIGINT/INT64. Projection,
-COUNT and ordered checked int64 SUM follow the
-[relational query profile](../../../docs/handbook/reference/queries.md). Resource cuts are
-an explicit vector of independent retained Table snapshots. Repeated aliases
-share one Table pin; separate Tables have no common atomic frontier.
-Current rights apply to every dependency, including empty inputs. The service
-owns private spill and bounded execution; closing a read releases its resources.
-Parameterized relational SQL, additional joins and captured relational resumption
-are outside this profile.
+The selected catalog admits a bounded INNER/LEFT equijoin over two Tables, and
+single-Table grouped or ordered queries. Core scalar columns, COUNT, checked
+BIGINT/DECIMAL SUM, HAVING, ORDER BY and LIMIT follow the
+[relational query profile](../../../docs/handbook/reference/queries.md).
+Single-Table scalar projections can be ordered by expression or output alias;
+typed parameters can bind WHERE, HAVING and LIMIT operands. The console's
+parameter-file bounds above still apply.
+
+Resource cuts are an explicit vector of independent retained Table snapshots.
+Repeated aliases share one Table pin; separate Tables have no common atomic
+frontier. Current rights apply to every dependency, including empty inputs. The
+service owns private spill and bounded execution; closing a read releases its
+resources. Additional joins and captured relational resumption are outside this
+console profile.
 
 ## Writing Tables and catalogs
 

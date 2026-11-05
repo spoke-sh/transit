@@ -32,21 +32,28 @@ change schema/prepared commitments. DROP/recreate cannot redirect old work.
 Rows use Table `(origin, operation, ordinal)` identity, independent of primary
 keys; keyless and composite-key Tables use the same relational model.
 
-Referenced projection, join, grouping, predicate and COUNT columns admit int64
-and UTF-8 text. SQL declares these types with BIGINT and TEXT; INTEGER denotes
-int32. SUM admits only int64. COUNT(*) and COUNT(column) return uint64; SUM
-returns nullable int64. Join columns require the same logical type and declared
-collation, without implicit coercion. Text comparison, group identity, group
-order and exchange hashing use the source column's declared UTF8_BINARY,
-ASCII_CI or EBCDIC_CP037 semantics; unsupported collations reject at admission.
-Unreferenced columns may use other valid stored types. Left joins make right
-projections nullable, including originally NOT NULL columns. Output names are
-explicit and unique. Storage support does not widen operator admission.
+Referenced projection, join, grouping, predicate and COUNT columns admit BOOL,
+BIGINT, UINT64, FLOAT64, DECIMAL, DATE, TIME, TIMESTAMP, UUID, TEXT and BINARY.
+Nonfinite floats reject. SUM accepts BIGINT or DECIMAL and returns the source
+logical type, nullable. Decimal accumulation uses checked i128 coefficients and
+checks the declared precision after every contributor, retaining its scale.
+COUNT(*) and COUNT(column) return uint64. Join keys require identical logical
+descriptors and collations, without coercion. Text comparisons, grouping, order
+and exchange hashing honor UTF8_BINARY, ASCII_CI, EBCDIC_CP037, EBCDIC_037_PAD and
+EBCDIC_1047_NOPAD. Unreferenced columns can use other stored types. Left joins
+make right projections nullable. Output names are explicit and unique.
+
+Single-Table scalar projections and ordering use the shared `ScalarProgram`,
+including decimal arithmetic, range predicates, vector distance and pinned-timezone
+operations. Its at most 32 instructions are bound to the original Table schema.
+Computed references use source ordinal 2 and a one-based instruction ordinal;
+they never replace stable stored column IDs or the source schema commitment.
+Scalar programs require one source and execute after filtering, in source order.
 
 | Dimension                             | Limit                                                   |
 | ------------------------------------- | ------------------------------------------------------- |
 | Sources / joins                       | 1–2 / zero for one source, one for two                  |
-| Outputs / group / order columns       | 1–128 / 0–128 / 0–128                                   |
+| Outputs / group / order columns       | 1–128 / 0–128 / 0–8                                   |
 | Each source, joined or HAVING filter  | 0–64 postfix instructions                               |
 | Names                                 | 1–255 UTF-8 bytes, no NUL; 4096 output-name bytes total |
 | Prepared identity preimage            | 8192 bytes                                              |
@@ -88,15 +95,30 @@ is not a durable checkpoint and is released on process termination. The owner
 accounts all query heap allocations and reserves its bounded working frames;
 the supplied native Client owns its separate transport memory.
 
-SQL admits explicit columns and multiple COUNT/SUM expressions, AS output names,
+Column ordering is encoded in the group tree comparator and needs no second
+index. Aggregate ordering adds a sorting phase after all input has completed.
+Each step finalizes one group, applies HAVING and inserts an immutable sort key
+in a separate range of the same external AVL tree. Traversal, insertion and
+record I/O remain charged; there is no full-tree scan in one executor step.
+Ungrouped ordering stores projected and sort values with the source-pair identity.
+LIMIT bounds returned rows, not source validation or spill cardinality. No Top-K
+spill eviction is implemented. Captured output records retain their ordering keys
+so readers verify the requested order even when sort expressions are unprojected.
+
+SQL admits explicit columns, single-Table `*`, scalar expressions and multiple
+COUNT/SUM expressions, AS output names,
 one optional INNER/LEFT [OUTER] JOIN with one column equality, WHERE predicates,
 GROUP BY columns, HAVING predicates, ORDER BY expressions (`ASC`/`DESC`,
 `NULLS FIRST`/`NULLS LAST`) and LIMIT. `RelationalSql.parse` owns its syntax;
 `bind` borrows the acquired immutable Table descriptors. Unqualified single-word
 identifiers in HAVING and ORDER BY resolve to explicit `AS` output aliases before
 source column lookup. Source-local filters are typed-plan fields;
-SQL WHERE lowers after the join. No parameter substitution or implicit coercion
-is added. Unsupported DISTINCT, OFFSET and additional joins reject.
+SQL WHERE lowers after the join. Prepared relational statements infer types for
+WHERE/HAVING operands and unsigned LIMIT parameters. Each execution binds an exact
+value slice into a separate owned plan; gaps and conflicting uses reject. NULL
+comparison operands remain unknown, including beneath NOT. LIMIT cannot be NULL.
+Identifier parameters and implicit coercion are not admitted. DATAFLOW declarations
+must contain bound literals, not execution-time parameters. Unsupported DISTINCT, OFFSET and additional joins reject.
 
 Canonical source order for this new profile is lexicographic Table row identity
 order (`TableRow.Identity.encode`). Join order is left identity then right
@@ -115,12 +137,12 @@ order. Every non-aggregate output in an aggregate/grouped query must be a group
 key. Grouping without aggregates emits one row per distinct tuple.
 Collation-equivalent spellings share one group, whose projected key retains the
 first canonical contributor's original spelling. Comparisons and hashes do not
-rewrite retained text. All selected text collations use NO PAD semantics.
+rewrite retained text. PAD SPACE behavior follows the declared collation.
 
 Aggregates advance in contributor order, then output-list order per contributor.
 The first arithmetic failure wins across groups; sorting groups cannot reorder
 failures. COUNT(*) includes null-extended rows; COUNT(column) excludes NULL. Both
-use checked uint64 counts. SUM skips NULL and checks each int64 addition.
+use checked uint64 counts. SUM skips NULL and checks each BIGINT or DECIMAL addition.
 `[MAX_I64, 1, -1]` fails on its second contributor; partition totals cannot replace
 ordered addition. Empty ungrouped aggregation returns one row with zero counts
 and NULL SUM; grouped empty input returns none. All-null SUM returns NULL.
@@ -168,23 +190,33 @@ prefixes; integers are little endian. SHA-256 hashes the following prepared byte
 
 1. Domain, NUL, `prepared`, NUL, one-byte source count.
 2. Per source: alias, uint64 realm/resource/catalog/owner, 32-byte schema hash.
-3. Join tag (none 0, inner 1, left 2), followed by two columns when present.
+3. The shared `ScalarProgram` encoding, including its instruction count and typed
+   instructions. Computed columns use source ordinal 2 and a one-based instruction
+   ID; source schemas remain unchanged.
+4. Join tag (none 0, inner 1, left 2), followed by two columns when present.
    A column is one-byte source ordinal and uint64 stable column ID.
-4. Each source predicate, then joined predicate: one-byte instruction count,
+5. Each source predicate, then joined predicate: one-byte instruction count,
    then instructions. Tags are compare 0, is-null 1, is-not-null 2, negate 3,
    conjunction 4, disjunction 5. Compare carries column, one-byte comparison
    (equal 0, not-equal 1, less 2, less-equal 3, greater 4, greater-equal 5), then
-   a typed literal: tag 1 and int64, or tag 2, uint32 byte length and UTF-8 bytes.
+   a typed nullable scalar using the encoding below.
    State tests carry a column; Boolean operators have no payload.
-5. One-byte group count and columns; one-byte HAVING instruction count and
-   instructions (replacing column operands with expression tags/columns);
-   one-byte output count, then output names and expression tags (column 0,
+6. One-byte group count and columns; one-byte output count, then output names and expression tags (column 0,
    count-all 1, count-column 2, sum 3; expressions other than count-all carry a
-   column); one-byte ORDER BY count, then each item's expression, direction byte
+   column); one-byte HAVING instruction count and instructions (replacing column
+   operands with expression tags/columns); one-byte ORDER BY count, then each item's expression, direction byte
    (asc 0, desc 1) and null-order byte (first 0, last 1); then optional LIMIT
    (Boolean presence byte followed by uint64 when present).
-6. Lifetime byte (interactive 0, captured 1, maintained 2), uint64 resident/spill/result bytes,
+7. Lifetime byte (interactive 0, captured 1, maintained 2), uint64 resident/spill/result bytes,
    output rows and work steps, then one-byte pin capacity.
+
+Nullable scalar tags are: NULL 0 (no payload), int64 1, UTF-8 2, uint64 3,
+finite float64 4 (IEEE bits as uint64), decimal 5 (int128 coefficient), Boolean 6
+(canonical 0/1 byte), date 7 (int32), time 8 (uint64), timestamp 9 (int64), UUID 10
+(16 raw bytes), and binary 11. UTF-8 and binary have uint32 byte-length prefixes.
+All numeric payloads are little endian. The declared column descriptor supplies
+decimal precision/scale, temporal semantics and collation. Each variable-width
+value vector permits at most 1 MiB of combined text and binary payload.
 
 Bound bytes are the hash domain, NUL, `bound`, NUL, prepared hash, then each
 cut's atomic-domain tag (native resource=0, Table partition=1). A Table tag adds
@@ -221,13 +253,16 @@ A reference contains uint64 record ID, uint32 byte length, 32-byte SHA-256 of th
 record, uint8 height and uint64 entry count. Optional references use a Boolean
 byte followed by that payload only when present. `FRN1` nodes contain magic,
 32-byte shared native definition, 32-byte bound fingerprint, optional left/right
-references, one-byte key/state-expression counts, typed nullable keys, an optional
-pair-identity tiebreaker (left identity and optional right identity) when the plan
-is ungrouped with `ORDER BY`, then per-state-expression
-uint64 row/value counts and nullable int64 sum. Keys and source values use tag 0
-for NULL with no payload, tag 1 followed by int64, or tag 2 followed by uint32
-byte length and UTF-8 bytes. A key vector contains at most 1 MiB of text. Aggregate
-sums retain their nine-byte Boolean-presence/int64 encoding, zero when absent. Child IDs
+references, one-byte state-expression count, a shared key encoding, then
+per-state-expression uint64 row/value counts and a nullable int128 sum. The sum
+occupies 17 bytes: Boolean presence followed by the coefficient, zero when absent.
+A key starts with one-byte key width, a Boolean sorted flag and one-byte sort
+width. An ungrouped plan then includes the pair-identity tiebreaker (20-byte left
+identity, Boolean right presence and optional 20-byte right identity). Typed
+nullable key values and sort values follow. Each vector has its own 1 MiB
+variable-width payload bound. Original group records and finalized sort records
+occupy separate ordered ranges of the same tree; the sorted flag selects the
+range. Child IDs
 precede their parent; lengths, integrity, binding, balance, height, subtree count
 and aggregate-state shape are checked when read. All integer fields are little
 endian. Hosts stage candidates privately; a node record's existence is not a
@@ -236,21 +271,23 @@ published operator root.
 `RelationalCheckpoint` contains one exact root and execution cursor. Its `FRC1`
 encoding has magic, shared native definition, bound fingerprint, optional root,
 phase byte (input 1, empty-right coverage 2, grouped output 3, complete 4, failed
-5), optional left/right continuation row identities, optional retained left row,
-matched and right-covered Booleans, uint64 group/work/result-row/result-byte
-counts, optional last output key (with optional pair identity for ungrouped
-`ORDER BY`) and optional failure witness. Optional
+5, sorting 6), optional left/right continuation row identities, optional retained left row,
+matched and right-covered Booleans, uint64 group count, sorted count, visited-group
+count, work, result-row count and result-byte count, then an optional last output
+key using the shared key encoding and optional failure witness. The root's entry
+count equals group count plus sorted count. Optional
 identities have a Boolean prefix and the Table's 20-byte stable identity. A
 retained row contains its identity and one typed nullable scalar per schema
 column; unsupported unreferenced types remain null. Group keys have the prepared
-number of typed nullable scalars. Each source-row or group-key vector contains
-at most 1 MiB of text. A failure records left identity, optional right identity,
+number of typed nullable scalars. Each source-row, group-key or sort-key vector contains
+at most 1 MiB of text and binary payload. A failure records left identity, optional right identity,
 one-byte state-expression ordinal and group key. Decoders reject noncanonical Booleans,
 truncation, trailing bytes, wrong definitions/bindings and inconsistent progress.
-The record is bounded by 8192 fixed bytes plus two 1 MiB text vectors; it is
+The record is bounded by 8192 fixed bytes plus three 1 MiB variable-width vectors; it is
 not a native inline value. Hosts allocate actual encoded sizes for reads.
-`bufferBytes(plan)` reserves 8192 bytes plus 1 MiB when a join retains text in
-its left schema and another 1 MiB when grouping uses text. Hosts reserve that
+`bufferBytes(plan)` reserves 8192 bytes plus 1 MiB when a join retains variable-width
+values in its left schema, another 1 MiB when keys use variable-width values, and
+another 1 MiB for aggregate ordering. Hosts reserve that
 encoding space before executing a step, so an observed arithmetic failure can
 move its owned group key into the witness without another allocation.
 
@@ -455,17 +492,20 @@ definition. Fields are little endian unless noted; native values are bounded by
 contain the 32-byte bound fingerprint, uint64 ordinal and identity tag: pair 0
 or group 1. A pair has a 20-byte left row identity, Boolean right presence and
 optional 20-byte right identity. A group has one-byte width and typed nullable
-keys using the scalar encoding above. One-byte output width precedes cells:
-tag 0 is NULL with no payload, tag 1 is int64, tag 2 is uint32-length-prefixed
-UTF-8, and tag 3 is uint64. The output schema must agree with each tag. The key
-and output-cell vectors each allow at most 1 MiB of text. Nullability, identity kind, referenced type, width,
+keys using the scalar encoding above. A Boolean ordering-key presence follows;
+it must match whether the plan has `ORDER BY`. When present, the shared key
+encoding follows and must agree with the row identity and the plan's ordering
+stage. One-byte output width precedes cells using the same nullable scalar tags.
+The output schema must agree with each tag. The identity-key, ordering-key,
+ordering sort-value and output-cell vectors each allow at most 1 MiB of text
+and binary payload. Nullability, identity kind, referenced type, width,
 ordinal, trailing bytes and canonical representation are validated.
 
 ### Reading captured results
 
 `RelationalResult.open` takes an allocator and returns a stable owned reader.
 Its fixed frames and bounded allocator share the plan's resident budget.
-Returned rows own text and must be released with `row.deinit()` before
+Returned rows own text and binary payloads and must be released with `row.deinit()` before
 `reader.deinit()`. `close()` reports snapshot-release errors; `deinit()` attempts
 closure and frees local state. The maintained `RelationalRevision` reader has
 the same allocator/lifetime rules; release each returned event with `deinit()`.
@@ -721,8 +761,11 @@ the captured basis; changed IDs/statements reject. References require the curren
 native definition, open ID, prepared plan hash and bound hash. Missing or foreign
 definitions reject. Ordinals and full-width quantities are canonical decimal
 strings. Pair row identities are the 20-byte Table identity encodings; group
-identities preserve ordered nullable keys: NULL or a tagged `{signed: decimal}`
-or `{utf8: text}` value. Text remains UTF-8, including empty strings and embedded
+identities preserve ordered nullable keys using the shared `LogicalJson.Atom`
+encoding: NULL or the admitted signed, unsigned, floating-bit, decimal, Boolean,
+date, time, timestamp, UUID, UTF-8 or binary tag. Full-width integers and decimal
+coefficients remain exact decimal strings; returned column descriptors supply
+decimal scale and temporal interpretation. Text remains UTF-8, including empty strings and embedded
 NULs; it is never interpreted as an integer based on its content.
 
 One page contains one row or a terminal null row. Only the current ordinal and
@@ -772,3 +815,7 @@ Destruction closes local execution and files without network cleanup. The next
 owner exposes interrupted retention for explicit closure; new work waits until
 closure finishes. This journal does not resume query rows, extend the captured
 or maintained execution contracts, or introduce implicit retention expiry.
+
+Native Station maintained deltas still merge results by canonical identity and
+reject ORDER BY at bundle admission. This limit does not apply to finite captures
+or managed DATAFLOW recomputation, whose retained revisions carry evaluation order.

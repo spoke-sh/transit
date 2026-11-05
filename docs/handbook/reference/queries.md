@@ -285,12 +285,12 @@ Both return uint64; null/missing still consume the input LIMIT. Checked int64 or
 DECIMAL SUM adds the selected values of one declared source.
 Those single-source interfaces retain their original cut and operator profile.
 The separate [finite relational contract](../../../contracts/RELATIONAL_V1.md)
-supports one or two explicitly routed Tables, one inner/left int64 or UTF-8 equijoin,
-grouping by int64 or UTF-8 columns, `HAVING`, `ORDER BY` (`ASC`/`DESC`,
-`NULLS FIRST`/`NULLS LAST`), `LIMIT`, projection, COUNT and ordered checked int64 SUM.
+supports one or two explicitly routed Tables, one inner/left equijoin,
+grouping by the [admitted scalar types](sql/relational.md), `HAVING`, `ORDER BY` (`ASC`/`DESC`,
+`NULLS FIRST`/`NULLS LAST`), `LIMIT`, projection, COUNT and ordered checked BIGINT or DECIMAL SUM.
 SQL declares int64 as BIGINT and UTF-8 as TEXT. Join columns require matching
 types and collations. Text comparison, grouping and routing honor UTF8_BINARY,
-ASCII_CI or EBCDIC_CP037 with NO PAD semantics. Join nulls do not match; grouping
+ASCII_CI, EBCDIC_CP037, EBCDIC_037_PAD and EBCDIC_1047_NOPAD semantics. Join nulls do not match; grouping
 places null keys together and before values. Equivalent text groups retain the
 first contributor’s original spelling. Duplicate rows retain their multiplicity.
 

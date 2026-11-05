@@ -3,7 +3,7 @@
 This contract defines caller-owned finite query templates in Zig Fuze. The
 separate `Sql.parseTemplate` entry point accepts `$n` in the right operand of
 the existing comparison predicate and in a `LIMIT` position. The ordinary
-statement parser and public SQL submission routes reject unresolved parameters.
+source parser rejects unresolved parameters; prepared Table service routes require exact typed bindings.
 Named `PREPARE`, `EXECUTE`, prepared-state persistence and file-query parameters
 are not implemented. The shared query boundary exposes the one-shot compilation
 operation below. All ten SDKs expose it through typed one-shot compilation
@@ -16,7 +16,7 @@ bounds and unchanged saved-operation recovery.
 ## Syntax and typing
 
 The [reference grammar](sql/TransitExtensions.g4) exposes `parameterTemplate`
-separately from `statement`. All existing finite SELECT name, text, comment,
+for the source-only compiler, while `statement` also admits prepared Table SQL. All existing finite SELECT name, text, comment,
 projection, qualifier and aggregate restrictions still apply. A parameter is not
 an identifier, expression, cast, sign-prefixed literal or string interpolation.
 Quoted strings and comments retain literal `$` bytes.
@@ -244,3 +244,25 @@ schemas, binding resources and independent canonical/signing fixtures use that
 same definition. Missing and foreign definitions reject before execution.
 The neutral six-scalar compilation action described above retains its own input
 profile; these Zig Table APIs do not add NULL to that action's bindings.
+
+
+## Finite relational Table preparation
+
+`DirectRelationalCompilation.prepare` owns the resolved source bindings, parsed
+syntax and inferred parameter descriptors for Table joins, GROUP BY, HAVING,
+ORDER BY and LIMIT. Its `parameterTypes()` borrows those descriptors until
+`deinit`; `bindValues` produces a separately owned plan for each execution.
+WHERE and HAVING operands accept `$n` parameters, or sequential MySQL `?`
+parameters. The 128-slot bound, contiguous ordinals and exact repeated-use types
+are checked before execution. LIMIT parameters are non-null UINT64. Comparisons
+admit NULL bindings as unknown, never as an equality match.
+
+Comparison descriptors follow the [relational scalar profile](RELATIONAL_V1.md),
+including exact decimal precision/scale, text collation and timestamp semantics.
+COUNT comparisons use signed BIGINT operands; COUNT outputs remain UINT64.
+Single-Table scalar projections and ORDER BY share the existing scalar program;
+filtering runs before scalar evaluation. Parameter values do not become SQL text
+or mutate a prepared template. The SQL service exposes these descriptors to its
+native and prepared PostgreSQL/MySQL statement routes. Foreign-language
+`relational.Client` compilation remains a literal-SQL interface; DATAFLOW
+computation declarations reject unresolved parameters.

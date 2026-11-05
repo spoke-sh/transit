@@ -69,7 +69,9 @@ schema. Source aliases follow identifier case and length rules and do not rename
 columns, change source identity or grant access. `AS` is required.
 
 Results follow defined source order, including primary-key order for Tables.
-There is no `ORDER BY`. A Document source reads accepted materialized state;
+Table queries support the [relational ordering profile](relational.md), including
+parameterized and scalar-expression queries. Other source profiles do not add
+`ORDER BY`. A Document source reads accepted materialized state;
 paths, expansion and text materialization belong to its declaration, not SQL.
 
 ## Filter rows

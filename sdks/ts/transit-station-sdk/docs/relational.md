@@ -75,12 +75,14 @@ skipped ordinals are rejected. Only a terminal page with no row establishes
 complete coverage. A failure preserves the incomplete prefix and the original
 diagnostic; it does not produce an empty successful result.
 
-Rows own immutable `bigint | null` cells and pair or group identities. Pair
-identities own their Table row bytes; group keys are nullable signed 64-bit
-integers or strings. Cells use `bigint | string | null`; text preserves empty
-strings and embedded NULs. Counts retain the full unsigned 64-bit range. Budgets and ordinals are
-`bigint`, including Table partition positions; route indices and native realm/resource
-identities are checked numbers.
+Rows own scalar cells and pair or group identities. Integer, decimal coefficient,
+date/time and timestamp values use `bigint`; floats use `number`, booleans use
+`boolean`, text uses `string`, and UUID/binary values use `Uint8Array`. Cells and
+group keys can be null. The returned column descriptors retain decimal scale and
+timestamp semantics. Text preserves empty strings and embedded NULs. Counts
+retain the full unsigned 64-bit range. Budgets and ordinals are `bigint`, including
+Table partition positions; route indices and native realm/resource identities
+are checked numbers.
 
 Every page, including a repeated or terminal page, rechecks current access to
 all sources. Source access can be revoked after a prefix. Closing the query

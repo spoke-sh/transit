@@ -193,7 +193,7 @@ and result checks. No optimizer rewrite is enabled.
 
 `parameterTemplate` is a separate checked root for the explicit Zig
 `Prepared` compiler. It permits typed `$n` comparison and LIMIT operands;
-ordinary statements continue to reject unresolved placeholders. The
+the source-only compiler still rejects unresolved placeholders. The shared `statement` grammar also admits prepared Table SQL; execution requires exact typed bindings. The
 [parameter contract](../SQL_PARAMETERS_V1.md) and
 [shared corpus](corpus/parameters.json) define its exact scope. This does not
 enable named PREPARE/EXECUTE. The CLI and SDKs submit explicit typed bindings
@@ -352,14 +352,11 @@ compares normalized sources, aliases, outputs, joins, group keys, HAVING
 predicates, ORDER BY items, LIMIT and predicate
 instruction order across ANTLR, PostgreSQL and production Zig. `just
 test::relational-sql` executes this comparison and is included in `test::sql`.
-The ordinary grammar root retains its existing one-source/subquery/LIMIT
-profile. Contextual join/group/order words remain identifiers where the existing
+The `statement` root includes this relational selection and retains the existing limited derived-table aggregate form. Contextual join/group/order words remain identifiers where the existing
 language allows them; unquoted implicit source aliases cannot consume clause
 words. Type admission, distinct output names, grouping legality, source rights
 and execution budgets remain semantic checks. DISTINCT, OFFSET,
-parameters, additional joins and arbitrary expressions are excluded from the
-relational root. Reference grammar predicates share literal syntax; executable
-relational binding admits only exact int64 and UTF-8 comparisons and NULL-state tests.
+additional joins and arbitrary infix expressions are excluded from the relational root. WHERE, HAVING and LIMIT admit typed parameters. Single-Table projections and ordering admit the shared bounded scalar functions. Executable relational comparisons use the admitted scalar descriptors and NULL-state tests.
 
 `TableDdl.compile` owns general CREATE/ALTER/DROP compilation. CREATE defaults
 to nullable columns and supports aliases, logical descriptors, deterministic
