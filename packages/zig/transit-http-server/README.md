@@ -17,6 +17,11 @@ only until the header deadline; this is not an authenticated per-principal quota
 consumer also sends keep-alive responses. Requests on a socket remain sequential,
 with fresh admission and deadlines; idle sockets retain no data/control slot.
 The header deadline bounds idle reuse and the final response advertises closure.
+Plain sockets and the SQL TLS adapter use `io.operateTimeout` with an absolute
+header deadline, without spawning header timer/work tasks. Partial reads do not
+renew the deadline. Buffered pipelined headers also check it before admission.
+Body reads and response writes share the original total request deadline;
+header parsing cannot renew or round that budget into another request interval.
 The shared `respond` helper ends reuse even when a handler has consumed the body;
 buffered successor requests are not dispatched after that closing response.
 The growing node and local gateway use 64 exchanges per connection. Other
@@ -28,6 +33,17 @@ private arenas/observations and coordinate shared signers, throttles and mutatio
 headers or bodies. Consumers can avoid duplicate observations after dispatch.
 `deadline` joins both timer and work branches even on scheduling failure. It
 performs no retry. Application synchronous code must remain bounded/cooperative.
+The listener retains this joined cancellation boundary for non-socket handler
+work. It still runs one task per accepted connection and does not establish
+CPU-bounded runnable scheduling.
+
+A custom `Context.Connection` owns TLS or other transport state and supplies
+`init`, `reader`, `writer`, `setDeadline`, `readError` and `deinit`. `setDeadline`
+receives the listener's absolute `std.Io.Clock.Timestamp`; it must apply to every
+subsequent read/write without renewal. `readError` preserves a failed read's
+transport cause when `std.Io.Reader` reports `ReadFailed`. The listener maps an
+underlying socket timeout to `HttpDeadline`. Initialization owns its separate
+handshake deadline, and deinitialization runs after all handler borrowers join.
 
 The [HTTP profile](../../../contracts/HTTP_SERVING_V1.md) defines framing and
 connection limits. TLS termination and deployed concurrency qualification belong

@@ -30,8 +30,12 @@ gets a fresh total deadline; the final allowed response advertises `Connection:
 close`. Responses that close or transfer to an upgraded protocol end the loop.
 There is no automatic retry or concurrent dispatch within one connection.
 
-Timer and handler tasks are joined before socket/buffer reuse, including parent
-cancellation and scheduling failure. Handlers must be bounded and cooperative;
+Header reads use an absolute socket deadline without separate timer/work tasks.
+Fragmented headers do not renew it, and buffered headers are checked before
+admission. The original total request deadline bounds body reads, response writes
+and handler work; finishing a header does not start a new request budget.
+Timer and handler tasks for non-socket work are joined before socket/buffer reuse,
+including parent cancellation and scheduling failure. Handlers must be bounded and cooperative;
 the deadline is not a preemptive sandbox for arbitrary computation. A long response
 uses one data slot and cannot borrow the reserved health slots. Header-flood
 capacity and application per-principal fairness need separate measured proofs.

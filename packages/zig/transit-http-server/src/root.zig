@@ -1,6 +1,7 @@
 //! Neutral bounded HTTP mechanics. No Transit identity, grant or durable state.
 const std = @import("std");
 const Io = std.Io;
+const Socket = @import("Socket.zig");
 pub const WebSocket = @import("WebSocket.zig");
 test {
     _ = WebSocket;
@@ -84,18 +85,28 @@ pub fn respond(request: *std.http.Server.Request, status: std.http.Status, body:
     } });
 }
 
-fn timeout(io: Io, milliseconds: u32) anyerror!void {
-    try io.sleep(.fromMilliseconds(milliseconds), .awake);
+fn timeout(io: Io, until: Io.Clock.Timestamp) anyerror!void {
+    try until.wait(io);
 }
 
 /// Joins both branches before returning, including scheduling failure. The
 /// function owns no retry policy; a deadline never changes durable outcomes.
 pub fn deadline(io: Io, milliseconds: u32, comptime function: anytype, args: std.meta.ArgsTuple(@TypeOf(function))) !void {
+    return deadlineAt(io, .fromNow(io, .{ .clock = .awake, .raw = .fromMilliseconds(milliseconds) }), function, args);
+}
+
+fn checkDeadline(io: Io, until: Io.Clock.Timestamp) !void {
+    if (until.durationFromNow(io).raw.nanoseconds <= 0) return error.HttpDeadline;
+}
+
+fn deadlineAt(io: Io, until: Io.Clock.Timestamp, comptime function: anytype, args: std.meta.ArgsTuple(@TypeOf(function))) !void {
+    try checkDeadline(io, until);
     const Result = union(enum) { completed: anyerror!void, timeout: anyerror!void };
     var results: [2]Result = undefined;
     var select: Io.Select(Result) = .init(io, &results);
     defer select.cancelDiscard();
-    try select.concurrent(.timeout, timeout, .{ io, milliseconds });
+    try select.concurrent(.timeout, timeout, .{ io, until });
+    try checkDeadline(io, until);
     try select.concurrent(.completed, function, args);
     switch (try select.await()) {
         .completed => |result| try result,
@@ -106,8 +117,16 @@ pub fn deadline(io: Io, milliseconds: u32, comptime function: anytype, args: std
     }
 }
 
-fn receive(server: *std.http.Server, request: *?std.http.Server.Request) anyerror!void {
-    request.* = try server.receiveHead();
+fn receive(io: Io, server: *std.http.Server, until: Io.Clock.Timestamp) !std.http.Server.Request {
+    // Buffered pipelined input can avoid socket I/O entirely. Check the same
+    // deadline before and after parsing, including on a socket timeout.
+    try checkDeadline(io, until);
+    const request = server.receiveHead() catch |err| {
+        try checkDeadline(io, until);
+        return err;
+    };
+    try checkDeadline(io, until);
+    return request;
 }
 
 /// Context.handle(io, allocator, request) is called concurrently. It must own
@@ -117,22 +136,8 @@ fn receive(server: *std.http.Server, request: *?std.http.Server.Request) anyerro
 /// Context.connectionError(error, handler_started) observes failed transports, without payloads.
 pub fn serve(io: Io, allocator: std.mem.Allocator, listener: *Io.net.Server, options: Options, context: anytype) !void {
     try options.validate();
-    const Plain = struct {
-        input: Io.net.Stream.Reader,
-        output: Io.net.Stream.Writer,
-        fn init(self: *@This(), _: @TypeOf(context), worker_io: Io, _: std.mem.Allocator, stream: Io.net.Stream, input: []u8, output: []u8) !void {
-            self.* = .{ .input = stream.reader(worker_io, input), .output = stream.writer(worker_io, output) };
-        }
-        fn reader(self: *@This()) *Io.Reader {
-            return &self.input.interface;
-        }
-        fn writer(self: *@This()) *Io.Writer {
-            return &self.output.interface;
-        }
-        fn deinit(_: *@This()) void {}
-    };
     const Context = @typeInfo(@TypeOf(context)).pointer.child;
-    const Transport = if (@hasDecl(Context, "Connection")) Context.Connection else Plain;
+    const Transport = if (@hasDecl(Context, "Connection")) Context.Connection else Socket;
     const Worker = struct {
         done: std.atomic.Value(bool) = .init(true),
         future: ?Io.Future(void) = null,
@@ -148,21 +153,32 @@ pub fn serve(io: Io, allocator: std.mem.Allocator, listener: *Io.net.Server, opt
             var input: [8192]u8 = undefined;
             var output: [4096]u8 = undefined;
             var transport: Transport = undefined;
-            try transport.init(ctx, worker_io, alloc, stream, &input, &output);
+            if (@hasDecl(Context, "Connection"))
+                try transport.init(ctx, worker_io, alloc, stream, &input, &output)
+            else
+                transport.init(worker_io, stream, &input, &output);
             defer transport.deinit();
             var server = std.http.Server.init(transport.reader(), transport.writer());
             for (0..limits.requests_per_connection) |index| {
                 handler_started.* = false;
                 const started = Io.Clock.awake.now(worker_io);
-                var request: ?std.http.Server.Request = null;
-                try deadline(worker_io, limits.header_timeout_ms, receive, .{ &server, &request });
+                const header_until: Io.Clock.Timestamp = .{ .clock = .awake, .raw = started.addDuration(.fromMilliseconds(limits.header_timeout_ms)) };
+                const request_until: Io.Clock.Timestamp = .{ .clock = .awake, .raw = started.addDuration(.fromMilliseconds(limits.request_timeout_ms)) };
+                transport.setDeadline(header_until);
+                var request = receive(worker_io, &server, header_until) catch |err| {
+                    // Readers erase the transport error into ReadFailed. The
+                    // backend may report timeout at its coarser clock boundary.
+                    if (transport.readError()) |failure| if (failure == error.Timeout) return error.HttpDeadline;
+                    return err;
+                };
                 // Consumers may opt into keep-alive, but the listener always
                 // forces the final response to advertise Connection: close.
-                if (index + 1 == limits.requests_per_connection) request.?.head.keep_alive = false;
-                const elapsed = started.durationTo(Io.Clock.awake.now(worker_io)).toMilliseconds();
-                const remaining: u32 = @intCast(@max(1, @as(i64, limits.request_timeout_ms) - elapsed));
-                try deadline(worker_io, remaining, dispatch, .{ worker_io, alloc, &request.?, limits, admission, ctx, &transport, handler_started });
-                if (!request.?.head.keep_alive or server.reader.state != .ready) return;
+                if (index + 1 == limits.requests_per_connection) request.head.keep_alive = false;
+                transport.setDeadline(request_until);
+                // Non-socket handler work still needs cancellation and a join.
+                // Use the original total deadline, not a rounded/restarted one.
+                try deadlineAt(worker_io, request_until, dispatch, .{ worker_io, alloc, &request, limits, admission, ctx, &transport, handler_started });
+                if (!request.head.keep_alive or server.reader.state != .ready) return;
             }
         }
         fn dispatch(worker_io: Io, alloc: std.mem.Allocator, request: *std.http.Server.Request, limits: Options, admission: *Admission, ctx: @TypeOf(context), transport: *Transport, handler_started: *bool) anyerror!void {
@@ -299,4 +315,116 @@ test "deadline joins its already scheduled timer when handler scheduling fails" 
     try std.testing.expectError(error.ConcurrencyUnavailable, deadline(io, 60000, Injection.work, .{}));
     try std.testing.expectEqual(@as(usize, 2), Injection.scheduled);
     try std.testing.expect(Injection.timer_exited.load(.acquire));
+}
+
+test "expired request budget refuses buffered headers and handler admission" {
+    const Work = struct {
+        fn run() anyerror!void {
+            return error.UnexpectedHandler;
+        }
+    };
+    const io = std.testing.io;
+    const expired: Io.Clock.Timestamp = .fromNow(io, .{ .clock = .awake, .raw = .fromMilliseconds(-1) });
+    var input: Io.Reader = .fixed("GET /health HTTP/1.1\r\nHost: localhost\r\n\r\n");
+    var bytes: [128]u8 = undefined;
+    var output: Io.Writer = .fixed(&bytes);
+    var server = std.http.Server.init(&input, &output);
+    try std.testing.expectError(error.HttpDeadline, receive(io, &server, expired));
+    try std.testing.expectEqual(@as(usize, 0), input.seek);
+    try std.testing.expectError(error.HttpDeadline, deadlineAt(io, expired, Work.run, .{}));
+}
+
+const DeadlineFixture = struct {
+    io: Io,
+    failure: ?anyerror = null,
+    failed: Io.Event = .unset,
+    entered: Io.Event = .unset,
+    joined: std.atomic.Value(bool) = .init(false),
+    stall: bool = false,
+
+    fn connectionError(self: *@This(), err: anyerror, _: bool) void {
+        if (!self.failed.isSet()) {
+            self.failure = err;
+            self.failed.set(self.io);
+        }
+    }
+    fn handle(self: *@This(), io: Io, _: std.mem.Allocator, request: *std.http.Server.Request) !void {
+        self.entered.set(io);
+        defer self.joined.store(true, .release);
+        if (self.stall) try io.sleep(.fromSeconds(60), .awake);
+        var body: [4]u8 = undefined;
+        try request.readerExpectNone(&.{}).readSliceAll(&body);
+        try std.testing.expectEqualStrings("body", &body);
+        try request.respond("complete", .{ .keep_alive = true });
+    }
+    fn run(self: *@This(), listener: *Io.net.Server, options: Options) !void {
+        try serve(self.io, std.testing.allocator, listener, options, self);
+    }
+};
+
+test "stalled HTTP headers use socket deadlines without timer tasks" {
+    const NoTasks = struct {
+        fn schedule(_: ?*anyopaque, _: *Io.Group, _: []const u8, _: std.mem.Alignment, _: *const fn (*const anyopaque) void) Io.ConcurrentError!void {
+            return error.ConcurrencyUnavailable;
+        }
+    };
+    var vtable = std.testing.io.vtable.*;
+    vtable.groupConcurrent = NoTasks.schedule;
+    const io: Io = .{ .userdata = std.testing.io.userdata, .vtable = &vtable };
+    var listener = try (try Io.net.IpAddress.parseIp4("127.0.0.1", 0)).listen(io, .{ .reuse_address = true });
+    defer listener.deinit(io);
+    var fixture: DeadlineFixture = .{ .io = io };
+    var task = try io.concurrent(DeadlineFixture.run, .{ &fixture, &listener, Options{ .header_timeout_ms = 50, .request_timeout_ms = 100 } });
+    defer task.cancel(io) catch {};
+    const client = try listener.socket.address.connect(io, .{ .mode = .stream });
+    defer client.close(io);
+    var output = client.writer(io, &.{});
+    try output.interface.writeAll("POST /partial HTTP/1.1\r\nHo");
+    try fixture.failed.wait(io);
+    try std.testing.expectEqual(error.HttpDeadline, fixture.failure.?);
+    try std.testing.expect(!fixture.entered.isSet());
+}
+
+test "HTTP body and non-socket handler timeout join before connection reuse" {
+    const io = std.testing.io;
+    for ([_]bool{ false, true }) |stall_handler| {
+        var listener = try (try Io.net.IpAddress.parseIp4("127.0.0.1", 0)).listen(io, .{ .reuse_address = true });
+        defer listener.deinit(io);
+        var fixture: DeadlineFixture = .{ .io = io, .stall = stall_handler };
+        var task = try io.concurrent(DeadlineFixture.run, .{ &fixture, &listener, Options{ .header_timeout_ms = 100, .request_timeout_ms = 200 } });
+        defer task.cancel(io) catch {};
+        const client = try listener.socket.address.connect(io, .{ .mode = .stream });
+        defer client.close(io);
+        var output = client.writer(io, &.{});
+        try output.interface.writeAll("POST /work HTTP/1.1\r\nHost: localhost\r\nContent-Length: 4\r\n\r\n");
+        try fixture.failed.wait(io);
+        try std.testing.expect(fixture.entered.isSet());
+        try std.testing.expect(fixture.joined.load(.acquire));
+        // Socket timeout and outer cancellation can race; neither is success.
+        try std.testing.expect(fixture.failure != null);
+    }
+}
+
+test "HTTP pipelined reuse retains body and output bytes with fresh phase deadlines" {
+    const io = std.testing.io;
+    var listener = try (try Io.net.IpAddress.parseIp4("127.0.0.1", 0)).listen(io, .{ .reuse_address = true });
+    defer listener.deinit(io);
+    var fixture: DeadlineFixture = .{ .io = io };
+    var task = try io.concurrent(DeadlineFixture.run, .{ &fixture, &listener, Options{ .requests_per_connection = 2 } });
+    defer task.cancel(io) catch {};
+    const client = try listener.socket.address.connect(io, .{ .mode = .stream });
+    defer client.close(io);
+    var output = client.writer(io, &.{});
+    const request = "POST /work HTTP/1.1\r\nHost: localhost\r\nContent-Length: 4\r\n\r\nbody";
+    try output.interface.writeAll(request ++ request);
+    var input: [1024]u8 = undefined;
+    var response: Socket = undefined;
+    response.init(io, client, &input, &.{});
+    response.setDeadline(.fromNow(io, .{ .clock = .awake, .raw = .fromSeconds(5) }));
+    var bytes: [2048]u8 = undefined;
+    const count = try response.reader().readSliceShort(&bytes);
+    try std.testing.expectEqual(@as(usize, 2), std.mem.count(u8, bytes[0..count], "200 OK"));
+    try std.testing.expectEqual(@as(usize, 2), std.mem.count(u8, bytes[0..count], "complete"));
+    try std.testing.expect(std.mem.indexOf(u8, bytes[0..count], "connection: close") != null);
+    try std.testing.expect(fixture.joined.load(.acquire));
 }
