@@ -1281,3 +1281,7 @@ test "complete bulk descriptor and metadata budgets fit the bounded canonical re
 test "SQL wait cutover rejects the preceding definition" {
     try std.testing.expectError(error.InvalidEnumTag, std.json.parseFromSlice(Definition, std.testing.allocator, "\"4a79430a0f740284cda72df8341f0af87a87a63a599d7a81c62a934778875e1a\"", .{}));
 }
+
+test "SOURCE declaration cutover rejects the preceding definition" {
+    try std.testing.expectError(error.InvalidEnumTag, std.json.parseFromSlice(Definition, std.testing.allocator, "\"3ea13b163d882e8f90a8ea882883f26f95ab970102ba608699b6c412c472fa57\"", .{}));
+}

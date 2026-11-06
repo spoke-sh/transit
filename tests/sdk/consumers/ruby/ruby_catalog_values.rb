@@ -22,7 +22,7 @@ scope = M::Scope.new(resource: Transit::ResourceRef.new(realm: 46, resource: 7),
 rejects(ArgumentError) { M::Scope.new(resource: scope.resource, catalog: true) }
 rejects(ArgumentError) { M::Scope.new(resource: scope.resource, catalog: 1 << 64) }
 rejects(ArgumentError) { M::Connection.new(scope: scope, audience: 1, branch: 0) }
-authority_values = {database_domain: 10, schema_domain: 11, table_domain: 12, stream_domain: 13, queue_domain: 14, kv_domain: 15, database: 20, initial_schema: 1, initial_schema_authority: 21}
+authority_values = {database_domain: 10, schema_domain: 11, table_domain: 12, stream_domain: 13, queue_domain: 14, kv_domain: 15, connection_domain: 16, source_domain: 17, database: 20, initial_schema: 1, initial_schema_authority: 21}
 authority = M::AuthorityProfile.new(**authority_values)
 rejects(ArgumentError) { M::AuthorityProfile.new(**authority_values.merge(table_domain: 10)) }
 rejects(ArgumentError) { M::AuthorityProfile.new(**authority_values.merge(initial_schema_authority: 20)) }

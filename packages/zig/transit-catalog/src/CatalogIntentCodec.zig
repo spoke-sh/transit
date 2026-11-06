@@ -18,6 +18,11 @@ pub fn BoundedCodec(comptime Request: type, comptime directory: []const u8, comp
         /// Compute ownership before writing any retained bytes.
         pub fn commitment(allocator: std.mem.Allocator, configuration: r.Configuration, request: Request) !p.DataLifecycle.Content {
             try request.validate(allocator, configuration);
+            return encodedContent(allocator, request);
+        }
+
+        /// Hash a caller-validated request without a storage or Catalog owner.
+        pub fn encodedContent(allocator: std.mem.Allocator, request: Request) !p.DataLifecycle.Content {
             const bytes = try allocator.alloc(u8, limit);
             defer allocator.free(bytes);
             bytes[0..8].* = magic.*;

@@ -19,9 +19,9 @@ managedCommand
 // requires its own qualified catalog, capture and effect owners.
 sourceCommand
     : (AUTHORIZE | ACTIVATE | SUSPEND | RESUME | RETIRE) SOURCE identifier
-    | DROP (SOURCE | CONNECTION) identifier
-    | SHOW SOURCE identifier
-    | DESCRIBE SOURCE identifier
+    | DROP (SOURCE | CONNECTION) identifier RESTRICT?
+    | SHOW (SOURCE | CONNECTION) identifier
+    | DESCRIBE (SOURCE | CONNECTION) identifier
     | EXPLAIN createSource
     ;
 // Session controls lower to the Catalog-owned local Table transaction contract.

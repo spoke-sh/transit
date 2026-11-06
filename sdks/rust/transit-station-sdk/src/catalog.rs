@@ -1,9 +1,9 @@
 //! Direct Table lifecycle with owned original work and explicit retained snapshots.
 use crate::abi;
-use crate::bridge::{CatalogNative, field, wide};
+use crate::bridge::{field, wide, CatalogNative};
 use crate::logical::{Atom, Cell, Descriptor};
-use serde_json::{Value, json};
-use transit_client::internal::{Worker, boolean, number, string, unhex};
+use serde_json::{json, Value};
+use transit_client::internal::{boolean, number, string, unhex, Worker};
 use transit_client::{ClientConfig, Counter, Credential, Error, ErrorKind, ResourceRef, Result};
 
 fn invalid() -> Error {
@@ -192,6 +192,8 @@ pub struct AuthorityProfile {
     pub stream_domain: u64,
     pub queue_domain: u64,
     pub kv_domain: u64,
+    pub connection_domain: u64,
+    pub source_domain: u64,
     pub database: u64,
     pub initial_schema: u64,
     pub initial_schema_authority: u64,
@@ -205,6 +207,8 @@ impl AuthorityProfile {
             self.stream_domain,
             self.queue_domain,
             self.kv_domain,
+            self.connection_domain,
+            self.source_domain,
             self.database,
             self.initial_schema,
             self.initial_schema_authority,
@@ -218,6 +222,8 @@ impl AuthorityProfile {
             self.stream_domain,
             self.queue_domain,
             self.kv_domain,
+            self.connection_domain,
+            self.source_domain,
         ];
         for (i, domain) in domains.iter().enumerate() {
             if domains[..i].contains(domain) {
@@ -229,7 +235,7 @@ impl AuthorityProfile {
         }
         Ok(
             json!({"database_domain":self.database_domain,"schema_domain":self.schema_domain,
-            "table_domain":self.table_domain,"stream_domain":self.stream_domain,"queue_domain":self.queue_domain,"kv_domain":self.kv_domain,"database":self.database,"initial_schema":self.initial_schema,
+            "table_domain":self.table_domain,"stream_domain":self.stream_domain,"queue_domain":self.queue_domain,"kv_domain":self.kv_domain,"connection_domain":self.connection_domain,"source_domain":self.source_domain,"database":self.database,"initial_schema":self.initial_schema,
             "initial_schema_authority":self.initial_schema_authority}),
         )
     }
@@ -243,6 +249,8 @@ impl AuthorityProfile {
                 "stream_domain",
                 "queue_domain",
                 "kv_domain",
+                "connection_domain",
+                "source_domain",
                 "database",
                 "initial_schema",
                 "initial_schema_authority",
@@ -255,6 +263,8 @@ impl AuthorityProfile {
             stream_domain: n(&v["stream_domain"], false)?,
             queue_domain: n(&v["queue_domain"], false)?,
             kv_domain: n(&v["kv_domain"], false)?,
+            connection_domain: n(&v["connection_domain"], false)?,
+            source_domain: n(&v["source_domain"], false)?,
             database: n(&v["database"], false)?,
             initial_schema: n(&v["initial_schema"], false)?,
             initial_schema_authority: n(&v["initial_schema_authority"], false)?,
@@ -270,7 +280,7 @@ mod authority_tests {
     #[test]
     fn current_authority_domains_are_required_distinct_native_counters() {
         let value = json!({"database_domain":1,"schema_domain":2,"table_domain":3,
-            "stream_domain":31,"queue_domain":32,"kv_domain":33,"database":4,"initial_schema":1,"initial_schema_authority":5});
+            "stream_domain":31,"queue_domain":32,"kv_domain":33,"connection_domain":34,"source_domain":35,"database":4,"initial_schema":1,"initial_schema_authority":5});
         let profile = AuthorityProfile::parse(&value).unwrap();
         assert_eq!(
             (
@@ -281,7 +291,13 @@ mod authority_tests {
             (31, 32, 33)
         );
         assert_eq!(profile.wire().unwrap(), value);
-        for field in ["stream_domain", "queue_domain", "kv_domain"] {
+        for field in [
+            "stream_domain",
+            "queue_domain",
+            "kv_domain",
+            "connection_domain",
+            "source_domain",
+        ] {
             let mut missing = value.clone();
             missing.as_object_mut().unwrap().remove(field);
             assert!(AuthorityProfile::parse(&missing).is_err());
@@ -2663,13 +2679,19 @@ mod tests {
     #[test]
     fn authority_requires_complete_distinct_domains() {
         let wire = json!({"database_domain":10,"schema_domain":11,"table_domain":12,
-            "stream_domain":31,"queue_domain":32,"kv_domain":33,
+            "stream_domain":31,"queue_domain":32,"kv_domain":33,"connection_domain":34,"source_domain":35,
             "database":20,"initial_schema":1,"initial_schema_authority":21});
         assert_eq!(
             AuthorityProfile::parse(&wire).unwrap().wire().unwrap(),
             wire
         );
-        for field in ["stream_domain", "queue_domain", "kv_domain"] {
+        for field in [
+            "stream_domain",
+            "queue_domain",
+            "kv_domain",
+            "connection_domain",
+            "source_domain",
+        ] {
             let mut missing = wire.clone();
             missing.as_object_mut().unwrap().remove(field);
             assert!(AuthorityProfile::parse(&missing).is_err());
@@ -2823,13 +2845,11 @@ mod tests {
         assert_eq!(basis.object(), u64::MAX);
         assert_eq!(basis.connection(), connection());
         assert!(!format!("{basis:?}").contains("items"));
-        assert!(
-            Basis::restore(&format!(
-                "{},\"name\":\"other\"}}",
-                &basis.save()[..basis.save().len() - 1]
-            ))
-            .is_err()
-        );
+        assert!(Basis::restore(&format!(
+            "{},\"name\":\"other\"}}",
+            &basis.save()[..basis.save().len() - 1]
+        ))
+        .is_err());
         for fault in 0..7 {
             let mut bad = reference();
             match fault {

@@ -841,7 +841,7 @@
     },
     {
       "id": "literal-string",
-      "sql": "SELECT * FROM items WHERE value = 'it''s 東京'",
+      "sql": "SELECT * FROM items WHERE value = 'it''s \u6771\u4eac'",
       "profile": "query",
       "grammar": "sql",
       "root": "statement",
@@ -2436,7 +2436,7 @@
     },
     {
       "id": "literal-string.wrong-source",
-      "sql": "SELECT * FROM items WHERE value = 'it''s 東京'",
+      "sql": "SELECT * FROM items WHERE value = 'it''s \u6771\u4eac'",
       "profile": "query",
       "grammar": "sql",
       "root": "statement",
@@ -5963,7 +5963,7 @@
     },
     {
       "id": "ddl-collation-cp037-literal",
-      "sql": "CREATE TABLE items (value UTF8 COLLATE EBCDIC_CP037 DEFAULT '東京')",
+      "sql": "CREATE TABLE items (value UTF8 COLLATE EBCDIC_CP037 DEFAULT '\u6771\u4eac')",
       "profile": "table_ddl",
       "grammar": "sql",
       "root": "statement",
@@ -6590,7 +6590,7 @@
     },
     {
       "id": "log-append-9",
-      "sql": "produce into \"items\" (\"id\", \"value\") values (9, 'é東京') returning \"items\".\"value\" as \"Body\";",
+      "sql": "produce into \"items\" (\"id\", \"value\") values (9, '\u00e9\u6771\u4eac') returning \"items\".\"value\" as \"Body\";",
       "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
       "profile": "log_append",
       "grammar": "sql",
@@ -7770,7 +7770,7 @@
     },
     {
       "id": "ddl-collation-ebcdic_037_pad-literal",
-      "sql": "CREATE TABLE items (value UTF8 COLLATE EBCDIC_037_PAD DEFAULT '東京')",
+      "sql": "CREATE TABLE items (value UTF8 COLLATE EBCDIC_037_PAD DEFAULT '\u6771\u4eac')",
       "profile": "table_ddl",
       "grammar": "sql",
       "root": "statement",
@@ -7805,7 +7805,7 @@
     },
     {
       "id": "ddl-collation-ebcdic_1047_nopad-literal",
-      "sql": "CREATE TABLE items (value UTF8 COLLATE EBCDIC_1047_NOPAD DEFAULT '東京')",
+      "sql": "CREATE TABLE items (value UTF8 COLLATE EBCDIC_1047_NOPAD DEFAULT '\u6771\u4eac')",
       "profile": "table_ddl",
       "grammar": "sql",
       "root": "statement",
@@ -9288,6 +9288,72 @@
         "code": "sql.unsupported_construct",
         "category": "unsupported",
         "location": "@"
+      }
+    },
+    {
+      "id": "source-show-connections",
+      "sql": "SHOW CONNECTIONS",
+      "profile": "source",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "source-show-connection-upstream",
+      "sql": "SHOW CONNECTION upstream",
+      "profile": "source",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "source-describe-connection-upstream",
+      "sql": "DESCRIBE CONNECTION upstream",
+      "profile": "source",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "source-drop-connection-upstream",
+      "sql": "DROP CONNECTION upstream",
+      "profile": "source",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "source-drop-connection-upstream-restrict",
+      "sql": "DROP CONNECTION upstream RESTRICT",
+      "profile": "source",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "source-drop-source-x-restrict",
+      "sql": "DROP SOURCE x RESTRICT",
+      "profile": "source",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
       }
     }
   ]

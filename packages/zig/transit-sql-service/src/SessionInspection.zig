@@ -16,6 +16,9 @@ statement: ?g.Statement = null,
 managed: ?g.direct.ManagedTable.Declaration = null,
 managed_revision: ?struct { revision: u64, root: c.DirectRecord.Reference } = null,
 source: bool = false,
+connector_definition: ?c.protocol.DataLifecycle.Definition = null,
+connector_proposal: ?c.DirectSource.Proposal = null,
+connector_list: ?c.DirectSource.Selection = null,
 historical_list: ?c.protocol.DataLifecycle.Snapshot = null,
 historical_namespace: ?u64 = null,
 projection: ?c.DirectSchemaProjection.Accepted = null,
@@ -32,6 +35,20 @@ const describe_fields = [_]f.Types.Field{
     .{ .name = "column_id", .type = .uint64 },
 };
 const historical_list_fields = [_]f.Types.Field{ .{ .name = "name", .type = .utf8 }, .{ .name = "object", .type = .uint64 }, .{ .name = "definition_revision", .type = .uint64 } };
+const connector_fields = [_]f.Types.Field{
+    .{ .name = "name", .type = .utf8 },                      .{ .name = "object", .type = .uint64 },
+    .{ .name = "kind", .type = .utf8 },                      .{ .name = "state", .type = .utf8 },
+    .{ .name = "epoch", .type = .uint64, .nullable = true }, .{ .name = "execution_supported", .type = .boolean },
+    .{ .name = "execution", .type = .utf8 },                 .{ .name = "catalog_partition", .type = .uint64 },
+    .{ .name = "catalog_next_lsn", .type = .uint64 },
+};
+const connector_detail_fields = connector_fields ++ [_]f.Types.Field{
+    .{ .name = "definition", .type = .utf8 },                  .{ .name = "dependency_state", .type = .utf8 },
+    .{ .name = "last_poll", .type = .utf8, .nullable = true }, .{ .name = "last_publication", .type = .utf8, .nullable = true },
+};
+fn connectorRow(state: *const c.DirectSource.State, position: c.protocol.DataLifecycle.Position) [connector_fields.len]f.Types.Values.Cell {
+    return .{ text(state.declaration.properties.name.slice()), unsigned(state.declaration.interpretation.object.object), text(@tagName(state.declaration.kind)), text(if (state.control) |control| @tagName(control.state) else "published"), if (state.control) |control| unsigned(control.epoch) else .null, boolean(false), text("never_run"), unsigned(position.partition), unsigned(position.next_lsn) };
+}
 const explain_fields = [_]f.Types.Field{.{ .name = "plan", .type = .utf8 }};
 // Log inspection is also a database-wire surface. Its character bound uses
 // the common lossless unsigned type; native Table descriptions retain theirs.
@@ -80,6 +97,11 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
     if (first.tag != .word or (!std.ascii.eqlIgnoreCase(first.text, "SHOW") and
         !std.ascii.eqlIgnoreCase(first.text, "DESCRIBE") and
         !std.ascii.eqlIgnoreCase(first.text, "EXPLAIN"))) return null;
+    if (try g.database.SourceSql.parse(host.allocator, sql, host.dialect)) |parsed_value| {
+        var parsed = parsed_value;
+        defer parsed.deinit();
+        return try prepareConnector(host, parsed.statement);
+    }
     const selection = try g.database.HistoricalSql.select(sql, host.dialect);
     if (selection.snapshot != null and host.table.transaction != null) return error.UnsupportedHistoricalTransaction;
     if (selection.snapshot != null and host.source != null) return error.UnsupportedHistoricalKind;
@@ -249,6 +271,21 @@ fn describeRows(a: std.mem.Allocator, schema: f.TableSchema.Schema) ![]const []c
 }
 pub fn validate(self: *Self, host: *g.Session) !void {
     if (self.postgres) |*postgres| return postgres.validate(host);
+    if (self.connector_list != null or self.connector_proposal != null or self.connector_definition != null) try g.SourceOperations.requireProfile(host);
+    if (self.connector_list) |selection| {
+        const response = try host.table.call(.{ .namespace = selection.namespace });
+        defer response.deinit();
+        if (response.value.result.namespace == null or selection.namespace != host.namespace) return error.CatalogIdentityConflict;
+    }
+    if (self.connector_definition) |definition| {
+        const response = try host.table.call(.{ .source = .{ .inspect = definition } });
+        defer response.deinit();
+    }
+    if (self.connector_proposal) |proposal| {
+        const response = try host.table.call(.{ .source = .{ .prepare = proposal } });
+        defer response.deinit();
+        if (response.value.result.source.preview.reason != .none) return error.SourceDeclarationConflict;
+    }
     if (self.historical_list) |snapshot| {
         const response = try c.DirectHistory.call(host.table, .{ .list = .{ .snapshot = snapshot, .namespace = self.historical_namespace orelse return error.CatalogIdentityConflict, .after = null } });
         defer response.deinit();
@@ -316,6 +353,11 @@ pub const Read = struct {
     storage_values: [Storage.fields.len]f.Types.Values.Cell = undefined,
     node_observation: g.query.protocol.Storage.Observation = undefined,
     node_values: [Storage.node_fields.len]f.Types.Values.Cell = undefined,
+    connector_page: c.DirectSource.Page = .{ .next = null, .position = .{ .partition = 1, .next_lsn = 0 } },
+    connector_index: usize = 0,
+    connector_loaded: bool = false,
+    connector_requests: u64 = 0,
+    connector_row: [connector_fields.len]f.Types.Values.Cell = undefined,
     historical_entries: [8]c.DirectHistoryDirectory.Entry = undefined,
     historical_count: usize = 0,
     historical_index: usize = 0,
@@ -329,8 +371,30 @@ pub const Read = struct {
     }
     pub fn complete(self: *const Read) bool {
         if (self.prepared.postgres != null) return if (self.postgres) |postgres| postgres.done else false;
+        if (self.prepared.connector_list != null) return self.connector_loaded and self.connector_page.next == null and (self.connector_index == self.connector_page.entries.len or self.connector_page.entries[self.connector_index] == null);
         if (self.prepared.historical_list != null) return self.historical_loaded and self.historical_after == null and self.historical_index == self.historical_count;
         return self.index == self.prepared.count();
+    }
+    fn connectorNext(self: *Read, selection: c.DirectSource.Selection) !?[]const f.Types.Values.Cell {
+        while (!self.connector_loaded or self.connector_index == self.connector_page.entries.len or self.connector_page.entries[self.connector_index] == null) {
+            if (self.complete()) return null;
+            if (self.connector_requests >= 10000) return error.QueryPageBudget;
+            self.connector_requests += 1;
+            const response = try self.host.table.call(.{ .source = .{ .list = .{ .selection = selection, .cursor = self.connector_page.next } } });
+            defer response.deinit();
+            self.connector_page = response.value.result.source.page;
+            self.connector_loaded = true;
+            self.connector_index = 0;
+        }
+        const entry = &self.connector_page.entries[self.connector_index].?;
+        const definition = entry.declaration.interpretation;
+        const checked = try self.host.table.call(.{ .source = .{ .inspect = definition } });
+        defer checked.deinit();
+        self.subject = .{ .connector = definition };
+        self.connector_row = connectorRow(entry, self.connector_page.position);
+        self.connector_index += 1;
+        self.index += 1;
+        return &self.connector_row;
     }
     fn historicalNext(self: *Read, snapshot: c.protocol.DataLifecycle.Snapshot) !?[]const f.Types.Values.Cell {
         while (self.historical_index == self.historical_count) {
@@ -364,6 +428,7 @@ pub const Read = struct {
         }
         self.subject = null;
         try self.prepared.validate(self.host);
+        if (self.prepared.connector_list) |selection| return self.connectorNext(selection);
         if (self.prepared.historical_list) |snapshot| return self.historicalNext(snapshot);
         if (self.complete()) return null;
         if (self.prepared.node_storage) {
@@ -408,4 +473,38 @@ fn describeView(host: *g.Session, arena: *std.heap.ArenaAllocator, namespace: u6
     if (statement.plan != .select or statement.plan.select.view == null) return error.UnsupportedCatalogView;
     const rows = try describeRows(arena.allocator(), statement.plan.select.view.?.schema.schema);
     return .{ .arena = arena.*, .name = name, .statement = statement, .historical_namespace = if (snapshot != null) namespace else null, .rows = rows, .output = &describe_fields };
+}
+
+fn prepareConnector(host: *g.Session, statement: g.database.SourceSql.Statement) !Self {
+    try g.SourceOperations.requireProfile(host);
+    var arena: std.heap.ArenaAllocator = .init(host.allocator);
+    errdefer arena.deinit();
+    const a = arena.allocator();
+    if (statement == .explain) {
+        // Own parser strings beyond the temporary syntax tree.
+        const encoded = try c.protocol.Json.valueAlloc(a, statement);
+        const copied = try std.json.parseFromSliceLeaky(g.database.SourceSql.Statement, a, encoded, .{ .allocate = .alloc_always });
+        const proposal = try g.SourceOperations.proposal(host, &arena, copied);
+        const preview = (try c.DirectSourceClient.apply(&arena, host.table, .{ .prepare = proposal })).preview;
+        if (preview.reason != .none) return error.SourceDeclarationConflict;
+        const rows = try a.alloc([]const f.Types.Values.Cell, 1);
+        rows[0] = try a.dupe(f.Types.Values.Cell, &.{text(try c.protocol.Json.valueAlloc(a, .{ .proposal = proposal, .catalog = preview.position, .execution_supported = false, .executed = false, .identity = @as(?u64, null) }))});
+        return .{ .arena = arena, .connector_proposal = proposal, .kind = .plan, .rows = rows, .output = &explain_fields };
+    }
+    if (statement != .inspect) return error.UnsupportedSourceStatement;
+    const selection: c.DirectSource.Selection = .{ .namespace = host.namespace, .kind = statement.inspect.kind };
+    const name = statement.inspect.name orelse return .{ .arena = arena, .connector_list = selection, .rows = &.{}, .output = &connector_fields };
+    const value = try g.SourceOperations.lookup(host, &arena, selection.kind, name);
+    const row = try a.alloc(f.Types.Values.Cell, connector_detail_fields.len);
+    @memcpy(row[0..connector_fields.len], &connectorRow(&value.state, value.position));
+    // The name in the fixed State above is stack-owned; other text already
+    // belongs to the result arena.
+    row[0] = text(try a.dupe(u8, value.state.declaration.properties.name.slice()));
+    row[connector_fields.len] = text(try c.protocol.Json.valueAlloc(a, value.definition));
+    row[connector_fields.len + 1] = text(@tagName(value.dependency_state));
+    row[connector_fields.len + 2] = .null;
+    row[connector_fields.len + 3] = .null;
+    const rows = try a.alloc([]const f.Types.Values.Cell, 1);
+    rows[0] = row;
+    return .{ .arena = arena, .connector_definition = value.state.declaration.interpretation, .rows = rows, .output = &connector_detail_fields };
 }

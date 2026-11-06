@@ -658,6 +658,10 @@ fn execute(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: @Field
         slot.acceptance_possible = true;
         return .{ .operation = try g.ConfigurationOperations.admit(host, input.token orelse return error.SqlAdmissionTokenRequired, digest.?) };
     }
+    if (prepared.* == .connector) {
+        slot.acceptance_possible = true;
+        return .{ .operation = try g.SourceOperations.admit(host, &prepared.connector, input.token orelse return error.SqlAdmissionTokenRequired, digest.?) };
+    }
     if (prepared.* == .managed) {
         slot.acceptance_possible = true;
         return .{ .operation = try g.StatementOperations.admit(host, prepared, values, input.token orelse return error.SqlAdmissionTokenRequired, digest.?, &slot.acceptance_possible) };
@@ -828,6 +832,7 @@ fn control(self: *Self, allocator: std.mem.Allocator, working: std.mem.Allocator
         .dataflow => return error.ManagedControlCancellationUnsupported,
         .configuration => return error.ConfigurationCancellationUnsupported,
         .captured => return self.response(allocator, .{ .operation = try g.CapturedOperations.cancel(host, reference.id) }),
+        .connector => return self.response(allocator, .{ .operation = try g.SourceOperations.cancel(host, reference.id) }),
         .table, .transaction, .workload => {
             _ = try operationStatus(host, reference);
             try host.fresh(g.DatabaseRuntime.cancel, .{ runtime, &host.observer, reference.id });
@@ -839,7 +844,10 @@ fn selectOperation(host: *g.Session, ref: g.SessionOperations.Reference) !void {
     var reader = try host.observer.source();
     const binding: g.DatabaseAccount.Binding = if (ref.kind.database()) blk: {
         const item = try host.runtime.execution.operation(&reader, ref.id);
-        break :blk .{ .resource = item.resource, .catalog = item.catalog, .owner = item.owner, .namespace = item.namespace, .role = item.selectedRole() };
+        break :blk for (host.account.databases) |database| {
+            const candidate = database.binding;
+            if (candidate.resource == item.resource and candidate.catalog == item.catalog and candidate.owner == item.owner and candidate.namespace == item.namespace and candidate.role == item.selectedRole()) break candidate;
+        } else return error.GatewayDatabaseDenied;
     } else (try g.SessionOperations.external(host.runtime.execution, &reader, ref.id)).binding();
     const database = for (host.account.databases) |database| {
         if (std.meta.eql(database.binding, binding)) break database.name;

@@ -144,6 +144,11 @@ pub fn complete(self: *Self, kind: Completion, count: u64) ![]const u8 {
     const value = switch (kind) {
         .create_dataflow => "CREATE DATAFLOW",
         .control_dataflow => "CONTROL DATAFLOW",
+        .create_connection => "CREATE CONNECTION",
+        .create_source => "CREATE SOURCE",
+        .retire_source => "RETIRE SOURCE",
+        .drop_connection => "DROP CONNECTION",
+        .drop_source => "DROP SOURCE",
         .select => try std.fmt.bufPrint(&buffer, "SELECT {d}", .{count}),
         .insert => try std.fmt.bufPrint(&buffer, "INSERT 0 {d}", .{count}),
         .update => try std.fmt.bufPrint(&buffer, "UPDATE {d}", .{count}),

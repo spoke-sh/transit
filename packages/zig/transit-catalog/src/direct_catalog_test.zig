@@ -7,7 +7,7 @@ const a = c.TableAuthority;
 const D = c.DirectCatalog;
 const P = s.TablePartition;
 const scope: p.DataLifecycle.Scope = .{ .realm = 1, .resource = 3, .catalog = 1 };
-const profile: a.Profile = .{ .database_domain = 1, .schema_domain = 2, .table_domain = 3, .stream_domain = 31, .queue_domain = 32, .kv_domain = 33, .database = 4, .initial_schema = 1, .initial_schema_authority = 5 };
+const profile: a.Profile = .{ .database_domain = 1, .schema_domain = 2, .table_domain = 3, .stream_domain = 31, .queue_domain = 32, .kv_domain = 33, .connection_domain = 34, .source_domain = 35, .database = 4, .initial_schema = 1, .initial_schema_authority = 5 };
 const Source = c.DirectDocumentSource;
 
 fn sourceAuthority(access: *Access, admission: *Source.Admission) Source.Authority {
@@ -374,12 +374,12 @@ const Access = struct {
         const native: u64 = switch (kind) {
             .database => profile.database,
             .schema => if (id == 1) profile.initial_schema_authority else 20000 + id,
-            .table, .stream, .queue, .kv => 100 + id,
+            .table, .stream, .queue, .kv, .connection, .source => 100 + id,
         };
         return .{ .reference = a.reference(native), .owner = 0, .registrar = 1, .actions = a.actions(kind), .domain = profile.domain(kind), .binding = if (erased(context).mismatch) @splat(9) else try a.binding(scope, kind, id), .parent = switch (kind) {
             .database => null,
             .schema => a.reference(profile.database),
-            .table, .stream, .queue, .kv => a.reference(profile.initial_schema_authority),
+            .table, .stream, .queue, .kv, .connection, .source => a.reference(profile.initial_schema_authority),
         }, .revision = 1 };
     }
     fn policy(self: *Access) D.Policy {
@@ -2070,7 +2070,7 @@ test "catalog directory walk retains seed declarations across bounded page paths
     try catalog.store.index.begin(64 * 1024 * 1024);
     defer catalog.store.index.end();
     for (100..173) |id| {
-        const entry: r.Entry = .{ .object = id, .partition = id, .seed = null, .resource = null, .log = null, .descriptor = null };
+        const entry: r.Entry = .{ .object = id, .partition = id, .seed = null, .resource = null, .log = null, .descriptor = null, .connector = null };
         reference = try catalog.store.tree().put(reference, try r.idKey(id), try r.pageValue(entry));
     }
     basis.next_partition = 173;
@@ -2103,7 +2103,7 @@ test "catalog directory walk retains seed declarations across bounded page paths
     try t.expect(try skip.next(t.allocator, &index) == null);
 
     // A typed object directory must not reinterpret a mismatched object key.
-    const foreign: r.Entry = .{ .object = 99, .partition = 99, .seed = null, .resource = null, .log = null, .descriptor = null };
+    const foreign: r.Entry = .{ .object = 99, .partition = 99, .seed = null, .resource = null, .log = null, .descriptor = null, .connector = null };
     const invalid = try catalog.store.tree().put(null, try r.idKey(98), try r.pageValue(foreign));
     var corrupt = try c.DirectCatalogWalk.init(basis, .{ .reference = invalid, .kind = .objects });
     try t.expect((try corrupt.next(t.allocator, &index)).? == .page);
@@ -10380,5 +10380,333 @@ test "owned original attachment resolves lost replies and closure fences raw KV 
             try t.expectError(error.OwnedRecordClosed, catalog.clientProgress(attach, access.policy()));
         }
         try t.expectError(error.DataIdentityConflict, c.DirectKV.apply(allocator, allocator, &catalog, .{ .mutate = mutation }, access.policy()));
+    }
+}
+
+fn connectorCreation(object: u64, operation: u64, name: []const u8, payload: c.SourceDeclaration.Payload) !c.DirectSource.Request {
+    const intent: c.DirectSource.Intent = .{ .kind = std.meta.activeTag(payload), .namespace = 1, .name = try .init(name), .action = .{ .create = .{ .owner = 0, .payload = payload } } };
+    return .{ .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = operation }, .target = .{ .scope = scope, .branch = 1, .object = object }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(t.allocator) }, .intent = intent };
+}
+fn connectorExecute(catalog: *D, access: *Access, request: c.DirectSource.Request) !c.DirectSource.Operation {
+    var observed = (try catalog.sourceOperation(request, .reserve, access.policy())).operation;
+    for (0..4) |_| {
+        if (!observed.pending()) return observed;
+        _ = try catalog.sourceRegistration(request, access.policy());
+        observed = (try catalog.sourceOperation(request, .execute, access.policy())).operation;
+    }
+    return error.TestUnexpectedResult;
+}
+test "SOURCE CONNECTION reservation publication ownership and original recovery" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{ .exclusive = true };
+    try catalog.initialize(access.policy());
+    const request = try connectorCreation(77, 100, "upstream", .{ .connection = .{ .endpoint = "https://example.com" } });
+    const before = objects.puts;
+    try t.expectEqual(.none, (try catalog.previewSource(request, access.policy())).reason);
+    try t.expectEqual(before, objects.puts);
+    const reserved = (try catalog.sourceOperation(request, .reserve, access.policy())).operation;
+    try t.expect(reserved.pending());
+    const caller: c.DirectTableProtocol.Connection = .{ .scope = scope, .audience = (try configuration()).audience, .principal = 1, .role = null, .branch = 1 };
+    const action: c.DirectSource.Action = .{ .declaration = .{ .request = request, .command = .reserve } };
+    try c.DirectSource.validateResult(t.allocator, caller, action, .{ .observation = .{ .operation = reserved } });
+    var corrupt = reserved;
+    corrupt.intent.sha256[0] ^= 1;
+    try t.expectError(error.InvalidTableResponse, c.DirectSource.validateResult(t.allocator, caller, action, .{ .observation = .{ .operation = corrupt } }));
+    try t.expect(try catalog.resolveSource(t.allocator, .{ .namespace = 1, .kind = .connection }, request.intent.name, access.policy()) == null);
+    const other = try connectorCreation(78, 101, "upstream", .{ .connection = .{ .endpoint = "https://example.org" } });
+    try t.expectEqual(.name_conflict, (try catalog.sourceOperation(other, .reserve, access.policy())).operation.reason);
+    catalog.deinit();
+    catalog = try owner(&wal, &objects);
+    const accepted = try connectorExecute(&catalog, &access, request);
+    try t.expectEqual(.applied, accepted.phase);
+    var metadata = (try catalog.resolveSource(t.allocator, .{ .namespace = 1, .kind = .connection }, request.intent.name, access.policy())).?;
+    defer metadata.deinit();
+    try t.expectEqualStrings("https://example.com", metadata.value.definition.payload.connection.endpoint);
+    try t.expect(!metadata.value.execution_supported);
+    access.denied_metadata = metadata.value.state.declaration.properties.authorization;
+    try t.expectError(error.CatalogDenied, catalog.inspectSource(t.allocator, metadata.value.state.declaration.interpretation, access.policy()));
+    access.denied_metadata = null;
+    catalog.deinit();
+    catalog = try owner(&wal, &objects);
+    try t.expectEqualDeep(accepted, (try catalog.sourceOperation(request, .inspect, access.policy())).operation);
+    const page = try catalog.listSources(.{ .namespace = 1, .kind = .connection }, null, access.policy());
+    try t.expectEqualDeep(accepted.resulting.?, page.entries[0].?);
+    var changed = request;
+    changed.intent.action.create.payload.connection.endpoint = "https://changed.example";
+    changed.binding.intent = try changed.intent.digest(t.allocator);
+    try t.expectError(error.DataIdentityConflict, catalog.sourceOperation(changed, .reserve, access.policy()));
+}
+
+fn connectorEdit(state: c.DirectSource.State, operation: u64, action: @FieldType(c.DirectSource.Intent, "action")) !c.DirectSource.Request {
+    const intent: c.DirectSource.Intent = .{ .kind = state.declaration.kind, .namespace = state.declaration.properties.namespace, .name = state.declaration.properties.name, .action = action };
+    return .{ .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = operation }, .target = state.declaration.interpretation.object, .action = if (action == .control) .alter else .drop, .expected_definition = state.declaration.interpretation, .expected_data = null, .intent = try intent.digest(t.allocator) }, .intent = intent };
+}
+test "SOURCE disk lifecycle protects dependencies writers and original outcomes without appending" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{ .exclusive = true };
+    try catalog.initialize(access.policy());
+    var ddl = try c.fuze.LogDdl.compile(t.allocator, "CREATE STREAM captures (capture_id UUID NOT NULL, source_sequence UINT64 NOT NULL, observed_at TIMESTAMPTZ NOT NULL, http_status INTEGER NOT NULL, body_ref BINARY NOT NULL, body_bytes UINT64 NOT NULL, body_sha256 BINARY NOT NULL)", .transit, null);
+    defer ddl.deinit();
+    var log_request = try logCreation(.stream, 50, 50, "captures", 1);
+    log_request.intent.action.create.schema = try ddl.statement.action.create.bind(50);
+    log_request.binding.intent = try log_request.intent.digest(t.allocator);
+    _ = try catalog.admitLog(log_request, access.policy());
+    const log = (try catalog.logOperation(log_request.binding, .execute, access.policy())).operation.resulting.?;
+    const log_tail = try wal.log().tail(log.first_partition);
+    const connection_request = try connectorCreation(77, 100, "upstream", .{ .connection = .{ .endpoint = "http://127.0.0.1:1" } });
+    const connection = (try connectorExecute(&catalog, &access, connection_request)).resulting.?;
+    const request = try connectorCreation(78, 101, "earthquakes", .{ .source = .{ .connection = connection.declaration.interpretation, .destination = log.stored.declaration.interpretation, .executor = 99, .http = .{ .method = .GET, .path = "/feed", .poll_interval_ms = 1000, .request_timeout_ms = 500, .response_max_bytes = 1024 }, .columns = .{ 1, 2, 3, 4, 5, 6, 7 } } });
+    const before = objects.puts;
+    try t.expectEqual(.none, (try catalog.previewSource(request, access.policy())).reason);
+    try t.expectEqual(before, objects.puts);
+    catalog.store.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.sourceOperation(request, .reserve, access.policy()));
+    catalog.store.lose_reply = false;
+    catalog.deinit();
+    catalog = try owner(&wal, &objects);
+    const competing = try connectorCreation(79, 102, "other", request.intent.action.create.payload);
+    try t.expectEqual(.writer_conflict, (try connectorExecute(&catalog, &access, competing)).reason);
+    const accepted = try connectorExecute(&catalog, &access, request);
+    try t.expectEqual(.published, accepted.resulting.?.control.?.state);
+    try t.expectEqual(1, accepted.resulting.?.control.?.epoch);
+    const drop_connection = try connectorEdit(connection, 103, .{ .drop = .{ .expected_epoch = null } });
+    try t.expectEqual(.dependency, (try connectorExecute(&catalog, &access, drop_connection)).reason);
+    const drop_log = try logEdit(log, 104, .drop);
+    try t.expectEqual(.dependency, (try catalog.admitLog(drop_log, access.policy())).reason);
+    const rename_log = try logEdit(log, 150, .{ .rename = try .init("captures_renamed") });
+    _ = try catalog.admitLog(rename_log, access.policy());
+    const renamed_log = (try catalog.logOperation(rename_log.binding, .execute, access.policy())).operation.resulting.?;
+    var changed_basis = try catalog.inspectSource(t.allocator, accepted.resulting.?.declaration.interpretation, access.policy());
+    defer changed_basis.deinit();
+    try t.expectEqual(.definition_changed, changed_basis.value.dependency_state);
+    try t.expectEqualDeep(request.intent.action.create.payload.source.destination, changed_basis.value.definition.payload.source.destination);
+    var changed_payload = request.intent.action.create.payload;
+    changed_payload.source.destination = renamed_log.stored.declaration.interpretation;
+    const later_writer = try connectorCreation(81, 151, "later_writer", changed_payload);
+    try t.expectEqual(.writer_conflict, (try connectorExecute(&catalog, &access, later_writer)).reason);
+    const source_drop = try connectorEdit(accepted.resulting.?, 105, .{ .drop = .{ .expected_epoch = 1 } });
+    try t.expectEqual(.not_retired, (try connectorExecute(&catalog, &access, source_drop)).reason);
+    for ([_]p.Source.Command{ .authorize, .activate, .suspend_source, .resume_source }) |command| {
+        const blocked = try connectorEdit(accepted.resulting.?, 106, .{ .control = .{ .expected_epoch = 1, .command = command } });
+        const root = catalog.store.root;
+        try t.expectError(error.SourceExecutionUnsupported, catalog.sourceOperation(blocked, .reserve, access.policy()));
+        try t.expectEqualDeep(root, catalog.store.root);
+    }
+    catalog.deinit();
+    catalog = try owner(&wal, &objects);
+    try t.expectEqualDeep(accepted, (try catalog.sourceOperation(request, .inspect, access.policy())).operation);
+    const retire = try connectorEdit(accepted.resulting.?, 107, .{ .control = .{ .expected_epoch = 1, .command = .retire } });
+    const retired = (try connectorExecute(&catalog, &access, retire)).resulting.?;
+    try t.expectEqualDeep(accepted.resulting.?.declaration, retired.declaration);
+    try t.expectEqual(2, retired.control.?.epoch);
+    const dropped = try connectorExecute(&catalog, &access, try connectorEdit(retired, 108, .{ .drop = .{ .expected_epoch = 2 } }));
+    try t.expect(dropped.resulting.?.dropped);
+    // The original reservation freezes its basis. A later destination rename
+    // rejects that original and releases its writer reservation without rebinding.
+    const pending_basis = try connectorCreation(82, 152, "pending_basis", changed_payload);
+    _ = try catalog.sourceOperation(pending_basis, .reserve, access.policy());
+    const changed_again = try logEdit(renamed_log, 153, .{ .rename = try .init("captures") });
+    _ = try catalog.admitLog(changed_again, access.policy());
+    const current_log = (try catalog.logOperation(changed_again.binding, .execute, access.policy())).operation.resulting.?;
+    try t.expectEqual(.stale_definition, (try connectorExecute(&catalog, &access, pending_basis)).reason);
+    changed_payload.source.destination = current_log.stored.declaration.interpretation;
+    const fresh_basis = try connectorCreation(83, 154, "fresh_basis", changed_payload);
+    try t.expect((try catalog.sourceOperation(fresh_basis, .reserve, access.policy())).operation.pending());
+    _ = try catalog.sourceOperation(fresh_basis, .cancel, access.policy());
+    _ = try connectorExecute(&catalog, &access, try connectorEdit(connection, 109, .{ .drop = .{ .expected_epoch = null } }));
+    const replacement = try connectorCreation(80, 110, "upstream", connection_request.intent.action.create.payload);
+    _ = try connectorExecute(&catalog, &access, replacement);
+    try t.expectEqualDeep(connection.declaration, (try catalog.sourceOperation(connection_request, .inspect, access.policy())).operation.resulting.?.declaration);
+    try t.expectEqual(log_tail, try wal.log().tail(log.first_partition));
+    try t.expect(try catalog.resolveLog(1, try .init("captures"), access.policy()) != null);
+    catalog.deinit();
+    catalog = try owner(&wal, &objects);
+    try t.expectEqualDeep(dropped, (try catalog.sourceOperation(try connectorEdit(retired, 108, .{ .drop = .{ .expected_epoch = 2 } }), .inspect, access.policy())).operation);
+}
+
+test "SOURCE bounded sparse pages own metadata and quota exhaustion preserves closure" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try D.init(t.allocator, try configuration(), wal.log(), objects.objectStore(), wal.log(), objects.objectStore(), .{ .resident_pages = 1, .source_operation_quota = 42 });
+    defer catalog.deinit();
+    try catalog.recover();
+    var access: Access = .{ .exclusive = true };
+    try catalog.initialize(access.policy());
+    for (0..40) |i| {
+        var name: [32]u8 = undefined;
+        const request = try connectorCreation(1000 + i, 2000 + i, try std.fmt.bufPrint(&name, "upstream_{d}", .{i}), .{ .connection = .{ .endpoint = "https://example.com" } });
+        _ = try connectorExecute(&catalog, &access, request);
+    }
+    const selection: c.DirectSource.Selection = .{ .namespace = 1, .kind = .source };
+    const first = try catalog.listSources(selection, null, access.policy());
+    try t.expect(first.entries[0] == null and first.next != null);
+    try t.expectEqual(1031, first.next.?.after);
+    const last = try catalog.listSources(selection, first.next, access.policy());
+    try t.expect(last.entries[0] == null and last.next == null);
+    try t.expectError(error.InvalidCatalogCursor, catalog.listSources(.{ .namespace = 1, .kind = .connection }, first.next, access.policy()));
+    var altered = first.next.?;
+    altered.principal = 2;
+    try t.expectError(error.InvalidCatalogCursor, catalog.listSources(selection, altered, access.policy()));
+    altered = first.next.?;
+    altered.role = 42;
+    try t.expectError(error.InvalidCatalogCursor, catalog.listSources(selection, altered, access.policy()));
+    const page = try catalog.listSources(.{ .namespace = 1, .kind = .connection }, null, access.policy());
+    try t.expect(page.entries[3] != null and page.next != null);
+    const retained = page.entries[0].?;
+    catalog.store.index.clearCache();
+    try t.expectEqualStrings("upstream_0", retained.declaration.properties.name.slice());
+    access.denied_metadata = retained.declaration.properties.authorization;
+    try t.expectError(error.CatalogDenied, catalog.inspectSource(t.allocator, retained.declaration.interpretation, access.policy()));
+    const filtered = try catalog.listSources(.{ .namespace = 1, .kind = .connection }, null, access.policy());
+    try t.expectEqualStrings("upstream_1", filtered.entries[0].?.declaration.properties.name.slice());
+    access.denied_metadata = null;
+    const pending = try connectorCreation(1040, 2040, "pending", .{ .connection = .{ .endpoint = "https://example.com" } });
+    _ = try catalog.sourceOperation(pending, .reserve, access.policy());
+    const another = try connectorCreation(1041, 2041, "another", pending.intent.action.create.payload);
+    _ = try catalog.sourceOperation(another, .reserve, access.policy());
+    const exhausted = try connectorCreation(1042, 2042, "exhausted", pending.intent.action.create.payload);
+    const root = catalog.store.root;
+    try t.expectError(error.SourceDeclarationQuota, catalog.sourceOperation(exhausted, .reserve, access.policy()));
+    try t.expectEqualDeep(root, catalog.store.root);
+    try t.expectEqual(.cancelled, (try catalog.sourceOperation(pending, .cancel, access.policy())).operation.phase);
+    try t.expectEqual(.cancelled, (try catalog.sourceOperation(another, .cancel, access.policy())).operation.phase);
+    try catalog.recover();
+    try t.expectEqual(.cancelled, (try catalog.sourceOperation(pending, .execute, access.policy())).operation.phase);
+}
+
+test "SOURCE reservation staging publication faults and collection retain original ownership" {
+    for (0..4) |fault| {
+        var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+        defer wal.deinit();
+        var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        var access: Access = .{ .exclusive = true };
+        try catalog.initialize(access.policy());
+        const request = try connectorCreation(77, 100, "original", .{ .connection = .{ .endpoint = "https://example.com" } });
+        catalog.store.lose_reply = fault == 0;
+        if (fault == 0) try t.expectError(error.LostAcknowledgement, catalog.sourceOperation(request, .reserve, access.policy())) else _ = try catalog.sourceOperation(request, .reserve, access.policy());
+        catalog.store.lose_reply = false;
+        try catalog.recover();
+        // A reservation without staged bytes is live ownership, not corruption.
+        try collectHistoricalFixture(&catalog, &wal, &objects, &access, &.{});
+        _ = try catalog.sourceRegistration(request, access.policy());
+        catalog.store.lose_reply = fault == 1;
+        if (fault == 1) try t.expectError(error.LostAcknowledgement, catalog.sourceOperation(request, .execute, access.policy())) else _ = try catalog.sourceOperation(request, .execute, access.policy());
+        catalog.store.lose_reply = false;
+        try catalog.recover();
+        const staged = (try catalog.sourceOperation(request, .inspect, access.policy())).operation;
+        try t.expect(staged.pending() and staged.staged != null);
+        try t.expect(try catalog.resolveSource(t.allocator, .{ .namespace = 1, .kind = .connection }, request.intent.name, access.policy()) == null);
+        // Revocation after preparation cannot turn staging into publication.
+        access.deny_create = true;
+        const root = catalog.store.root;
+        try t.expectError(error.CatalogDenied, catalog.sourceOperation(request, .execute, access.policy()));
+        try t.expectEqualDeep(root, catalog.store.root);
+        access.deny_create = false;
+        try collectHistoricalFixture(&catalog, &wal, &objects, &access, &.{});
+        if (fault == 3) {
+            // Staged but unaccepted artifacts may exist at the crash boundary.
+            const native = (try access.policy().registered(access.policy().context, .connection, 77)).?;
+            const declaration: c.SourceDeclaration.Definition = .{ .definition = p.Growth.current_definition, .object = request.binding.target, .revision = 1, .properties = .{ .namespace = 1, .authorization = native.reference.id, .name = request.intent.name }, .owner = 0, .payload = request.intent.action.create.payload };
+            _ = try c.SourceDeclaration.stage(t.allocator, objects.objectStore(), declaration);
+            catalog.store.lose_reply = true;
+            try t.expectError(error.LostAcknowledgement, catalog.sourceOperation(request, .cancel, access.policy()));
+            catalog.store.lose_reply = false;
+            try catalog.recover();
+            try collectHistoricalFixture(&catalog, &wal, &objects, &access, &.{});
+            var path: [96]u8 = undefined;
+            try t.expect(try objects.objectStore().head(try c.SourceDeclaration.key(staged.staged.?.content, &path)) == null);
+            try t.expectEqual(.cancelled, (try catalog.sourceOperation(request, .execute, access.policy())).operation.phase);
+        } else {
+            catalog.store.lose_reply = fault == 2;
+            if (fault == 2) try t.expectError(error.LostAcknowledgement, catalog.sourceOperation(request, .execute, access.policy())) else _ = try catalog.sourceOperation(request, .execute, access.policy());
+            catalog.store.lose_reply = false;
+            try catalog.recover();
+            const accepted = (try catalog.sourceOperation(request, .inspect, access.policy())).operation;
+            try t.expectEqual(.applied, accepted.phase);
+            try collectHistoricalFixture(&catalog, &wal, &objects, &access, &.{});
+            var owned = try catalog.inspectSource(t.allocator, accepted.resulting.?.declaration.interpretation, access.policy());
+            owned.deinit();
+            var path: [96]u8 = undefined;
+            try objects.objectStore().delete(try c.SourceDeclaration.key(accepted.resulting.?.declaration.content, &path));
+            try t.expectError(error.CatalogIntentMissing, collectHistoricalFixture(&catalog, &wal, &objects, &access, &.{}));
+            try t.expectError(error.CatalogIntentMissing, catalog.inspectSource(t.allocator, accepted.resulting.?.declaration.interpretation, access.policy()));
+        }
+    }
+}
+
+// Conservative encoded-width bound: retain the active shape, expand every
+// integer to its own type's maximum and every Name to the maximum escaped name.
+// This is a serialization bound, not a manufactured executable declaration.
+fn connectorMaximumWidths(comptime T: type, value: *T) void {
+    if (T == a.Name) {
+        value.* = a.Name.init(&@as([p.Authorization.max_name_bytes]u8, @splat('"'))) catch unreachable;
+        return;
+    }
+    switch (@typeInfo(T)) {
+        .int => value.* = std.math.maxInt(T),
+        .@"struct" => |info| inline for (info.field_names) |field| connectorMaximumWidths(@FieldType(T, field), &@field(value, field)),
+        .array => |info| for (value) |*item| connectorMaximumWidths(info.child, item),
+        .optional => |info| if (value.*) |*item| connectorMaximumWidths(info.child, item),
+        .@"union" => switch (value.*) {
+            inline else => |*item| connectorMaximumWidths(@TypeOf(item.*), item),
+        },
+        else => {},
+    }
+}
+test "SOURCE maximum control record stays within the unchanged sixteen KiB WAL bound" {
+    const r = @import("DirectCatalogRecords.zig");
+    const bytes = s.TreeStore.pages.Reference;
+    var root = try r.Root.empty(try configuration());
+    // Fill every directory reference, including unrelated owners: the bound
+    // must hold in a populated installation, not merely an empty test Catalog.
+    inline for (@typeInfo(r.Root).@"struct".field_names) |field| {
+        if (@FieldType(r.Root, field) == ?bytes) @field(root, field) = std.mem.zeroes(bytes);
+    }
+    const request = try connectorCreation(77, 100, "source", .{ .connection = .{ .endpoint = "https://example.com" } });
+    const definition: c.SourceDeclaration.Definition = .{ .definition = p.Growth.current_definition, .object = request.binding.target, .revision = 1, .properties = .{ .namespace = 1, .authorization = 177, .name = request.intent.name }, .owner = 0, .payload = request.intent.action.create.payload };
+    var stored = try definition.stored(t.allocator);
+    stored.kind = .source;
+    const state: c.DirectSource.State = .{ .declaration = stored, .control = p.Source.Control.initial(), .dropped = false };
+    const edge: c.DirectDependency.Edge = .{ .source = stored.interpretation, .dependent = .{ .kind = .source, .interpretation = stored.interpretation }, .privileges = 3 };
+    // Exercise each supported publication shape: CREATE has a staged artifact,
+    // while successful control/DROP retain the old control and one definition.
+    const record: r.Record = .{ .definition = p.Growth.current_definition, .previous = @splat(255), .root = root, .action = .{ .connector = .{ .binding = request.binding, .intent = stored.content, .kind = .source, .namespace = 1, .name = request.intent.name, .position = .{ .partition = 1, .next_lsn = 1 }, .phase = .applied, .reason = .stale_definition, .previous = state, .expected_control = state.control, .resulting = state, .destination = stored.interpretation, .staged = stored, .removed = .{ edge, edge }, .added = .{ edge, edge } } } };
+    for ([_]p.DataLifecycle.Action{ .create, .alter, .drop }) |action| {
+        var candidate = record;
+        var operation = &candidate.action.connector;
+        operation.binding.action = action;
+        operation.binding.prerequisite = .{
+            .subject = .{ .signed = .{ .claim = .{ .definition = p.Growth.current_definition, .realm = 1, .principal = 1, .credential_epoch = 1, .role = 1, .audience = 1, .context = @splat(255) }, .signature = @splat(255) } },
+            .requirements = @splat(.{ .object = a.reference(1), .privileges = 1 }),
+            .selectable = 1,
+        };
+        operation.binding.expected_definition = if (action == .create) null else stored.interpretation;
+        operation.previous = null;
+        operation.expected_control = if (action == .create) null else state.control;
+        operation.staged = if (action == .create) stored else null;
+        operation.added = if (action == .create) .{ edge, edge } else @splat(null);
+        operation.removed = if (action == .drop) .{ edge, edge } else @splat(null);
+        connectorMaximumWidths(r.Record, &candidate);
+        const encoded = try p.Json.valueAlloc(t.allocator, candidate);
+        defer t.allocator.free(encoded);
+        if (encoded.len + 40 > 16 * 1024) std.debug.print("SOURCE {s} maximum record: {d} bytes\n", .{ @tagName(action), encoded.len + 40 });
+        try t.expect(encoded.len + 40 <= 16 * 1024);
     }
 }

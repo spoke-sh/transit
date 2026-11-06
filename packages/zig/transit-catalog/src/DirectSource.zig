@@ -62,6 +62,9 @@ pub const Request = struct {
 pub const IntentStore = @import("CatalogIntentCodec.zig").BoundedCodec(Request, "catalog-source-intents", "TSRCREQ1", A.max_bytes);
 pub const Reason = enum { none, name_conflict, object_conflict, stale_definition, stale_control, dependency, writer_conflict, not_retired };
 pub const Command = enum { preview, inspect, reserve, execute, cancel };
+/// Includes request, declaration, bounded directory updates and terminal WAL
+/// capacity. Charged once; resumption and closure do not admit another operation.
+pub const reservation_bytes = 2 * A.max_bytes + 16 * r.max_record_bytes;
 pub const State = struct {
     declaration: A.Stored,
     control: ?p.Source.Control,
@@ -87,8 +90,10 @@ pub const Operation = struct {
     phase: enum { reserved, applied, rejected, cancelled },
     reason: Reason,
     previous: ?State,
+    expected_control: ?p.Source.Control,
     resulting: ?State,
     destination: ?d.Definition,
+    staged: ?A.Stored,
     removed: [2]?c.DirectDependency.Edge = @splat(null),
     added: [2]?c.DirectDependency.Edge = @splat(null),
     pub fn pending(self: Operation) bool {
@@ -102,6 +107,14 @@ pub const Operation = struct {
         try c.Model.nativeId(self.namespace);
         try self.name.validate();
         if (self.intent.bytes <= A.header_bytes or self.intent.bytes > A.max_bytes or self.position.next_lsn == 0 or (self.phase == .rejected) != (self.reason != .none) or (self.phase == .applied) != (self.resulting != null)) return error.InvalidSourceDeclaration;
+        if (self.expected_control) |control| {
+            try control.validate();
+            if (self.phase != .applied or self.binding.action == .create or self.kind != .source) return error.InvalidSourceControl;
+        }
+        if (self.staged) |stored| {
+            try stored.validate();
+            if (self.binding.action != .create or !std.meta.eql(stored.interpretation.object, self.binding.target) or stored.kind != self.kind or stored.properties.namespace != self.namespace or !std.meta.eql(stored.properties.name, self.name)) return error.InvalidSourceDeclaration;
+        }
         if (self.destination) |destination| {
             try destination.validate();
             if (self.kind != .source or !std.meta.eql(destination.object.scope, self.binding.target.scope) or destination.object.branch != self.binding.target.branch) return error.InvalidSourceDeclaration;
@@ -115,18 +128,27 @@ pub const Operation = struct {
             const declaration = value.declaration;
             if (!std.meta.eql(declaration.interpretation.object, self.binding.target) or declaration.kind != self.kind or declaration.properties.namespace != self.namespace or !std.meta.eql(declaration.properties.name, self.name) or value.dropped != (self.binding.action == .drop)) return error.InvalidSourceDeclaration;
             if (self.binding.action == .create) {
+                if (self.staged == null or !std.meta.eql(self.staged.?, declaration)) return error.InvalidSourceDeclaration;
                 if (self.previous != null or (value.control != null and !std.meta.eql(value.control.?, p.Source.Control.initial()))) return error.InvalidSourceDeclaration;
             } else {
-                const previous = self.previous orelse return error.InvalidSourceDeclaration;
-                if (!std.meta.eql(previous.declaration, declaration)) return error.InvalidSourceDeclaration;
+                if (self.previous != null or !std.meta.eql(self.binding.expected_definition.?, declaration.interpretation)) return error.InvalidSourceDeclaration;
                 if (self.binding.action == .alter) {
-                    if (previous.control == null or !std.meta.eql(try previous.control.?.apply(.retire), value.control.?)) return error.InvalidSourceControl;
-                } else if (self.binding.action != .drop or !std.meta.eql(previous.control, value.control)) return error.InvalidSourceControl;
+                    const previous_control = self.expected_control orelse return error.InvalidSourceControl;
+                    if (!std.meta.eql(try previous_control.apply(.retire), value.control.?)) return error.InvalidSourceControl;
+                } else if (self.binding.action != .drop or !std.meta.eql(self.expected_control, value.control)) return error.InvalidSourceControl;
             }
+        }
+        if (self.kind == .connection) {
+            if (!std.meta.eql(self.added, @as([2]?c.DirectDependency.Edge, @splat(null))) or !std.meta.eql(self.removed, @as([2]?c.DirectDependency.Edge, @splat(null))) or self.destination != null) return error.InvalidSourceDeclaration;
+        } else if (self.phase == .applied and (self.binding.action == .create or self.binding.action == .drop)) {
+            const edges = if (self.binding.action == .create) self.added else self.removed;
+            const connection = edges[0] orelse return error.InvalidSourceDeclaration;
+            const destination = edges[1] orelse return error.InvalidSourceDeclaration;
+            if (connection.dependent.kind != .source or destination.dependent.kind != .source or connection.privileges != c.SourceAuthority.use or destination.privileges != c.LogAuthority.inspect | c.LogAuthority.append or self.destination == null or !std.meta.eql(destination.source, self.destination.?) or std.meta.eql(connection.source.object, destination.source.object)) return error.InvalidSourceDeclaration;
         }
         for (self.removed) |maybe| if (maybe) |edge| {
             try edge.validate();
-            if (self.phase != .applied or self.binding.action != .drop or self.previous == null or !std.meta.eql(edge.dependent.interpretation, self.previous.?.declaration.interpretation)) return error.InvalidSourceDeclaration;
+            if (self.phase != .applied or self.binding.action != .drop or self.resulting == null or !std.meta.eql(edge.dependent.interpretation, self.resulting.?.declaration.interpretation)) return error.InvalidSourceDeclaration;
         };
         for (self.added) |maybe| if (maybe) |edge| {
             try edge.validate();
@@ -160,5 +182,146 @@ test "SOURCE typed publication refuses every execution control before admission"
     for ([_]p.Source.Command{ .authorize, .activate, .suspend_source, .resume_source }) |command| {
         intent.action.control.command = command;
         try t.expectError(error.SourceExecutionUnsupported, intent.validate(binding));
+    }
+}
+
+/// A proposal has no object or operation identity and performs no allocation.
+pub const Proposal = struct {
+    namespace: u64,
+    name: c.TableAuthority.Name,
+    owner: u64,
+    payload: A.Payload,
+    pub fn validate(self: Proposal, connection: c.DirectTableProtocol.Connection) !void {
+        try c.Model.nativeId(self.namespace);
+        try self.name.validate();
+        try p.Authorization.roleId(self.owner);
+        // Only scope validation needs an object-shaped value. This fixed value
+        // is neither selected from the Catalog nor returned as an identity.
+        try self.payload.validate(.{ .scope = connection.scope, .branch = 1, .object = 1 });
+    }
+};
+pub const Action = union(enum) {
+    prepare: Proposal,
+    declaration: struct { request: Request, command: Command, steps: u16 = 16 },
+    lookup: struct { selection: Selection, name: c.TableAuthority.Name },
+    inspect: d.Definition,
+    list: struct { selection: Selection, cursor: ?Cursor },
+    pub fn mutation(self: Action) bool {
+        return self == .declaration and switch (self.declaration.command) {
+            .reserve, .execute, .cancel => true,
+            else => false,
+        };
+    }
+    pub fn validate(self: Action, allocator: std.mem.Allocator, connection: c.DirectTableProtocol.Connection) !void {
+        switch (self) {
+            .prepare => |value| try value.validate(connection),
+            .declaration => |value| {
+                try connection.binding(value.request.binding);
+                try value.request.intent.validate(value.request.binding);
+                if (value.steps == 0 or value.steps > 256) return error.InvalidCatalogStepBudget;
+                if (!std.mem.eql(u8, &try value.request.intent.digest(allocator), &value.request.binding.intent)) return error.DataIdentityConflict;
+            },
+            .lookup => |value| {
+                try c.Model.nativeId(value.selection.namespace);
+                try value.name.validate();
+            },
+            .inspect => |value| {
+                try value.validate();
+                try connection.object(value.object);
+            },
+            .list => |value| {
+                try c.Model.nativeId(value.selection.namespace);
+                if (value.cursor) |cursor| if (cursor.after == 0 or cursor.principal != connection.principal or (connection.role != null and cursor.role != connection.role) or !std.meta.eql(cursor.selection, value.selection)) return error.InvalidCatalogCursor;
+            },
+        }
+    }
+};
+pub const Result = union(enum) { preview: Preview, observation: Observation, metadata: ?Metadata, page: Page };
+pub fn dispatch(allocator: std.mem.Allocator, catalog: *c.DirectCatalog, policy: c.DirectCatalog.Policy, action: Action, execution: c.DirectTableDispatch.Execution) !Result {
+    return switch (action) {
+        .prepare => |value| .{ .preview = try catalog.prepareSource(value, policy) },
+        .declaration => |value| switch (value.command) {
+            .preview => .{ .preview = try catalog.previewSource(value.request, policy) },
+            .execute => .{ .observation = try (execution.source orelse return error.SourceExecutionUnsupported)(execution.context, catalog, value.request, policy, value.steps) },
+            else => .{ .observation = try catalog.sourceOperation(value.request, value.command, policy) },
+        },
+        .inspect => |value| blk: {
+            var owned = try catalog.inspectSource(catalog.allocator, value, policy);
+            defer owned.deinit();
+            break :blk .{ .metadata = try clone(allocator, owned.value) };
+        },
+        .lookup => |value| blk: {
+            var owned = try catalog.resolveSource(catalog.allocator, value.selection, value.name, policy) orelse break :blk .{ .metadata = null };
+            defer owned.deinit();
+            break :blk .{ .metadata = try clone(allocator, owned.value) };
+        },
+        .list => |value| .{ .page = try catalog.listSources(value.selection, value.cursor, policy) },
+    };
+}
+pub fn clone(allocator: std.mem.Allocator, value: Metadata) !Metadata {
+    const bytes = try p.Json.valueAlloc(allocator, value);
+    defer allocator.free(bytes);
+    return std.json.parseFromSliceLeaky(Metadata, allocator, bytes, .{ .allocate = .alloc_always });
+}
+pub fn validateResult(allocator: std.mem.Allocator, connection: c.DirectTableProtocol.Connection, request: Action, result: Result) !void {
+    try request.validate(allocator, connection);
+    switch (request) {
+        .prepare => {
+            if (result != .preview or result.preview.current != null) return error.InvalidTableResponse;
+            try result.preview.position.validate();
+        },
+        .declaration => |input| {
+            if (input.command == .preview) {
+                if (result != .preview) return error.InvalidTableResponse;
+                try result.preview.position.validate();
+                if (result.preview.current) |state| {
+                    try state.validate();
+                    if (!std.meta.eql(state.declaration.interpretation.object, input.request.binding.target)) return error.InvalidTableResponse;
+                }
+            } else {
+                if (result != .observation) return error.InvalidTableResponse;
+                switch (result.observation) {
+                    .not_observed => if (input.command != .inspect) return error.InvalidTableResponse,
+                    .operation => |value| {
+                        try value.validate();
+                        try value.binding.requireSame(input.request.binding);
+                        if (value.kind != input.request.intent.kind or value.namespace != input.request.intent.namespace or !std.meta.eql(value.name, input.request.intent.name)) return error.InvalidTableResponse;
+                        if (!std.meta.eql(value.intent, try IntentStore.encodedContent(allocator, input.request))) return error.InvalidTableResponse;
+                    },
+                }
+            }
+        },
+        .lookup, .inspect => {
+            if (result != .metadata) return error.InvalidTableResponse;
+            const value = result.metadata orelse {
+                if (request == .inspect) return error.InvalidTableResponse;
+                return;
+            };
+            try value.state.validate();
+            try value.position.validate();
+            try connection.object(value.definition.object);
+            if (value.execution_supported or value.last_poll != null or value.last_publication != null or !std.meta.eql(try value.definition.stored(allocator), value.state.declaration)) return error.InvalidTableResponse;
+            if (request == .inspect) {
+                if (!std.meta.eql(value.state.declaration.interpretation, request.inspect)) return error.InvalidTableResponse;
+            } else if (value.state.dropped or value.state.declaration.kind != request.lookup.selection.kind or value.definition.properties.namespace != request.lookup.selection.namespace or !std.meta.eql(value.definition.properties.name, request.lookup.name)) return error.InvalidTableResponse;
+        },
+        .list => |input| {
+            if (result != .page) return error.InvalidTableResponse;
+            try result.page.position.validate();
+            var after = if (input.cursor) |cursor| cursor.after else 0;
+            var ended = false;
+            for (result.page.entries) |maybe| if (maybe) |state| {
+                try state.validate();
+                try connection.object(state.declaration.interpretation.object);
+                if (ended or state.dropped or state.declaration.kind != input.selection.kind or state.declaration.properties.namespace != input.selection.namespace or state.declaration.interpretation.object.object <= after) return error.InvalidTableResponse;
+                after = state.declaration.interpretation.object.object;
+            } else {
+                ended = true;
+            };
+            if (result.page.next) |cursor| {
+                try (Action{ .list = .{ .selection = input.selection, .cursor = cursor } }).validate(allocator, connection);
+                if (cursor.after < after or cursor.after <= if (input.cursor) |prior| prior.after else @as(u64, 0)) return error.InvalidTableResponse;
+            }
+        },
     }
 }

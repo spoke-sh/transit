@@ -4,6 +4,7 @@ const std = @import("std");
 const g = @import("root.zig");
 const Self = @This();
 pub const Subject = union(enum) {
+    connector: g.catalog.protocol.DataLifecycle.Definition,
     table: g.catalog.protocol.DataLifecycle.Definition,
     historical: @FieldType(g.catalog.DirectHistory.Request, "source"),
     log: g.catalog.DirectLog.Definition,
@@ -40,6 +41,10 @@ pub fn validate(self: Self, host: *g.Session, prepared: *g.Session.Prepared) !vo
         .historical => |input| {
             historical[count] = .{ .historical = input };
             count += 1;
+        },
+        .connector => |definition| {
+            const response = try host.table.call(.{ .source = .{ .inspect = definition } });
+            defer response.deinit();
         },
         .table => |definition| {
             _ = try host.table.require(.{ .namespace = host.namespace, .target = definition, .access = .inspect });

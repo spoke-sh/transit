@@ -53,16 +53,16 @@ public final class Catalog {
     }
     /** Stable IDs allocated through explicit native provisioning. */
     public record AuthorityProfile(long databaseDomain, long schemaDomain, long tableDomain,
-        long streamDomain, long queueDomain, long kvDomain, long database, long initialSchema, long initialSchemaAuthority) {
+        long streamDomain, long queueDomain, long kvDomain, long connectionDomain, long sourceDomain, long database, long initialSchema, long initialSchemaAuthority) {
         public AuthorityProfile {
-            for (long value : new long[]{databaseDomain, schemaDomain, tableDomain, streamDomain, queueDomain, kvDomain, database, initialSchema, initialSchemaAuthority}) counter(value, 1);
-            long[] domains = {databaseDomain, schemaDomain, tableDomain, streamDomain, queueDomain, kvDomain};
+            for (long value : new long[]{databaseDomain, schemaDomain, tableDomain, streamDomain, queueDomain, kvDomain, connectionDomain, sourceDomain, database, initialSchema, initialSchemaAuthority}) counter(value, 1);
+            long[] domains = {databaseDomain, schemaDomain, tableDomain, streamDomain, queueDomain, kvDomain, connectionDomain, sourceDomain};
             for (int i = 0; i < domains.length; i++) for (int j = 0; j < i; j++)
                 if (domains[i] == domains[j]) throw new IllegalArgumentException("Distinct native authorization domains are required");
             if (database == initialSchemaAuthority)
                 throw new IllegalArgumentException("Distinct native authorization bindings are required");
         }
-        JsonObject wire() { return obj("database_domain", databaseDomain, "schema_domain", schemaDomain, "table_domain", tableDomain, "stream_domain", streamDomain, "queue_domain", queueDomain, "kv_domain", kvDomain,
+        JsonObject wire() { return obj("database_domain", databaseDomain, "schema_domain", schemaDomain, "table_domain", tableDomain, "stream_domain", streamDomain, "queue_domain", queueDomain, "kv_domain", kvDomain, "connection_domain", connectionDomain, "source_domain", sourceDomain,
             "database", database, "initial_schema", initialSchema, "initial_schema_authority", initialSchemaAuthority); }
     }
     /** An observed authenticated subject; the observation grants no authority. */

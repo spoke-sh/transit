@@ -94,6 +94,7 @@ pub const Prepared = union(enum) {
     source: g.SourceSession.Prepared,
     captured: g.CapturedOperations.Prepared,
     managed: g.ManagedOperations.Prepared,
+    connector: g.SourceOperations.Prepared,
     workload: g.database.WorkloadRead.Prepared,
     /// Exhaustive owner inventory: new SQL owners must decide their migration
     /// semantics here. The migration planner uses ordinary preparation for
@@ -114,7 +115,7 @@ pub const Prepared = union(enum) {
         return switch (self.*) {
             .native => |*value| value.parameters(),
             .source => |*value| value.template.parameterTypes(),
-            .probe, .settings, .inspection, .captured, .workload, .transaction, .managed => &.{},
+            .probe, .settings, .inspection, .captured, .workload, .transaction, .managed, .connector => &.{},
         };
     }
     pub fn fields(self: *const Prepared) []const f.Types.Field {
@@ -123,7 +124,7 @@ pub const Prepared = union(enum) {
             .source => |*value| value.output.type.structure,
             .captured => |*value| value.output.type.structure,
             .workload => |*value| value.output.type.structure,
-            .transaction, .managed => &.{},
+            .transaction, .managed, .connector => &.{},
             .probe => |value| value.fields(),
             .inspection => |value| value.output,
             .settings => |value| if (value.output) |output| output.type.structure else &.{},
@@ -131,7 +132,7 @@ pub const Prepared = union(enum) {
     }
     pub fn mutation(self: *const Prepared) bool {
         return switch (self.*) {
-            .transaction, .managed => true,
+            .transaction, .managed, .connector => true,
             .native => |*value| value.kind() != .select,
             .probe => |value| value.kind == .set,
             .inspection, .source, .captured, .workload => false,
@@ -279,6 +280,13 @@ pub const Read = struct {
                         };
                         metadata.projections = try allocator.dupe(g.results.Observation.Projection, projections[0..count]);
                     }
+                }
+                if (prepared.connector_list != null or prepared.connector_definition != null or prepared.connector_proposal != null) {
+                    metadata.consistency = .independent_observations;
+                    if (prepared.connector_definition) |definition| metadata.definitions = try allocator.dupe(p.DataLifecycle.Definition, &.{definition});
+                    if (prepared.connector_proposal) |proposal| if (proposal.payload == .source) {
+                        metadata.definitions = try allocator.dupe(p.DataLifecycle.Definition, &.{ proposal.payload.source.connection, proposal.payload.source.destination });
+                    };
                 }
                 if (prepared.managed) |declared| {
                     metadata.consistency = .independent_observations;
@@ -659,6 +667,17 @@ fn prepareInner(self: *Self, sql: []const u8) !*Prepared {
         self.fresh_prepared = result;
         return result;
     }
+    if (try g.database.SourceSql.parse(self.allocator, sql, self.dialect)) |parsed| {
+        if (parsed.statement != .inspect and parsed.statement != .explain) {
+            result.* = .{ .connector = parsed };
+            errdefer result.connector.deinit();
+            try g.SourceOperations.validate(self, &result.connector);
+            self.fresh_prepared = result;
+            return result;
+        }
+        var temporary = parsed;
+        temporary.deinit();
+    }
     if (try g.database.ManagedSql.parse(self.allocator, sql, self.dialect)) |managed| {
         result.* = .{ .managed = managed };
         errdefer result.managed.deinit();
@@ -687,6 +706,7 @@ fn prepareInner(self: *Self, sql: []const u8) !*Prepared {
 pub fn destroy(self: *Self, prepared: *Prepared) void {
     if (self.fresh_prepared == prepared) self.fresh_prepared = null;
     if (prepared.* == .managed) prepared.managed.deinit();
+    if (prepared.* == .connector) prepared.connector.deinit();
     if (prepared.* == .native) prepared.native.deinit();
     if (prepared.* == .source) prepared.source.deinit();
     if (prepared.* == .captured) prepared.captured.deinit();
@@ -716,6 +736,7 @@ pub fn validate(self: *Self, prepared: *Prepared) !void {
             if (statement.plan == .dml and statement.kind() != .insert) statement.plan.dml.metadata.position.next_lsn = 0;
         },
         .source => |*statement| try self.fresh(g.SourceSession.validate, .{ self.source orelse return error.UnknownSqlSource, statement }),
+        .connector => |*connector| try g.SourceOperations.validate(self, connector),
         .managed => |*managed| try g.ManagedOperations.validate(self, managed),
         .captured => |*captured| try g.CapturedOperations.validateResult(self, captured),
         .workload => |*value| {
@@ -735,7 +756,7 @@ pub fn bind(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.At
             var bound = try self.source.?.bind(statement, values);
             bound.deinit();
         },
-        .probe, .settings, .inspection, .captured, .workload, .transaction, .managed => if (values.len != 0) return error.WireParameterCountMismatch,
+        .probe, .settings, .inspection, .captured, .workload, .transaction, .managed, .connector => if (values.len != 0) return error.WireParameterCountMismatch,
     }
 }
 pub fn openRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !*Read {
@@ -796,7 +817,7 @@ fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values
     errdefer read.builder.deinit();
     errdefer self.releasePins(read);
     switch (prepared.*) {
-        .transaction, .managed => return error.ExpectedGatewayRead,
+        .transaction, .managed, .connector => return error.ExpectedGatewayRead,
         .captured => |*captured| read.value = .{ .captured = try g.CapturedOperations.Read.init(self, captured) },
         .workload => |*value| read.value = .{ .workload = try g.database.WorkloadRead.Read.init(value, self.table) },
         .source => |*statement| read.value = .{ .source = try g.SourceSession.Read.init(self.source.?, statement, values) },
@@ -927,6 +948,7 @@ pub fn write(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.A
         return .{ .kind = .set, .outcome = .applied, .counts = null, .operation = null, .pending_restart = false, .diagnostic = null };
     }
     if (prepared.* == .managed) return error.ManagedTableRequiresNativeSession;
+    if (prepared.* == .connector) return error.SourceRequiresCohostedService;
     const result = try self.runtime.executePrepared(self.allocator, &self.observer, &self.table, &prepared.native, values, self.deadline, &self.operation, is_fresh, true);
     self.terminal = result.terminal;
     switch (result.terminal.state) {
@@ -969,6 +991,12 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
         error.SettingOutOfRange, error.InvalidSettingValue, error.InvalidSettingUnit => .{ "22023".*, "Setting value exceeds its type or administrator ceiling" },
         error.UnknownSetting => .{ "42704".*, "Unknown registered setting" },
         error.InvalidDataflowRevision => .{ "22023".*, "Revision must be a positive unsigned 64-bit integer" },
+        error.SourceSchemaMismatch => .{ "42804".*, "SOURCE destination requires the exact seven-column non-null capture envelope" },
+        error.UnsupportedSourceDestination => .{ "0A000".*, "SOURCE destination requires one Stream partition without routing or compaction" },
+        error.SourceExecutionUnsupported => .{ "0A000".*, "SOURCE execution is not available; declaration publication does not poll or capture" },
+        error.UnsupportedSourceStatement, error.SourceRequiresCohostedService => .{ "0A000".*, "SOURCE declarations require a native cohosted session outside an explicit transaction" },
+        error.SourceExecutorNotConfigured => .{ "55000".*, "CREATE SOURCE requires an explicit executor in the selected database binding" },
+        error.SourceDeclarationConflict => .{ "55000".*, "SOURCE declaration conflicts with current names, dependencies or writer ownership" },
         error.DataflowRevisionNotFound => .{ "42704".*, "The requested dataflow revision has not completed" },
         error.ManagedTableResultBudget => .{ "54000".*, "Retained revision read budget exceeded" },
         error.SettingNotSessionMutable => .{ "0A000".*, "Setting cannot be changed by this session" },

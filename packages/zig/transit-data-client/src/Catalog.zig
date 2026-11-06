@@ -38,6 +38,13 @@ pub const Failure = struct {
     protocol_error: ?p.ErrorCode,
     diagnostic: ?p.Diagnostic,
 };
+pub const SourceOutcome = struct {
+    value: union(enum) { result: c.DirectSourceClient.Result, failure: Failure },
+    attempt: c.DirectTableClient.Attempt,
+    pub fn mutationAttempted(self: SourceOutcome) bool {
+        return self.attempt.mutation != null;
+    }
+};
 pub const LogOutcome = struct {
     value: union(enum) { result: c.DirectLogClient.Result, failure: Failure },
     attempt: c.DirectTableClient.Attempt,
@@ -203,6 +210,21 @@ pub fn callKV(self: *Self, output: *std.heap.ArenaAllocator, action: c.DirectKVC
     var attempt: c.DirectTableClient.Attempt = .{};
     const caller: c.DirectTableClient = .{ .allocator = self.allocator, .authority = &self.authority, .service = &self.service, .connection = self.connection, .key = self.key, .attempt = &attempt };
     const result = c.DirectKVClient.apply(output, caller, action) catch |err| {
+        const native = self.service.last_rejection orelse self.authority.last_rejection;
+        return .{ .attempt = attempt, .value = .{ .failure = .{ .cause = err, .protocol_error = native, .diagnostic = attempt.failure(err, native) catch null } } };
+    };
+    return .{ .attempt = attempt, .value = .{ .result = result } };
+}
+
+/// Durable connector declarations and metadata use the same signed caller.
+pub fn callSource(self: *Self, output: *std.heap.ArenaAllocator, action: c.DirectSourceClient.Action) error{Busy}!SourceOutcome {
+    if (self.busy.swap(true, .acquire)) return error.Busy;
+    defer self.busy.store(false, .release);
+    self.authority.last_rejection = null;
+    self.service.last_rejection = null;
+    var attempt: c.DirectTableClient.Attempt = .{};
+    const caller: c.DirectTableClient = .{ .allocator = self.allocator, .authority = &self.authority, .service = &self.service, .connection = self.connection, .key = self.key, .attempt = &attempt };
+    const result = c.DirectSourceClient.apply(output, caller, action) catch |err| {
         const native = self.service.last_rejection orelse self.authority.last_rejection;
         return .{ .attempt = attempt, .value = .{ .failure = .{ .cause = err, .protocol_error = native, .diagnostic = attempt.failure(err, native) catch null } } };
     };

@@ -101,6 +101,7 @@ test {
     _ = CatalogDefinition;
     _ = SourceDeclaration;
     _ = DirectSource;
+    _ = SourceAuthority;
     _ = DirectHistoryDirectory;
     _ = DirectSchemaProjection;
     _ = DirectTableDiagnostic;
@@ -198,7 +199,9 @@ pub const DirectTransactionRead = @import("DirectTransactionRead.zig");
 
 pub const CatalogDefinition = @import("CatalogDefinition.zig");
 pub const SourceDeclaration = @import("SourceDeclaration.zig");
+pub const DirectSourceClient = @import("DirectSourceClient.zig");
 pub const DirectSource = @import("DirectSource.zig");
+pub const SourceAuthority = @import("SourceAuthority.zig");
 
 pub const DirectDefinition = @import("DirectDefinition.zig");
 

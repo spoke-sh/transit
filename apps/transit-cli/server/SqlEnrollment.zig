@@ -128,11 +128,11 @@ pub fn createAccount(installation: *Installation, allocator: std.mem.Allocator, 
         var identity: [32]u8 = undefined;
         try installation.init.io.randomSecure(&identity);
         const connection = installation.connection();
-        try Files.json(installation.init.io, allocator, try std.fs.path.join(allocator, &.{ pending, "account.json" }), Account{ .definition = n.current_definition, .installation = installation.record.installation, .name = desired.name, .role = desired.role, .database = desired.database, .schema = desired.schema, .bootstrap_owner = desired.bootstrap_owner, .identity = identity, .principals = principals, .binding = .{ .resource = connection.resource, .catalog = 1, .owner = connection.source }, .operation_quota = installation.config.sql.operation_quota, .byte_quota = installation.config.sql.byte_quota, .pending_quota = installation.config.sql.pending_quota });
+        try Files.json(installation.init.io, allocator, try std.fs.path.join(allocator, &.{ pending, "account.json" }), Account{ .definition = n.current_definition, .installation = installation.record.installation, .name = desired.name, .role = desired.role, .database = desired.database, .schema = desired.schema, .bootstrap_owner = desired.bootstrap_owner, .identity = identity, .principals = principals, .binding = .{ .resource = connection.resource, .catalog = 1, .owner = connection.source, .source_executor = desired.source_executor }, .operation_quota = installation.config.sql.operation_quota, .byte_quota = installation.config.sql.byte_quota, .pending_quota = installation.config.sql.pending_quota });
         try publish(installation, pending, directory);
     }
     const record = try loadAccount(installation, allocator, desired.name);
-    if (record.bootstrap_owner != desired.bootstrap_owner or !std.mem.eql(u8, record.role, desired.role) or !std.mem.eql(u8, record.database, desired.database) or !std.mem.eql(u8, record.schema, desired.schema)) return error.GatewayConfigurationChanged;
+    if (record.binding.source_executor != desired.source_executor or record.bootstrap_owner != desired.bootstrap_owner or !std.mem.eql(u8, record.role, desired.role) or !std.mem.eql(u8, record.database, desired.database) or !std.mem.eql(u8, record.schema, desired.schema)) return error.GatewayConfigurationChanged;
     return record;
 }
 

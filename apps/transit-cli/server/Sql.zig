@@ -84,7 +84,7 @@ fn prepare(self: *Self) !void {
     try Startup.measure(installation.startup, .sql_administrator, E.administrator, .{ installation, allocator, &self.meta });
     if (installation.config.sql.native.local) {
         self.local = try Discovery.locate(allocator, installation.init.io, installation.init.environ_map.get("XDG_RUNTIME_DIR"), installation.config.installation, true);
-        self.provisioning = try Startup.measure(installation.startup, .sql_account_prepare, E.createAccount, .{ installation, allocator, Settings.local_account });
+        self.provisioning = try Startup.measure(installation.startup, .sql_account_prepare, E.createAccount, .{ installation, allocator, installation.config.sql.localAccount() });
         try Startup.measure(installation.startup, .sql_account_provision, E.provision, .{ installation, allocator, &self.provisioning.? });
         self.provisioning = null;
     }
@@ -150,7 +150,7 @@ fn transportReady(self: *const Self) bool {
     return !self.installation.config.sql.wireListening() or self.installation.config.sql.tls.mode == .disabled or self.trust != null;
 }
 fn configuredAccount(self: *Self, name: []const u8) ?Settings.Account {
-    if (self.installation.config.sql.native.local and std.mem.eql(u8, name, Settings.local_account.name)) return Settings.local_account;
+    if (self.installation.config.sql.native.local and std.mem.eql(u8, name, Settings.local_account.name)) return self.installation.config.sql.localAccount();
     for (self.installation.config.sql.accounts) |account| if (std.mem.eql(u8, account.name, name)) return account;
     return null;
 }
