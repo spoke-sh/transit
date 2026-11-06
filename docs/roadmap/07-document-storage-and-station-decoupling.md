@@ -1204,8 +1204,11 @@ storage prerequisite for review 2. It does not complete review 2 or C0/C3.
 
 The source basis is `origin/main` at `bb4bbd3ad`, including the merged
 [logical deletion and partition guards, #388](https://github.com/spoke-sh/transit/pull/388).
-The plan is proposed work; existing component and installed guarantees remain
-those in the [Document reference](../handbook/reference/documents.md) and
+The plan below records the intended scope. The source owner now implements
+reservation, paged chunk publication, bounded verification, exact recovery,
+discovery and explicit closure at the component boundary. Installed integration
+and candidate attachment remain pending. Current semantics and limits belong in
+the [Document reference](../handbook/reference/documents.md) and
 [owned-original contract](../../contracts/DIRECT_TABLE_V1.md#durable-client-token-bindings).
 Preserve the preceding increment's
 [qualification limits](../history/qualification/storage.md#logical-document-deletion-and-partition-guards--2026-11-05).
@@ -1402,6 +1405,26 @@ before marking that inventory complete:
 | Existing Document SDK/ABI methods, waits, examples and installed tests | C4/C7 shared Document client and original-outcome recovery. M9 supplies composition, but existing consumers must migrate with the owning cutover |
 | Read/collection handles, host signing keys and retained source references | C4 installed persistence, exact release and restart/rotation policy; no key loss, timeout or quota pressure implies expiry. Keep deletion and retained-membership regressions throughout |
 | SQL/Fuze, Station state/effects, Board and profile/exchange consumers | C5/C6/C7 plus M6/M16/M30 handoffs. Keep typed results, common-decision semantics and parser evidence with their existing owners |
+
+##### Checked migration inventory for this slice
+
+The source owner adds no legacy adapter. The following concrete owners must
+move together in their owning cutover; none is removed by this source PR.
+
+| Current call site / artifact | Cutover responsibility and evidence to preserve |
+| --- | --- |
+| [`DirectResource`](../../packages/zig/transit-catalog/src/DirectResource.zig), [`DirectResourceClient`](../../packages/zig/transit-catalog/src/DirectResourceClient.zig), [`NamedResource.initialize`](../../packages/zig/transit-station-app/src/NamedResource.zig) | C4 replaces allocation/reservation, `Service.create` and initialized-marker publication with direct declaration/genesis. Keep exact create identity and recovery of each separately observed step |
+| [`Service`](../../packages/zig/transit-station-document/src/Service.zig), [`Request`](../../packages/zig/transit-station-document/src/Request.zig), [`records`](../../packages/zig/transit-station-document/src/records.zig), [`Client`](../../packages/zig/transit-station-document/src/Client.zig) | C1–C3/C7 replace Station turns and accepted change/checkpoint roots only after logical candidate verification and original-outcome recovery exist. `SDC1` is still the installed change format |
+| [`ImmutableIndex`](../../packages/zig/transit-station/src/ImmutableIndex.zig), [`Publication`](../../packages/zig/transit-station/src/Publication.zig), [`PublicationUpload`](../../packages/zig/transit-station/src/PublicationUpload.zig), [`PublicationParts`](../../packages/zig/transit-station/src/PublicationParts.zig) | C3/C7 move Document `SIX1`/publication ownership to accepted `.tseg` closure. Other Station users remain with their existing owner; no indiscriminate deletion of shared publication code |
+| [`DocumentBridge`](../../packages/zig/transit-station-bindings/src/DocumentBridge.zig), [`DocumentCodec`](../../packages/zig/transit-station-bindings/src/DocumentCodec.zig), [`GrowingAbi`](../../packages/zig/transit-station-bindings/src/GrowingAbi.zig), [`HostProtocol`](../../packages/zig/transit-station-bindings/src/HostProtocol.zig) | C4/C7 migrate shared ABI/port methods and generated Station SDK contracts together. Preserve ownership, waits, cancellation and uncertain original operations through all language wrappers |
+| [`station_document_abi.py`](../../tests/sdk/station_document_abi.py), [`sdk_document_runner.py`](../../tests/sdk/sdk_document_runner.py), [`document_contract.py`](../../tests/runtime/document/document_contract.py), [`runtime journey`](../../tests/runtime/document/document.py), [`Document example`](../../examples/station-document/main.zig) | C7 migrates independent codecs, installed callers, worker/node/store recovery and the real example; the new component source receipt cannot stand in for these proofs |
+| [`DocumentPartition`](../../packages/zig/transit-storage/src/DocumentPartition.zig): `beginRead` / `releaseRead`, `beginCollectionRead` / `releaseCollectionRead`; [`DocumentRead`](../../packages/zig/transit-storage/src/DocumentRead.zig) and [`DocumentCollection`](../../packages/zig/transit-storage/src/DocumentCollection.zig) | C4 supplies installed pin ownership and durable provisioning/rotation of `Options.read_secret`. Current component callers supply the secret on reopen; key loss invalidates cursors but must never release pins. Preserve cross-kind release refusal, retained reads after deletion and explicit release recovery |
+| [`DirectDocumentSource`](../../packages/zig/transit-catalog/src/DirectDocumentSource.zig), [`DirectStorageGraph`](../../packages/zig/transit-catalog/src/DirectStorageGraph.zig) | Review 2 consumes the original source commitment through the bounded event sink. C4 must persist the host authority/admission composition; a source inventory is neither a partition read pin nor a transferable ownership capability |
+| [`transit-query` Document import](../../packages/zig/transit-query/src/root.zig), [`Document Board proof`](../../tests/interfaces/board/document_board.py), [`profile tests`](../../tests/catalog/tables/document_profiles.zig) | C5–C7 and M16/M30 migrate SQL/Fuze, read-only inspection and profile evidence through their shared owners. Preserve typed results and explicit-submit behavior; source verification alone cannot supply parser or accepted-head evidence |
+
+This inventory establishes the handoff locations, not completion of C0: installed
+pin/key persistence, direct declarations and migration of all generated consumers
+remain dependent implementation work.
 
 ##### Validation and exit
 
