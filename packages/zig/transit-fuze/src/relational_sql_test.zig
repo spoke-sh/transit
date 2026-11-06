@@ -9,6 +9,140 @@ const sources = [_]r.Source{
     .{ .alias = "r", .realm = 1, .resource = 202, .catalog = 9, .owner = 7, .schema = .{ .object = 22, .revision = 1, .next_column = 3, .columns = &columns } },
 };
 const budgets: r.Budgets = .{ .resident_bytes = 4096, .spill_bytes = 8192, .result_bytes = 16384, .output_rows = 1000, .work_steps = 10000, .source_pins = 2 };
+test "relational joined star expands both schemas with qualified output names" {
+    const cols = [_]schema.Column{ .{ .id = 5, .name = "id", .type = .int64 }, .{ .id = 9, .name = "value", .type = .int64 } };
+    var inputs = sources;
+    for (&inputs, [_][]const u8{ "people", "items" }) |*input, alias| {
+        input.alias = alias;
+        input.schema.columns = &cols;
+        input.schema.next_column = 10;
+    }
+    var people_columns = cols;
+    people_columns[0].type = .int32;
+    people_columns[1].name = "name";
+    people_columns[1].type = .utf8;
+    inputs[0].schema.columns = &people_columns;
+    var item_columns = cols;
+    item_columns[0].nullable = false;
+    inputs[1].schema.columns = &item_columns;
+    inputs[1].schema.primary_key = &.{5};
+    for ([_][]const u8{
+        "SELECT * FROM people INNER JOIN items ON items.id = people.id;",
+        "SELECT * FROM people JOIN items ON items.id = people.id;",
+    }) |text| {
+        try t.expect(try sql.required(text));
+        var syntax = try sql.parse(t.allocator, text, null);
+        defer syntax.deinit();
+        const plan = try syntax.bind(&inputs, .interactive, budgets, null);
+        var fields: [4]@import("Types.zig").Field = undefined;
+        _ = try plan.outputSchema(&fields);
+        try t.expectEqual(@import("Types.zig").Type.int32, fields[0].type);
+        try t.expectEqual(@import("Types.zig").Type.int64, fields[2].type);
+        const names = [_][]const u8{ "people.id", "people.name", "items.id", "items.value" };
+        try t.expectEqual(names.len, plan.outputs.len);
+        for (plan.outputs, names, 0..) |output, name, i| {
+            try t.expectEqualStrings(name, output.name);
+            try t.expect(output.expression.eql(.{ .column = .{ .source = @intCast(i / 2), .id = cols[i % 2].id } }));
+        }
+        // Wildcard lowering has exactly the existing explicit-plan semantics.
+        var explicit = try sql.parse(t.allocator, "SELECT people.id AS \"people.id\", people.name AS \"people.name\", items.id AS \"items.id\", items.value AS \"items.value\" FROM people JOIN items ON people.id = items.id", null);
+        defer explicit.deinit();
+        try t.expectEqualSlices(u8, &try plan.fingerprint(), &try (try explicit.bind(&inputs, .interactive, budgets, null)).fingerprint());
+    }
+}
+
+fn joinedStar(allocator: std.mem.Allocator) !void {
+    var cols = columns;
+    for (&cols) |*column| column.nullable = false;
+    var inputs = sources;
+    for (&inputs) |*input| input.schema.columns = &cols;
+    var syntax = try sql.parse(allocator, "SELECT * FROM lefts l LEFT OUTER JOIN rights r ON r.key = l.key WHERE l.value > $1 ORDER BY r.value DESC LIMIT $2", null);
+    defer syntax.deinit();
+    // Bound names belong to the supplied output arena, including prepared binds.
+    var arena: std.heap.ArenaAllocator = .init(allocator);
+    defer arena.deinit();
+    var parameters: sql.Parameters = .{};
+    const plan = try syntax.bindParameters(arena.allocator(), &inputs, .interactive, budgets, null, &parameters, &.{ .{ .signed = 0 }, .{ .unsigned = 2 } });
+    var fields: [4]@import("Types.zig").Field = undefined;
+    _ = try plan.outputSchema(&fields);
+    for (fields, [_][]const u8{ "l.key", "l.value", "r.key", "r.value" }, 0..) |field, name, i| {
+        try t.expectEqualStrings(name, field.name);
+        try t.expectEqual(i >= 2, field.nullable);
+        try t.expectEqual(@import("Types.zig").Type.int64, field.type);
+    }
+    try t.expectEqual(@as(?u64, 2), plan.limit);
+    try t.expect(plan.order_by[0].expression.eql(.{ .column = .{ .source = 1, .id = 2 } }));
+    var bytes: [@import("RelationalCodec.zig").max_bytes]u8 = undefined;
+    var decoded = try @import("RelationalCodec.zig").decode(allocator, try @import("RelationalCodec.zig").encode(plan, &bytes));
+    defer decoded.deinit();
+    try t.expectEqualSlices(u8, &try plan.fingerprint(), &try decoded.plan.fingerprint());
+}
+
+test "relational joined star preserves left nullability parameters and allocation cleanup" {
+    try joinedStar(t.allocator);
+    var no_resize = t.FailingAllocator.init(t.allocator, .{ .resize_fail_index = 0 });
+    try t.checkAllAllocationFailures(no_resize.allocator(), joinedStar, .{});
+}
+
+test "relational star preserves single source names and ambiguous reference errors" {
+    var single = try sql.parse(t.allocator, "SELECT * FROM lefts l ORDER BY key", null);
+    defer single.deinit();
+    const plan = try single.bind(sources[0..1], .interactive, budgets, null);
+    try t.expectEqualStrings("key", plan.outputs[0].name);
+    try t.expectEqualStrings("value", plan.outputs[1].name);
+    var ambiguous = try sql.parse(t.allocator, "SELECT * FROM lefts l JOIN rights r ON l.key = r.key ORDER BY key", null);
+    defer ambiguous.deinit();
+    try t.expectError(error.AmbiguousRelationalColumn, ambiguous.bind(&sources, .interactive, budgets, null));
+}
+
+test "relational joined star retains projection and generated name bounds" {
+    var cols: [65]schema.Column = undefined;
+    var names: [65][8]u8 = undefined;
+    for (&cols, &names, 0..) |*column, *name, i| column.* = .{
+        .id = i + 1,
+        .name = try std.fmt.bufPrint(name, "c{d}", .{i}),
+        .type = .int64,
+    };
+    var inputs = sources;
+    for (&inputs) |*input| {
+        input.schema.columns = cols[0..64];
+        input.schema.next_column = 66;
+    }
+    var syntax = try sql.parse(t.allocator, "SELECT * FROM lefts l JOIN rights r ON l.c0 = r.c0", null);
+    defer syntax.deinit();
+    const plan = try syntax.bind(&inputs, .interactive, budgets, null);
+    try t.expectEqual(r.max_outputs, plan.outputs.len);
+    inputs[1].schema.columns = &cols;
+    try t.expectError(error.InvalidRelationalOutputs, syntax.bind(&inputs, .interactive, budgets, null));
+
+    const long_name: [254]u8 = @splat('x');
+    cols[0].name = &long_name;
+    for (&inputs) |*input| input.schema.columns = cols[0..1];
+    var oversized = try sql.parse(t.allocator, "SELECT * FROM lefts l JOIN rights r ON l.\"" ++ long_name ++ "\" = r.\"" ++ long_name ++ "\"", null);
+    defer oversized.deinit();
+    try t.expectError(error.InvalidRelationalName, oversized.bind(&inputs, .interactive, budgets, null));
+}
+
+test "relational joined star preserves quoted aliases and rejects dotted label collisions" {
+    var inputs = sources;
+    inputs[0].alias = "P";
+    inputs[1].alias = "I";
+    var syntax = try sql.parse(t.allocator, "SELECT * FROM lefts AS \"P\" JOIN rights AS \"I\" ON \"P\".key = \"I\".key", null);
+    defer syntax.deinit();
+    const plan = try syntax.bind(&inputs, .interactive, budgets, null);
+    try t.expectEqualStrings("P.key", plan.outputs[0].name);
+    try t.expectEqualStrings("I.key", plan.outputs[2].name);
+
+    var left_cols = columns;
+    left_cols[0].name = "b.key";
+    inputs[0].alias = "a";
+    inputs[0].schema.columns = &left_cols;
+    inputs[1].alias = "a.b";
+    var collision = try sql.parse(t.allocator, "SELECT * FROM lefts a JOIN rights \"a.b\" ON a.\"b.key\" = \"a.b\".key", null);
+    defer collision.deinit();
+    try t.expectError(error.DuplicateRelationalOutput, collision.bind(&inputs, .interactive, budgets, null));
+}
+
 test "relational aggregate names remain identifiers outside function calls" {
     var input = sources[0];
     input.alias = "items";

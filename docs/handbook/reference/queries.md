@@ -288,8 +288,10 @@ The separate [finite relational contract](../../../contracts/RELATIONAL_V1.md)
 supports one or two explicitly routed Tables, one inner/left equijoin,
 grouping by the [admitted scalar types](sql/relational.md), `HAVING`, `ORDER BY` (`ASC`/`DESC`,
 `NULLS FIRST`/`NULLS LAST`), `LIMIT`, projection, COUNT and ordered checked BIGINT or DECIMAL SUM.
-SQL declares int64 as BIGINT and UTF-8 as TEXT. Join columns require matching
-types and collations. Text comparison, grouping and routing honor UTF8_BINARY,
+SQL declares int64 as BIGINT and UTF-8 as TEXT. Signed integer join keys through
+64 bits may have different widths; comparison and routing widen losslessly,
+while output columns keep their declared types. Other join columns require
+matching types and collations. Text comparison, grouping and routing honor UTF8_BINARY,
 ASCII_CI, EBCDIC_CP037, EBCDIC_037_PAD and EBCDIC_1047_NOPAD semantics. Join nulls do not match; grouping
 places null keys together and before values. Equivalent text groups retain the
 first contributor’s original spelling. Duplicate rows retain their multiplicity.

@@ -258,6 +258,55 @@ test "bounded relational executor agrees with independent bags groups nulls and 
     }
 }
 
+test "mixed signed width joins preserve values nulls and matches across checkpoints" {
+    var left_columns = columns;
+    left_columns[0].type = .int32;
+    var inputs = sources;
+    inputs[0].schema.columns = &left_columns;
+    var basis = try cuts();
+    basis[0].schema = try inputs[0].schema.fingerprint();
+    for ([_][]const u8{ "JOIN", "LEFT JOIN" }) |join| {
+        var text: [256]u8 = undefined;
+        var syntax = try @import("RelationalSql.zig").parse(t.allocator, try std.fmt.bufPrint(&text, "SELECT * FROM lefts l {s} rights r ON r.key = l.key", .{join}), null);
+        defer syntax.deinit();
+        const plan = try syntax.bind(&inputs, .captured, base().budgets, null);
+        const bound: r.Bound = .{ .plan = plan, .cuts = &basis };
+        var input: Input = .{ .rows = .{
+            &.{ .{ 1, -2147483648, 10 }, .{ 2, 1, 20 }, .{ 3, null, 30 }, .{ 4, 2147483647, 40 } },
+            &.{ .{ 1, -2147483648, 100 }, .{ 2, 1, 200 }, .{ 3, 4294967297, 300 }, .{ 4, null, 400 }, .{ 5, 2147483647, 500 }, .{ 6, 1, 201 } },
+        } };
+        const expected = [_][4]?i64{
+            .{ -2147483648, 10, -2147483648, 100 },
+            .{ 1, 20, 1, 200 },
+            .{ 1, 20, 1, 201 },
+            .{ null, 30, null, null },
+            .{ 2147483647, 40, 2147483647, 500 },
+        };
+        const Engine = e.Execution(*Input, *ImmutableGroups);
+        var groups: ImmutableGroups = .{ .tree = try Index.init(t.allocator, bound, null) };
+        defer groups.deinit();
+        var run = try Engine.init(t.allocator, bound, &input, &groups);
+        defer run.deinit();
+        var count: usize = 0;
+        while (true) {
+            try restart(Engine, &run, &input, &groups);
+            switch (try run.step()) {
+                .progress => {},
+                .complete => break,
+                .row => |row| {
+                    const index = if (plan.join.?.kind == .inner and count >= 3) count + 1 else count;
+                    try t.expect(index < expected.len);
+                    for (expected[index], row.cells[0..row.len]) |want, actual| {
+                        try t.expectEqual(want, if (actual == .null) null else @as(?i64, @intCast(actual.value.atom.signed)));
+                    }
+                    count += 1;
+                },
+            }
+        }
+        try t.expectEqual(@as(usize, if (plan.join.?.kind == .left) 5 else 4), count);
+    }
+}
+
 test "source and store failure terminally reject without complete publication" {
     const basis = try cuts();
     for (0..5) |fail| {

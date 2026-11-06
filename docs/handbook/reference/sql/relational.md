@@ -2,9 +2,12 @@
 
 The relational Table profile executes one inner or left equijoin over two
 explicit Tables, or grouped and ordered execution over one Table. Referenced
-columns support BOOL, BIGINT, UINT64, FLOAT64, DECIMAL, DATE, TIME, TIMESTAMP,
-UUID, TEXT and BINARY. SUM accepts BIGINT or DECIMAL. Join keys require the same
-logical descriptor and collation. Text comparison and grouping preserve the
+columns support BOOL, INT8, INT16, INT32 (INT/INTEGER), BIGINT, UINT64, FLOAT64,
+DECIMAL, DATE, TIME, TIMESTAMP, UUID, TEXT and BINARY. SUM accepts BIGINT or
+DECIMAL. Signed integer keys may join across widths: for example, an INT key
+can match a BIGINT key. Comparison widens without truncation, while result
+columns retain their original types. Other join keys require the same logical
+descriptor and collation. Text comparison and grouping preserve the
 column's declared collation, including its padding rule.
 SQL, typed plans and the captured query owner use the same Fuze operators.
 
@@ -32,6 +35,22 @@ The Zig query API accepts one authorized catalog route per source in SQL order.
 Routes share a realm and caller. A Table alias is local to the query and grants
 no access. Aliases may use explicit `AS` or follow the Table name directly.
 Qualify ambiguous column names; output names must be distinct.
+
+`SELECT *` expands every column from the left Table followed by every column
+from the right Table, preserving each declaration's column order. Joined
+wildcards label all outputs as `table.column`, or `alias.column` when a Table
+alias is present, so both join keys remain visible:
+
+```sql
+SELECT * FROM people INNER JOIN items ON items.id = people.id;
+```
+
+For example, the two `id` columns are named `people.id` and `items.id`.
+`JOIN` and `INNER JOIN` are equivalent. Single-Table `*` retains the original
+column names. Wildcards obey the existing projection, type and name limits;
+use explicit columns with `AS` names if qualification exceeds a name limit or
+quoted identifiers containing dots produce duplicate labels. Qualified wildcards
+such as `people.*` and mixing `*` with explicit columns are not supported.
 
 Tables retain bag multiplicity. Every equal-key pair contributes, including
 duplicate rows. NULL keys do not match. A left join emits one null-extended row
@@ -69,7 +88,7 @@ the first contributor’s original spelling, including under ASCII_CI.
 Prepared queries can bind WHERE, HAVING and LIMIT operands using typed `$1`
 parameters (or MySQL `?` parameters). Types, repeated uses and parameter gaps
 are checked before execution. NULL comparisons remain unknown; LIMIT requires a
-non-null unsigned value. Single-Table queries also support `*` and the existing
+non-null unsigned value. Single-Table queries also support the existing
 scalar expressions in projections and ordering, including ordering by an alias.
 Filtering precedes scalar evaluation. Sorting and LIMIT never hide a later
 source-order arithmetic failure. Sorting uses bounded external storage; LIMIT
@@ -93,7 +112,7 @@ read access independently.
 
 The profile excludes DISTINCT, OFFSET, more than one
 join, right/full/cross/non-equality joins, general subqueries,
-implicit type coercion and float sums. Existing single-source limits retain
+type coercion beyond signed join-key widening and float sums. Existing single-source limits retain
 their own semantics. Board, Flight and foreign-language query bindings retain
 their separately declared profiles; parser support does not enable an operator
 through another transport. Maintained execution has a separate contract from

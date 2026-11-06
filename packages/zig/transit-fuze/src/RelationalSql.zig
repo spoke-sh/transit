@@ -138,14 +138,13 @@ pub const Owned = struct {
         if (sources.len != self.targets.len) return error.InvalidRelationalSources;
         for (sources, self.targets) |source, input| if (!std.mem.eql(u8, source.alias, input.alias)) return error.RelationalSourceChanged;
         var scalars: Scalar.Builder = .{};
-        if (self.star and sources.len != 1) return error.InvalidRelationalOutputs;
-        const outputs = try allocator.alloc(r.Output, if (self.star) sources[0].schema.columns.len else self.selections.len);
-        if (self.star) {
-            for (sources[0].schema.columns, outputs) |column, *output| output.* = .{ .name = column.name, .expression = .{ .column = .{ .source = 0, .id = column.id } } };
-        } else for (self.selections, outputs) |selection, *output| output.* = .{
-            .name = selection.name,
-            .expression = try self.resolveExpression(selection.expression, sources, location, allocator, &scalars, &.{}),
-        };
+        const outputs = if (self.star) try expandStar(allocator, sources) else try allocator.alloc(r.Output, self.selections.len);
+        if (!self.star) {
+            for (self.selections, outputs) |selection, *output| output.* = .{
+                .name = selection.name,
+                .expression = try self.resolveExpression(selection.expression, sources, location, allocator, &scalars, &.{}),
+            };
+        }
         const groups = try allocator.alloc(r.Column, self.groups.len);
         for (self.groups, groups) |column, *bound| bound.* = try resolve(column, sources, location);
         const order_by = try allocator.alloc(r.OrderBy, self.order_by.len);
@@ -231,6 +230,28 @@ pub const Owned = struct {
         try parameters.finish(values);
         try plan.validate();
         return plan;
+    }
+
+    fn expandStar(allocator: std.mem.Allocator, sources: []const r.Source) ![]r.Output {
+        var count: usize = 0;
+        for (sources) |source| {
+            if (source.schema.columns.len > r.max_outputs - count) return error.InvalidRelationalOutputs;
+            count += source.schema.columns.len;
+        }
+        const outputs = try allocator.alloc(r.Output, count);
+        var index: usize = 0;
+        for (sources, 0..) |source, source_index| {
+            for (source.schema.columns) |column| {
+                outputs[index] = .{
+                    // Joined schemas commonly repeat names, including the join
+                    // key. Keep every column and qualify the result labels.
+                    .name = if (sources.len == 1) column.name else try std.fmt.allocPrint(allocator, "{s}.{s}", .{ source.alias, column.name }),
+                    .expression = .{ .column = .{ .source = @intCast(source_index), .id = column.id } },
+                };
+                index += 1;
+            }
+        }
+        return outputs;
     }
 
     fn resolveExpression(self: *const Owned, expr: Expression, sources: []const r.Source, location: ?*sql.Location, allocator: std.mem.Allocator, scalars: *Scalar.Builder, outputs: []const r.Output) !r.Expression {
@@ -395,7 +416,6 @@ pub fn parseWithContext(allocator: std.mem.Allocator, text: []const u8, location
         break :blk value;
     } else null;
     try parser.finish();
-    if (star and target_count != 1) return error.InvalidRelationalOutputs;
     const inputs = try arena.allocator().dupe(Target, targets[0..target_count]);
     const outputs = try arena.allocator().dupe(Selection, selections[0..count]);
     const keys = try arena.allocator().dupe(Reference, groups[0..group_count]);

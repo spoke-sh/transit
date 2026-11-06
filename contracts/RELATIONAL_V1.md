@@ -17,6 +17,12 @@ these operators with captured jobs and maintained revisions. Foreign-language
 ABI admission remains separately defined. The small finite interpreter under `tests/` supplies an
 independent specification oracle.
 
+The signed-integer join extension replaces the current v1 contract definition:
+source-row validation now admits the narrower signed types. Earlier saved plans,
+checkpoints and native definitions reject before execution under the
+[versioning policy](../docs/handbook/reference/versioning.md); they are not
+reinterpreted or reset.
+
 ## Plans and capabilities
 
 Plans contain one or two explicit Table sources in one realm. Two sources require
@@ -33,12 +39,17 @@ Rows use Table `(origin, operation, ordinal)` identity, independent of primary
 keys; keyless and composite-key Tables use the same relational model.
 
 Referenced projection, join, grouping, predicate and COUNT columns admit BOOL,
-BIGINT, UINT64, FLOAT64, DECIMAL, DATE, TIME, TIMESTAMP, UUID, TEXT and BINARY.
+INT8, INT16, INT32 (INT/INTEGER), BIGINT, UINT64, FLOAT64, DECIMAL, DATE, TIME,
+TIMESTAMP, UUID, TEXT and BINARY.
 Nonfinite floats reject. SUM accepts BIGINT or DECIMAL and returns the source
 logical type, nullable. Decimal accumulation uses checked i128 coefficients and
 checks the declared precision after every contributor, retaining its scale.
 COUNT(*) and COUNT(column) return uint64. Join keys require identical logical
-descriptors and collations, without coercion. Text comparisons, grouping, order
+descriptors and collations, except that signed integers through 64 bits may
+join across widths. Mixed signed keys compare and hash in the common int64
+domain, without narrowing either value. Source validation and output schemas
+retain the declared widths. Signed/unsigned, integer/float and other descriptor
+coercions are not admitted. Text comparisons, grouping, order
 and exchange hashing honor UTF8_BINARY, ASCII_CI, EBCDIC_CP037, EBCDIC_037_PAD and
 EBCDIC_1047_NOPAD. Unreferenced columns can use other stored types. Left joins
 make right projections nullable. Output names are explicit and unique.
@@ -105,19 +116,27 @@ LIMIT bounds returned rows, not source validation or spill cardinality. No Top-K
 spill eviction is implemented. Captured output records retain their ordering keys
 so readers verify the requested order even when sort expressions are unprojected.
 
-SQL admits explicit columns, single-Table `*`, scalar expressions and multiple
+SQL admits explicit columns, `*`, scalar expressions and multiple
 COUNT/SUM expressions, AS output names,
 one optional INNER/LEFT [OUTER] JOIN with one column equality, WHERE predicates,
 GROUP BY columns, HAVING predicates, ORDER BY expressions (`ASC`/`DESC`,
 `NULLS FIRST`/`NULLS LAST`) and LIMIT. `RelationalSql.parse` owns its syntax;
-`bind` borrows the acquired immutable Table descriptors. Unqualified single-word
+`bind` borrows the acquired immutable Table descriptors. Star expands in source
+order and each schema's declared column order. With one source, output names
+remain the column names; with a join, every output name is `source_alias.column`.
+Without a Table alias, `source_alias` is the Table name. Both join keys remain
+in the output. Expanded names retain the existing uniqueness and byte limits;
+ambiguous dotted labels or oversized names require explicit `AS` projections.
+Qualified stars and mixed star/explicit projections are not admitted. Expansion
+lowers to ordinary column outputs without a new projection operator.
+Unqualified single-word
 identifiers in HAVING and ORDER BY resolve to explicit `AS` output aliases before
 source column lookup. Source-local filters are typed-plan fields;
 SQL WHERE lowers after the join. Prepared relational statements infer types for
 WHERE/HAVING operands and unsigned LIMIT parameters. Each execution binds an exact
 value slice into a separate owned plan; gaps and conflicting uses reject. NULL
 comparison operands remain unknown, including beneath NOT. LIMIT cannot be NULL.
-Identifier parameters and implicit coercion are not admitted. DATAFLOW declarations
+Identifier parameters and coercion beyond signed join-key widening are not admitted. DATAFLOW declarations
 must contain bound literals, not execution-time parameters. Unsupported DISTINCT, OFFSET and additional joins reject.
 
 Canonical source order for this new profile is lexicographic Table row identity
@@ -185,7 +204,7 @@ of these lifecycle operations.
 
 ## Canonical identity preimages
 
-Domain: `transit.fuze.relational.v1.2026-11-05`. Names have one-byte byte-length
+Domain: `transit.fuze.relational.v1.2026-11-05.signed-joins`. Names have one-byte byte-length
 prefixes; integers are little endian. SHA-256 hashes the following prepared bytes:
 
 1. Domain, NUL, `prepared`, NUL, one-byte source count.
@@ -210,7 +229,8 @@ prefixes; integers are little endian. SHA-256 hashes the following prepared byte
 7. Lifetime byte (interactive 0, captured 1, maintained 2), uint64 resident/spill/result bytes,
    output rows and work steps, then one-byte pin capacity.
 
-Nullable scalar tags are: NULL 0 (no payload), int64 1, UTF-8 2, uint64 3,
+Nullable scalar tags are: NULL 0 (no payload), signed integer 1 (int64 payload,
+validated against the declared INT8/INT16/INT32/BIGINT width), UTF-8 2, uint64 3,
 finite float64 4 (IEEE bits as uint64), decimal 5 (int128 coefficient), Boolean 6
 (canonical 0/1 byte), date 7 (int32), time 8 (uint64), timestamp 9 (int64), UUID 10
 (16 raw bytes), and binary 11. UTF-8 and binary have uint32 byte-length prefixes.

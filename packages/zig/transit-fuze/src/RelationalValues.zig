@@ -21,7 +21,7 @@ pub const Literal = union(enum(u8)) {
 pub const fixed_bytes = 17;
 pub fn supported(kind: types.Type) bool {
     return switch (kind) {
-        .boolean, .int64, .uint64, .float64, .decimal, .date, .time, .timestamp, .uuid, .utf8, .binary => true,
+        .boolean, .int8, .int16, .int32, .int64, .uint64, .float64, .decimal, .date, .time, .timestamp, .uuid, .utf8, .binary => true,
         else => false,
     };
 }
@@ -89,7 +89,7 @@ pub fn fromCell(value: types.Values.Cell, column: table.Column) !Value {
         const atom = value.value.atom;
         try types.Semantics.validate(atom, column.type);
         break :blk switch (column.type) {
-            .int64 => .{ .integer = @intCast(atom.signed) },
+            .int8, .int16, .int32, .int64 => .{ .integer = @intCast(atom.signed) },
             .uint64 => .{ .unsigned = @intCast(atom.unsigned) },
             .utf8 => .{ .text = atom.bytes },
             .binary => .{ .binary = atom.bytes },
@@ -350,6 +350,9 @@ test "relational scalar keys retain exact types through ordering encoding and ow
     const t = std.testing;
     const Case = struct { kind: types.Type, low: Literal, high: Literal };
     const cases = [_]Case{
+        .{ .kind = .int8, .low = .{ .integer = -128 }, .high = .{ .integer = 127 } },
+        .{ .kind = .int16, .low = .{ .integer = -32768 }, .high = .{ .integer = 32767 } },
+        .{ .kind = .int32, .low = .{ .integer = -2147483648 }, .high = .{ .integer = 2147483647 } },
         .{ .kind = .boolean, .low = .{ .boolean = false }, .high = .{ .boolean = true } },
         .{ .kind = .uint64, .low = .{ .unsigned = 9223372036854775808 }, .high = .{ .unsigned = std.math.maxInt(u64) } },
         .{ .kind = .float64, .low = .{ .float = -1.25 }, .high = .{ .float = 2.5 } },
@@ -384,4 +387,9 @@ test "relational scalar keys retain exact types through ordering encoding and ow
     }
     try t.expectError(error.InvalidRelationalSourceRow, validate(.{ .float = std.math.nan(f64) }, .{ .id = 1, .name = "x", .type = .float64 }));
     try t.expectError(error.InvalidRelationalSourceRow, validate(.{ .decimal = 1000 }, .{ .id = 1, .name = "x", .type = .{ .decimal = .{ .precision = 3, .scale = 1 } } }));
+    inline for (.{ .{ types.Type.int8, 128 }, .{ types.Type.int16, 32768 }, .{ types.Type.int32, 2147483648 } }) |entry| {
+        const column: table.Column = .{ .id = 1, .name = "k", .type = entry[0] };
+        try t.expectError(error.InvalidRelationalSourceRow, validate(.{ .integer = entry[1] }, column));
+        try t.expectError(error.InvalidRelationalSourceRow, validate(.{ .integer = -entry[1] - 1 }, column));
+    }
 }

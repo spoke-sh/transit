@@ -348,7 +348,7 @@ are outside the grammar. `AS OF` remains a separately checked fragment.
 
 `relationalQuery` is a separate checked root for the explicit Table relational
 profile. It accepts optional EXPLAIN, one or two Table targets with explicit or
-implicit aliases, one inner/left equijoin, mixed column/COUNT/SUM selections,
+implicit aliases, one inner/left equijoin, `*` or mixed column/COUNT/SUM selections,
 Boolean WHERE, GROUP BY, HAVING, ORDER BY (`ASC`/`DESC`, `NULLS FIRST`/`NULLS LAST`)
 and LIMIT. The [relational corpus](corpus/relational.json)
 compares normalized sources, aliases, outputs, joins, group keys, HAVING
@@ -357,7 +357,10 @@ instruction order across ANTLR, PostgreSQL and production Zig. `just
 test::relational-sql` executes this comparison and is included in `test::sql`.
 The `statement` root includes this relational selection and retains the existing limited derived-table aggregate form. Contextual join/group/order words remain identifiers where the existing
 language allows them; unquoted implicit source aliases cannot consume clause
-words. Type admission, distinct output names, grouping legality, source rights
+words. Joined `*` expands both schemas in source/column order with
+`source_alias.column` output labels; single-Table `*` keeps the original names.
+Qualified stars and mixed star/explicit selections are excluded. Type admission,
+distinct output names, grouping legality, source rights
 and execution budgets remain semantic checks. DISTINCT, OFFSET,
 additional joins and arbitrary infix expressions are excluded from the relational root. WHERE, HAVING and LIMIT admit typed parameters. Single-Table projections and ordering admit the shared bounded scalar functions. Executable relational comparisons use the admitted scalar descriptors and NULL-state tests.
 

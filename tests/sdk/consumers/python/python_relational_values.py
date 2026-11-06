@@ -130,11 +130,12 @@ class Values(unittest.TestCase):
         original = r.RetainedSource(v.Basis.restore(json.dumps(binding)), snapshot)
         position = dict(partition=str(wide), next_lsn=str(wide))
         description = dict(definition=DEFINITION, plan=REF['plan'], sources=[dict(alias='i', binding=binding, position=position)],
-                           columns=[dict(name='id', type={'int64': {}}, nullable=False, optional=False)], join=None, grouped=False, executed=False)
+                           columns=[dict(name='id', type={'int32': {}}, nullable=False, optional=False)], join=None, grouped=False, executed=False)
         opened = dict(reference=REF, description=description, cuts=[dict(object=obj, position=position, commitment='aa'*32, schema='cd'*32)], complete_coverage=False)
         result = r._decode(r._opened, copy.deepcopy(opened), REF['id'], (original,))
         self.assertEqual(result.cuts[0].position.next_lsn, wide)
         self.assertEqual(result.description.sources[0].basis.object_id, wide-1)
+        self.assertEqual(result.description.columns[0].type.kind, 'int32')
         for mutation in ('binding', 'cut', 'schema', 'definition', 'numeric_position', 'position'):
             bad = copy.deepcopy(opened)
             if mutation == 'binding': bad['description']['sources'][0]['binding']['name'] = 'other'

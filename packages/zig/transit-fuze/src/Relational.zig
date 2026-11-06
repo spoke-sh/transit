@@ -5,7 +5,7 @@ const table = @import("TableSchema.zig");
 const types = @import("Types.zig");
 pub const RowIdentity = @import("TableRow.zig").Identity;
 
-pub const definition = "transit.fuze.relational.v1.2026-11-05";
+pub const definition = "transit.fuze.relational.v1.2026-11-05.signed-joins";
 pub const max_sources = 2;
 pub const max_outputs = 128;
 pub const max_groups = 128;
@@ -247,12 +247,7 @@ pub const Plan = struct {
         for (self.source_filters[self.sources.len..]) |predicate| {
             if (predicate.instructions.len != 0) return error.InvalidRelationalSources;
         }
-        if (self.join) |join| {
-            if (join.left.source != 0 or join.right.source != 1) return error.InvalidRelationalJoin;
-            const left = try self.resolveColumn(join.left);
-            const right = try self.resolveColumn(join.right);
-            if (!std.meta.eql(left.type, right.type) or left.collation != right.collation) return error.InvalidRelationalJoin;
-        }
+        if (self.join != null) _ = try self.joinColumn();
         try self.validatePredicate(self.filter, null);
         for (self.group_by, 0..) |column, i| {
             _ = try self.resolveColumn(column);
@@ -431,6 +426,21 @@ pub const Plan = struct {
         var writer: std.Io.Writer = .fixed(output[0..@min(output.len, max_plan_bytes)]);
         try self.write(&writer);
         return writer.buffered();
+    }
+
+    /// Shared comparison/hash descriptor. Source validation and projected types
+    /// retain their original widths; mixed signed keys compare losslessly in i64.
+    pub fn joinColumn(self: Plan) !table.Column {
+        const join = self.join orelse return error.InvalidRelationalJoin;
+        if (join.left.source != 0 or join.right.source != 1) return error.InvalidRelationalJoin;
+        var left = try self.resolveColumn(join.left);
+        const right = try self.resolveColumn(join.right);
+        if (left.collation != right.collation) return error.InvalidRelationalJoin;
+        if (!std.meta.eql(left.type, right.type)) {
+            if (!signedInteger(left.type) or !signedInteger(right.type)) return error.InvalidRelationalJoin;
+            left.type = .int64;
+        }
+        return left;
     }
 
     pub fn outputSchema(self: Plan, fields: []types.Field) !types.Type {
@@ -630,6 +640,13 @@ pub const AggregateState = struct {
 
 pub fn sumType(kind: types.Type) bool {
     return kind == .int64 or kind == .decimal;
+}
+
+fn signedInteger(kind: types.Type) bool {
+    return switch (kind) {
+        .int8, .int16, .int32, .int64 => true,
+        else => false,
+    };
 }
 
 fn containsColumn(list: []const Column, target: Column) bool {

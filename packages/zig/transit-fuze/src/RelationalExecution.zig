@@ -280,7 +280,7 @@ pub fn Execution(comptime Sources: type, comptime Groups: type) type {
                 if (!self.kernel.filters[1].matches(null, right)) return .progress;
                 const a = Kernel.cell(self.kernel.join[0], left, right);
                 const b = Kernel.cell(self.kernel.join[1], left, right);
-                if (!try r.joinMatches(a, b, try plan.resolveColumn(plan.join.?.left))) return .progress;
+                if (!try r.joinMatches(a, b, try plan.joinColumn())) return .progress;
                 self.matched = true;
                 return self.contribute(left, right);
             }

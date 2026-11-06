@@ -16971,7 +16971,7 @@
         "InvalidRelationalCut": 2,
         "InvalidRelationalFilterScope": 2,
         "InvalidRelationalGroups": 3,
-        "InvalidRelationalJoin": 3,
+        "InvalidRelationalJoin": 5,
         "InvalidRelationalName": 1,
         "InvalidRelationalOutputs": 6,
         "InvalidRelationalPredicate": 8,
@@ -17058,6 +17058,7 @@
         "Plan.encodePrepared()": "<inferred>",
         "Plan.expressionColumn()": "<inferred>",
         "Plan.fingerprint()": "<inferred>",
+        "Plan.joinColumn()": "<inferred>",
         "Plan.outputSchema()": "<inferred>",
         "Plan.resolveColumn()": "<inferred>",
         "Plan.stateExpressions()": "<inferred>",
@@ -17079,7 +17080,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 100,
+        "try": 101,
         "catch": 2
       },
       "imports": [
@@ -17446,7 +17447,7 @@
       "errors": {
         "InvalidParameterIndex": 1,
         "InvalidRelationalGroups": 2,
-        "InvalidRelationalOutputs": 3,
+        "InvalidRelationalOutputs": 2,
         "InvalidRelationalSources": 1,
         "InvalidSqlSyntax": 4,
         "LiteralOutOfRange": 1,
@@ -17504,6 +17505,7 @@
         "HavingParser.push()": "<inferred>",
         "Owned.bind()": "<inferred>",
         "Owned.bindParameters()": "<inferred>",
+        "Owned.expandStar()": "<inferred>",
         "Owned.resolveExpression()": "<inferred>",
         "Parameters.finish()": "<inferred>",
         "Parameters.operand()": "<inferred>",
@@ -17520,7 +17522,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 136,
+        "try": 139,
         "catch": 3
       },
       "imports": [
@@ -23770,7 +23772,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"7ca0568f92449103c8f557c86127809b9a90ccf64004a7b3cdad13a805b9f745\""
+          "@\"3ea13b163d882e8f90a8ea882883f26f95ab970102ba608699b6c412c472fa57\""
         ],
         "Effect.phase": [
           "pending",
@@ -43597,7 +43599,7 @@
       "templatePredicate": "columnReference ( IS cellState | comparison ( literal | PARAMETER ) )",
       "templateLimitClause": "LIMIT ( INTEGER | PARAMETER )",
       "relationalQuery": "EXPLAIN ? relationalSelect snapshotClause ? SEMI ? EOF",
-      "relationalSelect": "SELECT ( STAR FROM relationalTarget | relationalSelection ( COMMA relationalSelection ) * FROM relationalTarget relationalJoin ? ) whereClause ? ( GROUP BY columnReference ( COMMA columnReference ) * ) ? havingClause ? orderByClause ? limitClause ?",
+      "relationalSelect": "SELECT ( STAR | relationalSelection ( COMMA relationalSelection ) * ) FROM relationalTarget relationalJoin ? whereClause ? ( GROUP BY columnReference ( COMMA columnReference ) * ) ? havingClause ? orderByClause ? limitClause ?",
       "relationalExpression": "( columnReference | scalarCall ) ( AT TIME ZONE STRING ) ? | COUNT LPAREN ( STAR | ( columnReference | scalarCall ) ( AT TIME ZONE STRING ) ? ) RPAREN | SUM LPAREN ( columnReference | scalarCall ) ( AT TIME ZONE STRING ) ? RPAREN",
       "relationalSelection": "relationalExpression outputAlias ?",
       "havingClause": "HAVING havingDisjunction",

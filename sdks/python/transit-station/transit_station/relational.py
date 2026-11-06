@@ -148,7 +148,7 @@ def _description(value: object) -> Description:
         item = v._object(item, 'name type nullable optional')
         kind = type_from_wire(item['type'])
         if v._boolean(item['optional']) or not (isinstance(kind, (DecimalType, TimestampType)) or
-                isinstance(kind, ScalarType) and kind.kind in ('int64', 'uint64', 'float64', 'boolean', 'date', 'time', 'uuid', 'utf8', 'binary')):
+                isinstance(kind, ScalarType) and kind.kind in ('int8', 'int16', 'int32', 'int64', 'uint64', 'float64', 'boolean', 'date', 'time', 'uuid', 'utf8', 'binary')):
             raise ValueError('Unsupported relational output type')
         columns.append(Column(v._text(item['name'], 255), kind, v._boolean(item['nullable'])))
     join = value['join']

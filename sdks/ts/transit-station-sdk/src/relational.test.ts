@@ -181,7 +181,7 @@ test("relational opens retain complete source bindings and full-width partition 
       definition: contract.definition,
       plan: reference.plan,
       sources: [{ alias: "items", binding, position: { partition: max, next_lsn: max } }],
-      columns: [{ name: "id", type: { int64: {} }, nullable: false, optional: false }],
+      columns: [{ name: "id", type: { int32: {} }, nullable: false, optional: false }],
       join: null,
       grouped: false,
       executed: false,
@@ -201,6 +201,7 @@ test("relational opens retain complete source bindings and full-width partition 
     assert.equal(result.cuts[0]?.position.nextLsn, (1n << 64n) - 1n);
     assert.equal(result.cuts[0]?.object.objectId, (1n << 64n) - 1n);
     assert.equal(result.description.sources[0]?.basis.save(), source.basis.save());
+    assert.equal(result.description.columns[0]?.type.kind, "int32");
     assert(Object.isFrozen(result.cuts[0]?.position));
     const sent = (await requests()).find((request) =>
       JSON.stringify(request).includes('"snapshots"'),

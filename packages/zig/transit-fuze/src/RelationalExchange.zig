@@ -27,7 +27,7 @@ pub fn route(plan: r.Plan, source: u8, partitions: u64, row: e.Row) !u64 {
     if (plan.join) |join| {
         hash.update(&.{1});
         const column = if (source == 0) join.left else join.right;
-        try values.hashInto(&hash, row.values[if (column.source == r.computed_source) @as(usize, @intCast(128 + column.id - 1)) else try plan.sources[source].schema.index(column.id)], try plan.resolveColumn(column));
+        try values.hashInto(&hash, row.values[if (column.source == r.computed_source) @as(usize, @intCast(128 + column.id - 1)) else try plan.sources[source].schema.index(column.id)], try plan.joinColumn());
     } else if (grouped(plan)) {
         hash.update(&.{2});
         hash.update(&.{@intCast(plan.group_by.len)});

@@ -33,6 +33,30 @@ test "routing colocates equal join keys independent of aliases identities values
     invalid.values[2] = .{ .integer = 1 };
     try t.expectError(error.InvalidRelationalSourceRow, x.route(plan, 0, 2, invalid));
 }
+test "routing colocates mixed signed integer keys without narrowing source values" {
+    const types = @import("Types.zig");
+    for ([_]types.Type{ .int8, .int16, .int32, .int64 }) |left_type| {
+        for ([_]types.Type{ .int8, .int16, .int32, .int64 }) |right_type| {
+            var left_cols = columns;
+            var right_cols = columns;
+            left_cols[0].type = left_type;
+            right_cols[0].type = right_type;
+            var inputs = sources;
+            inputs[0].schema.columns = &left_cols;
+            inputs[1].schema.columns = &right_cols;
+            var joined = plan;
+            joined.sources = &inputs;
+            for ([_]u64{ 7, 257, std.math.maxInt(u64) }) |partitions| for ([_]?i64{ null, -128, -1, 0, 127 }) |key| {
+                try t.expectEqual(try x.route(joined, 0, partitions, row(1, key)), try x.route(joined, 1, partitions, row(2, key)));
+            };
+            right_cols[0].type = .uint64;
+            try t.expectError(error.InvalidRelationalJoin, joined.validate());
+            right_cols[0].type = .float64;
+            try t.expectError(error.InvalidRelationalJoin, joined.validate());
+        }
+    }
+}
+
 test "exchange bytes and routing agree with the independent Python contract fixtures" {
     const Fixture = struct { segment: []const u8, routing: []const struct { key: ?i64, partitions: u64, partition: u64 } };
     const parsed = try std.json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/relational-exchange.json"), .{ .ignore_unknown_fields = true });

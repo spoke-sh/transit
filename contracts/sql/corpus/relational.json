@@ -48,6 +48,12 @@
     "SELECT COUNT(*) FROM t WHERE v=$1",
     "SELECT k, SUM(v) AS total FROM t WHERE v >= $1 GROUP BY k HAVING total > $2 ORDER BY total DESC LIMIT $3",
     "SELECT * FROM t ORDER BY k DESC LIMIT 2",
+    "SELECT * FROM people INNER JOIN items ON items.id = people.id;",
+    "SELECT * FROM people JOIN items ON items.id = people.id;",
+    "SELECT * FROM t JOIN u ON t.k=u.k",
+    "SELECT * FROM t l LEFT JOIN u r ON r.k=l.k WHERE l.v > $1 ORDER BY r.v DESC LIMIT $2",
+    "SELECT * FROM t AS l LEFT OUTER JOIN t AS r ON l.k=r.k",
+    "SELECT * FROM \"People\" AS \"P\" JOIN \"Items\" AS \"I\" ON \"I\".\"id\"=\"P\".\"id\"",
     "SELECT DECIMAL_ADD(a,b,8,2,HALF_EVEN) AS total FROM t ORDER BY total DESC",
     "SELECT k FROM t ORDER BY DECIMAL_DIVIDE(a,b,8,2,REJECT) ASC LIMIT 1",
     "SELECT SUM(DECIMAL_RESCALE(v,8,2,HALF_EVEN)) AS total FROM t ORDER BY total",
@@ -55,7 +61,8 @@
     "SELECT RANGE_OVERLAPS(a,b) AS intersecting FROM t ORDER BY intersecting DESC"
   ],
   "reject": [
-    "SELECT * FROM t JOIN u ON t.k=u.k",
+    "SELECT t.* FROM t JOIN u ON t.k=u.k",
+    "SELECT *, u.v FROM t JOIN u ON t.k=u.k",
     "SELECT SUM(*) FROM t GROUP BY k",
     "SELECT k FROM t RIGHT JOIN u ON t.k=u.k",
     "SELECT k FROM t FULL JOIN u ON t.k=u.k",
