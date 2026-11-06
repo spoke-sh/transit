@@ -76,6 +76,21 @@
   ],
   "select": [
     {
+      "id": "count-alias",
+      "sql": "SELECT COUNT(*) AS count FROM items",
+      "schema": { "name": "items", "columns": ["id", "value"], "type": "int64" }
+    },
+    {
+      "id": "sum-alias",
+      "sql": "SELECT SUM /* call */ (value) AS sum FROM items",
+      "schema": { "name": "items", "columns": ["id", "value"], "type": "int64" }
+    },
+    {
+      "id": "aggregate-names-as-columns",
+      "sql": "SELECT count, sum FROM items WHERE sum > 0",
+      "schema": { "name": "items", "columns": ["count", "sum"], "type": "int64" }
+    },
+    {
       "id": "postgres-int8.sql-17",
       "sql": "SELECT * FROM INT8_TBL;",
       "schema": {

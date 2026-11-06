@@ -25,6 +25,9 @@ Unquoted names start with an ASCII letter or underscore and continue with ASCII
 letters, digits or underscores. They fold to lowercase. Double quotes preserve
 case; a doubled double quote is the grammar's escape inside a quoted identifier.
 Reserved keywords need quotes when used as names.
+`COUNT` and `SUM` are contextual function names: `COUNT(*) AS count` and
+`SUM(value) AS sum` use unquoted output aliases. A following `(` distinguishes
+an aggregate call from a column or alias reference.
 
 The Fuze compiler additionally requires every decoded name to be a valid ASCII
 identifier of at most 16 bytes. Quoting does not admit spaces, punctuation or

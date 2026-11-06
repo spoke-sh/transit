@@ -141,6 +141,9 @@ test "general SELECT preserves finite aggregates over projected limited inputs" 
     const rows: []const []const Cell = &.{ &.{ .{ .value = .{ .atom = .{ .signed = 1 } } }, .{ .value = .{ .atom = .{ .signed = 7 } } } }, &.{ .{ .value = .{ .atom = .{ .signed = 2 } } }, .null } };
     const cases = .{
         .{ "SELECT COUNT(*) AS total FROM people", @as(i128, 2) },
+        .{ "SELECT COUNT(*) AS count FROM people", @as(i128, 2) },
+        .{ "SELECT COUNT /* call */ (n) AS count FROM people", @as(i128, 1) },
+        .{ "SELECT SUM(n) AS sum FROM people", @as(i128, 7) },
         .{ "SELECT COUNT(n) FROM people", @as(i128, 1) },
         .{ "SELECT SUM(n) FROM people", @as(i128, 7) },
         .{ "SELECT SUM(q.amount) AS total FROM (SELECT p.n AS amount FROM people p WHERE p.id>=1 LIMIT 1) AS q", @as(i128, 7) },
@@ -158,6 +161,13 @@ test "general SELECT preserves finite aggregates over projected limited inputs" 
         try e.expect(try execution.next() == null);
         try e.expect(execution.complete);
     }
+}
+test "general SELECT reads columns named count and sum" {
+    const schema: types.Type = .{ .structure = &.{ .{ .name = "count", .type = .int64 }, .{ .name = "sum", .type = .int64 } } };
+    var query = try select.compile(e.allocator, "SELECT count, sum FROM items WHERE count > 1", "items", schema, basis, null);
+    defer query.deinit();
+    try e.expectEqualSlices(u8, &.{ 0, 1 }, query.plan.projection);
+    try e.expectEqual(.rows, query.plan.aggregate);
 }
 test "general SELECT supports every schema column and long quoted names" {
     var arena: std.heap.ArenaAllocator = .init(e.allocator);

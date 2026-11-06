@@ -55,7 +55,15 @@ or `DESC`, with `NULLS FIRST` default for `ASC`, `NULLS LAST` default for `DESC`
 and explicit `NULLS FIRST`/`NULLS LAST` overrides), breaking ties by canonical
 group key or row-pair identity. Unqualified identifiers in `HAVING` and `ORDER BY`
 resolve explicit `AS` output aliases before source columns. `LIMIT` truncates the
-final ordered output. A text group retains
+final ordered output. Aggregate names can also be unquoted aliases:
+
+```sql
+SELECT value, COUNT(*) AS count
+FROM items GROUP BY value ORDER BY count ASC;
+```
+
+`COUNT` and `SUM` are function calls when followed by `(`; otherwise they can
+name columns or aliases. A text group retains
 the first contributor’s original spelling, including under ASCII_CI.
 
 Prepared queries can bind WHERE, HAVING and LIMIT operands using typed `$1`

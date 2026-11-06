@@ -1,6 +1,12 @@
 {
   "version": 1,
   "accept": [
+    "SELECT value, COUNT(*) AS count FROM items GROUP BY value ORDER BY count ASC;",
+    "SELECT value, COUNT /* call */ (*) AS CoUnT FROM items GROUP BY value ORDER BY COUNT ASC;",
+    "SELECT value, COUNT(*) AS \"count\" FROM items GROUP BY value ORDER BY \"count\" ASC;",
+    "SELECT value, SUM(key) AS sum, COUNT(key) AS count FROM items GROUP BY value HAVING count > 1 AND sum IS NOT NULL ORDER BY sum DESC, count ASC",
+    "SELECT count, sum FROM items ORDER BY count ASC, sum DESC",
+    "SELECT count.value AS sum FROM items AS count ORDER BY sum",
     "SELECT left_table.v AS lv, right_table.v AS rv FROM left_table JOIN right_table ON left_table.k = right_table.k",
     "SELECT left_table.k, COUNT(*) AS n, COUNT(right_table.v) AS matched, SUM(right_table.v) AS total FROM left_table JOIN right_table ON left_table.k = right_table.k GROUP BY left_table.k",
     "SELECT SUM(left_table.v) AS a, SUM(right_table.v) AS b FROM left_table JOIN right_table ON left_table.k = right_table.k WHERE NOT (left_table.v < -1 OR right_table.v IS NULL) AND left_table.k >= +7",

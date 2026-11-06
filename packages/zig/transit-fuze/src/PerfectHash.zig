@@ -602,8 +602,6 @@ pub const ReservedSqlKeywordMap = ComptimeMap(bool, true, .{
     .{ "SELECT", true },
     .{ "WHERE", true },
     .{ "LIMIT", true },
-    .{ "COUNT", true },
-    .{ "SUM", true },
     .{ "IS", true },
     .{ "AND", true },
     .{ "OR", true },
