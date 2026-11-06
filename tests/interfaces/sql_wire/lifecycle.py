@@ -4,6 +4,7 @@ import json
 import errno
 import os
 import socket
+import ssl
 import struct
 import time
 import urllib.error
@@ -100,6 +101,31 @@ def capacity(postgres, health_port):
     with psycopg.connect(**postgres) as recovered:
         assert recovered.execute('SELECT 1').fetchone()==(1,)
 
+    # Each Describe/Flush is another complete frame in one extended cycle.
+    # Activity cannot restart its command budget or keep the borrowed host alive.
+    wire=PostgreSQL(postgres)
+    try:
+        wire.sock.sendall(frame(b'Q', b"SET query.statement_timeout = '2s'\0"))
+        assert not any(tag==b'E' for tag,_ in wire.until(b'Z'))
+        started=time.monotonic()
+        wire.sock.sendall(frame(b'P', b'bounded\0SELECT 1\0\0\0')+frame(b'H'))
+        assert wire.until(b'1', b'E')[-1][0]==b'1'
+        descriptions=0
+        while True:
+            time.sleep(.25)
+            try:
+                wire.sock.sendall(frame(b'D', b'Sbounded\0')+frame(b'H'))
+                assert wire.until(b'T', b'E', timeout=4)[-1][0]==b'T'
+                descriptions+=1
+            except (EOFError, BrokenPipeError, ConnectionResetError, ssl.SSLEOFError):
+                break
+            assert time.monotonic()-started < 4, 'Extended messages renewed the command deadline'
+        assert descriptions > 0, 'No continuation was exercised before expiry'
+    finally:
+        wire.close()
+    with psycopg.connect(**postgres) as recovered:
+        assert recovered.execute('SELECT 1').fetchone()==(1,)
+
     wire=PostgreSQL(postgres)
     try:
         for i in range(16):
@@ -120,7 +146,7 @@ def capacity(postgres, health_port):
         assert wire.sock.recv(1)==b''
     finally:
         wire.close()
-    print(json.dumps(dict(profile='database_wire_capacity',normal_connections=8,authentications=4,reserved_cancel=True,health_progress=True,prepared_limit=16,portal_limit=4,oversized_header=True)),flush=True)
+    print(json.dumps(dict(profile='database_wire_capacity',normal_connections=8,authentications=4,reserved_cancel=True,health_progress=True,prepared_limit=16,portal_limit=4,oversized_header=True,extended_deadline=True,expired_slot_reused=True)),flush=True)
 
 
 def drain(server, postgres, health_port):

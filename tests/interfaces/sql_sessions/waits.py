@@ -67,7 +67,7 @@ def workload(kind, root, port, postgres, mysql_options, restart, authorize, cons
         client.call(dict(close_result=batch['cursor']))
         return batch['rows'], batch['observation'], batch['completion']
 
-    for name in ('original', 'cancel', 'wake', 'pg', 'mysql', 'console'):
+    for name in ('original', 'cancel', 'wake', 'deadline', 'pg', 'mysql', 'console'):
         submit(f'CREATE {kind.upper()} wait_{kind}_{name} (value BIGINT NOT NULL)')
     if kind == 'stream':
         # LIMIT 0 still needs a ready native frontier. It cannot manufacture an
@@ -124,6 +124,42 @@ def workload(kind, root, port, postgres, mysql_options, restart, authorize, cons
     assert client.call(dict(resume=lost['identity']))['operation'] == cancelled
     fresh = submit(read('cancel'))
     assert [unsigned(row[0]) for row in result(fresh['identity'])[0]] == [43]
+
+    # The original durable wait is longer than a later foreground command.
+    # Expiring resume must release its foreground borrower without manufacturing
+    # a native timeout cut. Control observes the same identity independently.
+    deadline_sql = read('deadline', '1s', receipt=True)
+    deadline_token = list(os.urandom(16))
+    deadline_original = pending(client.execute(deadline_sql, deadline_token)['operation'], timeout=True)
+    deadline_id = deadline_original['identity']
+    limited = Client(root, port).open()
+    limited.execute("SET query.statement_timeout = '500ms'")
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(limited.call, dict(resume=deadline_id), error=('AuthorityTimeout', 'GatewayDeadline'))
+        observed = pending(client.call(dict(status=dict(operation=deadline_id)))['operation'])
+        assert observed['wait']['milliseconds'] == 1000
+        failure = future.result(timeout=30)['err']
+        assert failure['sqlstate'] == list(b'57014'), failure
+    # A legitimate subsequent command gets a fresh scope on this same session.
+    limited.execute('RESET query.statement_timeout')
+    limited.close()
+    pending(client.call(dict(status=dict(token=deadline_token)))['operation'])
+    append('deadline', 45)
+    deadline_observed = client.execute(deadline_sql, deadline_token)['operation']
+    assert deadline_observed['identity'] == deadline_id
+    # This fixture has a remote authority hop. An already dispatched native
+    # attempt can still accept the arrival after the caller's wait ends. Resolve
+    # that original outcome; only an explicit resume may start another attempt.
+    if deadline_observed['phase'] != 'terminal':
+        pending(deadline_observed)
+        deadline_observed = client.call(dict(resume=deadline_id))['operation']
+    deadline_accepted = client.terminal(deadline_observed)
+    assert deadline_accepted['identity'] == deadline_id
+    deadline_rows = result(deadline_id)
+    assert [unsigned(row[0]) for row in deadline_rows[0]] == [45]
+    append('deadline', 46)
+    assert client.call(dict(resume=deadline_id))['operation'] == deadline_accepted
+    assert result(deadline_id) == deadline_rows
 
     # Separate sessions share native wakeups without monopolizing SQL control.
     waiter = Client(root, port).open()
@@ -190,4 +226,6 @@ def workload(kind, root, port, postgres, mysql_options, restart, authorize, cons
     print(json.dumps(dict(profile=f'sql_{kind}_wait', timeout_nonterminal=True, passive_recovery=True,
                           original_resume_after_replacement=True, original_receipt_replay=True,
                           lost_timeout_reply=True, lost_resume_reply=True, cancellation=True, current_authorization=True,
-                          concurrent_arrival=True, arrival_timed_out=arrival_timed_out, postgres=True, mysql=True, console=True, passed=True)), flush=True)
+                          concurrent_arrival=True, arrival_timed_out=arrival_timed_out, inherited_deadline=True,
+                          deadline_session_reused=True, deadline_original_receipt=True,
+                          postgres=True, mysql=True, console=True, passed=True)), flush=True)
