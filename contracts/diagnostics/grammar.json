@@ -1372,7 +1372,7 @@
         "accepted": false,
         "code": "sql.unsupported_statement",
         "category": "unsupported",
-        "kind": "grammar_only",
+        "kind": "interface",
         "message_contains": [
           "syntax has not been validated"
         ]
@@ -1389,7 +1389,7 @@
         "accepted": false,
         "code": "sql.unsupported_statement",
         "category": "unsupported",
-        "kind": "grammar_only",
+        "kind": "interface",
         "message_contains": [
           "syntax has not been validated"
         ]
@@ -1406,7 +1406,7 @@
         "accepted": false,
         "code": "sql.unsupported_statement",
         "category": "unsupported",
-        "kind": "grammar_only",
+        "kind": "interface",
         "message_contains": [
           "syntax has not been validated"
         ]
@@ -1423,7 +1423,7 @@
         "accepted": false,
         "code": "sql.unsupported_statement",
         "category": "unsupported",
-        "kind": "grammar_only",
+        "kind": "interface",
         "message_contains": [
           "syntax has not been validated"
         ]
@@ -1635,7 +1635,7 @@
         "accepted": false,
         "code": "sql.unsupported_statement",
         "category": "unsupported",
-        "kind": "grammar_only"
+        "kind": "interface"
       }
     },
     {
@@ -1663,7 +1663,7 @@
         "accepted": false,
         "code": "sql.unsupported_statement",
         "category": "unsupported",
-        "kind": "grammar_only"
+        "kind": "interface"
       }
     },
     {
@@ -3213,7 +3213,7 @@
         "accepted": false,
         "code": "sql.unsupported_statement",
         "category": "unsupported",
-        "kind": "grammar_only",
+        "kind": "interface",
         "message_contains": [
           "syntax has not been validated"
         ]
@@ -3230,7 +3230,7 @@
         "accepted": false,
         "code": "sql.unsupported_statement",
         "category": "unsupported",
-        "kind": "grammar_only",
+        "kind": "interface",
         "message_contains": [
           "syntax has not been validated"
         ]

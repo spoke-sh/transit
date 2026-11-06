@@ -1344,7 +1344,10 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     if (b.option([]const u8, "flight-placement", "Run Flight in compose or reference placement")) |profile| {
         flight_test.addFileArg(b.path("examples/flight/run.py"));
         flight_test.addArg(profile);
-    } else flight_test.addFileArg(b.path("tests/interfaces/flight/flight.py"));
+    } else {
+        flight_test.addFileArg(b.path("tests/runner/launch.py"));
+        flight_test.addFileArg(b.path("tests/interfaces/flight/flight.py"));
+    }
     for ([_]*std.Build.Step.Compile{ node_artifact, query_host, flight_gateway, public_query }) |artifact| flight_test.addArtifactArg(artifact);
     if (b.option(bool, "flight-faults", "Qualify Flight authority, retry and physical recovery boundaries") orelse false) {
         flight_test.addArg("faults");

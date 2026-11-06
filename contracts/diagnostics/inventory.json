@@ -18447,7 +18447,8 @@
           "query",
           "mutation",
           "declaration",
-          "inspection"
+          "inspection",
+          "connector"
         ]
       },
       "error_sets": {},
@@ -18463,7 +18464,7 @@
       "open_error_set_uses": 14,
       "propagation": {
         "try": 60,
-        "catch": 34
+        "catch": 35
       },
       "imports": [
         "AuthorizationSql.zig",
