@@ -66,7 +66,7 @@ pub fn put(objects: Objects.ObjectStore, owner: [32]u8, chunk: Chunk, bytes: []c
 pub fn read(objects: Objects.ObjectStore, owner: [32]u8, chunk: Chunk, output: []u8) ![]const u8 {
     if (chunk.content.bytes > chunk_bytes or output.len < chunk.content.bytes) return error.InvalidDocumentSourceChunk;
     var path: [96]u8 = undefined;
-    const meta = try objects.getObject(try key(owner, chunk, &path), output) orelse return error.DocumentSourceMissing;
+    const meta = try objects.getObject(try key(owner, chunk, &path), output[0..@intCast(chunk.content.bytes)]) orelse return error.DocumentSourceMissing;
     if (meta.size != chunk.content.bytes or !std.mem.eql(u8, &meta.sha256, &chunk.content.sha256)) return error.InvalidDocumentSourceChunk;
     const bytes = output[0..@intCast(meta.size)];
     var digest: [32]u8 = undefined;

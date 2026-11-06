@@ -297,10 +297,18 @@ test "Document source lost reservations exact retries closure and generic bypass
     observed = try catalog.documentSourceReserve(broken_descriptor, access.policy(), authority);
     observed = try catalog.documentSourceUpload(.{ .control = .{ .key = broken_descriptor.key, .expected = observed.entry.revision }, .chunk = chunk, .bytes = bytes }, access.policy(), authority);
     const ready = (try catalog.store.clientTokenState(broken_descriptor.key)).?.source.?;
+    const corrupt_path = try Source.storage.key(try broken_descriptor.key.digest(), chunk, &path);
+    try objects.objectStore().delete(corrupt_path);
+    const oversized = "this corrupt object exceeds the declared final chunk";
+    const oversized_digest = sourceChunk(0, oversized).content.sha256;
+    _ = try objects.objectStore().putImmutable(corrupt_path, oversized, oversized_digest);
+    var buffer: [64]u8 = undefined;
+    // The caller's larger output must not expand admitted I/O on corrupt data.
+    try t.expectError(error.BufferTooSmall, catalog.documentSourceRead(broken_descriptor.key, 0, &buffer, access.policy(), authority));
+    for (buffer) |byte| try t.expectEqual(0, byte);
     try objects.objectStore().delete(try s.TreeStore.key(ready.root.?.location, &path));
     catalog.deinit();
     catalog = try owner(&wal, &objects);
-    var buffer: [64]u8 = undefined;
     try t.expectError(error.MissingDataIndexObject, catalog.documentSourceRead(broken_descriptor.key, 0, &buffer, access.policy(), authority));
     for (buffer) |byte| try t.expectEqual(0, byte);
 }
