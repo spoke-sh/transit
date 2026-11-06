@@ -22,7 +22,7 @@ export class RequestScheduler {
   private active: RequestCounts = { read: 0, control: 0 };
   private pending: Record<RequestLane, Job[]> = { read: [], control: [] };
   private timer: ReturnType<typeof setTimeout> | undefined;
-  constructor(private readonly staggerMs = 75) {}
+  constructor(private readonly staggerMs = 5) {}
 
   readonly run = <T>(
     lane: RequestLane,

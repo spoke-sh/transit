@@ -9,6 +9,8 @@ pub const Config = struct {
 pub const Runtime = struct {
     sql: ?sql.ReadWorkspace,
     workbook: ?sql.WorkbookWorkspace,
+    sql_lock: std.Io.Mutex = .init,
+    workbook_lock: std.Io.Mutex = .init,
     pub fn init(allocator: std.mem.Allocator, io: std.Io, config: Config) Runtime {
         return .{ .sql = if (config.sql) |selected| .{ .allocator = allocator, .io = io, .config = selected } else null, .workbook = if (config.sql) |selected| .{ .allocator = allocator, .io = io, .config = selected } else null };
     }

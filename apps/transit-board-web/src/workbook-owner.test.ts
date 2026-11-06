@@ -206,4 +206,24 @@ describe("workbook scheduling and disclosure", () => {
     expect(denied).toHaveBeenCalledOnce();
     await owner.dispose();
   });
+  test("reactive watermark advance demotes current outputs and forces live recalculation", async () => {
+    const { owner, runs } = setup();
+    owner.enable();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(runs()).toHaveLength(1);
+    expect(owner.current(source)).toBe(true);
+    expect(owner.current(count)).toBe(true);
+    expect(owner.dag().chains[0]?.map((c) => c.name)).toEqual(["source", "count"]);
+    expect(owner.dag().cells.get(count)?.badgeLabel).toBe("✓ Current draft");
+
+    owner.watermarkAdvance(2);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(runs()).toHaveLength(2);
+    expect(runs()[1]?.[0].action).toMatchObject({
+      evaluate: { force: true },
+    });
+    expect(owner.current(source)).toBe(true);
+    expect(owner.current(count)).toBe(true);
+    await owner.dispose();
+  });
 });
