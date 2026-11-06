@@ -319,8 +319,9 @@ fn requestWithin(self: *Self, allocator: std.mem.Allocator, working: std.mem.All
     }
     const scope = host.withDeadline(deadline);
     defer scope.restore();
-    try host.begin();
-    defer host.end();
+    const local_release = (input.action == .close_result or input.action == .release) and (slot.cursor == null or slot.cursor.?.read == null);
+    if (!local_release) try host.begin();
+    defer if (!local_release) host.end();
     host.sql_diagnostic = null;
     host.execution_diagnostic = null;
     var recover_original = false;
