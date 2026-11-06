@@ -43,13 +43,9 @@ pub fn validate(self: Self) !void {
     }
 }
 pub fn fingerprint(self: Self, allocator: std.mem.Allocator) ![32]u8 {
+    _ = allocator;
     try self.validate();
-    const bytes = try p.Json.valueAlloc(allocator, self);
-    defer allocator.free(bytes);
-    var digest = std.crypto.hash.sha2.Sha256.init(.{});
-    digest.update("transit.table.direct.preparation.v1\x00");
-    digest.update(bytes);
-    return digest.finalResult();
+    return p.Json.hashBounded("transit.table.direct.preparation.v1\x00", self, w.max_request_bytes);
 }
 /// A local binding comparison never substitutes for current permission checks.
 pub fn check(self: Self, connection: w.Connection, metadata: w.Definition) !void {

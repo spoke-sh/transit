@@ -99,6 +99,133 @@ pub fn valueAllocBounded(allocator: std.mem.Allocator, value: anytype, limit: us
     return output;
 }
 
+const HashWriter = struct {
+    hash: std.crypto.hash.sha2.Sha256,
+    count: usize = 0,
+    limit: usize,
+    buffer: [512]u8 = undefined,
+    writer: std.Io.Writer = undefined,
+
+    fn init(prefix: []const u8, limit: usize) HashWriter {
+        var result: HashWriter = .{
+            .hash = std.crypto.hash.sha2.Sha256.init(.{}),
+            .limit = limit,
+        };
+        result.hash.update(prefix);
+        return result;
+    }
+
+    fn bind(self: *HashWriter) *std.Io.Writer {
+        self.writer = .{
+            .buffer = &self.buffer,
+            .vtable = &.{ .drain = drain, .flush = flush },
+        };
+        return &self.writer;
+    }
+
+    fn flushBuffer(self: *HashWriter) std.Io.Writer.Error!void {
+        const buffered = self.writer.buffered();
+        if (buffered.len == 0) return;
+        if (buffered.len > self.limit - self.count) return error.WriteFailed;
+        self.count += buffered.len;
+        self.hash.update(buffered);
+        self.writer.end = 0;
+    }
+
+    fn drain(writer: *std.Io.Writer, data: []const []const u8, splat: usize) std.Io.Writer.Error!usize {
+        const self: *HashWriter = @alignCast(@fieldParentPtr("writer", writer));
+        try self.flushBuffer();
+        var written: usize = 0;
+        for (data[0 .. data.len - 1]) |bytes| {
+            if (bytes.len > self.limit - self.count) return error.WriteFailed;
+            self.count += bytes.len;
+            self.hash.update(bytes);
+            written += bytes.len;
+        }
+        const pattern = data[data.len - 1];
+        const pattern_total = std.math.mul(usize, pattern.len, splat) catch return error.WriteFailed;
+        if (pattern_total > self.limit - self.count) return error.WriteFailed;
+        for (0..splat) |_| self.hash.update(pattern);
+        self.count += pattern_total;
+        written += pattern_total;
+        return written;
+    }
+
+    fn flush(writer: *std.Io.Writer) std.Io.Writer.Error!void {
+        const self: *HashWriter = @alignCast(@fieldParentPtr("writer", writer));
+        try self.flushBuffer();
+    }
+};
+
+/// Stream canonical JSON serialization directly into SHA-256 without allocating
+/// an intermediate buffer, refusing payloads over `limit` with `WriteFailed`.
+pub fn hashBounded(prefix: []const u8, value: anytype, limit: usize) ![32]u8 {
+    var hasher = HashWriter.init(prefix, limit);
+    var encoder: std.json.Stringify = .{ .writer = hasher.bind() };
+    try write(value, &encoder);
+    try hasher.writer.flush();
+    return hasher.hash.finalResult();
+}
+
+const MatchWriter = struct {
+    expected: []const u8,
+    offset: usize = 0,
+    buffer: [512]u8 = undefined,
+    writer: std.Io.Writer = undefined,
+
+    fn bind(self: *MatchWriter) *std.Io.Writer {
+        self.writer = .{
+            .buffer = &self.buffer,
+            .vtable = &.{ .drain = drain, .flush = flush },
+        };
+        return &self.writer;
+    }
+
+    fn matchSlice(self: *MatchWriter, bytes: []const u8) std.Io.Writer.Error!void {
+        if (bytes.len > self.expected.len - self.offset) return error.WriteFailed;
+        if (!std.mem.eql(u8, self.expected[self.offset..][0..bytes.len], bytes)) return error.WriteFailed;
+        self.offset += bytes.len;
+    }
+
+    fn flushBuffer(self: *MatchWriter) std.Io.Writer.Error!void {
+        const buffered = self.writer.buffered();
+        if (buffered.len == 0) return;
+        try self.matchSlice(buffered);
+        self.writer.end = 0;
+    }
+
+    fn drain(writer: *std.Io.Writer, data: []const []const u8, splat: usize) std.Io.Writer.Error!usize {
+        const self: *MatchWriter = @fieldParentPtr("writer", writer);
+        try self.flushBuffer();
+        var written: usize = 0;
+        for (data[0 .. data.len - 1]) |bytes| {
+            try self.matchSlice(bytes);
+            written += bytes.len;
+        }
+        const pattern = data[data.len - 1];
+        const pattern_total = std.math.mul(usize, pattern.len, splat) catch return error.WriteFailed;
+        if (pattern_total > self.expected.len - self.offset) return error.WriteFailed;
+        for (0..splat) |_| try self.matchSlice(pattern);
+        written += pattern_total;
+        return written;
+    }
+
+    fn flush(writer: *std.Io.Writer) std.Io.Writer.Error!void {
+        const self: *MatchWriter = @fieldParentPtr("writer", writer);
+        try self.flushBuffer();
+    }
+};
+
+/// Verify that `value` serializes to the exact canonical byte slice `expected`
+/// without allocating a second buffer.
+pub fn eqlSlice(expected: []const u8, value: anytype) bool {
+    var matcher: MatchWriter = .{ .expected = expected };
+    var encoder: std.json.Stringify = .{ .writer = matcher.bind() };
+    write(value, &encoder) catch return false;
+    matcher.writer.flush() catch return false;
+    return matcher.offset == expected.len;
+}
+
 test "bounded JSON uses exact encoded bytes and refuses before allocating" {
     const value = .{ .bytes = [_]u8{ 'i', 'd', 0 }, .text = @as([]const u8, "\"\n"), .absent = @as(?u64, null) };
     const expected = "{\"bytes\":[105,100,0],\"text\":\"\\\"\\n\",\"absent\":null}";
@@ -274,4 +401,22 @@ test "anonymous tuple configuration values preserve array shape" {
     const encoded = try valueAlloc(std.testing.allocator, .{ .destinations = .{ @as(u64, 5), @as(u64, 1) } });
     defer std.testing.allocator.free(encoded);
     try std.testing.expectEqualStrings("{\"destinations\":[5,1]}", encoded);
+}
+
+test "streaming JSON digest and equality match canonical bytes across buffer drains without heap allocation" {
+    const quotes: [400]u8 = @splat('"');
+    const value = .{ .text = @as([]const u8, &quotes), .count = @as(u64, 42) };
+    const encoded = try valueAlloc(std.testing.allocator, value);
+    defer std.testing.allocator.free(encoded);
+    var expected_hash = std.crypto.hash.sha2.Sha256.init(.{});
+    expected_hash.update("prefix\x00");
+    expected_hash.update(encoded);
+    try std.testing.expectEqual(expected_hash.finalResult(), try hashBounded("prefix\x00", value, encoded.len));
+    try std.testing.expectError(error.WriteFailed, hashBounded("prefix\x00", value, encoded.len - 1));
+    try std.testing.expect(eqlSlice(encoded, value));
+    try std.testing.expect(!eqlSlice(encoded[0 .. encoded.len - 1], value));
+    var altered = try std.testing.allocator.dupe(u8, encoded);
+    defer std.testing.allocator.free(altered);
+    altered[altered.len / 2] ^= 1;
+    try std.testing.expect(!eqlSlice(altered, value));
 }
