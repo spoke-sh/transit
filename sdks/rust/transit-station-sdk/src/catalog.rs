@@ -1,9 +1,9 @@
 //! Direct Table lifecycle with owned original work and explicit retained snapshots.
 use crate::abi;
-use crate::bridge::{field, wide, CatalogNative};
+use crate::bridge::{CatalogNative, field, wide};
 use crate::logical::{Atom, Cell, Descriptor};
-use serde_json::{json, Value};
-use transit_client::internal::{boolean, number, string, unhex, Worker};
+use serde_json::{Value, json};
+use transit_client::internal::{Worker, boolean, number, string, unhex};
 use transit_client::{ClientConfig, Counter, Credential, Error, ErrorKind, ResourceRef, Result};
 
 fn invalid() -> Error {
@@ -2845,11 +2845,13 @@ mod tests {
         assert_eq!(basis.object(), u64::MAX);
         assert_eq!(basis.connection(), connection());
         assert!(!format!("{basis:?}").contains("items"));
-        assert!(Basis::restore(&format!(
-            "{},\"name\":\"other\"}}",
-            &basis.save()[..basis.save().len() - 1]
-        ))
-        .is_err());
+        assert!(
+            Basis::restore(&format!(
+                "{},\"name\":\"other\"}}",
+                &basis.save()[..basis.save().len() - 1]
+            ))
+            .is_err()
+        );
         for fault in 0..7 {
             let mut bad = reference();
             match fault {
