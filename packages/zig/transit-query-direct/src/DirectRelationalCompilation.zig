@@ -60,7 +60,7 @@ pub fn prepareProjectedAt(allocator: std.mem.Allocator, clients: []const c.Direc
         self.bindings[i] = try c.DirectTableBinding.init(client.connection, metadata);
         self.bindings[i].catalog = snapshot;
         self.positions[i] = metadata.position;
-        _ = try self.bindings[i].require(client, access);
+        if (snapshot != null or access != .inspect) _ = try self.bindings[i].require(client, access);
         const projected = if (projection) |selected| try c.DirectSchemaProjection.resolve(client, metadata.interpretation, selected) else null;
         defer if (projected) |value| value.deinit();
         self.projections[i] = if (projected) |value| value.value.result.schema_projection.prepared.target else null;

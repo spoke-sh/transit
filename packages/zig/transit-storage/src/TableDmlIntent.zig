@@ -146,9 +146,35 @@ fn encodeWithSchema(allocator: std.mem.Allocator, schema: f.TableSchema.Schema, 
     return bytes[0 .. header_bytes + writer.end];
 }
 
+fn encodedSizeBound(schema: f.TableSchema.Schema, request: Request) !usize {
+    var total: usize = header_bytes + max_metadata_bytes;
+    if (request.statement != null) {
+        total += f.TableDmlCodec.max_bytes;
+    }
+    for (request.changes) |change| switch (change) {
+        .put => |value| {
+            try schema.validateWrite(value.row.cells);
+            total = try std.math.add(usize, total, 6 + try value.row.encodedSize(schema));
+        },
+        .replace => |value| {
+            try schema.validateWrite(value.row.cells);
+            if (value.key.len == 0 or value.key.len > f.Collation.max_sort_key_bytes) return error.InvalidTableKey;
+            total = try std.math.add(usize, total, 9 + value.key.len + try value.row.encodedSize(schema));
+        },
+        .remove => |value| {
+            if (value.len == 0 or value.len > f.Collation.max_sort_key_bytes) return error.InvalidTableKey;
+            total = try std.math.add(usize, total, 5 + value.len);
+        },
+    };
+    return @min(max_bytes, total);
+}
+
 pub fn expectedContentWithSchema(allocator: std.mem.Allocator, schema: f.TableSchema.Schema, request: Request) !d.Content {
-    const bytes = try allocator.alloc(u8, max_bytes);
-    defer allocator.free(bytes);
+    try request.validate();
+    const bound = try encodedSizeBound(schema, request);
+    var stack_buf: [16384]u8 = undefined;
+    const bytes = if (bound <= stack_buf.len) stack_buf[0..bound] else try allocator.alloc(u8, bound);
+    defer if (bound > stack_buf.len) allocator.free(bytes);
     const encoded = try encodeWithSchema(allocator, schema, request, bytes);
     return .{ .bytes = encoded.len, .sha256 = hash(encoded) };
 }
@@ -164,8 +190,10 @@ pub fn stage(allocator: std.mem.Allocator, objects: Objects.ObjectStore, request
     try request.validate();
     var declaration = try Declaration.load(allocator, objects, request.interpretation);
     defer declaration.deinit();
-    const bytes = try allocator.alloc(u8, max_bytes);
-    defer allocator.free(bytes);
+    const bound = try encodedSizeBound(declaration.schema.schema, request);
+    var stack_buf: [16384]u8 = undefined;
+    const bytes = if (bound <= stack_buf.len) stack_buf[0..bound] else try allocator.alloc(u8, bound);
+    defer if (bound > stack_buf.len) allocator.free(bytes);
     const encoded = try encodeWithSchema(allocator, declaration.schema.schema, request, bytes);
     const content: d.Content = .{ .bytes = encoded.len, .sha256 = hash(encoded) };
     var name: [96]u8 = undefined;

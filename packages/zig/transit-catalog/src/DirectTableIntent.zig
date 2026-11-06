@@ -78,7 +78,7 @@ allocator: std.mem.Allocator,
 bytes: []u8,
 parsed: std.json.Parsed(Saved),
 
-fn encode(allocator: std.mem.Allocator, value: Saved) ![]u8 {
+pub fn encode(allocator: std.mem.Allocator, value: Saved) ![]u8 {
     var scratch: [256]u8 = undefined;
     var count: std.Io.Writer.Discarding = .init(&scratch);
     var counter: std.json.Stringify = .{ .writer = &count.writer };
@@ -126,38 +126,67 @@ pub fn fromDml(allocator: std.mem.Allocator, connection: w.Connection, metadata:
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     const alloc = arena.allocator();
-    const scratch = try alloc.alloc(u8, w.max_work_bytes);
-    const schema = try w.Binary.encode(alloc, try plan.schema.encode(scratch));
     if (plan.action == .insert) {
-        const changes = try alloc.alloc(w.RowChange, plan.action.insert.len);
+        var max_row_len: usize = 0;
         var total: usize = 0;
+        for (plan.action.insert, 0..) |cells, index| {
+            const row: f.TableRow.Row = .{ .identity = try w.Rows.insertIdentity(original.identity, @intCast(index)), .cells = cells };
+            const len = try row.encodedSize(plan.schema);
+            if (len > w.max_work_bytes - total) return error.TableBatchTooLarge;
+            total += len;
+            max_row_len = @max(max_row_len, len);
+        }
+        const scratch = try alloc.alloc(u8, @max(f.TableSchema.max_bytes, max_row_len));
+        const schema = try w.Binary.encode(alloc, try plan.schema.encode(scratch));
+        const changes = try alloc.alloc(w.RowChange, plan.action.insert.len);
         for (plan.action.insert, changes, 0..) |cells, *change, index| {
             const row: f.TableRow.Row = .{ .identity = try w.Rows.insertIdentity(original.identity, @intCast(index)), .cells = cells };
             const encoded = try row.encode(plan.schema, scratch);
-            if (encoded.len > w.max_work_bytes - total) return error.TableBatchTooLarge;
-            total += encoded.len;
             change.* = .{ .insert = try w.Binary.encode(alloc, encoded) };
         }
         var work: w.Rows = .{ .binding = original, .interpretation = metadata.interpretation, .schema = schema, .changes = changes, .ingestion = ingestion };
         work.binding.intent = try work.digest(alloc);
         return create(allocator, connection, .{ .rows = work });
     }
+    const scratch = try alloc.alloc(u8, @max(f.TableSchema.max_bytes, f.TableDmlCodec.max_bytes));
+    const schema = try w.Binary.encode(alloc, try plan.schema.encode(scratch));
     var work: w.Statement = .{ .binding = original, .interpretation = metadata.interpretation, .schema = schema, .plan = try w.Binary.encode(alloc, try f.TableDmlCodec.encode(alloc, plan, scratch)) };
     work.binding.intent = try work.digest(alloc);
     return create(allocator, connection, .{ .statement = work });
+}
+pub fn restoreOwned(allocator: std.mem.Allocator, bytes: []u8) !Self {
+    errdefer allocator.free(bytes);
+    if (bytes.len <= prefix_bytes or bytes.len > max_bytes or !std.mem.eql(u8, bytes[0..4], "TDI1")) return error.InvalidTableIntent;
+    if (!std.mem.eql(u8, bytes[4..prefix_bytes], &p.Growth.definition_bytes)) return error.IncompatibleDefinition;
+    const parsed = try p.Json.parseFromSlice(Saved, allocator, bytes[prefix_bytes..]);
+    errdefer parsed.deinit();
+    try parsed.value.validate(allocator);
+    if (!p.Json.eqlSlice(bytes[prefix_bytes..], parsed.value)) return error.InvalidTableIntent;
+    return .{ .allocator = allocator, .bytes = bytes, .parsed = parsed };
 }
 pub fn restore(allocator: std.mem.Allocator, input: []const u8) !Self {
     if (input.len <= prefix_bytes or input.len > max_bytes or !std.mem.eql(u8, input[0..4], "TDI1")) return error.InvalidTableIntent;
     if (!std.mem.eql(u8, input[4..prefix_bytes], &p.Growth.definition_bytes)) return error.IncompatibleDefinition;
     const bytes = try allocator.dupe(u8, input);
-    errdefer allocator.free(bytes);
-    const parsed = try p.Json.parseFromSlice(Saved, allocator, bytes[prefix_bytes..]);
-    errdefer parsed.deinit();
-    try parsed.value.validate(allocator);
-    const canonical = try encode(allocator, parsed.value);
-    defer allocator.free(canonical);
-    if (!std.mem.eql(u8, input, canonical)) return error.InvalidTableIntent;
-    return .{ .allocator = allocator, .bytes = bytes, .parsed = parsed };
+    return restoreOwned(allocator, bytes);
+}
+pub fn restoreRows(output: std.mem.Allocator, scratch: std.mem.Allocator, input: []const u8, namespace: u64, sha256: [32]u8) !struct { reference: Reference, request: ?c.storage.TableDmlIntent.Request } {
+    if (input.len <= prefix_bytes or input.len > max_bytes or !std.mem.eql(u8, input[0..4], "TDI1")) return error.InvalidTableIntent;
+    if (!std.mem.eql(u8, input[4..prefix_bytes], &p.Growth.definition_bytes)) return error.IncompatibleDefinition;
+    const parsed = try p.Json.parseFromSlice(Saved, scratch, input[prefix_bytes..]);
+    defer parsed.deinit();
+    if (parsed.value.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
+    try parsed.value.connection.validate();
+    try parsed.value.connection.binding(parsed.value.work.binding());
+    const request: ?c.storage.TableDmlIntent.Request = switch (parsed.value.work) {
+        inline .rows, .statement => |value| try value.native(output),
+        .ddl => |value| blk: {
+            try value.validate(scratch, parsed.value.connection);
+            break :blk null;
+        },
+    };
+    if (!p.Json.eqlSlice(input[prefix_bytes..], parsed.value)) return error.InvalidTableIntent;
+    return .{ .reference = try referenceFromSaved(parsed.value, namespace, input.len, sha256), .request = request };
 }
 pub fn deinit(self: *Self) void {
     self.parsed.deinit();
@@ -167,13 +196,16 @@ pub fn deinit(self: *Self) void {
 pub fn binding(self: *const Self) d.Binding {
     return self.parsed.value.work.binding();
 }
+pub fn referenceFromSaved(saved: Saved, namespace: u64, bytes_len: usize, sha256: [32]u8) !Reference {
+    const result: Reference = .{ .definition = p.Growth.current_definition, .connection = saved.connection, .namespace = namespace, .binding = saved.work.binding(), .content = .{ .bytes = bytes_len, .sha256 = sha256 } };
+    try result.validate();
+    if (saved.work == .ddl and saved.work.ddl.namespace != namespace) return error.DataIdentityConflict;
+    return result;
+}
 pub fn reference(self: *const Self, namespace: u64) !Reference {
     var hash: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(self.bytes, &hash, .{});
-    const result: Reference = .{ .definition = p.Growth.current_definition, .connection = self.parsed.value.connection, .namespace = namespace, .binding = self.binding(), .content = .{ .bytes = self.bytes.len, .sha256 = hash } };
-    try result.validate();
-    if (self.parsed.value.work == .ddl and self.parsed.value.work.ddl.namespace != namespace) return error.DataIdentityConflict;
-    return result;
+    return referenceFromSaved(self.parsed.value, namespace, self.bytes.len, hash);
 }
 /// Stage complete immutable work directly, then persist only its reference in
 /// an orchestrator's control ledger. Staging never claims or admits operation ID.

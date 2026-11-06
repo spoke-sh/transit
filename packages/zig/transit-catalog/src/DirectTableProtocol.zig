@@ -29,9 +29,11 @@ pub const Binary = struct {
         errdefer allocator.free(output);
         std.base64.standard.Decoder.decode(output, self.base64) catch return error.InvalidTableBinary;
         // Reject ignored pad bits and alternate spellings before any admission.
-        const canonical = try encode(allocator, output);
-        defer allocator.free(canonical.base64);
-        if (!std.mem.eql(u8, canonical.base64, self.base64)) return error.InvalidTableBinary;
+        if (output.len > 0) {
+            const rem: usize = if (output.len % 3 == 0) 3 else output.len % 3;
+            var tail: [4]u8 = undefined;
+            if (!std.mem.eql(u8, std.base64.standard.Encoder.encode(&tail, output[output.len - rem ..]), self.base64[self.base64.len - 4 ..])) return error.InvalidTableBinary;
+        }
         return output;
     }
 };
@@ -177,14 +179,9 @@ pub const Rows = struct {
     changes: []const RowChange,
     ingestion: P.Ingestion,
     pub fn digest(self: Rows, allocator: std.mem.Allocator) ![32]u8 {
+        _ = allocator;
         const Payload = struct { interpretation: c.storage.TableDeclaration.Stored, schema: Binary, changes: []const RowChange, ingestion: P.Ingestion };
-        const bytes = try p.Json.valueAlloc(allocator, Payload{ .interpretation = self.interpretation, .schema = self.schema, .changes = self.changes, .ingestion = self.ingestion });
-        defer allocator.free(bytes);
-        if (bytes.len > max_request_bytes) return error.TablePayloadTooLarge;
-        var hash = std.crypto.hash.sha2.Sha256.init(.{});
-        hash.update("transit.table.direct.rows.v1\x00");
-        hash.update(bytes);
-        return hash.finalResult();
+        return p.Json.hashBounded("transit.table.direct.rows.v1\x00", Payload{ .interpretation = self.interpretation, .schema = self.schema, .changes = self.changes, .ingestion = self.ingestion }, max_request_bytes) catch |err| return if (err == error.WriteFailed) error.TablePayloadTooLarge else err;
     }
     /// Conversion is pure and uses a caller-owned bounded request arena. The
     /// storage owner checks the alleged immutable interpretation before admission.
@@ -233,14 +230,9 @@ pub const Statement = struct {
     schema: Binary,
     plan: Binary,
     pub fn digest(self: Statement, allocator: std.mem.Allocator) ![32]u8 {
+        _ = allocator;
         const Payload = struct { interpretation: c.storage.TableDeclaration.Stored, schema: Binary, plan: Binary };
-        const bytes = try p.Json.valueAlloc(allocator, Payload{ .interpretation = self.interpretation, .schema = self.schema, .plan = self.plan });
-        defer allocator.free(bytes);
-        if (bytes.len > max_request_bytes) return error.TablePayloadTooLarge;
-        var hash = std.crypto.hash.sha2.Sha256.init(.{});
-        hash.update("transit.table.direct.statement.v1\x00");
-        hash.update(bytes);
-        return hash.finalResult();
+        return p.Json.hashBounded("transit.table.direct.statement.v1\x00", Payload{ .interpretation = self.interpretation, .schema = self.schema, .plan = self.plan }, max_request_bytes) catch |err| return if (err == error.WriteFailed) error.TablePayloadTooLarge else err;
     }
     /// All decoded values belong to the bounded request arena.
     pub fn native(self: Statement, allocator: std.mem.Allocator) !c.storage.TableDmlIntent.Request {
@@ -401,13 +393,8 @@ pub const Request = struct {
     proof: p.Authorization.Proof,
     pub const Input = struct { definition: p.Growth.Definition, connection: Connection, nonce: [16]u8, action: Action, delegation: ?c.DirectReadDelegation, closure: ?c.DirectReadDelegation.Closure = null, borrow: ?c.DirectReadDelegation.Borrow = null, lease: ?c.DirectClientToken.Lease = null, transaction: ?c.DirectTransactionRead.Context = null };
     pub fn context(value: Input, allocator: std.mem.Allocator) ![32]u8 {
-        const bytes = try p.Json.valueAlloc(allocator, value);
-        defer allocator.free(bytes);
-        if (bytes.len > max_request_bytes) return error.TablePayloadTooLarge;
-        var hash = std.crypto.hash.sha2.Sha256.init(.{});
-        hash.update("transit.table.direct.request.v1\x00");
-        hash.update(bytes);
-        return hash.finalResult();
+        _ = allocator;
+        return p.Json.hashBounded("transit.table.direct.request.v1\x00", value, max_request_bytes) catch |err| return if (err == error.WriteFailed) error.TablePayloadTooLarge else err;
     }
     pub fn input(self: Request) Input {
         return .{ .definition = self.definition, .connection = self.connection, .nonce = self.nonce, .action = self.action, .delegation = self.delegation, .closure = self.closure, .borrow = self.borrow, .lease = self.lease, .transaction = self.transaction };

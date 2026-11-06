@@ -32,7 +32,6 @@ const ForeignParents = struct {
         defer response.deinit();
         const metadata = response.value.result.lookup orelse return error.TableNotFound;
         const binding = try c.DirectTableBinding.init(self.client.connection, metadata);
-        _ = try binding.require(self.client, .inspect);
         const schema = try f.TableSchema.decode(allocator, try metadata.schema.decode(allocator, f.TableSchema.max_bytes));
         return .{ .schema = schema.schema, .definition = binding.interpretation.interpretation };
     }
