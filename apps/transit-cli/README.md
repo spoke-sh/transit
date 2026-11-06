@@ -5,7 +5,9 @@
 DDL/DML and catalog operations through the shared SQL service.
 `transit migrate` plans, inspects, applies, resumes and verifies ordered
 application schema and data migrations (`<version>-<name>.sql`) against the
-direct catalog without reading `.transitrc` startup files.
+direct catalog without reading `.transitrc` startup files. Table and finite
+dataflow declarations share SQL operation owners and retain original identities
+for recovery. See the [migration workflow](../../docs/handbook/reference/cli.md#application-sql-migrations).
 
 The `transit` executable contains the node, query host, SQL gateway and Board,
 including its frontend assets. The local server starts these roles as separate
