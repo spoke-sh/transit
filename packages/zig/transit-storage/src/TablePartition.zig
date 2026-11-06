@@ -1265,14 +1265,22 @@ const StatementBudget = struct {
     }
 };
 
-fn statementEncode(row: f.TableRow.Row, schema: f.TableSchema.Schema, buffer: []u8) ![]const u8 {
-    return row.encode(schema, buffer) catch |err| return if (err == error.WriteFailed) error.TableBatchTooLarge else err;
+fn statementEncode(allocator: std.mem.Allocator, row: f.TableRow.Row, schema: f.TableSchema.Schema, buffer: *[]u8) ![]const u8 {
+    const size = try row.encodedSize(schema);
+    if (size > f.TableRow.max_bytes) return error.TableBatchTooLarge;
+    if (size > buffer.len) {
+        const grown = try allocator.alloc(u8, @max(size, 4096));
+        allocator.free(buffer.*);
+        buffer.* = grown;
+    }
+    return row.encode(schema, buffer.*) catch |err| return if (err == error.WriteFailed) error.TableBatchTooLarge else err;
 }
 
-fn statementReplacement(plan: f.TableDml.Plan, original: f.TableRow.Row, original_bytes: []const u8, cells: []f.Types.Values.Cell, buffer: []u8) !?f.TableRow.Row {
+fn statementReplacement(allocator: std.mem.Allocator, plan: f.TableDml.Plan, original: f.TableRow.Row, original_bytes: []const u8, cells: []f.Types.Values.Cell, buffer: *[]u8) !?struct { row: f.TableRow.Row, encoded_len: usize } {
     const row: f.TableRow.Row = .{ .identity = original.identity, .cells = try plan.schema.update(original.cells, plan.action.update, cells) };
-    if (std.mem.eql(u8, original_bytes, try statementEncode(row, plan.schema, buffer))) return null;
-    return row;
+    const encoded = try statementEncode(allocator, row, plan.schema, buffer);
+    if (std.mem.eql(u8, original_bytes, encoded)) return null;
+    return .{ .row = row, .encoded_len = encoded.len };
 }
 
 /// A retained predicate is evaluated privately under its frozen logical basis.
@@ -1290,9 +1298,9 @@ fn applyStatement(self: *Self, allocator: std.mem.Allocator, operation: Operatio
     if (plan.action == .insert or operation.binding.expected_data == null) return error.InvalidTableStatementIntent;
     if (!std.mem.eql(u8, &try plan.schema.fingerprint(), &self.root.schema_fingerprint)) return error.TableSchemaChanged;
     var budget: StatementBudget = .{ .rows = self.options.statement_scan_rows, .bytes = self.options.statement_scan_bytes };
-    const before_bytes = try allocator.alloc(u8, max_row_bytes);
+    var before_bytes = try allocator.alloc(u8, 4096);
     defer allocator.free(before_bytes);
-    const after_bytes = try allocator.alloc(u8, max_row_bytes);
+    var after_bytes = try allocator.alloc(u8, 4096);
     defer allocator.free(after_bytes);
     var cells: [f.TableSchema.max_columns]f.Types.Values.Cell = undefined;
     var tree_batch: TreeStore.Batch = .{};
@@ -1310,11 +1318,11 @@ fn applyStatement(self: *Self, allocator: std.mem.Allocator, operation: Operatio
             var owned = try self.readRow(allocator, self.root, entry.key, entry.value);
             defer owned.deinit();
             const row = owned.row();
-            const encoded = try statementEncode(row, plan.schema, before_bytes);
+            const encoded = try statementEncode(allocator, row, plan.schema, &before_bytes);
             try budget.visit(encoded.len);
             if (!try plan.matches(row.cells)) continue;
             matched += 1;
-            if (plan.action == .update and try statementReplacement(plan, row, encoded, &cells, after_bytes) == null) continue;
+            if (plan.action == .update and try statementReplacement(allocator, plan, row, encoded, &cells, &after_bytes) == null) continue;
             affected += 1;
             var ordered_key: [f.Collation.max_sort_key_bytes]u8 = undefined;
             try index_batch.remove(try row.storageKey(plan.schema, &ordered_key), entry.key, row.identity, try r.Locator.decode(entry.value));
@@ -1342,11 +1350,12 @@ fn applyStatement(self: *Self, allocator: std.mem.Allocator, operation: Operatio
                     var owned = try self.readRow(allocator, self.root, entry.key, entry.value);
                     defer owned.deinit();
                     const original = owned.row();
-                    const encoded = try statementEncode(original, plan.schema, before_bytes);
+                    const encoded = try statementEncode(allocator, original, plan.schema, &before_bytes);
                     try budget.visit(encoded.len);
                     if (try plan.matches(original.cells)) {
-                        if (try statementReplacement(plan, original, encoded, &cells, after_bytes)) |row| {
-                            const length = (try statementEncode(row, plan.schema, after_bytes)).len;
+                        if (try statementReplacement(allocator, plan, original, encoded, &cells, &after_bytes)) |replaced| {
+                            const row = replaced.row;
+                            const length = replaced.encoded_len;
                             if (length > max_row_bytes - bytes or rows.items.len == max_changes) break :group;
                             const copy = try a.alloc(f.Types.Values.Cell, row.cells.len);
                             for (row.cells, copy) |value, *target| target.* = try f.Types.Values.cloneValidated(a, value);
@@ -1428,7 +1437,7 @@ fn changeDefinitionWithinBudget(self: *Self, allocator: std.mem.Allocator, bindi
             if (try self.operationAt(self.root, binding) != null) return error.DataIdentityConflict;
         }
     }
-    const intent = try allocator.alloc(u8, Log.max_payload_bytes);
+    const intent = try allocator.alloc(u8, Declaration.max_properties_bytes + 4096);
     defer allocator.free(intent);
     var writer: std.Io.Writer = .fixed(intent);
     try std.json.Stringify.value(edit, .{}, &writer);
@@ -1635,8 +1644,10 @@ fn publish(self: *Self, proposed: r.Record, row_bytes: []const u8, guard: Guard)
     }
     if (self.root.next_lsn == 0) _ = try Declaration.stage(self.objects, &self.declaration);
     if (self.index.candidate != null) try self.index.flush();
-    const buffer = try self.allocator.alloc(u8, Log.max_payload_bytes);
-    defer self.allocator.free(buffer);
+    const max_record_bytes = @min(Log.max_payload_bytes, r.header_bytes + r.max_metadata_bytes + row_bytes.len);
+    var stack_buf: [r.header_bytes + r.max_metadata_bytes + 4096]u8 = undefined;
+    const buffer = if (max_record_bytes <= stack_buf.len) stack_buf[0..max_record_bytes] else try self.allocator.alloc(u8, max_record_bytes);
+    defer if (max_record_bytes > stack_buf.len) self.allocator.free(buffer);
     const payload = try r.encode(record, row_bytes, buffer);
     const chain = r.hash(payload);
     const fence = try guard.acquire(guard.context);

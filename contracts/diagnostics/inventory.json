@@ -5172,8 +5172,8 @@
       },
       "open_error_set_uses": 13,
       "propagation": {
-        "try": 2421,
-        "catch": 30
+        "try": 2419,
+        "catch": 31
       },
       "imports": [
         "DirectCatalogIntent.zig",
@@ -7435,10 +7435,10 @@
     "packages/zig/transit-catalog/src/DirectRecord.zig": {
       "errors": {
         "DataIdentityConflict": 1,
-        "DirectRecordMissing": 1,
+        "DirectRecordMissing": 2,
         "IncompatibleDefinition": 2,
         "InvalidClientToken": 1,
-        "InvalidDirectRecord": 9
+        "InvalidDirectRecord": 11
       },
       "outcomes": {
         "Request": [
@@ -7460,11 +7460,12 @@
         "read()": "<inferred>",
         "reference()": "<inferred>",
         "stage()": "<inferred>",
-        "store()": "<inferred>"
+        "store()": "<inferred>",
+        "verify()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 29,
+        "try": 35,
         "catch": 0
       },
       "imports": [
@@ -7957,7 +7958,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 16,
+        "try": 15,
         "catch": 0
       },
       "imports": [
@@ -8143,7 +8144,7 @@
       },
       "open_error_set_uses": 9,
       "propagation": {
-        "try": 247,
+        "try": 246,
         "catch": 0
       },
       "imports": [
@@ -8156,8 +8157,8 @@
       "errors": {
         "CatalogIdentityConflict": 3,
         "DataIdentityConflict": 2,
-        "IncompatibleDefinition": 3,
-        "InvalidTableIntent": 3,
+        "IncompatibleDefinition": 6,
+        "InvalidTableIntent": 6,
         "TableBatchTooLarge": 1,
         "TableDefinitionChanged": 1,
         "TablePayloadTooLarge": 1
@@ -8183,12 +8184,15 @@
         "fromDml()": "<inferred>",
         "operation()": "<inferred>",
         "reference()": "<inferred>",
+        "referenceFromSaved()": "<inferred>",
         "restore()": "<inferred>",
+        "restoreOwned()": "<inferred>",
+        "restoreRows()": "<inferred>",
         "stage()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 47,
+        "try": 57,
         "catch": 0
       },
       "imports": [
@@ -8199,20 +8203,24 @@
     "packages/zig/transit-catalog/src/DirectTableIntentStore.zig": {
       "errors": {
         "InvalidOperationBinding": 1,
-        "InvalidTableIntent": 5,
-        "TableIntentMissing": 1
+        "InvalidTableIntent": 8,
+        "TableIntentMissing": 2
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
         "key()": "<inferred>",
         "load()": "<inferred>",
+        "loadRows()": "<inferred>",
         "stage()": "<inferred>",
+        "stageBytes()": "<inferred>",
+        "stageBytesWithBinding()": "<inferred>",
+        "stageSavedWithBinding()": "<inferred>",
         "stageWithBinding()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 17,
+        "try": 26,
         "catch": 0
       },
       "imports": [
@@ -8248,7 +8256,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 37,
+        "try": 36,
         "catch": 0
       },
       "imports": [
@@ -8305,7 +8313,8 @@
         "SourceChanged": 1,
         "TableBatchTooLarge": 1,
         "TablePayloadTooLarge": 6,
-        "TableSchemaChanged": 2
+        "TableSchemaChanged": 2,
+        "WriteFailed": 3
       },
       "outcomes": {
         "Action": [
@@ -8531,8 +8540,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 182,
-        "catch": 3
+        "try": 178,
+        "catch": 6
       },
       "imports": [
         "root.zig",
@@ -23998,13 +24007,21 @@
         "InvalidJsonConstant": 1,
         "InvalidJsonShape": 11,
         "OutOfMemory": 1,
-        "WriteFailed": 1
+        "WriteFailed": 9
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "HashWriter.drain()": "std . Io . Writer . Error",
+        "HashWriter.flush()": "std . Io . Writer . Error",
+        "HashWriter.flushBuffer()": "std . Io . Writer . Error",
+        "MatchWriter.drain()": "std . Io . Writer . Error",
+        "MatchWriter.flush()": "std . Io . Writer . Error",
+        "MatchWriter.flushBuffer()": "std . Io . Writer . Error",
+        "MatchWriter.matchSlice()": "std . Io . Writer . Error",
         "allocationSchedule()": "<inferred>",
         "boundedAllocationSchedule()": "<inferred>",
+        "hashBounded()": "<inferred>",
         "parseFromSlice()": "<inferred>",
         "parseFromSliceOwned()": "<inferred>",
         "parseWithOptions()": "<inferred>",
@@ -24016,8 +24033,8 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 34,
-        "catch": 2
+        "try": 43,
+        "catch": 6
       },
       "imports": [
         "std"
@@ -41941,7 +41958,7 @@
         "InvalidInsertRowIdentity": 2,
         "InvalidKVKey": 2,
         "InvalidKVOperation": 3,
-        "InvalidTableKey": 4,
+        "InvalidTableKey": 6,
         "InvalidTableMutationIntent": 12,
         "InvalidTableStatementIntent": 1,
         "KVValueTooLarge": 1,
@@ -41961,6 +41978,7 @@
       "error_returns": {
         "Request.validate()": "<inferred>",
         "encodeWithSchema()": "<inferred>",
+        "encodedSizeBound()": "<inferred>",
         "expectedContent()": "<inferred>",
         "expectedContentWithSchema()": "<inferred>",
         "insertIdentity()": "<inferred>",
@@ -41970,7 +41988,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 62,
+        "try": 72,
         "catch": 0
       },
       "imports": [
@@ -42178,7 +42196,7 @@
         "SegmentReadBudgetExceeded": 2,
         "StorageCandidateTooLarge": 1,
         "TableAlreadyExists": 1,
-        "TableBatchTooLarge": 4,
+        "TableBatchTooLarge": 5,
         "TableBuildBudget": 2,
         "TableCompactionBudget": 3,
         "TableDataChanged": 7,
@@ -42393,7 +42411,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 758,
+        "try": 759,
         "catch": 19
       },
       "imports": [
