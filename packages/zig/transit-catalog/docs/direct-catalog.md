@@ -674,24 +674,27 @@ relies on the same exclusive physical-owner and immutable-history assumptions;
 replacement still performs full recovery, and uncertainty prevents warm reuse.
 
 The local host uses a bounded pool of serialized Catalog workspaces. Optional
-`Options.table_owner` borrows one movable `CachedTable` slot whose stable provider
-contexts and allocator outlive every view. The exact initial seed and partition
-must match before reuse. `TablePartition.refresh` checks the current frontier and
-validates a changed suffix; it retains decoded pages/declaration on an unchanged
-frontier. Closing a view returns only its owned Table state to that slot, with no
-request arena, policy or result pointers. A nested or different-Table view can
-replace a cached entry without releasing a durable pin or forgetting accepted
-work. The embedding host destroys all slots before closing their providers.
+`Options.table_owner` (and `Options.table_owners` for additional resident slots)
+borrows movable `CachedTable` slots whose stable provider contexts and allocator
+outlive every view. The exact initial seed and partition must match before reuse.
+`TablePartition.refreshSince` checks the current frontier and validates a changed
+suffix (or fast-forwards from a fresher validated recovery hint); it retains
+decoded pages/declaration on an unchanged frontier. Closing a view returns only
+its owned Table state to that slot, with no request arena, policy or result
+pointers. A nested or different-Table view can use an empty slot or replace a
+cached entry without releasing a durable pin or forgetting accepted work. The
+embedding host destroys all slots before closing their providers.
 
-Cold workspaces and physical maintenance can also use
-`Options.table_recovery`, a borrowed root/chain hint serialized until every view
-closes. The local host retains at most 64 hints. A cold open validates a matching
-hint's boundary, declaration and current roots; a collision performs ordinary
-recovery. These volatile capacities do not limit durable Table count. Failed
-requests discard their workspace and hint. Current native rights, lifetimes and
-final disclosure are checked independently of every cache. This mechanism does
-not continuously scrub already-validated historical bytes or authorize trimming.
-The [node guide](../../../../apps/transit-node/README.md) states aggregate and
+Cold workspaces and physical maintenance can also use `Options.table_recovery`
+(or `Options.table_recoveries` under exclusive directory access), a borrowed
+root/chain hint serialized until every view closes. The local host retains at
+most 64 hints. A cold open validates a matching hint's boundary, declaration and
+current roots; a collision performs ordinary recovery. These volatile capacities
+do not limit durable Table count. Failed requests discard their workspace and
+hint. Current native rights, lifetimes and final disclosure are checked
+independently of every cache. This mechanism does not continuously scrub
+already-validated historical bytes or authorize trimming. The
+[node guide](../../../../apps/transit-node/README.md) states aggregate and
 per-workspace memory limits and the separate request/response accounting.
 
 Stream and Queue maintenance each retain at most one active recovery workspace

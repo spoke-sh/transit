@@ -230,6 +230,32 @@ fn executeResult(self: *Self, comptime format: Service.Output, io: std.Io, engin
         return result;
     }
 }
+fn residentMatches(resident: *const Service.Resident, action: w.Action) bool {
+    if (target(action)) |object| return resident.hasTable(object);
+    return switch (action) {
+        inline .lookup, .kv_lookup => |value| resident.hasTableName(value.namespace, value.name),
+        else => false,
+    };
+}
+fn acquireResident(io: std.Io, slots: []ResidentSlot, action: w.Action) !*ResidentSlot {
+    for (slots) |*slot| {
+        if (slot.mutex.tryLock()) {
+            if (slot.value) |resident| if (residentMatches(resident, action)) return slot;
+            slot.mutex.unlock(io);
+        }
+    }
+    for (slots) |*slot| {
+        if (slot.mutex.tryLock()) {
+            if (slot.value != null) return slot;
+            slot.mutex.unlock(io);
+        }
+    }
+    for (slots) |*slot| {
+        if (slot.mutex.tryLock()) return slot;
+    }
+    try slots[0].mutex.lock(io);
+    return &slots[0];
+}
 fn executeSingle(self: *Self, comptime format: Service.Output, io: std.Io, engine: *backend.DataAuthority.Engine, arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: w.Request, control: bool, memory_report: ?*?@import("DirectRequestMemory.zig").Report, waiting: @FieldType(c.DirectStream.Environment, "waiting"), parent: ?Deadline) !Service.Result(format) {
     if (parent) |cap| try cap.check(io);
     if (control and request.transport().control == null) return error.InvalidRequest;
@@ -251,16 +277,15 @@ fn executeSingle(self: *Self, comptime format: Service.Output, io: std.Io, engin
         if (recovered.root.next_lsn > self.recovery.root.next_lsn) self.recovery = recovered;
     }
     var options = self.options;
-    if (stripe(request.action)) |slot| options.table_recovery = &self.table_recovery[slot];
+    if (write) {
+        options.table_recoveries = &self.table_recovery;
+    } else if (stripe(request.action)) |slot| {
+        options.table_recovery = &self.table_recovery[slot];
+    }
     // Storage owners contain no request pointers and can serve any free lane.
     // Their count is bounded independently of the durable Table population.
     const slots: []ResidentSlot = if (control) &self.control_residents else &self.residents;
-    const resident = for (slots) |*slot| {
-        if (slot.mutex.tryLock()) break slot;
-    } else blk: {
-        try slots[0].mutex.lock(io);
-        break :blk &slots[0];
-    };
+    const resident = try acquireResident(io, slots, request.action);
     defer resident.mutex.unlock(io);
     if (parent) |cap| try cap.check(io);
     if (resident.value) |value| value.probe.begin(false) else resident.value = Service.Resident.create(engine.journal.backend.allocator, self.resident_memory.request(engine.journal.backend.allocator, control), engine.journal.backend, self.configuration, options, recovered) catch |err| return if (err == error.TableResidentCapacity) (if (control) error.ControlCapacity else error.StorageQuota) else err;
@@ -290,9 +315,11 @@ fn executeSingle(self: *Self, comptime format: Service.Output, io: std.Io, engin
         var service: Service = .{ .engine = engine, .configuration = self.configuration, .registrar = self.registrar, .options = options, .recovery_state = &recovered, .resident = resident.value, .waiting = waiting };
         if (parent) |cap| try cap.check(io);
         const saved_table_recovery = if (options.table_recovery) |slot| slot.* else null;
+        const saved_table_recoveries = if (options.table_recoveries != null) self.table_recovery else null;
         return service.executeResult(format, if (attempt == 0) arena else &scratch, output_allocator, request) catch |err| {
             if ((err == error.AuthorizationChanged or err == error.TransactionAuthorityChanged or err == error.StaleStorageEpoch) and attempt + 1 < 16) {
                 if (options.table_recovery) |slot| slot.* = saved_table_recovery;
+                if (saved_table_recoveries) |saved| self.table_recovery = saved;
                 continue;
             }
             if (err == error.StreamWaitPending or err == error.QueueWaitPending) discard_on_error = false;

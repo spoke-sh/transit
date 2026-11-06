@@ -32,6 +32,7 @@ pub const Resident = struct {
     data: backend.DataStore,
     catalog: D,
     table: ?D.CachedTable = null,
+    extra_tables: [3]?D.CachedTable = @splat(null),
     stream: ?c.DirectStream.Cached = null,
     queue: ?c.DirectQueue.Cached = null,
 
@@ -42,15 +43,27 @@ pub const Resident = struct {
         self.memory.parent = self.probe.allocator();
         var cached_options = options;
         cached_options.table_owner = &self.table;
+        cached_options.table_owners = &self.extra_tables;
         self.catalog = D.init(self.memory.allocator(), configuration, self.control.log(), self.control.objects(), self.data.log(), self.data.objects(), cached_options) catch |err| return if (err == error.OutOfMemory and self.memory.exhausted) error.TableResidentCapacity else err;
         errdefer self.catalog.deinit();
         self.catalog.recoverSince(prior) catch |err| return if (err == error.OutOfMemory and self.memory.exhausted) error.TableResidentCapacity else err;
         return self;
     }
+    pub fn hasTable(self: *const Resident, object: u64) bool {
+        if (self.table) |cached| if (cached.seed.interpretation.object.object == object) return true;
+        for (self.extra_tables) |slot| if (slot) |cached| if (cached.seed.interpretation.object.object == object) return true;
+        return false;
+    }
+    pub fn hasTableName(self: *const Resident, namespace: u64, name: []const u8) bool {
+        if (self.table) |cached| if (cached.namespace == namespace and cached.name != null and std.mem.eql(u8, cached.name.?.slice(), name)) return true;
+        for (self.extra_tables) |slot| if (slot) |cached| if (cached.namespace == namespace and cached.name != null and std.mem.eql(u8, cached.name.?.slice(), name)) return true;
+        return false;
+    }
     pub fn destroy(self: *Resident) void {
         if (self.queue) |*cached| cached.deinit();
         if (self.stream) |*cached| cached.deinit();
         if (self.table) |*cached| cached.table.deinit();
+        for (&self.extra_tables) |*slot| if (slot.*) |*cached| cached.table.deinit();
         self.catalog.deinit();
         std.debug.assert(self.memory.used == 0);
         const allocator = self.allocator;
@@ -71,9 +84,10 @@ pub fn Result(comptime output: Output) type {
 pub fn executeResult(self: *Self, comptime format: Output, arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: w.Request) !Result(format) {
     // An uncertain append, failed recovery or failed disclosure cannot leave a
     // warm Table hint behind. Full replay remains the next request's fallback.
-    errdefer if (self.options.table_recovery) |slot| {
-        slot.* = null;
-    };
+    errdefer {
+        if (self.options.table_recovery) |slot| slot.* = null;
+        if (self.options.table_recoveries) |slots| @memset(slots, null);
+    }
     const allocator = arena.allocator();
     try request.validate(allocator);
     if (!request.connection.matches(self.configuration)) return error.CatalogDenied;
@@ -106,7 +120,8 @@ pub fn executeResult(self: *Self, comptime format: Output, arena: *std.heap.Aren
     defer if (request_catalog) |*catalog| catalog.deinit();
     const catalog = if (self.resident) |resident| blk: {
         resident.catalog.options.table_recovery = self.options.table_recovery;
-        try resident.catalog.store.refresh();
+        resident.catalog.options.table_recoveries = self.options.table_recoveries;
+        try resident.catalog.store.refreshSince(if (self.recovery_state) |prior| prior.* else null);
         break :blk &resident.catalog;
     } else blk: {
         request_catalog = try D.init(arena.child_allocator, self.configuration, control.log(), control.objects(), data.log(), data.objects(), self.options);

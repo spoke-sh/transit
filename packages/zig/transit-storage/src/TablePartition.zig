@@ -451,10 +451,18 @@ pub fn recoveryState(self: *Self) !RecoveryState {
 /// successor from our checked prefix before using the resident state. Replacement
 /// still starts with recovery, and uncertain publication poisons this owner.
 pub fn refresh(self: *Self) !void {
+    return self.refreshSince(null);
+}
+
+pub fn refreshSince(self: *Self, prior: ?RecoveryState) !void {
     if (self.workspace) return error.PrivateTableWorkspace;
     try self.ready();
+    const current = try self.recoveryState();
+    const basis = if (prior) |known| (if (known.root.partition == current.root.partition and
+        std.meta.eql(known.root.interpretation.object, current.root.interpretation.object) and
+        known.root.next_lsn > current.root.next_lsn) known else current) else current;
     if (try self.log.tail(self.root.partition) != self.root.next_lsn)
-        try self.recoverSinceOptions(try self.recoveryState(), true);
+        try self.recoverSinceOptions(basis, true);
 }
 
 /// Revalidate a previously checked boundary, then replay only its successors.

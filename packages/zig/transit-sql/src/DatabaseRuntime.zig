@@ -19,6 +19,7 @@ capture_mutex: std.Io.Mutex = .init,
 // Stripes bound active scheduling memory, not the durable operation population.
 // A collision only serializes callers; the Catalog token remains the authority.
 claims: [64]std.Io.Mutex = @splat(.init),
+table_claims: [64]TableClaim = @splat(.{}),
 work: g.RecoveryWork = .{},
 external_work: ?*g.RecoveryWork = null,
 wake_mutex: std.Io.Mutex = .init,
@@ -48,6 +49,12 @@ foreground_notified: std.atomic.Value(bool) = .init(false),
 pub const Keys = struct { table: p.Ed25519.KeyPair };
 const Activation = struct { generation: u64, instance: [16]u8 };
 const activation_format: u32 = 0x53514131;
+const TableClaim = struct {
+    mutex: std.Io.Mutex = .init,
+    object: ?p.DataLifecycle.Object = null,
+    next_lsn: u64 = 0,
+    pending: ?c.DirectClientToken.Progress = null,
+};
 pub fn notify(self: *Self) void {
     if (self.foreground_active.load(.acquire) != 0) {
         self.foreground_notified.store(true, .release);
@@ -68,6 +75,61 @@ pub fn notifyExternal(self: *Self) void {
 }
 fn claim(self: *Self, token: [16]u8) *std.Io.Mutex {
     return &self.claims[std.hash.Wyhash.hash(0, &token) % self.claims.len];
+}
+fn tableClaim(self: *Self, statement: *const g.Statement) ?*TableClaim {
+    if (statement.plan != .dml) return null;
+    const object = statement.plan.dml.binding.interpretation.interpretation.object;
+    return &self.table_claims[std.hash.Wyhash.hash(0, std.mem.asBytes(&object)) % self.table_claims.len];
+}
+fn tableFresh(claim_slot: ?*const TableClaim, statement: *const g.Statement, fresh_prepared: bool) bool {
+    if (!fresh_prepared or statement.plan != .dml) return fresh_prepared;
+    if (statement.kind() == .insert) return true;
+    const dml = &statement.plan.dml;
+    if (dml.metadata.position.next_lsn == 0) return false;
+    const table_claim = claim_slot orelse return false;
+    const object = dml.binding.interpretation.interpretation.object;
+    return table_claim.object == null or
+        (std.meta.eql(table_claim.object.?, object) and table_claim.next_lsn <= dml.metadata.position.next_lsn);
+}
+fn finishTableClaim(claim_slot: ?*TableClaim, statement: *const g.Statement, terminal: ?g.Terminal) void {
+    const table_claim = claim_slot orelse return;
+    if (statement.plan != .dml) return;
+    if (terminal != null) table_claim.pending = null;
+    table_claim.object = statement.plan.dml.binding.interpretation.interpretation.object;
+    table_claim.next_lsn = if (terminal != null and terminal.?.state == .applied) terminal.?.next_lsn else std.math.maxInt(u64);
+}
+fn recordPendingTableClaim(claim_slot: ?*TableClaim, state: c.DirectClientToken.Progress) void {
+    const table_claim = claim_slot orelse return;
+    if (!state.pending or state.cancel or state.receipt.binding.intent != .table) return;
+    switch (state.receipt.binding.intent.table.binding.action) {
+        .insert, .update, .delete => table_claim.pending = state,
+        else => {},
+    }
+}
+fn settlePendingTableClaim(self: *Self, claim_slot: ?*TableClaim, observer: *g.Client, table: *c.DirectTableClient, deadline: Deadline) !void {
+    const table_claim = claim_slot orelse return;
+    const pending_state = table_claim.pending orelse return;
+    const intent = pending_state.receipt.binding.intent;
+    if (intent != .table or !std.meta.eql(intent.connection(), table.connection)) {
+        table_claim.pending = null;
+        return;
+    }
+    table.lease = self.lease();
+    if (try self.foreground(observer, table, pending_state, deadline)) |terminal| {
+        table_claim.pending = null;
+        table_claim.object = intent.table.binding.target;
+        table_claim.next_lsn = if (terminal.state == .applied) terminal.next_lsn else std.math.maxInt(u64);
+        return;
+    }
+    const observed = try self.available(observer, deadline, c.DirectIntent.Reference.operation, .{ intent, table.*, .inspect, 1 });
+    defer observed.deinit();
+    if (try g.Terminal.fromReference(intent, observed.value.result)) |terminal| {
+        table_claim.pending = null;
+        table_claim.object = intent.table.binding.target;
+        table_claim.next_lsn = if (terminal.state == .applied) terminal.next_lsn else std.math.maxInt(u64);
+        return;
+    }
+    return error.GatewayOwnerUnavailable;
 }
 
 pub fn notifyProgress(self: *Self) void {
@@ -142,6 +204,45 @@ test "progress notifications survive the status-to-wait gap and preserve deadlin
     };
     var task = try t.io.concurrent(Wait.run, .{ &runtime, runtime.progress_epoch.load(.acquire), deadline });
     if (task.cancel(t.io)) |_| return error.CancellationMissing else |err| try t.expect(err == error.Canceled or err == error.Cancelled);
+}
+
+test "per-table DML stripes preserve fresh single-writer preparation and force refresh after concurrent advancement" {
+    const t = std.testing;
+    var runtime: Self = undefined;
+    runtime.table_claims = @splat(.{});
+    const table_a: p.DataLifecycle.Object = .{ .scope = .{ .realm = 1, .resource = 2, .catalog = 1 }, .branch = 1, .object = 10 };
+    const table_b: p.DataLifecycle.Object = .{ .scope = .{ .realm = 1, .resource = 2, .catalog = 1 }, .branch = 1, .object = 11 };
+    var update: g.Statement = undefined;
+    update.plan = .{ .dml = undefined };
+    update.plan.dml.template.syntax.subject.kind = .update;
+    update.plan.dml.binding.interpretation.interpretation.object = table_a;
+    update.plan.dml.metadata.position = .{ .partition = 1, .next_lsn = 5 };
+
+    const slot_a = runtime.tableClaim(&update).?;
+    try t.expect(tableFresh(slot_a, &update, true));
+    try t.expect(!tableFresh(slot_a, &update, false));
+
+    var applied: g.Terminal = undefined;
+    applied.state = .applied;
+    applied.next_lsn = 6;
+    finishTableClaim(slot_a, &update, applied);
+    try t.expect(!tableFresh(slot_a, &update, true));
+    update.plan.dml.metadata.position.next_lsn = 6;
+    try t.expect(tableFresh(slot_a, &update, true));
+
+    update.plan.dml.metadata.position.next_lsn = 0;
+    try t.expect(!tableFresh(slot_a, &update, true));
+    update.plan.dml.metadata.position.next_lsn = 7;
+    finishTableClaim(slot_a, &update, null);
+    try t.expect(!tableFresh(slot_a, &update, true));
+
+    update.plan.dml.template.syntax.subject.kind = .insert;
+    try t.expect(tableFresh(slot_a, &update, true));
+
+    update.plan.dml.template.syntax.subject.kind = .delete;
+    update.plan.dml.binding.interpretation.interpretation.object = table_b;
+    const slot_b = runtime.tableClaim(&update).?;
+    if (slot_b != slot_a) try t.expect(tableFresh(slot_b, &update, true));
 }
 
 pub fn init(allocator: std.mem.Allocator, io: std.Io, url: []const u8, execution: g.DatabaseAccount, generation: u64, keys: Keys, timeout_ms: u32) !*Self {
@@ -463,9 +564,18 @@ fn advance(self: *Self, source: *g.Client.Source, state: c.DirectClientToken.Pro
     // with the original frozen reference needs no preceding inspection RPC.
     // Cancellation retains its separate owner transition below.
     if (reference == .table and (reference.table.binding.action == .insert or reference.table.binding.action == .update or reference.table.binding.action == .delete) and !state.cancel) {
+        const object = reference.table.binding.target;
+        const claim_slot = &self.table_claims[std.hash.Wyhash.hash(0, std.mem.asBytes(&object)) % self.table_claims.len];
+        try claim_slot.mutex.lock(self.io);
+        defer claim_slot.mutex.unlock(self.io);
         const response = try caller.call(.{ .commit_saved = reference.table });
         defer response.deinit();
-        if (try g.Terminal.fromReference(reference, response.value.result) == null) return true;
+        const terminal = (try g.Terminal.fromReference(reference, response.value.result)) orelse return true;
+        if (claim_slot.pending) |pending_state| if (std.meta.eql(pending_state.receipt.binding.key, state.receipt.binding.key)) {
+            claim_slot.pending = null;
+        };
+        claim_slot.object = object;
+        claim_slot.next_lsn = if (terminal.state == .applied) terminal.next_lsn else std.math.maxInt(u64);
         _ = try c.DirectClientToken.update(caller, .{ .key = state.receipt.binding.key, .expected = state.revision, .pending = false, .cancel = false, .record = state.record });
         return false;
     }
@@ -545,11 +655,13 @@ fn lookupState(observer: *g.Client, nonce: [16]u8, fingerprint: ?[32]u8) !?c.Dir
 /// this helper never resubmits SQL or chooses another accepted identity.
 fn available(self: *Self, observer: *g.Client, deadline: Deadline, comptime function: anytype, args: std.meta.ArgsTuple(@TypeOf(function))) !@typeInfo(@typeInfo(@TypeOf(function)).@"fn".return_type.?).error_union.payload {
     const started = std.Io.Clock.awake.now(self.io);
+    var attempts: u8 = 0;
     while (true) {
         try deadline.check(self.io);
         return @call(.auto, function, args) catch |err| {
             if (!wire.Client.unavailable(err) or observer.transport.last_rejection == .StorageQuota or
-                started.durationTo(std.Io.Clock.awake.now(self.io)).toMilliseconds() >= self.background.timeout_ms) return err;
+                (attempts > 0 and started.durationTo(std.Io.Clock.awake.now(self.io)).toMilliseconds() >= self.background.timeout_ms)) return err;
+            attempts +|= 1;
             try self.io.sleep(.fromMilliseconds(20), .awake);
             continue;
         };
@@ -560,10 +672,10 @@ pub fn admit(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, tab
     try selected.lock(self.io);
     defer selected.unlock(self.io);
     defer self.notify();
-    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, null, true, false, false, false, null);
+    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, null, true, false, false, false, false, null);
     return self.execution.operationFromState(state);
 }
-fn admitWithWake(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64, acceptance_possible: ?*bool, wake: bool, fresh_nonce: bool, fresh_prepared: bool, fresh_fenced: bool, newly_bound: ?*bool) !c.DirectClientToken.Progress {
+fn admitWithWake(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64, acceptance_possible: ?*bool, wake: bool, fresh_nonce: bool, fresh_prepared: bool, fresh_table: bool, fresh_fenced: bool, newly_bound: ?*bool) !c.DirectClientToken.Progress {
     if (newly_bound) |flag| flag.* = false;
     if (acceptance_possible) |flag| flag.* = false;
     try deadline.check(self.io);
@@ -583,7 +695,7 @@ fn admitWithWake(self: *Self, allocator: std.mem.Allocator, observer: *g.Client,
     var random: [8]u8 = undefined;
     try self.io.randomSecure(&random);
     const id = (std.mem.readInt(u64, &random, .little) % p.max_counter) + 1;
-    var fresh = fresh_prepared;
+    var fresh = fresh_table;
     var intent = self.available(observer, deadline, g.Statement.bindWritePrepared, .{ statement, allocator, table, values, id, &fresh }) catch |err| {
         if (expected_fingerprint != null) {
             if (acceptance_possible) |flag| flag.* = true;
@@ -638,9 +750,16 @@ pub fn submitPrepared(self: *Self, allocator: std.mem.Allocator, observer: *g.Cl
     self.beginForeground();
     defer self.endForeground();
     defer selected.unlock(self.io);
+    const table_claim = self.tableClaim(statement);
+    if (table_claim) |claim_slot| try claim_slot.mutex.lock(self.io);
+    defer if (table_claim) |claim_slot| claim_slot.mutex.unlock(self.io);
     errdefer self.notify();
+    try self.settlePendingTableClaim(table_claim, observer, table, deadline);
     var newly_bound = false;
-    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, acceptance_possible, false, true, fresh_prepared, fresh_fenced, &newly_bound);
+    const fresh_table = tableFresh(table_claim, statement, fresh_prepared);
+    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, acceptance_possible, false, true, fresh_prepared, fresh_table, fresh_fenced, &newly_bound);
+    recordPendingTableClaim(table_claim, state);
+    errdefer finishTableClaim(table_claim, statement, null);
     try requireRoute(state, table, statement.namespace);
     if (state.receipt.binding.intent == .workload and newly_bound) {
         try deadline.check(self.io);
@@ -657,6 +776,7 @@ pub fn submitPrepared(self: *Self, allocator: std.mem.Allocator, observer: *g.Cl
         error.GatewayDeadline, error.Conflict => null,
         else => if (wire.Client.unavailable(err)) null else return err,
     };
+    finishTableClaim(table_claim, statement, terminal);
     if (terminal != null)
         return self.project(state, terminal, null);
     if (state.pending) self.notify();
@@ -720,7 +840,7 @@ pub fn executeWorkloadPrepared(self: *Self, allocator: std.mem.Allocator, observ
         self.endForeground();
     };
     errdefer self.notify();
-    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation, null, false, true, fresh_prepared, fresh_fenced, null);
+    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation, null, false, true, fresh_prepared, fresh_prepared, fresh_fenced, null);
     try requireRoute(state, table, statement.namespace);
     const wait = try g.WorkloadOperations.attempt(table.*, state);
     claimed = false;
@@ -756,8 +876,16 @@ pub fn executePrepared(self: *Self, allocator: std.mem.Allocator, observer: *g.C
         selected.unlock(self.io);
         self.endForeground();
     };
+    const table_claim = self.tableClaim(statement);
+    if (table_claim) |claim_slot| try claim_slot.mutex.lock(self.io);
+    var table_claimed = table_claim != null;
+    defer if (table_claimed) table_claim.?.mutex.unlock(self.io);
     errdefer self.notify();
-    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation, null, false, true, fresh_prepared, fresh_fenced, null);
+    try self.settlePendingTableClaim(table_claim, observer, table, deadline);
+    const fresh_table = tableFresh(table_claim, statement, fresh_prepared);
+    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation, null, false, true, fresh_prepared, fresh_table, fresh_fenced, null);
+    recordPendingTableClaim(table_claim, state);
+    errdefer finishTableClaim(table_claim, statement, null);
     const intent = state.receipt.binding.intent;
     try requireRoute(state, table, statement.namespace);
     // Catalog already owns this token and frozen intent. A private candidate
@@ -765,7 +893,10 @@ pub fn executePrepared(self: *Self, allocator: std.mem.Allocator, observer: *g.C
     // conflict received after commit must resolve the original receipt.
     const completed = self.foreground(observer, table, state, deadline) catch |err|
         if (table.service.contended(err)) null else return err;
+    finishTableClaim(table_claim, statement, completed);
     if (completed) |terminal| return .{ .terminal = terminal, .completion = try terminal.completion(try g.IntentReference.commandKind(intent), .{ .account = self.execution.configuration.account, .id = state.id() }) };
+    table_claimed = false;
+    if (table_claim) |claim_slot| claim_slot.mutex.unlock(self.io);
     claimed = false;
     selected.unlock(self.io);
     self.endForeground();
