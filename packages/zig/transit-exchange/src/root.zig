@@ -126,6 +126,7 @@ pub const Intent = struct {
 };
 test {
     _ = AdmissionRejection;
+    _ = Client;
     _ = Failure;
     _ = @import("exchange_test.zig");
 }

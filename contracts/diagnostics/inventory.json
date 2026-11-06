@@ -13312,10 +13312,12 @@
     },
     "packages/zig/transit-exchange/src/Client.zig": {
       "errors": {
+        "Conflict": 4,
         "ExchangeUnavailable": 1,
         "InvalidExchangeAttempt": 5,
         "InvalidExchangeCoverage": 3,
         "InvalidExchangeRecord": 1,
+        "Rejected": 1,
         "StaleExchangeSource": 1,
         "UnknownEffect": 1,
         "WrongExchangeProtocol": 1
@@ -13334,6 +13336,7 @@
         "Reference.encode()": "<inferred>",
         "Reference.validate()": "<inferred>",
         "diagnostic()": "<inferred>",
+        "diagnosticOnce()": "<inferred>",
         "failure()": "<inferred>",
         "inspect()": "<inferred>",
         "open()": "<inferred>",
@@ -13341,10 +13344,10 @@
         "read()": "<inferred>",
         "reader()": "<inferred>"
       },
-      "open_error_set_uses": 0,
+      "open_error_set_uses": 1,
       "propagation": {
         "try": 22,
-        "catch": 0
+        "catch": 3
       },
       "imports": [
         "root.zig",
@@ -13609,7 +13612,7 @@
         "AccessDenied": 2,
         "AuthorityOutcomeUnknown": 3,
         "BehaviorBlocked": 1,
-        "Conflict": 2,
+        "Conflict": 3,
         "ExchangeIdentityConflict": 1,
         "InvalidExchangeAttempt": 4,
         "InvalidExchangeCoverage": 2,
@@ -13650,6 +13653,7 @@
         "For().<return>.driveUntil()": "<inferred>",
         "For().<return>.effect()": "<inferred>",
         "For().<return>.effectFor()": "<inferred>",
+        "For().<return>.effectForOnce()": "<inferred>",
         "For().<return>.exchange()": "<inferred>",
         "For().<return>.handle()": "<inferred>",
         "For().<return>.load()": "<inferred>",
@@ -13660,7 +13664,7 @@
       "open_error_set_uses": 4,
       "propagation": {
         "try": 61,
-        "catch": 5
+        "catch": 6
       },
       "imports": [
         "root.zig",
