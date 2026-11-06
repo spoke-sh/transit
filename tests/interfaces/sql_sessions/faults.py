@@ -130,7 +130,7 @@ class Faults:
                     if 'pin' in table:
                         before_pin, owner.before_pin_once = owner.before_pin_once, None
                         if owner.record_pins:
-                            owner.pin_attempts.append(dict(owner=table['pin']['owner'], expected=table['pin']['expected']))
+                            owner.pin_attempts.append(table['pin'])
                             del owner.pin_attempts[:-8]
                 if before_pin is not None:
                     before_pin()
@@ -403,7 +403,7 @@ class Faults:
                 time.sleep(0.01)
             assert all(item == self.pin_attempts[0] for item in self.pin_attempts), self.pin_attempts
             assert any(item['owner'] == self.pin_attempts[0]['owner'] and item['retained'] for item in self.pin_states), self.pin_states
-            print('Snapshot preparation: raced unaccepted pin is proven absent before reacquisition; a lost accepted pin reply never switches identity.', flush=True)
+            print('Snapshot preparation: a current-cut pin includes the raced write; a lost accepted pin reply never switches identity or selection.', flush=True)
         finally:
             self.record_pins = False
             self.before_pin_once = None

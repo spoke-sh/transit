@@ -118,14 +118,14 @@ frontier, then borrows an unchanged cut without another pin or durable slot
 write. Every page and buffered disclosure still checks current authorization.
 A cold acquisition records its exact owner and expected cut before acquiring the
 pin, binding an unbound recovery slot directly with that initial slot record; a
-missing reply never permits substituting a new cut. Before an iterator or
-result exists, a pin conflict permits another acquisition attempt only after
-`pin_status` proves the original owner absent at a strictly later frontier. The
-old exact request cannot then succeed, even if delayed. The service records its
-closure, rechecks the same Table definition and tries a fresh acquisition, with
-at most four attempts. An existing pin, uncertain observation, definition change
-or exhausted bound ends preparation without switching an accepted cut. Reuse is bounded by
-cache capacity; active borrows cannot be evicted. Idle entries can be replaced,
+missing reply never permits substituting a new cut. Acquisition runs once per
+read preparation, outside the retry helper for pure metadata observations. A
+conflict or transport failure ends preparation and schedules cleanup of the
+original recorded owner. Cleanup resolves that owner with `pin_status` and
+releases its original acquisition before the slot can be reused. A concurrent
+write before a current-cut pin is accepted may advance the selected frontier;
+a lost reply after acceptance never authorizes a replacement pin or cut.
+Reuse is bounded by cache capacity; active borrows cannot be evicted. Idle entries can be replaced,
 and a new generation closes original pins using their recorded identities.
 Closing a result releases its borrow; it need not release the cached durable pin.
 There are no per-query SQL pin files or local fsyncs. The installer retains

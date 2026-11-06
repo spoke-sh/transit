@@ -840,7 +840,10 @@ fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values
                     statement.plan.select.metadata = null;
                     break :blk value;
                 } else null;
-                read.pins[i] = try self.fresh(g.database.ReadCache.acquireCurrentWithMetadata, .{ &self.runtime.read_pins.?, self.table, binding, known_metadata });
+                // Acquisition records a durable owner before dispatch. A lost
+                // reply must return to original-pin cleanup, never the generic
+                // observation retry that can allocate a replacement identity.
+                read.pins[i] = try self.runtime.read_pins.?.acquireCurrentWithMetadata(self.table, binding, known_metadata);
                 snapshots[i] = try read.pins[i].?.snapshot();
             }
             if (statement.plan == .relational) {

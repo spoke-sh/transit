@@ -37,6 +37,36 @@ const Journal = struct {
 };
 const Engine = growing.Engine(Journal, PageStore);
 
+test "signed metadata reads fit a bounded worker stack and retain the final authority fence" {
+    var fixture: Fixture = .{};
+    defer fixture.deinit();
+    try fixture.init();
+    const Worker = struct {
+        fixture: *Fixture,
+        outcome: anyerror!void = {},
+        fn run(self: *@This()) void {
+            self.outcome = self.check();
+        }
+        fn check(self: *@This()) !void {
+            const f = self.fixture;
+            const identity = try f.query(0, .{ .authorization = .{ .kind = .identity } });
+            try t.expectEqual(@as(u64, 0), identity.body.authorization.body.identity.principal);
+            const resources = try f.query(0, .{ .resources = .{} });
+            try t.expectEqual(@as(?u64, null), resources.body.resources.next);
+            for (resources.body.resources.entries) |entry| try t.expect(entry == null);
+            f.journal.race_at = f.journal.tail_calls + 2;
+            defer f.journal.race_at = null;
+            try t.expectError(error.Conflict, f.query(0, .{ .authorization = .{ .kind = .identity } }));
+        }
+    };
+    var worker: Worker = .{ .fixture = &fixture };
+    // Half the ordinary 16 MiB worker stack leaves the other half for nested
+    // host/registration frames. The old read dispatcher alone used 7.5 MiB.
+    const thread = try std.Thread.spawn(.{ .stack_size = 8 * 1024 * 1024 }, Worker.run, .{&worker});
+    thread.join();
+    try worker.outcome;
+}
+
 test "incompatible v1 signatures and persisted heads cannot alter accepted history" {
     var f: Fixture = .{};
     defer f.deinit();
