@@ -1,7 +1,7 @@
 //! Bounded independent file barriers. All started work joins on every outcome;
 //! callers publish names and sync directories only after successful completion.
 const std = @import("std");
-pub const concurrency = 8;
+pub const concurrency = 24;
 
 pub fn sync(io: std.Io, files: []const std.Io.File) !void {
     return run(io, files, std.Io.File.sync);
