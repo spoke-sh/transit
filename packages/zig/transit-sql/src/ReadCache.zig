@@ -47,7 +47,7 @@ cleanup_slot: usize = 0,
 dirty: std.atomic.Value(bool) = .init(true),
 wake: ?*g.RecoveryWork = null,
 pub const capacity = 64;
-const format: u32 = 0x53515231;
+const format: u32 = c.DirectRecord.read_cache_format;
 const Slot = struct { generation: u64, record: ?Record };
 const Entry = struct { record: Record, state: c.DirectClientToken.Progress, users: u32 };
 pub fn init(allocator: std.mem.Allocator, io: std.Io, parent: std.Io.Dir, gateway: Gateway, generation: u64) !Self {

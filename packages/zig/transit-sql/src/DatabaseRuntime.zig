@@ -43,11 +43,25 @@ managed_after: ?u64 = null,
 managed_pending: bool = false,
 managed_work: bool = true,
 managed_has_declarations: u64 = 0,
+foreground_active: std.atomic.Value(u32) = .init(0),
+foreground_notified: std.atomic.Value(bool) = .init(false),
 pub const Keys = struct { table: p.Ed25519.KeyPair };
 const Activation = struct { generation: u64, instance: [16]u8 };
 const activation_format: u32 = 0x53514131;
 pub fn notify(self: *Self) void {
+    if (self.foreground_active.load(.acquire) != 0) {
+        self.foreground_notified.store(true, .release);
+        return;
+    }
     self.work.notify(self.io);
+}
+fn beginForeground(self: *Self) void {
+    _ = self.foreground_active.fetchAdd(1, .acquire);
+}
+fn endForeground(self: *Self) void {
+    if (self.foreground_active.fetchSub(1, .acq_rel) == 1) {
+        if (self.foreground_notified.swap(false, .acq_rel)) self.work.notify(self.io);
+    }
 }
 pub fn notifyExternal(self: *Self) void {
     if (self.external_work) |work| work.notify(self.io);
@@ -621,6 +635,8 @@ pub fn submit(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, ta
 pub fn submitPrepared(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64, acceptance_possible: ?*bool, fresh_prepared: bool, fresh_fenced: bool) !g.session_protocol.Operation {
     const selected = self.claim(nonce);
     try selected.lock(self.io);
+    self.beginForeground();
+    defer self.endForeground();
     defer selected.unlock(self.io);
     errdefer self.notify();
     var newly_bound = false;
@@ -697,14 +713,19 @@ pub fn executeWorkloadPrepared(self: *Self, allocator: std.mem.Allocator, observ
     try self.io.randomSecure(&nonce);
     const selected = self.claim(nonce);
     try selected.lock(self.io);
+    self.beginForeground();
     var claimed = true;
-    defer if (claimed) selected.unlock(self.io);
+    defer if (claimed) {
+        selected.unlock(self.io);
+        self.endForeground();
+    };
     errdefer self.notify();
     const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation, null, false, true, fresh_prepared, fresh_fenced, null);
     try requireRoute(state, table, statement.namespace);
     const wait = try g.WorkloadOperations.attempt(table.*, state);
     claimed = false;
     selected.unlock(self.io);
+    self.endForeground();
     if (state.pending) self.notify();
     while (true) {
         try deadline.check(self.io);
@@ -729,8 +750,12 @@ pub fn executePrepared(self: *Self, allocator: std.mem.Allocator, observer: *g.C
     try self.io.randomSecure(&nonce);
     const selected = self.claim(nonce);
     try selected.lock(self.io);
+    self.beginForeground();
     var claimed = true;
-    defer if (claimed) selected.unlock(self.io);
+    defer if (claimed) {
+        selected.unlock(self.io);
+        self.endForeground();
+    };
     errdefer self.notify();
     const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation, null, false, true, fresh_prepared, fresh_fenced, null);
     const intent = state.receipt.binding.intent;
@@ -743,6 +768,7 @@ pub fn executePrepared(self: *Self, allocator: std.mem.Allocator, observer: *g.C
     if (completed) |terminal| return .{ .terminal = terminal, .completion = try terminal.completion(try g.IntentReference.commandKind(intent), .{ .account = self.execution.configuration.account, .id = state.id() }) };
     claimed = false;
     selected.unlock(self.io);
+    self.endForeground();
     self.notify();
     while (true) {
         try deadline.check(self.io);
