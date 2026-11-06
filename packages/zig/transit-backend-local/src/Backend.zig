@@ -173,8 +173,10 @@ pub fn putTracked(self: *Self, key: []const u8, bytes: []const u8, control: bool
     std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
     try self.data_creators.lockShared(self.io);
     defer self.data_creators.unlockShared(self.io);
-    const allocation = (try self.prepareDataPut(.{ .key = key, .bytes = bytes, .sha256 = digest }, control, source)) orelse return;
-    _ = try self.objects.objectStore().putImmutable(key, bytes, digest);
+    const item: storage.TransitObjectStore.ImmutablePut = .{ .key = key, .bytes = bytes, .sha256 = digest };
+    const allocation = (try self.prepareDataPut(item, control, source)) orelse return;
+    var completed: [1]storage.TransitObjectStore.ObjectMeta = undefined;
+    try self.objects.objectStore().putImmutableBatch((&item)[0..1], &completed);
     try self.confirmDataPuts(&.{allocation});
 }
 
@@ -332,7 +334,9 @@ pub fn putNativeTracked(self: *Self, epoch: u64, kind: @FieldType(Allocations.Al
     defer self.native_creators.unlockShared(self.io);
     try self.prepareNativePut(allocation, bytes.len, control, source);
     var key: [96]u8 = undefined;
-    _ = try self.objects.objectStore().putImmutable(try allocation.key(&key), bytes, digest);
+    const item: storage.TransitObjectStore.ImmutablePut = .{ .key = try allocation.key(&key), .bytes = bytes, .sha256 = digest };
+    var completed: [1]storage.TransitObjectStore.ObjectMeta = undefined;
+    try self.objects.objectStore().putImmutableBatch((&item)[0..1], &completed);
 }
 
 pub const NativePut = struct { address: [32]u8, bytes: []const u8 };
