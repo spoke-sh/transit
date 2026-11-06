@@ -6,7 +6,7 @@ lifecycle across the direct catalog ledger
 the native SQL session wire messages
 ([`Migration`](../packages/zig/transit-sql-protocol/src/Migration.zig)),
 the shared migration planner and resumable executor
-([`MigrationRunner`](../packages/zig/transit-sql/src/MigrationRunner.zig)),
+([`MigrationRunner`](../packages/zig/transit-sql-service/src/MigrationRunner.zig)),
 the public SQL client
 ([`MigrationClient`](../packages/zig/transit-sql-client/src/MigrationClient.zig)),
 and the CLI subcommand (`transit migrate`).

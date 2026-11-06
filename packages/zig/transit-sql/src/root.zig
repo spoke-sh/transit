@@ -30,7 +30,6 @@ pub const RecoveryWork = @import("RecoveryWork.zig");
 pub const Type = session_protocol.Wire.Type;
 pub const Bytes = session_protocol.Wire.Bytes;
 pub const AccountIdentity = @import("AccountIdentity.zig");
-pub const MigrationRunner = @import("MigrationRunner.zig");
 test {
     @import("std").testing.refAllDecls(@This());
 }
