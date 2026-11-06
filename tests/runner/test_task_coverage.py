@@ -32,6 +32,13 @@ class TaskCoverage(unittest.TestCase):
         self.assertNotIn("bindings::authorization", suite["lanes"]["sdks-scripting"])
         self.assertIn("bindings::authorization", suite["external_tasks"]["focused"])
 
+    def test_migrations_cannot_be_demoted_to_focused_only(self):
+        suite = copy.deepcopy(self.suite)
+        suite['lanes']['installation-ui'].remove('test::migrate-lifecycle')
+        suite['external_tasks']['focused'].append('test::migrate-lifecycle')
+        with self.assertRaisesRegex(AssertionError, 'SQL-MIGRATION-01.*found 0'):
+            self.validate(suite)
+
     def test_each_missing_language_owner_fails(self):
         for parent in self.suite["recipe_nested_tasks"]:
             if parent == "bindings::authorization":

@@ -2847,6 +2847,33 @@
       "limits": "Safety only. Models compose neither server authority nor browser/network scheduling and do not prove progress, latency, arbitrary owner counts or the asynchronous queue. Bounded queue and timer behavior have separate deterministic adapter tests.",
       "model": "tests/verification/models/BoardObservation.tla",
       "qualification": "Executed source and finite counts belong in qualification history and .cache/verification/board-model/evidence.json."
+    },
+    {
+      "id": "SQL-MIGRATION-01",
+      "claim": "Migration steps share SQL execution owners, preserve original accepted identities and reject reviewed dataflow dependency or control drift",
+      "owner": "contracts/MIGRATION_V1.md",
+      "implementation": [
+        "packages/zig/transit-sql-service/src/MigrationRunner.zig",
+        "packages/zig/transit-sql-service/src/StatementOperations.zig",
+        "packages/zig/transit-sql-service/src/MigrationDataflow.zig",
+        "tests/interfaces/cli/migrate_lifecycle.py"
+      ],
+      "profile": "cohosted native SQL; ordered Table schemas and finite Table dataflows",
+      "tasks": [
+        "test::migrate-lifecycle"
+      ],
+      "scenarios": [
+        "Same-file Table/dataflow declarations and no-op Table dependencies",
+        "Separate publication and activation with verified output",
+        "Shared Stream/workload dispatch and repeat apply without replay",
+        "Lost migration observation followed by server kill/restart and original-token resume",
+        "Competing claims, same-name dependency replacement, external control drift and current credential denial",
+        "Unsupported owner diagnostics and missing/foreign saved-plan rejection"
+      ],
+      "limits": "Steps commit independently. The fault fixture removes a migration observation after native completion; it does not cover every in-flight owner boundary. No dataflow definition replacement, connector publication or interactive transaction composition.",
+      "model": null,
+      "qualification": "Registration is a required schedule, not a pass; retain source-specific installed lifecycle and clean-lane run evidence.",
+      "required_tier": "ordinary"
     }
   ]
 }

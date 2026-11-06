@@ -109,7 +109,179 @@ def update_ledger_version(root, ports, version_id, mutator):
     ))), 84)
 
 
+def disable_sql_credential(root, ports):
+    """Revoke the isolated fixture's caller through its public policy owner."""
+    profile = json.loads((root / '.transit/sql/authorization.yaml').read_text())
+    connection = profile['connection']
+    administrator = ExistingKey(root, Path(profile['seed_file']))
+    gateway = json.loads((root / '.transit/sql/gateway.json').read_text())
+    account = gateway['accounts'][0]
+    caller = ExistingKey(root, Path(account['keys']['table']))
+    principal = account['execution']['table_principal']
+    role = account['execution']['bindings'][0]['role']
+    port = ports['gateway']
+    realm = connection['realm']
+
+    def read(key, who, selected_role, kind):
+        response = post(port, '/v1/query', native(key, realm, who,
+            dict(authorization=dict(role=selected_role, kind=kind))))
+        return dict(response['body']['authorization'], sequence=response['principal_sequence'])
+
+    identity = read(caller, principal, role, dict(identity={}))['body']['identity']
+    before = read(administrator, connection['principal'], connection['role'], dict(identity={}))
+    command = dict(begin=dict(role=connection['role'], expected_revision=before['revision'],
+        action=dict(disable_credential=dict(principal=principal, expected_epoch=identity['credential_epoch']))))
+    change = None
+    for _ in range(256):
+        current = read(administrator, connection['principal'], connection['role'], dict(identity={}))
+        reply = post(port, '/v1/command', native(administrator, realm, connection['principal'],
+            dict(authorization=command), current['sequence'] + 1))
+        if change is None:
+            change = reply['position']
+        outcome = read(administrator, connection['principal'], connection['role'], dict(change=change))['body']['change']
+        if outcome['status'] == 'published':
+            return
+        assert outcome['status'] in ('preparing', 'ready'), outcome
+        command = {('advance' if outcome['status'] == 'preparing' else 'publish'): change}
+    raise AssertionError('Credential revocation did not complete')
+
+
+def dataflow_lifecycle(root, env, cli, ports, migrations, restart):
+    def migrate(label, action, expected=0, **extra):
+        args = ['migrate', action, '--dir', str(migrations), '--format', 'json']
+        if 'plan' in extra:
+            args = ['migrate', action, '--plan', str(extra['plan']), '--format', 'json']
+        if 'out' in extra:
+            args += ['--out', str(extra['out'])]
+        result = run_cli(root, env, cli, label, *args)
+        assert result.returncode == expected, (label, result.returncode, result.stdout, result.stderr)
+        return json.loads(result.stdout)
+
+    def head():
+        values = sql_query_records(root, env, cli, 'flow-observe', 'SHOW DATAFLOW migration_projection;')
+        return json.loads(values[0]['dataflow'])
+
+    source = migrations / '0004-projection.sql'
+    source.write_text(
+        'CREATE TABLE migration_input (id BIGINT PRIMARY KEY);\n'
+        'CREATE TABLE migration_output (id BIGINT PRIMARY KEY);\n'
+        'INSERT INTO migration_input (id) VALUES (11), (22);\n'
+        'CREATE TABLE IF NOT EXISTS migration_output (id BIGINT PRIMARY KEY);\n'
+        'CREATE DATAFLOW migration_projection INTO migration_output AS SELECT id FROM migration_input;\n'
+        'SHOW DATAFLOW migration_projection;\n'
+        'SHOW TABLES;\n'
+        'SELECT 1;\n'
+        'SELECT id FROM migration_input ORDER BY id;\n'
+        'CREATE STREAM migration_events (id BIGINT NOT NULL);\n'
+    )
+    plan_file = root / 'dataflow-plan.json'
+    tables_before = sql_query_records(root, env, cli, 'flow-tables-before', 'SHOW TABLES;')
+    planned = migrate('flow-plan', 'plan', out=plan_file)
+    flow_step = planned['versions'][-1]['steps'][4]
+    assert flow_step['owner'] == 'computation' and flow_step['effect'] == 'create_dataflow', flow_step
+    assert flow_step['computation']['source']['producer'] == {'version': '0004', 'step': 1}
+    assert flow_step['computation']['output']['producer'] == {'version': '0004', 'step': 2}
+    assert tables_before == sql_query_records(root, env, cli, 'flow-tables-after', 'SHOW TABLES;')
+    applied = migrate('flow-apply', 'apply', plan=plan_file)
+    assert applied['outcome'] == 'applied', applied
+    declared = head()
+    assert declared['observation']['head']['control']['state'] == 'published', declared
+    assert sql_query_records(root, env, cli, 'flow-unactivated-output', 'SELECT id FROM migration_output;') == []
+    original = applied['versions'][-1]['steps'][4]
+    assert original['operation_kind'] == 'dataflow' and original['object_definition'] is not None
+    migrate('flow-inspect', 'inspect', plan=plan_file)
+    migrate('flow-verify', 'verify')
+    repeated = migrate('flow-repeat', 'apply')
+    assert repeated['outcome'] == 'already_satisfied', repeated
+    assert repeated['versions'][-1]['steps'][4]['operation_id'] == original['operation_id']
+    assert head()['observation']['head']['control'] == declared['observation']['head']['control']
+
+    controls = migrations / '0005-activate.sql'
+    controls.write_text('AUTHORIZE DATAFLOW migration_projection;\nACTIVATE DATAFLOW migration_projection;\nSHOW DATAFLOW migration_projection;\nPRODUCE INTO migration_events VALUES (99) RETURNING id;\n')
+    activated = migrate('flow-activate', 'apply')
+    deadline = time.monotonic() + 60
+    while True:
+        observed = head()
+        current = observed['observation']['head']
+        if current['revision'] > 0 and current['pending'] is None:
+            break
+        assert time.monotonic() < deadline, observed
+        time.sleep(.1)
+    assert current['control'] == {'state': 'active', 'epoch': 3, 'refresh': 0}, current
+    assert current['rows'] == 2 and observed['observation']['completion']['outcome'] == 'committed', observed
+    assert sorted(sql_query_records(root, env, cli, 'flow-output', 'SELECT id FROM migration_output;'), key=lambda row: int(row['id'])) == [{'id': '11'}, {'id': '22'}]
+    migrate('flow-final-verify', 'verify')
+    migrate('flow-repeat-workload', 'apply')
+    assert sql_query_records(root, env, cli, 'flow-original-workload', 'CONSUME id FROM migration_events;') == [{'id': '99'}]
+
+    # Lose the migration-ledger observation after the native control completed.
+    # Reconcile the original operation, never submit another ACTIVATE.
+    def lose_control_receipt(entry):
+        entry['state'] = 'applying'
+        entry['active_attempt_id'] = [0xcc] * 16
+        entry['steps'][1]['state'] = 'applying'
+        entry['steps'][1]['operation_id'] = None
+        entry['steps'][1]['object_definition'] = None
+    update_ledger_version(root, ports, '0005', lose_control_receipt)
+    migrate('flow-competing-claim', 'apply', expected=3)
+    restart()
+    resumed = migrate('flow-resume', 'resume')
+    assert resumed['versions'][-1]['steps'][1]['operation_id'] == activated['versions'][-1]['steps'][1]['operation_id']
+    assert head()['observation']['head']['control'] == current['control']
+
+    # Existing dependency identities, not just matching column shapes, bind review.
+    external = run_cli(root, env, cli, 'flow-review-tables', 'console', '--no-rc', '-c',
+        'CREATE TABLE reviewed_input (id BIGINT PRIMARY KEY); CREATE TABLE reviewed_output (id BIGINT PRIMARY KEY);')
+    assert external.returncode == 0, external.stderr
+    review_source = migrations / '0006-review.sql'
+    review_source.write_text('CREATE TABLE IF NOT EXISTS reviewed_output (id BIGINT PRIMARY KEY);\nCREATE DATAFLOW reviewed_projection INTO reviewed_output AS SELECT id FROM reviewed_input;\n')
+    reviewed_file = root / 'reviewed-dataflow.json'
+    migrate('flow-review-plan', 'plan', out=reviewed_file)
+    replaced = run_cli(root, env, cli, 'flow-replace-dependency', 'console', '--no-rc', '-c',
+        'DROP TABLE reviewed_output; CREATE TABLE reviewed_output (id BIGINT PRIMARY KEY);')
+    assert replaced.returncode == 0, replaced.stderr
+    mismatch = migrate('flow-review-drift', 'apply', plan=reviewed_file, expected=3)
+    assert mismatch['diagnostic_code'] == 'migration.plan_digest_mismatch', mismatch
+    review_source.unlink()  # Never admitted; no version checksum is rewritten.
+
+    unsupported = migrations / '0006-unsupported.sql'
+    unsupported.write_text('-- retained source location\nCREATE SOURCE future_source;\n')
+    rejected = migrate('flow-owner-rejection', 'plan', expected=3)
+    assert rejected['diagnostic_code'] == 'migration.statement_unsupported', rejected
+    assert '0006-unsupported.sql:2:1' in rejected['diagnostic_message'], rejected
+    unsupported.unlink()
+
+    # Plans from the previous contract, and plans without a definition, fail locally.
+    saved = json.loads(plan_file.read_text())
+    incompatible = root / 'incompatible-plan.json'
+    for definition in ('3ea13b163d882e8f90a8ea882883f26f95ab970102ba608699b6c412c472fa57', None):
+        value = dict(saved)
+        if definition is None:
+            del value['definition']
+        else:
+            value['definition'] = definition
+        incompatible.write_text(json.dumps(value))
+        rejected = run_cli(root, env, cli, 'flow-foreign-plan', 'migrate', 'apply', '--plan', str(incompatible))
+        assert rejected.returncode != 0 and 'invalid migration plan' in rejected.stderr, rejected.stderr
+
+    pending = migrations / '0006-denied.sql'
+    pending.write_text('CREATE DATAFLOW denied_projection INTO reviewed_output AS SELECT id FROM reviewed_input;\n')
+    denied_plan = root / 'denied-plan.json'
+    migrate('flow-plan-before-revocation', 'plan', out=denied_plan)
+    pending.unlink()
+
+    drift = run_cli(root, env, cli, 'flow-external-suspend', 'console', '--no-rc', '-c', 'SUSPEND DATAFLOW migration_projection;')
+    assert drift.returncode == 0, drift
+    divergent = migrate('flow-control-drift', 'plan', expected=3)
+    assert divergent['diagnostic_code'] == 'migration.dataflow_drift', divergent
+    disable_sql_credential(root, ports)
+    denied = run_cli(root, env, cli, 'flow-revoked-apply', 'migrate', 'apply', '--plan', str(denied_plan), '--format', 'json')
+    assert denied.returncode != 0 and ('denied' in denied.stderr.lower() or 'AccessDenied' in denied.stderr), denied.stderr
+    print('Migration dataflows: reviewed same-file Table dependencies, separate publication/activation, exact output, repeat apply, original control recovery, claim fencing and drift passed.', flush=True)
+
+
 def run(binary):
+    assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
     binary = Path(binary).resolve()
     if binary.is_dir():
         binary = binary / 'bin/transit'
@@ -420,6 +592,27 @@ def run(binary):
                                        'migrate', 'verify', '--dir', str(migrations_dir), '--format', 'json')
                 assert final_verify.returncode == 0, final_verify.stdout
                 assert json.loads(final_verify.stdout)['outcome'] == 'verified'
+
+                def restart():
+                    nonlocal process
+                    owned = processes.children(process.pid)
+                    process.kill()
+                    process.wait(timeout=30)
+                    processes.joined(owned)
+                    process.stdout.close()
+                    offset = log_path.stat().st_size
+                    process = subprocess.Popen([str(cli), 'server', '--no-ui'],
+                                               cwd=root, env=env, stdout=subprocess.PIPE, stderr=log)
+                    deadline = time.monotonic() + 120
+                    while not select.select([process.stdout], [], [], 0.1)[0]:
+                        assert process.poll() is None and time.monotonic() < deadline, log_path.read_text()[offset:]
+                    ready = json.loads(process.stdout.readline())
+                    assert ready['ready'] is True, ready
+                    while 'server.ready Server is ready' not in log_path.read_text()[offset:]:
+                        assert process.poll() is None and time.monotonic() < deadline, log_path.read_text()[offset:]
+                        time.sleep(.05)
+
+                dataflow_lifecycle(root, env, cli, ports, migrations_dir, restart)
 
             finally:
                 owned = processes.children(process.pid)

@@ -154,6 +154,7 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just test::unified-query` | Run signed v1 source/requester recovery fixtures; optionally select a source with `-Dunified-source=kv`, `table` or `document` |
 | `just test::server` | Exercise the native local server and independent console, with disk providers, fresh worker activations and owned process failures |
 | `just test::server-sql`, `just test::server-sql-faults` | Exercise opt-in PostgreSQL/MySQL clients, explicit authorization, retained work and interrupted enrollment |
+| `just test::migrate-lifecycle` | Qualify reviewed Table/dataflow migrations, shared workload execution, no replay on repeat apply, original-token recovery after restart, drift and revocation; required in installation CI |
 | `just test::server-direct-tables` | Exercise installed direct Table CRUD/DDL with the query worker stopped, exact bootstrap recovery and deliberate default-Table deletion |
 | `just test::server-direct-faults` | Refuse direct execution while testing new-console status, cancellation and exact recovery across caller/manager loss |
 | `just test::server-sql-local` | Exercise the default build's single executable under `.cache/transit-sql-local`, with real trust/password clients, TLS modes, revocation and interrupted owner setup |
