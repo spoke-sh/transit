@@ -203,8 +203,11 @@ pub fn recordBatchTrackedWithPrevious(self: *Self, allocations: []const Allocati
         staged[staged_count] = try Files.stage(self.io, self.directory, &names[idx], &encoded[idx], is_replace);
         staged_count += 1;
     }
+    var files: [Objects.max_put_batch]std.Io.File = undefined;
+    for (staged[0..staged_count], files[0..staged_count]) |temp, *file| file.* = temp.file;
+    try storage.SyncBatch.sync(self.io, files[0..staged_count]);
     for (staged[0..staged_count], replace[0..active_count]) |*temp, is_replace| {
-        try Files.publishStaged(self.io, temp, is_replace);
+        if (is_replace) try temp.replace(self.io) else try storage.FilePublication.link(self.io, temp);
     }
     try Files.sync(self.io, self.directory);
 }

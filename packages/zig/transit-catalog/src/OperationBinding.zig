@@ -284,6 +284,11 @@ fn claimStored(allocator: std.mem.Allocator, objects: Objects.ObjectStore, bindi
     var name: [96]u8 = undefined;
     const object_key = try key(binding.identity(), &name);
     if (try objects.head(object_key)) |existing| {
+        if (existing.size == encoded.len and std.mem.eql(u8, &existing.sha256, &digest)) {
+            var stored_bytes: [max_bytes]u8 = undefined;
+            if ((try objects.getRange(object_key, 0, @intCast(encoded.len), stored_bytes[0..encoded.len])).len == encoded.len and
+                std.mem.eql(u8, stored_bytes[0..encoded.len], encoded)) return;
+        }
         const previous = try lookupStored(allocator, objects, binding.identity()) orelse return error.InvalidOperationBinding;
         try previous.requireSame(binding);
         if (existing.size != encoded.len or !std.mem.eql(u8, &existing.sha256, &digest)) return error.InvalidOperationBinding;
@@ -309,6 +314,11 @@ fn claimStoredInTree(allocator: std.mem.Allocator, index: *c.storage.TreeStore, 
     var name: [96]u8 = undefined;
     const object_key = try key(binding.identity(), &name);
     if (try index.store.head(object_key)) |existing| {
+        if (existing.size == encoded.len and std.mem.eql(u8, &existing.sha256, &digest)) {
+            var stored_bytes: [max_bytes]u8 = undefined;
+            if ((try index.store.getRange(object_key, 0, @intCast(encoded.len), stored_bytes[0..encoded.len])).len == encoded.len and
+                std.mem.eql(u8, stored_bytes[0..encoded.len], encoded)) return;
+        }
         const previous = try lookupStored(allocator, index.store, binding.identity()) orelse return error.InvalidOperationBinding;
         try previous.requireSame(binding);
         if (existing.size != encoded.len or !std.mem.eql(u8, &existing.sha256, &digest)) return error.InvalidOperationBinding;

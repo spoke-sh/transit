@@ -1279,6 +1279,9 @@ pub fn checkOperation(self: *Self, binding: d.Binding, namespace_id: u64, policy
     try check(try self.operationGuard(arena.allocator(), binding, namespace_id, policy));
 }
 fn operationGuard(self: *Self, allocator: std.mem.Allocator, binding: d.Binding, namespace_id: u64, policy: Policy) !P.Guard {
+    return self.operationGuardWithRowState(allocator, binding, namespace_id, policy, null);
+}
+fn operationGuardWithRowState(self: *Self, allocator: std.mem.Allocator, binding: d.Binding, namespace_id: u64, policy: Policy, row_state: ?*?P.OperationState) !P.Guard {
     try self.requireInitialized();
     try self.original(policy, binding);
     try c.Model.nativeId(namespace_id);
@@ -1303,7 +1306,13 @@ fn operationGuard(self: *Self, allocator: std.mem.Allocator, binding: d.Binding,
         .drop => .drop,
         .create => unreachable,
     };
-    return self.guard(allocator, policy, namespace_value, view.properties.target(binding.target.object), access);
+    const guard_value = try self.guard(allocator, policy, namespace_value, view.properties.target(binding.target.object), access);
+    if (row_state) |slot| {
+        if (view.table.root.kind == .table and (binding.action == .insert or binding.action == .update or binding.action == .delete)) {
+            slot.* = try view.table.operationState(binding, guard_value);
+        }
+    }
+    return guard_value;
 }
 
 /// Inspect one published managed computation without borrowing the publisher's
@@ -1598,13 +1607,16 @@ fn recordReadGuard(self: *Self, allocator: std.mem.Allocator, connection: c.Dire
 }
 
 fn intentGuard(self: *Self, allocator: std.mem.Allocator, reference: c.DirectIntent.Reference, policy: Policy) !P.Guard {
+    return self.intentGuardWithRowState(allocator, reference, policy, null);
+}
+fn intentGuardWithRowState(self: *Self, allocator: std.mem.Allocator, reference: c.DirectIntent.Reference, policy: Policy, row_state: ?*?P.OperationState) !P.Guard {
     try reference.validate();
     return switch (reference) {
         .history => self.guard(allocator, policy, null, null, .database),
         .branch => |value| self.branchGuard(allocator, value, policy, false),
         .transaction, .transaction_call => self.guard(allocator, policy, null, null, .database),
         .external => self.guard(allocator, policy, null, null, .database),
-        .table => |value| self.operationGuard(allocator, value.binding, value.namespace, policy),
+        .table => |value| self.operationGuardWithRowState(allocator, value.binding, value.namespace, policy, row_state),
         .log => |value| blk: {
             var intent = try c.DirectLogIntent.load(allocator, self.data_objects, value);
             defer intent.deinit();
@@ -1807,8 +1819,9 @@ pub fn clientProgressWithWorkloads(self: *Self, request: c.DirectClientToken.Pro
         return .{ .state = null };
     };
     if (state.source != null) return error.DocumentSourceOperationRequired;
-    const current = try self.intentGuard(arena.allocator(), state.receipt.binding.intent, policy);
-    try check(current);
+    var observed_row_state: ?P.OperationState = null;
+    const current = try self.intentGuardWithRowState(arena.allocator(), state.receipt.binding.intent, policy, if (request == .update and !request.update.pending) &observed_row_state else null);
+    if (observed_row_state == null) try check(current);
     if (request == .retain_original or request == .attach_original or request == .close_original)
         return .{ .state = try self.originalControl(arena.allocator(), state, request, policy, current) };
     if (state.original) |owned_state| if (request.mutation() and owned_state.phase != .retained and owned_state.phase != .attached and !(owned_state.phase == .closed and request == .advance)) return error.OwnedRecordOperationRequired;
@@ -1826,7 +1839,14 @@ pub fn clientProgressWithWorkloads(self: *Self, request: c.DirectClientToken.Pro
     if (state.staged == null and state.pending == value.pending and state.cancel == value.cancel and std.meta.eql(state.record, value.record)) return .{ .state = state };
     if (!std.meta.eql(state.revision, value.expected)) return error.ClientOperationConflict;
     if ((!state.pending and value.pending) or (state.cancel and !value.cancel)) return error.ClientOperationConflict;
-    if (!value.pending) try self.requireClientTerminal(state.receipt.binding.intent, policy, workloads);
+    if (!value.pending) {
+        if (observed_row_state) |row_state| {
+            switch (row_state) {
+                .not_observed, .admitted => return error.ClientOperationPending,
+                else => {},
+            }
+        } else try self.requireClientTerminal(state.receipt.binding.intent, policy, workloads);
+    }
     if (value.record) |reference| {
         const bytes = try c.DirectRecord.load(self.allocator, self.data_objects, reference);
         defer self.allocator.free(bytes);
@@ -4124,7 +4144,7 @@ fn open(self: *Self, allocator: std.mem.Allocator, target: r.Entry, control: boo
 
 fn openTransaction(self: *Self, allocator: std.mem.Allocator, target: r.Entry, control: bool, transaction_control: bool) !View {
     if (target.resource != null or target.log != null) return error.CatalogKindMismatch;
-    const resident = if (control or transaction_control or self.transaction_read != null) null else self.options.table_owner;
+    const resident = if (transaction_control or self.transaction_read != null) null else self.options.table_owner;
     const original_seed = target.seed orelse return error.CatalogRegistrationRequired;
     if (resident) |slot| if (slot.*) |cached| {
         slot.* = null;
@@ -4133,14 +4153,14 @@ fn openTransaction(self: *Self, allocator: std.mem.Allocator, target: r.Entry, c
             errdefer table.deinit();
             table.log = if (control) self.store.log else self.data_log;
             table.objects = if (control) self.store.objects else self.data_objects;
+            table.index.store = table.objects;
             try table.refresh();
             const properties = try Properties.decode(allocator, table.declaration.definition.properties);
             return .{ .table = table, .properties = properties, .recovery_state = self.options.table_recovery, .owner_slot = slot, .seed = original_seed };
         }
         table.deinit();
     };
-    // Control allocation opens and ordinary data opens never share a hint.
-    const slot = if (control) null else self.options.table_recovery;
+    const slot = self.options.table_recovery;
     const prior = if (slot) |value| value.* else null;
     if (slot) |value| value.* = null;
     var seed = try s.TableDeclaration.load(allocator, self.data_objects, target.seed orelse return error.CatalogRegistrationRequired);
@@ -5497,6 +5517,47 @@ pub fn cancelRows(self: *Self, binding: d.Binding, policy: Policy) !P.OperationS
 pub fn applyRows(self: *Self, request: s.TableDmlIntent.Request, policy: Policy) !P.OperationState {
     try request.validate();
     return self.rowOperation(request.binding, .commit, request, policy);
+}
+pub fn applySavedRows(self: *Self, allocator: std.mem.Allocator, reference: c.DirectTableIntent.Reference, policy: Policy) !P.OperationState {
+    if (reference.binding.action != .insert and reference.binding.action != .update and reference.binding.action != .delete) return error.UnsupportedTableAction;
+    try self.requireInitialized();
+    try self.original(policy, reference.binding);
+    try c.Model.nativeId(reference.namespace);
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    try check(try self.guard(arena.allocator(), policy, null, null, .database));
+    const namespace_value = try self.authorizationSchema(reference.namespace);
+    try check(try self.guard(arena.allocator(), policy, namespace_value, null, .schema));
+    const target = try self.entry(reference.binding.target.object) orelse return error.CatalogDenied;
+    if (target.seed == null) return error.CatalogDenied;
+    var view = try self.open(self.allocator, target, false);
+    defer view.deinit();
+    if (view.properties.namespace != reference.namespace or view.table.root.next_lsn == 0) return error.CatalogDenied;
+    if (view.table.root.kind != .table) return error.CatalogKindMismatch;
+    const access: a.Access = switch (reference.binding.action) {
+        .insert => .insert,
+        .update => .update,
+        .delete => .delete,
+        else => unreachable,
+    };
+    const required = try self.requirements(policy, namespace_value, view.properties.target(target.object), access);
+    var current = try policy.make_guard(policy.context, arena.allocator(), required, null);
+    try check(current);
+    var intent = try c.DirectTableIntentStore.load(self.allocator, self.data_objects, reference);
+    defer intent.deinit();
+    const request = switch (intent.parsed.value.work) {
+        inline .rows, .statement => |value| try value.native(allocator),
+        .ddl => return error.UnsupportedTableAction,
+    };
+    try request.validate();
+    if (request.binding.prerequisite != null) {
+        current = try policy.make_guard(policy.context, arena.allocator(), required, request.binding.prerequisite);
+        try check(current);
+    }
+    try c.OperationBinding.claim(self.allocator, self.data_objects, request.binding);
+    if (try view.table.operationState(request.binding, current) == .not_observed and try self.pendingWithView(target.object, &view, current)) return error.CatalogObjectBusy;
+    view.table.lose_reply = self.lose_table_reply;
+    return view.table.commit(request, current);
 }
 
 fn rowOperation(self: *Self, binding: d.Binding, action: enum { admit, commit, perform, status, cancel }, request: ?s.TableDmlIntent.Request, policy: Policy) !P.OperationState {

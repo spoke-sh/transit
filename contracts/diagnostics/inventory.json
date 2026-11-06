@@ -2570,7 +2570,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 54,
+        "try": 56,
         "catch": 1
       },
       "imports": [
@@ -4645,23 +4645,23 @@
         "BranchRetired": 1,
         "BranchSourceChanged": 3,
         "BufferTooSmall": 1,
-        "CatalogDenied": 84,
+        "CatalogDenied": 87,
         "CatalogDependencyOwned": 1,
         "CatalogHistoryMissing": 1,
         "CatalogIdentityConflict": 9,
-        "CatalogKindMismatch": 16,
+        "CatalogKindMismatch": 17,
         "CatalogNameHashCollision": 2,
         "CatalogNameNotFound": 1,
         "CatalogNamespaceMissing": 4,
         "CatalogNotInitialized": 1,
-        "CatalogObjectBusy": 2,
+        "CatalogObjectBusy": 3,
         "CatalogObjectMissing": 1,
         "CatalogObservationChanged": 2,
         "CatalogRegistrationRequired": 12,
         "CheckConstraintViolation": 1,
         "ClientOperationConflict": 11,
         "ClientOperationMissing": 29,
-        "ClientOperationPending": 8,
+        "ClientOperationPending": 9,
         "ClientTokenBudget": 3,
         "ClientTokenCapacity": 1,
         "ClientTokenConflict": 7,
@@ -4808,7 +4808,7 @@
         "UnrepresentableEbcdic037": 1,
         "UnrepresentableEbcdic1047": 1,
         "UnsupportedHistoricalTransaction": 1,
-        "UnsupportedTableAction": 2,
+        "UnsupportedTableAction": 4,
         "UnsupportedTransactionParticipant": 3,
         "UnsupportedTransactionRead": 2,
         "WorkloadServiceUnavailable": 1
@@ -4891,6 +4891,7 @@
         "advanceQueueTransfer()": "<inferred>",
         "altersReferencedColumn()": "<inferred>",
         "applyRows()": "<inferred>",
+        "applySavedRows()": "<inferred>",
         "assertName()": "<inferred>",
         "assertionCondition()": "<inferred>",
         "assertionRequirements()": "<inferred>",
@@ -4982,6 +4983,7 @@
         "inspectStorage()": "<inferred>",
         "inspectTransaction()": "<inferred>",
         "intentGuard()": "<inferred>",
+        "intentGuardWithRowState()": "<inferred>",
         "kvAccess()": "<inferred>",
         "kvReady()": "<inferred>",
         "kvRequirements()": "<inferred>",
@@ -5027,6 +5029,7 @@
         "openHistory()": "<inferred>",
         "openTransaction()": "<inferred>",
         "operationGuard()": "<inferred>",
+        "operationGuardWithRowState()": "<inferred>",
         "original()": "<inferred>",
         "originalControl()": "anyerror",
         "overlayTransactionRead()": "<inferred>",
@@ -5169,7 +5172,7 @@
       },
       "open_error_set_uses": 13,
       "propagation": {
-        "try": 2398,
+        "try": 2421,
         "catch": 30
       },
       "imports": [
@@ -8114,8 +8117,7 @@
         "NamedResourceNativeUnavailable": 1,
         "QueueServiceUnavailable": 2,
         "StreamServiceUnavailable": 2,
-        "TableDelegationDenied": 1,
-        "UnsupportedTableAction": 2
+        "TableDelegationDenied": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -8141,7 +8143,7 @@
       },
       "open_error_set_uses": 9,
       "propagation": {
-        "try": 250,
+        "try": 247,
         "catch": 0
       },
       "imports": [
@@ -10128,7 +10130,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 50,
+        "try": 52,
         "catch": 1
       },
       "imports": [
@@ -39130,7 +39132,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 116,
+        "try": 115,
         "catch": 10
       },
       "imports": [

@@ -141,6 +141,7 @@ fn target(action: w.Action) ?u64 {
         inline .scan, .column_scan, .filter_scan, .read_key, .key_range, .history, .projection_definitions, .projection_locations => |value| value.snapshot.object.object,
         inline .snapshot, .history_start, .history_source, .release => |value| value.object.object,
         .history_scan => |value| value.source.object.object,
+        .client_token => |value| if (value == .bind and value.bind.intent == .table) value.bind.intent.table.binding.target.object else null,
         else => null,
     };
 }
@@ -250,7 +251,7 @@ fn executeSingle(self: *Self, comptime format: Service.Output, io: std.Io, engin
         if (recovered.root.next_lsn > self.recovery.root.next_lsn) self.recovery = recovered;
     }
     var options = self.options;
-    if (index) |slot| options.table_recovery = &self.table_recovery[slot];
+    if (stripe(request.action)) |slot| options.table_recovery = &self.table_recovery[slot];
     // Storage owners contain no request pointers and can serve any free lane.
     // Their count is bounded independently of the durable Table population.
     const slots: []ResidentSlot = if (control) &self.control_residents else &self.residents;

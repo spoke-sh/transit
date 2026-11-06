@@ -321,7 +321,14 @@ pub fn putImmutableBatch(self: *Self, batch: []const object.ImmutablePut, output
         try self.prepareContent(item.key, item.bytes, .immutable, &staged_content[staged_count]);
         staged_count += 1;
     }
-    var files: [object.max_put_batch * 2]std.Io.File = undefined;
+    var staged_records: [object.max_put_batch]StagedRecord = undefined;
+    var record_count: usize = 0;
+    defer for (staged_records[0..record_count]) |*item| item.deinit(self.io);
+    for (batch, staged_content[0..staged_count]) |item, staged| {
+        try self.prepareRecordName(item.key, staged.record, &staged_records[record_count]);
+        record_count += 1;
+    }
+    var files: [object.max_put_batch * 3]std.Io.File = undefined;
     var file_count: usize = 0;
     for (staged_content[0..staged_count]) |staged| {
         files[file_count] = staged.data_file.file;
@@ -331,21 +338,16 @@ pub fn putImmutableBatch(self: *Self, batch: []const object.ImmutablePut, output
             file_count += 1;
         }
     }
+    for (staged_records[0..record_count]) |record_file| {
+        files[file_count] = record_file.atomic.file;
+        file_count += 1;
+    }
     try @import("SyncBatch.zig").sync(self.io, files[0..file_count]);
     for (batch, staged_content[0..staged_count]) |item, *staged| {
         try self.linkContentFile(&staged.data_file, staged.data_name[0..staged.data_name_len], item.bytes, false);
         if (staged.checks_file) |*checks| try self.linkContentFile(checks, staged.checks_name[0..staged.checks_name_len], item.bytes, true);
     }
     try syncIterated(self.io, self.objects_dir);
-    var staged_records: [object.max_put_batch]StagedRecord = undefined;
-    var record_count: usize = 0;
-    defer for (staged_records[0..record_count]) |*item| item.deinit(self.io);
-    for (batch, staged_content[0..staged_count]) |item, staged| {
-        try self.prepareRecordName(item.key, staged.record, &staged_records[record_count]);
-        record_count += 1;
-    }
-    for (staged_records[0..record_count], files[0..record_count]) |record_file, *file| file.* = record_file.atomic.file;
-    try @import("SyncBatch.zig").sync(self.io, files[0..record_count]);
     for (staged_records[0..record_count]) |*record_file| try record_file.atomic.replace(self.io);
     try syncIterated(self.io, self.keys_dir);
     for (output, staged_content[0..staged_count]) |*meta, staged| meta.* = staged.record.meta;
