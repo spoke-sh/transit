@@ -24,7 +24,11 @@
   "statement_classes": {
     "warm_read": 32.0,
     "refresh_read": 682.0,
-    "dml_write": 836.0
+    "dml_write": 836.0,
+    "stream_read": 682.0,
+    "stream_write": 836.0,
+    "queue_read": 682.0,
+    "queue_write": 836.0
   },
   "statements": {
     "select_cold": 902.0,
@@ -42,12 +46,26 @@
     "delete": 1059.0,
     "select_after_delete": 902.0,
     "delete_empty": 1059.0,
-    "select_json_after_delete": 33.0
+    "select_json_after_delete": 33.0,
+    "stream_consume_empty": 902.0,
+    "stream_produce": 1059.0,
+    "stream_consume_after_produce": 902.0,
+    "stream_consume_warm": 902.0,
+    "stream_consume_json": 902.0,
+    "queue_claim_empty": 902.0,
+    "queue_enqueue": 1059.0,
+    "queue_claim": 902.0,
+    "queue_extend_lease": 1059.0,
+    "queue_ack": 1059.0,
+    "queue_enqueue_nack": 1059.0,
+    "queue_claim_nack": 902.0,
+    "queue_nack": 1059.0,
+    "queue_claim_after_ack": 902.0
   },
   "resources": {
     "process_count": 7,
     "threads_max": 219,
-    "pss_bytes_max": 1044362240,
+    "pss_bytes_max": 1322380288,
     "cycle_pss_growth_ratio": 1.0673,
     "cycle_pss_growth_ratio_max": 1.15
   }

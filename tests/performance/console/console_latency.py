@@ -308,12 +308,13 @@ def main():
         if args.instrument and not args.remote_sql:
             from harness.sql_placement import Probe as LocalProbe
             probes['local'] = LocalProbe(fixture)
-        invalid = subprocess.run([fixture.cli, 'console', '--no-rc'],
-                                 input='.timer on\nCREATE KV items (UTF8);', cwd=fixture.root,
-                                 capture_output=True, text=True, timeout=30,
-                                 env={'PATH': '/unavailable'})
-        assert invalid.returncode == 1 and not invalid.stdout, invalid
-        assert 'Time: ' in invalid.stderr and 'error: ' in invalid.stderr, invalid.stderr
+        for declaration in ('CREATE KV items (UTF8);', 'CREATE DOCUMENT items;'):
+            invalid = subprocess.run([fixture.cli, 'console', '--no-rc'],
+                                     input='.timer on\n' + declaration, cwd=fixture.root,
+                                     capture_output=True, text=True, timeout=30,
+                                     env={'PATH': '/unavailable'})
+            assert invalid.returncode == 1 and not invalid.stdout, invalid
+            assert 'Time: ' in invalid.stderr and 'error: ' in invalid.stderr, invalid.stderr
         authority = [pid for pid in children(fixture.process.pid)
                      if command(pid).startswith(node + ' ') and '--maintain' not in command(pid)]
         assert len(authority) == 1, authority
