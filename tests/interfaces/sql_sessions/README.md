@@ -149,7 +149,7 @@ gateway replacement and explicit release. `just test::sql-history` owns this
 installed check. Retention uses the public direct historical operations; its
 selector bytes and expected rows are independently specified in the driver.
 
-`waits.py`, included in `just test::sql-log-declarations`, checks Queue WAIT
+`waits.py`, included in `just test::sql-log-declarations`, checks Stream and Queue WAIT
 through real native owners, PostgreSQL, MySQL and the console. It retains the
 original token through timeout, lost reply and service replacement, proves
 passive observation cannot acquire later arrivals, then explicitly resumes or
@@ -161,7 +161,7 @@ A 500 ms statement budget interrupts foreground resume of an original one-second
 independent status must observe no native timeout cut. The same session then
 resets its budget. An in-flight remote attempt may still accept a later arrival;
 the test resolves that original outcome or explicitly resumes it, preserving
-identity, selection and lease after new arrivals. Native waiter saturation and lease algorithms
+identity, selected cut and Queue lease after new arrivals. Native waiter saturation and lease algorithms
 retain their separate storage/runtime proofs.
 
 For iteration on WAIT alone, the same installed driver accepts `sessions-wait`:

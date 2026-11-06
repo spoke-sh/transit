@@ -298,8 +298,15 @@ and [M7 Document lifetime components, #388](https://github.com/spoke-sh/transit/
 Its shared definition is
 `240baa2bb21e59ab138b0b8a21097676d142d401f2a726e2a283d7ad01a885e5`.
 The earlier audit below retains its original source and definition. This section
-selects the next bounded part of P3; it is a plan, not implementation or executed
-qualification. Upcoming Stream WAIT and direct Document ingress are not prerequisites.
+records the selected bounded part of P3 and its implementation acceptance gates.
+
+**Implementation rebased on 2026-11-05** onto `origin/main`
+`a9103fbae`, including [M6 Stream WAIT, #391](https://github.com/spoke-sh/transit/pull/391)
+and Board D5. The inherited-cap implementation and tests are present; final
+rebased-source qualification is pending. The shared definition from that base is
+`2dce803c5e406b5fbf526daee33411a03a71b22bea0e8ebe30fa7afdbd2457b6`.
+This slice adds no persisted or wire fields and requires no further cutover.
+Direct Document ingress remains a separate owner-qualified extension.
 
 **Outcome:** an active SQL command carries one absolute command deadline through
 host scheduling, service authorization, nested signed calls and local owner
@@ -385,13 +392,14 @@ before implementation: any incompatible public or persisted semantic change
 requires the repository's full current-v1 definition cutover and dependent
 fixtures/bindings, not a silent reuse of this base's definition.
 
-#### M6 Queue WAIT integration
+#### M6 Stream and Queue WAIT integration
 
-Preserve the delivered [Queue wait-attempt contract](../../contracts/SQL_SESSION_V1.md#queue-wait-attempts).
+Preserve the delivered [Queue wait-attempt contract](../../contracts/SQL_SESSION_V1.md#queue-wait-attempts)
+and [Stream wait-attempt contract](../../contracts/SQL_SESSION_V1.md#stream-wait-attempts).
 The saved 1–1000 ms wait duration and immutable native binding stay unchanged.
 The active caller cap can interrupt the foreground attempt sooner; it cannot
 rewrite the saved duration, synthesize native `timed_out` evidence or turn
-interruption into `CLAIM 0`, rollback or a durable rejection.
+interruption into `CLAIM 0`, `CONSUME 0`, rollback or a durable rejection.
 
 First admission performs at most one attempt. Status, background recovery and
 same-token execute only observe original work; only explicit workload resume
@@ -403,14 +411,16 @@ Foreground locks/claims needed by recovery must be released on unwind, and
 partition locks must remain released while parked. Keep the existing bounded
 wait lane rather than introducing a queue or a worker per waiter.
 
-[Stream WAIT](06-streams-queues-and-durable-runtime.md) is the next M6 consumer
-of this seam when merged and qualified. M8 neither implements its selection
-contract here nor assumes that a component/native wait establishes SQL support.
+[Stream WAIT](06-streams-queues-and-durable-runtime.md) arrived in the rebased
+main. The installed deadline proof now runs the same original-operation schedule
+for both Stream and Queue waits, preserving Stream cut/group semantics and Queue
+lease semantics from their M6 owners.
 
 #### Logical commits and acceptance controls
 
-Implement in this order, keeping each commit buildable and including its focused
-tests and owner documentation. These are planned commits, not completed work.
+The implementation follows this commit sequence, with focused tests and owner
+documentation. The acceptance controls remain obligations until their owning
+checks pass on the rebased source.
 
 | Commit | Implementation and reviewable result | Required negative controls |
 | --- | --- | --- |
@@ -460,8 +470,8 @@ ready-socket and buffered-TLS controls.
 
 Before pushing implementation, commit the final source and execute
 `nix develop --command just ci clean --lane NAME` for `core`, `storage-query`,
-`interfaces-sql` and `installation-ui`, which own the changed client/node/SQL
-paths. Add other affected lanes if the final diff reaches their owners. Record
+`interfaces-sql`, `interfaces-relational` and `installation-ui`, which own the
+changed client/node/SQL paths and original-write recovery helper. Record
 the revision, commands, exact outcomes and evidence paths; required failures or
 incomplete runs block opening/updating the implementation PR. Run heavy lanes
 and timing gates sequentially on the shared host. Keep latency workloads and
@@ -469,8 +479,7 @@ thresholds unchanged. The prior PR's startup-gate failure and diagnostic rerun
 remain attributed to their original attempts; merged source and older-definition
 passes do not qualify this base or explain those failures.
 
-This **plan-only change** requires the baseline and documentation link checks,
-not execution of the future runtime matrix. Runtime acceptance requires all four
+Runtime acceptance requires all four
 commit exits and applicable gates at the final implementation revision. Record
 the exact remaining timer owners and cancellation limitations in the public
 component guides and link executed evidence from qualification history.
