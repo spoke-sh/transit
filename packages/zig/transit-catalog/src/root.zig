@@ -101,6 +101,7 @@ test {
     _ = CatalogDefinition;
     _ = SourceDeclaration;
     _ = DirectSource;
+    _ = DirectSourceClient;
     _ = SourceAuthority;
     _ = DirectHistoryDirectory;
     _ = DirectSchemaProjection;

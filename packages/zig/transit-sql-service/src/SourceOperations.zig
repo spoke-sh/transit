@@ -103,7 +103,7 @@ fn read(host: *g.Session, id: u64) !std.json.Parsed(Saved) {
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
     if (!std.mem.eql(u8, &digest, &item.source)) return error.InvalidSourceDeclaration;
-    const saved = try p.Json.parseFromSlice(Saved, host.allocator, bytes);
+    const saved = try Saved.decode(host.allocator, bytes);
     errdefer saved.deinit();
     try saved.value.requireCaller(host.table);
     return saved;
