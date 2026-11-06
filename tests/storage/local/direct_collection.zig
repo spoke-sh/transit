@@ -75,17 +75,26 @@ test "protected Document sources survive real collection cuts and closure surviv
     var chunk_hash: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(&bytes, &chunk_hash, .{});
     const chunk: s.DocumentSource.Chunk = .{ .offset = 0, .content = .{ .bytes = bytes.len, .sha256 = chunk_hash } };
-    const upload: c.DirectDocumentSource.Upload = .{ .control = .{ .key = descriptor.key, .expected = original.entry.revision }, .chunk = chunk, .bytes = &bytes };
+    // A nine-chunk prefix spans multiple inventory pages before the cut.
+    for (0..9) |i| {
+        var next_chunk = chunk;
+        next_chunk.offset = i * bytes.len;
+        original = try catalog.documentSourceUpload(.{ .control = .{ .key = descriptor.key, .expected = original.entry.revision }, .chunk = next_chunk, .bytes = &bytes }, owner.policy(), owner.sourceAuthority());
+    }
+    var pending_chunk = chunk;
+    pending_chunk.offset = 9 * bytes.len;
+    const upload: c.DirectDocumentSource.Upload = .{ .control = .{ .key = descriptor.key, .expected = original.entry.revision }, .chunk = pending_chunk, .bytes = &bytes };
+    try s.DocumentSource.put(fixture.data.objects(), @splat(99), chunk, &bytes);
     catalog.store.lose_reply = true;
     try t.expectError(error.LostAcknowledgement, catalog.documentSourceUpload(upload, owner.policy(), owner.sourceAuthority()));
     catalog.store.lose_reply = false;
     try catalog.recover();
     var collector: Collection = .{ .backend = &fixture.owner };
     try collector.start(&fixture.engine, try fixture.fence());
-    // The cut saw a reservation without bytes. Later creation uses a newer
-    // allocation epoch and cannot be deleted by this older collection.
+    // The cut retains the paged ready prefix and an absent pending chunk.
+    // Later chunks and replacement roots use the newer allocation epoch.
     original = try catalog.documentSourceUpload(upload, owner.policy(), owner.sourceAuthority());
-    for (1..160) |i| {
+    for (10..160) |i| {
         var next_chunk = chunk;
         next_chunk.offset = i * bytes.len;
         original = try catalog.documentSourceUpload(.{ .control = .{ .key = descriptor.key, .expected = original.entry.revision }, .chunk = next_chunk, .bytes = &bytes }, owner.policy(), owner.sourceAuthority());
@@ -110,11 +119,19 @@ test "protected Document sources survive real collection cuts and closure surviv
         try t.expect(try collector.step(&fixture.engine, .{ .unix_ms = fixture.now }));
     }
     try t.expectEqual(.complete, (try collector.current()).?.phase);
+    try t.expect(!(try collector.current()).?.aborted);
     var path: [96]u8 = undefined;
-    try t.expect(try fixture.data.objects().head(try s.DocumentSource.key(try descriptor.key.digest(), chunk, &path)) != null);
-    try s.DocumentSource.put(fixture.data.objects(), @splat(99), chunk, &bytes);
-    _ = try fixture.collect();
-    for (try catalog.documentSourceRead(descriptor.key, 0, &bytes, owner.policy(), owner.sourceAuthority())) |byte| try t.expectEqual(17, byte);
+    const source_owner = try descriptor.key.digest();
+    for (0..160) |i| {
+        var retained_chunk = chunk;
+        retained_chunk.offset = i * bytes.len;
+        const retained = (try fixture.data.objects().head(try s.DocumentSource.key(source_owner, retained_chunk, &path))).?;
+        try t.expectEqual(chunk.content.bytes, retained.size);
+        try t.expectEqualDeep(chunk.content.sha256, retained.sha256);
+    }
+    try t.expect(try fixture.data.objects().head(try s.DocumentSource.key(@splat(99), chunk, &path)) == null);
+    for ([_]u64{ 0, 159 * s.DocumentSource.chunk_bytes }) |offset|
+        for (try catalog.documentSourceRead(descriptor.key, offset, &bytes, owner.policy(), owner.sourceAuthority())) |byte| try t.expectEqual(17, byte);
     original = (try catalog.documentSourceInspect(.{ .key = descriptor.key }, owner.policy(), owner.sourceAuthority())).?;
     const closed = try catalog.documentSourceClose(.{ .key = descriptor.key, .expected = original.entry.revision }, owner.policy(), owner.sourceAuthority());
     try collector.start(&fixture.engine, try fixture.fence());
@@ -136,7 +153,11 @@ test "protected Document sources survive real collection cuts and closure surviv
     }
     const complete = (try collector.current()).?;
     try t.expect(complete.phase == .complete and !complete.aborted and complete.reclaimed_objects > 0);
-    try t.expect(try fixture.data.objects().head(try s.DocumentSource.key(try descriptor.key.digest(), chunk, &path)) == null);
+    for (0..160) |i| {
+        var reclaimed_chunk = chunk;
+        reclaimed_chunk.offset = i * bytes.len;
+        try t.expect(try fixture.data.objects().head(try s.DocumentSource.key(source_owner, reclaimed_chunk, &path)) == null);
+    }
     try t.expectEqualDeep(closed, try catalog.documentSourceReserve(descriptor, owner.policy(), owner.sourceAuthority()));
     try t.expectError(error.OwnedRecordClosed, catalog.documentSourceUpload(upload, owner.policy(), owner.sourceAuthority()));
 }
