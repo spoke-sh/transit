@@ -275,28 +275,29 @@ fn activate(self: *Self) !void {
     self.private.credential_epoch = epoch;
     self.ingress.credential_epoch = epoch;
     caller.credential_epoch = epoch;
-    var state = inspected.value.result.client_progress.state;
-    if (state == null) {
-        const body = try c.DirectRecord.stage(caller, key.account, activation_format, &configuration);
-        const receipt = try c.DirectClientToken.bind(caller, .{ .key = key, .fingerprint = configuration, .intent = .{ .external = .{ .connection = caller.connection, .namespace = self.execution.configuration.bindings[0].namespace, .operation = (std.mem.readInt(u64, configuration[0..8], .little) % p.max_counter) + 1, .record = body } } });
-        state = c.DirectClientToken.Progress.initial(receipt);
-    }
-    var current = state orelse return error.MissingGatewayOperation;
-    if (!std.mem.eql(u8, &configuration, &current.receipt.binding.fingerprint)) return error.GatewayConfigurationChanged;
-    if (current.record) |record| {
-        const bytes = try c.DirectRecord.read(self.allocator, caller, record);
-        defer self.allocator.free(bytes);
-        const saved = try p.Json.parseFromSlice(Activation, self.allocator, bytes);
-        defer saved.deinit();
-        if (saved.value.generation >= self.generation) return error.StaleGatewayCoordinator;
-    }
     var value: Activation = .{ .generation = self.generation, .instance = undefined };
     try self.io.randomSecure(&value.instance);
     const bytes = try p.Json.valueAlloc(self.allocator, value);
     defer self.allocator.free(bytes);
-    self.activation_record = try c.DirectRecord.stage(caller, key.account, activation_format, bytes);
-    current = try c.DirectClientToken.update(caller, .{ .key = key, .expected = current.revision, .pending = true, .cancel = false, .record = self.activation_record });
-    self.activation = current;
+    if (inspected.value.result.client_progress.state) |state| {
+        var current = state;
+        if (!std.mem.eql(u8, &configuration, &current.receipt.binding.fingerprint)) return error.GatewayConfigurationChanged;
+        const record = current.record orelse if (current.receipt.binding.intent == .external) current.receipt.binding.intent.external.record else return error.MissingGatewayOperation;
+        const saved_bytes = try c.DirectRecord.read(self.allocator, caller, record);
+        defer self.allocator.free(saved_bytes);
+        const saved = try p.Json.parseFromSlice(Activation, self.allocator, saved_bytes);
+        defer saved.deinit();
+        if (saved.value.generation >= self.generation) return error.StaleGatewayCoordinator;
+        self.activation_record = try c.DirectRecord.stage(caller, key.account, activation_format, bytes);
+        current = try c.DirectClientToken.update(caller, .{ .key = key, .expected = current.revision, .pending = true, .cancel = false, .record = self.activation_record });
+        self.activation = current;
+    } else {
+        const record = try c.DirectRecord.stage(caller, key.account, activation_format, bytes);
+        const receipt = try c.DirectClientToken.bind(caller, .{ .key = key, .fingerprint = configuration, .intent = .{ .external = .{ .connection = caller.connection, .namespace = self.execution.configuration.bindings[0].namespace, .operation = (std.mem.readInt(u64, configuration[0..8], .little) % p.max_counter) + 1, .record = record } } });
+        if (receipt.binding.intent != .external or !std.meta.eql(receipt.binding.intent.external.record, record)) return error.StaleGatewayCoordinator;
+        self.activation_record = record;
+        self.activation = c.DirectClientToken.Progress.initial(receipt);
+    }
     self.private.lease = self.lease();
     self.ingress.lease = self.lease();
 }
@@ -317,7 +318,8 @@ fn checkFence(self: *Self, observer: *g.Client) !void {
     var caller = observer.table(self.execution.configuration.bindings[0]);
     caller.lease = null;
     const state = (try c.DirectClientToken.inspect(caller, self.activation.?.receipt.binding.key)) orelse return error.StaleGatewayCoordinator;
-    if (!std.meta.eql(state.record, self.activation_record)) return error.StaleGatewayCoordinator;
+    const active_record = state.record orelse if (state.receipt.binding.intent == .external) state.receipt.binding.intent.external.record else return error.StaleGatewayCoordinator;
+    if (!std.meta.eql(active_record, self.activation_record.?)) return error.StaleGatewayCoordinator;
 }
 pub fn deinit(self: *Self) void {
     if (self.read_pins) |*pins| pins.deinit();

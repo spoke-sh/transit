@@ -33900,7 +33900,7 @@
         "InvalidSqlReadRecovery": 1,
         "MissingGatewayOperation": 1,
         "MissingGatewayTerminal": 2,
-        "StaleGatewayCoordinator": 4,
+        "StaleGatewayCoordinator": 6,
         "Timeout": 2,
         "WorkloadOperationRequired": 1
       },
@@ -34094,7 +34094,7 @@
     "packages/zig/transit-sql/src/ReadCache.zig": {
       "errors": {
         "CatalogIdentityConflict": 2,
-        "Conflict": 1,
+        "Conflict": 2,
         "HistoricalRetentionOwned": 1,
         "IncompatibleDefinition": 1,
         "InvalidSqlReadRecovery": 9,
@@ -34115,6 +34115,7 @@
         "Record.validate()": "<inferred>",
         "acquireCurrent()": "<inferred>",
         "acquireCurrentWithMetadata()": "<inferred>",
+        "bindInitial()": "<inferred>",
         "close()": "<inferred>",
         "init()": "<inferred>",
         "inspect()": "<inferred>",
@@ -34127,8 +34128,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 42,
-        "catch": 1
+        "try": 44,
+        "catch": 2
       },
       "imports": [
         "root.zig",

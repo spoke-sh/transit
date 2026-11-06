@@ -40,9 +40,10 @@ refusal never expires accepted work. The node's catalog-wide token quota is an
 independent upper bound, including internal recovery accounts.
 
 Activation uses a domain-separated Catalog record containing the generation and
-random runtime instance. A replacement requires a strictly higher generation
-and CAS publication. Runtime requests carry the exact activation revision as a
-signed request fence. The local host holds Catalog access through validation,
+random runtime instance. Initial activation binds this record directly on the
+activation token; a replacement requires a strictly higher generation and CAS
+publication. Runtime requests carry the exact activation revision as a signed
+request fence. The local host holds Catalog access through validation,
 execution and disclosure; changing activation requires exclusive access.
 Current authorization remains independent of this execution fence. A saved
 record, local file or generation number never grants database access.
@@ -116,7 +117,8 @@ Catalog recovery slots per connection route. A read checks the current definitio
 frontier, then borrows an unchanged cut without another pin or durable slot
 write. Every page and buffered disclosure still checks current authorization.
 A cold acquisition records its exact owner and expected cut before acquiring the
-pin; a missing reply never permits substituting a new cut. Before an iterator or
+pin, binding an unbound recovery slot directly with that initial slot record; a
+missing reply never permits substituting a new cut. Before an iterator or
 result exists, a pin conflict permits another acquisition attempt only after
 `pin_status` proves the original owner absent at a strictly later frontier. The
 old exact request cannot then succeed, even if delayed. The service records its

@@ -69,22 +69,29 @@ fn key(self: *Self, client: c.DirectTableClient, index: usize) !c.DirectClientTo
     const route = try c.DirectClientToken.accountPrefix(scope);
     return .{ .definition = p.Growth.current_definition, .connection = client.connection, .account = g.AccountIdentity.internal(self.gateway.account, "read-cache", &route), .token = token };
 }
-fn open(self: *Self, client: c.DirectTableClient, index: usize, create: bool) !?c.DirectClientToken.Progress {
+fn open(self: *Self, client: c.DirectTableClient, index: usize) !?c.DirectClientToken.Progress {
+    return c.DirectClientToken.inspect(client, try self.key(client, index));
+}
+fn bindInitial(self: *Self, client: c.DirectTableClient, index: usize, value: Record) !c.DirectClientToken.Progress {
     const selected = try self.key(client, index);
-    if (try c.DirectClientToken.inspect(client, selected)) |value| return value;
-    if (!create) return null;
-    const record = try c.DirectRecord.stage(client, selected.account, format, &selected.token);
-    var random: [8]u8 = undefined;
-    try self.io.randomSecure(&random);
-    const operation = (std.mem.readInt(u64, &random, .little) % p.max_counter) + 1;
-    const receipt = try c.DirectClientToken.bind(client, .{ .key = selected, .fingerprint = record.content.sha256, .intent = .{ .external = .{ .connection = client.connection, .namespace = 1, .operation = operation, .record = record } } });
+    const bytes = try p.Json.valueAlloc(self.allocator, Slot{ .generation = self.generation, .record = value });
+    defer self.allocator.free(bytes);
+    const reference = try c.DirectRecord.stage(client, selected.account, format, bytes);
+    const receipt = c.DirectClientToken.bind(client, .{ .key = selected, .fingerprint = reference.content.sha256, .intent = .{ .external = .{ .connection = client.connection, .namespace = 1, .operation = value.operation, .record = reference } } }) catch |err| {
+        if (err == error.Conflict) {
+            const rejection = client.service.last_rejection;
+            if (try c.DirectClientToken.inspect(client, selected)) |current| _ = try self.read(client, current);
+            client.service.last_rejection = rejection;
+        }
+        return err;
+    };
     if (self.known_slots) |*known| if (std.meta.eql(known.connection, client.connection)) {
         known.mask |= @as(u64, 1) << @intCast(index);
     };
     return c.DirectClientToken.Progress.initial(receipt);
 }
 fn read(self: *Self, client: c.DirectTableClient, state: c.DirectClientToken.Progress) !Slot {
-    const reference = state.record orelse return .{ .generation = 0, .record = null };
+    const reference = state.record orelse if (state.receipt.binding.intent == .external) state.receipt.binding.intent.external.record else return error.InvalidSqlReadRecovery;
     if (reference.format != format) return error.InvalidSqlReadRecovery;
     const bytes = try c.DirectRecord.read(self.allocator, client, reference);
     defer self.allocator.free(bytes);
@@ -120,7 +127,7 @@ fn release(client: c.DirectTableClient, record: Record) !void {
 /// Observe a durable recovery slot without creating it or acquiring a pin.
 pub fn inspect(self: *Self, client: c.DirectTableClient, index: usize) !?Record {
     if (index >= capacity) return error.InvalidSqlReadRecovery;
-    const state = (try self.open(client, index, false)) orelse return null;
+    const state = (try self.open(client, index)) orelse return null;
     return (try self.read(client, state)).record;
 }
 /// Current definition and logical change frontier qualify a cached exact cut.
@@ -165,14 +172,14 @@ pub fn acquireCurrentWithMetadata(self: *Self, client: c.DirectTableClient, tabl
     // pointing at a pin that the owner may already have closed.
     const cached = self.entries[index];
     self.entries[index] = null;
-    var state: c.DirectClientToken.Progress = undefined;
+    var state: ?c.DirectClientToken.Progress = null;
     var previous_record: ?Record = null;
     if (cached) |entry| {
         state = entry.state;
         previous_record = entry.record;
-    } else {
-        state = (try self.open(client, index, true)) orelse return error.InvalidSqlReadRecovery;
-        previous_record = (try self.read(client, state)).record;
+    } else if (try self.open(client, index)) |existing| {
+        state = existing;
+        previous_record = (try self.read(client, existing)).record;
     }
     const selected = metadata;
     if (previous_record) |prior| {
@@ -183,7 +190,7 @@ pub fn acquireCurrentWithMetadata(self: *Self, client: c.DirectTableClient, tabl
         } else {
             if (to_release.state != .closing) {
                 to_release.state = .closing;
-                state = try self.write(client, state, to_release);
+                state = try self.write(client, state.?, to_release);
             }
             try release(client, to_release);
         }
@@ -192,7 +199,10 @@ pub fn acquireCurrentWithMetadata(self: *Self, client: c.DirectTableClient, tabl
     try self.io.randomSecure(&random);
     const operation = (std.mem.readInt(u64, &random, .little) % p.max_counter) + 1;
     var record: Record = .{ .definition = p.Growth.current_definition, .gateway = self.gateway, .generation = self.generation, .table = table, .operation = operation, .changed_lsn = selected.changed_lsn, .expected = selected.position, .handle = null, .state = .active };
-    state = try self.write(client, state, record);
+    const next_state = if (state) |existing|
+        try self.write(client, existing, record)
+    else
+        try self.bindInitial(client, index, record);
     const pinned = try client.call(.{ .pin = .{
         .object = table.interpretation.interpretation.object,
         .owner = record.owner(),
@@ -202,7 +212,7 @@ pub fn acquireCurrentWithMetadata(self: *Self, client: c.DirectTableClient, tabl
     } });
     defer pinned.deinit();
     record.handle = pinned.value.result.pin;
-    self.entries[index] = .{ .record = record, .state = state, .users = 1 };
+    self.entries[index] = .{ .record = record, .state = next_state, .users = 1 };
     return record;
 }
 /// A connection releases only its in-memory borrow. Durable cache pins survive
@@ -248,7 +258,7 @@ pub fn tick(self: *Self, client: c.DirectTableClient) !bool {
         self.known_slots = .{ .connection = client.connection, .mask = mask };
     }
     if ((self.known_slots.?.mask & (@as(u64, 1) << @intCast(index))) == 0) return false;
-    var state = (try self.open(client, index, false)) orelse return false;
+    var state = (try self.open(client, index)) orelse return false;
     const slot = try self.read(client, state);
     var record = slot.record orelse return false;
     if (record.state != .closing) {
