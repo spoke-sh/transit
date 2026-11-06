@@ -3645,6 +3645,22 @@ test "transaction workspace predicate DML and budget refusal preserve the public
     try t.expectError(error.OutOfMemory, s.TableWorkspace.init(failing.allocator(), &table, begin, pin, null, access.guard()));
     small.limits.resident_bytes = 1024 * 1024;
     {
+        // Small inserts no longer reserve maximum row/segment buffers. Measure
+        // a successful private statement, then refuse the same work one byte
+        // below its peak instead of assuming that one MiB must be exhausted.
+        var measured = try s.TableWorkspace.init(t.allocator, &table, small, pin, null, access.guard());
+        defer measured.deinit();
+        const acquisition_peak = measured.residentPeak();
+        const two: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 2 } } };
+        const accepted = try workspaceInsert(&measured, 1, 2, &two, access.guard());
+        try t.expect(accepted == .provisional);
+        try t.expect(measured.residentPeak() > acquisition_peak);
+        try t.expect(measured.residentPeak() <= small.limits.resident_bytes);
+        try t.expectEqualDeep(public, table.root);
+        try t.expectEqual(public.next_lsn, try wal.log().tail(17));
+        small.limits.resident_bytes = measured.residentPeak() - 1;
+    }
+    {
         var limited = try s.TableWorkspace.init(t.allocator, &table, small, pin, null, access.guard());
         defer limited.deinit();
         const before = limited.table.root;

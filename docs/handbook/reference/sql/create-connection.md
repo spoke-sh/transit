@@ -1,6 +1,7 @@
 # CREATE CONNECTION
 
-**Grammar only.** This statement describes a named connector configuration.
+**Reference grammar and a limited typed parser; execution is not installed.**
+This statement describes a named connector configuration.
 The console, Board query workspace and Flight SQL do not execute it, resolve
 credentials or open a connection.
 
@@ -27,9 +28,11 @@ CREATE CONNECTION remote_api TO HTTP (
 );
 ```
 
-The option names above illustrate the grammar; they are not an implemented SQL
-configuration schema. The reference parser does not check unknown or duplicate
-options, resolve the credential binding or validate destination policy.
+The example above illustrates the broader reference grammar. The separate
+`SourceSql` typed parser accepts only HTTP with one `endpoint` origin option;
+it rejects credentials, a query/fragment and a non-root path in that origin.
+It does not support the illustrated token option. Neither parser publishes a
+connection or validates dispatch authority.
 
 ## Meaning and current interface
 

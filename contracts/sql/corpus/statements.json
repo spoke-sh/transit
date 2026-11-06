@@ -2327,7 +2327,7 @@
   ],
   "extensions": [
     "CREATE CONNECTION market TO HTTP (endpoint = 'https://example.test', token = SECRET('market'));",
-    "CREATE SOURCE trades FROM HTTP CONNECTION market WITH (poll_ms = '1000');",
+    "CREATE SOURCE trades FROM HTTP CONNECTION market INTO STREAM captures WITH (method='GET', path='/trades', poll_interval='5m', request_timeout='10s', response_max_bytes=4194304);",
     "CREATE SINK fills INTO HTTP CONNECTION market (path = '/orders');",
     "CREATE TABLE orders (id INT64 NOT NULL, sym UTF8);",
     "CREATE DOCUMENT profile;",
@@ -2378,7 +2378,17 @@
     "REFRESH DATAFLOW projection;",
     "RETIRE DATAFLOW projection;",
     "SHOW DATAFLOW projection;",
-    "EXPLAIN CREATE DATAFLOW projection INTO output AS SELECT id FROM input;"
+    "EXPLAIN CREATE DATAFLOW projection INTO output AS SELECT id FROM input;",
+    "AUTHORIZE SOURCE trades;",
+    "ACTIVATE SOURCE trades;",
+    "SUSPEND SOURCE trades;",
+    "RESUME SOURCE trades;",
+    "RETIRE SOURCE trades;",
+    "SHOW SOURCE trades;",
+    "DESCRIBE SOURCE trades;",
+    "DROP SOURCE trades;",
+    "DROP CONNECTION market;",
+    "EXPLAIN CREATE SOURCE trades FROM HTTP CONNECTION market INTO STREAM captures WITH (method='GET', path='/trades', poll_interval='5m', request_timeout='10s', response_max_bytes=4194304);"
   ],
   "table_select": [
     {

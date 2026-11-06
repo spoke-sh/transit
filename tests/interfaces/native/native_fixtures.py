@@ -166,6 +166,11 @@ def generated():
                 changed_next_lsn=15, heads_digest=[67]*32)),
             access='write'))
         transaction_definition(lifecycle['dataflow'])
+        source_path = FIXTURES / 'source-v1.json'
+        source = json.loads(source_path.read_text())
+        transaction_definition(source)
+        results[source_path] = source
+        lifecycle['source'] = source
         revision_scope = transaction['cut']['begin']['identity']['begin']['scope']
         def revision_definition(object_id, digest):
             return dict(object=dict(scope=copy.deepcopy(revision_scope), branch=1, object=object_id),

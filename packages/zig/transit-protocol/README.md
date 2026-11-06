@@ -1,5 +1,10 @@
 # transit-protocol
 
+`Source` defines HTTP ingestion identities, exact connection/destination bindings,
+control fences, original-attempt transitions and complete-capture attribution.
+The [source contract](../../../contracts/SOURCE_V1.md) separates these neutral
+validators from the pending durable source runtime and its activation gates.
+
 `Dataflow` defines neutral managed computation identities, control fences,
 per-source coverage and common-transaction completion attribution. Its validation
 does not activate a service or grant source access. See the

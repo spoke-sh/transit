@@ -1010,6 +1010,11 @@ No function dispatches through Station or an external connector.
 
 #### R8 — Govern connector declarations and atomic effect intents
 
+The [CREATE SOURCE implementation plan](#create-source-implementation-plan--2026-11-05)
+defines the first bounded HTTP ingestion slice with an explicit retained Stream
+destination. It consumes the connector and capture gates below without claiming
+the remaining sink or full R8 lifecycle is delivered.
+
 Persist CONNECTION/SOURCE/SINK objects through the common catalog/dependency
 owner, with conditional alteration, retirement, exact secret references and
 DROP restrictions. Compilation, publication, explanation and inspection open no
@@ -2189,3 +2194,352 @@ Stream SQL bridge. Preserve their finite semantic oracles while supplying paged
 owners, current authorization, exact source cuts and process-death recovery at
 those boundaries. The P9 formal correspondence and common-revision qualification
 gates still require their specified executed proofs.
+
+## CREATE SOURCE implementation plan — 2026-11-05
+
+**Status: In Progress.** This is the bounded R8 ingestion slice requested after the
+[earthquake example audit, issue #398](https://github.com/spoke-sh/transit/issues/398).
+Audit basis: `fe420d98bab493e7037adf1654c96a7055fc1280`. The
+[neutral source contract](../../contracts/SOURCE_V1.md), reflected schema,
+independent fixtures and typed `SourceSql` parser establish the initial contract
+and syntax foundation. Installed execution remains unchanged. Durable catalog
+publication, owned capture storage/read guards, connector handoff, scheduling and
+the installed SQL lifecycle below remain implementation targets. This foundation
+does not complete S0–S6, R8, the earthquake tracker or the dataflow milestone.
+
+### Outcome and language decision
+
+An application declares an external source and an existing retained destination.
+It can inspect what was published, authorize an execution identity, activate
+bounded ingestion, and recover each original observation after disconnection or
+worker replacement. SQL submission never waits for the lifetime of the poller.
+
+Adopt `CREATE SOURCE ... FROM ... INTO STREAM ...`: SOURCE owns the ingestion
+lifecycle, CONNECTION owns reusable connector configuration, and STREAM owns the
+retained schema-bound observations. This intentionally replaces the existing
+reference-only meaning of SOURCE as a query adapter over captures. A source name
+is not also a relation or an instruction for SELECT to perform network I/O.
+Queries and consumers read its declared destination through their supported
+interfaces. Latest-success selection, JSON decoding and complete replacement of
+a derived Table remain separate computations.
+
+The first installed profile is HTTP GET polling, one existing single-partition
+Stream, one catalog/branch-one scope, and one outstanding poll per source.
+Capture complete HTTP responses without application decoding. Use the existing
+cohosted native SQL/console deployment first; qualify PostgreSQL/MySQL adapters
+separately before advertising those entry points. General connector families,
+partition routing, CDC, overlapping polls, pagination, redirects, automatic
+request retries, arbitrary request bodies and schema inference are later profiles.
+SMTP, branch review, JSON_TABLE and alert triggers retain their owners in #398.
+
+Target example; all SOURCE/CONNECTION operations shown remain proposed:
+
+```text
+CREATE STREAM quake_captures (
+  capture_id UUID NOT NULL,
+  source_sequence UINT64 NOT NULL,
+  observed_at TIMESTAMPTZ NOT NULL,
+  http_status INTEGER NOT NULL,
+  body_ref BINARY NOT NULL,
+  body_bytes UINT64 NOT NULL,
+  body_sha256 BINARY NOT NULL
+);
+
+CREATE CONNECTION usgs TO HTTP (
+  endpoint = 'https://earthquake.usgs.gov'
+);
+
+CREATE SOURCE quake_feed
+  FROM HTTP CONNECTION usgs
+  INTO STREAM quake_captures
+  WITH (
+    method = 'GET',
+    path = '/earthquakes/feed/v1.0/summary/all_day.geojson',
+    poll_interval = '5m',
+    request_timeout = '10s',
+    response_max_bytes = 4194304
+  );
+
+EXPLAIN CREATE SOURCE quake_feed
+  FROM HTTP CONNECTION usgs
+  INTO STREAM quake_captures
+  WITH (method = 'GET', path = '/earthquakes/feed/v1.0/summary/all_day.geojson',
+        poll_interval = '5m', request_timeout = '10s',
+        response_max_bytes = 4194304);
+AUTHORIZE SOURCE quake_feed;
+ACTIVATE SOURCE quake_feed;
+SHOW SOURCE quake_feed;
+CONSUME capture_id, http_status, body_ref FROM quake_captures LIMIT 10;
+SUSPEND SOURCE quake_feed;
+RESUME SOURCE quake_feed;
+RETIRE SOURCE quake_feed;
+```
+
+Keep the numeric budget typed; parse durations into bounded integer units with
+the shared duration rules. Require all five options in this first profile rather
+than choosing a polling cadence or response budget implicitly. Reject unknown,
+duplicate or mistyped options before publication. `path` is a validated
+origin-relative target, never an alternate authority. `method` must be GET.
+`poll_ms`, `timeout_ms`, `capture_stream` and `read_mode` are not aliases in the
+new source grammar. CONNECTION retains its own option schema; changing source
+options must not broaden every connection/sink option to arbitrary expressions.
+
+Require an exact connector output envelope, resolved by field name to stable
+ColumnIds and checked logical types/nullability. Schema order need not match the
+example's order. Refuse missing/extra fields, defaults, partition hashing and key
+compaction in this first profile. `body_sha256` is exactly 32 bytes, verified by
+the connector output validator; BINARY alone does not impose that length.
+`body_ref` is an opaque, current-v1 capture descriptor, not a URL, filesystem path
+or bearer capability. Its committed manifest binds the source/connection/output
+definitions, original poll and effect attempt, completion evidence, body pages,
+length and digest. Keep its encoding small enough for the ordinary Stream row.
+
+Do not auto-create the Stream, overwrite its schema, change its grants or adopt
+its lifetime. Restrict registered source writers to one per destination in this
+profile. As with managed Table output, ordinary object privileges remain in
+force: operators grant append only to the intended publisher if they require
+exclusive provenance. Readers validate source capture references; arbitrary rows
+with a matching schema cannot masquerade as verified connector observations.
+
+### Existing owners and prerequisites
+
+| Boundary | Reuse and exact missing work |
+| --- | --- |
+| Grammar and typed SQL | [Current SOURCE](../handbook/reference/sql/create-source.md) and [reference grammar](../../contracts/sql/TransitExtensions.g4) accept illustrative connector declarations only. Add typed source options, the mandatory destination and lifecycle roots; production lowering must agree with the reference. |
+| Identity, definitions and dependencies | [Catalog](../../packages/zig/transit-catalog/README.md) and [data lifecycle](../../contracts/DATA_LIFECYCLE_V1.md) own stable identities, exact definitions and current rights. Extend their object/dependent variants and persisted operations; do not store a second name registry in a poller. |
+| Control and scheduling | Reuse [managed lifecycle obligations](../../contracts/DATAFLOW_V1.md), direct KV/progress/token ownership and the paged discovery/wakeup patterns in [DatabaseRuntime](../../packages/zig/transit-sql/src/DatabaseRuntime.zig). Source has its own typed state and poll records, not a fake finite Table query. |
+| Atomic decisions | [M6 R5](06-streams-queues-and-durable-runtime.md#r5-extend-the-transaction-owner-and-deliver-direct-kv) and the [direct transaction owner](../../contracts/DIRECT_TABLE_V1.md#signed-transaction-action) must compose source KV, intent/completion Queue work and Stream appends with exact retry. A sequence of standalone SQL writes is not a substitute. |
+| Connector handoff | [M6 R8](06-streams-queues-and-durable-runtime.md#r8-migrate-effects-and-consumers-and-remove-polling-delivery) owns Queue consumers, effect attempt fencing and outcome settlement. [HTTP](../../packages/zig/transit-station-http/README.md) already supplies bounded transport and capture validation, but its current service/capture composition uses Station turns. Qualify this consumer seam before source activation; do not import Station into Catalog, SQL or Fuze. |
+| Body storage and capture evidence | [M16](16-document-profiles-and-gateway-exchange-lifecycle.md) owns exchange capture and its eventual Document representation. Reuse immutable paged records and transaction-owned staging for the selected raw-body envelope. Existing [DirectRecord](../../packages/zig/transit-catalog/src/DirectRecord.zig) guards cover Table/KV reads; Stream-bound raw-body disclosure and collection reachability need explicit extensions and proofs. |
+| Permissions, secrets and network route | Use current [security](../handbook/reference/security.md) and [connector admission](../../contracts/CONNECTOR_ADMISSION_V1.md) owners. Secret references and endpoint/credential policy are separate from a configured transport route. The first HTTP transport uses a provisioned IPv4 route and TLS hostname; an endpoint URL alone does not provide DNS/proxy support. |
+| Public callers and evidence | Shared [SQL results](../../contracts/SQL_RESULTS_V1.md), [SQL sessions](../../contracts/SQL_SESSION_V1.md), data-client operations and inspection own completion/disclosure. Board consumes public reads; it does not resolve bodies or activate ingestion implicitly. |
+
+Implement the narrowly required M6/M16 seams with their owners. They need not
+wait for all Station behavior migration or every Document profile, but missing
+attempt fencing, body retention or common-decision participation blocks executable
+activation. Do not ship an unqualified Station bridge to bypass those gates.
+
+### Durable identity and publication contract
+
+Add neutral source/connection/capture types under `transit-protocol`; exact
+format specifications and generated resources follow the owning public types.
+A dedicated `SOURCE_V1` contract is proposed for these semantics. Its definition
+identity follows the repository's current-v1 policy; it is not a parallel legacy
+profile or a replacement for the HTTP, Stream or transaction contracts.
+
+Persist four distinct records:
+
+1. **Declaration:** stable object, immutable definition, namespace/name, connector
+   kind and typed options, exact CONNECTION and destination STREAM definitions,
+   stable output columns, configured execution/publisher identities, policy
+   references and admitted resource budgets. Resolve names once, then bind IDs.
+2. **Control:** desired lifecycle, control epoch, execution authorization binding,
+   fenced scheduler ownership, durable next due time, pending original operation
+   and last publication. Worker liveness is an observation, not execution rights.
+3. **Poll:** unique capture ID, monotonically increasing source-local sequence,
+   frozen request/definitions, scheduled and actual times, original dispatch
+   identity, attempt state, outcome or explicit uncertainty, retained capture
+   candidate and pending publication decision. Never derive identity from time.
+4. **Published observation:** exact Stream partition/offset and common decision,
+   capture manifest and original poll. Preserve failure/closure records even when
+   no Stream row exists. Last settled poll and last complete capture are distinct.
+
+CREATE publication and dependency registration must be one recoverable Catalog
+operation: no executable declaration without its CONNECTION, Stream and required
+secret/policy dependencies protected. Where staging spans operations, reserve
+original ownership first and keep the publication pending until all exact edges
+are verified. DROP RESTRICT, retirement cleanup and uncertain publication must
+follow the original identity. Use paged durable directories and bounded pages;
+the number of declarations and historical polls cannot be a resident array limit.
+
+Binding a name or publishing configuration grants no dispatch authority.
+AUTHORIZE requires current source-control rights and an explicitly configured
+execution identity; expose that identity in preview and inspection. It neither
+creates grants nor defaults to an administrator. ACTIVATE rechecks the exact
+binding, destination append rights, connector/secret policy and execution-host
+availability. Recheck current rights at request admission, immediately before
+send, at common output publication, and before every read disclosure. A lease,
+queued intent or stale authorization state cannot preserve revoked rights.
+
+A changed connection/destination definition blocks new polls until a newly bound
+declaration is authorized. Do not auto-follow names or rotate an admitted
+request's immutable credential version. Credential rotation supplies a wakeup
+and a fresh policy check, not permission to resend old work. Conditional ALTER,
+rename and replacement can follow this first immutable-declaration profile;
+DROP SOURCE is allowed only after retirement and settlement of original work,
+under dependency checks, and does not erase retained captures or the Stream.
+
+### Poll scheduling, completion and failure behavior
+
+Use fixed-delay polling: the first poll is due at the accepted activation's
+trusted time; each subsequent due time is the terminal settlement time plus the
+declared interval. Persist that decision using trusted time outside deterministic
+transition code. Only one poll
+per source may be outstanding, including capture/output recovery. Downtime and
+suspension do not create a catch-up burst or fictional historical observations.
+Resume first resolves original work, then schedules one current observation.
+Clock rollback must not duplicate admission; overflow rejects explicitly.
+
+There are three independent durable boundaries:
+
+- **Schedule:** atomically reserve the original poll/sequence and enqueue its
+  frozen intent with source progress. A lost reply recovers the same operation.
+- **Attempt and capture:** an authorized connector claims intent and records its
+  original attempt before external I/O. Reuse strict HTTP framing, TLS checks,
+  omission rules and [completion evidence](../../contracts/STATION_HTTP_V1.md#captured-records).
+  Queue redelivery never authorizes another send. Network EOF, status headers,
+  successful writes and sealed body prefixes cannot establish a complete capture.
+- **Publish:** verify retained terminal evidence and seal a destination-owned
+  capture candidate, then atomically attach its root, append one observation,
+  record the publication/checkpoint and settle the original completion work.
+  A crash after commit must recover the original offset without a second append.
+
+The first profile has one remote attempt per poll, no automatic redirects or
+retry, and no conditional-request cache. A complete 4xx/5xx response is retained
+with its actual status; it is not application success. A complete 204/empty body
+is explicit. A 304 does not inherit an earlier body. Malformed, truncated,
+oversize or incomplete responses retain diagnostic/outcome evidence without
+publishing a complete-body row. Never turn a failed capture into an empty JSON
+collection or remove the previous complete observation.
+
+An uncertain dispatch enters the existing bounded reconciliation/closure policy.
+Until its original identity is settled or explicitly closed unknown, block later
+polls. The next scheduled GET after closure is a new authorized observation with
+new identity, not recovery of the unknown response. Show the gap; do not promise
+observation of every upstream revision between polls. Storage or authority
+unavailability that prevents authoritative closure leaves the source blocked.
+
+SUSPEND fences new poll admission and unstarted dispatch. In-flight work may
+record terminal capture evidence, but cannot initiate a new Stream publication
+after that fence; an already committed publication still completes normally.
+RESUME may publish the retained original candidate under current rights before
+scheduling another poll. RETIRE permanently prevents new polls/publications and
+records cancellation or retained outcome disposition for unfinished work; it
+never turns a sent request into a rollback or discards its evidence. Define the
+retirement-versus-publication ordering in the common decision so each race has
+one inspectable result. Budget, authorization and dependency blocking are
+observed reasons separate from the user's desired Active/Suspended state.
+
+### Large bodies, disclosure and lifetime
+
+Keep response bytes outside the Stream row. A 4 MiB capture must traverse bounded
+chunks and reusable scratch buffers; store a paged manifest with content lengths,
+digests, order, completion and the exact interpretation. The deployment caps
+response bytes, stage bytes, concurrent sources, timers, outstanding work and
+publication work. Account for encoding/manifest overhead separately from the raw
+HTTP body budget. Do not raise `TableRow` limits to make the example fit.
+
+Own staging before writing bytes. Extend the existing transaction-owned candidate
+mechanism and storage graph for the capture format so private pages survive
+uncertainty and published roots survive restart, Stream retention and collection.
+The publication decision retains the complete root; a hash or Stream BINARY cell
+alone is not a retention pin. Stream segments/manifests, retained reads and source
+recovery records must preserve the associated capture graph. Explicit retention
+eligibility, logical release and physical collection remain separate. Unlimited
+retention remains default; source retirement grants no deletion authority.
+
+Expose a bounded shared capture reader over public data-client operations. Bind
+its raw-record authorization to the exact destination Stream and the declared
+capture disclosure policy; enforce those guards even through generic record
+reads, repeated/empty terminal reads and buffered chunks. Publishing from a
+connector's private capture into this destination requires explicit disclosure
+rights. A caller with only source-control/inspection rights receives no raw body
+by implication. Credential values and disallowed headers never enter the payload
+or diagnostics exposed by this profile.
+
+Existing Station exchange finalization and the direct output decision are not
+one transaction. The connector adapter must hold the original capture while
+verifying/copying permitted bytes into owned destination staging. Record the
+hold, staged candidate and handoff under original identities; preserve both
+sides until the direct decision is authoritative, then release the connector
+hold explicitly. Prove restart between each step. If the selected M16 capture
+owner already participates in the same decision, reuse that qualified owner
+instead. Neither path may depend on a temporary URI, ambient provider access or
+an unretained reference after publication. A durable executor assertion records
+attribution, not a proof that an untrusted worker computed honestly.
+
+### Inspection and consumer boundary
+
+Provide `SHOW SOURCES`, `SHOW SOURCE name`, `DESCRIBE SOURCE name` and EXPLAIN
+through shared typed metadata results. Report exact definitions/dependencies,
+destination/schema, execution identity, desired and observed lifecycle, current
+control epoch, next due time, pending poll/attempt, last settled outcome, last
+published capture/Stream position, byte counts, blocked reason and observation
+time. Distinguish never run, no complete capture yet, failed latest poll and an
+older retained complete capture. Counts/positions retain their domains; do not
+subtract unrelated LSNs into lag. Redact endpoint/credential details according to
+current inspection policy and keep responses paged.
+
+Metadata inspection and reads cause no dispatch or cleanup. ACTIVATE completes
+when the control transition is accepted, not when a poll returns. CONSUME retains
+its finite positional semantics; LIMIT is not newest-first ordering. Use the
+shared capture reader to verify body content rather than teaching each SQL/UI
+renderer to decode opaque references. An HTTP completion does not validate
+GeoJSON. The separately tracked latest-success/JSON computation must choose a
+complete capture, validate the entire document and publish a complete Table
+successor; this source plan supplies the attributable input and no hidden
+`read_mode` transformation.
+
+### Implementation sequence and reviewable increments
+
+Proposed new modules are `transit-protocol/Source.zig` for neutral declarations
+and evidence, `transit-catalog/ManagedSource.zig` for the durable lifecycle,
+`transit-sql/SourceSql.zig` for typed statements and
+`transit-sql-service/SourceOperations.zig` for original SQL admission/settlement.
+Each lives in its package's existing `src/` directory. Expose source handles and
+the bounded capture reader through `transit-data-client`; extend the existing
+`DatabaseRuntime` composition for scheduling. Connector I/O remains in its effect
+host. These names are implementation targets, not existing modules or a proposal
+for another standalone server.
+
+| Increment | Implementation owners and scope | Required exit evidence |
+| --- | --- | --- |
+| S0 — Contract and cutover | `transit-protocol`, source/HTTP/Stream/direct-transaction contracts, neutral fixtures and capability ledger. Freeze identities, output envelope, schedule/unknown/lifecycle rules, authority, retention graph and M6/M16 handoff obligations above. | Independent transition/encoding fixtures, foreign/missing-definition rejection, explicit proof obligations and consumer inventory. No runtime exposure. |
+| S1 — Typed declarations and Catalog lifecycle | `transit-catalog`: CONNECTION/SOURCE variants, exact dependency registration, original-token operations, immutable control/poll records and paged inspection. `transit-sql`/Fuze: source AST and typed lowering with destination resolution. | CREATE/EXPLAIN/inspect/recover through typed callers; duplicate names/tokens, unknown options, wrong schema, denied rights, DROP conflicts and crash during publication. EXPLAIN and CREATE open zero sockets. Activation reports unsupported until S2–S4 qualify. |
+| S2 — Owned capture storage and reader | Catalog/storage/data-client with M16: paged raw-body manifest, transaction-owned candidate attachment, Stream read guards, graph traversal and explicit original capture handoff. | 4 MiB and empty bodies, corrupt/missing/reordered chunks, restart at staging/commit/hold release, revoked buffered reads, retention/GC and growth beyond cache. No orphan accepted output or raw-read bypass. |
+| S3 — Fenced connector consumer | HTTP/effect host and M6 Queue owner: configured route/TLS/secret binding, original attempt, one bounded GET, terminal evidence and completion handoff. Keep I/O outside database/query packages. | Independent HTTP/TLS peers; kill before/after send and final seal; duplicate claims, expired leases, revoked policy/secret, timeout, non-2xx, unsupported compression and unknown closure. Replay sends nothing. |
+| S4 — Durable source scheduler and atomic output | Catalog/source owner plus cohosted `DatabaseRuntime`: paged discovery, fixed-delay timers, one pending poll, common KV/Queue schedule and KV/Stream/completion publication, suspend/resume/retire fencing. | Full lost-reply/crash matrix, original offset recovery, no duplicate append, no overlapping request, no catch-up burst, bounded idle/recovery work and settlement under pressure. Enable typed activation only after S2/S3 gates. |
+| S5 — SQL and caller composition | `transit-sql`, `transit-sql-service`, session/result types, `transit-sql-client`, `transit-data-client`, console, diagnostics and generated bindings. Share typed operations; do not copy retry logic into adapters. | Installed native/console declare → inspect → authorize → activate → consume/read → suspend/resume → retire journey; session close leaves active ingestion intact, exact accepted-token recovery and current disclosure. Unsupported gateways reject explicitly. |
+| S6 — Publication and qualification | Public SOURCE/CONNECTION/streaming/connector references, component guides, executable example, tests/runner registrations, qualification record and #398. | One committed-revision proof set and a correctly labeled website example. Qualify PG/MySQL separately if exposed. No claim that JSON_TABLE, reviewed branches or SMTP work follows from this slice. |
+
+S0 precedes dependent implementation. S2 and S3 can develop independently against
+its frozen fixtures; S4 integrates both with the qualified M6 common-decision
+owner. S1/S5 may land nonexecuting adapters earlier with accurate capability
+labels. First executable milestone is one manually activated GET publishing one
+verified retained capture through typed callers; scheduling and SQL follow using
+the same owner. This orders implementation without introducing a second public
+one-shot SOURCE dialect or bypassing authorization.
+
+### Verification and completion gates
+
+Register source-specific compiler, lifecycle, capture-reader, HTTP-poll and
+installed-source cases with the existing runner inventories. These are new
+required tests, not claims that tasks already exist. Use independent HTTP fixtures
+and a controllable clock for deterministic correctness; a manual USGS observation
+is optional interoperability evidence and cannot replace those tests.
+
+| Gate | Required negative and recovery controls |
+| --- | --- |
+| Definition and binding | Omitted INTO, old capture option, unsupported connector/method, duplicate options, invalid duration/overflow, wrong kind/scope/schema, changed definitions, rename/recreate and absent executor configuration reject without dispatch. |
+| Permissions | Deny source publication/control, destination append, secret use, dispatch and raw-body reads independently; revoke between preparation/send/publication/disclosure. A name, row reference or old lease grants nothing. |
+| Capture coverage | Complete 200, 204/empty and non-2xx; truncated framing, wrong counts/digest, missing terminal, bad TLS, oversized body and capture-store failure. Partial or unknown outcomes never masquerade as complete rows. |
+| Original identity | Crash after schedule commit, attempt registration, remote response, chunk seal, candidate attachment, output commit and before Queue settlement/hold release. Verify original poll/attempt/offset and exact row counts. No automatic network retry. |
+| Lifecycle and time | Duplicate ACTIVATE, timer/lease races, suspend before send/during capture/at publication, retire while uncertain, repeated resume, clock rollback, missed intervals and destination full. Accepted work is retained; closure is authoritative. |
+| Retention and bounds | More sources/polls/chunks than resident cache, paged recovery fairness, body byte boundaries including overhead, unlimited retention, explicit expiry with retained readers, orphan staging and collection after authoritative abort. No steady-state per-chunk heap churn. |
+| Callers and inspection | Separate reader identity, empty/multi-batch/repeated terminal results, denial after buffering, lost command response and disconnected session. Explain/read/replay produce zero external requests; active polling outlives the console. |
+
+For implementation PRs, run the repository baselines plus contracts/generated
+bindings, SQL grammar/diagnostics and affected Catalog/storage/transaction/
+connector/caller tests. SQL service and startup changes also require the pinned
+console-latency and server-SQL-types gates; wire changes require their registered
+interface checks. Run affected committed-HEAD clean lanes using the
+[runner inventory](../../tests/runner/README.md), and record exact commands,
+revision, configuration and outcomes in the qualification owner. Planned tests,
+installation and skipped checks are not passes.
+
+For this planning change, run the shared documentation source-link/fence check
+and diff whitespace check. Before opening or updating a PR, also run all three
+[repository baseline gates](../../AGENTS.md#required-checks-before-opening-or-updating-a-pr).
+Keep capability labels and current public behavior unchanged until execution is
+proved. The source slice completes when S0–S6 establish the installed journey and
+all gates above; general R8 and #398 remain open for their other workloads.

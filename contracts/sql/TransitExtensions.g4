@@ -3,7 +3,7 @@
 grammar TransitExtensions;
 options { caseInsensitive = true; }
 
-statement: (historicalStatement | selectStatement | mutationStatement | logAppendCommand | logConsumeCommand | logClaimCommand | logSettlementCommand | logOffsetCommand | extensionStatement | transactionStatement | managedCommand) SEMI? EOF;
+statement: (historicalStatement | selectStatement | mutationStatement | logAppendCommand | logConsumeCommand | logClaimCommand | logSettlementCommand | logOffsetCommand | extensionStatement | transactionStatement | managedCommand | sourceCommand) SEMI? EOF;
 // The SQL service binds this exact catalog before compiling the inner query.
 historicalStatement: (selectStatement | DESCRIBE identifier | EXPLAIN selectStatement) snapshotClause projectionClause? | SHOW TABLES snapshotClause;
 snapshotClause: AS OF SNAPSHOT STRING (IN SCHEMA identifier)?;
@@ -14,6 +14,15 @@ managedCommand
     | (AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE) DATAFLOW identifier
     | SHOW DATAFLOW identifier (REVISION INTEGER)?
     | EXPLAIN CREATE DATAFLOW identifier INTO identifier AS relationalSelect
+    ;
+// Ingestion declarations are distinct from query adapters. Runtime activation
+// requires its own qualified catalog, capture and effect owners.
+sourceCommand
+    : (AUTHORIZE | ACTIVATE | SUSPEND | RESUME | RETIRE) SOURCE identifier
+    | DROP (SOURCE | CONNECTION) identifier
+    | SHOW SOURCE identifier
+    | DESCRIBE SOURCE identifier
+    | EXPLAIN createSource
     ;
 // Session controls lower to the Catalog-owned local Table transaction contract.
 transactionStatement
@@ -227,12 +236,13 @@ createConnection
     : CREATE CONNECTION identifier TO connectorKind connectionOptions
     ;
 
-// CREATE SOURCE trades FROM HTTP CONNECTION kafka_conn WITH (poll_ms = '1000');
-// A new Fuze source adapter (docs/handbook/reference/glossary.md's "Query source adapter")
-// backed by a connector's captured observations, not durable state.
+// The destination is an existing retained Stream, never a connector option.
 createSource
-    : CREATE SOURCE identifier FROM connectorKind CONNECTION identifier (WITH? connectionOptions)?
+    : CREATE SOURCE identifier FROM connectorKind CONNECTION identifier
+      INTO STREAM identifier WITH sourceOptions
     ;
+sourceOptions: LPAREN sourceOption (COMMA sourceOption)* RPAREN;
+sourceOption: identifier EQ (STRING | INTEGER);
 
 // CREATE SINK fills INTO HTTP CONNECTION kafka_conn WITH (path = '/orders');
 // A write target that dispatches a connector effect attempt

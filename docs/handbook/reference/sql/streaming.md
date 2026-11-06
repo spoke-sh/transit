@@ -19,7 +19,7 @@ several batches does not make that query continuous.
 | Settle or renew Queue work | Native settlement of an exact lease | `ACK`, `NACK` and `EXTEND LEASE` below |
 | Read an explicit state projection | Fuze over declared KV, Table or accepted Document state | Finite `SELECT` |
 | Configure an external connector | HTTP/gRPC connector configuration and credential references | `CREATE CONNECTION` is grammar only |
-| Read captured observations | Connector capture and application decoding | `CREATE SOURCE` is grammar only; no executable connector source binding |
+| Read captured observations | Connector capture and application decoding | `CREATE SOURCE` has typed parsing; ingestion execution is not installed |
 | Maintain application state from messages | Application freezes input identity and publishes complete Table changes with durable progress | No `CREATE MATERIALIZED VIEW` |
 | Maintain a supported relational result | Typed Zig owner publishes complete revisions and deltas from Table history, with explicit host activation and wakeups | No SQL view, materialized-view or subscription adapter |
 | Refresh a displayed query | Int64 Table watch invalidation and finite snapshot refresh | No `SUBSCRIBE` or continuous `SELECT` |
@@ -424,8 +424,8 @@ outside attached interactive transactions.
 ## Connections, sources and sinks
 
 [CREATE CONNECTION](create-connection.md) names reusable configuration and
-secret references. [CREATE SOURCE](create-source.md) describes an adapter over
-captured connector observations. [CREATE SINK](create-sink.md) describes a
+secret references. [CREATE SOURCE](create-source.md) declares HTTP ingestion into an explicit existing
+Stream; its typed parser validates options without publishing or activating it. [CREATE SINK](create-sink.md) describes a
 connector effect target. These grammar rules do not resolve dependencies,
 validate connector options, provision resources or authorize attempts.
 

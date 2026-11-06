@@ -10372,6 +10372,26 @@
         "root.zig"
       ]
     },
+    "packages/zig/transit-catalog/src/SourceBinding.zig": {
+      "errors": {
+        "SourceSchemaMismatch": 4,
+        "UnsupportedSourceDestination": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "columns()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 3,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/TableAuthority.zig": {
       "errors": {
         "AccessDenied": 3,
@@ -10725,6 +10745,7 @@
         "PublishedResource.zig",
         "Records.zig",
         "SchemaCommand.zig",
+        "SourceBinding.zig",
         "TableAuthority.zig",
         "TableLowering.zig",
         "TableMetadata.zig",
@@ -24470,6 +24491,90 @@
         "std"
       ]
     },
+    "packages/zig/transit-protocol/src/Source.zig": {
+      "errors": {
+        "IncompatibleDefinition": 4,
+        "InvalidSourceAttemptTransition": 2,
+        "InvalidSourceBudget": 1,
+        "InvalidSourceCapture": 4,
+        "InvalidSourceControl": 1,
+        "InvalidSourceDefinition": 6,
+        "InvalidSourceEndpoint": 4,
+        "InvalidSourcePath": 3,
+        "InvalidSourcePoll": 1,
+        "InvalidSourceTime": 2,
+        "InvalidSourceTransition": 4,
+        "SourceAttemptAlreadyStarted": 1,
+        "SourceFenced": 1,
+        "SourcePollUnsettled": 1,
+        "SourceRetired": 1
+      },
+      "outcomes": {
+        "AttemptState": [
+          "scheduled",
+          "dispatching",
+          "captured",
+          "incomplete",
+          "unknown",
+          "closed_unknown",
+          "published",
+          "retired"
+        ],
+        "Blocked": [
+          "none",
+          "authorization",
+          "definition_changed",
+          "unavailable_executor",
+          "storage",
+          "budget",
+          "unknown_attempt",
+          "incomplete_capture"
+        ],
+        "Command": [
+          "authorize",
+          "activate",
+          "suspend_source",
+          "resume_source",
+          "retire"
+        ],
+        "Method": [
+          "GET"
+        ],
+        "State": [
+          "published",
+          "authorized",
+          "active",
+          "suspended",
+          "retired"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Capture.requirePoll()": "<inferred>",
+        "Capture.validate()": "<inferred>",
+        "Connection.validate()": "<inferred>",
+        "Control.apply()": "<inferred>",
+        "Control.validate()": "<inferred>",
+        "Definition.validate()": "<inferred>",
+        "Http.validate()": "<inferred>",
+        "Poll.nextDue()": "<inferred>",
+        "Poll.reconcileCapture()": "<inferred>",
+        "Poll.requireDispatch()": "<inferred>",
+        "Poll.transition()": "<inferred>",
+        "Poll.validate()": "<inferred>",
+        "validateEndpoint()": "<inferred>",
+        "validatePath()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 26,
+        "catch": 2
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-protocol/src/State.zig": {
       "errors": {},
       "outcomes": {
@@ -25181,6 +25286,7 @@
         "QueueRead.zig",
         "Runtime.zig",
         "Schema.zig",
+        "Source.zig",
         "State.zig",
         "Storage.zig",
         "StreamHandle.zig",
@@ -34024,6 +34130,54 @@
         "std"
       ]
     },
+    "packages/zig/transit-sql/src/SourceSql.zig": {
+      "errors": {
+        "DuplicateSourceOption": 1,
+        "InvalidSourceDuration": 4,
+        "InvalidSourceOption": 5,
+        "MissingSourceOption": 1,
+        "UnsupportedSourceConnector": 2,
+        "UnsupportedSourceMethod": 1,
+        "UnsupportedSourceStatement": 5
+      },
+      "outcomes": {
+        "Option": [
+          "method",
+          "path",
+          "poll_interval",
+          "request_timeout",
+          "response_max_bytes"
+        ],
+        "Statement": [
+          "connection",
+          "create",
+          "control",
+          "drop",
+          "inspect",
+          "explain"
+        ],
+        "Statement.drop.kind": [
+          "source",
+          "connection"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "duration()": "<inferred>",
+        "http()": "<inferred>",
+        "parse()": "<inferred>",
+        "string()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 63,
+        "catch": 3
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-sql/src/Statement.zig": {
       "errors": {
         "CatalogIdentityConflict": 7,
@@ -34339,6 +34493,7 @@
         "ReadCache.zig",
         "RecoveryWork.zig",
         "SessionOperations.zig",
+        "SourceSql.zig",
         "Statement.zig",
         "Terminal.zig",
         "TransactionSql.zig",
@@ -43596,11 +43751,12 @@
   },
   "grammars": {
     "contracts/sql/TransitExtensions.g4": {
-      "statement": "( historicalStatement | selectStatement | mutationStatement | logAppendCommand | logConsumeCommand | logClaimCommand | logSettlementCommand | logOffsetCommand | extensionStatement | transactionStatement | managedCommand ) SEMI ? EOF",
+      "statement": "( historicalStatement | selectStatement | mutationStatement | logAppendCommand | logConsumeCommand | logClaimCommand | logSettlementCommand | logOffsetCommand | extensionStatement | transactionStatement | managedCommand | sourceCommand ) SEMI ? EOF",
       "historicalStatement": "( selectStatement | DESCRIBE identifier | EXPLAIN selectStatement ) snapshotClause projectionClause ? | SHOW TABLES snapshotClause",
       "snapshotClause": "AS OF SNAPSHOT STRING ( IN SCHEMA identifier ) ?",
       "projectionClause": "PROJECTING TO ( CURRENT | SNAPSHOT STRING )",
       "managedCommand": "CREATE DATAFLOW identifier INTO identifier AS relationalSelect | ( AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE ) DATAFLOW identifier | SHOW DATAFLOW identifier ( REVISION INTEGER ) ? | EXPLAIN CREATE DATAFLOW identifier INTO identifier AS relationalSelect",
+      "sourceCommand": "( AUTHORIZE | ACTIVATE | SUSPEND | RESUME | RETIRE ) SOURCE identifier | DROP ( SOURCE | CONNECTION ) identifier | SHOW SOURCE identifier | DESCRIBE SOURCE identifier | EXPLAIN createSource",
       "transactionStatement": "( BEGIN ( WORK | TRANSACTION ) ? | START TRANSACTION ) transactionOptions ? | COMMIT ( WORK | TRANSACTION ) ? | ROLLBACK ( WORK | TRANSACTION ) ? ( TO SAVEPOINT ? identifier ) ? | SAVEPOINT identifier | RELEASE SAVEPOINT ? identifier",
       "transactionOptions": "ISOLATION LEVEL SERIALIZABLE transactionAccess ? | transactionAccess ( ISOLATION LEVEL SERIALIZABLE ) ?",
       "transactionAccess": "READ ( ONLY | WRITE )",
@@ -43693,7 +43849,9 @@
       "logOptions": "LPAREN logOption ( COMMA logOption ) * RPAREN",
       "logOption": "identifier EQ literal",
       "createConnection": "CREATE CONNECTION identifier TO connectorKind connectionOptions",
-      "createSource": "CREATE SOURCE identifier FROM connectorKind CONNECTION identifier ( WITH ? connectionOptions ) ?",
+      "createSource": "CREATE SOURCE identifier FROM connectorKind CONNECTION identifier INTO STREAM identifier WITH sourceOptions",
+      "sourceOptions": "LPAREN sourceOption ( COMMA sourceOption ) * RPAREN",
+      "sourceOption": "identifier EQ ( STRING | INTEGER )",
       "createSink": "CREATE SINK identifier INTO connectorKind CONNECTION identifier ( WITH ? connectionOptions ) ?",
       "connectorKind": "identifier",
       "connectionOptions": "LPAREN connectionOption ( COMMA connectionOption ) * RPAREN",

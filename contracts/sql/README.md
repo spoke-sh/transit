@@ -30,6 +30,13 @@ Table statements share `TableDdl`, `TableDml`, `TableSelect`, typed literals and
 logical descriptors; the source-bound logical query plan uses canonical `FQP1`
 bytes. Runtime authorization and storage publication remain separate from parsing.
 
+`SourceSql` parses `CREATE SOURCE ... FROM HTTP CONNECTION ... INTO STREAM ...`
+with typed GET/path/duration/byte options, connection origins, lifecycle controls
+and inspection/EXPLAIN forms. The reference grammar requires the explicit Stream
+destination. The previous adapter declaration without INTO is removed. Neither
+parser installs a source or dispatches HTTP; the [source contract](../SOURCE_V1.md)
+defines the pending binding, storage and activation gates.
+
 `LogDdl` owns dedicated Stream/Queue CREATE, policy ALTER, RENAME and DROP
 compilation, sharing the logical column grammar with `TableDdl`. The independent
 `corpus/log-declarations.json` cases cover defaults, routing, retention, FIFO,
