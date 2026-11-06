@@ -132,11 +132,13 @@ static std::string read(const char *name) { std::ifstream f(name); return {std::
         check('describe', dict(catalog=dict(description=description)))
         for change in [lambda v: v['subject'].update(principal=18), lambda v: v['subject'].update(role=24), lambda v: v['subject'].update(audience=4), lambda v: v['subject'].update(credential_epoch=0), lambda v: v['subject'].update(context=[171]*31), lambda v: v['configuration']['authority'].update(table_domain=2), lambda v: v['configuration'].pop('authority')]:
             bad = copy.deepcopy(description); change(bad); check('describe', dict(catalog=dict(description=bad)), 4)
-        for field in ('stream_domain', 'queue_domain', 'kv_domain', 'connection_domain', 'source_domain'):
-            for missing in (True, False):
+        domains = ('database_domain', 'schema_domain', 'table_domain', 'stream_domain', 'queue_domain', 'kv_domain', 'connection_domain', 'source_domain')
+        for index, field in enumerate(domains):
+            bad = copy.deepcopy(description); del bad['configuration']['authority'][field]
+            check('describe', dict(catalog=dict(description=bad)), 4)
+            for duplicate in domains[:index]:
                 bad = copy.deepcopy(description); profile = bad['configuration']['authority']
-                if missing: del profile[field]
-                else: profile[field] = profile['table_domain']
+                profile[field] = profile[duplicate]
                 check('describe', dict(catalog=dict(description=bad)), 4)
         check('lookup', dict(metadata=metadata)); check('cpp_lookup', dict(metadata=metadata)); check('wrong_name', dict(metadata=metadata), 4); check('lookup', dict(metadata=None))
         for retired in (False, True):
