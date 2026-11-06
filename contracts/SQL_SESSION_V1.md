@@ -611,3 +611,33 @@ suffix defined in the historical catalog contract. Source catalog and data
 provenance remain unchanged; target definition, schema, acceptance frontier and
 mapping policy are separate observation fields. Prepared CURRENT targets resolve
 once. Metadata preparation has zero data reads, pin acquisitions or mutations.
+
+## Native connector declarations
+
+Native cohosted sessions admit CREATE CONNECTION, CREATE SOURCE, RETIRE SOURCE
+and restricted DROP through the shared Catalog owner. SQL resolves the CONNECTION
+under its inspection permission, then checks USE when binding it. SOURCE requires an explicit
+`source_executor` in the selected database binding. The binding commitment and
+saved request include that selection; recovery cannot replace it with the caller
+or a new configuration value. Omission disables source creation and EXPLAIN.
+PG/MySQL/Flight, standalone services, source-backed query sessions and explicit
+transactions do not admit these declarations. Execution controls remain rejected
+before admission even through a typed Catalog caller.
+
+The SQL operation kind is `connector`. Initial admission uses the Catalog's
+owned original-record protocol: reserve the token/content commitment before
+writing a complete typed `DirectSourceClient.Saved` request inside the SQL
+initial envelope. Recovery retains that original, uses its frozen request and
+publishes owned progress through `client_progress.advance`. It never reparses
+SQL, generates replacement identities or treats an unavailable observation as
+rejection. A failure before original bytes become ready remains unresolved;
+the native owned-record closure protocol can fence that unready original. A
+missing or corrupt retained request cannot be replaced by resubmitting SQL.
+
+SHOW CONNECTIONS/SOURCES, singular SHOW/DESCRIBE and EXPLAIN use the shared result
+lifecycle. Lists follow live directory continuations, including empty filtered
+pages, and recheck buffered object permissions before disclosure or repetition.
+Their metadata observation is independent, not a data snapshot. EXPLAIN resolves
+and validates the proposal without selecting identities, reserving, registering,
+staging or dispatching. Metadata reports `execution_supported=false`,
+`never_run`, and absent poll/publication positions.

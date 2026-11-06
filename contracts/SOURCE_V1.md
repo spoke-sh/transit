@@ -1,8 +1,9 @@
 # HTTP source ingestion v1
 
-Status: neutral contract and typed SQL parser. Installed SQL does not yet publish
-CONNECTION/SOURCE objects or execute their lifecycle. The storage, authority,
-effect and recovery gates below must execute before activation is exposed.
+Status: durable CONNECTION/SOURCE declarations, bounded inspection, retirement
+and restricted DROP through the typed Catalog and native cohosted SQL service.
+HTTP scheduling, capture and activation remain uninstalled; their execution gates
+below are requirements for a later slice.
 
 The public [CREATE SOURCE reference](../docs/handbook/reference/sql/create-source.md)
 owns syntax and capability labels. [`Source.zig`](../packages/zig/transit-protocol/src/Source.zig)
@@ -26,7 +27,8 @@ the connection and destination definitions, an explicitly provisioned executor,
 the five HTTP options and seven stable destination column IDs. Definitions use
 the shared current-v1 identifier with no missing-field defaults or fallback.
 Incompatible persisted integration follows the repository's current-v1 cutover.
-These new, uninstalled types do not reinterpret an existing persisted format.
+The mandatory CONNECTION/SOURCE authority domains and Catalog root changes use
+the current-v1 hard cutover; old installations and requests reject before use.
 
 Resolve names only during declaration binding. Reject replaced definitions,
 different scopes, duplicate/zero column IDs, a non-Stream target, partition
@@ -75,7 +77,7 @@ commitment and, for control or source DROP, expected epoch. RETIRE increments th
 control epoch without changing definition identity. DROP retains the immutable
 identity and original receipt. Reusing a name cannot reinterpret that receipt.
 The declaration-only typed profile rejects AUTHORIZE, ACTIVATE, SUSPEND and
-RESUME before admission. These types alone do not install Catalog execution.
+RESUME before admission at both the Catalog and SQL boundaries.
 
 A reservation commits the saved request's content reference before staging its
 bytes. Only an applied operation can carry a resulting declaration. Source
@@ -94,7 +96,9 @@ creates its destination nor grants control, append, secret or disclosure rights.
 Ordinary Stream append rights remain separate; applications restrict them when
 exclusive ingestion is required.
 
-The control transition table is closed. Each accepted transition increments an
+The neutral execution transition table below remains the future activation
+contract. The installed declaration profile implements only published-to-retired.
+Each accepted transition increments an
 overflow-checked epoch, fencing earlier execution ownership:
 
 | Current state | Permitted command | Next state |

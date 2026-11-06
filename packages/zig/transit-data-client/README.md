@@ -159,3 +159,14 @@ replies, and recovers saved original work after a disk-backed node restart.
 Its output owns decoded values independently of response cleanup; failures retain
 per-attempt mutation identity and uncertainty. The call does not retry, rebind,
 release pins or start a recovery loop implicitly.
+
+## Connector metadata and publication
+
+`Catalog.callSource` uses `DirectSource.Action` and returns an owned
+`SourceOutcome`. Preserve the saved typed request and original identity when a
+publication outcome is uncertain. `prepare` validates a proposal without
+allocating identities or writing; lists may return an empty filtered page with a
+continuation. CONNECTION/SOURCE are metadata objects, not query relations.
+See [SOURCE declarations](../../../contracts/SOURCE_V1.md) for authority,
+destination binding, retirement and restricted DROP. No action in this profile
+executes HTTP or produces capture rows.

@@ -206,8 +206,8 @@ Start with [syntax, names and literals](sql/syntax.md) for notation and shared r
 | `INSERT`                                                   | Console with explicit writer, Zig/native ABI/port and typed SDK callers; Flight rejects | [Row insertion and current application APIs](sql/insert.md)               |
 | `UPDATE`                                                   | Typed predicates through the configured catalog owner                               | [State changes and commit boundaries](sql/update.md)                      |
 | `DELETE`                                                   | Typed predicates through the configured catalog owner                               | [Row removal and retained history](sql/delete.md)                         |
-| `CREATE CONNECTION` | Typed HTTP-origin parser; execution not installed | [Connector configuration and secret references](sql/create-connection.md) |
-| `CREATE SOURCE` | Typed parser; execution not installed | [HTTP ingestion into an explicit Stream](sql/create-source.md) |
+| `CREATE CONNECTION` | Native cohosted HTTP-origin declaration and inspection | [Connector configuration and secret references](sql/create-connection.md) |
+| `CREATE SOURCE` | Native cohosted declaration, inspection, retirement and DROP; no polling | [HTTP ingestion into an explicit Stream](sql/create-source.md) |
 | `CREATE SINK`                                              | Grammar only                                                                            | [Connector effect target](sql/create-sink.md)                             |
 | `CREATE TABLE`                                             | Console with explicit catalog, offline compiler and shared callers; Flight rejects      | [Columns, types and nullability](sql/create-table.md)                     |
 | `ALTER TABLE`, `DROP TABLE` | Configured catalog owner and shared typed callers | [Schema evolution](sql/alter-table.md), [removing live names](sql/drop-table.md) |

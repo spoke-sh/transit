@@ -2293,3 +2293,49 @@ SQL `AS OF SNAPSHOT` binds that catalog before names and schemas; historical
 SELECT observations carry its immutable identity and exact source evidence.
 Metadata observations retain catalog attribution without claiming row execution.
 An independent source vector is not an atomic cross-Table cut.
+
+## CONNECTION and SOURCE declarations
+
+The signed `source` action and `DirectSourceClient` own connector declarations.
+`prepare` is pure current-policy validation of a proposal with no selected
+object or operation identity. `declaration` carries the complete original typed
+request and one of `preview`, `inspect`, `reserve`, `execute` or `cancel`.
+Execution requires the native Catalog host's bounded registration runner;
+standalone dispatch cannot substitute an HTTP executor. `lookup`, `inspect` and
+`list` return metadata only. See [SOURCE_V1](SOURCE_V1.md) for immutable encoding,
+HTTP options and the exact destination schema.
+
+CONNECTION and SOURCE use dedicated mandatory, distinct native authority domains.
+Both map `inspect` to bit one; CONNECTION maps `use` to bit two. Administration
+requires ownership and creation requires schema CREATE. Source binding also
+requires CONNECTION USE and destination Stream inspection/append rights. These
+checks do not grant the declared executor any rights. Metadata permission never
+implies permission to read captured bodies or inspect the upstream CONNECTION.
+
+The Catalog reserves the original name, request commitment and stable destination
+writer before request/artifact bytes. Native permission registration follows that
+reservation. Artifact publication, object/name entries, exact dependency edges,
+writer ownership, source control and original receipt commit together. The two
+SOURCE edges cannot be edited through generic dependency operations. Pending
+operations revalidate current definitions; accepted declarations retain their
+original definitions and report `definition_changed` when a dependency changes.
+RETIRE retains dependencies and the writer. Restricted DROP releases them while
+retaining original outcomes and tombstones. Ordinary Stream append is unaffected.
+
+Each saved request and declaration artifact is independently bounded to 64 KiB.
+The existing 16 KiB Catalog WAL bound is unchanged; successful control receipts
+retain the prior control and resulting immutable reference without duplicating
+the full preceding declaration metadata. Each original operation reserves
+393,216 bytes for bounded staging, directories and terminal closure. The default
+Catalog quotas are one million original operations and 64 GiB reserved bytes;
+rejected/cancelled receipts remain charged. Existing originals can resume or
+close when admission capacity is exhausted. Durable entries, receipts and writer
+ownership use paged indexes rather than a resident cardinality limit.
+
+Lists scan at most 32 directory entries and return at most four visible objects.
+An empty filtered page can have a continuation. Cursors bind principal, effective
+role, namespace, kind and last scanned object; they do not establish a snapshot.
+Current rights are checked before disclosure. Metadata and names returned by the
+shared caller are owned by its output arena, independent of transport scratch.
+Foreign definitions, altered original content and mismatched response identities
+reject before use. No declaration, read, replay or EXPLAIN dispatches HTTP.
