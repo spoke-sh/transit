@@ -129,6 +129,7 @@ def run(node, host, gateway, proof, mode=None, board=None):
                 ('INSERT INTO items VALUES (1, 100);', pa.ArrowNotImplementedError, ('read-only', 'authorized writer')),
                 ('INSERT INTO items (id, value) VALUES (1, 100);', pa.ArrowNotImplementedError, ('read-only', 'authorized writer')),
                 ('CREATE CONNECTION unfinished', pa.ArrowNotImplementedError, ('reference grammar only', 'no SQL execution')),
+                ("CREATE SOURCE earthquakes FROM HTTP CONNECTION upstream INTO STREAM captures WITH (method='GET', path='/feed', poll_interval='1s', request_timeout='1s', response_max_bytes=4096)", pa.ArrowNotImplementedError, ('reference grammar only', 'no SQL execution')),
                 ('SELECT absent FROM items;', pa.ArrowInvalid, ('UnknownColumn', 'Subject: "absent"', 'scope: "items"', 'column 8')),
                 ("SELECT * FROM items WHERE value = '50% discount';", pa.ArrowInvalid, ('TypeMismatch', 'Expected int64; supplied utf8', '50% discount')),
                 ("SELECT * FROM items WHERE value = 'private-must-not-appear' junk;", pa.ArrowNotImplementedError, ('SQL construct unsupported', 'column')),

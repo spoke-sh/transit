@@ -72,6 +72,31 @@ def run(postgres, mysql_options, inventory, external):
                 else: raise AssertionError((protocol,alias,'unsupported declaration accepted'))
                 assert len(inventory()) == before
 
+        # Connector publication belongs to the native cohosted profile. Shared
+        # parsing must not admit it through either database wire adapter.
+        for query in (
+            "CREATE CONNECTION wire_upstream TO HTTP (endpoint='http://127.0.0.1:1')",
+            "CREATE SOURCE wire_source FROM HTTP CONNECTION wire_upstream INTO STREAM absent WITH "
+            "(method='GET', path='/feed', poll_interval='1s', request_timeout='1s', response_max_bytes=4096)",
+            'RETIRE SOURCE wire_source',
+            'SHOW SOURCES',
+        ):
+            before = len(inventory())
+            try:
+                pg.execute(query)
+            except psycopg.Error as error:
+                assert error.sqlstate == '0A000', (query, error)
+            else:
+                raise AssertionError(('PostgreSQL admitted a connector declaration', query))
+            with my.cursor() as cursor:
+                try:
+                    cursor.execute(query)
+                except mysql.connector.Error as error:
+                    assert error.errno == 1235, (query, error)
+                else:
+                    raise AssertionError(('MySQL admitted a connector declaration', query))
+            assert len(inventory()) == before
+
         external(910001,'CREATE TABLE native_parameters (id INT, opaque INT128)')
         before = len(inventory())
         query = 'SELECT id FROM native_parameters WHERE opaque=%s'

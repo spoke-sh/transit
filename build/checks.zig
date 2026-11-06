@@ -1183,6 +1183,13 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     managed_server_test.has_side_effects = true;
     managed_server_test.stdio = .inherit;
     b.step("test-server-managed-tables", "Prove installed managed Table lifecycle, WAL wakeups and replacement").dependOn(&managed_server_test.step);
+    const source_server_test = b.addSystemCommand(&.{ "python3", "-B" });
+    source_server_test.addFileArg(b.path("tests/runner/launch.py"));
+    source_server_test.addFileArg(b.path("tests/interfaces/installation/server_sources.py"));
+    for ([_]*std.Build.Step.Compile{ transit_cli, node_artifact, query_host, board, sql_gateway_app }) |artifact| source_server_test.addArtifactArg(artifact);
+    source_server_test.has_side_effects = true;
+    source_server_test.stdio = .inherit;
+    b.step("test-server-sources", "Prove installed SOURCE declaration lifecycle, restart and zero HTTP dispatch").dependOn(&source_server_test.step);
     const single_server_test = b.addSystemCommand(&.{ "python3", "-B" });
     single_server_test.addFileArg(b.path("tests/runner/launch.py"));
     single_server_test.addFileArg(b.path("tests/interfaces/installation/server_board_package.py"));
