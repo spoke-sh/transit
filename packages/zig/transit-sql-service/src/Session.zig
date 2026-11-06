@@ -770,11 +770,8 @@ fn openWorkloadResult(self: *Self, statement: *Prepared, values: []const ?f.Type
 fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !*Read {
     try g.SessionTransaction.require(self, prepared);
     const is_fresh = self.fresh_prepared == prepared;
-    if (is_fresh) {
-        self.fresh_prepared = null;
-    } else {
-        try self.validate(prepared);
-    }
+    if (!is_fresh) try self.validate(prepared);
+    errdefer self.fresh_prepared = null;
     const read = try self.allocator.create(Read);
     errdefer self.allocator.destroy(read);
     read.* = .{ .host = self, .value = undefined, .prepared = prepared, .builder = try .init(self.allocator, self.config.limits.cycle_bytes), .validated_open = true, .transaction = self.transaction.handle, .transaction_context = self.table.transaction };
@@ -834,7 +831,7 @@ fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values
                 var path: [64]u8 = undefined;
                 const name = try std.fmt.bufPrint(&path, "sql-{x}", .{nonce});
                 read.value = .{ .relational = try statement.openRelational(self.allocator, self.io, self.directory, name, &self.table, values, snapshots[0..count], self.readOptions(), self.cancellation) };
-            } else read.value = .{ .single = try statement.openSelect(self.allocator, &self.table, values, snapshots[0], .{ .requests = 10000, .rows = 10000, .result_bytes = 16 * 1024 * 1024 }, self.cancellation) };
+            } else read.value = .{ .single = try statement.openSelectValidated(self.allocator, &self.table, values, snapshots[0], .{ .requests = 10000, .rows = 10000, .result_bytes = 16 * 1024 * 1024 }, self.cancellation, true) };
         },
     }
     return read;

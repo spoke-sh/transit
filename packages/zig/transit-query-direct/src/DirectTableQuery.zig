@@ -69,13 +69,19 @@ pub fn qualify(table_schema: f.TableSchema.Schema) !void {
 /// The caller retains the original pin request/handle across uncertain
 /// acquisition. This opens no pin and never substitutes a newer source.
 pub fn openPreparedRetained(allocator: std.mem.Allocator, client: c.DirectTableClient, snapshot: c.DirectTableProtocol.Snapshot, prepared: *const q.DirectTablePrepared, values: []const ?f.Types.Values.Atom, limits: Limits, cancellation: ?*const std.atomic.Value(bool), detail: ?*f.Sql.Binding, compute: Compute) !Self {
+    return openPrepared(allocator, client, snapshot, prepared, values, limits, cancellation, detail, compute, false);
+}
+pub fn openPreparedValidated(allocator: std.mem.Allocator, client: c.DirectTableClient, snapshot: c.DirectTableProtocol.Snapshot, prepared: *const q.DirectTablePrepared, values: []const ?f.Types.Values.Atom, limits: Limits, cancellation: ?*const std.atomic.Value(bool), detail: ?*f.Sql.Binding, compute: Compute) !Self {
+    return openPrepared(allocator, client, snapshot, prepared, values, limits, cancellation, detail, compute, true);
+}
+fn openPrepared(allocator: std.mem.Allocator, client: c.DirectTableClient, snapshot: c.DirectTableProtocol.Snapshot, prepared: *const q.DirectTablePrepared, values: []const ?f.Types.Values.Atom, limits: Limits, cancellation: ?*const std.atomic.Value(bool), detail: ?*f.Sql.Binding, compute: Compute, validated_binding: bool) !Self {
     try limits.validate();
     if (cancellation) |flag| if (flag.load(.acquire)) return error.Cancelled;
     // A view and its source require independent authorization. Each direct
     // action can acquire credentials before making its protected request.
     const validation_requests: u64 = if (prepared.binding.view != null) 4 else 2;
     if (limits.requests < validation_requests + 2) return error.QueryPageBudget;
-    _ = try prepared.binding.require(client, .read);
+    if (!validated_binding) _ = try prepared.binding.require(client, .read);
     var scan = if (prepared.binding.catalog) |catalog| try Scan.openCatalog(allocator, client, catalog, prepared.binding.interpretation.interpretation.object.object, limits.requests - validation_requests, cancellation) else try Scan.open(allocator, client, snapshot, limits.requests - validation_requests, cancellation);
     errdefer scan.deinit();
     scan.requests += validation_requests;
@@ -89,16 +95,19 @@ pub fn openPreparedRetained(allocator: std.mem.Allocator, client: c.DirectTableC
     try qualify(scan.reader.schema.schema);
     var compiled = try prepared.instantiate(allocator, client.connection, scan.reader.basis.interpretation, scan.reader.schema.schema, try scan.fingerprint(), values, detail);
     errdefer compiled.deinit();
-    return start(&scan, &compiled, limits, compute);
+    return startWith(&scan, &compiled, limits, compute, !validated_binding or scan.view != null);
 }
 /// Transfers scan and compiled ownership only on success.
 fn start(scan: *Scan, compiled: *f.TableSelect.Owned, limits: Limits, compute: Compute) !Self {
+    return startWith(scan, compiled, limits, compute, true);
+}
+fn startWith(scan: *Scan, compiled: *f.TableSelect.Owned, limits: Limits, compute: Compute, validate_current: bool) !Self {
     var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
     var scratch: [f.Types.max_encoding_bytes]u8 = undefined;
     const encoded = try (try compiled.plan.outputSchema(&fields)).encode(&scratch);
     if (encoded.len > limits.result_bytes) return error.QueryResultBudget;
     if (!std.meta.eql(compiled.plan.collations, f.QueryCollations.fromTable(scan.reader.schema.schema))) return error.SourceChanged;
-    try scan.validateCurrent();
+    if (validate_current) try scan.validateCurrent() else try scan.checkCancellation();
     try scan.selectAccess(compiled.plan);
     var workspace: f.TableProjection.Workspace = .{};
     const physical_plan = if (scan.reader.projection) |*selected| try selected.remap(scan.reader.schema.schema, compiled.plan, &workspace) else compiled.plan;
