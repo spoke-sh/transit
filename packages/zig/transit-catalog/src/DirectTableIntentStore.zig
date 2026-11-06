@@ -4,7 +4,7 @@ const std = @import("std");
 const c = @import("root.zig");
 const I = c.DirectTableIntent;
 const Objects = c.storage.TransitObjectStore;
-fn key(reference: I.Reference, output: *[96]u8) ![]const u8 {
+pub fn key(reference: I.Reference, output: *[96]u8) ![]const u8 {
     try reference.validate();
     return std.fmt.bufPrint(output, "direct-intents/{x}.data", .{&reference.content.sha256});
 }

@@ -179,6 +179,12 @@ queue_transfer_owner: ?struct { key: [32]u8, plan: c.DirectRecord.Reference } = 
 lose_table_reply: bool = false,
 /// Failure injection after the original coordination acceptance.
 lose_transaction_reply: bool = false,
+verified_records: [8]?c.DirectRecord.Reference = @splat(null),
+verified_record_next: usize = 0,
+verified_dml_intents: [8]?c.DirectTableIntent.Reference = @splat(null),
+verified_dml_intent_next: usize = 0,
+verified_data_bindings: [8]?d.Binding = @splat(null),
+verified_data_binding_next: usize = 0,
 
 pub fn init(allocator: std.mem.Allocator, configuration: Configuration, control_log: s.TransitLog.Log, control_objects: s.TransitObjectStore.ObjectStore, data_log: s.TransitLog.Log, data_objects: s.TransitObjectStore.ObjectStore, options: Options) !Self {
     if (options.index_work_bytes == 0 or options.client_token_quota == 0) return error.InvalidStorageBudget;
@@ -189,7 +195,79 @@ pub fn deinit(self: *Self) void {
     self.* = undefined;
 }
 pub fn recover(self: *Self) !void {
+    self.verified_records = @splat(null);
+    self.verified_dml_intents = @splat(null);
+    self.verified_data_bindings = @splat(null);
     try self.store.recover();
+}
+
+pub fn rememberVerifiedRecord(self: *Self, reference: c.DirectRecord.Reference) void {
+    for (self.verified_records) |slot| if (slot) |known| {
+        if (std.meta.eql(known, reference)) return;
+    };
+    self.verified_records[self.verified_record_next] = reference;
+    self.verified_record_next = (self.verified_record_next + 1) % self.verified_records.len;
+}
+fn verifyDirectRecord(self: *Self, allocator: std.mem.Allocator, reference: c.DirectRecord.Reference) !void {
+    for (self.verified_records) |slot| if (slot) |known| {
+        if (std.meta.eql(known, reference)) {
+            var name: [96]u8 = undefined;
+            const path = try c.DirectRecord.key(reference, &name);
+            const metadata = try self.data_objects.head(path) orelse return error.DirectRecordMissing;
+            if (metadata.size != reference.content.bytes or !std.mem.eql(u8, &metadata.sha256, &reference.content.sha256)) return error.InvalidDirectRecord;
+            return;
+        }
+    };
+    try c.DirectRecord.verify(allocator, self.data_objects, reference);
+    self.rememberVerifiedRecord(reference);
+}
+pub fn rememberVerifiedDataBinding(self: *Self, binding: d.Binding) void {
+    for (self.verified_data_bindings) |slot| if (slot) |known| {
+        if (std.meta.eql(known, binding)) return;
+    };
+    self.verified_data_bindings[self.verified_data_binding_next] = binding;
+    self.verified_data_binding_next = (self.verified_data_binding_next + 1) % self.verified_data_bindings.len;
+}
+pub fn rememberVerifiedDmlIntent(self: *Self, reference: c.DirectTableIntent.Reference) void {
+    for (self.verified_dml_intents) |slot| if (slot) |known| {
+        if (std.meta.eql(known, reference)) {
+            self.rememberVerifiedDataBinding(reference.binding);
+            return;
+        }
+    };
+    self.verified_dml_intents[self.verified_dml_intent_next] = reference;
+    self.verified_dml_intent_next = (self.verified_dml_intent_next + 1) % self.verified_dml_intents.len;
+    self.rememberVerifiedDataBinding(reference.binding);
+}
+fn isVerifiedDmlIntent(self: *Self, reference: c.DirectTableIntent.Reference) !bool {
+    for (self.verified_dml_intents) |slot| if (slot) |known| {
+        if (std.meta.eql(known, reference)) {
+            var name: [96]u8 = undefined;
+            const path = try c.DirectTableIntentStore.key(reference, &name);
+            const metadata = try self.data_objects.head(path) orelse return false;
+            return metadata.size == reference.content.bytes and std.mem.eql(u8, &metadata.sha256, &reference.content.sha256);
+        }
+    };
+    return false;
+}
+fn claimDataBinding(self: *Self, binding: d.Binding) !void {
+    for (self.verified_data_bindings) |slot| if (slot) |known| {
+        if (std.meta.eql(known.identity, binding.identity)) {
+            var name: [96]u8 = undefined;
+            const object_key = try c.OperationBinding.key(binding.identity, &name);
+            if (try self.data_objects.head(object_key)) |metadata| {
+                var buf: [c.OperationBinding.max_bytes]u8 = undefined;
+                const expected = try c.OperationBinding.encodeData(known, &buf);
+                if (metadata.size == expected.bytes.len and std.mem.eql(u8, &metadata.sha256, &expected.sha256)) {
+                    try known.requireSame(binding);
+                    return;
+                }
+            }
+            break;
+        }
+    };
+    try c.OperationBinding.claim(self.allocator, self.data_objects, binding);
+    self.rememberVerifiedDataBinding(binding);
 }
 
 /// Reuse only a prefix validated by this same live owner and immutable log.
@@ -1465,7 +1543,9 @@ pub fn directRecord(self: *Self, allocator: std.mem.Allocator, request: c.Direct
                 try parsed.value.validate(scope.connection);
             }
             try check(current);
-            break :blk .{ .reference = try c.DirectRecord.store(self.data_objects, scope, value.format, bytes), .bytes = null };
+            const stored_ref = try c.DirectRecord.store(self.data_objects, scope, value.format, bytes);
+            self.rememberVerifiedRecord(stored_ref);
+            break :blk .{ .reference = stored_ref, .bytes = null };
         },
         .read => |value| blk: {
             const bytes = try c.DirectRecord.load(allocator, self.data_objects, value);
@@ -1742,20 +1822,26 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
             if (value.record.format == c.DirectOwnedRecord.format) {
                 if (reservation == .none) return error.OwnedRecordOperationRequired;
             } else {
-                try c.DirectRecord.verify(arena.allocator(), self.data_objects, value.record);
+                try self.verifyDirectRecord(arena.allocator(), value.record);
             }
             try check(current);
             try c.OperationBinding.claimExternalInTree(self.allocator, &self.store.index, value);
         },
         .table => |table| {
-            var intent = try c.DirectTableIntentStore.load(arena.allocator(), self.data_objects, table);
-            defer intent.deinit();
-            if (intent.parsed.value.work == .ddl) _ = try self.preview(try intent.parsed.value.work.ddl.native(arena.allocator(), self.config()), policy);
-            try check(current);
-            if (intent.parsed.value.work == .ddl) {
-                try c.OperationBinding.claimInTree(self.allocator, &self.store.index, table.binding);
+            if (try self.isVerifiedDmlIntent(table)) {
+                try check(current);
+                try self.claimDataBinding(table.binding);
             } else {
-                try c.OperationBinding.claim(self.allocator, self.data_objects, table.binding);
+                var intent = try c.DirectTableIntentStore.load(arena.allocator(), self.data_objects, table);
+                defer intent.deinit();
+                if (intent.parsed.value.work == .ddl) _ = try self.preview(try intent.parsed.value.work.ddl.native(arena.allocator(), self.config()), policy);
+                try check(current);
+                if (intent.parsed.value.work == .ddl) {
+                    try c.OperationBinding.claimInTree(self.allocator, &self.store.index, table.binding);
+                } else {
+                    try self.claimDataBinding(table.binding);
+                    self.rememberVerifiedDmlIntent(table);
+                }
             }
         },
         .name_assertion => |value| try c.OperationBinding.claimAssertionInTree(self.allocator, &self.store.index, value),
@@ -1857,7 +1943,7 @@ pub fn clientProgressWithWorkloads(self: *Self, request: c.DirectClientToken.Pro
         } else try self.requireClientTerminal(state.receipt.binding.intent, policy, workloads);
     }
     if (value.record) |reference| {
-        try c.DirectRecord.verify(arena.allocator(), self.data_objects, reference);
+        try self.verifyDirectRecord(arena.allocator(), reference);
     }
     state.pending = value.pending;
     state.cancel = value.cancel;
@@ -5595,7 +5681,7 @@ pub fn applySavedRows(self: *Self, allocator: std.mem.Allocator, reference: c.Di
         current = try policy.make_guard(policy.context, arena.allocator(), required, request.binding.prerequisite);
         try check(current);
     }
-    try c.OperationBinding.claim(self.allocator, self.data_objects, request.binding);
+    try self.claimDataBinding(request.binding);
     if (try view.table.operationState(request.binding, current) == .not_observed and try self.pendingWithView(target.object, &view, current)) return error.CatalogObjectBusy;
     view.table.lose_reply = self.lose_table_reply;
     return view.table.commit(request, current);
@@ -5620,7 +5706,7 @@ fn rowOperation(self: *Self, binding: d.Binding, action: enum { admit, commit, p
     const current = try policy.make_guard(policy.context, arena.allocator(), required, if (action == .admit or action == .commit or action == .perform) binding.prerequisite else null);
     try check(current);
     if (action == .admit or action == .commit) {
-        try c.OperationBinding.claim(self.allocator, self.data_objects, binding);
+        try self.claimDataBinding(binding);
         if (try view.table.operationState(binding, current) == .not_observed and try self.pendingWithView(target.object, &view, current)) return error.CatalogObjectBusy;
     }
     view.table.lose_reply = self.lose_table_reply;

@@ -4671,6 +4671,7 @@
         "DataIdentityConflict": 11,
         "DataflowIdentityConflict": 5,
         "DataflowRevisionNotFound": 1,
+        "DirectRecordMissing": 1,
         "DocumentSourceMissing": 1,
         "DocumentSourceOperationRequired": 8,
         "DocumentSourceWorkLimit": 1,
@@ -4712,7 +4713,7 @@
         "InvalidDirectCatalogName": 2,
         "InvalidDirectCatalogOperation": 28,
         "InvalidDirectCatalogTransition": 1,
-        "InvalidDirectRecord": 3,
+        "InvalidDirectRecord": 4,
         "InvalidDocumentSource": 3,
         "InvalidDocumentSourceChunk": 3,
         "InvalidDocumentSourceCursor": 1,
@@ -4915,6 +4916,7 @@
         "check()": "<inferred>",
         "checkAccess()": "<inferred>",
         "checkOperation()": "<inferred>",
+        "claimDataBinding()": "<inferred>",
         "clientProgress()": "<inferred>",
         "clientProgressWithWorkloads()": "<inferred>",
         "clientToken()": "<inferred>",
@@ -4984,6 +4986,7 @@
         "inspectTransaction()": "<inferred>",
         "intentGuard()": "<inferred>",
         "intentGuardWithRowState()": "<inferred>",
+        "isVerifiedDmlIntent()": "<inferred>",
         "kvAccess()": "<inferred>",
         "kvReady()": "<inferred>",
         "kvRequirements()": "<inferred>",
@@ -5168,11 +5171,12 @@
         "validateLogRequest()": "<inferred>",
         "validateTransactionTransfer()": "<inferred>",
         "verifiedObject()": "<inferred>",
+        "verifyDirectRecord()": "<inferred>",
         "verifyHistoryDescriptor()": "<inferred>"
       },
       "open_error_set_uses": 13,
       "propagation": {
-        "try": 2419,
+        "try": 2432,
         "catch": 31
       },
       "imports": [
