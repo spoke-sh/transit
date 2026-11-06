@@ -323,7 +323,14 @@ pub fn bindWritePrepared(self: *const Self, allocator: std.mem.Allocator, client
     return error.ExpectedGatewayWrite;
 }
 pub fn openSelect(self: *const Self, allocator: std.mem.Allocator, client: *c.DirectTableClient, values: []const ?f.Types.Values.Atom, snapshot: c.DirectTableProtocol.Snapshot, limits: g.direct.DirectTableQuery.Limits, cancellation: ?*const std.atomic.Value(bool)) !g.direct.DirectTableQuery {
+    return self.openSelectValidated(allocator, client, values, snapshot, limits, cancellation, false);
+}
+pub fn openSelectValidated(self: *const Self, allocator: std.mem.Allocator, client: *c.DirectTableClient, values: []const ?f.Types.Values.Atom, snapshot: c.DirectTableProtocol.Snapshot, limits: g.direct.DirectTableQuery.Limits, cancellation: ?*const std.atomic.Value(bool), validated_binding: bool) !g.direct.DirectTableQuery {
     if (self.inspection or self.plan != .select) return error.ExpectedSingleTableSelect;
+    if (validated_binding) {
+        if (!std.meta.eql(self.connection, client.connection)) return error.CatalogIdentityConflict;
+        return g.direct.DirectTableQuery.openPreparedValidated(allocator, client.*, snapshot, &self.plan.select, values, limits, cancellation, null, .{});
+    }
     return g.direct.DirectTableQuery.openPreparedRetained(allocator, client.*, snapshot, &self.plan.select, values, limits, cancellation, null, .{});
 }
 pub fn openRelational(self: *const Self, allocator: std.mem.Allocator, io: std.Io, directory: std.Io.Dir, name: []const u8, client: *c.DirectTableClient, values: []const ?f.Types.Values.Atom, snapshots: []const c.DirectTableProtocol.Snapshot, options: g.direct.DirectRelationalQuery.Options, cancellation: ?*const std.atomic.Value(bool)) !*g.direct.DirectRelationalQuery {

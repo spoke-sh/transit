@@ -401,7 +401,10 @@ fn recoverOne(self: *Self, source: *g.Client.Source, id: u64) !bool {
 }
 fn cleanupClient(self: *Self) !?c.DirectTableClient {
     const bindings = self.execution.configuration.bindings;
-    if (self.cleanup_route < bindings.len) return self.private.table(bindings[self.cleanup_route]);
+    if (self.cleanup_route < bindings.len) {
+        if (g.Client.isDuplicateBindingConnection(bindings, self.cleanup_route)) return null;
+        return self.private.table(bindings[self.cleanup_route]);
+    }
     const resolve = self.read_sources.resolve orelse return null;
     return resolve(self.read_sources.context.?, self.cleanup_route - bindings.len, self.allocator, self.io, &self.background);
 }

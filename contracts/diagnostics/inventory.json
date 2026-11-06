@@ -25371,16 +25371,19 @@
         "Limits.validate()": "<inferred>",
         "next()": "<inferred>",
         "nextBatch()": "<inferred>",
+        "openPrepared()": "<inferred>",
         "openPreparedRetained()": "<inferred>",
+        "openPreparedValidated()": "<inferred>",
         "openRetained()": "<inferred>",
         "prepareRow()": "<inferred>",
         "qualify()": "<inferred>",
         "schema()": "<inferred>",
-        "start()": "<inferred>"
+        "start()": "<inferred>",
+        "startWith()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 33,
+        "try": 34,
         "catch": 1
       },
       "imports": [
@@ -34023,7 +34026,7 @@
     },
     "packages/zig/transit-sql/src/Statement.zig": {
       "errors": {
-        "CatalogIdentityConflict": 6,
+        "CatalogIdentityConflict": 7,
         "ExpectedGatewayWrite": 1,
         "ExpectedRelationalSelect": 1,
         "ExpectedSingleTableSelect": 1,
@@ -34086,6 +34089,7 @@
         "checkValues()": "<inferred>",
         "openRelational()": "<inferred>",
         "openSelect()": "<inferred>",
+        "openSelectValidated()": "<inferred>",
         "prepare()": "<inferred>",
         "prepareDiagnostic()": "<inferred>",
         "prepareInner()": "<inferred>",
