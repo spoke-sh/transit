@@ -18392,7 +18392,7 @@
         "InvalidQueryInteger": 2,
         "InvalidQueryScalar": 2,
         "InvalidSqlEncoding": 3,
-        "InvalidSqlSyntax": 2,
+        "InvalidSqlSyntax": 3,
         "InvalidUtf8": 2,
         "LiteralOutOfRange": 2,
         "LiteralTooLarge": 2,

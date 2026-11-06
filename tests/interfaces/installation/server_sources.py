@@ -170,6 +170,8 @@ def run(cli, node, host, board, gateway):
         fixture.console(STREAM + ';\n')
         connection_client = Client(fixture.console_config(), fixture.record()['definition']).open()
         try:
+            malformed = connection_client.call(dict(execute=dict(sql="CREATE SOURCE broken FROM HTTP CONNECTION upstream WITH (capture_stream='captures')", token=list(os.urandom(16)))), error='InvalidSqlSyntax')['err']
+            assert malformed['sqlstate'] == list(b'42601') and malformed.get('operation') is None, malformed
             created = connection_client.execute(f"CREATE CONNECTION upstream TO HTTP (endpoint='http://127.0.0.1:{peer.server_port}')", token=list(os.urandom(16)))['operation']
             settle(connection_client, dict(operation=created['identity']))
         finally:

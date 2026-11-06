@@ -239,6 +239,10 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
             (word(text, first, "CREATE") or word(text, first, "DROP") or word(text, first, "RETIRE") or word(text, first, "SHOW") or word(text, first, "DESCRIBE"))) or
         (word(text, first, "SHOW") and (word(text, second, "SOURCES") or word(text, second, "CONNECTIONS"))))
     {
+        // The owning declaration parser may already have established invalid
+        // syntax. Preserve that evidence without inventing an error offset or
+        // relabelling its native route as an unavailable query interface.
+        if (cause == error.InvalidSqlSyntax) return .{ .kind = .syntax, .route = .connector, .cause = cause, .summary = "Invalid connector declaration syntax", .hint = "Check the native declaration syntax in /reference/sql/create-source/ or /reference/sql/create-connection/." };
         result = .{ .kind = .interface, .route = .connector, .cause = cause, .summary = "CONNECTION and SOURCE declarations require native cohosted SQL; submitted syntax has not been validated", .hint = "Use /reference/sql/create-source/ and /reference/sql/create-connection/ for the native cohosted declaration profile. HTTP execution is unavailable." };
     } else if (word(text, first, "CREATE") and word(text, second, "SINK")) {
         result = .{ .kind = .grammar_only, .cause = cause, .summary = "Statement family has reference grammar but no SQL execution; its submitted syntax has not been validated", .hint = grammar_hint };
@@ -716,6 +720,9 @@ test "query boundaries distinguish parser evidence, grammar families and binding
     try std.testing.expect(query("SELECT * FROM items", error.AuthorityTimeout, true) == null);
     try std.testing.expectEqual(Kind.binding, query("SELECT bad FROM items", error.UnknownColumn, true).?.kind);
     try std.testing.expectEqual(Kind.interface, query("SHOW TABLES", error.UnsupportedStatement, false).?.kind);
+    const owned_syntax = query("CREATE SOURCE unfinished", error.InvalidSqlSyntax, true).?;
+    try std.testing.expectEqual(Kind.syntax, owned_syntax.kind);
+    try std.testing.expect(owned_syntax.location == null);
 }
 
 test "SQL diagnostic owns bounded inert context and hides literals and comments" {
