@@ -324,7 +324,7 @@ def run(binary):
                     assert process.poll() is None and time.monotonic() < deadline, log_path.read_text()
                     time.sleep(0.05)
 
-                # 1. Immediate readiness after server.ready & ORDER BY diagnostic (#274)
+                # 1. Immediate readiness after server.ready and ORDER BY (#274)
                 initial_status = run_cli(root, env, cli, '01-immediate-status',
                                          'migrate', 'status', '--format', 'json')
                 assert initial_status.returncode == 0, (initial_status.returncode, initial_status.stdout, initial_status.stderr)
@@ -341,18 +341,10 @@ def run(binary):
                 )
                 assert order_by_ok.returncode == 0, (order_by_ok.returncode, order_by_ok.stdout, order_by_ok.stderr)
 
-                order_by_probe = run_cli(
-                    root, env, cli, '02-order-by-diagnostic',
-                    'console', '--no-rc', '--format', 'json',
-                    input_text=(
-                        "SELECT * FROM platform_migrations ORDER BY version;\n"
-                    ),
-                )
-                assert order_by_probe.returncode != 0, order_by_probe.stdout
-                assert 'InvalidColumnName' not in order_by_probe.stdout and 'InvalidColumnName' not in order_by_probe.stderr, (
-                    order_by_probe.stdout, order_by_probe.stderr)
-                assert 'sql.unsupported_construct' in order_by_probe.stderr and 'UnsupportedConstruct' in order_by_probe.stderr, (
-                    order_by_probe.stdout, order_by_probe.stderr)
+                assert sql_query_records(
+                    root, env, cli, '02-order-by-star',
+                    'SELECT * FROM platform_migrations ORDER BY version;',
+                ) == []
                 drop_probe = run_cli(root, env, cli, '02b-drop-platform-migrations',
                                      'console', '--no-rc', '-c', 'DROP TABLE platform_migrations;')
                 assert drop_probe.returncode == 0, drop_probe.stderr
@@ -623,7 +615,7 @@ def run(binary):
             assert process.returncode == 0, log_path.read_text()
 
         success = True
-        print('Migration lifecycle: immediate SQL readiness, ORDER BY diagnostic, plan/inspect/apply/status/verify, idempotent re-run, target mismatch, checksum immutability, IF NOT EXISTS & live schema drift, partial step failure, claim conflict and token-reconciled resume passed.', flush=True)
+        print('Migration lifecycle: immediate SQL readiness, ORDER BY, plan/inspect/apply/status/verify, idempotent re-run, target mismatch, checksum immutability, schema and dataflow drift, partial failure, claim fencing, original-operation recovery across restart and current authorization passed.', flush=True)
     finally:
         if success:
             shutil.rmtree(root)
