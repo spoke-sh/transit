@@ -82,7 +82,7 @@ templateLimitClause: LIMIT (INTEGER | PARAMETER);
 // The single-source statement root retains its independent LIMIT/subquery profile.
 relationalQuery: EXPLAIN? relationalSelect snapshotClause? SEMI? EOF;
 relationalSelect
-    : SELECT (STAR | relationalSelection (COMMA relationalSelection)*) FROM relationalTarget relationalJoin?
+    : SELECT (STAR | identifier DOT STAR | relationalSelection (COMMA relationalSelection)*) FROM relationalTarget relationalJoin?
       whereClause? (GROUP BY columnReference (COMMA columnReference)*)?
       havingClause? orderByClause? limitClause?
     ;
@@ -117,7 +117,7 @@ selectStatement
 sourceAlias: AS identifier;
 selection: projection | aggregateSelection;
 aggregateSelection: (COUNT LPAREN (STAR | columnReference | scalarCall) RPAREN | SUM LPAREN (columnReference | scalarCall) RPAREN) outputAlias?;
-projection: STAR | projectionItem (COMMA projectionItem)*;
+projection: STAR | identifier DOT STAR | projectionItem (COMMA projectionItem)*;
 projectionItem: (columnReference (AT TIME ZONE STRING)? | scalarCall) outputAlias?;
 scalarCall: scalarFunction LPAREN scalarArgument (COMMA scalarArgument)* RPAREN;
 scalarArgument: (columnReference | scalarCall) (AT TIME ZONE STRING)? | signedInteger | STRING;

@@ -329,7 +329,10 @@ remain outside this evidence.
 The ordinary `statement` read grammar permits one source, an optional Boolean predicate over typed comparisons and exact cell-state tests,
 a projection bounded by the declared schema or star, row output, `COUNT(*)`, `COUNT(column)`, and `SUM(column)`. Identifiers
 fold to lowercase unless quoted. Column qualification is optional; `FROM source
-AS alias` makes the alias its column qualifier. `AS` is required. The restricted
+AS alias` makes the alias its column qualifier. The finite scalar compiler requires
+`AS`; the general Table compiler also admits implicit source aliases and
+`source.*` or `alias.*` as a complete projection. The qualifier must match the
+visible source name; an alias hides the original name. The restricted
 aggregate input subquery has a separate outer alias. Row projections and
 aggregates accept explicit `AS name` output aliases. Output names are distinct;
 an inner projection's renamed columns are available to the outer aggregate,
@@ -366,7 +369,8 @@ The `statement` root includes this relational selection and retains the existing
 language allows them; unquoted implicit source aliases cannot consume clause
 words. Joined `*` expands both schemas in source/column order with
 `source_alias.column` output labels; single-Table `*` keeps the original names.
-Qualified stars and mixed star/explicit selections are excluded. Type admission,
+Qualified stars select just the named source in declared column order and retain
+its column names. Mixed star/explicit selections are excluded. Type admission,
 distinct output names, grouping legality, source rights
 and execution budgets remain semantic checks. DISTINCT, OFFSET,
 additional joins and arbitrary infix expressions are excluded from the relational root. WHERE, HAVING and LIMIT admit typed parameters. Single-Table projections and ordering admit the shared bounded scalar functions. Executable relational comparisons use the admitted scalar descriptors and NULL-state tests.

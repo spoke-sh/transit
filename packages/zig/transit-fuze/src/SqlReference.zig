@@ -9,6 +9,25 @@ span: Parser.Literal.Span,
 qualifier: ?[]const u8 = null,
 qualifier_span: ?Parser.Literal.Span = null,
 
+pub const Wildcard = struct { qualifier: ?Self = null };
+/// Only projection positions admit a wildcard. Leave ordinary references and
+/// aggregate arguments to parse; looking ahead neither allocates nor consumes.
+pub fn wildcard(parser: *Parser) !?Wildcard {
+    if (try parser.take(.star)) return .{};
+    if (parser.token.tag != .word and parser.token.tag != .quoted) return null;
+    var lookahead = parser.lexer;
+    // Let the consuming parser report lexical failures at their actual token.
+    // A speculative lexer has a different position from parser.location.
+    const dot = lookahead.next() catch return null;
+    if (dot.tag != .dot) return null;
+    const star = lookahead.next() catch return null;
+    if (star.tag != .star) return null;
+    const qualifier = try unqualified(parser, .column);
+    try parser.require(.dot);
+    try parser.require(.star);
+    return .{ .qualifier = qualifier };
+}
+
 pub fn unqualified(parser: *Parser, role: Parser.NameRole) !Self {
     const start = parser.lexer.start;
     const name = try parser.named(role);

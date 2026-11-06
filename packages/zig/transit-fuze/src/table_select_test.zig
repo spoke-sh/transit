@@ -8,6 +8,37 @@ const dml = @import("TableDml.zig");
 const Cell = types.Values.Cell;
 const basis: [32]u8 = @splat(17);
 
+test "Table SELECT qualified wildcard preserves the full logical schema" {
+    const schema: types.Type = .{ .structure = &.{
+        .{ .name = "id", .type = .int64, .nullable = false },
+        .{ .name = "value", .type = .{ .list = .{ .type = &.utf8, .nullable = true } }, .nullable = true },
+    } };
+    var expected = try select.compile(e.allocator, "SELECT * FROM items", "items", schema, basis, null);
+    defer expected.deinit();
+    for ([_][]const u8{
+        "SELECT i.* FROM items i;",
+        "SELECT i.* FROM items AS i;",
+        "SELECT items.* FROM items;",
+        "SELECT I /* qualifier */ . /* wildcard */ * FROM items i;",
+        "SELECT \"I\".* FROM items AS \"I\";",
+    }) |text| {
+        var query = try select.compile(e.allocator, text, "items", schema, basis, null);
+        defer query.deinit();
+        try e.expectEqualSlices(u8, &try expected.plan.fingerprint(), &try query.plan.fingerprint());
+        var fields: [2]types.Field = undefined;
+        try e.expect(try schema.eql(try query.plan.outputSchema(&fields)));
+    }
+    for ([_][]const u8{
+        "SELECT wrong.* FROM items i",
+        "SELECT items.* FROM items i",
+        "SELECT i.* FROM items AS \"I\"",
+    }) |text| {
+        var location: @import("Sql.zig").Location = .{};
+        try e.expectError(error.UnknownQualifier, select.compile(e.allocator, text, "items", schema, basis, &location));
+        try e.expectEqual(@as(usize, 7), location.offset);
+    }
+}
+
 test "typed SELECT and DML bound Boolean instruction and operator stacks independently" {
     const schema: @import("TableSchema.zig").Schema = .{ .object = 1, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "n", .type = .int64 }}, .primary_key = &.{} };
     var fields: [128]types.Field = undefined;
@@ -77,6 +108,8 @@ test "Table SELECT and DML share all canonical five-state predicates" {
 test "SELECT binding retains original projection and predicate coordinates" {
     const schema: types.Type = .{ .structure = &.{.{ .name = "n", .type = .int8 }} };
     const cases = .{
+        .{ "SELECT n @ FROM people", error.UnsupportedConstruct, "@" },
+        .{ "SELECT p. @ FROM people p", error.UnsupportedConstruct, "@" },
         .{ "SELECT absent FROM people WHERE n=1", error.UnknownColumn, "absent" },
         .{ "SELECT wrong.n FROM people", error.UnknownQualifier, "wrong" },
         .{ "SELECT n FROM people WHERE absent=1", error.UnknownColumn, "absent" },

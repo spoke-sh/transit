@@ -13,6 +13,30 @@ const schema: t.Type = .{ .structure = &.{
 } };
 const text = "SELECT detail, id, name FROM people WHERE id >= $1 AND NOT (name = $2 OR name IS NULL) LIMIT $3";
 const values = [_]?t.Values.Atom{ .{ .signed = std.math.minInt(i128) }, .{ .bytes = "it's 東京'; DROP TABLE people; -- $4" }, .{ .unsigned = std.math.maxInt(u64) } };
+fn qualifiedWildcard(allocator: std.mem.Allocator) !void {
+    var text_bytes = "SELECT p.* FROM people p WHERE p.id >= $1 LIMIT $2".*;
+    var template = try Prepared.init(allocator, &text_bytes, "people", schema, basis, null);
+    var live = true;
+    defer if (live) template.deinit();
+    @memset(&text_bytes, 0);
+    var bound = try template.bind(allocator, "people", schema, basis, &.{ .{ .signed = 1 }, .{ .unsigned = 3 } }, null);
+    defer bound.deinit();
+    template.deinit();
+    live = false;
+    var expected = try f.TableSelect.compile(allocator, "SELECT * FROM people WHERE id >= 1 LIMIT 3", "people", schema, basis, null);
+    defer expected.deinit();
+    try e.expectEqualSlices(u8, &try expected.plan.fingerprint(), &try bound.plan.fingerprint());
+    var derived = try f.TableSelect.compile(allocator, "SELECT COUNT(*) FROM (SELECT p.* FROM people AS p LIMIT 3) AS chosen", "people", schema, basis, null);
+    defer derived.deinit();
+    try e.expectEqual(.count, derived.plan.aggregate);
+    try e.expectEqual(@as(?u64, 3), derived.plan.limit);
+}
+
+test "prepared qualified wildcard owns its syntax and binding through allocation failures" {
+    try qualifiedWildcard(e.allocator);
+    try e.checkAllAllocationFailures(e.allocator, qualifiedWildcard, .{});
+}
+
 test "SQL single atoms preserve typed plan bytes with grouping and parameters" {
     const input: t.Type = .{ .structure = &.{.{ .name = "id", .type = .int128, .nullable = true }} };
     for ([_]struct { sql: []const u8, atom: f.LogicalQuery.Plan.Atom, parameters: []const ?t.Values.Atom }{

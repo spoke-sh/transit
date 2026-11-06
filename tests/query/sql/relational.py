@@ -137,7 +137,7 @@ def antlr(sql):
     if j := ctx.relationalJoin():
         sources.append(source(j.relationalTarget()))
         join = dict(kind='left' if j.LEFT() else 'inner', left=column(j.columnReference(0)), right=column(j.columnReference(1)))
-    return dict(sources=sources, outputs=[dict(kind="star", column=None, scalar=None, name="*")] if ctx.STAR() else [selection(s) for s in ctx.relationalSelection()], join=join,
+    return dict(sources=sources, outputs=[dict(kind="star", column=[identifier(ctx.identifier()), '*'] if ctx.identifier() else None, scalar=None, name="*")] if ctx.STAR() else [selection(s) for s in ctx.relationalSelection()], join=join,
                 groups=[column(c) for c in ctx.columnReference()],
                 predicate=predicate(ctx.whereClause().predicate()) if ctx.whereClause() else [],
                 having=having_predicate(ctx.havingClause().havingDisjunction()) if ctx.havingClause() else [],
@@ -169,7 +169,8 @@ def postgres(sql):
 
     def expr(value):
         if 'ColumnRef' in value:
-            if 'A_Star' in value['ColumnRef']['fields'][0]: return dict(kind='star', column=None, scalar=None)
+            fields = value['ColumnRef']['fields']
+            if 'A_Star' in fields[-1]: return dict(kind='star', column=[fields[0]['String']['sval'], '*'] if len(fields) == 2 else None, scalar=None)
             return dict(kind='column', column=col(value), scalar=None)
         call = value['FuncCall']
         name = call['funcname'][-1]['String']['sval']

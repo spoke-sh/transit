@@ -44,7 +44,7 @@ fn emit(allocator: std.mem.Allocator, writer: *std.Io.Writer, text: []const u8) 
         const expression = try expr(arena, selection.expression);
         outputs[i] = .{ .kind = expression.kind, .column = expression.column, .scalar = expression.scalar, .name = selection.name };
     }
-    if (syntax.star) outputs[0] = .{ .kind = "star", .column = null, .scalar = null, .name = "*" };
+    if (syntax.star) outputs[0] = .{ .kind = "star", .column = if (syntax.star_qualifier) |qualifier| .{ qualifier.name, "*" } else null, .scalar = null, .name = "*" };
     var groups: [128]Column = undefined;
     for (syntax.groups, 0..) |ref, i| groups[i] = column(ref);
     var instructions: [64]Instruction = undefined;

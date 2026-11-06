@@ -66,7 +66,19 @@ completion rules are described separately.
 an alias, qualified columns must use that alias; the original source name is
 hidden as a qualifier. Unqualified columns still resolve against the declared
 schema. Source aliases follow identifier case and length rules and do not rename output
-columns, change source identity or grant access. `AS` is required.
+columns, change source identity or grant access. The finite scalar source profile
+requires `AS`. General Table queries also accept `FROM source alias`
+and qualified wildcards:
+
+```sql
+SELECT i.* FROM items i;
+SELECT i.* FROM items AS i;
+SELECT items.* FROM items;
+```
+
+These wildcards retain every declared column's name, type and order. With an
+alias, `items.*` must instead use that alias. A wildcard must be the entire
+selection and cannot have an output alias.
 
 Results follow defined source order, including primary-key order for Tables.
 Table queries support the [relational ordering profile](relational.md), including

@@ -15,9 +15,13 @@ to 128 columns within the logical descriptor budgets. SELECT supports all
 stored logical families in projections and COUNT(column); it does not coerce
 recursive values into the six-scalar query representation.
 
-The compiler accepts `SELECT *`, named projections with optional `AS` output
-aliases, an optional source alias, WHERE, and a nonnegative uint64 LIMIT. Qualified
+The compiler accepts `SELECT *`, `SELECT source.*`, named projections with optional `AS` output
+aliases, an optional source alias with or without `AS`, WHERE, and a nonnegative uint64 LIMIT. Qualified
 columns resolve only against the selected source alias or original source name.
+When an alias is present, it replaces the original name as qualifier, including
+in `alias.*`. A qualified wildcard expands all columns in declared order with
+their original names, types and nullability. It cannot have an output alias or
+be mixed with other selections. Expansion lowers to the existing column plan.
 Repeated input columns require distinct output names. Unknown/duplicate output
 names, foreign qualifiers, trailing statements and unsupported constructs reject.
 

@@ -71,7 +71,7 @@ def run(cli, output):
     fixture.config['applications'] = {'port': fixture.reserve_port()}
     fixture.path.write_text(json.dumps(fixture.config))
     interfaces = ('console','postgres','mysql')
-    expected_cases = [f'{creator}.{stage}' for creator in interfaces for stage in ('empty','insert','update','delete','batch','scalars','restart')]+['negative','native-projection','aggregate-aliases','join-wildcards','join-wildcards-restart']
+    expected_cases = [f'{creator}.{stage}' for creator in interfaces for stage in ('empty','insert','update','delete','batch','scalars','restart')]+['negative','native-projection','aggregate-aliases','join-wildcards','join-wildcards-restart','table-aliases','table-aliases-restart']
     with open(fixture.cli,'rb') as binary:
         digest = hashlib.file_digest(binary,'sha256').hexdigest()
     report = dict(profile='sql-scalar-interfaces', source=provenance(ROOT), binary_sha256=digest,
@@ -165,6 +165,26 @@ def run(cli, output):
             assert [field['type'] for field in fields] == [{'int32':{}},{'utf8':{}},{'int64':{}},{'utf8':{}}], fields
         joined_rows()
         record('join-wildcards')
+        def table_aliases():
+            expected_items = [(row[2],row[3]) for row in inner_rows] + [(4,'orphan'),(4294967297,'wide'),(None,'no key')]
+            for reader in interfaces:
+                for query in ('SELECT i.* FROM join_items i', 'SELECT i.* FROM join_items AS i',
+                              'SELECT join_items.* FROM join_items', 'SELECT "I".* FROM join_items AS "I"'):
+                    actual = clients.execute(reader,query,('int64','utf8'))
+                    assert sorted(actual,key=repr) == sorted(expected_items,key=repr), (reader,query,actual)
+                query = 'SELECT i.* FROM join_people p LEFT JOIN join_items i ON i.id = p.id ORDER BY p.id ASC NULLS LAST, i.value ASC'
+                assert clients.execute(reader,query,('int64','utf8')) == [(row[2],row[3]) for row in left_rows], reader
+            result = fixture.console('SELECT i.* FROM join_items i;\n')[-1]
+            fields = result['schema']['type']['structure']
+            assert [field['name'] for field in fields] == ['id','value'], fields
+            assert [field['type'] for field in fields] == [{'int64':{}},{'utf8':{}}], fields
+            # Exercise the ordinary logical path across multiple batches,
+            # retaining DECIMAL and nullable values with alias-qualified WHERE.
+            for alias in ('e', 'AS e'):
+                all_rows(f'SELECT e.* FROM employees_console {alias} WHERE e.id < 65 LIMIT 65',
+                    ('int32','utf8','decimal'),[(i,None,Decimal(f'{i}.01')) for i in range(65)])
+        table_aliases()
+        record('table-aliases')
         for protocol in ('postgres','mysql'):
             before = len(clients.operations())
             clients.execute(protocol,f'CREATE TABLE refused_{protocol} (bad INT128)',reject='bad')
@@ -180,6 +200,8 @@ def run(cli, output):
         fixture.stop(); fixture.start(); fixture.ready()
         joined_rows()
         record('join-wildcards-restart')
+        table_aliases()
+        record('table-aliases-restart')
         for creator in interfaces:
             all_rows(f'SELECT * FROM employees_{creator}',('int32','utf8','decimal'),[(i,None,Decimal(f'{i}.01')) for i in range(65)])
             all_rows(f'SELECT * FROM scalars_{creator}',[case.kind for case in CASES],[tuple(case.value for case in CASES)])

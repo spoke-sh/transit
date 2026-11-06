@@ -127,7 +127,11 @@ remain the column names; with a join, every output name is `source_alias.column`
 Without a Table alias, `source_alias` is the Table name. Both join keys remain
 in the output. Expanded names retain the existing uniqueness and byte limits;
 ambiguous dotted labels or oversized names require explicit `AS` projections.
-Qualified stars and mixed star/explicit projections are not admitted. Expansion
+`source.*` selects only the matching source, retaining its column names and
+declared column order. The qualifier must match the alias if one is present,
+otherwise the Table name; unknown qualifiers reject before execution. This
+also applies to a single Table with ORDER BY. Left-join right-side outputs
+remain nullable. Mixed star/explicit projections are not admitted. Expansion
 lowers to ordinary column outputs without a new projection operator.
 Unqualified single-word
 identifiers in HAVING and ORDER BY resolve to explicit `AS` output aliases before
