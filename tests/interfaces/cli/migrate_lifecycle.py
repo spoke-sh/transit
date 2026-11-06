@@ -129,7 +129,8 @@ def disable_sql_credential(root, ports):
 
     identity = read(caller, principal, role, dict(identity={}))['body']['identity']
     before = read(administrator, connection['principal'], connection['role'], dict(identity={}))
-    command = dict(begin=dict(role=connection['role'], expected_revision=before['revision'],
+    # Native request signatures use the owning contract's field order.
+    command = dict(begin=dict(expected_revision=before['revision'], role=connection['role'],
         action=dict(disable_credential=dict(principal=principal, expected_epoch=identity['credential_epoch']))))
     change = None
     for _ in range(256):
@@ -288,7 +289,8 @@ def dataflow_lifecycle(root, env, cli, ports, migrations, restart):
     assert json.loads(resumed_drift.stdout)['outcome'] == 'drift_detected', resumed_drift.stdout
     disable_sql_credential(root, ports)
     denied = run_cli(root, env, cli, 'flow-revoked-apply', 'migrate', 'apply', '--plan', str(denied_plan), '--format', 'json')
-    assert denied.returncode != 0 and ('denied' in denied.stderr.lower() or 'AccessDenied' in denied.stderr), denied.stderr
+    # A revoked login can fail session authentication before statement admission.
+    assert denied.returncode != 0 and ('denied' in denied.stderr.lower() or 'AuthenticationFailed' in denied.stderr), denied.stderr
     print('Migration dataflows: reviewed same-file Table dependencies, separate publication/activation, exact output, repeat apply, original control recovery, claim fencing and drift passed.', flush=True)
 
 
