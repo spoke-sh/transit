@@ -1921,6 +1921,92 @@ fn dataSchedule(comptime run: anytype) !void {
     try run(&service, role);
 }
 
+test "SOURCE native registration resumes original acceptance and fences revoked creation" {
+    try dataSchedule(sourceRegistrationSchedule);
+}
+
+fn sourceRegistrationSchedule(service: *@import("LocalTableService.zig"), owner_role: u64) !void {
+    const engine = service.engine;
+    const config = service.configuration;
+    const digest: [32]u8 = @splat(91);
+    var policy = try Policy.init(engine, config, try proof(engine, digest), digest, null);
+    var control: backend.DataStore = .{ .backend = engine.journal.backend, .control = true };
+    var data: backend.DataStore = .{ .backend = engine.journal.backend };
+    var catalog = try D.init(t.allocator, config, control.log(), control.objects(), data.log(), data.objects(), .{ .resident_pages = 1 });
+    defer catalog.deinit();
+    try catalog.recover();
+    const intent: c.DirectSource.Intent = .{ .kind = .connection, .namespace = 1, .name = try .init("upstream"), .action = .{ .create = .{ .owner = owner_role, .payload = .{ .connection = .{ .endpoint = "https://example.com" } } } } };
+    const request: c.DirectSource.Request = .{ .intent = intent, .binding = .{
+        .definition = g.current_definition,
+        .identity = .{ .scope = config.scope, .principal = 101, .operation = 15000 },
+        .target = .{ .scope = config.scope, .branch = 1, .object = 15000 },
+        .action = .create,
+        .expected_definition = null,
+        .expected_data = null,
+        .intent = try intent.digest(t.allocator),
+    } };
+    try t.expectError(error.SourceReservationRequired, catalog.sourceRegistration(request, policy.policy()));
+    _ = try catalog.sourceOperation(request, .reserve, policy.policy());
+    try t.expectError(error.CatalogRegistrationRequired, catalog.sourceOperation(request, .execute, policy.policy()));
+    const registration = (try catalog.sourceRegistration(request, policy.policy())).?;
+    try t.expectEqual(config.authority.connection_domain, registration.action.domain);
+    try t.expectEqual(owner_role, registration.action.owner);
+    const position = catalog.store.root.next_lsn;
+    const signed = try g.sign(.{ .realm = 42, .principal = 0, .sequence = (try engine.principal(0)).sequence + 1, .command = .{ .authorization = .{ .begin = .{ .expected_revision = registration.authorization_revision, .action = .{ .register_object = registration.action } } } } }, try key(17));
+    // Lose the registration begin observation, rebuild the Catalog owner, then
+    // resolve the identical native request instead of creating another change.
+    const original_change = try engine.submit(signed);
+    catalog.deinit();
+    catalog = try D.init(t.allocator, config, control.log(), control.objects(), data.log(), data.objects(), .{ .resident_pages = 1 });
+    try catalog.recover();
+    try t.expectEqual(original_change, try engine.submit(signed));
+    try t.expectEqual(position, catalog.store.root.next_lsn);
+    try t.expect(try catalog.resolveSource(t.allocator, .{ .namespace = 1, .kind = .connection }, intent.name, policy.policy()) == null);
+    const registered = (try finish(engine, original_change)).?;
+    try t.expect(try catalog.sourceRegistration(request, policy.policy()) == null);
+    // A lost attachment reply retains the same native object and declaration
+    // reservation. The runner completes the original after Catalog recovery.
+    catalog.store.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.sourceOperation(request, .execute, policy.policy()));
+    catalog.store.lose_reply = false;
+    try catalog.recover();
+    var runner: @import("LocalCatalogRunner.zig") = .{ .engine = engine, .principal = 0, .key = try key(17) };
+    const accepted = (try runner.runSource(&catalog, request, policy.policy(), 32)).operation;
+    try t.expectEqual(.applied, accepted.phase);
+    try t.expectEqual(registered, accepted.resulting.?.declaration.properties.authorization);
+    try t.expectEqualDeep(accepted, (try runner.runSource(&catalog, request, policy.policy(), 32)).operation);
+
+    var raced = request;
+    raced.binding.identity.operation += 1;
+    raced.binding.target.object += 1;
+    raced.intent.name = try .init("revoked_upstream");
+    raced.binding.intent = try raced.intent.digest(t.allocator);
+    _ = try catalog.sourceOperation(raced, .reserve, policy.policy());
+    const Revoke = struct {
+        schema: u64,
+        role: u64,
+        calls: usize = 0,
+        fn run(raw: *anyopaque, authority: *Engine) !void {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            self.calls += 1;
+            _ = try change(authority, .{ .revoke_privileges = .{ .object = c.TableAuthority.reference(self.schema), .grantee = self.role, .privileges = c.TableAuthority.create } });
+        }
+    };
+    var revoke: Revoke = .{ .schema = config.authority.initial_schema_authority, .role = owner_role };
+    runner.after_prepare = .{ .context = &revoke, .run = Revoke.run };
+    try t.expectError(error.Forbidden, runner.runSource(&catalog, raced, policy.policy(), 32));
+    try t.expectEqual(1, revoke.calls);
+    var authority = try engine.authorization();
+    try t.expect(try authority.bound(config.authority.connection_domain, try c.TableAuthority.binding(config.scope, .connection, raced.binding.target.object)) == null);
+    try t.expect(try catalog.resolveSource(t.allocator, .{ .namespace = 1, .kind = .connection }, raced.intent.name, policy.policy()) == null);
+    runner.after_prepare = null;
+    _ = try change(engine, .{ .grant = .{ .object = c.TableAuthority.reference(revoke.schema), .grantee = owner_role, .privileges = c.TableAuthority.create } });
+    const recovered = (try runner.runSource(&catalog, raced, policy.policy(), 32)).operation;
+    try t.expectEqual(.applied, recovered.phase);
+    try t.expectEqualDeep(raced.binding, recovered.binding);
+    try t.expect(recovered.resulting.?.declaration.properties.authorization != registered);
+}
+
 test "shared refusals distinguish current denial from storage and missing-owner failures" {
     const failure = @import("ServiceFailure.zig");
     try t.expectEqual(p.ErrorCode.QueryExpired, failure.table(error.HistoricalSnapshotReleased).code);

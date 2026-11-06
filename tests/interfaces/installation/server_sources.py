@@ -152,8 +152,12 @@ def run(cli, node, host, board, gateway):
     fixture.path.write_text(json.dumps(fixture.config))
     class Peer(BaseHTTPRequestHandler):
         requests = 0
+        def parse_request(self):
+            parsed = super().parse_request()
+            if parsed:
+                type(self).requests += 1
+            return parsed
         def do_GET(self):
-            type(self).requests += 1
             self.send_response(200)
             self.end_headers()
             self.wfile.write(b'{}')

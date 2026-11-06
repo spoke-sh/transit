@@ -10479,6 +10479,18 @@ test "SOURCE disk lifecycle protects dependencies writers and original outcomes 
     catalog = try owner(&wal, &objects);
     const competing = try connectorCreation(79, 102, "other", request.intent.action.create.payload);
     try t.expectEqual(.writer_conflict, (try connectorExecute(&catalog, &access, competing)).reason);
+    // Reservation freezes dependencies but never preserves revoked USE or APPEND
+    // authority. Neither denial can publish or replace the reserved original.
+    for ([_]@TypeOf(access.denied_privileges.?){
+        .{ .id = connection.declaration.properties.authorization, .mask = c.SourceAuthority.use },
+        .{ .id = log.properties.authorization, .mask = c.LogAuthority.append },
+    }) |denied| {
+        access.denied_privileges = denied;
+        const root = catalog.store.root;
+        try t.expectError(error.CatalogDenied, connectorExecute(&catalog, &access, request));
+        try t.expectEqualDeep(root, catalog.store.root);
+    }
+    access.denied_privileges = null;
     const accepted = try connectorExecute(&catalog, &access, request);
     try t.expectEqual(.published, accepted.resulting.?.control.?.state);
     try t.expectEqual(1, accepted.resulting.?.control.?.epoch);
