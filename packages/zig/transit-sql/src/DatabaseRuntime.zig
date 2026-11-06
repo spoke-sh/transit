@@ -42,6 +42,7 @@ managed_route: usize = 0,
 managed_after: ?u64 = null,
 managed_pending: bool = false,
 managed_work: bool = true,
+managed_has_declarations: u64 = 0,
 pub const Keys = struct { table: p.Ed25519.KeyPair };
 const Activation = struct { generation: u64, instance: [16]u8 };
 const activation_format: u32 = 0x53514131;
@@ -340,59 +341,78 @@ pub fn tick(self: *Self) !bool {
 /// another fair sweep; settled declarations cause no timer or upstream requests.
 fn managedStep(self: *Self) !bool {
     const bindings = self.execution.configuration.bindings;
-    if (self.managed_route >= bindings.len) return false;
-    const caller = self.private.table(bindings[self.managed_route]);
     const M = g.direct.ManagedTable;
-    const manager: M = .{ .client = caller };
-    const page = try c.DirectClientToken.list(caller, if (self.managed_work) M.workAccount() else M.account(), self.managed_after, self.managed_work);
-    for (page.entries) |slot| if (slot) |entry| {
-        self.managed_after = entry.id();
-        const original = entry.original orelse return error.InvalidManagedTableRecord;
-        // Reservations need the exact caller payload or explicit closure. They
-        // are discoverable but do not spin a worker or read nonexistent bytes.
-        if (original.phase == .reserved or original.phase == .closed) return true;
-        if (self.managed_work) {
-            if (entry.receipt.binding.intent != .external or entry.receipt.binding.intent.external.record.format != c.DirectOwnedRecord.format) return error.InvalidManagedTableRecord;
-            if (entry.receipt.binding.intent.external.namespace != bindings[self.managed_route].namespace) return true;
-            const token = entry.receipt.binding.key;
-            const selected = self.claim(token.token);
-            if (!selected.tryLock()) {
-                self.retry_pending = true;
+    while (true) {
+        while (self.managed_route < bindings.len and g.Client.isDuplicateBindingConnection(bindings, self.managed_route)) {
+            self.managed_route += 1;
+            self.managed_after = null;
+            self.managed_work = true;
+        }
+        if (self.managed_route >= bindings.len) return false;
+        const route_bit = @as(u64, 1) << @intCast(self.managed_route);
+        if (self.managed_work and (self.managed_has_declarations & route_bit) == 0) {
+            self.managed_work = false;
+            self.managed_after = null;
+        }
+        const caller = self.private.table(bindings[self.managed_route]);
+        const manager: M = .{ .client = caller };
+        const page = try c.DirectClientToken.list(caller, if (self.managed_work) M.workAccount() else M.account(), self.managed_after, self.managed_work);
+        if (!self.managed_work and page.entries[0] != null and (self.managed_has_declarations & route_bit) == 0) {
+            self.managed_has_declarations |= route_bit;
+            self.managed_pending = true;
+        }
+        for (page.entries) |slot| if (slot) |entry| {
+            self.managed_after = entry.id();
+            const original = entry.original orelse return error.InvalidManagedTableRecord;
+            // Reservations need the exact caller payload or explicit closure. They
+            // are discoverable but do not spin a worker or read nonexistent bytes.
+            if (original.phase == .reserved or original.phase == .closed) continue;
+            if (self.managed_work) {
+                if (entry.receipt.binding.intent != .external or entry.receipt.binding.intent.external.record.format != c.DirectOwnedRecord.format) return error.InvalidManagedTableRecord;
+                if (!g.Client.hasConnectionNamespace(bindings, self.managed_route, entry.receipt.binding.intent.external.namespace)) continue;
+                const token = entry.receipt.binding.key;
+                const selected = self.claim(token.token);
+                if (!selected.tryLock()) {
+                    self.retry_pending = true;
+                    return true;
+                }
+                defer selected.unlock(self.io);
+                const pending = manager.step(token, self.io, self.managed_directory.?, null) catch |err| {
+                    if (err == error.Canceled or err == error.Cancelled) return err;
+                    self.direct_work_failure.store(@intFromError(err), .release);
+                    if (wire.Client.unavailable(err) or self.background.contended(err)) self.retry_pending = true;
+                    return true;
+                };
+                self.direct_work_failure.store(0, .release);
+                self.managed_pending = self.managed_pending or pending;
                 return true;
             }
-            defer selected.unlock(self.io);
-            const pending = manager.step(token, self.io, self.managed_directory.?, null) catch |err| {
+            if (entry.receipt.binding.intent != .external or entry.receipt.binding.intent.external.record.format != c.DirectOwnedRecord.format) return error.InvalidManagedTableRecord;
+            const declared = try manager.load(M.Declaration, entry.receipt.binding.intent.external.record, M.declaration_format);
+            defer declared.deinit();
+            if (!g.Client.hasConnectionNamespace(bindings, self.managed_route, declared.value.namespace)) continue;
+            self.managedOne(manager, declared.value, entry) catch |err| {
                 if (err == error.Canceled or err == error.Cancelled) return err;
                 self.direct_work_failure.store(@intFromError(err), .release);
+                // Transport uncertainty retains bounded retry debt. Policy/source
+                // refusals wait for a publication hint or explicit control command.
                 if (wire.Client.unavailable(err) or self.background.contended(err)) self.retry_pending = true;
-                return true;
             };
-            self.direct_work_failure.store(0, .release);
-            self.managed_pending = self.managed_pending or pending;
+            return true;
+        };
+        if (page.next) |next| {
+            self.managed_after = next;
             return true;
         }
-        if (entry.receipt.binding.intent != .external or entry.receipt.binding.intent.external.record.format != c.DirectOwnedRecord.format) return error.InvalidManagedTableRecord;
-        const declared = try manager.load(M.Declaration, entry.receipt.binding.intent.external.record, M.declaration_format);
-        defer declared.deinit();
-        if (declared.value.namespace != bindings[self.managed_route].namespace) return true;
-        self.managedOne(manager, declared.value, entry) catch |err| {
-            if (err == error.Canceled or err == error.Cancelled) return err;
-            self.direct_work_failure.store(@intFromError(err), .release);
-            // Transport uncertainty retains bounded retry debt. Policy/source
-            // refusals wait for a publication hint or explicit control command.
-            if (wire.Client.unavailable(err) or self.background.contended(err)) self.retry_pending = true;
-        };
-        return true;
-    };
-    if (self.managed_work) {
-        self.managed_work = false;
+        if (self.managed_work) {
+            self.managed_work = false;
+            self.managed_after = null;
+            continue;
+        }
+        self.managed_route += 1;
         self.managed_after = null;
-        return true;
+        self.managed_work = true;
     }
-    self.managed_route += 1;
-    self.managed_after = null;
-    self.managed_work = true;
-    return self.managed_route < bindings.len;
 }
 fn managedOne(self: *Self, manager: g.direct.ManagedTable, declared: g.direct.ManagedTable.Declaration, entry: c.DirectClientToken.Progress) !void {
     if (entry.pending) _ = try manager.initialize(declared, entry.receipt.binding.key);
