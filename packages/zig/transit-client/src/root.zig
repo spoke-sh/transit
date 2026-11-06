@@ -26,6 +26,7 @@ pub const Receipt = protocol.Receipt;
 pub const WaitHint = @import("WaitHint.zig");
 
 pub const LocalEndpoint = @import("LocalEndpoint.zig");
+pub const Deadline = @import("Deadline.zig");
 pub const Client = struct {
     /// A moving authority cut or publication CAS can be observed again. This
     /// classifies only; mutations must retain their exact pending identity/body.
@@ -58,6 +59,9 @@ pub const Client = struct {
     response_memory: std.heap.ArenaAllocator.State = .init,
     url: []const u8,
     timeout_ms: u32 = 5000,
+    /// Optional foreground cap; the host restores it before reusing this client.
+    /// Each exchange also retains its configured per-call limit and joined timer.
+    deadline: ?Deadline = null,
     last_exchange_ms: ?i64 = null,
     wait_hint: ?WaitHint = null,
     observer: ?*telemetry.Runtime = null,
@@ -177,10 +181,8 @@ pub const Client = struct {
     fn boundedCall(self: *Client, comptime T: type, path: []const u8, signed: anytype, comptime owned: bool, limits: OwnedLimits, response: *?ResponseType(T, owned)) !void {
         self.last_rejection = null;
         const io = self.http.io;
-        const deadline = std.Io.Clock.Timestamp.fromNow(io, .{
-            .raw = .fromMilliseconds(self.timeout_ms),
-            .clock = .awake,
-        });
+        const budget = Deadline.init(io, self.timeout_ms, self.deadline);
+        const deadline = budget.until;
         // Keep the bounded response in reusable heap storage owned by Client.
         // Repeated calls must not strand slots behind retained HTTP allocations
         // in a caller's fixed workspace when an idle connection is replaced.
@@ -199,7 +201,8 @@ pub const Client = struct {
         const Task = struct {
             fn run(client: *Client, route: []const u8, command: @TypeOf(signed), until: std.Io.Clock.Timestamp, bounds: OwnedLimits, destination: *?ResponseType(T, owned)) anyerror!void {
                 if (until.durationFromNow(client.http.io).raw.nanoseconds <= 0) return error.AuthorityTimeout;
-                destination.* = try client.perform(T, route, command, owned, bounds);
+                destination.* = try client.perform(T, route, command, owned, bounds, .{ .until = until });
+                try (Deadline{ .until = until }).check(client.http.io);
             }
         };
         // async permits inline execution, which would defeat the timeout when
@@ -235,7 +238,7 @@ pub const Client = struct {
         try deadline.wait(io);
     }
 
-    fn perform(self: *Client, comptime T: type, path: []const u8, signed: anytype, comptime owned: bool, limits: OwnedLimits) anyerror!ResponseType(T, owned) {
+    fn perform(self: *Client, comptime T: type, path: []const u8, signed: anytype, comptime owned: bool, limits: OwnedLimits, budget: Deadline) anyerror!ResponseType(T, owned) {
         if (self.local) |endpoint| if (endpoint.handles(path)) {
             if (owned) {
                 const arena = try self.http.allocator.create(std.heap.ArenaAllocator);
@@ -246,7 +249,7 @@ pub const Client = struct {
                 // budget lives only during dispatch; the retained arena frees
                 // through its stable parent allocator after the call returns.
                 var output: @import("transit_memory").Budget = .{ .parent = arena.allocator(), .limit = limits.response_bytes };
-                const value = endpoint.call(self, output.allocator(), T, path, signed) catch |err| {
+                const value = endpoint.call(self, output.allocator(), T, path, signed, budget) catch |err| {
                     if (err == error.OutOfMemory and output.exhausted) return error.WriteFailed;
                     return err;
                 };
@@ -254,7 +257,7 @@ pub const Client = struct {
                 self.last_status = .ok;
                 return .{ .arena = arena, .value = value };
             }
-            const value = try endpoint.call(self, self.http.allocator, T, path, signed);
+            const value = try endpoint.call(self, self.http.allocator, T, path, signed, budget);
             try validateValue(T, value, signed);
             self.last_status = .ok;
             return value;

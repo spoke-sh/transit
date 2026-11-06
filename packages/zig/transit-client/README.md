@@ -128,6 +128,17 @@ within the original monotonic deadline, then reports `AuthorityTimeout` if no
 slot becomes available. HTTP runs at most once per call; transport failure never
 triggers an automatic request retry or an inline fallback that defeats deadlines.
 
+`Client.deadline` optionally caps foreground work with a process-local awake-clock
+`Deadline`. Each call captures the earlier inherited timestamp or its configured
+`timeout_ms` limit before scheduling. `LocalEndpoint.Invocation.deadline` carries
+that exact cap through typed dispatch; dispatch and response transfer reject an
+expired budget. Hosts can pass the cap to nested clients and must restore their
+previous scope before reuse. Shared background/recovery clients retain their own
+budgets. These timestamps never appear in signed requests, stored work or an ABI.
+Expiry after possible dispatch leaves the original outcome uncertain; it does
+not set an authority rejection or permit remote fallback. Joined cancellation
+still bounds non-socket work and releases partial owned responses before return.
+
 The optional [worker bootstrap](src/bootstrap.zig) performs no provider calls.
 Its caller supplies a fresh in-memory key; the trusted runtime controller must
 attribute the public registration to the configured container and current worker

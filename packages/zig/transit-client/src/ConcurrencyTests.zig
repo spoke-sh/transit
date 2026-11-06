@@ -90,13 +90,14 @@ test "persistent admission failure has one deadline and leaves the client reusab
         const io = admission.io();
         var caller = client.Client.init(std.testing.allocator, io, "http://127.0.0.1:1");
         defer caller.deinit();
-        caller.timeout_ms = 20;
+        caller.deadline = .init(caller.http.io, 20, null);
         const started = Io.Clock.awake.now(io);
         try std.testing.expectError(error.AuthorityTimeout, caller.call(client.Receipt, "/v1/command", .{}));
         try std.testing.expect(started.durationTo(Io.Clock.awake.now(io)).toMilliseconds() < 1000);
         try std.testing.expectEqual(@as(usize, 0), admission.connections.load(.monotonic));
 
         admission.reject_count = 0;
+        caller.deadline = null;
         caller.timeout_ms = 1000;
         try std.testing.expectError(error.ConnectionRefused, caller.call(client.Receipt, "/v1/command", .{}));
         try std.testing.expectEqual(@as(usize, 1), admission.connections.load(.monotonic));
