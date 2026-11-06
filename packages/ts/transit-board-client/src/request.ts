@@ -45,16 +45,20 @@ export async function request<T>(
       // bounded schema/conflict/provenance overhead without changing row limits.
       const maximum = path === "/api/v1/query" ? 1048576 : 262144;
       const chunks: Uint8Array[] = [];
+      let done = false;
       try {
         while (true) {
           const next = await reader.read();
-          if (next.done) break;
+          if (next.done) {
+            done = true;
+            break;
+          }
           size += next.value.byteLength;
           if (size > maximum) throw new BoardError(0, "ResponseTooLarge");
           chunks.push(next.value);
         }
       } finally {
-        await reader.cancel();
+        if (!done) await reader.cancel();
       }
       const bytes = new Uint8Array(size);
       let offset = 0;

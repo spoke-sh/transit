@@ -240,6 +240,13 @@ pub fn For(comptime Host: type, comptime Adapter: type, comptime options: Option
             return self.effectFor(ex);
         }
         pub fn effectFor(self: *Host, ex: x.Exchange) !g.Effect {
+            for (0..32) |_| return effectForOnce(self, ex) catch |err| {
+                if (self.reader.readConflict(err)) continue;
+                return err;
+            };
+            return error.Conflict;
+        }
+        fn effectForOnce(self: *Host, ex: x.Exchange) !g.Effect {
             const source = try self.reader.reader(ex.resource);
             const page = try self.reader.query(.{ .entries = .{ .resource = ex.resource, .revision = source.view.revision, .key = x.Exchange.key(ex.id, 'i', 0) } });
             const record = page.body.entries.page.entries[0] orelse return error.UnknownEffect;

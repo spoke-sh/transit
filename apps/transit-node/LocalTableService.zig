@@ -137,19 +137,35 @@ pub fn executeResult(self: *Self, comptime format: Output, arena: *std.heap.Aren
         try c.DirectTransactionRead.apply(allocator, catalog, policy.policy(), selected, request.action, execution)
     else
         try c.DirectTableDispatch.apply(allocator, catalog, policy.policy(), request.action, request.delegation, execution);
-    const observed = try policy.observation();
-    const response: w.Response = .{ .definition = c.protocol.Growth.current_definition, .context = context, .policy_revision = observed.revision, .subject = observed.subject, .result = result };
-    // Both placements finish materialization before the same current-policy
-    // fence. Typed outputs own their slices; they borrow neither request nor
-    // resident workspace. The typed caller supplies a response arena.
-    const output = if (format == .json)
-        try c.protocol.Json.valueAllocBounded(output_allocator, response, w.max_response_bytes)
-    else
-        try c.client.LocalEndpoint.clone(output_allocator, response);
-    errdefer if (format == .json) output_allocator.free(output);
-    if (self.before_reply) |inject| try inject.run(inject.context, self.engine);
-    if (!std.meta.eql(try policy.observation(), observed)) return error.AuthorizationChanged;
-    return output;
+    var observed = try policy.observation();
+    while (true) {
+        const response: w.Response = .{ .definition = c.protocol.Growth.current_definition, .context = context, .policy_revision = observed.revision, .subject = observed.subject, .result = result };
+        // Both placements finish materialization before the same current-policy
+        // fence. Typed outputs own their slices; they borrow neither request nor
+        // resident workspace. The typed caller supplies a response arena.
+        var output = if (format == .json)
+            try c.protocol.Json.valueAllocBounded(output_allocator, response, w.max_response_bytes)
+        else
+            try c.client.LocalEndpoint.clone(output_allocator, response);
+        errdefer if (format == .json) output_allocator.free(output);
+        if (self.before_reply) |inject| try inject.run(inject.context, self.engine);
+        var confirmed = try policy.observation();
+        if (std.meta.eql(confirmed, observed)) return output;
+        if (self.before_reply != null or policy.paged) return error.AuthorizationChanged;
+        if (format == .json) {
+            output_allocator.free(output);
+            observed = confirmed;
+            continue;
+        }
+        while (true) {
+            observed = confirmed;
+            output.policy_revision = observed.revision;
+            output.subject = observed.subject;
+            const reconfirmed = try policy.observation();
+            if (std.meta.eql(reconfirmed, observed)) return output;
+            confirmed = reconfirmed;
+        }
+    }
 }
 
 fn streamTime(raw: *anyopaque) !?c.storage.LogTime.Sample {

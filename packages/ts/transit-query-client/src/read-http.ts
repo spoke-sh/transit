@@ -59,16 +59,20 @@ async function readAttempt<R>(
   if (!reader) throw new QueryError(0, "InvalidResponse");
   const bytes = new Uint8Array(4194304);
   let size = 0;
+  let done = false;
   try {
     while (true) {
       const chunk = await reader.read();
-      if (chunk.done) break;
+      if (chunk.done) {
+        done = true;
+        break;
+      }
       if (chunk.value.length > bytes.length - size) throw new QueryError(0, "ResponseTooLarge");
       bytes.set(chunk.value, size);
       size += chunk.value.length;
     }
   } finally {
-    await reader.cancel();
+    if (!done) await reader.cancel();
   }
   let value: unknown;
   try {

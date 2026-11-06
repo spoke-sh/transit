@@ -105,11 +105,11 @@ test("Table storage links visual, grid and inspector without executing SQL", asy
   page.on("request", (request) => {
     if (request.url().endsWith("/api/v1/sql-read") && request.postDataJSON()?.action.run) runs++;
   });
-  const storageRead = page.waitForResponse(
-    (response) => response.url().endsWith("/api/v1/storage") && response.ok(),
-  );
+  const storageRead = page
+    .waitForResponse((response) => response.url().endsWith("/api/v1/storage") && response.ok())
+    .then((response) => response.json());
   await page.goto("/operations");
-  const observed = await (await storageRead).json();
+  const observed = await storageRead;
   const capacity = page.getByRole("region", { name: "Capacity and allocation", exact: true });
   const limitRow = capacity
     .getByRole("row")

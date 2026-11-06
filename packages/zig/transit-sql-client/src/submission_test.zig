@@ -45,7 +45,7 @@ const Peer = struct {
     fn run(self: *Peer) !void {
         const total: usize = switch (self.store.mode) {
             .success => 2,
-            .lost_reply => 3,
+            .lost_reply => 5,
             else => 1,
         };
         var token: ?api.Token = null;
@@ -109,15 +109,21 @@ const Peer = struct {
                 try t.expect(parsed.value.action == .status);
                 self.statuses += 1;
                 try t.expectEqual(token.?, parsed.value.action.status.token);
-                response.result = .{ .operation = .{
-                    .identity = .{ .account = account, .id = 43 },
-                    .command = .insert,
-                    .token = token.?,
-                    .phase = .terminal,
-                    .outcome = .applied,
-                    .matched = 1,
-                    .changed = 1,
-                } };
+                if (self.statuses == 1) {
+                    response.result = .{ .err = .{ .code = "GatewayDeadline", .sqlstate = "57014".*, .message = "deadline", .retry = .never } };
+                } else if (self.statuses == 2) {
+                    response.result = .{ .err = .{ .code = "Conflict", .sqlstate = "40001".*, .message = "conflict", .retry = .never } };
+                } else {
+                    response.result = .{ .operation = .{
+                        .identity = .{ .account = account, .id = 43 },
+                        .command = .insert,
+                        .token = token.?,
+                        .phase = .terminal,
+                        .outcome = .applied,
+                        .matched = 1,
+                        .changed = 1,
+                    } };
+                }
             }
             const reply = try api.Json.valueAlloc(t.allocator, response);
             defer t.allocator.free(reply);
@@ -171,7 +177,7 @@ test "SQL persistence precedes execute and lost replies settle only the saved to
         try task.await(io);
         try t.expectEqual(@as(usize, if (mode == .denied_context) 0 else 1), store.calls);
         try t.expectEqual(@as(usize, if (mode == .success or mode == .lost_reply) 1 else 0), peer.executes);
-        try t.expectEqual(@as(usize, if (mode == .lost_reply) 1 else 0), peer.statuses);
+        try t.expectEqual(@as(usize, if (mode == .lost_reply) 3 else 0), peer.statuses);
         if (store.record) |bytes| {
             try t.expect(std.mem.indexOf(u8, bytes, "\"session\"") == null);
             const saved = try api.Json.parseFromSliceOwned(sdk.Executor.Submission, t.allocator, bytes);

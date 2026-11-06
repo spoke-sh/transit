@@ -71,6 +71,7 @@ test("public Board and SQL transports share permits through response body consum
   const scheduler = new RequestScheduler(10);
   const restore = setRequestScheduler(scheduler.run);
   const bodies: (() => void)[] = [];
+  let cancelled = 0;
   const fetcher = vi.fn(async (path: string) => {
     if (path.endsWith("sql-read")) return Response.json({ err: "QueryDisabled" }, { status: 404 });
     return new Response(
@@ -80,6 +81,9 @@ test("public Board and SQL transports share permits through response body consum
             controller.enqueue(new TextEncoder().encode("{}"));
             controller.close();
           });
+        },
+        cancel() {
+          cancelled += 1;
         },
       }),
     );
@@ -102,6 +106,7 @@ test("public Board and SQL transports share permits through response body consum
     bodies[1]!();
     bodies[2]!();
     await Promise.all(reads);
+    expect(cancelled).toBe(0);
     expect(scheduler.snapshot()).toEqual({ read: 0, control: 0, queued: 0 });
   } finally {
     restore();

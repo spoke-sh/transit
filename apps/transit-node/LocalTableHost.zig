@@ -266,26 +266,48 @@ fn executeSingle(self: *Self, comptime format: Service.Output, io: std.Io, engin
     if (resident.value) |value| value.probe.begin(false) else resident.value = Service.Resident.create(engine.journal.backend.allocator, self.resident_memory.request(engine.journal.backend.allocator, control), engine.journal.backend, self.configuration, options, recovered) catch |err| return if (err == error.TableResidentCapacity) (if (control) error.ControlCapacity else error.StorageQuota) else err;
     var discard_on_error = true;
     errdefer if (discard_on_error) {
-        resident.value.?.destroy();
+        if (resident.value) |value| value.destroy();
         resident.value = null;
     };
     defer if (memory_report) |report| {
-        report.* = @import("DirectRequestMemory.zig").Report.capture(&resident.value.?.probe);
+        if (resident.value) |value| report.* = @import("DirectRequestMemory.zig").Report.capture(&value.probe);
     };
-    var service: Service = .{ .engine = engine, .configuration = self.configuration, .registrar = self.registrar, .options = options, .recovery_state = &recovered, .resident = resident.value, .waiting = waiting };
-    if (parent) |cap| try cap.check(io);
-    return service.executeResult(format, arena, output_allocator, request) catch |err| {
-        if (err == error.StreamWaitPending or err == error.QueueWaitPending) discard_on_error = false;
-        // A terminal probe can advance a bounded native replay without reaching
-        // its receipt. No publication was attempted: retain that verified owner
-        // so the next probe continues instead of replaying the same prefix.
-        if (err == error.ClientOperationPending and (request.action == .workload_result or
-            (request.action == .client_progress and request.action.client_progress == .update and !request.action.client_progress.update.pending)))
-            discard_on_error = false;
-        if (err == error.OutOfMemory and resident.value.?.memory.exhausted)
-            return if (control) error.ControlCapacity else error.StorageQuota;
-        return err;
-    };
+    var scratch: std.heap.ArenaAllocator = .init(arena.child_allocator);
+    defer scratch.deinit();
+    for (0..16) |attempt| {
+        if (attempt != 0) {
+            _ = scratch.reset(.retain_capacity);
+            if (resident.value) |value| {
+                if (value.catalog.store.recovery_required) {
+                    value.destroy();
+                    resident.value = null;
+                } else value.probe.begin(false);
+            }
+            if (resident.value == null) {
+                resident.value = Service.Resident.create(engine.journal.backend.allocator, self.resident_memory.request(engine.journal.backend.allocator, control), engine.journal.backend, self.configuration, options, recovered) catch |err| return if (err == error.TableResidentCapacity) (if (control) error.ControlCapacity else error.StorageQuota) else err;
+            }
+        }
+        var service: Service = .{ .engine = engine, .configuration = self.configuration, .registrar = self.registrar, .options = options, .recovery_state = &recovered, .resident = resident.value, .waiting = waiting };
+        if (parent) |cap| try cap.check(io);
+        const saved_table_recovery = if (options.table_recovery) |slot| slot.* else null;
+        return service.executeResult(format, if (attempt == 0) arena else &scratch, output_allocator, request) catch |err| {
+            if ((err == error.AuthorizationChanged or err == error.TransactionAuthorityChanged or err == error.StaleStorageEpoch) and attempt + 1 < 16) {
+                if (options.table_recovery) |slot| slot.* = saved_table_recovery;
+                continue;
+            }
+            if (err == error.StreamWaitPending or err == error.QueueWaitPending) discard_on_error = false;
+            // A terminal probe can advance a bounded native replay without reaching
+            // its receipt. No publication was attempted: retain that verified owner
+            // so the next probe continues instead of replaying the same prefix.
+            if (err == error.ClientOperationPending and (request.action == .workload_result or
+                (request.action == .client_progress and request.action.client_progress == .update and !request.action.client_progress.update.pending)))
+                discard_on_error = false;
+            if (err == error.OutOfMemory and resident.value.?.memory.exhausted)
+                return if (control) error.ControlCapacity else error.StorageQuota;
+            return err;
+        };
+    }
+    unreachable;
 }
 
 test "deadline expiry after directory admission releases the lock before owner dispatch" {

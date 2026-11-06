@@ -32,10 +32,14 @@ pub const Reader = struct {
         return if (try self.entry(key)) |value| value.value else null;
     }
     pub fn entry(self: *Reader, key: p.Value) !?g.Entry {
-        const result = (try self.client.query(.{ .entries = .{ .resource = self.view.resource, .revision = self.view.revision, .key = key } })).body.entries;
-        return result.page.entries[0];
+        const response = try self.client.query(.{ .entries = .{ .resource = self.view.resource, .revision = self.view.revision, .key = key } });
+        self.view.position = response.position;
+        return response.body.entries.page.entries[0];
     }
 };
+pub fn readConflict(self: *const Self, err: anyerror) bool {
+    return (err == error.Conflict or err == error.Rejected) and (self.wire.last_rejection == .QueryExpired or self.wire.last_rejection == .StaleStateResource);
+}
 pub fn query(self: *Self, kind: @FieldType(g.Query, "kind")) !g.Response {
     return self.wire.query(.{ .realm = self.realm, .principal = self.principal, .kind = kind }, self.key);
 }
@@ -46,18 +50,37 @@ pub fn reader(self: *Self, resource: u64) !Reader {
     return .{ .client = self, .view = .{ .resource = resource, .revision = meta.revision, .position = response.position } };
 }
 pub fn inspect(self: *Self, resource: u64, id: u64) !x.Descriptor {
-    var source = try self.reader(resource);
-    return (x.Exchange{ .resource = resource, .id = id }).inspect(&source);
+    for (0..32) |_| {
+        var source = try self.reader(resource);
+        return (x.Exchange{ .resource = resource, .id = id }).inspect(&source) catch |err| {
+            if (self.readConflict(err)) continue;
+            return err;
+        };
+    }
+    return error.Conflict;
 }
 pub fn failure(self: *Self, resource: u64, id: u64) !?x.Failure {
-    var source = try self.reader(resource);
-    return (x.Exchange{ .resource = resource, .id = id }).failure(&source);
+    for (0..32) |_| {
+        var source = try self.reader(resource);
+        return (x.Exchange{ .resource = resource, .id = id }).failure(&source) catch |err| {
+            if (self.readConflict(err)) continue;
+            return err;
+        };
+    }
+    return error.Conflict;
 }
 pub const DiagnosticKind = enum { capture_failure, native_effect };
 /// Separate current-authorized reads: capture closure is not a native outcome.
 /// Retired exchanges retain their control/failure evidence. No transcript/body
 /// read, cursor, dispatch or fresh retry is created by inspection.
 pub fn diagnostic(self: *Self, resource: u64, id: u64, protocol: u32, kind: DiagnosticKind) !?p.Diagnostic {
+    for (0..32) |_| return self.diagnosticOnce(resource, id, protocol, kind) catch |err| {
+        if (self.readConflict(err)) continue;
+        return err;
+    };
+    return error.Conflict;
+}
+fn diagnosticOnce(self: *Self, resource: u64, id: u64, protocol: u32, kind: DiagnosticKind) !?p.Diagnostic {
     var source = try self.reader(resource);
     const ex: x.Exchange = .{ .resource = resource, .id = id };
     const descriptor = try ex.inspect(&source);
@@ -113,4 +136,19 @@ pub fn read(self: *Self, reference: Reference, cursor: x.Exchange.Cursor) !x.Exc
         resumed.member_cursor = next;
     }
     return ex.read(&source, &source, resumed);
+}
+test "readConflict classifies only moving cut and resource revision rejections" {
+    const t = std.testing;
+    var wire = x.station.client.Client.init(t.allocator, t.io, "http://127.0.0.1:1");
+    defer wire.deinit();
+    const client: Self = .{ .wire = &wire, .realm = 1, .principal = 2, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(7)) };
+    wire.last_rejection = .QueryExpired;
+    try t.expect(client.readConflict(error.Conflict));
+    try t.expect(!client.readConflict(error.AuthorityTimeout));
+    wire.last_rejection = .StaleStateResource;
+    try t.expect(client.readConflict(error.Rejected));
+    wire.last_rejection = .StateResourceExpired;
+    try t.expect(!client.readConflict(error.Rejected));
+    wire.last_rejection = .Forbidden;
+    try t.expect(!client.readConflict(error.AccessDenied));
 }
