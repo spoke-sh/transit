@@ -9,6 +9,100 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Bounded SQL Stream waits — 2026-11-05
+
+This slice connects saved SQL `CONSUME ... WAIT` requests to the existing native
+Stream wait owner. The [SQL streaming reference](../../handbook/reference/sql/streaming.md)
+and [session contract](../../../contracts/SQL_SESSION_V1.md#stream-wait-attempts)
+own readiness, finite cuts, passive observation and explicit original-operation
+resume. This record distinguishes executed component and installed evidence from
+the incomplete broader qualification; it does not close Milestone 6.
+
+The combined implementation source is
+`8f73d2aa7256b82aa8aef1409f05feb6ecbd8bed`, including the Document lifetime changes
+from main `bb4bbd3adc56bcff81189e6dbe2242af46e8a1cb`. The current-v1 definition is
+`2dce803c5e406b5fbf526daee33411a03a71b22bea0e8ebe30fa7afdbd2457b6`.
+Runs used Linux x86_64, local disk, pinned Nix tools and ReleaseSafe runtime
+builds. Subsequent changes in this slice correct documentation and record these
+results; they do not change runtime code or the definition.
+
+| Executed command | Outcome and scope |
+| --- | --- |
+| `nix develop --command just check fast` | All 69 checks passed at the combined implementation source |
+| `nix develop .#docs --command just transit-docs::install` followed by `just transit-docs::check` in that shell | Dependency preparation and the full handbook gate passed |
+| `nix develop --command just check contracts` | All 20 generated-contract and fixture checks passed |
+| `nix develop --command zig build test-local-catalog -Doptimize=ReleaseSafe -Dlocal-catalog-filter='log privileges' -Dlocal-catalog-filter='Log wait'` | Passed, including a parked group read fenced by reassignment and aggregate wait-registration capacity/reuse |
+| `nix develop .#ci-experience --command just test console-latency-gate` | Failed during retained restart; statement measurements did not run |
+| `nix develop --command just ci clean --lane interfaces-sql` | TLS and result-allocation targets passed; gateway target failed; later lane targets did not run in this attempt |
+| `just test::sql-integrity` in the retained clean checkout's pinned `sql-wire` shell | Passed native, PostgreSQL and MySQL integrity, validation, transaction-savepoint and original-DDL recovery checks |
+| `just test::sql-sessions` in that shell | Failed during source setup, before session assertions |
+| `just test::sql-history` in that shell | Failed waiting for terminal refusal of a captured operation after its source was released |
+| `just test::sql-log-declarations` in that shell | Declaration, append and consumption subprofiles passed; the full schedule was interrupted and did not pass |
+
+The retained checkout is `/var/tmp/transit-ci-o4m8yz15/src`, created by the clean
+lane at the exact source above. Follow-up commands used
+`nix develop .#sql-wire --option eval-cache false --command env TMPDIR=/var/tmp/transit-ci-o4m8yz15/tmp`
+before their `just` command. These separate target outcomes do not turn the failed
+clean lane into a pass.
+
+The installed consumption subprofile verifies native SQL, PostgreSQL, MySQL and
+the actual console. Waited reads retain their original cut after append and
+replacement, deliver 65 rows in 32/32/1 batches, preserve filtered partial
+coverage, accept a future upper-offset predicate without waiting for that upper
+bound, support typed durations and return zero rows for `LIMIT 0` on a ready
+Stream. Explicit groups preserve authenticated progress for separate offset
+settlement; stale checkpoints, stale assignments and released reads refuse.
+Reassignment fences buffered and reopened results, and revocation prevents
+further disclosure. Declaration and append subprofiles separately verify original
+tokens after replacement, metadata paging and no repeated append.
+
+An earlier development run of `test-sql-wire-gateway -- sessions-wait` passed
+both Queue and Stream timeout, passive observation, replacement/resume, original
+receipt, lost-reply, cancellation, authorization, concurrent-arrival and caller
+profiles. It used the pre-merge definition
+`ca54504e5f280bf701e681cb102f8f4bb0bde8dfd5992d53cbeb91a1af60966f` and does not
+qualify the combined definition above. The combined log schedule was stopped
+after its consumption subprofile to prepare the requested PR; the later Queue
+and wait-recovery subprofiles remain incomplete. The queued transaction target,
+clean core, storage-query, installation-ui, SDK-conformance and browser lanes,
+the separate server scalar gate and a console-latency retry did not execute in
+that remaining schedule. No deadline, fixture size or resource budget was relaxed.
+
+Failures remain explicit:
+
+- The console gate reached fresh readiness in 80.623 seconds and its first
+  verified result in 89.177 seconds. Retained restart hit `AuthorityTimeout`
+  during worker rotation, then exhausted journal-recovery attempts. Its report
+  is incomplete, not a latency pass.
+- The clean gateway target failed at the existing raw MySQL `BEGIN` fault
+  schedule after the native transaction's 30-second deadline. `AuthorityTimeout`
+  and `RequestTimeout` leave the original transaction outcome uncertain.
+- Session source setup exceeded its unchanged 1800-second deadline during
+  legacy Document seeding. This provides no session correctness result.
+- History operation 166 remained ready with no terminal outcome after source
+  release, exceeding the 270-second refusal deadline. Earlier companion
+  expression and captured-query recovery assertions passed, but the complete
+  history target did not.
+
+Private original installations and saved requests are retained outside Git.
+Shared-host I/O pressure was observed, but the causes of these failures are not
+established. Earlier failures at similar locations do not qualify this source.
+Incidental codec and maintenance measurements are not performance baselines.
+
+Raw local logs are retained under `.cache/stream-wait-validation/`; the digest
+table identifies the exact records without publishing installation data:
+
+| Log | SHA-256 |
+| --- | --- |
+| `native-waits.log` | `9aedbc378462243928da659db353faf2a8bc6b45af481674963aad79daed306c` |
+| `contracts.log` | `fcbba2fc2e77fdf94c9b06d1367638d573da30a1b09cdfccda21c73de5372155` |
+| `console-latency.log` | `96c8058664421737c3fc48c92c86d6a91ae31e0665c6f4e353adf66aa681dd1a` |
+| `clean-interfaces-sql.log` | `0feed0395fa7cc5583e2c2d7c145af94df1765e35be494bd9efbbe50530f30a6` |
+| `sql-followup-sql-sessions.log` | `0f3f77d2343ca9efd04e8725b53c57595d4c017519ffd9c1e7633924e2eee1f2` |
+| `sql-followup-sql-integrity.log` | `d121e50389459a0fc681c218f27e2004c22ff4320d5a68b707173fef436d7371` |
+| `sql-followup-sql-history.log` | `90c259c4d7da03b6579197e8f77a957c4420b8cdb514c5906409ee9dd1e1b8d2` |
+| `sql-followup-sql-log-declarations.log` | `e9b2d6658ff66b61514ea8f86562c1fc52e574b50fc699024349aa224b3a334d` |
+
 ## Scalar parity across SQL interfaces — 2026-11-04
 
 The reported `CREATE TABLE employees (id INT, name VARCHAR, salary DECIMAL(10,2))`

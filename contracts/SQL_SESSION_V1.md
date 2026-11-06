@@ -168,7 +168,7 @@ additional payload READ rights. Data appends, consumption and acquisition
 still require their exact preparation interpretation. GROUP binds an explicit
 native assignment/checkpoint binary descriptor. COMMIT OFFSET binds the original
 read receipt and authenticated completion progress, using the same workload
-token and command-result lifecycle. Queue payload predicates, Stream WAIT and
+token and command-result lifecycle. Queue payload predicates and
 attached-transaction workloads remain outside the SQL execution profile.
 
 ### Queue wait attempts

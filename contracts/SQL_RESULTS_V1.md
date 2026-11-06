@@ -160,7 +160,7 @@ admission supports `PRODUCE INTO` and `ENQUEUE INTO`, including optional
 `RETURNING`, positional/grouped `CONSUME`, authenticated `COMMIT OFFSET`,
 partition-routed `CLAIM` and receipt-bound
 `ACK`/`NACK` and `EXTEND LEASE`. Group assignment remains native-only.
-Stream and Queue WAIT return a
+Timed-out Stream and Queue WAIT return a
 nonterminal `Workload.Wait` observation through `Unresolved.reason.waiting`.
 It binds saved content, the original native consume or claim and the fixed 1–1000 ms
 attempt duration. Nullable `timed_out` identifies only an observed timeout cut;

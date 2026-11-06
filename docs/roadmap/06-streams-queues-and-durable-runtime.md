@@ -1383,7 +1383,7 @@ to **Completed** only when R0–R10 and the applicable completion criteria agree
 
 #### Next slice: SQL Stream WAIT (4a.2) — 2026-11-05
 
-**Status: Implemented; qualification recorded separately. Plan source basis:** `origin/main` at
+**Status: Implemented; [qualification remains partial](../history/qualification/sql.md#bounded-sql-stream-waits--2026-11-05). Plan source basis:** `origin/main` at
 `d8b756f08116ac50c53b72886dca239abb74cbb3`, including merged
 [PR #386](https://github.com/spoke-sh/transit/pull/386). That change delivers
 shared SQL wait recovery and unfiltered Queue WAIT (4b.2). This plan selects one
@@ -1550,7 +1550,7 @@ Update [SQL streaming](../handbook/reference/sql/streaming.md),
 [service internals](../handbook/internals/service-interfaces.md) with executable
 behavior when it lands. Reconcile stale blanket WAIT refusals in component
 guides while retaining the actual Queue predicate and Stream-source limits.
-Put executed results in [query qualification](../history/qualification/query.md).
+Put executed results in [SQL qualification](../history/qualification/sql.md#bounded-sql-stream-waits--2026-11-05).
 This planning change needs documentation checks only and establishes no runtime
 or latency result.
 
