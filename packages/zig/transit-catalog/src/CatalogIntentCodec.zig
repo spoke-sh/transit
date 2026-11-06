@@ -8,8 +8,25 @@ const Objects = c.storage.TransitObjectStore;
 const header_bytes = 40;
 
 pub fn Codec(comptime Request: type, comptime directory: []const u8, comptime magic: *const [8]u8) type {
+    return BoundedCodec(Request, directory, magic, r.max_intent_bytes);
+}
+
+pub fn BoundedCodec(comptime Request: type, comptime directory: []const u8, comptime magic: *const [8]u8, comptime limit: usize) type {
     return struct {
         pub const Owned = std.json.Parsed(Request);
+
+        /// Compute ownership before writing any retained bytes.
+        pub fn commitment(allocator: std.mem.Allocator, configuration: r.Configuration, request: Request) !p.DataLifecycle.Content {
+            try request.validate(allocator, configuration);
+            const bytes = try allocator.alloc(u8, limit);
+            defer allocator.free(bytes);
+            bytes[0..8].* = magic.*;
+            bytes[8..40].* = p.Growth.definition_bytes;
+            var writer: std.Io.Writer = .fixed(bytes[header_bytes..]);
+            std.json.Stringify.value(request, .{}, &writer) catch return error.CatalogRecordTooLarge;
+            const encoded = bytes[0 .. header_bytes + writer.end];
+            return .{ .bytes = encoded.len, .sha256 = r.hash(encoded) };
+        }
 
         pub fn key(content: p.DataLifecycle.Content, output: *[96]u8) ![]const u8 {
             try content.validate();
@@ -18,7 +35,7 @@ pub fn Codec(comptime Request: type, comptime directory: []const u8, comptime ma
 
         pub fn stage(allocator: std.mem.Allocator, objects: Objects.ObjectStore, configuration: r.Configuration, request: Request) !p.DataLifecycle.Content {
             try request.validate(allocator, configuration);
-            const bytes = try allocator.alloc(u8, r.max_intent_bytes);
+            const bytes = try allocator.alloc(u8, limit);
             defer allocator.free(bytes);
             bytes[0..8].* = magic.*;
             bytes[8..40].* = p.Growth.definition_bytes;
@@ -34,7 +51,7 @@ pub fn Codec(comptime Request: type, comptime directory: []const u8, comptime ma
 
         pub fn stageInTree(allocator: std.mem.Allocator, index: *c.storage.TreeStore, configuration: r.Configuration, request: Request) !p.DataLifecycle.Content {
             try request.validate(allocator, configuration);
-            const bytes = try allocator.alloc(u8, r.max_intent_bytes);
+            const bytes = try allocator.alloc(u8, limit);
             defer allocator.free(bytes);
             bytes[0..8].* = magic.*;
             bytes[8..40].* = p.Growth.definition_bytes;
@@ -54,7 +71,7 @@ pub fn Codec(comptime Request: type, comptime directory: []const u8, comptime ma
         }
 
         pub fn load(allocator: std.mem.Allocator, objects: Objects.ObjectStore, configuration: r.Configuration, content: p.DataLifecycle.Content) !Owned {
-            if (content.bytes < header_bytes or content.bytes > r.max_intent_bytes) return error.InvalidDirectCatalogIntent;
+            if (content.bytes < header_bytes or content.bytes > limit) return error.InvalidDirectCatalogIntent;
             var name: [96]u8 = undefined;
             const object_key = try key(content, &name);
             const metadata = try objects.head(object_key) orelse return error.CatalogIntentMissing;

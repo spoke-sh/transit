@@ -57,6 +57,34 @@ integers with `ms`, `s`, `m`, `h` or `d`, converted to milliseconds with checked
 arithmetic. Byte budgets are positive integer literals. Deployment limits apply
 in addition to declaration budgets; declaration validation grants no capacity.
 
+## Immutable declaration artifacts
+
+[`SourceDeclaration`](../packages/zig/transit-catalog/src/SourceDeclaration.zig)
+defines a dedicated connector artifact, separate from relational view schemas.
+Canonical bytes have an eight-byte `TSOURCE1` prefix, the 32-byte current contract
+definition, and canonical JSON. The payload contains object/revision, original
+namespace/name, native authorization reference, owner and either an HTTP origin
+or the exact source binding. Its own digest is excluded. SHA-256 of the complete
+canonical bytes supplies both the immutable content commitment and definition
+digest. Artifact and saved request encodings are each bounded to 64 KiB.
+
+[`DirectSource`](../packages/zig/transit-catalog/src/DirectSource.zig) separates
+that immutable declaration from control epoch and dropped state. A saved request
+binds the original operation, exact expected definition, namespace/name, payload
+commitment and, for control or source DROP, expected epoch. RETIRE increments the
+control epoch without changing definition identity. DROP retains the immutable
+identity and original receipt. Reusing a name cannot reinterpret that receipt.
+The declaration-only typed profile rejects AUTHORIZE, ACTIVATE, SUSPEND and
+RESUME before admission. These types alone do not install Catalog execution.
+
+A reservation commits the saved request's content reference before staging its
+bytes. Only an applied operation can carry a resulting declaration. Source
+publication and DROP carry their two dependency changes in the same control
+record. The destination writer key is its stable object identity; the value
+retains its exact definition and original source operation. Control metadata
+reports unsupported execution, `never_run` and absent poll/publication positions.
+It must not synthesize an authorization or executor failure.
+
 ## Publication, controls and authority
 
 CREATE is a recoverable original operation. Reserve ownership before staging
