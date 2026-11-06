@@ -11,9 +11,11 @@ import {
   InspectorPanel,
 } from "./workbench-layout";
 import { WorkbookOwner } from "./workbook-owner";
+import type { CellProjection } from "./workbook-state";
 import { FeatureAccess } from "./feature-access";
 import { useMetadata, Unavailable } from "./data-metadata";
 import "./workbench.css";
+
 type Cell = { id: string; name: string; sql: string; note: string };
 const newCell = (): Cell => ({
   id: crypto.randomUUID().replaceAll("-", ""),
@@ -21,6 +23,7 @@ const newCell = (): Cell => ({
   sql: "SHOW TABLES",
   note: "",
 });
+
 export function WorkbookPage({ active = true }: { active?: boolean }) {
   return (
     <FeatureAccess feature="sql">
@@ -28,6 +31,7 @@ export function WorkbookPage({ active = true }: { active?: boolean }) {
     </FeatureAccess>
   );
 }
+
 function WorkbookPageContent({ active }: { active: boolean }) {
   const [cells, setCells] = useState<Cell[]>(() => [newCell()]);
   const [title, setTitle] = useState("Untitled investigation");
@@ -97,6 +101,13 @@ function WorkbookPageContent({ active }: { active: boolean }) {
     // A new finite session is explicit; it does not enable Live or run SQL.
     render((value) => value + 1);
   };
+  const dag = graph.dag();
+  const focusCell = (cellId: string) => {
+    const el = document.getElementById(`cell-${cellId}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    el?.querySelector<HTMLTextAreaElement>("textarea.workbook-sql")?.focus();
+  };
+
   return (
     <Workbench className="workbook" available={active && Boolean(connection.value)}>
       <div className="page-heading">
@@ -149,7 +160,12 @@ function WorkbookPageContent({ active }: { active: boolean }) {
                       <p className="eyebrow">THIS WORKBOOK</p>
                       <strong>{title}</strong>
                       {cells.map((cell, index) => (
-                        <CellNavigation key={cell.id} cell={cell} index={index} />
+                        <CellNavigation
+                          key={cell.id}
+                          cell={cell}
+                          index={index}
+                          projection={dag.cells.get(cell.id)}
+                        />
                       ))}
                       <p>Unsaved · {cells.length} of 4 cells</p>
                     </>
@@ -177,6 +193,7 @@ function WorkbookPageContent({ active }: { active: boolean }) {
                     </span>
                   </div>
                   <button
+                    className={graph.live ? undefined : "primary"}
                     disabled={
                       !cells.some((cell) => cell.name) || graph.unresolved || graph.remaining === 0
                     }
@@ -188,6 +205,38 @@ function WorkbookPageContent({ active }: { active: boolean }) {
                     New evaluation session
                   </button>
                 </div>
+                {(dag.chains.length > 0 || dag.independent.length > 0) && (
+                  <div className="workbook-dep-graph" aria-label="Cell dependency graph">
+                    {dag.chains.map((chain, chainIndex) => (
+                      <div key={chain[0]?.id ?? chainIndex} className="dep-chain">
+                        {chain.map((node, nodeIndex) => (
+                          <span key={node.id} className="dep-step">
+                            {nodeIndex > 0 && (
+                              <span className="dep-arrow" aria-hidden="true">
+                                →
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              className="dep-node"
+                              data-tone={node.badgeTone}
+                              onClick={() => focusCell(node.id)}
+                            >
+                              {node.name}
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    ))}
+                    {dag.independent.length > 0 && (
+                      <span className="dep-independent">
+                        {dag.chains.length > 0 ? "+ " : ""}
+                        {dag.independent.length} independent{" "}
+                        {dag.independent.length === 1 ? "cell" : "cells"}
+                      </span>
+                    )}
+                  </div>
+                )}
                 <p className="muted">
                   Name SELECT cells to compose relations. Reference an input as{" "}
                   <code>FROM "workbook.name"</code>. Live recalculates after a typing pause or blur;
@@ -230,6 +279,7 @@ function WorkbookPageContent({ active }: { active: boolean }) {
                     cell={cell}
                     index={index}
                     graph={graph}
+                    projection={dag.cells.get(cell.id)}
                     active={active && visible}
                     available={Boolean(connection.value)}
                     edit={(patch, computation) =>
@@ -273,10 +323,21 @@ function WorkbookPageContent({ active }: { active: boolean }) {
     </Workbench>
   );
 }
-function CellNavigation({ cell, index }: { cell: Cell; index: number }) {
+
+function CellNavigation({
+  cell,
+  index,
+  projection,
+}: {
+  cell: Cell;
+  index: number;
+  projection?: CellProjection;
+}) {
   const { fold } = useInspector();
   return (
     <button
+      className="workbook-nav-item"
+      data-tone={projection?.badgeTone ?? "draft"}
       onClick={() => {
         fold("left");
         requestAnimationFrame(() =>
@@ -289,10 +350,12 @@ function CellNavigation({ cell, index }: { cell: Cell; index: number }) {
     </button>
   );
 }
+
 function WorkbookCell({
   cell,
   index,
   graph,
+  projection,
   available,
   active,
   edit,
@@ -303,6 +366,7 @@ function WorkbookCell({
   cell: Cell;
   index: number;
   graph: WorkbookOwner;
+  projection?: CellProjection;
   available: boolean;
   active: boolean;
   last: boolean;
@@ -340,20 +404,49 @@ function WorkbookCell({
     : result.busy;
   const selection = `workbook/${cell.id}`;
   useEffect(() => () => inspector.release(selection), [inspector.release, selection]);
-  const dependency = graph.validation?.bindings.find((binding) => binding.cell === cell.id)?.input;
+  const dependency =
+    graph.validation?.bindings.find((binding) => binding.cell === cell.id)?.input ??
+    projection?.upstreamId ??
+    null;
+  const statusLabel = relation
+    ? graph.current(cell.id)
+      ? "Current draft"
+      : derived
+        ? "Earlier result"
+        : "Draft"
+    : "Standalone statement";
+
   return (
-    <section id={`cell-${cell.id}`} className="workbook-cell" aria-label={`SQL cell ${index + 1}`}>
-      <div className="workbench-toolbar">
-        <h2>Cell {index + 1}</h2>
-        <span className="muted">
-          {relation
-            ? graph.current(cell.id)
-              ? "Current draft"
-              : derived
-                ? "Earlier result"
-                : "Draft"
-            : "Standalone statement"}
+    <section
+      id={`cell-${cell.id}`}
+      className="workbook-cell"
+      data-tone={projection?.badgeTone ?? "draft"}
+      aria-label={`SQL cell ${index + 1}`}
+    >
+      <div className="workbench-toolbar workbook-cell-head">
+        <span className="cell-number" aria-hidden="true">
+          {String(index + 1).padStart(2, "0")}
         </span>
+        <h2>Cell {index + 1}</h2>
+        {projection?.upstreamName && (
+          <span className="cell-lineage-chip">uses {projection.upstreamName}</span>
+        )}
+        <span className="cell-state-pill" data-tone={projection?.badgeTone ?? "draft"}>
+          {relation && graph.current(cell.id) && (
+            <span className="state-check" aria-hidden="true">
+              ✓{" "}
+            </span>
+          )}
+          <span>{statusLabel}</span>
+        </span>
+        {relation &&
+          projection &&
+          projection.executionState !== "Complete" &&
+          projection.executionState !== "Draft" && (
+            <span className="cell-reactive-stage" data-tone={projection.badgeTone}>
+              {projection.badgeLabel}
+            </span>
+          )}
         <button
           aria-label={`Move cell ${index + 1} up`}
           disabled={index === 0}
@@ -376,27 +469,30 @@ function WorkbookCell({
         </button>
         <button onClick={remove}>Remove cell</button>
       </div>
-      <label>
-        Relation name
-        <input
-          value={cell.name}
-          maxLength={40}
-          placeholder="Optional · e.g. filtered"
-          onChange={(event) => edit({ name: event.target.value }, true)}
-          onBlur={() => void graph.flush()}
-        />
-      </label>
-      <label>
-        Investigation notes
-        <textarea
-          className="workbook-note"
-          value={cell.note}
-          maxLength={8000}
-          placeholder="What are you investigating?"
-          onChange={(event) => edit({ note: event.target.value }, false)}
-        />
-      </label>
-      <label>
+      <div className="workbook-cell-meta">
+        <label className="workbook-relation-field">
+          Relation name
+          <input
+            value={cell.name}
+            maxLength={40}
+            placeholder="Optional · e.g. filtered"
+            onChange={(event) => edit({ name: event.target.value }, true)}
+            onBlur={() => void graph.flush()}
+          />
+        </label>
+        <label className="workbook-note-field">
+          Investigation notes
+          <textarea
+            className="workbook-note"
+            value={cell.note}
+            maxLength={8000}
+            rows={1}
+            placeholder="What are you investigating?"
+            onChange={(event) => edit({ note: event.target.value }, false)}
+          />
+        </label>
+      </div>
+      <label className="workbook-sql-field">
         SQL
         <textarea
           className="workbook-sql"
@@ -421,7 +517,7 @@ function WorkbookCell({
           }}
         />
       </label>
-      <div className="workbench-toolbar">
+      <div className="workbench-toolbar workbook-cell-actions">
         <button className="primary" disabled={runDisabled || !cell.sql.trim()} onClick={run}>
           Run cell {index + 1}
         </button>
