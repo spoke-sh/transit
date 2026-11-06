@@ -18,6 +18,13 @@ pub fn isDuplicateBindingConnection(bindings: []const g.DatabaseAccount.Binding,
     }
     return false;
 }
+pub fn hasConnectionNamespace(bindings: []const g.DatabaseAccount.Binding, index: usize, namespace: u64) bool {
+    const binding = bindings[index];
+    for (bindings[index..]) |candidate| {
+        if (candidate.resource == binding.resource and candidate.catalog == binding.catalog and candidate.owner == binding.owner and candidate.role == binding.role and candidate.namespace == namespace) return true;
+    }
+    return false;
+}
 pub fn table(self: *Self, binding: g.DatabaseAccount.Binding) c.DirectTableClient {
     return .{ .allocator = self.transport.http.allocator, .authority = self.transport, .service = self.transport, .connection = .{ .scope = .{ .realm = self.execution.configuration.realm, .resource = binding.resource, .catalog = binding.catalog }, .branch = 1, .audience = binding.owner, .principal = self.execution.configuration.table_principal, .role = binding.role }, .key = self.key, .lease = self.lease, .credential_epoch = self.credential_epoch };
 }

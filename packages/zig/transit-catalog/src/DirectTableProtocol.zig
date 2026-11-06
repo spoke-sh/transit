@@ -406,7 +406,8 @@ pub const Request = struct {
     /// even a refused publication attempt may wake an authorized recheck.
     pub fn publicationHint(self: Request) bool {
         return switch (self.action) {
-            .record, .stage, .pin, .retain_history, .release => false,
+            .record, .stage, .client_token, .pin, .retain_history, .release => false,
+            .client_progress => |value| value.mutation() and !(value == .update and value.update.record != null and value.update.record.?.format == c.DirectRecord.read_cache_format),
             else => self.transport().mutation,
         };
     }

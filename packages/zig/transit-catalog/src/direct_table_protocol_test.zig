@@ -15,8 +15,10 @@ test "private reader and staging mutations preserve uncertainty without waking c
         .{ .retain_history = undefined },
         .{ .release = undefined },
         .{ .stage = undefined },
+        .{ .client_token = .{ .bind = undefined } },
         .{ .record = .{ .stage = undefined } },
         .{ .record = .{ .stage_transaction = undefined } },
+        .{ .client_progress = .{ .update = .{ .key = undefined, .expected = undefined, .pending = true, .cancel = false, .record = .{ .scope = undefined, .format = c.DirectRecord.read_cache_format, .content = undefined } } } },
     };
     for (private) |action| {
         request.action = action;
@@ -25,7 +27,7 @@ test "private reader and staging mutations preserve uncertainty without waking c
     }
     // Durable readiness/progress and original operation execution still wake
     // discovery. A failed attempt is conservatively a hint, never completion.
-    request.action = .{ .client_progress = .{ .update = undefined } };
+    request.action = .{ .client_progress = .{ .update = .{ .key = undefined, .expected = undefined, .pending = false, .cancel = false, .record = null } } };
     try t.expect(request.publicationHint());
     request.action = .{ .commit_saved = undefined };
     try t.expect(request.publicationHint());

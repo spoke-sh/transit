@@ -7,6 +7,7 @@ const p = c.protocol;
 const w = c.DirectTableProtocol;
 const Objects = c.storage.TransitObjectStore;
 pub const max_bytes = w.max_work_bytes;
+pub const read_cache_format: u32 = 0x53515231; // SQR1
 /// High-bit formats carry an authenticated, content-addressed read envelope.
 /// Its bounded conjunction is part of the immutable bytes, never caller-supplied
 /// read authority. Generic reads must enforce it before returning the envelope.

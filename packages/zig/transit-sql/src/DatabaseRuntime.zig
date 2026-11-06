@@ -42,11 +42,26 @@ managed_route: usize = 0,
 managed_after: ?u64 = null,
 managed_pending: bool = false,
 managed_work: bool = true,
+managed_has_declarations: u64 = 0,
+foreground_active: std.atomic.Value(u32) = .init(0),
+foreground_notified: std.atomic.Value(bool) = .init(false),
 pub const Keys = struct { table: p.Ed25519.KeyPair };
 const Activation = struct { generation: u64, instance: [16]u8 };
 const activation_format: u32 = 0x53514131;
 pub fn notify(self: *Self) void {
+    if (self.foreground_active.load(.acquire) != 0) {
+        self.foreground_notified.store(true, .release);
+        return;
+    }
     self.work.notify(self.io);
+}
+fn beginForeground(self: *Self) void {
+    _ = self.foreground_active.fetchAdd(1, .acquire);
+}
+fn endForeground(self: *Self) void {
+    if (self.foreground_active.fetchSub(1, .acq_rel) == 1) {
+        if (self.foreground_notified.swap(false, .acq_rel)) self.work.notify(self.io);
+    }
 }
 pub fn notifyExternal(self: *Self) void {
     if (self.external_work) |work| work.notify(self.io);
@@ -150,10 +165,16 @@ pub fn initEndpoint(allocator: std.mem.Allocator, io: std.Io, url: []const u8, e
     return self;
 }
 fn activate(self: *Self) !void {
-    const caller = self.private.table(self.execution.configuration.bindings[0]);
+    var caller = self.private.table(self.execution.configuration.bindings[0]);
     const configuration = try self.execution.configuration.digest();
     const key: c.DirectClientToken.Key = .{ .definition = p.Growth.current_definition, .connection = caller.connection, .account = g.AccountIdentity.internal(self.execution.configuration.account, "activation", ""), .token = @splat(0) };
-    var state = try c.DirectClientToken.inspect(caller, key);
+    const inspected = try caller.call(.{ .client_progress = .{ .inspect = key } });
+    defer inspected.deinit();
+    const epoch = inspected.value.subject.credential_epoch;
+    self.private.credential_epoch = epoch;
+    self.ingress.credential_epoch = epoch;
+    caller.credential_epoch = epoch;
+    var state = inspected.value.result.client_progress.state;
     if (state == null) {
         const body = try c.DirectRecord.stage(caller, key.account, activation_format, &configuration);
         const receipt = try c.DirectClientToken.bind(caller, .{ .key = key, .fingerprint = configuration, .intent = .{ .external = .{ .connection = caller.connection, .namespace = self.execution.configuration.bindings[0].namespace, .operation = (std.mem.readInt(u64, configuration[0..8], .little) % p.max_counter) + 1, .record = body } } });
@@ -334,59 +355,78 @@ pub fn tick(self: *Self) !bool {
 /// another fair sweep; settled declarations cause no timer or upstream requests.
 fn managedStep(self: *Self) !bool {
     const bindings = self.execution.configuration.bindings;
-    if (self.managed_route >= bindings.len) return false;
-    const caller = self.private.table(bindings[self.managed_route]);
     const M = g.direct.ManagedTable;
-    const manager: M = .{ .client = caller };
-    const page = try c.DirectClientToken.list(caller, if (self.managed_work) M.workAccount() else M.account(), self.managed_after, self.managed_work);
-    for (page.entries) |slot| if (slot) |entry| {
-        self.managed_after = entry.id();
-        const original = entry.original orelse return error.InvalidManagedTableRecord;
-        // Reservations need the exact caller payload or explicit closure. They
-        // are discoverable but do not spin a worker or read nonexistent bytes.
-        if (original.phase == .reserved or original.phase == .closed) return true;
-        if (self.managed_work) {
-            if (entry.receipt.binding.intent != .external or entry.receipt.binding.intent.external.record.format != c.DirectOwnedRecord.format) return error.InvalidManagedTableRecord;
-            if (entry.receipt.binding.intent.external.namespace != bindings[self.managed_route].namespace) return true;
-            const token = entry.receipt.binding.key;
-            const selected = self.claim(token.token);
-            if (!selected.tryLock()) {
-                self.retry_pending = true;
+    while (true) {
+        while (self.managed_route < bindings.len and g.Client.isDuplicateBindingConnection(bindings, self.managed_route)) {
+            self.managed_route += 1;
+            self.managed_after = null;
+            self.managed_work = true;
+        }
+        if (self.managed_route >= bindings.len) return false;
+        const route_bit = @as(u64, 1) << @intCast(self.managed_route);
+        if (self.managed_work and (self.managed_has_declarations & route_bit) == 0) {
+            self.managed_work = false;
+            self.managed_after = null;
+        }
+        const caller = self.private.table(bindings[self.managed_route]);
+        const manager: M = .{ .client = caller };
+        const page = try c.DirectClientToken.list(caller, if (self.managed_work) M.workAccount() else M.account(), self.managed_after, self.managed_work);
+        if (!self.managed_work and page.entries[0] != null and (self.managed_has_declarations & route_bit) == 0) {
+            self.managed_has_declarations |= route_bit;
+            self.managed_pending = true;
+        }
+        for (page.entries) |slot| if (slot) |entry| {
+            self.managed_after = entry.id();
+            const original = entry.original orelse return error.InvalidManagedTableRecord;
+            // Reservations need the exact caller payload or explicit closure. They
+            // are discoverable but do not spin a worker or read nonexistent bytes.
+            if (original.phase == .reserved or original.phase == .closed) continue;
+            if (self.managed_work) {
+                if (entry.receipt.binding.intent != .external or entry.receipt.binding.intent.external.record.format != c.DirectOwnedRecord.format) return error.InvalidManagedTableRecord;
+                if (!g.Client.hasConnectionNamespace(bindings, self.managed_route, entry.receipt.binding.intent.external.namespace)) continue;
+                const token = entry.receipt.binding.key;
+                const selected = self.claim(token.token);
+                if (!selected.tryLock()) {
+                    self.retry_pending = true;
+                    return true;
+                }
+                defer selected.unlock(self.io);
+                const pending = manager.step(token, self.io, self.managed_directory.?, null) catch |err| {
+                    if (err == error.Canceled or err == error.Cancelled) return err;
+                    self.direct_work_failure.store(@intFromError(err), .release);
+                    if (wire.Client.unavailable(err) or self.background.contended(err)) self.retry_pending = true;
+                    return true;
+                };
+                self.direct_work_failure.store(0, .release);
+                self.managed_pending = self.managed_pending or pending;
                 return true;
             }
-            defer selected.unlock(self.io);
-            const pending = manager.step(token, self.io, self.managed_directory.?, null) catch |err| {
+            if (entry.receipt.binding.intent != .external or entry.receipt.binding.intent.external.record.format != c.DirectOwnedRecord.format) return error.InvalidManagedTableRecord;
+            const declared = try manager.load(M.Declaration, entry.receipt.binding.intent.external.record, M.declaration_format);
+            defer declared.deinit();
+            if (!g.Client.hasConnectionNamespace(bindings, self.managed_route, declared.value.namespace)) continue;
+            self.managedOne(manager, declared.value, entry) catch |err| {
                 if (err == error.Canceled or err == error.Cancelled) return err;
                 self.direct_work_failure.store(@intFromError(err), .release);
+                // Transport uncertainty retains bounded retry debt. Policy/source
+                // refusals wait for a publication hint or explicit control command.
                 if (wire.Client.unavailable(err) or self.background.contended(err)) self.retry_pending = true;
-                return true;
             };
-            self.direct_work_failure.store(0, .release);
-            self.managed_pending = self.managed_pending or pending;
+            return true;
+        };
+        if (page.next) |next| {
+            self.managed_after = next;
             return true;
         }
-        if (entry.receipt.binding.intent != .external or entry.receipt.binding.intent.external.record.format != c.DirectOwnedRecord.format) return error.InvalidManagedTableRecord;
-        const declared = try manager.load(M.Declaration, entry.receipt.binding.intent.external.record, M.declaration_format);
-        defer declared.deinit();
-        if (declared.value.namespace != bindings[self.managed_route].namespace) return true;
-        self.managedOne(manager, declared.value, entry) catch |err| {
-            if (err == error.Canceled or err == error.Cancelled) return err;
-            self.direct_work_failure.store(@intFromError(err), .release);
-            // Transport uncertainty retains bounded retry debt. Policy/source
-            // refusals wait for a publication hint or explicit control command.
-            if (wire.Client.unavailable(err) or self.background.contended(err)) self.retry_pending = true;
-        };
-        return true;
-    };
-    if (self.managed_work) {
-        self.managed_work = false;
+        if (self.managed_work) {
+            self.managed_work = false;
+            self.managed_after = null;
+            continue;
+        }
+        self.managed_route += 1;
         self.managed_after = null;
-        return true;
+        self.managed_work = true;
     }
-    self.managed_route += 1;
-    self.managed_after = null;
-    self.managed_work = true;
-    return self.managed_route < bindings.len;
 }
 fn managedOne(self: *Self, manager: g.direct.ManagedTable, declared: g.direct.ManagedTable.Declaration, entry: c.DirectClientToken.Progress) !void {
     if (entry.pending) _ = try manager.initialize(declared, entry.receipt.binding.key);
@@ -595,6 +635,8 @@ pub fn submit(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, ta
 pub fn submitPrepared(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64, acceptance_possible: ?*bool, fresh_prepared: bool, fresh_fenced: bool) !g.session_protocol.Operation {
     const selected = self.claim(nonce);
     try selected.lock(self.io);
+    self.beginForeground();
+    defer self.endForeground();
     defer selected.unlock(self.io);
     errdefer self.notify();
     var newly_bound = false;
@@ -671,14 +713,19 @@ pub fn executeWorkloadPrepared(self: *Self, allocator: std.mem.Allocator, observ
     try self.io.randomSecure(&nonce);
     const selected = self.claim(nonce);
     try selected.lock(self.io);
+    self.beginForeground();
     var claimed = true;
-    defer if (claimed) selected.unlock(self.io);
+    defer if (claimed) {
+        selected.unlock(self.io);
+        self.endForeground();
+    };
     errdefer self.notify();
     const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation, null, false, true, fresh_prepared, fresh_fenced, null);
     try requireRoute(state, table, statement.namespace);
     const wait = try g.WorkloadOperations.attempt(table.*, state);
     claimed = false;
     selected.unlock(self.io);
+    self.endForeground();
     if (state.pending) self.notify();
     while (true) {
         try deadline.check(self.io);
@@ -703,8 +750,12 @@ pub fn executePrepared(self: *Self, allocator: std.mem.Allocator, observer: *g.C
     try self.io.randomSecure(&nonce);
     const selected = self.claim(nonce);
     try selected.lock(self.io);
+    self.beginForeground();
     var claimed = true;
-    defer if (claimed) selected.unlock(self.io);
+    defer if (claimed) {
+        selected.unlock(self.io);
+        self.endForeground();
+    };
     errdefer self.notify();
     const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation, null, false, true, fresh_prepared, fresh_fenced, null);
     const intent = state.receipt.binding.intent;
@@ -717,6 +768,7 @@ pub fn executePrepared(self: *Self, allocator: std.mem.Allocator, observer: *g.C
     if (completed) |terminal| return .{ .terminal = terminal, .completion = try terminal.completion(try g.IntentReference.commandKind(intent), .{ .account = self.execution.configuration.account, .id = state.id() }) };
     claimed = false;
     selected.unlock(self.io);
+    self.endForeground();
     self.notify();
     while (true) {
         try deadline.check(self.io);

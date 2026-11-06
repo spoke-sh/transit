@@ -74,7 +74,7 @@ pub fn step(self: *Self, registry: *g.Registry) !bool {
         return true;
     }
     const account = &registry.configuration.accounts[index];
-    var observer: g.Client = .{ .transport = &self.clients[index], .execution = runtime.execution, .principal = account.execution.table_principal, .key = runtime.ingress.key, .lease = runtime.lease() };
+    var observer: g.Client = .{ .transport = &self.clients[index], .execution = runtime.execution, .principal = account.execution.table_principal, .key = runtime.ingress.key, .lease = runtime.lease(), .credential_epoch = runtime.ingress.credential_epoch };
     try runtime.fence(&observer);
     var source = try observer.source();
     const page = try g.SessionOperations.list(runtime.execution, &source, self.after[index], true);
