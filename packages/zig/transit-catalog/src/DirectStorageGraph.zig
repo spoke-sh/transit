@@ -353,12 +353,14 @@ fn documentEntry(allocator: std.mem.Allocator, index: *s.TreeStore, workspace: a
         .documents => {
             const parsed = try c.protocol.Json.parseFromSlice(s.DocumentPartition.DocumentHead, allocator, entry.value.slice());
             defer parsed.deinit();
-            try parsed.value.cut.validate();
-            try context.requireTarget(parsed.value.cut.target.partition);
-            if (entry.key.len != 16 or !std.mem.eql(u8, entry.key.data[0..16], &parsed.value.cut.target.document) or
-                parsed.value.cut.accepted.partition != context.partition or
-                parsed.value.cut.accepted.next_lsn > context.next_lsn) return error.InvalidDocumentStorageGraph;
-            try markDocumentBlob(allocator, context, index.store, workspace, "document-states", parsed.value.cut.state);
+            try parsed.value.validate();
+            const cut = parsed.value.basis();
+            const position = parsed.value.position();
+            try context.requireTarget(cut.target.partition);
+            if (entry.key.len != 16 or !std.mem.eql(u8, entry.key.data[0..16], &cut.target.document) or
+                position.partition != context.partition or
+                position.next_lsn > context.next_lsn) return error.InvalidDocumentStorageGraph;
+            try markDocumentBlob(allocator, context, index.store, workspace, "document-states", cut.state);
         },
         .revisions => {
             const parsed = try c.protocol.Json.parseFromSlice(s.DocumentPartition.RevisionEntry, allocator, entry.value.slice());
@@ -754,11 +756,15 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
                         try workspace.enqueue(.{ .table_preparation = .{ .reference = .{ .content = prepared.successor } } });
                     },
                     .log => try workspace.enqueue(.{ .log_preparation = .{ .reference = .{ .content = prepared.successor } } }),
+                    .document => return error.UnsupportedTransactionParticipant,
                 },
-                .participant => |participant| if (participant == .log) {
-                    if (participant.log.actions) |actions| try workspace.enqueue(.{ .log_actions = .{ .identity = value.identity, .guard = participant.log.guard, .directory = actions } });
+                .participant => |participant| {
+                    if (participant == .document) return error.UnsupportedTransactionParticipant;
+                    if (participant == .log) {
+                        if (participant.log.actions) |actions| try workspace.enqueue(.{ .log_actions = .{ .identity = value.identity, .guard = participant.log.guard, .directory = actions } });
+                    }
                 },
-                .source => {},
+                .source => |source| if (source.guard == .document) return error.UnsupportedTransactionParticipant,
             }
             value.after = entry.cursor();
             return false;

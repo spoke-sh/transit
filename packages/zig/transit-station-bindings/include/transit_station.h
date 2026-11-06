@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 #define STATION_ABI_VERSION 1u
-#define STATION_ABI_DEFINITION "ca54504e5f280bf701e681cb102f8f4bb0bde8dfd5992d53cbeb91a1af60966f"
+#define STATION_ABI_DEFINITION "2dce803c5e406b5fbf526daee33411a03a71b22bea0e8ebe30fa7afdbd2457b6"
 #define STATION_MINIMUM_STACK_BYTES 8388608u
 typedef struct station_growing_server station_growing_server;
 typedef struct station_query_client station_query_client;

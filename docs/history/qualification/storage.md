@@ -9,6 +9,129 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Logical Document deletion and partition guards — 2026-11-05
+
+Runtime source `a51731e7624193dc099dc5eb3d0c8be737ed6f27` adds conditional
+logical deletion, tagged live/deleted head metadata, permanent tombstones,
+current head observation and whole-partition Document transaction guards. The
+[Document contract](../../../contracts/DOCUMENT_V1.md#logical-deletion-and-retained-lifetimes)
+owns deletion and retained lifetimes; the
+[partition guide](../../../packages/zig/transit-storage/docs/document-partitions.md)
+owns the component profile. The shared stored/wire definition becomes
+`6c36860e9a07f1425fc45d37086eb19ac74d480863970fd03488f56375623eca`.
+Generated contracts, bindings and independent fixtures use that definition;
+missing and foreign definitions remain rejected.
+
+The disk-backed collection schedules exercise both ordered/versioned and causal
+Documents with 40 retained heads and one resident index page. A conditional
+delete advances the logical frontier through one fenced WAL append. A lost
+acknowledgement fences the owner; reopening recovers the original deletion
+receipt without another append. Stale cuts, absent IDs, denied authority,
+different-operation deletion retries and attempts to recreate the ID refuse.
+Original mutation receipts remain recoverable. Previously acquired raw revision
+reads and collection membership survive deletion, archive/checkpoint/trim and
+owner reopen; a newly acquired collection includes the tombstone in its exact
+coverage. New revision-read acquisition refuses a deleted ID.
+
+The same schedules distinguish revision and collection pins, reject cross-kind
+release, preserve revocation after buffering and verify signing-key rotation
+through an actual reopen. Protocol checks ensure query-visible tombstones omit
+principal and operation identity. Document guards preserve full-width logical
+partition ordinals separately from WAL partition IDs and distinguish logical
+changes from maintenance. Graph tests retain the deleted predecessor's logical
+indexes and `.tseg` objects and refuse missing or corrupt retained state.
+
+These commands execute in the pinned development shell, from the named package:
+
+| Package / command | Result |
+| --- | --- |
+| Protocol: `zig build test --summary all` | 128/128 |
+| Storage: `zig build test -Dtest-filter="document collection disk" --summary all` | 4/4 |
+| Catalog: `zig build test -Dtest-filter="direct graph retains document" --summary all` | 7/7 |
+| Station application: `zig build test -Dtest-filter="native application signing" --summary all` | 2/2 after fixture correction `a06ba980ad12c95ee17a49d0aeae7f313e912e8f` |
+
+The clean `sdks-conformance` lane at
+`a4c4b2d4bdbf3aece3cd8057dcd7736af41573b9` passes all seven tasks in
+2,158.93 seconds. It includes the installed ten-language interoperability ring,
+SQL bindings, gRPC faults and connector-preparation recovery. The subsequent
+tombstone privacy refinement and signing-fixture correction do not change SDK,
+binding or browser-package files. The lane's committed-source metadata and
+complete task inventory are retained in
+`.cache/ci/clean/a4c4b2d4bdbf-transit-ci-6vwfqe7f/`.
+
+The clean `core` lane at `e8cf3e2e6a20311481d1cd0c3f9cf60e663ee5e6`
+passes all 28 tasks in 4,800.49 seconds. It includes the complete native test
+set, 45 standalone packages, installed Zig consumers, the runtime dependency
+boundary, SQL wire contracts, C ABI, Station, disk recovery, authorization,
+runtime upgrade, inspection and state APIs. Its source contains the corrected
+signing fixture and merges main's SDK validator correction; regeneration leaves
+the merge's file tree identical to `5b62efefe`. Completion metadata and the full
+task inventory are retained in
+`.cache/ci/clean/e8cf3e2e6a20-transit-ci-s7rwu9z1/`.
+
+Earlier attempts are not passing evidence. The first clean SDK attempt at
+`8bc864c20871ab28155ad9795fa75028caf7fe9b` found stale Node validator digests;
+regenerating those files in `a4c4b2d4b` resolved it. The clean core attempt at
+`a51731e76` passed 2,336 of 2,337 native tests but failed the native application
+signing test and its independent fixture check. Regeneration in `a06ba980a`
+corrects that stale fixture. Earlier core/storage attempts were stopped when
+the tombstone privacy refinement superseded their source.
+
+The browser clean wrapper could not install system packages through `sudo`.
+After installing the pinned Chromium build without system-package changes, the
+ordinary browser inventory ran in its retained clean checkout and pinned
+`ci-experience` shell. The attempt at `a4c4b2d4b` passed Board, query, HTTP and
+gRPC browser tasks, then failed the reactive schedule's unchanged ten-second
+wait with the original operation still admitted. A rerun at `5b62efefe` failed
+an existing direct Board query-open assertion with `AuthorityTimeout` while
+acquiring a Table pin. Neither incomplete attempt qualifies the browser lane;
+their original logs and task metadata are retained with the component evidence.
+
+The first clean `storage-query` attempt at `a51731e76` passes its first 20
+tasks, including local catalog collection in 8,134.64 seconds, installed
+Table/KV services, state/mixed transactions, both Queue transfer profiles and
+original log tokens. It then exceeds the unchanged 180-second
+`workload-token-prepare` deadline. The node records 521 HTTP 200 responses,
+including 257 Stream cancellation closures and 228 Queue cancellation closures;
+the fixture requires 257 in each partition before its original-token recovery
+assertions. Successful setup requests do not establish that recovery proof.
+The failed installation remains at
+`/var/tmp/transit-table-workload-token-mkbh8kse`, with the original lane transcript
+and CI metadata retained alongside the focused evidence.
+
+The retained-checkout continuation repeats workload-token preparation and again
+exceeds its unchanged 180-second deadline, after 257 Stream and 20 Queue
+closures. Workload-result preparation also exceeds its 180-second deadline;
+neither attempt reaches its recovery assertions. The continuation then passes
+Table/Stream maintenance, direct Catalog C ABI, node concurrency, block storage,
+native blocks and physical collection. The installed Document proof and the
+remaining query/publication tasks are still incomplete at this record's update.
+The original failed installations and continuation transcript are retained;
+partial completion is not a passing `storage-query` lane.
+
+Integration commit `80d1176bc5d77493dc2c30caaba5fd97b0d7a7de` merges main's
+SQL Queue WAIT/original-operation recovery change (#386) and regenerates the
+combined current-v1 definition as
+`240baa2bb21e59ab138b0b8a21097676d142d401f2a726e2a283d7ad01a885e5`.
+At that source, fast checks pass 69/69, contract checks pass 20/20, the handbook
+passes formatting, strict TypeScript, ten content tests and its production build,
+and Board checks pass generated-resource validation, strict TypeScript and all
+four test groups (7, 73, 13 and 149 tests). These checks do not transfer the earlier
+clean runtime lane results to the integrated revision. The subsequent merge of
+main's gateway deadline work (#387) preserves its source changes; final baseline
+checks are recorded separately in the PR. Complete browser and integrated clean
+runtime qualification remain open.
+
+Focused transcripts and exact command/source metadata are retained under
+`.cache/verification/document-lifetimes/2026-11-05/`. These deletion schedules
+prove disk-backed owner reopen, not process-kill or power-loss recovery of the
+new operation; the retained-graph fixtures use an in-memory object store. This
+record does not qualify installed Document lifecycle/discovery, protected
+candidate staging, Document transaction execution/common-cut acquisition, SQL
+projections or Station replacement. It makes no warmed allocation or performance
+claim and does not close the
+[Milestone 7 gate](../../roadmap/07-document-storage-and-station-decoupling.md).
+
 ## Retained Document partition membership — 2026-11-03
 
 Implementation `3baaf38ef` retains the exact logical-head directory of one

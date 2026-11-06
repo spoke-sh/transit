@@ -7544,7 +7544,8 @@
         "StorageMaintenanceBudget": 1,
         "TableHistoryMissing": 3,
         "TableSegmentMissing": 1,
-        "TransactionNotFrozen": 1
+        "TransactionNotFrozen": 1,
+        "UnsupportedTransactionParticipant": 3
       },
       "outcomes": {
         "DocumentIndexKind": [
@@ -8677,7 +8678,8 @@
         "InvalidTransactionTransfer": 1,
         "TransactionCapacity": 1,
         "TransactionCutNotAcquired": 1,
-        "TransactionIdentityConflict": 1
+        "TransactionIdentityConflict": 1,
+        "UnsupportedTransactionParticipant": 1
       },
       "outcomes": {
         "Reference.purpose": [
@@ -21356,6 +21358,30 @@
         "transit_tls"
       ]
     },
+    "packages/zig/transit-http-server/src/Socket.zig": {
+      "errors": {
+        "EndOfStream": 1,
+        "ReadFailed": 3,
+        "Timeout": 1,
+        "WriteFailed": 3
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "read()": "Io . Reader . StreamError",
+        "readError()": "anyerror",
+        "readVec()": "Io . Reader . Error",
+        "write()": "Io . Writer . Error"
+      },
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 3,
+        "catch": 4
+      },
+      "imports": [
+        "std"
+      ]
+    },
     "packages/zig/transit-http-server/src/WebSocket.zig": {
       "errors": {
         "WebSocketBinaryUnsupported": 2,
@@ -21393,42 +21419,47 @@
         "AmbiguousFraming": 1,
         "DuplicateHeader": 1,
         "HttpCapacity": 1,
-        "HttpDeadline": 1,
+        "HttpDeadline": 3,
         "InvalidHost": 1,
         "InvalidHttpLimits": 1,
         "InvalidTarget": 1,
         "MissingHost": 1,
+        "Timeout": 1,
         "UnsupportedContentEncoding": 1,
         "UnsupportedExpectation": 1,
         "UnsupportedHttpVersion": 1,
         "UnsupportedTransferEncoding": 1
       },
       "outcomes": {
-        "deadline().Result": [
+        "deadlineAt().Result": [
           "completed",
           "timeout"
         ]
       },
       "error_sets": {},
       "error_returns": {
+        "DeadlineFixture.handle()": "<inferred>",
+        "DeadlineFixture.run()": "<inferred>",
         "Options.validate()": "<inferred>",
+        "checkDeadline()": "<inferred>",
         "deadline()": "<inferred>",
+        "deadlineAt()": "<inferred>",
         "header()": "<inferred>",
-        "receive()": "anyerror",
+        "receive()": "<inferred>",
         "respond()": "<inferred>",
         "serve()": "<inferred>",
-        "serve().Plain.init()": "<inferred>",
         "serve().Worker.connection()": "<inferred>",
         "serve().Worker.dispatch()": "anyerror",
         "timeout()": "anyerror",
         "validateHead()": "<inferred>"
       },
-      "open_error_set_uses": 5,
+      "open_error_set_uses": 6,
       "propagation": {
-        "try": 23,
-        "catch": 3
+        "try": 31,
+        "catch": 5
       },
       "imports": [
+        "Socket.zig",
         "WebSocket.zig",
         "builtin",
         "std"
@@ -23121,12 +23152,18 @@
         "InvalidDocumentCursor": 1,
         "InvalidDocumentRelease": 2
       },
-      "outcomes": {},
+      "outcomes": {
+        "Head": [
+          "live",
+          "deleted"
+        ]
+      },
       "error_sets": {},
       "error_returns": {
         "Coverage.validate()": "<inferred>",
         "Cursor.validate()": "<inferred>",
         "Cut.validate()": "<inferred>",
+        "Head.validate()": "<inferred>",
         "Page.validate()": "<inferred>",
         "Receipt.requireRequest()": "<inferred>",
         "Receipt.validate()": "<inferred>",
@@ -23138,7 +23175,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 23,
+        "try": 25,
         "catch": 1
       },
       "imports": [
@@ -23197,6 +23234,7 @@
     "packages/zig/transit-protocol/src/DocumentOperation.zig": {
       "errors": {
         "DocumentCheckpointConflict": 1,
+        "DocumentDeletionConflict": 1,
         "DocumentHistoryUnavailable": 1,
         "DocumentMutationConflict": 1,
         "DocumentPartitionConflict": 2,
@@ -23206,11 +23244,13 @@
         "DocumentReplicaRequired": 2,
         "DocumentReplicaSequenceGap": 3,
         "DocumentRevisionBeyondCut": 1,
+        "DocumentRevisionExhausted": 1,
         "DocumentTargetConflict": 2,
         "IncompatibleDefinition": 1,
         "InvalidDocumentCheckpoint": 1,
         "InvalidDocumentCheckpointReceipt": 1,
         "InvalidDocumentCut": 1,
+        "InvalidDocumentDeletionReceipt": 1,
         "InvalidDocumentLineage": 6,
         "InvalidDocumentMutation": 1,
         "InvalidDocumentMutationReceipt": 3,
@@ -23236,6 +23276,10 @@
         "CheckpointReceipt.validate()": "<inferred>",
         "Cut.requireRevision()": "<inferred>",
         "Cut.validate()": "<inferred>",
+        "Delete.requireSame()": "<inferred>",
+        "Delete.validate()": "<inferred>",
+        "DeleteReceipt.requireDeletion()": "<inferred>",
+        "DeleteReceipt.validate()": "<inferred>",
         "Lineage.validate()": "<inferred>",
         "Mutation.requireSame()": "<inferred>",
         "Mutation.validate()": "<inferred>",
@@ -23252,11 +23296,12 @@
         "ReplicaState.validate()": "<inferred>",
         "Target.requireOperation()": "<inferred>",
         "Target.requireSame()": "<inferred>",
-        "Target.validate()": "<inferred>"
+        "Target.validate()": "<inferred>",
+        "Tombstone.validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 42,
+        "try": 52,
         "catch": 0
       },
       "imports": [
@@ -23603,7 +23648,7 @@
           "deadline"
         ],
         "Definition": [
-          "ca54504e5f280bf701e681cb102f8f4bb0bde8dfd5992d53cbeb91a1af60966f"
+          "@\"2dce803c5e406b5fbf526daee33411a03a71b22bea0e8ebe30fa7afdbd2457b6\""
         ],
         "Effect.phase": [
           "pending",
@@ -24633,7 +24678,7 @@
         "InvalidTransactionTarget": 1,
         "InvalidTransactionTransfer": 7,
         "ReadOnlyTransaction": 2,
-        "TransactionConflict": 2,
+        "TransactionConflict": 3,
         "TransactionIdentityConflict": 7,
         "UnsupportedTransactionDomain": 1,
         "UnsupportedTransactionParticipant": 5
@@ -24653,7 +24698,8 @@
         ],
         "Guard": [
           "state",
-          "log"
+          "log",
+          "document"
         ],
         "LogAction.action": [
           "append",
@@ -24679,7 +24725,12 @@
         ],
         "Participant": [
           "state",
-          "log"
+          "log",
+          "document"
+        ],
+        "Participant.document.access": [
+          "read",
+          "write"
         ],
         "Participant.state.access": [
           "read",
@@ -24691,8 +24742,7 @@
         ],
         "StateKind": [
           "table",
-          "kv",
-          "document"
+          "kv"
         ],
         "Target.kind": [
           "table",
@@ -24716,6 +24766,8 @@
         "Decision.requireAttempt()": "<inferred>",
         "Decision.validate()": "<inferred>",
         "Directory.validate()": "<inferred>",
+        "DocumentGuard.requireUnchanged()": "<inferred>",
+        "DocumentGuard.validate()": "<inferred>",
         "Guard.requirePagedState()": "<inferred>",
         "Guard.requireTable()": "<inferred>",
         "Guard.validate()": "<inferred>",
@@ -24743,7 +24795,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 81,
+        "try": 87,
         "catch": 0
       },
       "imports": [
@@ -31209,6 +31261,7 @@
       "error_returns": {
         "Connection.init()": "<inferred>",
         "Connection.read()": "std . Io . Reader . StreamError",
+        "Connection.readError()": "anyerror",
         "Connection.send()": "std . Io . Writer . Error",
         "Connection.write()": "std . Io . Writer . Error",
         "RequestStorage.acquire()": "<inferred>",
@@ -31218,7 +31271,7 @@
         "respond()": "<inferred>",
         "serve()": "<inferred>"
       },
-      "open_error_set_uses": 1,
+      "open_error_set_uses": 3,
       "propagation": {
         "try": 24,
         "catch": 6
@@ -31311,7 +31364,7 @@
         "InvalidAuthentication": 5,
         "InvalidCancelRequest": 1,
         "PathAlreadyExists": 1,
-        "Timeout": 2,
+        "Timeout": 3,
         "TlsMemoryCapacity": 1,
         "TlsRequired": 1,
         "WireSessionExhausted": 1
@@ -31347,7 +31400,6 @@
         "Authentication.perform()": "<inferred>",
         "Output.writeAll()": "<inferred>",
         "Server.acquire()": "<inferred>",
-        "Server.authenticationDeadline()": "anyerror",
         "Server.cancel()": "<inferred>",
         "Server.connectionDeadline()": "<inferred>",
         "Server.handle()": "<inferred>",
@@ -31364,12 +31416,14 @@
         "recoverSessions()": "<inferred>",
         "run()": "<inferred>",
         "serve()": "<inferred>",
-        "workerReserveFailures()": "<inferred>"
+        "waitAuthentication()": "anyerror",
+        "workerReserveFailures()": "<inferred>",
+        "writeDeadline()": "<inferred>"
       },
       "open_error_set_uses": 23,
       "propagation": {
-        "try": 109,
-        "catch": 26
+        "try": 106,
+        "catch": 27
       },
       "imports": [
         "Connection.zig",
@@ -39104,6 +39158,7 @@
       "outcomes": {
         "Outcome": [
           "mutation",
+          "deletion",
           "checkpoint",
           "read",
           "read_release",
@@ -39121,7 +39176,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 18,
+        "try": 19,
         "catch": 0
       },
       "imports": [
@@ -39324,6 +39379,8 @@
         "DocumentAppendUncertain": 2,
         "DocumentCheckpointRequired": 1,
         "DocumentConflictLimitExceeded": 1,
+        "DocumentDeleted": 1,
+        "DocumentDeletionConflict": 1,
         "DocumentDepthLimitExceeded": 1,
         "DocumentEpochFenced": 4,
         "DocumentEvaluationBudget": 4,
@@ -39333,9 +39390,10 @@
         "DocumentLogicalEvaluationRequired": 3,
         "DocumentLogicalLayoutMismatch": 5,
         "DocumentMutationLimitExceeded": 3,
-        "DocumentOperationConflict": 9,
+        "DocumentNotFound": 1,
+        "DocumentOperationConflict": 10,
         "DocumentPartMissing": 1,
-        "DocumentPartitionConflict": 5,
+        "DocumentPartitionConflict": 6,
         "DocumentPathCapacity": 3,
         "DocumentPositionExhausted": 1,
         "DocumentReadConflict": 9,
@@ -39356,7 +39414,7 @@
         "InvalidDocumentCursor": 10,
         "InvalidDocumentLineage": 6,
         "InvalidDocumentMutation": 3,
-        "InvalidDocumentPartitionRecord": 4,
+        "InvalidDocumentPartitionRecord": 6,
         "InvalidDocumentRead": 2,
         "InvalidDocumentRecovery": 2,
         "InvalidDocumentRecoveryBudget": 1,
@@ -39406,6 +39464,7 @@
         "checkpointRecovery()": "<inferred>",
         "collectionCursor()": "<inferred>",
         "decodeValue()": "<inferred>",
+        "delete()": "<inferred>",
         "docKey()": "<inferred>",
         "encodeValue()": "<inferred>",
         "findOutcome()": "<inferred>",
@@ -39414,7 +39473,9 @@
         "inspectOrderedNode()": "<inferred>",
         "inspectOrderedNodeInner()": "<inferred>",
         "loadBytes()": "<inferred>",
+        "lookupHead()": "<inferred>",
         "nextPosition()": "<inferred>",
+        "observeHead()": "<inferred>",
         "open()": "<inferred>",
         "operationKey()": "<inferred>",
         "orderedCursor()": "<inferred>",
@@ -39443,11 +39504,12 @@
         "signCausal()": "<inferred>",
         "signOrdered()": "<inferred>",
         "stageBytes()": "<inferred>",
+        "transactionGuard()": "<inferred>",
         "trimArchived()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 380,
+        "try": 412,
         "catch": 8
       },
       "imports": [
@@ -39475,11 +39537,12 @@
       "errors": {
         "DocumentPartitionConflict": 1,
         "IncompatibleDefinition": 3,
-        "InvalidDocumentPartitionRecord": 15
+        "InvalidDocumentPartitionRecord": 16
       },
       "outcomes": {
         "Action": [
           "mutation",
+          "deletion",
           "checkpoint",
           "read",
           "read_release",
@@ -43047,6 +43110,7 @@
     "packages/zig/transit-tls-server/src/probe.zig": {
       "errors": {
         "InvalidSslRequest": 2,
+        "Timeout": 2,
         "Usage": 3
       },
       "outcomes": {},
@@ -43057,7 +43121,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 23,
+        "try": 26,
         "catch": 0
       },
       "imports": [
@@ -43073,6 +43137,7 @@
         "InvalidTimeout": 2,
         "InvalidTlsCredentials": 4,
         "InvalidTlsTrust": 2,
+        "Timeout": 1,
         "TlsAllocationFailed": 6,
         "TlsConfiguration": 2,
         "TlsControlBudget": 2,
@@ -43083,7 +43148,11 @@
         "UnsupportedTlsLibrary": 1
       },
       "outcomes": {},
-      "error_sets": {},
+      "error_sets": {
+        "Transport.checkDeadline().<error>": [
+          "Timeout"
+        ]
+      },
       "error_returns": {
         "Context.init()": "<inferred>",
         "Context.verifyLocalTrust()": "<inferred>",
@@ -43094,6 +43163,7 @@
         "Session.read()": "<inferred>",
         "Session.readExact()": "<inferred>",
         "Session.writeAll()": "<inferred>",
+        "Transport.checkDeadline()": "error { Timeout }",
         "Transport.idle()": "<inferred>",
         "Transport.inputStarted()": "<inferred>",
         "Transport.read()": "<inferred>",
@@ -43103,7 +43173,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 17,
+        "try": 24,
         "catch": 0
       },
       "imports": [

@@ -30,6 +30,44 @@ fn logGuard(value: x.SchemaTypes) x.LogGuard {
     return .{ .kind = .queue, .source = .{ .target = value.log_action.action.append.target, .accepted = value.participant.state.guard.source.accepted, .retained_from = 2, .next = 10 }, .changed_lsn = value.participant.state.guard.changed_lsn };
 }
 
+test "transaction document guards preserve empty membership ordinal and logical progress" {
+    const parsed = try fixture();
+    defer parsed.deinit();
+    const participant = parsed.value.document_participant;
+    try participant.validate(parsed.value.begin.identity);
+    const basis = participant.document.guard;
+    try t.expectEqual(std.math.maxInt(u32), participant.guard().target().partition.?);
+    try t.expectEqual(@as(u64, 93), participant.guard().accepted().partition);
+    var current = basis;
+    current.source.observed.next_lsn += 8;
+    try basis.requireUnchanged(current);
+    inline for (.{ "logical", "digest", "ordinal", "wal", "regression", "revision", "definition" }) |field| {
+        current = basis;
+        if (comptime std.mem.eql(u8, field, "logical")) current.source.changed_next_lsn -= 1;
+        if (comptime std.mem.eql(u8, field, "digest")) current.source.heads_digest.?[0] ^= 1;
+        if (comptime std.mem.eql(u8, field, "ordinal")) current.source.target.partition -= 1;
+        if (comptime std.mem.eql(u8, field, "wal")) current.source.observed.partition += 1;
+        if (comptime std.mem.eql(u8, field, "regression")) current.source.observed.next_lsn -= 1;
+        if (comptime std.mem.eql(u8, field, "revision")) current.source.target.interpretation.revision += 1;
+        if (comptime std.mem.eql(u8, field, "definition")) current.source.target.interpretation.digest[0] ^= 1;
+        try t.expectError(error.TransactionConflict, basis.requireUnchanged(current));
+    }
+    var empty = basis;
+    empty.source.observed.next_lsn = 1;
+    empty.source.changed_next_lsn = 1;
+    empty.source.heads_digest = null;
+    try empty.requireUnchanged(empty);
+    try t.expectError(error.TransactionConflict, empty.requireUnchanged(basis));
+    var target = participant.guard().target();
+    target.partition = null;
+    try t.expectError(error.InvalidTransactionTarget, target.validate());
+    const guard_json = try p.Json.valueAlloc(t.allocator, parsed.value.participant.state.guard);
+    defer t.allocator.free(guard_json);
+    const former = try std.fmt.allocPrint(t.allocator, "{{\"state\":{{\"kind\":\"document\",\"guard\":{s},\"access\":\"write\"}}}}", .{guard_json});
+    defer t.allocator.free(former);
+    try t.expectError(error.InvalidJsonShape, p.Json.parseFromSlice(x.Participant, t.allocator, former));
+}
+
 test "transaction log guards preserve partition definition and logical progress across maintenance" {
     const parsed = try fixture();
     defer parsed.deinit();
@@ -178,9 +216,12 @@ test "transaction participant vocabulary does not enable unsupported owners" {
     var participant = parsed.value.participant;
     participant.state.kind = .kv;
     try t.expectError(error.UnsupportedTransactionParticipant, participant.requireLocalTable(begin));
-    participant.state.kind = .document;
-    try t.expectError(error.UnsupportedTransactionParticipant, participant.requireLocalTable(begin));
     const basis = participant.state.guard;
+    participant = parsed.value.document_participant;
+    try participant.validate(begin.identity);
+    try t.expectError(error.UnsupportedTransactionParticipant, participant.requireLocalTable(begin));
+    try t.expectError(error.UnsupportedTransactionParticipant, participant.requireLocalState(begin));
+    try t.expectError(error.UnsupportedTransactionParticipant, participant.guard().requirePagedState());
     participant = .{ .log = .{ .guard = .{ .kind = .queue, .source = .{
         .target = .{ .definition = p.Growth.current_definition, .interpretation = basis.source.interpretation, .partition = 0 },
         .accepted = basis.source.accepted,

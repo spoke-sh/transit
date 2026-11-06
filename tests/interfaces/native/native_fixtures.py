@@ -155,6 +155,16 @@ def generated():
                     transaction_definition(child)
 
         transaction_definition(transaction)
+        # Independent Document participant: logical ordinal and physical WAL
+        # partition deliberately differ, and the ordinal uses the full u32 range.
+        transaction['document_participant'] = dict(document=dict(
+            guard=dict(source=dict(target=dict(
+                definition=definition,
+                interpretation=transaction['participant']['state']['guard']['source']['interpretation'],
+                partition=2**32-1),
+                observed=dict(partition=93, next_lsn=17),
+                changed_next_lsn=15, heads_digest=[67]*32)),
+            access='write'))
         transaction_definition(lifecycle['dataflow'])
         revision_scope = transaction['cut']['begin']['identity']['begin']['scope']
         def revision_definition(object_id, digest):
@@ -364,6 +374,10 @@ def generated():
                     retained_from=2**64-6, checkpoint_revision=2**64-2,
                     checkpoint=doc_cut['state']),
                 cut=doc_cut),
+            deletion=dict(
+                deletion=dict(operation=dict(scope=log_scope, principal=17, operation=2**64-16),
+                              expected=doc_cut),
+                deleted_revision=2**64-1, accepted=dict(partition=93, next_lsn=18)),
             read=dict(
                 request=dict(target=doc_target, operation=doc_read_op,
                              from_revision=2**64-5, through_revision=None,
@@ -393,7 +407,7 @@ def generated():
                                       max_bytes=262144, page_heads=16, page_bytes=32768),
                          cut=collection_cut, source=doc_read_source, accepted=dict(partition=93, next_lsn=17)),
             cursor=collection_cursor,
-            page=dict(heads=[dict(cut=doc_cut, unresolved_conflicts=1)] + [None]*15,
+            page=dict(heads=[dict(live=dict(cut=doc_cut, unresolved_conflicts=1))] + [None]*15,
                       count=1, cursor=collection_cursor),
             release=dict(release=dict(target=doc_partition,
                                       operation=dict(scope=log_scope, principal=17, operation=2**64-15),

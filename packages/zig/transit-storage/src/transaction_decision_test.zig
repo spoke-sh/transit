@@ -201,6 +201,25 @@ test "transaction decision log recovers lost freeze and commit replies from disk
     }
 }
 
+test "transaction Document vocabulary cannot freeze or accept an unsupported participant" {
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var selected = try D.init(t.allocator, objects.objectStore(), f.identity, .participants, 2, 1, 1024 * 1024);
+    defer selected.deinit();
+    try selected.put(f.documentParticipant(0));
+    try selected.put(f.documentParticipant(1));
+    const directory = try selected.seal();
+    var owner = try J.init(t.allocator, wal.log(), objects.objectStore(), 4, .{ .begin = f.begin(directory), .attempt = f.attempt(directory) });
+    try owner.recover();
+    var access: Access = .{};
+    try t.expectError(error.UnsupportedTransactionParticipant, owner.freeze(access.guard()));
+    try t.expectEqual(@as(u64, 0), try wal.log().tail(4));
+    try t.expectEqual(x.Observation.not_observed, try owner.observe(access.guard()));
+    try t.expect(!access.locked);
+}
+
 test "transaction decision requires complete preparations current guards and available participants" {
     var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
     defer objects.deinit();

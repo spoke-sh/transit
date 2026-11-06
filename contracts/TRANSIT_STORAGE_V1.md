@@ -2102,10 +2102,10 @@ and `TransitObjectStore`:
   commitment, successor `Root` (`documents_root`, `revisions_root`,
   `replicas_root`, `operations_root`, `reads_root`, mandatory `changed_next_lsn`,
   `archive`, `recovery`),
-  action (`mutation`, `checkpoint`, `read`, `read_release`, `collection_read`,
+  action (`mutation`, `deletion`, `checkpoint`, `read`, `read_release`, `collection_read`,
   `collection_release`, `declaration`,
   `archive`, `recovery_checkpoint`), and optional `DocumentEvidence` content.
-  Mutations use `row_delta` frames; control transitions use `manifest_checkpoint`
+  Mutations and deletions use `row_delta` frames; control transitions use `manifest_checkpoint`
   frames.
 - `DocumentEvidence` (`DEVID001`) stores immutable operation outcomes in
   `document-evidence/{sha256}.data` so duplicate client tokens and replica
@@ -2152,6 +2152,22 @@ is checked before replay, before installing each record and before readiness;
 completion requires the recovered position to match a fresh WAL tail. Failures
 and incomplete steps leave the owner fenced with `DocumentRecoveryRequired`.
 The same signing key must be supplied after reopen to resume retained cursors.
+
+`documents_root` stores the tagged `DocumentRead.Collection.Head`: a live cut
+with conflict count or a permanent tombstone without private operation identity. Deletion replaces one entry
+and records the exact operation outcome in `operations_root`; it leaves revision,
+replica and read directories unchanged. It allocates no replacement tree or
+payload. The deletion's predecessor state remains a retained graph dependency.
+`observeHead` distinguishes absent IDs from live and deleted heads. Collection
+coverage includes tombstones with the same page/work bounds as live entries.
+See the [logical deletion contract](DOCUMENT_V1.md#logical-deletion-and-retained-lifetimes)
+for acceptance, retry and lifetime semantics.
+
+`transactionGuard` observes the current logical partition ordinal, declaration,
+WAL position, logical-head frontier and directory digest after readiness and
+current authorization checks. Deletion invalidates an earlier guard; read-pin
+bookkeeping and archival/recovery maintenance alone do not. Observation retains
+no storage and enables no Document transaction preparation.
 
 
 ### Canonical ordered Document changes

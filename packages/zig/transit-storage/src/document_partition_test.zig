@@ -1055,7 +1055,14 @@ fn collectionDisk(comptime ordered: bool) !void {
         .page_heads = 3,
         .page_bytes = 8192,
     };
+    const empty_guard = try owner.transactionGuard(policy.guard());
+    try t.expect((try owner.observeHead(.{ .partition = initialization.target(), .document = @splat(99) }, policy.guard())) == null);
     const empty = try owner.beginCollectionRead(empty_request, policy.guard());
+    try t.expectEqualDeep(empty_guard.source, empty.cut);
+    try empty_guard.requireUnchanged(try owner.transactionGuard(policy.guard()));
+    policy.deny_at = policy.calls + 2;
+    try t.expectError(error.PermissionDenied, owner.transactionGuard(policy.guard()));
+    policy.deny_at = std.math.maxInt(usize);
     const empty_cursor = try owner.collectionCursor(empty, 7, policy.guard());
     const empty_page = try owner.readCollectionPage(empty_cursor, 7, policy.guard());
     try t.expectEqual(@as(u8, 0), empty_page.count);
@@ -1090,18 +1097,27 @@ fn collectionDisk(comptime ordered: bool) !void {
     const head_page = try owner.store.load(owner.root.documents_root.?);
     try t.expect(head_page.height > 0);
     const data_frontier = original[39].accepted.next_lsn;
+    const populated_guard = try owner.transactionGuard(policy.guard());
+    try t.expectError(error.TransactionConflict, empty_guard.requireUnchanged(populated_guard));
     try t.expectEqual(data_frontier, owner.root.changed_next_lsn);
     var request = empty_request;
     request.operation = operation(70);
     fault.lose_reply = true;
     try t.expectError(error.DocumentAppendUncertain, owner.beginCollectionRead(request, policy.guard()));
     try t.expectError(error.DocumentRecoveryRequired, owner.readCollectionPage(empty_cursor, 7, policy.guard()));
+    try t.expectError(error.DocumentRecoveryRequired, owner.transactionGuard(policy.guard()));
     owner.deinit();
     owner = try s.DocumentPartition.open(t.allocator, fault.log(), objects.objectStore(), initialization, policy.guard(), options);
     while (!owner.ready) _ = try owner.recoverStep(policy.guard(), 1);
+    try populated_guard.requireUnchanged(try owner.transactionGuard(policy.guard()));
     const tail = try wal.log().tail(111);
     const receipt = try owner.beginCollectionRead(request, policy.guard());
     try t.expectEqual(tail, try wal.log().tail(111));
+    try t.expectError(error.DocumentReadConflict, owner.releaseRead(.{ .target = original[0].mutation.target, .operation = operation(81), .read = receipt.handle() }, policy.guard()));
+    const revision_read = try owner.beginRead(.{ .target = original[0].mutation.target, .operation = operation(82), .from_revision = 1, .through_revision = 1, .max_steps = 4096, .max_bytes = 262144 }, policy.guard());
+    try t.expectError(error.DocumentReadConflict, owner.releaseCollectionRead(.{ .target = request.target, .operation = operation(83), .read = revision_read.handle() }, policy.guard()));
+    _ = try owner.releaseRead(.{ .target = original[0].mutation.target, .operation = operation(84), .read = revision_read.handle() }, policy.guard());
+    try populated_guard.requireUnchanged(try owner.transactionGuard(policy.guard()));
     try t.expectEqual(data_frontier, receipt.cut.changed_next_lsn);
     var cursor = try owner.collectionCursor(receipt, 7, policy.guard());
     const first = try owner.readCollectionPage(cursor, 7, policy.guard());
@@ -1158,10 +1174,90 @@ fn collectionDisk(comptime ordered: bool) !void {
         update.lineage.replica = .{ .id = @splat(9), .epoch = 1, .sequence = 2, .preceding_sequence = 1 };
     }
     const updated = if (ordered) try owner.applyOrdered(update, replacement, policy.guard()) else try owner.applyCausal(update, replacement, policy.guard());
+    try t.expectError(error.TransactionConflict, populated_guard.requireUnchanged(try owner.transactionGuard(policy.guard())));
     try t.expectEqual(@as(u64, 2), updated.accepted_revision);
     try t.expectEqual(updated.accepted.next_lsn, owner.root.changed_next_lsn);
     try t.expectEqualDeep(empty_page, try owner.readCollectionPage(empty_cursor, 7, policy.guard()));
     try t.expectEqualDeep(first, try owner.readCollectionPage(cursor, 7, policy.guard()));
+
+    // Delete a real logical tree while its old value and collection membership
+    // are pinned. A lost reply must recover the one original tombstone.
+    const live_head = (try owner.observeHead(add.target, policy.guard())).?.live;
+    const deletion: doc.Delete = .{ .operation = operation(90), .expected = live_head.cut };
+    var stale = deletion;
+    stale.expected.state.sha256[0] ^= 1;
+    try t.expectError(error.DocumentDeletionConflict, owner.delete(stale, policy.guard()));
+    var absent = deletion;
+    absent.expected.target.document = @splat(99);
+    try t.expectError(error.DocumentNotFound, owner.delete(absent, policy.guard()));
+    const value_request: doc.Read.Request = .{ .target = add.target, .operation = operation(91), .from_revision = 1, .through_revision = 1, .max_steps = 4096, .max_bytes = 262144 };
+    const value_read = try owner.beginRead(value_request, policy.guard());
+    var value_cursor = try owner.readCursor(value_read, policy.guard());
+    var before_delete_request = request;
+    before_delete_request.operation = operation(92);
+    const before_delete = try owner.beginCollectionRead(before_delete_request, policy.guard());
+    const before_delete_guard = try owner.transactionGuard(policy.guard());
+    policy.deny_at = policy.calls + 2;
+    try t.expectError(error.PermissionDenied, owner.delete(deletion, policy.guard()));
+    policy.deny_at = std.math.maxInt(usize);
+    try before_delete_guard.requireUnchanged(try owner.transactionGuard(policy.guard()));
+    fault.lose_reply = true;
+    try t.expectError(error.DocumentAppendUncertain, owner.delete(deletion, policy.guard()));
+    try t.expectError(error.DocumentRecoveryRequired, owner.observeHead(add.target, policy.guard()));
+    owner.deinit();
+    owner = try s.DocumentPartition.open(t.allocator, fault.log(), objects.objectStore(), initialization, policy.guard(), options);
+    while (!owner.ready) _ = try owner.recoverStep(policy.guard(), 1);
+    const delete_tail = try wal.log().tail(111);
+    const deleted = try owner.delete(deletion, policy.guard());
+    try t.expectEqual(delete_tail, try wal.log().tail(111));
+    try t.expectEqual(@as(u64, 2), deleted.deleted_revision);
+    try t.expectEqualDeep(deleted.tombstone(), (try owner.observeHead(add.target, policy.guard())).?.deleted);
+    policy.deny_at = policy.calls + 2;
+    try t.expectError(error.PermissionDenied, owner.observeHead(add.target, policy.guard()));
+    policy.deny_at = std.math.maxInt(usize);
+    try t.expectError(error.TransactionConflict, before_delete_guard.requireUnchanged(try owner.transactionGuard(policy.guard())));
+    try t.expectError(error.DocumentDeletionConflict, owner.delete(stale, policy.guard()));
+    var second_delete = deletion;
+    second_delete.operation = operation(93);
+    try t.expectError(error.DocumentDeleted, owner.delete(second_delete, policy.guard()));
+    var recreate = add;
+    recreate.operation = operation(94);
+    const recreate_bytes = if (ordered)
+        try s.OrderedDocumentChange.encode(.{ .definition = p.Growth.definition_bytes, .document = added, .epoch = 1, .expected_revision = 0, .nodes = 1, .parts = 0 }, &.{}, &.{.{ .depth = 0, .kind = .string, .value = "later" }}, &buffer)
+    else
+        try s.LogicalDocumentChange.encode(.{ .definition = p.Growth.definition_bytes, .document = added, .replica = @splat(9), .epoch = 1, .sequence = 1, .preceding_sequence = 0, .operations = 1 }, &.{.{ .field = "body", .value = .{ .kind = .string, .bytes = "later" } }}, &buffer);
+    try t.expectError(error.DocumentDeleted, if (ordered) owner.applyOrdered(recreate, recreate_bytes, policy.guard()) else owner.applyCausal(recreate, recreate_bytes, policy.guard()));
+    try t.expectEqual(@as(u64, 1), (if (ordered) try owner.applyOrdered(add, recreate_bytes, policy.guard()) else try owner.applyCausal(add, recreate_bytes, policy.guard())).accepted_revision);
+    var new_read = value_request;
+    new_read.operation = operation(95);
+    try t.expectError(error.DocumentDeleted, owner.beginRead(new_read, policy.guard()));
+    try t.expectEqualDeep(value_read, try owner.beginRead(value_request, policy.guard()));
+    var retained_value = (try owner.readNextRevision(t.allocator, value_cursor, policy.guard())).?;
+    retained_value.deinit(t.allocator);
+    // A fresh collection enumerates the tombstone; the older one retains live
+    // membership. Both count each allocated ID once and require exhaustion.
+    var after_delete_request = request;
+    after_delete_request.operation = operation(96);
+    const after_delete = try owner.beginCollectionRead(after_delete_request, policy.guard());
+    for ([_]C.Receipt{ before_delete, after_delete }, 0..) |selected, which| {
+        var selected_cursor = try owner.collectionCursor(selected, 7, policy.guard());
+        var count: usize = 0;
+        var tombstones: usize = 0;
+        while (true) {
+            const page = try owner.readCollectionPage(selected_cursor, 7, policy.guard());
+            for (page.heads[0..page.count]) |head| {
+                count += 1;
+                if (head.? == .deleted) {
+                    tombstones += 1;
+                    try t.expectEqualDeep(deleted.tombstone(), head.?.deleted);
+                }
+            }
+            selected_cursor = page.cursor;
+            if (selected_cursor.coverage.complete) break;
+        }
+        try t.expectEqual(@as(usize, 41), count);
+        try t.expectEqual(which, tombstones);
+    }
 
     var too_small = request;
     too_small.operation = operation(72);
@@ -1181,14 +1277,32 @@ fn collectionDisk(comptime ordered: bool) !void {
     owner.deinit();
     owner = try s.DocumentPartition.open(t.allocator, fault.log(), objects.objectStore(), initialization, policy.guard(), options);
     while (!owner.ready) _ = try owner.recoverStep(policy.guard(), 1);
+    try t.expectEqualDeep(deleted, try owner.delete(deletion, policy.guard()));
+    try t.expectEqualDeep(deleted.tombstone(), (try owner.observeHead(add.target, policy.guard())).?.deleted);
+    // Key rotation invalidates authentication, not the retained source. Reissue
+    // from the exact receipt under current authority and the replacement key.
+    var rotated_options = options;
+    rotated_options.read_secret = @splat(8);
+    owner.deinit();
+    owner = try s.DocumentPartition.open(t.allocator, fault.log(), objects.objectStore(), initialization, policy.guard(), rotated_options);
+    while (!owner.ready) _ = try owner.recoverStep(policy.guard(), 1);
+    try t.expectError(error.InvalidDocumentCursor, owner.readNextRevision(t.allocator, value_cursor, policy.guard()));
+    value_cursor = try owner.readCursor(value_read, policy.guard());
+    retained_value = (try owner.readNextRevision(t.allocator, value_cursor, policy.guard())).?;
+    retained_value.deinit(t.allocator);
+    _ = try owner.releaseRead(.{ .target = add.target, .operation = operation(97), .read = value_read.handle() }, policy.guard());
+    try t.expectError(error.DocumentReadReleased, owner.readNextRevision(t.allocator, value_cursor, policy.guard()));
+    owner.deinit();
+    owner = try s.DocumentPartition.open(t.allocator, fault.log(), objects.objectStore(), initialization, policy.guard(), options);
+    while (!owner.ready) _ = try owner.recoverStep(policy.guard(), 1);
     var seen: usize = 0;
     while (true) {
         const page = try owner.readCollectionPage(cursor, 7, policy.guard());
         for (page.heads[0..page.count]) |head| {
             try t.expect(seen < original.len);
-            try t.expectEqualDeep(original[seen].mutation.target, head.?.cut.target);
-            try t.expectEqualDeep(original[seen].state, head.?.cut.state);
-            try t.expectEqual(@as(u64, 1), head.?.cut.accepted_revision);
+            try t.expectEqualDeep(original[seen].mutation.target, head.?.live.cut.target);
+            try t.expectEqualDeep(original[seen].state, head.?.live.cut.state);
+            try t.expectEqual(@as(u64, 1), head.?.live.cut.accepted_revision);
             seen += 1;
         }
         cursor = page.cursor;
@@ -1203,6 +1317,7 @@ fn collectionDisk(comptime ordered: bool) !void {
     policy.deny_at = std.math.maxInt(usize);
     const release: C.Release = .{ .target = request.target, .operation = operation(74), .read = receipt.handle() };
     const release_frontier = owner.root.changed_next_lsn;
+    const release_guard = try owner.transactionGuard(policy.guard());
     fault.lose_reply = true;
     try t.expectError(error.DocumentAppendUncertain, owner.releaseCollectionRead(release, policy.guard()));
     owner.deinit();
@@ -1210,6 +1325,7 @@ fn collectionDisk(comptime ordered: bool) !void {
     while (!owner.ready) _ = try owner.recoverStep(policy.guard(), 1);
     const release_tail = try wal.log().tail(111);
     const released = try owner.releaseCollectionRead(release, policy.guard());
+    try release_guard.requireUnchanged(try owner.transactionGuard(policy.guard()));
     try t.expectEqual(release_tail, try wal.log().tail(111));
     try t.expectEqual(release_frontier, owner.root.changed_next_lsn);
     try t.expectEqualDeep(released, try owner.releaseCollectionRead(release, policy.guard()));

@@ -64,7 +64,11 @@ Successful installations are removed after cleanup.
 `just test::sql-wire-tls` also admits a fixed 16 MiB OpenSSL reserve and four
 I/O workers before creating the TLS context. A sealed backing allocator covers
 100 successive connections per database upgrade, alternating TLS 1.2/1.3 with
-independent exact-payload checks. Unit checks cover exhausted reallocations,
+independent exact-payload checks. Every successful exchange expires the deadline
+after consuming one plaintext byte, rejects a buffered read and a write, then
+restores the test deadline and verifies the complete original echo. This pins
+both unread plaintext and the TLS output sequence without sleeping or retransmitting.
+Unit checks cover exhausted reallocations,
 concurrent borrowers, erased releases and one cleanup callback per distinct
 worker before its foreign memory owner is freed. These checks cover the named
 reserves; they do not count unrelated gateway, libc or OS allocation paths.

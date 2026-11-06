@@ -357,7 +357,7 @@ test "Stream wait policy is canonical without changing the native consume identi
     const missing = try std.mem.replaceOwned(u8, t.allocator, intent.bytes, ",\"wait_ms\":100", "");
     defer t.allocator.free(missing);
     try t.expectError(error.MissingField, c.DirectWorkloadIntent.restore(t.allocator, missing));
-    const previous = try std.mem.replaceOwned(u8, t.allocator, intent.bytes, @tagName(p.Growth.current_definition), "72f8c8ee18d16bef3bff32bbc24973c9faebcc33aaad678d4fef0baa70a9c8d5");
+    const previous = try std.mem.replaceOwned(u8, t.allocator, intent.bytes, @tagName(p.Growth.current_definition), "240baa2bb21e59ab138b0b8a21097676d142d401f2a726e2a283d7ad01a885e5");
     defer t.allocator.free(previous);
     try t.expectError(error.InvalidJsonShape, c.DirectWorkloadIntent.restore(t.allocator, previous));
 }

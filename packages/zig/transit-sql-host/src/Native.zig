@@ -63,6 +63,7 @@ pub const Connection = struct {
     input: std.Io.Reader,
     output: std.Io.Writer,
     peer: g.Registry.Peer,
+    read_error: ?anyerror = null,
     pub fn init(self: *Connection, context: *Self, io: std.Io, _: std.mem.Allocator, stream: std.Io.net.Stream, input: []u8, output: []u8) !void {
         self.* = .{ .transport = .{ .io = io, .stream = stream, .deadline = .none }, .input = .{ .buffer = input, .seek = 0, .end = 0, .vtable = &.{ .stream = read } }, .output = .{ .buffer = output, .end = 0, .vtable = &.{ .drain = write } }, .peer = .{ .loopback = context.loopback } };
         try self.transport.resetDeadline(context.registry.configuration.limits.handshake_ms);
@@ -80,12 +81,21 @@ pub const Connection = struct {
             self.secure = try tls.Session.accept(selected, &self.transport);
             self.peer.tls = true;
         }
-        // The HTTP owner joins/cancels a request at its absolute deadline.
-        // A successful connection can be reused beyond its handshake deadline.
+        // The HTTP owner installs each phase's absolute socket deadline and
+        // retains joined cancellation for non-socket handler work. A successful
+        // connection can be reused beyond its handshake deadline.
         self.transport.deadline = .none;
     }
     pub fn deinit(self: *Connection) void {
         if (self.secure) |*secure| secure.deinit();
+    }
+    pub fn setDeadline(self: *Connection, until: std.Io.Clock.Timestamp) void {
+        self.transport.deadline = .{ .deadline = until };
+        self.transport.input_timeout_ms = null;
+        self.read_error = null;
+    }
+    pub fn readError(self: *const Connection) ?anyerror {
+        return self.read_error;
     }
     pub fn reader(self: *Connection) *std.Io.Reader {
         return &self.input;
@@ -97,7 +107,10 @@ pub const Connection = struct {
         const self: *Connection = @alignCast(@fieldParentPtr("input", reader_));
         var buffer: [8192]u8 = undefined;
         const bytes = buffer[0..limit.minInt(buffer.len)];
-        const count = (if (self.secure) |*secure| secure.read(bytes) else self.transport.read(bytes)) catch return error.ReadFailed;
+        const count = (if (self.secure) |*secure| secure.read(bytes) else self.transport.read(bytes)) catch |err| {
+            self.read_error = err;
+            return error.ReadFailed;
+        };
         if (count == 0) return error.EndOfStream;
         try out.writeAll(bytes[0..count]);
         return count;

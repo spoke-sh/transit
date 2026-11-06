@@ -82,6 +82,7 @@ pub const Root = struct {
 
 pub const Action = union(enum) {
     mutation: doc.MutationReceipt,
+    deletion: doc.DeleteReceipt,
     checkpoint: doc.CheckpointReceipt,
     read: doc.Read.Receipt,
     read_release: doc.Read.ReleaseReceipt,
@@ -105,8 +106,17 @@ pub const Record = struct {
             return error.InvalidDocumentPartitionRecord;
         }
         try self.root.validate();
+        if (self.action == .deletion) {
+            const deletion = self.action.deletion;
+            const target = deletion.deletion.expected.target.partition;
+            if (target.partition != self.root.initialization.ordinal or
+                !std.meta.eql(target.interpretation.object, self.root.declared.declaration.interpretation.object) or
+                self.root.documents_root == null or self.root.operations_root == null or
+                self.root.changed_next_lsn != self.root.next_lsn)
+                return error.InvalidDocumentPartitionRecord;
+        }
         switch (self.action) {
-            .mutation => |v| {
+            inline .mutation, .deletion => |v| {
                 try v.validate();
                 if (self.evidence == null or
                     v.accepted.partition != self.root.initialization.partition or
@@ -201,7 +211,7 @@ pub fn decode(
         return error.InvalidDocumentPartitionRecord;
     }
     const expected_kind: Log.FrameKind = switch (parsed.value.action) {
-        .mutation => .row_delta,
+        .mutation, .deletion => .row_delta,
         .checkpoint, .read, .read_release, .collection_read, .collection_release, .declaration, .archive, .recovery_checkpoint => .manifest_checkpoint,
     };
     if (frame.header.kind != expected_kind or
