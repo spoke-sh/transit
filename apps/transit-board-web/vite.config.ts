@@ -92,7 +92,7 @@ export default defineConfig({
             { name: "workbook", test: /transit-board-web\/src\/workbook\.tsx$/ },
             {
               name: "statements",
-              test: /transit-board-web\/src\/(?:workbench-result|result-profile|statement-owner|statement-state|workbook-owner)\.tsx?$|transit-query-client\/src\/(?:read(?:-validators|-http)?|workbook)\.(?:ts|js)$/,
+              test: /transit-board-web\/src\/(?:workbench-result|result-profile|statement-owner|statement-state|workbook-owner|workbook-state)\.tsx?$|transit-query-client\/src\/(?:read(?:-validators|-http)?|workbook)\.(?:ts|js)$/,
             },
             {
               name: "inspection",

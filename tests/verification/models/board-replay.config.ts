@@ -22,7 +22,11 @@ export default defineConfig({
             {
               find: mutation.includes("statement-state-")
                 ? /.*\/apps\/transit-board-web\/src\/statement-state(?:\.ts)?$/
-                : /.*\/apps\/transit-board-web\/src\/observation(?:\.ts)?$/,
+                : mutation.includes("plane-state-")
+                  ? /.*\/apps\/transit-board-web\/src\/plane-state(?:\.ts)?$/
+                  : mutation.includes("workbook-state-")
+                    ? /.*\/apps\/transit-board-web\/src\/workbook-state(?:\.ts)?$/
+                    : /.*\/apps\/transit-board-web\/src\/observation(?:\.ts)?$/,
               replacement: mutation,
             },
           ]

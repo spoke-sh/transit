@@ -1233,6 +1233,10 @@
           "tests/verification/models/BoardStatement.cfg",
           "tests/verification/models/BoardScheduler.tla",
           "tests/verification/models/BoardScheduler.cfg",
+          "tests/verification/models/BoardPlane.tla",
+          "tests/verification/models/BoardPlane.cfg",
+          "tests/verification/models/BoardWorkbook.tla",
+          "tests/verification/models/BoardWorkbook.cfg",
           "tests/verification/models/board_model.py",
           "tests/verification/models/board-replay.test.ts",
           "tests/verification/models/board-replay.config.ts",
@@ -1240,7 +1244,10 @@
           "apps/transit-board-web/src/observation-owner.ts",
           "apps/transit-board-web/src/statement-state.ts",
           "apps/transit-board-web/src/statement-owner.ts",
-          "apps/transit-board-web/src/request-scheduler.ts"
+          "apps/transit-board-web/src/request-scheduler.ts",
+          "apps/transit-board-web/src/plane-state.ts",
+          "apps/transit-board-web/src/workbook-state.ts",
+          "apps/transit-board-web/src/workbook-owner.ts"
         ],
         "depends_on": [
           "tlc-support"
