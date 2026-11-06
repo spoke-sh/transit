@@ -40,6 +40,7 @@ pub fn handles(self: Self, path: []const u8) bool {
 
 pub const Invocation = struct {
     client: *@import("root.zig").Client,
+    deadline: @import("Deadline.zig"),
     path: []const u8,
     allocator: std.mem.Allocator,
     input: *const anyopaque,
@@ -61,6 +62,7 @@ pub const Invocation = struct {
         return self.input_type == token(T);
     }
     pub fn respond(self: *Invocation, value: anytype) !void {
+        try self.deadline.check(self.client.http.io);
         const T = @TypeOf(value);
         if (self.output_type != token(T) or self.completed) return error.InvalidLocalResponseType;
         @as(*T, @ptrCast(@alignCast(self.output))).* = value;
@@ -109,18 +111,56 @@ test "local deadline joins its producer and frees partial owned output" {
     var host: Host = .{};
     var client = @import("root.zig").Client.init(t.allocator, t.io, "http://127.0.0.1:1");
     defer client.deinit();
-    client.timeout_ms = 50;
+    client.deadline = .init(t.io, 50, null);
     client.local = .{ .context = &host, .invoke = Host.run };
     try t.expectError(error.AuthorityTimeout, client.callOwned(u64, "/local", .{}, .{}));
     try t.expect(host.joined.load(.acquire));
 }
 
+test "inherited expiry never dispatches or retains refusal evidence and the client is reusable" {
+    const t = std.testing;
+    const Host = struct {
+        calls: usize = 0,
+        expected: @import("Deadline.zig"),
+        fn run(raw: *anyopaque, invocation: *Invocation) !void {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            self.calls += 1;
+            try t.expectEqual(self.expected, invocation.deadline);
+            try invocation.respond(@as(u64, 7));
+        }
+    };
+    var host: Host = .{ .expected = .init(t.io, 0, null) };
+    var client = @import("root.zig").Client.init(t.allocator, t.io, "http://127.0.0.1:1");
+    defer client.deinit();
+    client.local = .{ .context = &host, .invoke = Host.run };
+    client.deadline = host.expected;
+    inline for (.{ false, true }) |owned| {
+        client.last_status = .conflict;
+        client.last_rejection = .Conflict;
+        if (owned) {
+            try t.expectError(error.AuthorityTimeout, client.callOwned(u64, "/local", .{}, .{}));
+        } else {
+            try t.expectError(error.AuthorityTimeout, client.call(u64, "/local", .{}));
+        }
+        try t.expectEqual(0, host.calls);
+        try t.expect(client.last_status == null and client.last_rejection == null);
+    }
+    host.expected = .init(t.io, 1000, null);
+    client.deadline = host.expected;
+    try t.expectEqual(7, try client.call(u64, "/local", .{}));
+    try t.expectEqual(1, host.calls);
+    // Call completion does not replace a parent's cap with a newly started one.
+    try t.expectEqual(host.expected, client.deadline.?);
+}
+
 /// Returned slices must belong to allocator. Neither the request nor any
 /// temporary host workspace may escape through the response. No retry/fallback.
-pub fn call(self: Self, client: *@import("root.zig").Client, allocator: std.mem.Allocator, comptime T: type, path: []const u8, input: anytype) !T {
+pub fn call(self: Self, client: *@import("root.zig").Client, allocator: std.mem.Allocator, comptime T: type, path: []const u8, input: anytype, deadline: @import("Deadline.zig")) !T {
     var result: T = undefined;
-    var invocation: Invocation = .{ .client = client, .allocator = allocator, .path = path, .input = @ptrCast(&input), .input_type = token(@TypeOf(input)), .output = @ptrCast(&result), .output_type = token(T) };
+    var invocation: Invocation = .{ .client = client, .deadline = deadline, .allocator = allocator, .path = path, .input = @ptrCast(&input), .input_type = token(@TypeOf(input)), .output = @ptrCast(&result), .output_type = token(T) };
+    try deadline.check(client.http.io);
     try self.invoke(self.context, &invocation);
+    try deadline.check(client.http.io);
     if (!invocation.completed) return error.InvalidLocalResponseType;
     return result;
 }

@@ -11,6 +11,7 @@ const Waits = @import("LocalLogWaits.zig");
 const p = c.protocol;
 
 const Endpoint = struct {
+    deadline: ?c.client.Deadline = null,
     host: *Host,
     engine: *Engine,
     fn invoke(raw: *anyopaque, invocation: *c.client.LocalEndpoint.Invocation) !void {
@@ -18,7 +19,7 @@ const Endpoint = struct {
         var scratch: std.heap.ArenaAllocator = .init(t.allocator);
         defer scratch.deinit();
         const request = try invocation.request(c.DirectTableProtocol.Request);
-        try invocation.respond(try self.host.executeTyped(t.io, self.engine, &scratch, invocation.allocator, request, request.transport().control != null));
+        try invocation.respond(try self.host.executeTyped(t.io, self.engine, &scratch, invocation.allocator, request, request.transport().control != null, invocation.deadline));
     }
     fn call(self: *@This(), action: c.DirectStreamClient.Action) !c.DirectStreamClient.Result {
         return self.callWith(c.DirectStreamClient, action);
@@ -30,6 +31,7 @@ const Endpoint = struct {
         var transport = c.client.Client.init(t.allocator, t.io, "http://127.0.0.1:1");
         defer transport.deinit();
         transport.local = .{ .context = self, .invoke = invoke };
+        transport.deadline = self.deadline;
         const caller: c.DirectTableClient = .{
             .allocator = t.allocator,
             .authority = &transport,
@@ -185,6 +187,13 @@ pub fn exerciseQueue(service: *Service, declaration: c.DirectLog.Definition, sch
     var claim: p.StreamQueue.Claim = .{ .target = target, .operation = .{ .scope = target.interpretation.object.scope, .principal = 101, .operation = 650 }, .maximum = 1, .lease_ms = 1000 };
     const timeout = try endpoint.queue(.{ .wait = .{ .claim = claim, .milliseconds = 1 } });
     try t.expectEqual(@as(u64, 0), timeout.timed_out.next);
+    try t.expect((try endpoint.queue(.{ .operation = .{ .claim = claim } })).operation == null);
+    // Caller expiry is not the native attempt's authenticated timeout cut.
+    // Neither expiry nor later observation may accept an empty claim.
+    endpoint.deadline = .init(t.io, 30, null);
+    try t.expectError(error.AuthorityTimeout, endpoint.queue(.{ .wait = .{ .claim = claim, .milliseconds = 1000 } }));
+    endpoint.deadline = null;
+    try t.expectEqual(@as(usize, 0), host.log_waits.?.notification.active);
     try t.expect((try endpoint.queue(.{ .operation = .{ .claim = claim } })).operation == null);
     {
         var task = try t.io.concurrent(waitQueue, .{ &host, native, service.engine.genesis, service.engine.clock, claim });

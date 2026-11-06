@@ -93,6 +93,17 @@ Each output uses the earlier exact active-operation or write deadline.
 Socket and TLS operations check expiry before execution, including ready sockets,
 buffered plaintext and control-record loops; readiness alone cannot extend a budget.
 
+A complete wire command captures its absolute execution deadline before host
+scheduling. The service, foreground native/settings clients and typed local
+dispatch inherit that cap; each client also retains its own shorter request
+limit. Subsequent messages in a PostgreSQL extended cycle reuse the exact
+timestamp. Admission waits, repeated observations and partial output cannot
+restart it. Frame reception retains its separate first-byte budget.
+Joined command cancellation remains necessary for non-socket work. Read cleanup
+uses a separate bounded request budget to release original pins, without starting
+new execution or changing the outcome of accepted work. Deadline timestamps are
+process-local and never appear in signed or persisted protocol fields.
+
 Interactive reads admit at most 10000 output rows, 16 MiB result bytes and 10000
 native requests. Relational reads additionally bound resident/spill bytes to
 16 MiB each, work to one million steps, source pins to two and spill operations to

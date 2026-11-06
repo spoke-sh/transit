@@ -54,6 +54,11 @@ allocation failure cleanup and 100 alternating large/small frames with the input
 allocator sealed after warmup. This counts framing allocations only, not SQL
 execution, TLS or result encoding.
 
+The installed `lifecycle` slice sends repeated Describe/Flush messages during
+one PostgreSQL extended cycle with a two-second statement budget. Those messages
+must not renew the deadline; a subsequent connection verifies joined cleanup
+left admission usable. This is a correctness timeout, not a latency target.
+
 The installed gateway fixture joins its processes before retaining a failed
 installation privately at its original `/var/tmp` path. It preserves durable
 state, configuration and copies of the supplied executables with source and

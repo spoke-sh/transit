@@ -31,6 +31,8 @@ directory: std.Io.Dir,
 cancellation: *std.atomic.Value(bool),
 active: *std.atomic.Value(bool),
 deadline: g.DatabaseRuntime.Deadline,
+command_deadline: ?g.wire.Deadline = null,
+command_clients: ?ClientDeadlines = null,
 operation: ?u64 = null,
 terminal: ?g.Terminal = null,
 detail_buffer: [160]u8 = undefined,
@@ -44,7 +46,44 @@ fresh_prepared: ?*const Prepared = null,
 transaction: g.SessionTransaction.State = .{},
 transaction_completion: ?g.results.CommandCompletion = null,
 const ObservationSource = enum { native, settings };
-pub const Options = struct { capture_settings: bool = true };
+pub const Options = struct { capture_settings: bool = true, deadline: ?g.wire.Deadline = null };
+const ClientDeadlines = struct { native: ?g.wire.Deadline, settings: ?g.wire.Deadline };
+pub const DeadlineScope = struct {
+    host: *Self,
+    parent: ?g.wire.Deadline,
+    clients: ClientDeadlines,
+    pub fn restore(self: DeadlineScope) void {
+        self.host.command_deadline = self.parent;
+        self.host.restoreClients(self.clients);
+    }
+};
+fn clientDeadlines(self: *const Self) ClientDeadlines {
+    return .{ .native = self.wire.deadline, .settings = if (self.settings_wire) |wire| wire.deadline else null };
+}
+fn restoreClients(self: *Self, saved: ClientDeadlines) void {
+    self.wire.deadline = saved.native;
+    if (self.settings_wire) |*wire| wire.deadline = saved.settings;
+}
+fn bindClients(self: *Self, cap: g.wire.Deadline) void {
+    self.wire.deadline = if (self.wire.deadline) |prior| cap.limit(prior) else cap;
+    if (self.settings_wire) |*wire| wire.deadline = if (wire.deadline) |prior| cap.limit(prior) else cap;
+}
+/// One foreground borrower. Restores both clients on every exit; shared runtime
+/// recovery clients are never changed. The command's own deadline survives a
+/// partial wire cycle while no owner work is executing between frames.
+pub fn withDeadline(self: *Self, cap: g.wire.Deadline) DeadlineScope {
+    const saved: DeadlineScope = .{ .host = self, .parent = self.command_deadline, .clients = self.clientDeadlines() };
+    self.command_deadline = if (self.command_deadline) |prior| cap.limit(prior) else cap;
+    self.bindClients(self.command_deadline.?);
+    return saved;
+}
+fn cleanupDeadline(self: *Self) DeadlineScope {
+    const saved: DeadlineScope = .{ .host = self, .parent = self.command_deadline, .clients = self.clientDeadlines() };
+    const cap = g.wire.Deadline.init(self.io, self.config.request_timeout_ms, null);
+    self.wire.deadline = cap;
+    if (self.settings_wire) |*wire| wire.deadline = cap;
+    return saved;
+}
 pub const read_options: g.direct.DirectRelationalQuery.Options = .{ .consistency = .independent_table_snapshots, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 16 * 1024 * 1024, .output_rows = 10000, .work_steps = 1000000, .source_pins = 2 }, .requests = 10000, .spill_work = 10000 };
 pub const Prepared = union(enum) {
     transaction: g.database.TransactionSql.Control,
@@ -395,7 +434,7 @@ pub fn initOptions(allocator: std.mem.Allocator, io: std.Io, config: *const g.Co
     errdefer allocator.destroy(self);
     var directory = try std.Io.Dir.cwd().openDir(io, config.spill_directory, .{});
     errdefer directory.close(io);
-    self.* = .{ .allocator = allocator, .io = io, .config = config, .account = account, .runtime = runtime, .credential = credential, .database = undefined, .dialect = dialect, .wire = g.wire.Client.init(allocator, io, config.native_url), .table = undefined, .namespace = binding.namespace, .observer = undefined, .directory = directory, .cancellation = cancellation, .active = active, .deadline = .{ .start = std.Io.Clock.awake.now(io), .milliseconds = config.limits.command_ms, .cancellation = cancellation } };
+    self.* = .{ .allocator = allocator, .io = io, .config = config, .account = account, .runtime = runtime, .credential = credential, .database = undefined, .dialect = dialect, .wire = g.wire.Client.init(allocator, io, config.native_url), .table = undefined, .namespace = binding.namespace, .observer = undefined, .directory = directory, .cancellation = cancellation, .active = active, .deadline = .{ .budget = .init(io, config.limits.command_ms, options.deadline), .cancellation = cancellation } };
     errdefer self.wire.deinit();
     self.wire.local = runtime.background.local;
     // Database names borrow immutable configuration, never a startup frame.
@@ -404,6 +443,8 @@ pub fn initOptions(allocator: std.mem.Allocator, io: std.Io, config: *const g.Co
         break;
     };
     self.wire.timeout_ms = config.request_timeout_ms;
+    self.wire.deadline = self.deadline.budget;
+    defer self.wire.deadline = null;
     self.table = .{ .allocator = allocator, .authority = &self.wire, .service = &self.wire, .connection = .{ .scope = .{ .realm = account.execution.realm, .resource = binding.resource, .catalog = binding.catalog }, .branch = 1, .audience = binding.owner, .principal = account.execution.table_principal, .role = binding.role }, .key = runtime.table_key, .lease = runtime.lease() };
     self.observer = .{ .transport = &self.wire, .execution = runtime.execution, .principal = account.execution.table_principal, .key = runtime.table_key, .lease = runtime.lease() };
     try self.current();
@@ -417,6 +458,8 @@ pub fn initOptions(allocator: std.mem.Allocator, io: std.Io, config: *const g.Co
             self.settings_wire.?.local = authority;
         }
         self.settings_wire.?.timeout_ms = config.request_timeout_ms;
+        self.settings_wire.?.deadline = self.deadline.budget;
+        defer self.settings_wire.?.deadline = null;
         errdefer self.settings_wire.?.deinit();
         if (options.capture_settings) {
             self.settings_session = try self.freshOn(.settings, q.SettingsSession.capture, .{try Settings.client(self)});
@@ -425,6 +468,7 @@ pub fn initOptions(allocator: std.mem.Allocator, io: std.Io, config: *const g.Co
     return self;
 }
 pub fn deinit(self: *Self) void {
+    _ = self.cleanupDeadline();
     self.active.store(false, .release);
     if (self.source) |source| source.deinit();
     self.directory.close(self.io);
@@ -498,16 +542,20 @@ pub fn begin(self: *Self) !void {
     self.transaction_completion = null;
     self.table.transaction = null;
     self.fresh_prepared = null;
-    self.deadline.start = std.Io.Clock.awake.now(self.io);
-    self.deadline.milliseconds = self.commandMilliseconds();
+    self.deadline.budget = .init(self.io, self.commandMilliseconds(), self.command_deadline);
+    std.debug.assert(self.command_clients == null);
+    self.command_clients = self.clientDeadlines();
+    self.bindClients(self.deadline.budget);
     self.active.store(true, .release);
-    errdefer self.active.store(false, .release);
+    errdefer self.end();
     // This evidence is scoped to one command. Session creation or a previous
     // request cannot authorize work after credentials or grants change.
     try self.current();
     self.fresh_current = true;
 }
 pub fn end(self: *Self) void {
+    if (self.command_clients) |saved| self.restoreClients(saved);
+    self.command_clients = null;
     self.fresh_current = false;
     self.fresh_prepared = null;
     self.active.store(false, .release);
@@ -792,6 +840,8 @@ fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values
     return read;
 }
 pub fn closeRead(self: *Self, read: *Read) void {
+    const cleanup = self.cleanupDeadline();
+    defer cleanup.restore();
     read.builder.deinit();
     if (read.output) |*output| output.deinit();
     read.output = null;
@@ -814,11 +864,16 @@ pub fn closeRead(self: *Self, read: *Read) void {
         .inspection => |*inspection| inspection.deinit(),
         .settings => |*settings| settings.deinit(),
     }
-    self.releasePins(read);
+    self.releasePinsWithin(read);
     if (read.owns_prepared) self.destroy(read.prepared);
     self.allocator.destroy(read);
 }
 fn releasePins(self: *Self, read: *Read) void {
+    const cleanup = self.cleanupDeadline();
+    defer cleanup.restore();
+    self.releasePinsWithin(read);
+}
+fn releasePinsWithin(self: *Self, read: *Read) void {
     // Cleanup has independent network observations. Preserve the failed read's
     // diagnostic even when acquiring/opening it never produced a cursor.
     const rejection = self.wire.last_rejection;
@@ -892,7 +947,7 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
     const info: struct { [5]u8, []const u8 } = if (err == error.AuthorityUnavailable and (rejected == .HttpCapacity or rejected == .ControlCapacity or rejected == .StorageQuota)) .{ "53000".*, "Database capacity exhausted; inspect admitted writes before retrying SQL" } else if (err == error.Conflict and rejected == .Conflict) .{ "55000".*, "Current state changed; inspect admitted work before retrying SQL" } else switch (cause) {
         error.CatalogDenied, error.AccessDenied, error.GatewayDatabaseDenied, error.ConfigurationDenied => .{ "42501".*, "Current permission denied" },
         error.GatewayCredentialChanged, error.InvalidAuthentication => .{ "28000".*, "Credential changed or disabled" },
-        error.SqlWorkloadWaiting, error.GatewayDeadline, error.GatewayWaitCancelled, error.Cancelled, error.Canceled, error.StatementTimedOut => .{ "57014".*, "Request wait ended; admitted work requires outcome inspection" },
+        error.SqlWorkloadWaiting, error.GatewayDeadline, error.AuthorityTimeout, error.GatewayWaitCancelled, error.Cancelled, error.Canceled, error.StatementTimedOut => .{ "57014".*, "Request wait ended; admitted work requires outcome inspection" },
         error.SettingOutOfRange, error.InvalidSettingValue, error.InvalidSettingUnit => .{ "22023".*, "Setting value exceeds its type or administrator ceiling" },
         error.UnknownSetting => .{ "42704".*, "Unknown registered setting" },
         error.InvalidDataflowRevision => .{ "22023".*, "Revision must be a positive unsigned 64-bit integer" },
@@ -1079,6 +1134,51 @@ test "capacity diagnostics retain operation uncertainty and do not override deni
     try std.testing.expectEqualStrings("XX000", &host.diagnostic(error.AuthorityUnavailable).state);
 }
 
+test "foreground scopes restore separate native and settings budgets after expiry and cleanup" {
+    const t = std.testing;
+    var config: g.Configuration = undefined;
+    config.request_timeout_ms = 1000;
+    var host: Self = undefined;
+    host.io = t.io;
+    host.config = &config;
+    host.command_deadline = null;
+    host.wire = g.wire.Client.init(t.allocator, t.io, "http://127.0.0.1:1");
+    defer host.wire.deinit();
+    host.settings_wire = g.wire.Client.init(t.allocator, t.io, "http://127.0.0.1:1");
+    defer host.settings_wire.?.deinit();
+    const native = g.wire.Deadline.init(t.io, 10000, null);
+    const settings = g.wire.Deadline.init(t.io, 20000, null);
+    host.wire.deadline = native;
+    host.settings_wire.?.deadline = settings;
+    const command = g.wire.Deadline.init(t.io, 5000, null);
+    {
+        const scope = host.withDeadline(command);
+        defer scope.restore();
+        try t.expectEqual(command, host.wire.deadline.?);
+        try t.expectEqual(command, host.settings_wire.?.deadline.?);
+        const expired = g.wire.Deadline.init(t.io, 0, null);
+        {
+            const child = host.withDeadline(expired);
+            defer child.restore();
+            try t.expectError(error.AuthorityTimeout, host.wire.call(u64, "/local", .{}));
+            try t.expectError(error.AuthorityTimeout, host.settings_wire.?.call(u64, "/local", .{}));
+            {
+                const cleanup = host.cleanupDeadline();
+                defer cleanup.restore();
+                try host.wire.deadline.?.check(t.io);
+                try t.expectEqual(host.wire.deadline, host.settings_wire.?.deadline);
+                // Cleanup never renews the active command or admits new SQL.
+                try t.expectEqual(expired, host.command_deadline.?);
+            }
+            try t.expectEqual(expired, host.wire.deadline.?);
+        }
+        try t.expectEqual(command, host.command_deadline.?);
+    }
+    try t.expect(host.command_deadline == null);
+    try t.expectEqual(native, host.wire.deadline.?);
+    try t.expectEqual(settings, host.settings_wire.?.deadline.?);
+}
+
 test "pure preparation retries transport loss within its budget but never retries denial" {
     const t = std.testing;
     const Observation = struct {
@@ -1099,7 +1199,7 @@ test "pure preparation retries transport loss within its budget but never retrie
     config.request_timeout_ms = 5000;
     host.config = &config;
     host.wire.last_rejection = null;
-    host.deadline = .{ .start = std.Io.Clock.awake.now(t.io), .milliseconds = 5000 };
+    host.deadline = .{ .budget = .init(t.io, 5000, null) };
     var read: Observation = .{};
     try t.expectEqual(@as(u32, 17), try host.fresh(Observation.run, .{&read}));
     try t.expectEqual(@as(u32, 3), read.attempts);
@@ -1124,7 +1224,7 @@ test "pure preparation retries transport loss within its budget but never retrie
     read = .{ .failures = 100, .failure = error.CatalogDefinitionChanged };
     try t.expectError(error.CatalogDefinitionChanged, host.fresh(Observation.run, .{&read}));
     try t.expectEqual(@as(u32, 65), read.attempts);
-    host.deadline.milliseconds = 0;
+    host.deadline.budget = .init(t.io, 0, null);
     read = .{};
     try t.expectError(error.GatewayDeadline, host.fresh(Observation.run, .{&read}));
     try t.expectEqual(@as(u32, 0), read.attempts);
@@ -1155,7 +1255,7 @@ test "settings observations use their own rejection and retain terminal decision
     host.wire.last_rejection = .TableDefinitionChanged;
     host.settings_wire = g.wire.Client.init(t.allocator, t.io, "http://127.0.0.1:1");
     defer host.settings_wire.?.deinit();
-    host.deadline = .{ .start = std.Io.Clock.awake.now(t.io), .milliseconds = 5000 };
+    host.deadline = .{ .budget = .init(t.io, 5000, null) };
     var read: Observation = .{ .transport = &host.settings_wire.? };
     try host.freshOn(.settings, Observation.run, .{&read});
     try t.expectEqual(@as(u32, 3), read.attempts);

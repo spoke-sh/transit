@@ -69,9 +69,8 @@ fn waitProgressAfter(self: *Self, observed: u64, deadline: Deadline) !void {
     defer self.wake_mutex.unlock(self.io);
     while (self.progress_epoch.load(.acquire) == observed) {
         try deadline.check(self.io);
-        const elapsed = deadline.start.durationTo(std.Io.Clock.awake.now(self.io)).toMilliseconds();
-        const remaining: u32 = @intCast(@max(1, @as(i64, deadline.milliseconds) - elapsed));
-        self.progress_cond.waitTimeout(self.io, &self.wake_mutex, .{ .duration = .{ .raw = .fromMilliseconds(@min(100, remaining)), .clock = .awake } }) catch |err| switch (err) {
+        const wake = wire.Deadline.init(self.io, 100, deadline.budget);
+        self.progress_cond.waitTimeout(self.io, &self.wake_mutex, wake.timeout()) catch |err| switch (err) {
             error.Timeout => {},
             else => return err,
         };
@@ -92,12 +91,11 @@ pub fn waitProgress(self: *Self, milliseconds: u32) !void {
     };
 }
 pub const Deadline = struct {
-    start: std.Io.Timestamp,
-    milliseconds: u32,
+    budget: wire.Deadline,
     cancellation: ?*const std.atomic.Value(bool) = null,
     pub fn check(self: Deadline, io: std.Io) !void {
         if (self.cancellation) |requested| if (requested.load(.acquire)) return error.GatewayWaitCancelled;
-        if (self.start.durationTo(std.Io.Clock.awake.now(io)).toMilliseconds() >= self.milliseconds) return error.GatewayDeadline;
+        self.budget.check(io) catch return error.GatewayDeadline;
     }
 };
 
@@ -112,14 +110,14 @@ test "progress notifications survive the status-to-wait gap and preserve deadlin
     runtime.progress_epoch = .init(0);
     const observed = runtime.progress_epoch.load(.acquire);
     runtime.notifyProgress();
-    const deadline: Deadline = .{ .start = std.Io.Clock.awake.now(t.io), .milliseconds = 60000 };
+    const deadline: Deadline = .{ .budget = .init(t.io, 60000, null) };
     try runtime.waitProgressAfter(observed, deadline);
     var cancelled: std.atomic.Value(bool) = .init(true);
     var cancellation = deadline;
     cancellation.cancellation = &cancelled;
     try t.expectError(error.GatewayWaitCancelled, runtime.waitProgressAfter(observed, cancellation));
     var expired = deadline;
-    expired.milliseconds = 0;
+    expired.budget = .init(t.io, 0, null);
     try t.expectError(error.GatewayDeadline, runtime.waitProgressAfter(observed, expired));
     const Wait = struct {
         fn run(value: *Self, epoch: u64, limit: Deadline) !void {

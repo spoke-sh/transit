@@ -10,6 +10,18 @@ configured database names to Catalog bindings. `ReadSources` composes cleanup
 for explicitly configured source connections above the database runtime; it
 introduces no database permission or storage authority.
 
+`Session.withDeadline` binds an inherited awake-clock cap to the current
+foreground borrower and its native/settings clients, then restores both scopes.
+Command admission captures the earlier inherited or configured statement limit.
+`DatabaseRuntime.Deadline` retains that exact timestamp and the separate SQL
+cancellation flag. Registry receives the HTTP/Unix total-request cap, while wire
+hosts preserve one cap through each command cycle. Control and background
+recovery retain independent budgets. Read teardown uses a fresh bounded cleanup
+scope to release original pins; expiry never authorizes new data work.
+Final response checks run while the session is borrowed. Expiry closes a
+suppressed cursor and preserves an execute's original-token recovery hint;
+diagnostics remain bounded by the HTTP owner's output budget.
+
 `PgCatalogSql` recognizes complete PostgreSQL 18 psql inspection query templates;
 `PgCatalog` projects authorized public Catalog metadata through `SessionInspection`.
 It shares ordinary result batching, retained definitions and current disclosure

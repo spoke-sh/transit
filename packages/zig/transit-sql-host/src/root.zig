@@ -182,9 +182,10 @@ const Server = struct {
         while (true) {
             const idle = engine.session.cycle.state == .idle;
             if (idle) try transport.idle(self.config.limits.idle_ms, host.commandMilliseconds()) else {
-                const elapsed = host.deadline.start.durationTo(std.Io.Clock.awake.now(self.io)).toMilliseconds();
-                if (elapsed >= host.deadline.milliseconds) return error.GatewayDeadline;
-                try transport.resetDeadline(@intCast(host.deadline.milliseconds - elapsed));
+                // Cancellation is reported by the session when it consumes the
+                // next frame. Only elapsed time closes this transport wait.
+                host.deadline.budget.check(self.io) catch return error.GatewayDeadline;
+                transport.deadline = host.deadline.budget.timeout();
             }
             const bytes = input.read(&channel) catch |err| {
                 if (err == error.Timeout and idle and transport.input_timeout_ms != null) {
@@ -197,6 +198,8 @@ const Server = struct {
             const frame = (try pg.Frame.decode(bytes, self.config.limits.frame_bytes)).?;
             if (idle and self.draining.load(.acquire)) return error.GatewayDraining;
             if (idle) try transport.resetDeadline(host.commandMilliseconds());
+            const scope = host.withDeadline(.{ .until = transport.deadline.deadline });
+            defer scope.restore();
             if (!try boundedHandle(self.io, transport.deadline, @TypeOf(engine).run, .{ &engine, .{ frame.tag, frame.payload } })) break;
         }
         try transport.resetDeadline(self.config.limits.write_ms);
@@ -253,6 +256,8 @@ const Server = struct {
             const frame = (try mysql.Frame.decode(bytes, 0, limits.frame_bytes)).?;
             if (self.draining.load(.acquire)) return error.GatewayDraining;
             try transport.resetDeadline(host.commandMilliseconds());
+            const scope = host.withDeadline(.{ .until = transport.deadline.deadline });
+            defer scope.restore();
             if (!try boundedHandle(self.io, transport.deadline, @TypeOf(engine).run, .{ &engine, .{frame.payload} })) break;
         }
         try transport.resetDeadline(limits.write_ms);
@@ -398,7 +403,7 @@ const Authentication = struct {
         if (!std.meta.eql(self.credential.?, current)) return error.GatewayCredentialChanged;
         try self.server.acquire(index);
         errdefer self.server.release(index);
-        const registered = try self.server.registry.create(index, current, database, dialect, false);
+        const registered = try self.server.registry.create(index, current, database, dialect, false, .{ .until = self.channel.transport.deadline.deadline });
         self.registered = registered;
         const host = registered.host.?;
         host.cancellation = &self.worker.cancelled;
@@ -419,7 +424,8 @@ const Authentication = struct {
 fn boundedHandle(io: std.Io, deadline: std.Io.Timeout, comptime function: anytype, args: std.meta.ArgsTuple(@TypeOf(function))) !bool {
     const Result = union(enum) { command: anyerror!bool, timeout: anyerror!void };
     const Task = struct {
-        fn command(arguments: std.meta.ArgsTuple(@TypeOf(function))) anyerror!bool {
+        fn command(inner_io: std.Io, until: std.Io.Timeout, arguments: std.meta.ArgsTuple(@TypeOf(function))) anyerror!bool {
+            if (until.toDurationFromNow(inner_io)) |remaining| if (remaining.raw.nanoseconds <= 0) return error.GatewayDeadline;
             return @call(.auto, function, arguments);
         }
         fn timeout(inner_io: std.Io, until: std.Io.Timeout) anyerror!void {
@@ -430,7 +436,7 @@ fn boundedHandle(io: std.Io, deadline: std.Io.Timeout, comptime function: anytyp
     var select: std.Io.Select(Result) = .init(io, &results);
     defer select.cancelDiscard();
     try select.concurrent(.timeout, Task.timeout, .{ io, deadline });
-    try select.concurrent(.command, Task.command, .{args});
+    try select.concurrent(.command, Task.command, .{ io, deadline, args });
     return switch (try select.await()) {
         .command => |result| result,
         .timeout => error.GatewayDeadline,

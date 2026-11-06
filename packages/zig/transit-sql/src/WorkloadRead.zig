@@ -319,7 +319,7 @@ test "workload reader retains projected cells and original coverage through lost
     try t.expectEqualStrings("body", prepared.output.type.structure[0].name);
     var read = try Read.init(&prepared, caller);
     defer read.deinit();
-    const deadline: g.DatabaseRuntime.Deadline = .{ .start = std.Io.Clock.awake.now(t.io), .milliseconds = 30000 };
+    const deadline: g.DatabaseRuntime.Deadline = .{ .budget = .init(t.io, 30000, null) };
     var retained: std.heap.ArenaAllocator = .init(t.allocator);
     defer retained.deinit();
     const first = try g.results.copyRow(retained.allocator(), prepared.output.type.structure, (try read.pull(deadline)).?);

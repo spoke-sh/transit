@@ -70,6 +70,14 @@ Request deadlines cancel and join active work, release its admission lane and
 close the connection. A lost reply leaves any accepted mutation unresolved;
 callers retain its original signed identity for recovery.
 
+Typed local calls carry the caller's absolute deadline through lane acquisition,
+owner-lock admission and notification waits. The same timestamp bounds every
+admission recheck, and response transfer checks it again. Caller expiry can
+interrupt a native Stream/Queue wait before its own attempt budget; that returns
+`AuthorityTimeout`, not a native timeout cut or an empty accepted claim. The
+original operation remains inspectable. Joined cancellation still covers locks
+and storage work, and reserved data/control/wait lane counts are unchanged.
+
 A read whose final authority cut races a publication may repeat the same signed
 selector at most eight times. Each attempt rechecks signature, current rights and
 source identity; sustained contention still returns `Conflict`. Expired cuts,

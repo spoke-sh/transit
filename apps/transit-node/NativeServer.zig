@@ -99,6 +99,7 @@ pub fn Host(comptime Provider: type) type {
             work_failure: ?[]const u8 = null,
             read_only: bool = true,
             uncertain_mutation: bool = false,
+            deadline: ?wire.Deadline = null,
 
             const Work = struct {
                 wait_ns: u64,
@@ -337,6 +338,7 @@ pub fn Host(comptime Provider: type) type {
             /// attempt. This bound neither retries mutations nor changes read selectors.
             fn readQuery(self: *Server, signed: g.SignedQuery, body: ?*wire.protocol.Blocks.Body) !g.Response {
                 for (0..8) |_| {
+                    if (self.deadline) |cap| try cap.check(self.io);
                     return (if (body) |output| self.engine.queryBlocks(signed, self, output) else self.engine.queryWithSnapshots(signed, self)) catch |err| {
                         if (err == error.Conflict) continue;
                         return err;
@@ -358,7 +360,7 @@ pub fn Host(comptime Provider: type) type {
                             try self.mutex.lock(self.io);
                             defer self.mutex.unlock(self.io);
                             self.context.syncFromLane(self.lane);
-                            if (self.position.* <= wait.after) try self.changed.wait(self.io, self.mutex, signed.query, wait.milliseconds);
+                            if (self.position.* <= wait.after) try self.changed.wait(self.io, self.mutex, signed.query, wait.milliseconds, self.deadline);
                             self.context.syncToLane(self.lane);
                         }
                         self.beginWork();
@@ -389,6 +391,7 @@ pub fn Host(comptime Provider: type) type {
             /// uncertainty/reconciliation with the caller.
             fn submitCommand(self: *Server, signed: g.SignedRequest, body: ?*const wire.protocol.Blocks.Body) !u64 {
                 for (0..8) |_| {
+                    if (self.deadline) |cap| try cap.check(self.io);
                     return self.engine.submitWithBlocks(signed, body) catch |err| {
                         if (err == error.Conflict) continue;
                         return err;
@@ -502,7 +505,7 @@ pub fn Host(comptime Provider: type) type {
                 const self: *Context = @ptrCast(@alignCast(raw));
                 self.localWork(invocation) catch |err| {
                     self.diagnostics.event(.{ .name = "transit.local.refusal", .level = .debug, .error_type = @errorName(err) });
-                    if (err == error.Canceled or err == error.Cancelled or err == error.OutOfMemory) return err;
+                    if (err == error.Canceled or err == error.Cancelled or err == error.OutOfMemory or err == error.AuthorityTimeout) return err;
                     const failure = @import("ServiceFailure.zig");
                     if (err == error.InvalidLocalRequest or err == error.InvalidWaitHint) return invocation.client.reject(.bad_request, .InvalidRequest);
                     if (err == error.LocalRouteMissing) return invocation.client.reject(.not_found, .NotFound);
@@ -512,6 +515,7 @@ pub fn Host(comptime Provider: type) type {
             }
             fn localWork(self: *Context, invocation: *wire.LocalEndpoint.Invocation) !void {
                 const io = invocation.client.http.io;
+                try invocation.deadline.check(io);
                 if (invocation.client.wait_hint != null and !std.mem.eql(u8, invocation.path, "/v1/query")) return error.InvalidLocalRequest;
                 const control = if (std.mem.eql(u8, invocation.path, "/table/v1")) (try invocation.requestPtr(Provider.TableHost.Protocol.Request)).transport().control != null else if (std.mem.eql(u8, invocation.path, "/v1/command")) true else if (std.mem.eql(u8, invocation.path, "/v1/query")) switch ((try invocation.requestPtr(g.SignedQuery)).query.kind) {
                     .close_snapshot => true,
@@ -534,15 +538,17 @@ pub fn Host(comptime Provider: type) type {
                 defer span.finish(event);
                 errdefer event.outcome = .failed;
                 const waiting = if (std.mem.eql(u8, invocation.path, "/table/v1")) (try invocation.requestPtr(Provider.TableHost.Protocol.Request)).transport().wait != null else invocation.client.wait_hint != null;
-                const lane = try self.acquire(io, if (control) .control else if (waiting) .wait else .data);
+                const lane = try self.acquire(io, if (control) .control else if (waiting) .wait else .data, invocation.deadline);
                 if (started) |before| event.wait_ns = @intCast(@max(0, before.durationTo(std.Io.Clock.awake.now(io)).toNanoseconds()));
                 defer if (started) |before| {
                     const total: u64 = @intCast(@max(0, before.durationTo(std.Io.Clock.awake.now(io)).toNanoseconds()));
                     event.work_ns = total -| (event.wait_ns orelse 0);
                 };
                 defer self.release(io, lane);
+                try invocation.deadline.check(io);
                 var server = self.server.*;
                 server.io = io;
+                server.deadline = invocation.deadline;
                 server.allocator = invocation.allocator;
                 server.context = self;
                 server.lane = lane;
@@ -573,7 +579,7 @@ pub fn Host(comptime Provider: type) type {
                             self.changed.publishAll(io);
                             owner.notifyLogs();
                         };
-                        const result = owner.executeTyped(io, &lane.engine, &scratch, invocation.allocator, request.*, control) catch |err| {
+                        const result = owner.executeTyped(io, &lane.engine, &scratch, invocation.allocator, request.*, control, invocation.deadline) catch |err| {
                             if (err == error.OutOfMemory and budget.exhausted) return if (control) error.ControlCapacity else error.StorageQuota;
                             return err;
                         };
@@ -625,6 +631,7 @@ pub fn Host(comptime Provider: type) type {
                     request.validate() catch return error.InvalidLocalRequest;
                     const result = try invocation.allocator.create(wire.protocol.NativePayload.Response);
                     defer invocation.allocator.destroy(result);
+                    try invocation.deadline.check(server.io);
                     try Provider.payload(&server.lane.engine, request, result);
                     return invocation.respond(result.*);
                 }
@@ -721,7 +728,8 @@ pub fn Host(comptime Provider: type) type {
             }
 
             const LaneKind = enum { data, control, wait };
-            fn acquire(self: *Context, io: std.Io, kind: LaneKind) !*Lane {
+            fn acquire(self: *Context, io: std.Io, kind: LaneKind, deadline: ?wire.Deadline) !*Lane {
+                if (deadline) |cap| try cap.check(io);
                 try self.mutex.lock(io);
                 defer self.mutex.unlock(io);
                 // HTTP and local callers share the same admission envelope.
@@ -732,13 +740,19 @@ pub fn Host(comptime Provider: type) type {
                     .wait => self.lanes[6..],
                 };
                 while (true) {
+                    if (deadline) |cap| try cap.check(io);
                     for (selected) |*lane| if (!lane.busy) {
                         lane.busy = true;
                         self.syncToLane(lane);
                         return lane;
                     };
                     if (kind == .wait) return error.ControlCapacity;
-                    try self.lane_cond.wait(io, &self.mutex);
+                    if (deadline) |cap| {
+                        self.lane_cond.waitTimeout(io, &self.mutex, cap.timeout()) catch |err| switch (err) {
+                            error.Timeout => return error.AuthorityTimeout,
+                            else => return err,
+                        };
+                    } else try self.lane_cond.wait(io, &self.mutex);
                 }
             }
             fn release(self: *Context, io: std.Io, lane: *Lane) void {
@@ -759,7 +773,7 @@ pub fn Host(comptime Provider: type) type {
                 if (!started and err != error.EndOfStream) self.diagnostics.event(.{ .name = "transit.http.connection", .level = .debug, .error_type = @errorName(err) });
             }
             pub fn handle(self: *@This(), io: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request) !void {
-                const lane = self.acquire(io, if (self.isControl(request)) .control else if (self.isWait(request)) .wait else .data) catch |err| {
+                const lane = self.acquire(io, if (self.isControl(request)) .control else if (self.isWait(request)) .wait else .data, null) catch |err| {
                     if (err == error.ControlCapacity) return http.respond(request, .service_unavailable, "{\"err\":\"ControlCapacity\"}");
                     return err;
                 };
