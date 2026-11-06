@@ -429,7 +429,9 @@ fn applySelected(comptime action_tag: std.meta.Tag(w.Action), allocator: std.mem
             // CREATE additionally checks selection of its frozen owner role;
             // preview also validates the exact DDL shape without admission.
             if (value.intent.work == .ddl) _ = try catalog.preview(try value.intent.work.ddl.native(allocator, catalog.store.root.configuration), policy);
-            return .{ .staged = try c.DirectTableIntentStore.stageSavedWithBinding(allocator, catalog.data_objects, value.intent.connection, value.intent.work, value.namespace, value.intent.work != .ddl) };
+            const staged = try c.DirectTableIntentStore.stageSavedWithBinding(allocator, catalog.data_objects, value.intent.connection, value.intent.work, value.namespace, value.intent.work != .ddl);
+            if (value.intent.work != .ddl) catalog.rememberVerifiedDmlIntent(staged);
+            return .{ .staged = staged };
         },
         .commit_saved => {
             const reference = @field(action.*, @tagName(action_tag));
