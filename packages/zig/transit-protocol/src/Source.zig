@@ -8,11 +8,16 @@ pub const State = enum { published, authorized, active, suspended, retired };
 pub const Command = enum { authorize, activate, suspend_source, resume_source, retire };
 pub const Blocked = enum { none, authorization, definition_changed, unavailable_executor, storage, budget, unknown_attempt, incomplete_capture };
 pub const Method = enum { GET };
+pub const max_endpoint_bytes = 2048;
+pub const max_path_bytes = 8192;
 
 pub const Connection = struct {
     definition: p.Growth.Definition,
     interpretation: d.Definition,
     endpoint: []const u8,
+    pub const json_schema_fields = .{
+        .endpoint = .{ .type = "string", .minLength = 1, .maxLength = max_endpoint_bytes },
+    };
     pub fn validate(self: Connection) !void {
         if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
         try self.interpretation.validate();
@@ -27,6 +32,9 @@ pub const Http = struct {
     poll_interval_ms: u64,
     request_timeout_ms: u64,
     response_max_bytes: u64,
+    pub const json_schema_fields = .{
+        .path = .{ .type = "string", .minLength = 1, .maxLength = max_path_bytes },
+    };
 
     pub fn validate(self: Http) !void {
         if (self.poll_interval_ms == 0 or self.request_timeout_ms == 0 or self.response_max_bytes == 0)
@@ -37,7 +45,7 @@ pub const Http = struct {
 
 /// An origin is configuration, not permission or a DNS/transport route.
 pub fn validateEndpoint(endpoint: []const u8) !void {
-    if (endpoint.len == 0 or endpoint.len > 2048) return error.InvalidSourceEndpoint;
+    if (endpoint.len == 0 or endpoint.len > max_endpoint_bytes) return error.InvalidSourceEndpoint;
     for (endpoint) |byte| if (byte <= 0x20 or byte >= 0x7f or byte == '\\') return error.InvalidSourceEndpoint;
     const uri = std.Uri.parse(endpoint) catch return error.InvalidSourceEndpoint;
     if ((!std.mem.eql(u8, uri.scheme, "https") and !std.mem.eql(u8, uri.scheme, "http")) or
@@ -47,7 +55,7 @@ pub fn validateEndpoint(endpoint: []const u8) !void {
 }
 
 pub fn validatePath(path: []const u8) !void {
-    if (path.len == 0 or path.len > 8192 or path[0] != '/' or (path.len > 1 and path[1] == '/')) return error.InvalidSourcePath;
+    if (path.len == 0 or path.len > max_path_bytes or path[0] != '/' or (path.len > 1 and path[1] == '/')) return error.InvalidSourcePath;
     for (path) |byte| if (byte <= 0x20 or byte >= 0x7f or byte == '#' or byte == '\\') return error.InvalidSourcePath;
     // Retain exact origin-form bytes; never resolve an absolute URL or fragment.
     var i: usize = 0;
@@ -322,4 +330,17 @@ test "HTTP source endpoint and path cannot replace the origin or inject headers"
     try validatePath("/feed?q=a%20b");
     for ([_][]const u8{ "", "//elsewhere/feed", "https://elsewhere/feed", "/feed#fragment", "/a\r\nInjected: value", "/bad%", "/bad%xx", "/a\\b" }) |value|
         try std.testing.expectError(error.InvalidSourcePath, validatePath(value));
+}
+
+test "HTTP source text bounds agree with the declared schema capacities" {
+    // A long, zero-padded port keeps the host within URI's independent bound.
+    var endpoint: [2049]u8 = @splat('0');
+    @memcpy(endpoint[0..9], "http://a:");
+    endpoint[2046] = '8';
+    try validateEndpoint(endpoint[0..2048]);
+    try std.testing.expectError(error.InvalidSourceEndpoint, validateEndpoint(&endpoint));
+    var path: [8193]u8 = @splat('a');
+    path[0] = '/';
+    try validatePath(path[0..8192]);
+    try std.testing.expectError(error.InvalidSourcePath, validatePath(&path));
 }

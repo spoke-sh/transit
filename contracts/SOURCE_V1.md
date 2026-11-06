@@ -47,8 +47,9 @@ has these non-null fields, matched by name independently of physical order:
 publication converts that value with checked arithmetic to the logical UTC
 timestamp representation. A civil `TIMESTAMP` is not an observation instant.
 
-HTTP origin values exclude credentials, query, fragment and non-root paths.
-Paths are ASCII origin-form, begin with one slash, retain exact escaped bytes,
+HTTP origin values are at most 2,048 ASCII bytes and exclude credentials, query,
+fragment and non-root paths. Paths are at most 8,192 ASCII bytes in origin-form,
+begin with one slash, retain exact escaped bytes,
 and exclude fragments, backslashes, controls and malformed percent escapes.
 They cannot override the connection's authority. Secret/header/request-body
 options are outside this initial profile. Durations are positive unsigned

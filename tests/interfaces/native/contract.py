@@ -57,6 +57,22 @@ if sys.argv[1:] == ["--data-lifecycle"]:
         changed = copy.deepcopy(fixture)
         changed['source'][member]['definition'] = '0' * 64
         assert not validator.is_valid(changed), f'foreign source definition accepted: {member}'
+    # Domain text bounds must not inherit the reflection default of 256.
+    # Check both sides of each independently specified boundary.
+    for path, text in (
+        (('connection', 'endpoint'), 'http://a:' + '0' * 2037 + '80'),
+        (('declaration', 'http', 'path'), '/' + 'a' * 8191),
+    ):
+        changed = copy.deepcopy(fixture)
+        item = changed['source']
+        for name in path[:-1]:
+            item = item[name]
+        item[path[-1]] = text
+        validator.validate(changed)
+        item[path[-1]] += '0'
+        assert not validator.is_valid(changed), f'oversize source text accepted: {path}'
+        item[path[-1]] = ''
+        assert not validator.is_valid(changed), f'empty source text accepted: {path}'
     assert fixture['binding']['identity']['operation'] == 2**64 - 1
     assert fixture['source_cut']['checkpoint_lsn'] < fixture['source_cut']['accepted']['next_lsn']
     print("Data lifecycle: reflected schema, independent fixture and mandatory definitions passed.")
