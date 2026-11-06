@@ -5,6 +5,15 @@ Query source clients and configuration service. Native SQL, PostgreSQL and MySQL
 adapters share authentication, preparation, bounded result buffers, current
 permission checks and original-operation recovery through this package.
 
+`MigrationRunner` composes the same statement preparation, durable admission,
+status, original-result opening and resume owners through `StatementOperations`.
+`Session.Prepared.migrationPolicy` is an exhaustive capability decision for each
+owner. Table and finite dataflow adapters add read-only planning against ordered
+working schemas; they do not supply another execution authority. Dataflow
+receipts bind exact dependencies and control states, while result progress stays
+with the computation owner. See the [migration contract](../../../contracts/MIGRATION_V1.md)
+and [CLI workflow](../../../docs/handbook/reference/cli.md#application-sql-migrations).
+
 `Registry` owns bounded sessions and retained response batches. `Session` maps
 configured database names to Catalog bindings. `ReadSources` composes cleanup
 for explicitly configured source connections above the database runtime; it

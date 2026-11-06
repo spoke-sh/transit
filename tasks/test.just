@@ -1020,6 +1020,10 @@ server-board:
 server-single-executable:
     zig build test-server-single-executable -Doptimize=ReleaseSafe
 
+# Reviewed SQL migrations share statement owners, receipts and restart recovery.
+migrate-lifecycle:
+    zig build test-migrate-lifecycle -Doptimize=ReleaseSafe
+
 # Copied server binary, real console/psql/mysql, scalar CRUD and disk restart.
 server-sql-types *args:
     nix develop .#ci-experience --command zig build test-server-sql-types -Doptimize=ReleaseSafe -- {{args}}

@@ -39,7 +39,6 @@ pub fn run(original: std.process.Init, options: Options.Options, diagnostic: *Di
         .account = options.migrate_account,
     };
     var allow_grants = options.allow_grants;
-    var allow_publication = false;
 
     const sources: []const M.SourceFile = if (options.migrate_plan) |plan_file| blk: {
         diagnostic.atFile(plan_file);
@@ -56,7 +55,6 @@ pub fn run(original: std.process.Init, options: Options.Options, diagnostic: *Di
         if (target.branch == null) target.branch = parsed.value.target.branch;
         if (target.account == null) target.account = parsed.value.target.account;
         allow_grants = allow_grants or parsed.value.allow_grants;
-        allow_publication = parsed.value.allow_publication;
         break :blk parsed.value.sources;
     } else if (options.migrate_dir != null or options.migrate_files_len > 0) blk: {
         const discovered = MC.discoverSources(
@@ -109,7 +107,6 @@ pub fn run(original: std.process.Init, options: Options.Options, diagnostic: *Di
         .expected_plan_digest = expected_plan_digest,
         .attempt_id = options.migrate_attempt,
         .allow_grants = allow_grants,
-        .allow_publication = allow_publication,
     };
 
     const reply = try client.migrate(request, a);
@@ -127,7 +124,7 @@ pub fn run(original: std.process.Init, options: Options.Options, diagnostic: *Di
 
     if (options.migrate_out) |out_file| {
         if (report.outcome == .planned or report.outcome == .already_satisfied) {
-            const saved = MC.toSavedPlan(report, sources, allow_grants, allow_publication);
+            const saved = MC.toSavedPlan(report, sources, allow_grants);
             const encoded = try MC.encodeSavedPlan(a, saved);
             diagnostic.atFile(out_file);
             std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = out_file, .data = encoded }) catch |err| {

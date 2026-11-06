@@ -44,6 +44,60 @@ that variable. `--format` overrides rc presentation settings. Connection files
 use YAML by default, with explicit JSON compatibility; credentials and identities
 are never merged between them. The rc files remain DuckDB-style dot-command scripts.
 
+## Application SQL migrations
+
+`transit migrate` reviews and applies ordered `<version>-<name>.sql` files through
+the shared SQL service. A local server must be running, or the caller must supply
+an explicit SQL connection configuration. Planning is read-only:
+
+```sh
+transit migrate plan --dir migrations --out plan.json --format json
+transit migrate apply --plan plan.json --format json
+transit migrate verify --dir migrations --format json
+```
+
+A migration can declare Tables and a finite Table computation together. For
+example, `migrations/0001-projection.sql` can contain:
+
+```sql
+CREATE TABLE projection_input (id BIGINT PRIMARY KEY);
+CREATE TABLE projection_output (id BIGINT PRIMARY KEY);
+CREATE DATAFLOW projection INTO projection_output AS
+  SELECT id FROM projection_input;
+```
+
+The dataflow is published. A later migration can explicitly authorize and
+activate it:
+
+```sql
+AUTHORIZE DATAFLOW projection;
+ACTIVATE DATAFLOW projection;
+SHOW DATAFLOW projection;
+```
+
+The [managed Table computation profile](queries.md#managed-table-computations)
+requires a cohosted native SQL service. Successful activation records the control
+transition; inspect `SHOW DATAFLOW projection` in the console to observe result
+progress and completion. Migrations consume read results through verified
+completion without displaying their rows or treating them as assertions.
+
+Plans bind the target, caller identity, SQL checksums and reviewed dataflow
+source/output definitions. Same-file Table dependencies bind preceding steps and
+their accepted receipts. Replacing an existing dependency under the same name
+requires a new review. Repeat apply preserves completed operation identities;
+`resume` reconciles uncertain work using the original tokens. An external change
+to the recorded dataflow control state makes verification report drift.
+
+Migrations use ordinary SQL preparation for statements without a staged-definition
+adapter; those statements require their dependencies to exist during planning.
+Ordered schema planning covers Tables and finite Table dataflows. Interactive
+transaction controls and session-setting mutations are unsupported, and grants
+require `--allow-grants`. Grammar-only SQL and dataflow definition replacement
+do not become executable through migrations. See the
+[migration contract](../../../contracts/MIGRATION_V1.md) for receipts and limits.
+Saved plans and ledgers require the matching current contract definition; follow
+the [hard-cutover policy](versioning.md) when changing builds.
+
 ## Output philosophy: explain, locate, guide
 
 Errors name the problem once. A location or next step appears when it helps

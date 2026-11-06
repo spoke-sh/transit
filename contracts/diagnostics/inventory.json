@@ -6965,6 +6965,7 @@
         "DuplicateMigrationVersion": 1,
         "IncompatibleDefinition": 2,
         "InvalidColumnCount": 1,
+        "InvalidMigrationDependency": 1,
         "InvalidMigrationLedger": 2,
         "InvalidMigrationStepCount": 1,
         "InvalidMigrationStepIndex": 1,
@@ -6991,52 +6992,6 @@
         "Reconciliation": [
           "satisfied",
           "drift"
-        ],
-        "StepEffect": [
-          "create_table",
-          "alter_table",
-          "drop_table",
-          "create_schema",
-          "alter_schema",
-          "drop_schema",
-          "insert_rows",
-          "update_rows",
-          "delete_rows",
-          "grant_privilege",
-          "publish_resource",
-          "verify_query"
-        ],
-        "StepOwner": [
-          "schema_ddl",
-          "data_transform",
-          "authorization_grant",
-          "publication",
-          "verification"
-        ],
-        "StepState": [
-          "pending",
-          "will_apply",
-          "already_satisfied",
-          "already_diverged",
-          "blocked_by_policy",
-          "claimed",
-          "applying",
-          "applied",
-          "verified",
-          "failed",
-          "uncertain"
-        ],
-        "VersionState": [
-          "pending",
-          "will_apply",
-          "already_satisfied",
-          "already_diverged",
-          "claimed",
-          "applying",
-          "applied",
-          "verified",
-          "failed",
-          "uncertain"
         ]
       },
       "error_sets": {},
@@ -7054,7 +7009,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 32,
+        "try": 34,
         "catch": 6
       },
       "imports": [
@@ -23804,7 +23759,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"3ea13b163d882e8f90a8ea882883f26f95ab970102ba608699b6c412c472fa57\""
+          "@\"17425febb13407f41846fdfca0d253a2c0d22402112aa7fa0d0c90c663ac577d\""
         ],
         "Effect.phase": [
           "pending",
@@ -24213,6 +24168,85 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 13,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-protocol/src/Migration.zig": {
+      "errors": {
+        "InvalidMigrationDependency": 5
+      },
+      "outcomes": {
+        "OperationKind": [
+          "table",
+          "transaction",
+          "workload",
+          "dataflow",
+          "configuration",
+          "captured"
+        ],
+        "StepEffect": [
+          "create_table",
+          "alter_table",
+          "drop_table",
+          "create_schema",
+          "alter_schema",
+          "drop_schema",
+          "insert_rows",
+          "update_rows",
+          "delete_rows",
+          "grant_privilege",
+          "verify_query",
+          "create_dataflow",
+          "control_dataflow",
+          "execute_statement"
+        ],
+        "StepOwner": [
+          "schema_ddl",
+          "data_transform",
+          "authorization_grant",
+          "verification",
+          "computation",
+          "service"
+        ],
+        "StepState": [
+          "pending",
+          "will_apply",
+          "already_satisfied",
+          "already_diverged",
+          "blocked_by_policy",
+          "claimed",
+          "applying",
+          "applied",
+          "verified",
+          "failed",
+          "uncertain"
+        ],
+        "VersionState": [
+          "pending",
+          "will_apply",
+          "already_satisfied",
+          "already_diverged",
+          "claimed",
+          "applying",
+          "applied",
+          "verified",
+          "failed",
+          "uncertain"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Computation.validate()": "<inferred>",
+        "StepIdentity.validate()": "<inferred>",
+        "TableReference.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 9,
         "catch": 0
       },
       "imports": [
@@ -25283,6 +25317,7 @@
         "Lifecycle.zig",
         "LogWorkload.zig",
         "LogWorkloadResult.zig",
+        "Migration.zig",
         "NativePayload.zig",
         "QueueLeaseHandle.zig",
         "QueueRead.zig",
@@ -25696,11 +25731,12 @@
         "startInner()": "<inferred>",
         "step()": "<inferred>",
         "stepInner()": "<inferred>",
-        "storeRevision()": "<inferred>"
+        "storeRevision()": "<inferred>",
+        "validateOutput()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 192,
+        "try": 193,
         "catch": 10
       },
       "imports": [
@@ -31790,52 +31826,6 @@
           "claim_conflict",
           "step_failed",
           "outcome_unknown"
-        ],
-        "StepEffect": [
-          "create_table",
-          "alter_table",
-          "drop_table",
-          "create_schema",
-          "alter_schema",
-          "drop_schema",
-          "insert_rows",
-          "update_rows",
-          "delete_rows",
-          "grant_privilege",
-          "publish_resource",
-          "verify_query"
-        ],
-        "StepOwner": [
-          "schema_ddl",
-          "data_transform",
-          "authorization_grant",
-          "publication",
-          "verification"
-        ],
-        "StepState": [
-          "pending",
-          "will_apply",
-          "already_satisfied",
-          "already_diverged",
-          "blocked_by_policy",
-          "claimed",
-          "applying",
-          "applied",
-          "verified",
-          "failed",
-          "uncertain"
-        ],
-        "VersionState": [
-          "pending",
-          "will_apply",
-          "already_satisfied",
-          "already_diverged",
-          "claimed",
-          "applying",
-          "applied",
-          "verified",
-          "failed",
-          "uncertain"
         ]
       },
       "error_sets": {},
@@ -31853,7 +31843,8 @@
       },
       "imports": [
         "root.zig",
-        "std"
+        "std",
+        "transit_protocol"
       ]
     },
     "packages/zig/transit-sql-protocol/src/ResultColumns.zig": {
@@ -33013,7 +33004,8 @@
     "packages/zig/transit-sql-service/src/ManagedOperations.zig": {
       "errors": {
         "CatalogNameNotFound": 2,
-        "DataflowSourceChanged": 1,
+        "DataflowControlChanged": 1,
+        "DataflowSourceChanged": 4,
         "IncompatibleDefinition": 1,
         "InvalidManagedTableRecord": 2,
         "ManagedTableConflict": 1,
@@ -33030,17 +33022,104 @@
       },
       "error_sets": {},
       "error_returns": {
+        "Guard.require()": "<inferred>",
         "admit()": "<inferred>",
+        "admitReviewed()": "<inferred>",
         "apply()": "<inferred>",
+        "definition()": "<inferred>",
         "read()": "<inferred>",
+        "requireProfile()": "<inferred>",
         "resumeOperation()": "<inferred>",
         "status()": "<inferred>",
         "validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 39,
+        "try": 44,
         "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql-service/src/MigrationDataflow.zig": {
+      "errors": {
+        "CatalogNameNotFound": 1,
+        "DataflowControlChanged": 1,
+        "DataflowSourceChanged": 2,
+        "InvalidMigrationDependency": 3,
+        "ManagedTableNameConflict": 2,
+        "MigrationDependencyUnapplied": 4,
+        "MissingManagedTableObservation": 1,
+        "TableNotFound": 3,
+        "UnsupportedManagedTable": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Planner.plan()": "<inferred>",
+        "Planner.reference()": "<inferred>",
+        "guard()": "<inferred>",
+        "produced()": "<inferred>",
+        "resolve()": "<inferred>",
+        "verify()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 32,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql-service/src/MigrationRunner.zig": {
+      "errors": {
+        "AuthorizationStepBudget": 1,
+        "ExpectedGatewayRead": 1,
+        "GatewayMutationRejected": 1,
+        "InvalidMigrationStepCount": 3,
+        "InvalidSqlSyntax": 1,
+        "MigrationClaimConflict": 2,
+        "MigrationOutcomeUnknown": 2,
+        "MigrationSessionControlUnsupported": 3,
+        "MissingGatewayTerminal": 1,
+        "TableNotFound": 2,
+        "UnsupportedMigrationStatement": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "WorkingSchemas.get()": "<inferred>",
+        "WorkingSchemas.getLive()": "<inferred>",
+        "WorkingSchemas.put()": "<inferred>",
+        "applyMigrations()": "<inferred>",
+        "buildPlanReport()": "<inferred>",
+        "classifyStatement()": "<inferred>",
+        "cloneReport()": "<inferred>",
+        "computeVersionDigest()": "<inferred>",
+        "consumeOperationResult()": "<inferred>",
+        "consumeRead()": "<inferred>",
+        "execute()": "<inferred>",
+        "executeStepStatement()": "<inferred>",
+        "lookupLiveSchema()": "<inferred>",
+        "planQuery()": "<inferred>",
+        "planWorkingQuery()": "<inferred>",
+        "recordEvidence()": "<inferred>",
+        "resumeExecution()": "<inferred>",
+        "saveReportVersion()": "<inferred>",
+        "splitStatements()": "<inferred>",
+        "statusReport()": "<inferred>",
+        "toLedgerVersion()": "<inferred>",
+        "verifyMigrations()": "<inferred>",
+        "verifyVersionSteps()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 179,
+        "catch": 22
       },
       "imports": [
         "root.zig",
@@ -33191,7 +33270,7 @@
         "InvalidAuthentication": 1,
         "InvalidSqlAction": 2,
         "InvalidSqlCursor": 2,
-        "InvalidSqlOperationReference": 4,
+        "InvalidSqlOperationReference": 3,
         "ManagedControlCancellationUnsupported": 1,
         "MissingGatewayOperation": 1,
         "OutOfMemory": 1,
@@ -33246,7 +33325,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 146,
+        "try": 135,
         "catch": 15
       },
       "imports": [
@@ -33428,6 +33507,11 @@
           "managed",
           "workload"
         ],
+        "Prepared.migrationPolicy().<enum>": [
+          "read",
+          "operation",
+          "unsupported"
+        ],
         "Read.value": [
           "single",
           "relational",
@@ -33493,8 +33577,8 @@
         "DataflowRevisionNotFound": 1,
         "Forbidden": 1,
         "HistoricalObjectNotSelected": 1,
-        "InvalidDataflowRevision": 3,
         "InvalidManagedTableRecord": 1,
+        "InvalidSqlSyntax": 1,
         "NotFound": 1,
         "QueryPageBudget": 1,
         "TableDefinitionChanged": 1,
@@ -33519,8 +33603,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 113,
-        "catch": 3
+        "try": 110,
+        "catch": 2
       },
       "imports": [
         "PgCatalog.zig",
@@ -33669,6 +33753,31 @@
         "std"
       ]
     },
+    "packages/zig/transit-sql-service/src/StatementOperations.zig": {
+      "errors": {
+        "InvalidSqlOperationReference": 2,
+        "SqlDurableStatementRequired": 1,
+        "SqlOperationBindingChanged": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "admit()": "<inferred>",
+        "admitReviewed()": "<inferred>",
+        "lookup()": "<inferred>",
+        "prepareResult()": "<inferred>",
+        "resumeOperation()": "<inferred>",
+        "status()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 10,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig"
+      ]
+    },
     "packages/zig/transit-sql-service/src/root.zig": {
       "errors": {},
       "outcomes": {},
@@ -33686,6 +33795,8 @@
         "Configuration.zig",
         "ConfigurationOperations.zig",
         "ManagedOperations.zig",
+        "MigrationDataflow.zig",
+        "MigrationRunner.zig",
         "OperatorConfiguration.zig",
         "ReadSources.zig",
         "Registry.zig",
@@ -33694,6 +33805,7 @@
         "SessionSettings.zig",
         "SessionTransaction.zig",
         "SourceSession.zig",
+        "StatementOperations.zig",
         "transit_query",
         "transit_sql"
       ]
@@ -33886,6 +33998,7 @@
     },
     "packages/zig/transit-sql/src/ManagedSql.zig": {
       "errors": {
+        "InvalidDataflowRevision": 3,
         "InvalidSqlSyntax": 3,
         "UnsupportedManagedTable": 1
       },
@@ -33897,58 +34010,13 @@
       },
       "error_sets": {},
       "error_returns": {
+        "inspect()": "<inferred>",
         "parse()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 16,
-        "catch": 0
-      },
-      "imports": [
-        "root.zig",
-        "std"
-      ]
-    },
-    "packages/zig/transit-sql/src/MigrationRunner.zig": {
-      "errors": {
-        "AuthorizationStepBudget": 1,
-        "GatewayDeadline": 3,
-        "GatewayMutationRejected": 1,
-        "InteractiveTransactionInMigration": 1,
-        "InvalidMigrationStepCount": 3,
-        "InvalidSqlSyntax": 1,
-        "MigrationClaimConflict": 2,
-        "MigrationOutcomeUnknown": 5,
-        "MigrationStepFailed": 1,
-        "TableNotFound": 1,
-        "Timeout": 3,
-        "UnsupportedMigrationStatement": 2
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "WorkingSchemas.get()": "<inferred>",
-        "WorkingSchemas.getLive()": "<inferred>",
-        "WorkingSchemas.put()": "<inferred>",
-        "applyMigrations()": "<inferred>",
-        "buildPlanReport()": "<inferred>",
-        "classifyStatement()": "<inferred>",
-        "cloneReport()": "<inferred>",
-        "execute()": "<inferred>",
-        "executeStepStatement()": "<inferred>",
-        "lookupLiveSchema()": "<inferred>",
-        "resumeExecution()": "<inferred>",
-        "saveReportVersion()": "<inferred>",
-        "splitStatements()": "<inferred>",
-        "statusReport()": "<inferred>",
-        "toLedgerVersion()": "<inferred>",
-        "verifyMigrations()": "<inferred>",
-        "verifyVersionSteps()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 168,
-        "catch": 14
+        "try": 24,
+        "catch": 1
       },
       "imports": [
         "root.zig",
@@ -34489,7 +34557,6 @@
         "HistoricalSql.zig",
         "IntentReference.zig",
         "ManagedSql.zig",
-        "MigrationRunner.zig",
         "OperationRecords.zig",
         "Probe.zig",
         "ReadCache.zig",

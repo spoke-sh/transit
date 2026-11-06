@@ -2195,6 +2195,58 @@ owners, current authorization, exact source cuts and process-death recovery at
 those boundaries. The P9 formal correspondence and common-revision qualification
 gates still require their specified executed proofs.
 
+## SQL migration integration plan — 2026-11-06
+
+Status: In Progress. Application migrations must use the same SQL operation
+owners as interactive statements. The current migration classifier predates
+installed finite dataflows and rejects their declarations before preparation.
+Adding syntax alone would leave their durable admission, recovery and
+postconditions disconnected.
+
+The first delivery composes existing finite Table dataflows with preceding Table
+declarations in one migration, including explicit authorization and activation,
+inspection and subsequent lifecycle controls. It preserves the existing Table,
+schema, DML and grant migration behavior. Definition replacement, connector
+publication and transactions spanning DDL do not acquire semantics through this
+adapter. The owning contracts must implement those operations first.
+
+### Reviewable implementation sequence
+
+1. **Shared service composition and capability coverage.** Place migration
+   orchestration with the SQL session service, above database owners. Share
+   statement admission and operation lookup/status/resume with ordinary SQL.
+   Require exhaustive migration decisions for prepared statement variants and
+   native plan variants, with executable coverage that prevents newly added
+   SQL owners from silently bypassing migration review. Unsupported operations
+   fail during planning with file, step and location evidence.
+2. **Reviewed definitions and dependency planning.** Extend the migration
+   contract and direct ledger with dataflow declaration/control evidence and
+   operation kind. Plan against the ordered working Table schemas without
+   publishing them. Existing sources bind exact identities and definitions;
+   sources introduced by earlier steps bind those steps and their accepted
+   receipts. Detect definition, target and control drift before new dispatch.
+   Publication does not authorize or activate computation.
+3. **Original-operation execution and verification.** Admit through the shared
+   service using deterministic migration tokens. Recover original dataflow
+   publication/control operations after missing replies and process replacement.
+   Verify immutable declarations and the final requested lifecycle state while
+   preserving later legitimate migration steps and background result progress.
+   Activation completion is distinct from the first complete result. Unchanged
+   repeat apply must not create another declaration or advance control epochs.
+4. **Caller contracts and qualification.** Apply the current-v1 cutover to
+   incompatible ledger/wire semantics, regenerate reflected resources and
+   preserve foreign/missing-definition rejection. Update the migration contract
+   and public usage owner. Extend the installed migration lifecycle proof with
+   same-file dependencies, explicit activation, output attribution, repeat apply,
+   drift, competing attempts, interruption/restart and current-policy denial.
+
+Each implementation increment is committed separately. Completion requires the
+affected owner/caller tests, fast and handbook gates, contract checks, installed
+SQL type and console latency gates, and affected committed-source CI lanes.
+Planned checks above are not execution evidence. The final PR records commands,
+outcomes and remaining capability boundaries; this plan does not claim general
+connector publication or definition replacement support.
+
 ## CREATE SOURCE implementation plan — 2026-11-05
 
 **Status: In Progress.** This is the bounded R8 ingestion slice requested after the

@@ -11,6 +11,7 @@ const M = api.Migration;
 const DM = c.DirectMigration;
 
 pub const Context = struct {
+    session: *g.Session,
     account_id: [32]u8,
     account_name: []const u8,
     database: []const u8,
@@ -139,14 +140,25 @@ fn classifyStatement(
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(stmt_sql, &digest, .{});
 
-    if (tokenWord(full_text, first, "BEGIN") or
-        tokenWord(full_text, first, "START") or
-        tokenWord(full_text, first, "COMMIT") or
-        tokenWord(full_text, first, "ROLLBACK") or
-        tokenWord(full_text, first, "SAVEPOINT") or
-        tokenWord(full_text, first, "RELEASE"))
-    {
-        return error.InteractiveTransactionInMigration;
+    if (g.database.ManagedSql.parse(allocator, stmt_sql, .transit) catch null) |value| {
+        var managed = value;
+        defer managed.deinit();
+        return .{
+            .step_index = step_index,
+            .owner = .computation,
+            .effect = switch (managed.statement) {
+                .create => .create_dataflow,
+                .control => .control_dataflow,
+            },
+            .object_name = try allocator.dupe(u8, switch (managed.statement) {
+                .create => |v| v.name.slice(),
+                .control => |v| v.name.slice(),
+            }),
+            .sql = try allocator.dupe(u8, stmt_sql),
+            .line = pos.line,
+            .column = pos.column,
+            .statement_digest = digest,
+        };
     }
 
     var parse_arena = std.heap.ArenaAllocator.init(allocator);
@@ -224,7 +236,7 @@ fn classifyStatement(
             .step_index = step_index,
             .owner = .authorization_grant,
             .effect = .grant_privilege,
-            .object_name = "authorization",
+            .object_name = try allocator.dupe(u8, "authorization"),
             .sql = try allocator.dupe(u8, stmt_sql),
             .line = pos.line,
             .column = pos.column,
@@ -232,28 +244,12 @@ fn classifyStatement(
         };
     }
 
-    if (tokenWord(full_text, first, "CREATE") and
-        (tokenWord(full_text, second, "CONNECTION") or tokenWord(full_text, second, "SOURCE") or tokenWord(full_text, second, "SINK")))
-    {
-        return .{
-            .step_index = step_index,
-            .owner = .publication,
-            .effect = .publish_resource,
-            .object_name = "publication",
-            .sql = try allocator.dupe(u8, stmt_sql),
-            .line = pos.line,
-            .column = pos.column,
-            .statement_digest = digest,
-        };
-    }
-
-    if (tokenWord(full_text, first, "SELECT")) {
-        const target_name = try f.TableSelect.target(parse_alloc, stmt_sql);
+    if (tokenWord(full_text, first, "SELECT") and (try g.Probe.parse(stmt_sql, .transit)) == null) {
         return .{
             .step_index = step_index,
             .owner = .verification,
             .effect = .verify_query,
-            .object_name = try allocator.dupe(u8, target_name),
+            .object_name = try allocator.dupe(u8, "query"),
             .sql = try allocator.dupe(u8, stmt_sql),
             .line = pos.line,
             .column = pos.column,
@@ -261,7 +257,8 @@ fn classifyStatement(
         };
     }
 
-    return error.UnsupportedMigrationStatement;
+    // Every other statement reaches the service's real preparation boundary.
+    return .{ .step_index = step_index, .owner = .service, .effect = .execute_statement, .object_name = try allocator.dupe(u8, "statement"), .sql = try allocator.dupe(u8, stmt_sql), .line = pos.line, .column = pos.column, .statement_digest = digest };
 }
 
 pub fn observedTarget(client: *const c.DirectTableClient, context: Context) M.ObservedTarget {
@@ -304,12 +301,14 @@ fn lookupLiveSchema(allocator: std.mem.Allocator, client: *c.DirectTableClient, 
     return decoded.schema;
 }
 
-const WorkingSchemas = struct {
+pub const WorkingSchemas = struct {
     allocator: std.mem.Allocator,
     client: *c.DirectTableClient,
     namespace: u64,
     live_entries: std.StringHashMapUnmanaged(?f.TableSchema.Schema) = .empty,
     working_entries: std.StringHashMapUnmanaged(?f.TableSchema.Schema) = .empty,
+    producers: std.StringHashMapUnmanaged(p.Migration.StepIdentity) = .empty,
+    current: p.Migration.StepIdentity = undefined,
 
     fn getLive(self: *WorkingSchemas, name: []const u8) !?f.TableSchema.Schema {
         if (self.live_entries.get(name)) |cached| return cached;
@@ -319,12 +318,13 @@ const WorkingSchemas = struct {
         return live;
     }
 
-    fn get(self: *WorkingSchemas, name: []const u8) !?f.TableSchema.Schema {
+    pub fn get(self: *WorkingSchemas, name: []const u8) !?f.TableSchema.Schema {
         if (self.working_entries.get(name)) |cached| return cached;
         return self.getLive(name);
     }
 
     fn put(self: *WorkingSchemas, name: []const u8, schema: ?f.TableSchema.Schema) !void {
+        try self.producers.put(self.allocator, try self.allocator.dupe(u8, name), self.current);
         if (self.working_entries.getPtr(name)) |slot| {
             slot.* = schema;
             return;
@@ -370,6 +370,13 @@ pub fn computePlanDigest(target: M.ObservedTarget, versions: []const M.VersionRe
         std.mem.writeInt(u64, &bytes, val, .little);
         hash.update(&bytes);
     }
+    hash.update(target.account);
+    hash.update(&.{0});
+    std.mem.writeInt(u64, &bytes, target.principal, .little);
+    hash.update(&bytes);
+    hash.update(&.{@intFromBool(target.role != null)});
+    std.mem.writeInt(u64, &bytes, target.role orelse 0, .little);
+    hash.update(&bytes);
     hash.update(target.database);
     hash.update(&.{0});
     hash.update(target.schema);
@@ -383,7 +390,7 @@ pub fn computePlanDigest(target: M.ObservedTarget, versions: []const M.VersionRe
     return hash.finalResult();
 }
 
-fn computeVersionDigest(version_id: []const u8, source_sha256: [32]u8, steps: []const M.StepReport) [32]u8 {
+fn computeVersionDigest(allocator: std.mem.Allocator, version_id: []const u8, source_sha256: [32]u8, steps: []const M.StepReport) ![32]u8 {
     var hash = std.crypto.hash.sha2.Sha256.init(.{});
     hash.update("transit.migration.version-plan.v1\x00");
     hash.update(version_id);
@@ -393,6 +400,11 @@ fn computeVersionDigest(version_id: []const u8, source_sha256: [32]u8, steps: []
         hash.update(&step.statement_digest);
         hash.update(&step.step_token);
         if (step.expected_schema_sha256) |expected| hash.update(&expected);
+        if (step.computation) |value| {
+            const bytes = try p.Json.valueAlloc(allocator, value);
+            defer allocator.free(bytes);
+            hash.update(bytes);
+        }
     }
     return hash.finalResult();
 }
@@ -443,37 +455,9 @@ pub fn execute(
 }
 
 fn cloneReport(allocator: std.mem.Allocator, report: M.Report) !M.Report {
-    var out = report;
-    out.target.database = try allocator.dupe(u8, report.target.database);
-    out.target.schema = try allocator.dupe(u8, report.target.schema);
-    out.target.account = try allocator.dupe(u8, report.target.account);
-    out.diagnostic_code = if (report.diagnostic_code) |code| try allocator.dupe(u8, code) else null;
-    out.diagnostic_message = if (report.diagnostic_message) |msg| try allocator.dupe(u8, msg) else null;
-    out.recovery_command = if (report.recovery_command) |cmd| try allocator.dupe(u8, cmd) else null;
-    const versions = try allocator.alloc(M.VersionReport, report.versions.len);
-    for (report.versions, versions) |ver, *out_ver| {
-        out_ver.* = ver;
-        out_ver.version_id = try allocator.dupe(u8, ver.version_id);
-        out_ver.name = try allocator.dupe(u8, ver.name);
-        out_ver.path = try allocator.dupe(u8, ver.path);
-        const steps = try allocator.alloc(M.StepReport, ver.steps.len);
-        for (ver.steps, steps) |step, *out_step| {
-            out_step.* = step;
-            out_step.object_name = try allocator.dupe(u8, step.object_name);
-            out_step.sql = try allocator.dupe(u8, step.sql);
-            out_step.drift = if (step.drift) |d| .{
-                .aspect = try allocator.dupe(u8, d.aspect),
-                .column = if (d.column) |col| try allocator.dupe(u8, col) else null,
-                .expected = if (d.expected) |exp| try allocator.dupe(u8, exp) else null,
-                .actual = if (d.actual) |act| try allocator.dupe(u8, act) else null,
-            } else null;
-            out_step.diagnostic_code = if (step.diagnostic_code) |code| try allocator.dupe(u8, code) else null;
-            out_step.diagnostic_message = if (step.diagnostic_message) |msg| try allocator.dupe(u8, msg) else null;
-        }
-        out_ver.steps = steps;
-    }
-    out.versions = versions;
-    return out;
+    const bytes = try p.Json.valueAlloc(allocator, report);
+    defer allocator.free(bytes);
+    return std.json.parseFromSliceLeaky(M.Report, allocator, bytes, .{ .allocate = .alloc_always });
 }
 
 fn findRecordedVersion(recorded: []const DM.VersionEntry, version_id: []const u8) ?DM.VersionEntry {
@@ -497,6 +481,7 @@ fn buildPlanReport(
         .namespace = context.namespace,
     };
 
+    var computations: g.MigrationDataflow.Planner = .{ .allocator = allocator, .table = table, .namespace = context.namespace, .schemas = &schemas };
     var version_reports: std.ArrayList(M.VersionReport) = .empty;
     var overall_outcome: M.OutcomeKind = if (request.kind == .plan) .planned else .inspected;
     var top_code: ?[]const u8 = null;
@@ -594,6 +579,9 @@ fn buildPlanReport(
                 .step_token = if (prior_step) |ps| ps.step_token else token,
                 .state = .will_apply,
                 .operation_id = if (prior_step) |ps| ps.operation_id else null,
+                .operation_kind = if (prior_step) |ps| ps.operation_kind else null,
+                .computation = if (prior_step) |ps| ps.computation else null,
+                .object_definition = if (prior_step) |ps| ps.object_definition else null,
                 .commit_lsn = if (prior_step) |ps| ps.commit_lsn else null,
                 .affected_rows = if (prior_step) |ps| ps.affected_rows else null,
                 .expected_schema_sha256 = if (prior_step) |ps| ps.expected_schema_sha256 else null,
@@ -643,7 +631,40 @@ fn buildPlanReport(
 
             const step_already_applied = prior_step != null and isStepApplied(prior_step.?.state);
 
+            schemas.current = .{ .version = source.version_id, .step = parsed.step_index };
             switch (parsed.owner) {
+                .computation, .service => {
+                    const failure: ?anyerror = blk: {
+                        if (parsed.owner == .computation) {
+                            g.ManagedOperations.requireProfile(context.session) catch |err| break :blk err;
+                            computations.plan(parsed, &report, schemas.current, context.session.readOptions()) catch |err| break :blk err;
+                        } else if (!step_already_applied) {
+                            if (g.database.ManagedSql.inspect(allocator, parsed.sql, context.dialect) catch |err| break :blk err) |inspection| {
+                                if (inspection.revision == null and computations.values.contains(inspection.name.slice())) break :blk null;
+                            }
+                            const prepared = context.session.prepare(parsed.sql) catch |err| break :blk err;
+                            defer context.session.destroy(prepared);
+                            if (prepared.migrationPolicy() == .unsupported) break :blk error.MigrationSessionControlUnsupported;
+                        }
+                        break :blk null;
+                    };
+                    if (failure) |err| {
+                        report.state = .already_diverged;
+                        report.diagnostic_code = "migration.statement_unsupported";
+                        report.diagnostic_message = try std.fmt.allocPrint(allocator, "{s}:{d}:{d}: migration {s} step {d}: {s}", .{ source.path, parsed.line, parsed.column, source.version_id, parsed.step_index, @errorName(err) });
+                        has_diverged = true;
+                        if (top_code == null) {
+                            overall_outcome = .drift_detected;
+                            top_code = report.diagnostic_code;
+                            top_message = report.diagnostic_message;
+                        }
+                    } else if (step_already_applied) {
+                        report.state = .already_satisfied;
+                    } else {
+                        report.state = .will_apply;
+                        has_will_apply = true;
+                    }
+                },
                 .authorization_grant => {
                     if (!request.allow_grants) {
                         report.state = .blocked_by_policy;
@@ -660,19 +681,6 @@ fn buildPlanReport(
                     } else {
                         report.state = .will_apply;
                         has_will_apply = true;
-                    }
-                },
-                .publication => {
-                    if (!request.allow_publication) {
-                        report.state = .blocked_by_policy;
-                        report.diagnostic_code = "migration.publication_unsupported";
-                        report.diagnostic_message = "Publication definitions belong to application/connector manifests, not schema migrations";
-                        has_diverged = true;
-                        if (top_code == null) {
-                            overall_outcome = .drift_detected;
-                            top_code = report.diagnostic_code;
-                            top_message = report.diagnostic_message;
-                        }
                     }
                 },
                 .schema_ddl => {
@@ -748,7 +756,8 @@ fn buildPlanReport(
                                     .satisfied => {
                                         if (create.if_not_exists) {
                                             report.state = .already_satisfied;
-                                            try schemas.put(parsed.object_name, existing);
+                                            // A no-op keeps the original producer or live definition.
+                                            // It cannot become the source of an unexecuted DDL receipt.
                                         } else {
                                             report.state = .already_diverged;
                                             report.diagnostic_code = "migration.table_already_exists";
@@ -985,51 +994,27 @@ fn buildPlanReport(
                     }
                 },
                 .verification => {
-                    const current = try schemas.get(parsed.object_name);
-                    if (current) |existing| {
-                        var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
-                        const row_type = try existing.rowType(&fields);
-                        const basis: [32]u8 = @splat(1);
-                        var compiled = f.TableSelect.compile(allocator, parsed.sql, parsed.object_name, row_type, basis, null) catch |err| {
-                            report.state = .already_diverged;
-                            report.diagnostic_code = "migration.verify_compile_failed";
-                            report.diagnostic_message = try std.fmt.allocPrint(
-                                allocator,
-                                "Cannot compile verification query on '{s}' ({s})",
-                                .{ parsed.object_name, @errorName(err) },
-                            );
-                            has_diverged = true;
-                            if (top_code == null) {
-                                overall_outcome = .drift_detected;
-                                top_code = report.diagnostic_code;
-                                top_message = report.diagnostic_message;
-                            }
-                            step_reports[idx] = report;
-                            continue;
-                        };
-                        defer compiled.deinit();
-                        if (step_already_applied) {
-                            report.state = .already_satisfied;
-                        } else {
-                            report.state = .will_apply;
-                            has_will_apply = true;
-                        }
-                    } else {
+                    planQuery(allocator, &schemas, context, parsed.sql) catch |err| {
                         report.state = .already_diverged;
-                        report.diagnostic_code = "migration.missing_table";
-                        report.diagnostic_message = try std.fmt.allocPrint(
-                            allocator,
-                            "Table '{s}' does not exist for verification query in migration {s}",
-                            .{ parsed.object_name, source.version_id },
-                        );
+                        report.diagnostic_code = "migration.verify_compile_failed";
+                        report.diagnostic_message = try std.fmt.allocPrint(allocator, "{s}:{d}:{d}: migration {s} step {d}: {s}", .{ source.path, parsed.line, parsed.column, source.version_id, parsed.step_index, @errorName(err) });
                         has_diverged = true;
                         if (top_code == null) {
                             overall_outcome = .drift_detected;
                             top_code = report.diagnostic_code;
                             top_message = report.diagnostic_message;
                         }
-                    }
+                        step_reports[idx] = report;
+                        continue;
+                    };
+                    report.state = if (step_already_applied) .already_satisfied else .will_apply;
+                    if (!step_already_applied) has_will_apply = true;
                 },
+            }
+            if (report.owner == .schema_ddl and report.state == .already_satisfied and report.object_definition == null and (report.effect == .create_table or report.effect == .alter_table)) {
+                const response = try table.call(.{ .lookup = .{ .namespace = context.namespace, .name = report.object_name } });
+                defer response.deinit();
+                if (response.value.result.lookup) |metadata| report.object_definition = metadata.interpretation.interpretation;
             }
             step_reports[idx] = report;
         }
@@ -1049,7 +1034,7 @@ fn buildPlanReport(
         else
             .already_satisfied;
 
-        const ver_digest = computeVersionDigest(source.version_id, source.sha256, step_reports);
+        const ver_digest = try computeVersionDigest(allocator, source.version_id, source.sha256, step_reports);
         try version_reports.append(allocator, .{
             .version_id = source.version_id,
             .name = source.name,
@@ -1065,6 +1050,26 @@ fn buildPlanReport(
         });
     }
 
+    for (version_reports.items, 0..) |*version, vi| {
+        for (@constCast(version.steps), 0..) |*step, si| {
+            if (step.owner != .computation or !isStepApplied(step.state)) continue;
+            var superseded = false;
+            for (version_reports.items[vi..], 0..) |later_version, offset| {
+                for (later_version.steps[if (offset == 0) si + 1 else 0..]) |later| {
+                    if (later.owner == .computation and isStepApplied(later.state) and std.mem.eql(u8, later.object_name, step.object_name)) superseded = true;
+                }
+            }
+            if (!superseded) g.MigrationDataflow.verify(table.*, context.namespace, step.*) catch |err| {
+                step.state = .already_diverged;
+                version.state = .already_diverged;
+                if (top_code == null) {
+                    overall_outcome = .drift_detected;
+                    top_code = "migration.dataflow_drift";
+                    top_message = try std.fmt.allocPrint(allocator, "Dataflow '{s}' drifted: {s}", .{ step.object_name, @errorName(err) });
+                }
+            };
+        }
+    }
     const plan_digest = computePlanDigest(target, version_reports.items);
     return .{
         .definition = p.Growth.current_definition,
@@ -1089,6 +1094,9 @@ fn toLedgerStep(step: M.StepReport) DM.StepReceipt {
         .step_token = step.step_token,
         .state = @fromBackingInt(@intCast(@backingInt(step.state))),
         .operation_id = step.operation_id,
+        .operation_kind = step.operation_kind,
+        .computation = step.computation,
+        .object_definition = step.object_definition,
         .commit_lsn = step.commit_lsn,
         .affected_rows = step.affected_rows,
         .expected_schema_sha256 = step.expected_schema_sha256,
@@ -1100,6 +1108,7 @@ fn toLedgerStep(step: M.StepReport) DM.StepReceipt {
 
 fn toLedgerVersion(namespace: u64, principal: u64, role: ?u64, report: M.VersionReport) !DM.VersionEntry {
     return .{
+        .definition = DM.definition,
         .namespace = namespace,
         .version_id = report.version_id,
         .name = report.name,
@@ -1132,6 +1141,48 @@ fn saveReportVersion(
     return progress;
 }
 
+fn planQuery(allocator: std.mem.Allocator, schemas: *WorkingSchemas, context: Context, text: []const u8) !void {
+    planWorkingQuery(allocator, schemas, context, text) catch |err| {
+        // SELECT can belong to settings, probes or configured source owners.
+        // Never let a live native schema hide an error in the staged schemas.
+        const prepared = context.session.prepare(text) catch return err;
+        defer context.session.destroy(prepared);
+        if (prepared.migrationPolicy() == .unsupported) return error.MigrationSessionControlUnsupported;
+        if (prepared.* == .native or prepared.migrationPolicy() != .read) return err;
+    };
+}
+
+fn planWorkingQuery(allocator: std.mem.Allocator, schemas: *WorkingSchemas, context: Context, text: []const u8) !void {
+    const selected = try g.database.HistoricalSql.select(text, context.dialect);
+    if (selected.snapshot != null) {
+        const prepared = try context.session.prepare(text);
+        defer context.session.destroy(prepared);
+        if (prepared.migrationPolicy() != .read) return error.ExpectedGatewayRead;
+        return;
+    }
+    if (try f.RelationalSql.requiredDialect(text, context.dialect)) {
+        var syntax = try f.RelationalSql.parseDialect(allocator, text, null, context.dialect);
+        defer syntax.deinit();
+        var sources: [f.Relational.max_sources]f.Relational.Source = undefined;
+        const connection = context.session.table.connection;
+        for (syntax.targets, 0..) |target, index| sources[index] = .{
+            .alias = target.alias,
+            .realm = connection.scope.realm,
+            .resource = connection.scope.resource,
+            .catalog = connection.scope.catalog,
+            .owner = connection.audience,
+            .schema = try schemas.get(target.name) orelse return error.TableNotFound,
+        };
+        _ = try syntax.bind(sources[0..syntax.targets.len], .interactive, context.session.readOptions().budgets, null);
+    } else {
+        const name = try f.TableSelect.target(allocator, text);
+        const schema = try schemas.get(name) orelse return error.TableNotFound;
+        var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
+        var compiled = try f.TableSelect.compile(allocator, text, name, try schema.rowType(&fields), @splat(1), null);
+        defer compiled.deinit();
+    }
+}
+
 fn executeStepStatement(
     allocator: std.mem.Allocator,
     runtime: *g.DatabaseRuntime,
@@ -1141,18 +1192,6 @@ fn executeStepStatement(
     step: *M.StepReport,
     deadline: g.DatabaseRuntime.Deadline,
 ) !void {
-    if (step.owner == .verification) {
-        // Verify that the target table exists and query compiles against live schema.
-        const live = (try lookupLiveSchema(allocator, table, context.namespace, step.object_name)) orelse return error.TableNotFound;
-        var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
-        const row_type = try live.rowType(&fields);
-        var compiled = try f.TableSelect.compile(allocator, step.sql, step.object_name, row_type, @splat(1), null);
-        defer compiled.deinit();
-        step.state = .applied;
-        step.observed_schema_sha256 = try DM.logicalFingerprint(live);
-        return;
-    }
-
     if (step.owner == .authorization_grant) {
         var location: f.Sql.Location = .{};
         const plan = try c.DirectAuthorizationSql.compile(table.*, context.namespace, step.sql, .{}, &location);
@@ -1198,96 +1237,118 @@ fn executeStepStatement(
         return error.AuthorizationStepBudget;
     }
 
-    const read_options: g.direct.DirectRelationalQuery.Options = .{
-        .consistency = .independent_table_snapshots,
-        .dialect = context.dialect,
-        .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 16 * 1024 * 1024, .output_rows = 10000, .work_steps = 1000000, .source_pins = 2 },
-        .requests = 10000,
-        .spill_work = 10000,
-    };
-    var statement = try g.Statement.prepare(
-        runtime.allocator,
-        table,
-        context.namespace,
-        step.sql,
-        context.dialect,
-        .native,
-        read_options,
-    );
-    defer statement.deinit();
-
-    var op_id: ?u64 = null;
-    const admitted = runtime.admit(
-        runtime.allocator,
-        observer,
-        table,
-        &statement,
-        &.{},
-        step.step_token,
-        step.statement_digest,
-        deadline,
-        &op_id,
-    ) catch |err| {
-        if (op_id) |id| step.operation_id = id;
-        if (g.wire.Client.unavailable(err) or err == error.GatewayDeadline or err == error.Timeout) {
-            step.state = .uncertain;
-            step.diagnostic_code = "migration.outcome_unknown";
-            step.diagnostic_message = "Step submission outcome is uncertain; run 'transit migrate resume' to reconcile its durable token";
-            return error.MigrationOutcomeUnknown;
-        }
-        step.state = .failed;
-        step.diagnostic_code = @errorName(err);
-        step.diagnostic_message = try std.fmt.allocPrint(allocator, "Migration step {d} failed during admission: {s}", .{ step.step_index, @errorName(err) });
+    const host = context.session;
+    var reference = g.StatementOperations.lookup(host, step.step_token, step.statement_digest) catch |err| {
+        step.state = .uncertain;
         return err;
     };
-    const id = op_id orelse admitted.id;
-    step.operation_id = id;
-
+    if (reference == null) {
+        const prepared = try host.prepare(step.sql);
+        defer host.destroy(prepared);
+        switch (prepared.migrationPolicy()) {
+            .unsupported => return error.MigrationSessionControlUnsupported,
+            .read => {
+                try consumeRead(host, prepared);
+                step.state = .applied;
+                return;
+            },
+            .operation => {},
+        }
+        const guard = if (step.computation) |value| try g.MigrationDataflow.guard(allocator, table.*, context.account_id, context.namespace, value) else null;
+        var acceptance_possible = false;
+        const admitted = g.StatementOperations.admitReviewed(host, prepared, &.{}, step.step_token, step.statement_digest, &acceptance_possible, guard) catch |err| {
+            if (acceptance_possible) {
+                step.state = .uncertain;
+                step.diagnostic_code = "migration.outcome_unknown";
+                step.diagnostic_message = "Statement admission may have succeeded; resume its original migration token";
+                return error.MigrationOutcomeUnknown;
+            }
+            return err;
+        };
+        reference = .{ .id = admitted.identity.id, .kind = switch (admitted.identity.kind) {
+            inline else => |kind| @field(g.SessionOperations.Kind, @tagName(kind)),
+        }, .nonce = step.step_token };
+    }
+    const ref = reference.?;
+    step.operation_id = ref.id;
+    step.operation_kind = switch (ref.kind) {
+        inline else => |kind| @field(p.Migration.OperationKind, @tagName(kind)),
+    };
+    // Every error after accepted identity discovery preserves uncertainty. A
+    // missing observation cannot settle an operation as rejected.
+    errdefer step.state = .uncertain;
     while (true) {
-        deadline.check(runtime.io) catch {
-            step.state = .uncertain;
-            step.diagnostic_code = "migration.outcome_unknown";
-            step.diagnostic_message = "Step execution timed out after admission; run 'transit migrate resume' to reconcile its durable token";
-            return error.MigrationOutcomeUnknown;
-        };
-        runtime.resumeOperation(observer, id) catch |err| {
-            if (g.wire.Client.unavailable(err) or err == error.GatewayDeadline or err == error.Timeout) {
-                step.state = .uncertain;
-                step.diagnostic_code = "migration.outcome_unknown";
-                step.diagnostic_message = "Step execution interrupted after admission; run 'transit migrate resume' to reconcile its durable token";
-                return error.MigrationOutcomeUnknown;
-            }
-            step.state = .failed;
-            step.diagnostic_code = @errorName(err);
-            step.diagnostic_message = try std.fmt.allocPrint(allocator, "Migration step {d} failed: {s}", .{ step.step_index, @errorName(err) });
-            return err;
-        };
-        const current = runtime.status(allocator, observer, table, context.namespace, id) catch |err| {
-            if (g.wire.Client.unavailable(err) or err == error.GatewayDeadline or err == error.Timeout) {
-                step.state = .uncertain;
-                step.diagnostic_code = "migration.outcome_unknown";
-                step.diagnostic_message = "Step status inspection interrupted; run 'transit migrate resume' to reconcile its durable token";
-                return error.MigrationOutcomeUnknown;
-            }
-            step.state = .failed;
-            step.diagnostic_code = @errorName(err);
-            step.diagnostic_message = try std.fmt.allocPrint(allocator, "Migration step {d} status failed: {s}", .{ step.step_index, @errorName(err) });
-            return err;
-        };
+        try deadline.check(runtime.io);
+        const current = try g.StatementOperations.resumeOperation(host, ref);
         if (current.phase == .terminal) {
-            step.commit_lsn = current.identity.id;
-            step.affected_rows = current.changed;
             if (current.outcome == .applied or current.outcome == .unchanged) {
+                try consumeOperationResult(host, ref, current);
+                try recordEvidence(allocator, context, step, ref);
+                step.affected_rows = if (ref.kind == .dataflow) null else current.changed;
                 step.state = .applied;
                 return;
             }
             step.state = .failed;
-            step.diagnostic_code = if (current.diagnostic) |diag| try allocator.dupe(u8, diag.code.slice()) else "migration.step_failed";
-            step.diagnostic_message = if (current.diagnostic) |diag| try allocator.dupe(u8, diag.message.slice()) else "Migration step execution failed";
-            return error.MigrationStepFailed;
+            step.diagnostic_code = "migration.step_failed";
+            step.diagnostic_message = "The original SQL owner rejected or cancelled this statement";
+            // Return normally: the caller persists the authoritative terminal
+            // failure without allowing errdefer to turn it into uncertainty.
+            return;
         }
         runtime.io.sleep(.fromMilliseconds(5), .awake) catch {};
     }
+}
+
+fn consumeRead(host: *g.Session, prepared: *g.Session.Prepared) !void {
+    const read = try host.openRead(prepared, &.{});
+    defer host.closeRead(read);
+    var rows: u64 = 0;
+    while (true) {
+        const batch = try read.nextBatch(api.max_rows);
+        rows = try std.math.add(u64, rows, batch.len);
+        if (batch.complete) break;
+    }
+    _ = try read.completion(rows);
+    try read.validateDisclosure();
+}
+
+fn consumeOperationResult(host: *g.Session, reference: g.SessionOperations.Reference, result: api.Operation) !void {
+    if (result.result_kind != .rows) return;
+    const prepared = try host.allocator.create(g.Session.Prepared);
+    prepared.* = g.StatementOperations.prepareResult(host, reference) catch |err| {
+        host.allocator.destroy(prepared);
+        return err;
+    };
+    // After construction destroy owns both the allocation and owner resources.
+    defer host.destroy(prepared);
+    try consumeRead(host, prepared);
+}
+
+fn recordEvidence(allocator: std.mem.Allocator, context: Context, step: anytype, reference: g.SessionOperations.Reference) !void {
+    const host = context.session;
+    step.operation_kind = switch (reference.kind) {
+        inline else => |kind| @field(p.Migration.OperationKind, @tagName(kind)),
+    };
+    if (reference.kind == .dataflow) {
+        step.object_definition = try g.ManagedOperations.definition(host, reference.id);
+        step.commit_lsn = null;
+        return;
+    }
+    if (reference.kind != .table) return;
+    var reader = try host.observer.source();
+    const original = try reader.operation(reference.id);
+    const intent = original.receipt.binding.intent;
+    if (intent != .table and intent != .name_assertion) return;
+    const response = try intent.operation(host.table, .inspect, 1);
+    defer response.deinit();
+    _ = try g.Terminal.fromReference(intent, response.value.result) orelse return error.MissingGatewayTerminal;
+    if (response.value.result == .ddl and response.value.result.ddl == .committed) {
+        step.object_definition = response.value.result.ddl.committed.resulting.interpretation;
+        step.commit_lsn = response.value.result.ddl.committed.outcome.position.next_lsn;
+    } else if (intent == .name_assertion) {
+        step.object_definition = intent.name_assertion.expected;
+    }
+    _ = allocator;
 }
 
 fn verifyVersionSteps(
@@ -1301,6 +1362,24 @@ fn verifyVersionSteps(
     // unless a later applied version in the inspected slice also modifies that table.
     const steps_mut = @constCast(version.steps);
     for (steps_mut, 0..) |*step, idx| {
+        if (step.owner == .computation) {
+            var superseded = false;
+            for (version.steps[idx + 1 ..]) |later| if (later.owner == .computation and std.mem.eql(u8, later.object_name, step.object_name) and isStepApplied(later.state)) {
+                superseded = true;
+            };
+            for (later_versions) |later_version| for (later_version.steps) |later| {
+                if (later.owner == .computation and std.mem.eql(u8, later.object_name, step.object_name) and isStepApplied(later.state)) superseded = true;
+            };
+            if (!superseded) g.MigrationDataflow.verify(table.*, context.namespace, step.*) catch |err| {
+                step.state = .already_diverged;
+                version.state = .already_diverged;
+                step.diagnostic_code = "migration.dataflow_drift";
+                step.diagnostic_message = try std.fmt.allocPrint(allocator, "Dataflow '{s}' no longer matches its recorded definition/control: {s}", .{ step.object_name, @errorName(err) });
+                return false;
+            };
+            step.state = .verified;
+            continue;
+        }
         if (step.owner == .schema_ddl and (step.effect == .create_table or step.effect == .alter_table or step.effect == .drop_table)) {
             var modified_later = false;
             for (version.steps[idx + 1 ..]) |later| {
@@ -1502,6 +1581,7 @@ fn applyMigrations(
                     plan.recovery_command = "transit migrate resume";
                     return plan;
                 }
+                step.state = .failed;
                 version.state = .failed;
                 version.active_attempt_id = null;
                 _ = saveReportVersion(allocator, table, context, version, expected_rev) catch {};
@@ -1511,6 +1591,15 @@ fn applyMigrations(
                 return plan;
             };
 
+            if (step.state == .failed) {
+                version.state = .failed;
+                version.active_attempt_id = null;
+                _ = try saveReportVersion(allocator, table, context, version, expected_rev);
+                plan.outcome = .step_failed;
+                plan.diagnostic_code = step.diagnostic_code;
+                plan.diagnostic_message = step.diagnostic_message;
+                return plan;
+            }
             any_applied = true;
             progress = try saveReportVersion(allocator, table, context, version, expected_rev);
             expected_rev = progress.revision;
@@ -1575,6 +1664,9 @@ fn statusReport(
                 .step_token = step.step_token,
                 .state = @fromBackingInt(@intCast(@backingInt(step.state))),
                 .operation_id = step.operation_id,
+                .operation_kind = step.operation_kind,
+                .computation = step.computation,
+                .object_definition = step.object_definition,
                 .commit_lsn = step.commit_lsn,
                 .affected_rows = step.affected_rows,
                 .expected_schema_sha256 = step.expected_schema_sha256,
@@ -1652,15 +1744,15 @@ fn resumeExecution(
         for (steps_mut) |*step| {
             if (step.state == .applied or step.state == .verified or step.state == .already_satisfied) continue;
             // Reconcile the deterministic step token in DirectCatalog.
-            if (try runtime.lookup(observer, step.step_token, step.statement_digest)) |op_record| {
+            if (try g.StatementOperations.lookup(context.session, step.step_token, step.statement_digest)) |op_record| {
                 const op_id = op_record.id;
                 step.operation_id = op_id;
-                try runtime.resumeOperation(observer, op_id);
-                const status = try runtime.status(allocator, observer, table, context.namespace, op_id);
+                const status = try g.StatementOperations.resumeOperation(context.session, op_record);
                 if (status.phase == .terminal) {
-                    step.commit_lsn = status.identity.id;
-                    step.affected_rows = status.changed;
+                    step.affected_rows = if (op_record.kind == .dataflow) null else status.changed;
                     if (status.outcome == .applied or status.outcome == .unchanged) {
+                        try consumeOperationResult(context.session, op_record, status);
+                        try recordEvidence(allocator, context, step, op_record);
                         step.state = .applied;
                         step.diagnostic_code = null;
                         step.diagnostic_message = null;
@@ -1676,6 +1768,8 @@ fn resumeExecution(
                         step.step_token = retry_digest[0..16].*;
                         step.state = .pending;
                         step.operation_id = null;
+                        step.operation_kind = null;
+                        step.object_definition = null;
                         step.commit_lsn = null;
                         step.affected_rows = null;
                         step.diagnostic_code = null;
@@ -1727,9 +1821,8 @@ fn resumeExecution(
         return report;
     }
 
-    var report = try statusReport(allocator, runtime, observer, table, context, target, request);
+    var report = try verifyMigrations(allocator, table, context, target, request);
     report.action = .@"resume";
-    if (report.outcome == .inspected) report.outcome = .verified;
     return report;
 }
 
@@ -1806,6 +1899,48 @@ test "splitStatements separates multi-statement SQL while preserving comments, s
 
     try t.expectEqual(M.StepOwner.verification, steps[2].owner);
     try t.expectEqual(M.StepEffect.verify_query, steps[2].effect);
-    try t.expectEqualStrings("accounts", steps[2].object_name);
+    try t.expectEqualStrings("query", steps[2].object_name);
     try t.expectEqual(@as(u32, 8), steps[2].line);
+}
+
+test "migration adapters share dataflow grammar and defer other statements to SQL preparation" {
+    const t = std.testing;
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const steps = try splitStatements(arena.allocator(),
+        \\CREATE DATAFLOW "Projection" INTO output AS SELECT id FROM input;
+        \\AUTHORIZE DATAFLOW "Projection";
+        \\ACTIVATE DATAFLOW "Projection";
+        \\SUSPEND DATAFLOW "Projection";
+        \\RESUME DATAFLOW "Projection";
+        \\REFRESH DATAFLOW "Projection";
+        \\RETIRE DATAFLOW "Projection";
+        \\SHOW DATAFLOW "Projection";
+        \\EXPLAIN CREATE DATAFLOW next INTO output AS SELECT id FROM input;
+        \\COMMIT OFFSET FROM events;
+        \\SELECT 1;
+        \\BEGIN;
+        \\CREATE SOURCE future_source;
+    );
+    try t.expectEqual(@as(usize, 13), steps.len);
+    for (steps[0..7]) |step| {
+        try t.expectEqual(.computation, step.owner);
+        try t.expectEqualStrings("Projection", step.object_name);
+    }
+    for (steps[7..]) |step| try t.expectEqual(.service, step.owner);
+}
+
+test "reviewed migration digest includes caller authority as well as catalog target" {
+    const t = std.testing;
+    const target: M.ObservedTarget = .{ .realm = 1, .resource = 2, .catalog = 3, .branch = 1, .namespace = 1, .database = "app", .schema = "public", .account = "owner", .principal = 7, .role = 9 };
+    const expected = computePlanDigest(target, &.{});
+    var changed = target;
+    changed.principal += 1;
+    try t.expect(!std.mem.eql(u8, &expected, &computePlanDigest(changed, &.{})));
+    changed = target;
+    changed.role = null;
+    try t.expect(!std.mem.eql(u8, &expected, &computePlanDigest(changed, &.{})));
+    changed = target;
+    changed.account = "another";
+    try t.expect(!std.mem.eql(u8, &expected, &computePlanDigest(changed, &.{})));
 }
