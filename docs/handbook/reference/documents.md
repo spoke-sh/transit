@@ -70,6 +70,33 @@ catalog identity to an actual initialized Document. Its explicit allocation,
 reservation, service creation and publication steps remain separately observable.
 The catalog marker does not replace current Document access or merge authority.
 
+## Protected source staging component
+
+The catalog's [`DirectDocumentSource`](../../../packages/zig/transit-catalog/README.md#protected-document-sources)
+component reserves one source part against an exact original operation, Document
+target, expected base, profile descriptor and source length/hash. Uploads use
+sequential immutable chunks of at most 64 KiB. A paged inventory records the
+acknowledged prefix and one pending chunk, allowing the original owner to recover
+and resume after reopening storage. A ready retry checks existing bytes; missing
+acknowledged storage is an error and is never recreated by retry.
+
+Verification reads at most 4 MiB per step. Success establishes the complete
+source length and hash; it does not validate the intended profile, build a
+logical tree or accept a Document revision. The original principal/account can
+inspect the exact operation or discover bounded pages under current target
+rights. Discovery is live enumeration, not a snapshot or proof that an uncertain
+mutation was rejected. Source reads recheck authority before disclosure.
+
+The serialized embedding host supplies native authority and shared admission:
+8 MiB is reserved per active source operation against a 64 MiB default aggregate
+ceiling. Durable byte reservations and cumulative work limits are separate.
+Inspection and explicit closure remain available at active-admission exhaustion.
+Closure permanently fences further writes and makes source payloads collectible
+after storage fences, while preserving the original commitment and account
+charge. No timeout or budget pressure expires an original. This component has
+no installed endpoint, SQL syntax, SDK upload method or Document attachment
+transition; the installed service described below retains its existing limits.
+
 ## Identities and merge rules
 
 Document identity, replica ID, operation ID, accepted revision and merge epoch are

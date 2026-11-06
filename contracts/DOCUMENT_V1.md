@@ -238,6 +238,21 @@ key persistence, rotation, original-operation recovery and explicit pin cleanup;
 this component does not introduce an installed Document endpoint or change the
 Station lifecycle.
 
+## Protected source staging
+
+The component-only [protected source owner](DIRECT_TABLE_V1.md#protected-document-sources)
+retains one exact input part under an original Catalog operation. Staging and
+whole-source digest verification do not execute a Document mutation, validate
+the intended profile, acquire a retained revision pin or check that the expected
+base is still current. The later acceptance owner must perform those checks.
+
+The source descriptor binds the expected cut and target without changing them
+on recovery. A future attachment must reserve the exact native operation before
+execution and resolve lost replies through that identity. Accepted roots must
+own all live parts before staging ownership ends. Unknown or denied native
+observations cannot authorize abandonment. Attachment is not admitted by this
+source profile; existing complete-record KV attachment does not supply it.
+
 ## Integrated causal map-tree storage slice
 
 `DocumentPartition.applyCausal` is a storage-component operation, not an installed

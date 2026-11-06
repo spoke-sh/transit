@@ -8,6 +8,310 @@ const D = c.DirectCatalog;
 const P = s.TablePartition;
 const scope: p.DataLifecycle.Scope = .{ .realm = 1, .resource = 3, .catalog = 1 };
 const profile: a.Profile = .{ .database_domain = 1, .schema_domain = 2, .table_domain = 3, .stream_domain = 31, .queue_domain = 32, .kv_domain = 33, .database = 4, .initial_schema = 1, .initial_schema_authority = 5 };
+const Source = c.DirectDocumentSource;
+
+fn sourceAuthority(access: *Access, admission: *Source.Admission) Source.Authority {
+    const Adapter = struct {
+        fn make(context: *anyopaque, allocator: std.mem.Allocator, base: p.Authorization.Guard, target: ?p.DocumentOperation.Target, kind: Source.Access) !P.Guard {
+            var required = base;
+            if (target) |value| required.requirements[1] = .{
+                .object = a.reference(100 + value.partition.interpretation.object.object),
+                .access = .all,
+                .privileges = switch (kind) {
+                    .inspect => c.DocumentAuthority.inspect,
+                    .read => c.DocumentAuthority.read,
+                    .mutate => c.DocumentAuthority.mutate,
+                },
+            };
+            return Access.make(context, allocator, required, null);
+        }
+    };
+    return .{ .context = access, .admission = admission, .make_guard = Adapter.make };
+}
+
+fn sourceDescriptor(ordinal: u8, bytes: u64, digest: [32]u8) !Source.Descriptor {
+    const descriptor: p.DocumentProfile.Descriptor = .{
+        .definition = p.Growth.current_definition,
+        .format = .mime,
+        .revision = 1,
+        .grammar = .{ .bytes = 1, .sha256 = @splat(1) },
+        .schema = null,
+        .segmenter = null,
+        .encoding = .binary,
+        .framing = .single,
+        .key_collation = .ascii_ci,
+        .value_collation = .utf8_binary,
+        .limits = .{ .input_bytes = bytes, .expanded_bytes = bytes, .expansion_ratio = 1, .parts = 1, .nodes = 1_000_000, .depth = 64, .token_bytes = 1024, .attributes = 1024, .diagnostics = 8, .work = 1_000_000_000 },
+        .digest = undefined,
+    };
+    return .{
+        .key = .{ .definition = p.Growth.current_definition, .connection = .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null }, .account = @splat(97), .token = @splat(ordinal) },
+        .operation = .{ .scope = scope, .principal = 1, .operation = 80000 + @as(u64, ordinal) },
+        .namespace = 1,
+        .target = .{ .partition = .{ .definition = p.Growth.current_definition, .interpretation = .{ .object = .{ .scope = scope, .branch = 1, .object = 50 }, .revision = 1, .digest = @splat(5) }, .partition = 0 }, .document = @splat(ordinal) },
+        .kind = .create,
+        .expected = null,
+        .profile = try descriptor.sealed(),
+        .part = 1,
+        .source = .{ .bytes = bytes, .sha256 = digest },
+        .budget = .{ .bytes = 32 * 1024 * 1024 },
+        .limits = .{ .work_bytes = 128 * 1024 * 1024, .work_pages = 100_000 },
+    };
+}
+
+fn sourceChunk(offset: u64, bytes: []const u8) Source.storage.Chunk {
+    var digest: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
+    return .{ .offset = offset, .content = .{ .bytes = bytes.len, .sha256 = digest } };
+}
+
+test "Document source sparse discovery current authority quotas and failed verification remain explicit" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{ .exclusive = true };
+    var admission: Source.Admission = .{};
+    const authority = sourceAuthority(&access, &admission);
+    try catalog.initialize(access.policy());
+    const bytes = "source bytes";
+    const chunk = sourceChunk(0, bytes);
+    var last: Source.Observation = undefined;
+    for (1..41) |i| last = try catalog.documentSourceReserve(try sourceDescriptor(@intCast(i), bytes.len, chunk.content.sha256), access.policy(), authority);
+    var missing = last.descriptor.target;
+    missing.document = @splat(222);
+    const selection: Source.Selection = .{ .scope = last.descriptor.key.scope(), .target = missing, .pending = false };
+    const first = try catalog.documentSourceList(selection, null, access.policy(), authority);
+    try t.expect(first.entries[0] == null and first.next != null and first.examined == 32);
+    const second = try catalog.documentSourceList(selection, first.next, access.policy(), authority);
+    try t.expect(second.entries[0] == null and second.next == null and second.examined == 8);
+    var changed = selection;
+    changed.pending = true;
+    try t.expectError(error.InvalidDocumentSourceCursor, catalog.documentSourceList(changed, first.next, access.policy(), authority));
+    changed = selection;
+    changed.scope.connection.principal = 2;
+    try t.expectError(error.CatalogDenied, catalog.documentSourceList(changed, null, access.policy(), authority));
+    access.denied_metadata = 150;
+    try t.expectError(error.CatalogDenied, catalog.documentSourceList(selection, null, access.policy(), authority));
+    try t.expectError(error.CatalogDenied, catalog.documentSourceInspect(.{ .key = last.descriptor.key }, access.policy(), authority));
+    access.denied_metadata = null;
+
+    var descriptor = try sourceDescriptor(41, bytes.len, chunk.content.sha256);
+    descriptor.budget.bytes = Source.initial_bytes + 2 * Source.publication_bytes + bytes.len - 1;
+    var observed = try catalog.documentSourceReserve(descriptor, access.policy(), authority);
+    try t.expectError(error.ClientTokenBudget, catalog.documentSourceUpload(.{ .control = .{ .key = descriptor.key, .expected = observed.entry.revision }, .chunk = chunk, .bytes = bytes }, access.policy(), authority));
+    try t.expectEqual(0, (try catalog.documentSourceInspect(.{ .key = descriptor.key }, access.policy(), authority)).?.entry.ready_bytes);
+    _ = try catalog.documentSourceClose(.{ .key = descriptor.key, .expected = observed.entry.revision }, access.policy(), authority);
+
+    descriptor = try sourceDescriptor(42, bytes.len, @splat(99));
+    observed = try catalog.documentSourceReserve(descriptor, access.policy(), authority);
+    const upload: Source.Upload = .{ .control = .{ .key = descriptor.key, .expected = observed.entry.revision }, .chunk = chunk, .bytes = bytes };
+    var wrong = upload;
+    wrong.chunk.offset = Source.storage.chunk_bytes;
+    try t.expectError(error.InvalidDocumentSourceChunk, catalog.documentSourceUpload(wrong, access.policy(), authority));
+    observed = try catalog.documentSourceUpload(upload, access.policy(), authority);
+    var verifier = try Source.Verifier.init(descriptor.key, &admission);
+    defer verifier.deinit();
+    try t.expectError(error.DocumentSourceWorkLimit, catalog.documentSourceVerify(&verifier, .{ .bytes = bytes.len - 1, .pages = 4096 }, access.policy(), authority));
+    try t.expectError(error.DocumentSourceWorkLimit, catalog.documentSourceVerify(&verifier, .{ .bytes = bytes.len, .pages = s.TreeStore.pages.max_height }, access.policy(), authority));
+    observed = try catalog.documentSourceVerify(&verifier, .{ .bytes = bytes.len, .pages = 4096 }, access.policy(), authority);
+    try t.expect(verifier.done and observed.entry.phase == .failed);
+    var output: [64]u8 = @splat(0xff);
+    access.deny_at = access.calls + 5;
+    try t.expectError(error.CatalogDenied, catalog.documentSourceRead(descriptor.key, 0, &output, access.policy(), authority));
+    for (output) |byte| try t.expectEqual(0, byte);
+    access.deny_at = std.math.maxInt(usize);
+    observed = (try catalog.documentSourceInspect(.{ .key = descriptor.key }, access.policy(), authority)).?;
+    _ = try catalog.documentSourceClose(.{ .key = descriptor.key, .expected = observed.entry.revision }, access.policy(), authority);
+    try t.expectError(error.OwnedRecordClosed, catalog.documentSourceVerify(&verifier, .{ .bytes = bytes.len, .pages = 4096 }, access.policy(), authority));
+
+    // Active memory is shared across roles and accounts, not multiplied by the
+    // number of retained operations. Controls remain available at exhaustion.
+    var reservations: usize = 1; // verifier already holds one reservation.
+    while (reservations < 8) : (reservations += 1) try admission.acquire();
+    try t.expectError(error.DocumentSourceResidentLimit, admission.acquire());
+    _ = try catalog.documentSourceInspect(.{ .key = descriptor.key }, access.policy(), authority);
+    for (0..7) |_| admission.release();
+}
+
+test "Document source disk journey uploads ten MiB under eight MiB and recovers original discovery" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var memory: c.fuze.MemoryBudget = .{ .parent = t.allocator, .limit = Source.resident_bytes - 512 * 1024 };
+    const allocator = memory.allocator();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try D.init(allocator, try configuration(), wal.log(), objects.objectStore(), wal.log(), objects.objectStore(), .{ .resident_pages = 1 });
+    defer catalog.deinit();
+    try catalog.recover();
+    var access: Access = .{ .exclusive = true };
+    var admission: Source.Admission = .{};
+    const authority = sourceAuthority(&access, &admission);
+    try catalog.initialize(access.policy());
+    var buffer: [Source.storage.chunk_bytes]u8 = undefined;
+    var hash: std.crypto.hash.sha2.Sha256 = .init(.{});
+    for (0..160) |i| {
+        @memset(&buffer, @intCast(i));
+        hash.update(&buffer);
+    }
+    const descriptor = try sourceDescriptor(1, 10 * 1024 * 1024, hash.finalResult());
+    var observed = try catalog.documentSourceReserve(descriptor, access.policy(), authority);
+    const original_id = observed.entry.id;
+    for (0..160) |i| {
+        @memset(&buffer, @intCast(i));
+        const upload: Source.Upload = .{ .control = .{ .key = descriptor.key, .expected = observed.entry.revision }, .chunk = sourceChunk(i * buffer.len, &buffer), .bytes = &buffer };
+        if (i == 81) {
+            catalog.store.lose_reply = true;
+            try t.expectError(error.LostAcknowledgement, catalog.documentSourceUpload(upload, access.policy(), authority));
+            catalog.deinit();
+            wal.deinit();
+            objects.deinit();
+            wal = try s.LocalWal.LocalWal.openDiskWithOptions(allocator, t.io, tmp.dir, "wal", .{});
+            objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(allocator, t.io, tmp.dir, "objects");
+            catalog = try D.init(allocator, try configuration(), wal.log(), objects.objectStore(), wal.log(), objects.objectStore(), .{ .resident_pages = 1 });
+            try catalog.recover();
+            const discovered = try catalog.documentSourceList(.{ .scope = descriptor.key.scope(), .target = descriptor.target, .pending = true }, null, access.policy(), authority);
+            try t.expectEqual(original_id, discovered.entries[0].?.id);
+            const recovered = (try catalog.documentSourceInspect(.{ .operation = .{ .scope = descriptor.key.scope(), .id = original_id } }, access.policy(), authority)).?;
+            try t.expectEqualDeep(descriptor, recovered.descriptor);
+            try t.expectEqualDeep(upload.chunk, recovered.staged.?);
+        }
+        observed = try catalog.documentSourceUpload(upload, access.policy(), authority);
+        try t.expectEqual(original_id, observed.entry.id);
+    }
+    var verifier = try Source.Verifier.init(descriptor.key, &admission);
+    defer verifier.deinit();
+    const budget: Source.StepBudget = .{ .bytes = Source.storage.step_bytes, .pages = 4096 };
+    observed = try catalog.documentSourceVerify(&verifier, budget, access.policy(), authority);
+    try t.expect(!verifier.done and verifier.offset == Source.storage.step_bytes);
+    // Digest state is intentionally not persisted. Recovery restarts exact bytes.
+    verifier.deinit();
+    verifier = try Source.Verifier.init(descriptor.key, &admission);
+    while (!verifier.done) observed = try catalog.documentSourceVerify(&verifier, budget, access.policy(), authority);
+    try t.expectEqual(.verified, observed.entry.phase);
+    try t.expectEqual(descriptor.source.bytes, observed.entry.ready_bytes);
+    const last = try catalog.documentSourceRead(descriptor.key, 159 * buffer.len, &buffer, access.policy(), authority);
+    for (last) |byte| try t.expectEqual(159, byte);
+    observed = (try catalog.documentSourceInspect(.{ .key = descriptor.key }, access.policy(), authority)).?;
+    const closed = try catalog.documentSourceClose(.{ .key = descriptor.key, .expected = observed.entry.revision }, access.policy(), authority);
+    try t.expectEqual(.closed, closed.entry.phase);
+    try t.expectEqual(original_id, closed.entry.id);
+    try t.expect(memory.peak + 512 * 1024 <= Source.resident_bytes);
+    try t.expect(observed.charged_bytes < descriptor.budget.bytes);
+}
+
+test "Document source lost reservations exact retries closure and generic bypass refusal" {
+    var scratch: std.heap.ArenaAllocator = .init(t.allocator);
+    defer scratch.deinit();
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{ .exclusive = true };
+    var admission: Source.Admission = .{};
+    const authority = sourceAuthority(&access, &admission);
+    try catalog.initialize(access.policy());
+    const bytes = "a complete source";
+    const chunk = sourceChunk(0, bytes);
+    const descriptor = try sourceDescriptor(2, bytes.len, chunk.content.sha256);
+    catalog.store.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.documentSourceReserve(descriptor, access.policy(), authority));
+    try catalog.recover();
+    const reserved = (try catalog.documentSourceInspect(.{ .key = descriptor.key }, access.policy(), authority)).?;
+    try t.expectEqual(.reserved, reserved.entry.phase);
+    var path: [96]u8 = undefined;
+    const binding = try descriptor.binding(t.allocator);
+    try t.expect(try objects.objectStore().head(try c.DirectRecord.key(binding.intent.external.record, &path)) == null);
+    try t.expectError(error.LostAcknowledgement, catalog.documentSourceReserve(descriptor, access.policy(), authority));
+    catalog.store.lose_reply = false;
+    try catalog.recover();
+    var observed = try catalog.documentSourceReserve(descriptor, access.policy(), authority);
+    try t.expectEqual(reserved.entry.id, observed.entry.id);
+    var changed = descriptor;
+    changed.part = 2;
+    try t.expectError(error.ClientTokenConflict, catalog.documentSourceReserve(changed, access.policy(), authority));
+    const control: Source.Control = .{ .key = descriptor.key, .expected = observed.entry.revision };
+    try t.expectError(error.DocumentSourceOperationRequired, catalog.clientProgress(.{ .retain_original = control }, access.policy()));
+    try t.expectError(error.DocumentSourceOperationRequired, catalog.clientProgress(.{ .close_original = control }, access.policy()));
+    try t.expectError(error.DocumentSourceOperationRequired, catalog.clientProgress(.{ .update = .{ .key = descriptor.key, .expected = observed.entry.revision, .pending = false, .cancel = true, .record = null } }, access.policy()));
+    try t.expectError(error.DocumentSourceOperationRequired, catalog.directRecord(scratch.allocator(), .{ .read = binding.intent.external.record }, access.policy()));
+    const upload: Source.Upload = .{ .control = control, .chunk = chunk, .bytes = bytes };
+    catalog.store.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.documentSourceUpload(upload, access.policy(), authority));
+    try catalog.recover();
+    try t.expect(try objects.objectStore().head(try Source.storage.key(try descriptor.key.digest(), chunk, &path)) == null);
+    try t.expectError(error.LostAcknowledgement, catalog.documentSourceUpload(upload, access.policy(), authority));
+    catalog.store.lose_reply = false;
+    try catalog.recover();
+    observed = try catalog.documentSourceUpload(upload, access.policy(), authority);
+    try t.expectEqual(bytes.len, observed.entry.ready_bytes);
+    var conflicting = upload;
+    conflicting.bytes = "a different source";
+    conflicting.chunk = sourceChunk(0, conflicting.bytes);
+    // A different final length is invalid before inventory lookup.
+    try t.expectError(error.InvalidDocumentSourceChunk, catalog.documentSourceUpload(conflicting, access.policy(), authority));
+    conflicting.bytes = "b complete source";
+    conflicting.chunk = sourceChunk(0, conflicting.bytes);
+    try t.expectError(error.ClientOperationConflict, catalog.documentSourceUpload(conflicting, access.policy(), authority));
+    try objects.objectStore().delete(try Source.storage.key(try descriptor.key.digest(), chunk, &path));
+    try t.expectError(error.DocumentSourceMissing, catalog.documentSourceUpload(upload, access.policy(), authority));
+    try t.expect(try objects.objectStore().head(try Source.storage.key(try descriptor.key.digest(), chunk, &path)) == null);
+    observed = (try catalog.documentSourceInspect(.{ .key = descriptor.key }, access.policy(), authority)).?;
+    admission.used = admission.limit;
+    const closed = try catalog.documentSourceClose(.{ .key = descriptor.key, .expected = observed.entry.revision }, access.policy(), authority);
+    admission.used = 0;
+    try t.expectEqual(.closed, closed.entry.phase);
+    try t.expectError(error.OwnedRecordClosed, catalog.documentSourceUpload(upload, access.policy(), authority));
+    try objects.objectStore().delete(try c.DirectRecord.key(binding.intent.external.record, &path));
+    catalog.deinit();
+    catalog = try owner(&wal, &objects);
+    try t.expectEqualDeep(closed, try catalog.documentSourceReserve(descriptor, access.policy(), authority));
+    const usage = (try catalog.store.clientUsage(catalog.store.root, descriptor.key)).?;
+    try t.expectEqual(0, usage.pending);
+    try t.expectEqual(descriptor.budget.bytes, usage.bytes);
+
+    // Deny readiness after the immutable put. Its durable pending reservation
+    // protects these bytes; closure then fences a late physical-write retry.
+    const pending_descriptor = try sourceDescriptor(3, bytes.len, chunk.content.sha256);
+    observed = try catalog.documentSourceReserve(pending_descriptor, access.policy(), authority);
+    const pending_upload: Source.Upload = .{ .control = .{ .key = pending_descriptor.key, .expected = observed.entry.revision }, .chunk = chunk, .bytes = bytes };
+    access.deny_at = access.calls + 6;
+    try t.expectError(error.CatalogDenied, catalog.documentSourceUpload(pending_upload, access.policy(), authority));
+    access.deny_at = std.math.maxInt(usize);
+    try t.expect(try objects.objectStore().head(try Source.storage.key(try pending_descriptor.key.digest(), chunk, &path)) != null);
+    observed = (try catalog.documentSourceInspect(.{ .key = pending_descriptor.key }, access.policy(), authority)).?;
+    try t.expect(observed.staged != null and observed.entry.ready_bytes == 0);
+    _ = try catalog.documentSourceClose(.{ .key = pending_descriptor.key, .expected = observed.entry.revision }, access.policy(), authority);
+    try t.expectError(error.OwnedRecordClosed, catalog.documentSourceUpload(pending_upload, access.policy(), authority));
+
+    // A missing acknowledged inventory is corruption, never a source to rebuild.
+    const broken_descriptor = try sourceDescriptor(4, bytes.len, chunk.content.sha256);
+    observed = try catalog.documentSourceReserve(broken_descriptor, access.policy(), authority);
+    observed = try catalog.documentSourceUpload(.{ .control = .{ .key = broken_descriptor.key, .expected = observed.entry.revision }, .chunk = chunk, .bytes = bytes }, access.policy(), authority);
+    const ready = (try catalog.store.clientTokenState(broken_descriptor.key)).?.source.?;
+    const corrupt_path = try Source.storage.key(try broken_descriptor.key.digest(), chunk, &path);
+    try objects.objectStore().delete(corrupt_path);
+    const oversized = "this corrupt object exceeds the declared final chunk";
+    const oversized_digest = sourceChunk(0, oversized).content.sha256;
+    _ = try objects.objectStore().putImmutable(corrupt_path, oversized, oversized_digest);
+    var buffer: [64]u8 = undefined;
+    // The caller's larger output must not expand admitted I/O on corrupt data.
+    try t.expectError(error.BufferTooSmall, catalog.documentSourceRead(broken_descriptor.key, 0, &buffer, access.policy(), authority));
+    for (buffer) |byte| try t.expectEqual(0, byte);
+    try objects.objectStore().delete(try s.TreeStore.key(ready.root.?.location, &path));
+    catalog.deinit();
+    catalog = try owner(&wal, &objects);
+    try t.expectError(error.MissingDataIndexObject, catalog.documentSourceRead(broken_descriptor.key, 0, &buffer, access.policy(), authority));
+    for (buffer) |byte| try t.expectEqual(0, byte);
+}
 
 // Injected policy exercises required scopes and fence placement. Native signed
 // proofs, registration and service enforcement need separate composition tests.

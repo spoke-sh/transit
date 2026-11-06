@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "2dce803c5e406b5fbf526daee33411a03a71b22bea0e8ebe30fa7afdbd2457b6"
+definition = "7ca0568f92449103c8f557c86127809b9a90ccf64004a7b3cdad13a805b9f745"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -787,6 +787,41 @@ with tempfile.TemporaryDirectory(prefix="transit-original-contract-") as directo
         original_vectors[action] = original_request
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-owned-record-v1.json",
         (json.dumps({"requests": original_vectors, "public_key": public_key}, ensure_ascii=False, indent=2) + "\n").encode())
+
+# Source ownership commits to the complete descriptor independently of the Zig
+# encoder. It is a component contract, not a new signed Document endpoint.
+source_payload = b"abc"
+source_digest = hashlib.sha256(source_payload).digest()
+source_profile = json.loads((root / "packages/zig/transit-protocol/src/fixtures/document-profile-v1.json").read_text())["descriptor"]
+source_descriptor = {
+    "key": token_key,
+    "operation": {"scope": request_input["connection"]["scope"], "principal": 4, "operation": 2**64 - 1},
+    "namespace": 1,
+    "target": {"partition": {"definition": definition, "interpretation": source_definition, "partition": 2**32 - 1}, "document": [7] * 16},
+    "kind": "create", "expected": None, "profile": source_profile, "part": 1,
+    "source": {"bytes": len(source_payload), "sha256": list(source_digest)},
+    "budget": {"limits": {"operations": 1000000, "bytes": 4 * 1024**3, "pending": 1024}, "bytes": 32 * 1024**2},
+    "limits": {"work_bytes": 128 * 1024**2, "work_pages": 100000},
+}
+source_validator = jsonschema.Draft202012Validator({**schema, "$ref": "#/$defs/DocumentSourceDescriptor"})
+source_validator.validate(source_descriptor)
+for field in source_descriptor:
+    invalid = copy.deepcopy(source_descriptor)
+    del invalid[field]
+    assert not source_validator.is_valid(invalid), field
+source_envelope = canonical({"definition": definition, "key": token_key, "format": 0x44535331,
+                             "bytes": {"base64": base64.b64encode(canonical(source_descriptor)).decode()}})
+source_reference = {"scope": original_reference["scope"], "format": 0x534F5231,
+                    "content": {"bytes": len(source_envelope), "sha256": list(hashlib.sha256(source_envelope).digest())}}
+source_binding = {"key": token_key, "fingerprint": source_reference["content"]["sha256"],
+                  "intent": {"external": {"connection": request_input["connection"], "namespace": 1, "operation": 2**64 - 1, "record": source_reference}},
+                  "budget": source_descriptor["budget"]}
+source_owner = hashlib.sha256(b"transit.catalog.client-token.v1\0" + struct.pack("<QQQQ", 42, 3, 2**64 - 1, 4)
+                             + bytes(token_key["account"]) + bytes(token_key["token"])).digest()
+source_key = "document-sources/" + hashlib.sha256(b"transit.document.source.chunk.v1\0" + bytes.fromhex(definition)
+                                                 + source_owner + struct.pack(">QQ", 0, 3) + source_digest).hexdigest() + ".data"
+persist(root / "packages/zig/transit-catalog/src/fixtures/document-source-v1.json",
+        (json.dumps({"descriptor": source_descriptor, "binding": source_binding, "chunk_key": source_key}, indent=2) + "\n").encode())
 
 # A log declaration token commits to its complete canonical saved body before
 # declaration admission. Content, account and the original binding are explicit.

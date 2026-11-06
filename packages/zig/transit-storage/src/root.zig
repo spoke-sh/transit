@@ -20,6 +20,7 @@ pub const LogTail = @import("LogTail.zig");
 pub const LogTime = @import("LogTime.zig");
 pub const LogDeclaration = @import("LogDeclaration.zig");
 pub const PublicationGuard = @import("PublicationGuard.zig");
+pub const DocumentSource = @import("DocumentSource.zig");
 pub const LogInitialization = @import("LogInitialization.zig");
 pub const LogBatch = @import("LogBatch.zig");
 pub const LogView = @import("LogView.zig");

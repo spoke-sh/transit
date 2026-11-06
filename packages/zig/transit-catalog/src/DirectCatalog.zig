@@ -1425,6 +1425,7 @@ pub fn directRecord(self: *Self, allocator: std.mem.Allocator, request: c.Direct
     };
     // The cut is server-owned evidence. Generic caller records only check
     // CONNECT and cannot bypass its complete current Table disclosure checks.
+    if (format == c.DirectDocumentSource.format) return error.DocumentSourceOperationRequired;
     if (format == c.DirectHistory.format) return error.HistoricalOperationRequired;
     if (format == c.DirectBranch.format) return error.BranchOperationRequired;
     if (format == c.DirectQueueTransferPlan.format) return error.TransactionOperationRequired;
@@ -1638,9 +1639,9 @@ pub fn requireClientLease(self: *Self, lease: c.DirectClientToken.Lease, policy:
 }
 
 pub fn clientToken(self: *Self, request: c.DirectClientToken.Request, policy: Policy) !?c.DirectClientToken.Receipt {
-    return self.clientTokenSelected(request, policy, false, false);
+    return self.clientTokenSelected(request, policy, false, .none);
 }
-fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy: Policy, server_selection: bool, original_reservation: bool) !?c.DirectClientToken.Receipt {
+fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy: Policy, server_selection: bool, reservation: union(enum) { none, original, source: struct { descriptor: c.DirectDocumentSource.Descriptor, guard: P.Guard } }) !?c.DirectClientToken.Receipt {
     try self.requireInitialized();
     try request.validate();
     const key = request.key();
@@ -1650,6 +1651,7 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
     const database = try self.guard(arena.allocator(), policy, null, null, .database);
     try check(database);
     if (try self.store.clientToken(key)) |receipt| {
+        if ((try self.store.clientTokenState(key)).?.source != null and reservation != .source) return error.DocumentSourceOperationRequired;
         if (request == .bind) try self.requireTransactionMutation(receipt);
         const reference = receipt.binding.intent;
         const current = try self.intentGuard(arena.allocator(), reference, policy);
@@ -1668,7 +1670,7 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
         const owner_value = self.queue_transfer_owner orelse return error.TransactionOperationRequired;
         if (!std.mem.eql(u8, &owner_value.key, &try key.digest()) or !std.meta.eql(owner_value.plan, reference.transaction.purpose.queue_transfer)) return error.TransactionOperationRequired;
     }
-    const current = if (reference == .branch) try self.branchGuard(arena.allocator(), reference.branch, policy, true) else try self.intentGuard(arena.allocator(), reference, policy);
+    const current = if (reservation == .source) reservation.source.guard else if (reference == .branch) try self.branchGuard(arena.allocator(), reference.branch, policy, true) else try self.intentGuard(arena.allocator(), reference, policy);
     try check(current);
     if (self.store.root.client_token_count >= self.options.client_token_quota) return error.ClientTokenCapacity;
     const usage = (try self.store.clientUsage(self.store.root, key)) orelse c.DirectClientToken.Usage.initial(binding.budget.limits);
@@ -1678,7 +1680,7 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
     const reserved = try usage.transition(null, c.DirectClientToken.Progress.initial(receipt));
     if (reference == .transaction) try reserved.transactions.requireWithin(self.options.transaction_account_limits);
     var index_batch: s.TreeStore.Batch = .{};
-    try self.store.index.beginBatch(self.options.index_work_bytes, &index_batch);
+    try self.store.index.beginBatch(if (reservation == .source) c.DirectDocumentSource.index_bytes else self.options.index_work_bytes, &index_batch);
     defer self.store.index.end();
     // A token claims the complete original identity before accepting its
     // reference; this is independent of data admission and execution.
@@ -1716,7 +1718,7 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
         },
         .external => |value| {
             if (value.record.format == c.DirectOwnedRecord.format) {
-                if (!original_reservation) return error.OwnedRecordOperationRequired;
+                if (reservation == .none) return error.OwnedRecordOperationRequired;
             } else {
                 const bytes = try c.DirectRecord.load(self.allocator, self.data_objects, value.record);
                 defer self.allocator.free(bytes);
@@ -1758,7 +1760,9 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
     next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
     next.client_token_count = try std.math.add(u64, next.client_token_count, 1);
     if (coordination != null) next.next_partition = try std.math.add(u64, next.next_partition, 1);
-    const state = c.DirectClientToken.Progress.initial(receipt);
+    var state = c.DirectClientToken.Progress.initial(receipt);
+    if (reservation == .source) state.source = c.DirectDocumentSource.State.initial(reservation.source.descriptor);
+    try state.validate();
     try self.store.clientIndices(&next, state);
     try self.store.publish(next, .{ .client_token = state }, current);
     try check(current);
@@ -1785,7 +1789,10 @@ pub fn clientProgressWithWorkloads(self: *Self, request: c.DirectClientToken.Pro
     if (request == .stage_original) return .{ .state = try self.stageOriginal(arena.allocator(), request.stage_original, policy) };
     if (request == .list) {
         const page = try self.store.clientPage(request.list);
-        for (page.entries) |slot| if (slot) |state| try check(try self.intentGuard(arena.allocator(), state.receipt.binding.intent, policy));
+        for (page.entries) |slot| if (slot) |state| {
+            if (state.source != null) return error.DocumentSourceOperationRequired;
+            try check(try self.intentGuard(arena.allocator(), state.receipt.binding.intent, policy));
+        };
         try check(database);
         return .{ .page = page };
     }
@@ -1799,6 +1806,7 @@ pub fn clientProgressWithWorkloads(self: *Self, request: c.DirectClientToken.Pro
         try check(database);
         return .{ .state = null };
     };
+    if (state.source != null) return error.DocumentSourceOperationRequired;
     const current = try self.intentGuard(arena.allocator(), state.receipt.binding.intent, policy);
     try check(current);
     if (request == .retain_original or request == .attach_original or request == .close_original)
@@ -1831,12 +1839,13 @@ pub fn clientProgressWithWorkloads(self: *Self, request: c.DirectClientToken.Pro
 }
 
 fn stageOriginal(self: *Self, allocator: std.mem.Allocator, request: c.DirectOwnedRecord.Stage, policy: Policy) anyerror!c.DirectClientToken.Progress {
+    if (request.format == c.DirectDocumentSource.format) return error.DocumentSourceOperationRequired;
     const bytes = try request.encode(allocator);
     defer allocator.free(bytes);
     // Validate budget before acceptance; the durable token reserves capacity and
     // the proposed reference before putImmutable can create any bytes.
     if (bytes.len + 512 > request.binding.budget.bytes) return error.ClientTokenBudget;
-    const receipt = (try self.clientTokenSelected(.{ .bind = request.binding }, policy, false, true)).?;
+    const receipt = (try self.clientTokenSelected(.{ .bind = request.binding }, policy, false, .original)).?;
     if (!std.meta.eql(receipt.binding, request.binding)) return error.ClientTokenConflict;
     var state = (try self.store.clientTokenState(request.binding.key)).?;
     const owned_state = state.original orelse return error.InvalidOwnedRecord;
@@ -1959,6 +1968,284 @@ fn publishProgress(self: *Self, value: c.DirectClientToken.Progress, current: P.
     try check(current);
     return state;
 }
+const Source = c.DirectDocumentSource;
+
+fn sourceGuard(self: *Self, allocator: std.mem.Allocator, scope: c.DirectRecord.Scope, target: ?p.DocumentOperation.Target, access: Source.Access, policy: Policy, authority: Source.Authority) !P.Guard {
+    try self.requireInitialized();
+    try scope.validate();
+    if (!scope.connection.matches(self.config()) or scope.connection.principal != policy.subject.principal()) return error.CatalogDenied;
+    if (target) |value| {
+        try value.validate();
+        try scope.connection.object(value.partition.interpretation.object);
+    }
+    const current = try authority.make_guard(authority.context, allocator, try self.requirements(policy, null, null, .database), target, access);
+    try check(current);
+    return current;
+}
+
+/// Publication is serialized with original reservation, chunk put and closure.
+/// Existing allocation epochs protect private pages from earlier collector cuts.
+fn publishSource(self: *Self, value: c.DirectClientToken.Progress, current: P.Guard, chunk: ?Source.storage.Chunk) !c.DirectClientToken.Progress {
+    var batch: s.TreeStore.Batch = .{};
+    try self.store.index.beginBatch(Source.index_bytes, &batch);
+    defer self.store.index.end();
+    var state = value;
+    if (chunk) |ready| {
+        const source = if (state.source) |*source| source else return error.InvalidDocumentSource;
+        source.root = try self.store.tree().put(source.root, try ready.indexKey(), try ready.value());
+        source.ready_bytes = try std.math.add(u64, ready.offset, ready.content.bytes);
+        source.staged = null;
+    }
+    var next = self.store.root;
+    next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
+    state.revision = .{ .partition = self.config().partition, .next_lsn = next.next_lsn };
+    try state.validate();
+    try self.store.clientIndices(&next, state);
+    try self.store.publish(next, .{ .client_token = state }, current);
+    try check(current);
+    return state;
+}
+
+pub fn documentSourceReserve(self: *Self, descriptor: Source.Descriptor, policy: Policy, authority: Source.Authority) !Source.Observation {
+    try descriptor.validate();
+    try authority.admission.acquire();
+    defer authority.admission.release();
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    const allocator = scratch.allocator();
+    const current = try self.sourceGuard(allocator, descriptor.key.scope(), descriptor.target, .mutate, policy, authority);
+    const binding = try descriptor.binding(allocator);
+    const receipt = (try self.clientTokenSelected(.{ .bind = binding }, policy, false, .{ .source = .{ .descriptor = descriptor, .guard = current } })).?;
+    if (!std.meta.eql(receipt.binding, binding)) return error.ClientTokenConflict;
+    var state = (try self.store.clientTokenState(descriptor.key)).?;
+    const source = state.source orelse return error.DocumentSourceOperationRequired;
+    if (!std.meta.eql(source.descriptor, descriptor)) return error.ClientTokenConflict;
+    try check(current);
+    if (source.phase == .closed) return Source.Observation.from(state);
+    const reference = receipt.binding.intent.external.record;
+    if (state.original.?.phase == .reserved) {
+        const bytes = try descriptor.encode(allocator);
+        const fence = try current.acquire(current.context);
+        _ = fence;
+        defer current.release(current.context);
+        try reference.requireSame(try c.DirectRecord.store(self.data_objects, reference.scope, reference.format, bytes));
+    } else {
+        const bytes = try c.DirectRecord.load(allocator, self.data_objects, reference);
+        allocator.free(bytes);
+        try check(current);
+        return Source.Observation.from(state);
+    }
+    state.original.?.phase = .ready;
+    state = try self.publishSource(state, current, null);
+    return Source.Observation.from(state);
+}
+
+fn sourceState(self: *Self, key: c.DirectClientToken.Key) !c.DirectClientToken.Progress {
+    const state = (try self.store.clientTokenState(key)) orelse return error.ClientOperationMissing;
+    if (state.source == null) return error.DocumentSourceOperationRequired;
+    return state;
+}
+
+pub fn documentSourceInspect(self: *Self, lookup: Source.Lookup, policy: Policy, authority: Source.Authority) !?Source.Observation {
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    const current = try self.sourceGuard(scratch.allocator(), lookup.scope(), null, .inspect, policy, authority);
+    const state = (switch (lookup) {
+        .key => |key| try self.store.clientTokenState(key),
+        .operation => |value| blk: {
+            if (value.id < 2) return error.InvalidClientToken;
+            break :blk try self.store.clientOperation(value.scope, value.id);
+        },
+    }) orelse {
+        try check(current);
+        return null;
+    };
+    const source = state.source orelse return error.DocumentSourceOperationRequired;
+    const target = try self.sourceGuard(scratch.allocator(), lookup.scope(), source.descriptor.target, .inspect, policy, authority);
+    const result = try Source.Observation.from(state);
+    try check(target);
+    try check(current);
+    return result;
+}
+
+pub fn documentSourceUpload(self: *Self, request: Source.Upload, policy: Policy, authority: Source.Authority) !Source.Observation {
+    try request.control.validate();
+    try authority.admission.acquire();
+    defer authority.admission.release();
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    _ = try self.sourceGuard(scratch.allocator(), request.control.key.scope(), null, .mutate, policy, authority);
+    var state = try self.sourceState(request.control.key);
+    const current = try self.sourceGuard(scratch.allocator(), request.control.key.scope(), state.source.?.descriptor.target, .mutate, policy, authority);
+    if (state.source.?.phase == .closed) return error.OwnedRecordClosed;
+    if (state.original.?.phase != .ready) return error.OwnedRecordPending;
+    const chunk = request.chunk;
+    try chunk.validate(state.source.?.descriptor.source.bytes);
+    if (request.bytes.len != chunk.content.bytes) return error.InvalidDocumentSourceChunk;
+    var digest: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(request.bytes, &digest, .{});
+    if (!std.mem.eql(u8, &digest, &chunk.content.sha256)) return error.InvalidDocumentSourceChunk;
+    const owner = try request.control.key.digest();
+    if (chunk.offset < state.source.?.ready_bytes) {
+        try state.source.?.charge(chunk.content.bytes + Source.publication_bytes, pages.max_height + 1, Source.publication_bytes);
+        state = try self.publishSource(state, current, null);
+        const ready = try Source.storage.lookup(&self.store.index, state.source.?.root, chunk.offset, state.source.?.descriptor.source.bytes);
+        if (!std.meta.eql(ready, chunk)) return error.ClientOperationConflict;
+        var buffer: [Source.storage.chunk_bytes]u8 = undefined;
+        _ = try Source.storage.read(self.data_objects, owner, chunk, &buffer);
+        try check(current);
+        return Source.Observation.from(state);
+    }
+    if (state.source.?.phase != .uploading or chunk.offset != state.source.?.ready_bytes) return error.InvalidDocumentSourceChunk;
+    if (state.source.?.staged) |pending_chunk| {
+        if (!std.meta.eql(pending_chunk, chunk)) return error.ClientOperationConflict;
+        // Retrying an interrupted physical write spends work again, while the
+        // original reservation continues to cover the chunk and readiness.
+        try state.source.?.charge(chunk.content.bytes + Source.publication_bytes, pages.max_height + 1, Source.publication_bytes);
+        state = try self.publishSource(state, current, null);
+    } else {
+        if (!std.meta.eql(request.control.expected, state.revision)) return error.ClientOperationConflict;
+        try state.source.?.charge(chunk.content.bytes + 2 * Source.publication_bytes, 2 * (pages.max_height + 1), chunk.content.bytes + 2 * Source.publication_bytes);
+        state.source.?.staged = chunk;
+        state = try self.publishSource(state, current, null);
+    }
+    {
+        _ = try current.acquire(current.context);
+        defer current.release(current.context);
+        try Source.storage.put(self.data_objects, owner, chunk, request.bytes);
+    }
+    state = try self.publishSource(state, current, chunk);
+    return Source.Observation.from(state);
+}
+
+/// Complete chunks are copied into caller-owned memory. On error no buffered
+/// bytes may escape the current-authority disclosure check.
+pub fn documentSourceRead(self: *Self, key: c.DirectClientToken.Key, offset: u64, output: []u8, policy: Policy, authority: Source.Authority) ![]const u8 {
+    errdefer @memset(output, 0);
+    try authority.admission.acquire();
+    defer authority.admission.release();
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    _ = try self.sourceGuard(scratch.allocator(), key.scope(), null, .read, policy, authority);
+    var state = try self.sourceState(key);
+    const source = state.source.?;
+    const current = try self.sourceGuard(scratch.allocator(), key.scope(), source.descriptor.target, .read, policy, authority);
+    if (source.phase == .closed) return error.OwnedRecordClosed;
+    if (offset >= source.ready_bytes or offset % Source.storage.chunk_bytes != 0) return error.DocumentSourceMissing;
+    const bytes: u64 = @min(Source.storage.chunk_bytes, source.ready_bytes - offset);
+    if (output.len < bytes) return error.BufferTooSmall;
+    try state.source.?.charge(bytes + Source.publication_bytes, pages.max_height + 1, Source.publication_bytes);
+    state = try self.publishSource(state, current, null);
+    const chunk = try Source.storage.lookup(&self.store.index, state.source.?.root, offset, source.descriptor.source.bytes);
+    const result = try Source.storage.read(self.data_objects, try key.digest(), chunk, output);
+    try check(current);
+    return result;
+}
+
+pub fn documentSourceVerify(self: *Self, verifier: *Source.Verifier, budget: Source.StepBudget, policy: Policy, authority: Source.Authority) !Source.Observation {
+    try budget.validate();
+    if (!verifier.held or verifier.admission != authority.admission) return error.InvalidDocumentSource;
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    _ = try self.sourceGuard(scratch.allocator(), verifier.key.scope(), null, .mutate, policy, authority);
+    var state = try self.sourceState(verifier.key);
+    const source = state.source.?;
+    const current = try self.sourceGuard(scratch.allocator(), verifier.key.scope(), source.descriptor.target, .mutate, policy, authority);
+    if (source.phase == .closed) return error.OwnedRecordClosed;
+    if (source.phase != .uploading) {
+        verifier.done = true;
+        return Source.Observation.from(state);
+    }
+    if (source.ready_bytes != source.descriptor.source.bytes or source.staged != null) return error.OwnedRecordPending;
+    if (verifier.offset > source.ready_bytes or (verifier.root != null and !std.meta.eql(verifier.root, source.root))) return error.InvalidDocumentSource;
+    const max_chunks = budget.pages / (pages.max_height + 1);
+    var count: u64 = 0;
+    var byte_count: u64 = 0;
+    while (count < max_chunks and verifier.offset + byte_count < source.ready_bytes) : (count += 1) {
+        const next = @min(Source.storage.chunk_bytes, source.ready_bytes - verifier.offset - byte_count);
+        if (next > budget.bytes - byte_count) break;
+        byte_count += next;
+    }
+    if (count == 0) return error.DocumentSourceWorkLimit;
+    try state.source.?.charge(byte_count + 2 * Source.publication_bytes, count * (pages.max_height + 1), 2 * Source.publication_bytes);
+    state = try self.publishSource(state, current, null);
+    var hash = verifier.hash;
+    var offset = verifier.offset;
+    const owner = try verifier.key.digest();
+    for (0..@intCast(count)) |_| {
+        const chunk = try Source.storage.lookup(&self.store.index, source.root, offset, source.descriptor.source.bytes);
+        hash.update(try Source.storage.read(self.data_objects, owner, chunk, &verifier.buffer));
+        offset += chunk.content.bytes;
+    }
+    try check(current);
+    if (offset == source.ready_bytes) {
+        const observed = hash.finalResult();
+        state.source.?.observed = observed;
+        state.source.?.phase = if (std.mem.eql(u8, &observed, &source.descriptor.source.sha256)) .verified else .failed;
+        state = try self.publishSource(state, current, null);
+        verifier.done = true;
+    }
+    verifier.hash = hash;
+    verifier.offset = offset;
+    verifier.root = source.root;
+    return Source.Observation.from(state);
+}
+
+pub fn documentSourceClose(self: *Self, control: Source.Control, policy: Policy, authority: Source.Authority) !Source.Observation {
+    try control.validate();
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    _ = try self.sourceGuard(scratch.allocator(), control.key.scope(), null, .mutate, policy, authority);
+    var state = try self.sourceState(control.key);
+    const current = try self.sourceGuard(scratch.allocator(), control.key.scope(), state.source.?.descriptor.target, .mutate, policy, authority);
+    if (state.source.?.phase == .closed) return Source.Observation.from(state);
+    if (!std.meta.eql(control.expected, state.revision)) return error.ClientOperationConflict;
+    state.source.?.phase = .closed;
+    state.source.?.staged = null;
+    state.original.?.phase = .closed;
+    state.pending = false;
+    state.cancel = true;
+    state = try self.publishSource(state, current, null);
+    return Source.Observation.from(state);
+}
+
+pub fn documentSourceList(self: *Self, selection: Source.Selection, cursor: ?Source.Cursor, policy: Policy, authority: Source.Authority) !Source.Page {
+    try selection.validate();
+    if (cursor) |value| if (!std.meta.eql(selection, value.selection) or value.after < 2) return error.InvalidDocumentSourceCursor;
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    const current = try self.sourceGuard(scratch.allocator(), selection.scope, selection.target, .inspect, policy, authority);
+    var result: Source.Page = .{};
+    var after = if (cursor) |value| @as(?u64, value.after) else null;
+    var count: usize = 0;
+    var guards: [8]?P.Guard = @splat(null);
+    while (result.examined < 32) {
+        const page = try self.store.clientPage(.{ .scope = selection.scope, .after = after, .pending = selection.pending });
+        for (page.entries, 0..) |slot, i| {
+            const state = slot orelse break;
+            result.examined += 1;
+            after = state.id();
+            if (state.source) |source| {
+                if (selection.target == null or std.meta.eql(selection.target.?, source.descriptor.target)) {
+                    guards[count] = try self.sourceGuard(scratch.allocator(), selection.scope, source.descriptor.target, .inspect, policy, authority);
+                    result.entries[count] = try Source.Entry.from(state);
+                    count += 1;
+                }
+            }
+            if (count == result.entries.len or result.examined == 32) {
+                if ((i + 1 < page.entries.len and page.entries[i + 1] != null) or page.next != null)
+                    result.next = .{ .selection = selection, .after = after.? };
+                break;
+            }
+        }
+        if (count == result.entries.len or result.examined == 32 or page.next == null) break;
+        after = page.next;
+    }
+    for (guards) |guard_value| if (guard_value) |value| try check(value);
+    try check(current);
+    return result;
+}
+
 fn requireClientTerminal(self: *Self, reference: c.DirectIntent.Reference, policy: Policy, workloads: ?c.DirectWorkloadIntent.Reader) anyerror!void {
     switch (reference) {
         .history => return error.HistoricalOperationRequired,
@@ -2302,7 +2589,7 @@ fn beginTransactionBounded(self: *Self, request: c.DirectTransactionRequest.Begi
     }
     const begin: p.Transaction.Begin = .{ .definition = p.Growth.current_definition, .identity = identity, .mode = request.mode, .selection = if (request.selection == .explicit_objects) .explicit_objects else .authorized_catalog_tables, .objects = try selected.seal(), .catalog = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn }, .limits = request.limits };
     const binding: c.DirectClientToken.Binding = .{ .key = request.key, .fingerprint = request.fingerprint, .budget = request.budget, .intent = .{ .transaction = .{ .connection = request.key.connection, .namespace = request.namespace, .begin = begin, .purpose = if (self.queue_transfer_owner) |value| .{ .queue_transfer = value.plan } else .interactive } } };
-    return (try self.clientTokenSelected(.{ .bind = binding }, policy, true, false)).?;
+    return (try self.clientTokenSelected(.{ .bind = binding }, policy, true, .none)).?;
 }
 
 fn selectTransactionTable(self: *Self, selected: *s.TransactionDirectory, target: r.Entry, policy: Policy, scratch: std.mem.Allocator, filter: bool) !bool {
@@ -2400,7 +2687,7 @@ fn admitQueueTransferBounded(self: *Self, plan: c.DirectQueueTransferPlan, origi
     defer self.queue_transfer_owner = null;
     var targets: [2]p.Transaction.Target = undefined;
     const receipt = if (reserved) |saved|
-        (try self.clientTokenSelected(.{ .bind = .{ .key = plan.key, .fingerprint = try plan.digest(), .budget = plan.budget, .intent = .{ .transaction = saved.reference } } }, policy, true, false)).?
+        (try self.clientTokenSelected(.{ .bind = .{ .key = plan.key, .fingerprint = try plan.digest(), .budget = plan.budget, .intent = .{ .transaction = saved.reference } } }, policy, true, .none)).?
     else
         try self.beginTransaction(try plan.begin(&targets), policy);
     try plan.requireReceipt(receipt);

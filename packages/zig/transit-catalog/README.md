@@ -357,6 +357,46 @@ admit or execute data. See the
 for identity, quota and uncertainty rules. SQL account recovery uses these
 Catalog records independently of Station.
 
+### Protected Document sources
+
+`DirectDocumentSource` composes the original token and SOR1 owner with a paged
+source inventory. `DirectCatalog.documentSourceReserve` binds the exact target,
+base, intended profile, part and content commitment before writing the descriptor.
+`documentSourceUpload` reserves each sequential 64 KiB chunk before immutable
+creation and publishes readiness separately. Retries recover that original;
+ready retries verify existing data without repair. `documentSourceVerify` checks
+whole-source coverage/hash in steps of at most 4 MiB, with a process-local digest
+continuation. Reopening restarts hashing and spends the accepted work allowance
+again. It establishes no profile validation or Document acceptance.
+
+`documentSourceInspect` resolves the original token or scoped operation ID;
+`documentSourceList` scans at most 32 existing token entries and returns at most
+eight redacted entries. Its continuation binds the exact selection and advances
+by the last scanned ID, including an empty nonterminal page. Enumeration observes
+live state. `documentSourceRead` copies one acknowledged chunk to caller-owned
+memory and clears that output on failure. Every operation uses current scope and
+target authority; independent Document readers do not inherit private recovery
+rights. Read accounting is owner bookkeeping and does not mutate a Document.
+
+`documentSourceClose` compares the current revision and permanently fences the
+unaccepted source. The original remains discoverable after physical cleanup.
+Generic progress, record, original retention and KV attachment APIs reject this
+owner's format. Inspection and closure remain usable when active work is full.
+The embedding host must serialize Catalog calls with collector cut acquisition,
+provide an explicit native authority guard and share `Admission` across roles
+and accounts. It reserves 8 MiB per active source against a default 64 MiB host
+ceiling. Each metadata publication charges 64 KiB, covering at most 48 KiB of
+index writes plus the 16 KiB WAL record bound; cumulative charges include prior
+publications, pending writes and repeated reads/verification. Initial admission
+charges 256 KiB for the descriptor and reservation/readiness/close publications;
+the reserved close step remains available after work exhaustion. Provider quotas
+separately bound failed unpublished allocations. Permanent account
+reservations are not refunded by collection. These component operations enable
+no installed Document domain, route or attachment. See the
+[source contract](../../../contracts/DIRECT_TABLE_V1.md#protected-document-sources).
+
+### Transaction and query callers
+
 `DirectTransaction.Reference` binds a begin descriptor and mandatory purpose
 through that token owner. Ordinary callers use `interactive`; protected purposes
 can be admitted and changed only by their catalog composition owner.

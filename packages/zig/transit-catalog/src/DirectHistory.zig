@@ -356,7 +356,7 @@ pub fn validateResult(allocator: std.mem.Allocator, connection: w.Connection, re
             };
             try status.receipt.validate();
             try status.revision.validate();
-            const progress: c.DirectClientToken.Progress = .{ .receipt = status.receipt, .revision = status.revision, .pending = status.state.pending(), .cancel = status.state.cancelled(), .record = null, .staged = null, .original = null };
+            const progress: c.DirectClientToken.Progress = .{ .receipt = status.receipt, .revision = status.revision, .pending = status.state.pending(), .cancel = status.state.cancelled(), .record = null, .staged = null, .original = null, .source = null };
             try progress.validate();
             try status.state.validate(progress);
             const intent = status.receipt.binding.intent.history;

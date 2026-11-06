@@ -14,6 +14,154 @@ const columns = [_]f.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64
 const schema: f.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
 const object: p.DataLifecycle.Object = .{ .scope = .{ .realm = 42, .resource = 2, .catalog = 3 }, .branch = 1, .object = 7 };
 
+const SourceCatalog = struct {
+    fixture: *Fixture,
+    admission: c.DirectDocumentSource.Admission = .{},
+    const authority: c.TableAuthority.Profile = .{ .database_domain = 1, .schema_domain = 2, .table_domain = 3, .stream_domain = 31, .queue_domain = 32, .kv_domain = 33, .database = 4, .initial_schema = 1, .initial_schema_authority = 5 };
+    fn make(raw: *anyopaque, _: std.mem.Allocator, required: p.Authorization.Guard, _: ?p.Authorization.Guard) !P.Guard {
+        try required.validate();
+        const self: *SourceCatalog = @ptrCast(@alignCast(raw));
+        return self.fixture.guard();
+    }
+    fn sourceGuard(raw: *anyopaque, allocator: std.mem.Allocator, required: p.Authorization.Guard, _: ?p.DocumentOperation.Target, _: c.DirectDocumentSource.Access) !P.Guard {
+        return make(raw, allocator, required, null);
+    }
+    fn registered(_: *anyopaque, kind: c.TableAuthority.Kind, id: u64) !?p.Authorization.Object {
+        if (kind != .database and kind != .schema) return null;
+        return .{ .reference = c.TableAuthority.reference(if (kind == .database) authority.database else authority.initial_schema_authority), .owner = 0, .registrar = 0, .actions = c.TableAuthority.actions(kind), .domain = authority.domain(kind), .binding = try c.TableAuthority.binding(object.scope, kind, id), .parent = if (kind == .database) null else c.TableAuthority.reference(authority.database), .revision = 1 };
+    }
+    fn policy(self: *SourceCatalog) c.DirectCatalog.Policy {
+        return .{ .context = self, .subject = .{ .accepted = .{ .pid = 1, .input = 1, .principal = 0 } }, .make_guard = make, .registered = registered };
+    }
+    fn sourceAuthority(self: *SourceCatalog) c.DirectDocumentSource.Authority {
+        return .{ .context = self, .admission = &self.admission, .make_guard = sourceGuard };
+    }
+    fn open(self: *SourceCatalog) !c.DirectCatalog {
+        var catalog = try c.DirectCatalog.init(t.allocator, .{ .scope = object.scope, .branch = 1, .partition = 3, .audience = 1, .authority = authority, .database_name = try .init("main"), .initial_schema_name = try .init("public") }, self.fixture.data.log(), self.fixture.data.objects(), self.fixture.data.log(), self.fixture.data.objects(), .{ .resident_pages = 1 });
+        errdefer catalog.deinit();
+        try catalog.recover();
+        return catalog;
+    }
+    fn descriptor(ordinal: u8) !c.DirectDocumentSource.Descriptor {
+        const profile: p.DocumentProfile.Descriptor = .{ .definition = p.Growth.current_definition, .format = .json, .revision = 1, .grammar = .{ .bytes = 1, .sha256 = @splat(1) }, .schema = null, .segmenter = null, .encoding = .utf8, .framing = .single, .key_collation = .utf8_binary, .value_collation = .utf8_binary, .digest = undefined, .limits = .{ .input_bytes = 3, .expanded_bytes = 3, .expansion_ratio = 1, .parts = 1, .nodes = 1, .depth = 1, .token_bytes = 3, .attributes = 1, .diagnostics = 1, .work = 10 } };
+        var digest: [32]u8 = undefined;
+        std.crypto.hash.sha2.Sha256.hash("123", &digest, .{});
+        return .{ .key = .{ .definition = p.Growth.current_definition, .connection = .{ .scope = object.scope, .branch = 1, .audience = 1, .principal = 0, .role = null }, .account = @splat(3), .token = @splat(ordinal) }, .operation = .{ .scope = object.scope, .principal = 0, .operation = 900 + @as(u64, ordinal) }, .namespace = 1, .target = .{ .partition = .{ .definition = p.Growth.current_definition, .interpretation = .{ .object = object, .revision = 1, .digest = @splat(7) }, .partition = 0 }, .document = @splat(ordinal) }, .kind = .create, .expected = null, .profile = try profile.sealed(), .part = 1, .source = .{ .bytes = 3, .sha256 = digest }, .budget = .{ .bytes = 4 * 1024 * 1024 }, .limits = .{ .work_bytes = 16 * 1024 * 1024, .work_pages = 4096 } };
+    }
+};
+
+test "protected Document sources survive real collection cuts and closure survives collector restart" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var fixture: Fixture = .{};
+    try fixture.open(tmp.dir, true);
+    defer fixture.close();
+    var owner: SourceCatalog = .{ .fixture = &fixture };
+    var catalog = try owner.open();
+    defer catalog.deinit();
+    try catalog.initialize(owner.policy());
+    var bytes: [s.DocumentSource.chunk_bytes]u8 = @splat(17);
+    var hash: std.crypto.hash.sha2.Sha256 = .init(.{});
+    for (0..160) |_| hash.update(&bytes);
+    var descriptor = try SourceCatalog.descriptor(1);
+    descriptor.source = .{ .bytes = 10 * 1024 * 1024, .sha256 = hash.finalResult() };
+    descriptor.profile.limits.input_bytes = descriptor.source.bytes;
+    descriptor.profile.limits.expanded_bytes = descriptor.source.bytes;
+    descriptor.profile = try descriptor.profile.sealed();
+    descriptor.budget.bytes = 32 * 1024 * 1024;
+    descriptor.limits.work_bytes = 128 * 1024 * 1024;
+    descriptor.limits.work_pages = 100_000;
+    var original = try catalog.documentSourceReserve(descriptor, owner.policy(), owner.sourceAuthority());
+    var chunk_hash: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(&bytes, &chunk_hash, .{});
+    const chunk: s.DocumentSource.Chunk = .{ .offset = 0, .content = .{ .bytes = bytes.len, .sha256 = chunk_hash } };
+    // A nine-chunk prefix spans multiple inventory pages before the cut.
+    for (0..9) |i| {
+        var next_chunk = chunk;
+        next_chunk.offset = i * bytes.len;
+        original = try catalog.documentSourceUpload(.{ .control = .{ .key = descriptor.key, .expected = original.entry.revision }, .chunk = next_chunk, .bytes = &bytes }, owner.policy(), owner.sourceAuthority());
+    }
+    var pending_chunk = chunk;
+    pending_chunk.offset = 9 * bytes.len;
+    const upload: c.DirectDocumentSource.Upload = .{ .control = .{ .key = descriptor.key, .expected = original.entry.revision }, .chunk = pending_chunk, .bytes = &bytes };
+    try s.DocumentSource.put(fixture.data.objects(), @splat(99), chunk, &bytes);
+    catalog.store.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.documentSourceUpload(upload, owner.policy(), owner.sourceAuthority()));
+    catalog.store.lose_reply = false;
+    try catalog.recover();
+    var collector: Collection = .{ .backend = &fixture.owner };
+    try collector.start(&fixture.engine, try fixture.fence());
+    // The cut retains the paged ready prefix and an absent pending chunk.
+    // Later chunks and replacement roots use the newer allocation epoch.
+    original = try catalog.documentSourceUpload(upload, owner.policy(), owner.sourceAuthority());
+    for (10..160) |i| {
+        var next_chunk = chunk;
+        next_chunk.offset = i * bytes.len;
+        original = try catalog.documentSourceUpload(.{ .control = .{ .key = descriptor.key, .expected = original.entry.revision }, .chunk = next_chunk, .bytes = &bytes }, owner.policy(), owner.sourceAuthority());
+    }
+    catalog.deinit();
+    catalog = try owner.open();
+    const discovered = try catalog.documentSourceList(.{ .scope = descriptor.key.scope(), .target = descriptor.target, .pending = true }, null, owner.policy(), owner.sourceAuthority());
+    try t.expectEqual(original.entry.id, discovered.entries[0].?.id);
+    var verifier = try c.DirectDocumentSource.Verifier.init(descriptor.key, &owner.admission);
+    defer verifier.deinit();
+    while (!verifier.done) original = try catalog.documentSourceVerify(&verifier, .{ .bytes = s.DocumentSource.step_bytes, .pages = 4096 }, owner.policy(), owner.sourceAuthority());
+    try t.expectEqual(.verified, original.entry.phase);
+    for (0..100_000) |_| {
+        if ((try collector.current()).?.phase == .wait) break;
+        try t.expect(try collector.step(&fixture.engine, .{ .unix_ms = fixture.now }));
+    }
+    try t.expectEqual(.wait, (try collector.current()).?.phase);
+    fixture.now = (try collector.current()).?.grace_until_ms + 1;
+    _ = try fixture.fence();
+    for (0..100_000) |_| {
+        if ((try collector.current()).?.phase == .complete) break;
+        try t.expect(try collector.step(&fixture.engine, .{ .unix_ms = fixture.now }));
+    }
+    try t.expectEqual(.complete, (try collector.current()).?.phase);
+    try t.expect(!(try collector.current()).?.aborted);
+    var path: [96]u8 = undefined;
+    const source_owner = try descriptor.key.digest();
+    for (0..160) |i| {
+        var retained_chunk = chunk;
+        retained_chunk.offset = i * bytes.len;
+        const retained = (try fixture.data.objects().head(try s.DocumentSource.key(source_owner, retained_chunk, &path))).?;
+        try t.expectEqual(chunk.content.bytes, retained.size);
+        try t.expectEqualDeep(chunk.content.sha256, retained.sha256);
+    }
+    try t.expect(try fixture.data.objects().head(try s.DocumentSource.key(@splat(99), chunk, &path)) == null);
+    for ([_]u64{ 0, 159 * s.DocumentSource.chunk_bytes }) |offset|
+        for (try catalog.documentSourceRead(descriptor.key, offset, &bytes, owner.policy(), owner.sourceAuthority())) |byte| try t.expectEqual(17, byte);
+    original = (try catalog.documentSourceInspect(.{ .key = descriptor.key }, owner.policy(), owner.sourceAuthority())).?;
+    const closed = try catalog.documentSourceClose(.{ .key = descriptor.key, .expected = original.entry.revision }, owner.policy(), owner.sourceAuthority());
+    try collector.start(&fixture.engine, try fixture.fence());
+    for (0..100_000) |_| {
+        if ((try collector.current()).?.phase == .wait) break;
+        try t.expect(try collector.step(&fixture.engine, .{ .unix_ms = fixture.now }));
+    }
+    try t.expectEqual(.wait, (try collector.current()).?.phase);
+    catalog.deinit();
+    fixture.close();
+    try fixture.open(tmp.dir, false);
+    catalog = try owner.open();
+    collector = .{ .backend = &fixture.owner };
+    fixture.now = (try collector.current()).?.grace_until_ms + 1;
+    _ = try fixture.fence();
+    for (0..100_000) |_| {
+        if ((try collector.current()).?.phase == .complete) break;
+        try t.expect(try collector.step(&fixture.engine, .{ .unix_ms = fixture.now }));
+    }
+    const complete = (try collector.current()).?;
+    try t.expect(complete.phase == .complete and !complete.aborted and complete.reclaimed_objects > 0);
+    for (0..160) |i| {
+        var reclaimed_chunk = chunk;
+        reclaimed_chunk.offset = i * bytes.len;
+        try t.expect(try fixture.data.objects().head(try s.DocumentSource.key(source_owner, reclaimed_chunk, &path)) == null);
+    }
+    try t.expectEqualDeep(closed, try catalog.documentSourceReserve(descriptor, owner.policy(), owner.sourceAuthority()));
+    try t.expectError(error.OwnedRecordClosed, catalog.documentSourceUpload(upload, owner.policy(), owner.sourceAuthority()));
+}
+
 const Fixture = struct {
     owner: local.Backend = undefined,
     pages: local.PageStore = undefined,

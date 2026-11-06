@@ -2069,6 +2069,29 @@ read bases remain protected while required by replay, then become collectible
 after a newer checkpoint. Missing or inconsistent dependencies prevent graph
 completion and therefore prevent deletion.
 
+## Protected Document source objects
+
+Catalog-owned sources use immutable `document-sources/` chunks, with at most
+64 KiB of raw bytes per object, and ordinary `TreeStore` inventory pages keyed
+by the big-endian byte offset. Each leaf binds an exact length and SHA-256.
+The chunk key commits to the current definition, original token digest, offset,
+length and content digest. It conveys no independent read authority.
+
+The latest open original roots its ready inventory and pending chunk. Reserved
+chunks may be absent; every ready chunk/page must exist and match its commitment.
+The owner reserves a chunk before put and holds serialized Catalog publication
+ownership through inventory construction and readiness. New index allocations
+use the shared allocation epoch and immutable publication rules; a later
+collector cut cannot enter that publication interval. An older cut cannot
+collect newer allocations. This also protects index bookkeeping, not only the
+payload named by an unpublished manifest.
+
+Explicit closure makes the source graph collectible after existing epoch/time
+and reader-grace fences. Original metadata and account charges remain retained.
+Replay validates old transition metadata without reopening collectible bodies;
+ready retries must never repair missing acknowledged data. Graph traversal is
+paged and does not parse Document profiles or imply a Document acceptance.
+
 ## Direct Document declarations, genesis, and adaptive shredding
 
 `DocumentDeclaration` stages immutable `document-definitions/{sha256}.data`
