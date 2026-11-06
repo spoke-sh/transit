@@ -91,11 +91,19 @@ fn historySource(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, de
     } };
 }
 pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action: w.Action, delegation: ?c.DirectReadDelegation, execution: Execution) anyerror!w.Result {
-    // Isolate each action's frame. A runtime switch reserves debug-build
-    // temporaries for every unrelated arm, including large page results.
-    switch (std.meta.activeTag(action)) {
-        inline else => |tag| return applySelected(tag, allocator, catalog, policy, &action, delegation, execution),
-    }
+    // Select a function before calling it. Returning a large Result from each
+    // switch arm reserves a separate temporary for every arm even though only
+    // one executes. One call site keeps the dispatch frame independent of the
+    // number of actions, including in Debug builds.
+    const Handler = *const fn (std.mem.Allocator, *D, D.Policy, *const w.Action, ?c.DirectReadDelegation, Execution) anyerror!w.Result;
+    const selected: Handler = switch (std.meta.activeTag(action)) {
+        inline else => |tag| struct {
+            fn call(a: std.mem.Allocator, owner: *D, rights: D.Policy, input: *const w.Action, grant: ?c.DirectReadDelegation, runner: Execution) anyerror!w.Result {
+                return applySelected(tag, a, owner, rights, input, grant, runner);
+            }
+        }.call,
+    };
+    return selected(allocator, catalog, policy, &action, delegation, execution);
 }
 
 fn applySelected(comptime action_tag: std.meta.Tag(w.Action), allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action: *const w.Action, delegation: ?c.DirectReadDelegation, execution: Execution) anyerror!w.Result {

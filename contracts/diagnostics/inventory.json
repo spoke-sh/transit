@@ -8242,6 +8242,8 @@
         "Execution.source()": "anyerror",
         "Execution.stream()": "anyerror",
         "apply()": "anyerror",
+        "apply().<struct>.call()": "anyerror",
+        "apply().Handler()": "anyerror",
         "applySelected()": "anyerror",
         "branch()": "<inferred>",
         "encodeDefinition()": "<inferred>",
@@ -8253,7 +8255,7 @@
         "workloadQueue()": "<inferred>",
         "workloadStream()": "<inferred>"
       },
-      "open_error_set_uses": 10,
+      "open_error_set_uses": 12,
       "propagation": {
         "try": 247,
         "catch": 0
