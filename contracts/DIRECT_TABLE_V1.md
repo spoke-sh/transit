@@ -531,7 +531,14 @@ do not inherit another principal's recovery rights.
 
 Source chunks and pending/current inventory publication work share the original
 byte reservation. Work counters include bounded index/publication allowances
-and payload processing, including retry verification. Admission reserves 8 MiB
+and payload processing, including interrupted uploads and retry verification.
+Admission charges 256 KiB for the descriptor and the reservation/readiness/close
+publications; the close allowance remains available after work exhaustion.
+Each later metadata publication charges 64 KiB: at most 48 KiB of index writes
+plus the 16 KiB WAL record bound. Page counters bound source inventory traversal;
+metadata work consumes the byte allowance. Provider physical quotas separately
+bound failed unpublished allocations and unrelated retained objects.
+Admission reserves 8 MiB
 per active source operation against a shared 64 MiB default host ceiling;
 durable account quotas remain the existing token limits. These are component
 resource bounds, not throughput or whole-process memory guarantees.

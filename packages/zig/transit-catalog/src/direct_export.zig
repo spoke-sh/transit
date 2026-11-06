@@ -15,6 +15,10 @@ pub fn main(init: std.process.Init) !void {
     }
     try out.objectField("SavedIntent");
     try c.protocol.Schema.writeRecursiveAt(c.DirectTableIntent.Saved, &out, .{ .text_max_length = 256, .sequence_max_length = 128 }, "/$defs/SavedIntent");
+    inline for (.{ "Descriptor", "State", "Observation" }) |name| {
+        try out.objectField("DocumentSource" ++ name);
+        try c.protocol.Schema.writeRecursiveAt(@field(c.DirectDocumentSource, name), &out, .{ .text_max_length = 256, .sequence_max_length = 128 }, "/$defs/DocumentSource" ++ name);
+    }
     try out.objectField("SavedLogIntent");
     try c.protocol.Schema.writeRecursiveAt(c.DirectLogIntent.Saved, &out, .{ .text_max_length = 256, .sequence_max_length = 128 }, "/$defs/SavedLogIntent");
     try out.objectField("SavedWorkloadIntent");

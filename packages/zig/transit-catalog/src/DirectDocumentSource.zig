@@ -7,7 +7,11 @@ const d = p.DataLifecycle;
 const Token = c.DirectClientToken;
 pub const storage = c.storage.DocumentSource;
 pub const format: u32 = 0x44535331; // DSS1 inside a Catalog-owned SOR1 envelope.
+// One charged publication covers bounded index writes plus the WAL record.
 pub const publication_bytes = 64 * 1024;
+pub const index_bytes = publication_bytes - @import("DirectCatalogRecords.zig").max_record_bytes;
+// Descriptor bytes plus reservation, readiness and the reserved close step.
+pub const initial_bytes = 4 * publication_bytes;
 pub const resident_bytes = 8 * 1024 * 1024;
 pub const aggregate_resident_bytes = 64 * 1024 * 1024;
 
@@ -42,7 +46,7 @@ pub const Descriptor = struct {
         try self.limits.validate();
         if (self.operation.principal != self.key.connection.principal or self.namespace == 0 or self.part == 0 or
             (self.kind == .replace) != (self.expected != null) or self.profile.framing != .single or
-            self.source.bytes > self.profile.limits.input_bytes or self.budget.bytes < publication_bytes)
+            self.source.bytes > self.profile.limits.input_bytes or self.budget.bytes < initial_bytes or self.limits.work_bytes < initial_bytes)
             return error.InvalidDocumentSource;
         if (self.expected) |cut| {
             try cut.validate();
@@ -57,6 +61,12 @@ pub const Descriptor = struct {
         const binary = try c.DirectTableProtocol.Binary.encode(allocator, payload);
         defer allocator.free(binary.base64);
         return c.DirectOwnedRecord.encode(allocator, self.key, format, binary);
+    }
+
+    pub fn requireBinding(self: Descriptor, accepted: Token.Binding) !void {
+        var bytes: [48 * 1024]u8 = undefined;
+        var scratch: std.heap.FixedBufferAllocator = .init(&bytes);
+        if (!std.meta.eql(accepted, try self.binding(scratch.allocator()))) return error.InvalidDocumentSource;
     }
 
     pub fn binding(self: Descriptor, allocator: std.mem.Allocator) !Token.Binding {
@@ -84,13 +94,13 @@ pub const State = struct {
     work_pages: u64,
 
     pub fn initial(descriptor: Descriptor) State {
-        return .{ .descriptor = descriptor, .root = null, .ready_bytes = 0, .staged = null, .phase = .uploading, .observed = null, .charged_bytes = publication_bytes, .work_bytes = 0, .work_pages = 0 };
+        return .{ .descriptor = descriptor, .root = null, .ready_bytes = 0, .staged = null, .phase = .uploading, .observed = null, .charged_bytes = initial_bytes, .work_bytes = initial_bytes, .work_pages = 0 };
     }
     pub fn validate(self: State) !void {
         try self.descriptor.validate();
         if (self.ready_bytes > self.descriptor.source.bytes or (self.root != null) != (self.ready_bytes != 0) or
             (self.ready_bytes != self.descriptor.source.bytes and self.ready_bytes % storage.chunk_bytes != 0) or
-            self.charged_bytes < publication_bytes or self.charged_bytes > self.descriptor.budget.bytes or
+            self.charged_bytes < initial_bytes or self.charged_bytes > self.descriptor.budget.bytes or
             self.work_bytes > self.descriptor.limits.work_bytes or self.work_pages > self.descriptor.limits.work_pages)
             return error.InvalidDocumentSourceState;
         if (self.staged) |chunk| {
@@ -124,7 +134,14 @@ pub const State = struct {
             if (!std.meta.eql(expected, after)) return error.InvalidDocumentSourceTransition;
             return;
         }
-        if (before.phase != .uploading) return error.InvalidDocumentSourceTransition;
+        if (before.phase != .uploading) {
+            var charged = before;
+            charged.charged_bytes = after.charged_bytes;
+            charged.work_bytes = after.work_bytes;
+            charged.work_pages = after.work_pages;
+            if (!std.meta.eql(charged, after)) return error.InvalidDocumentSourceTransition;
+            return;
+        }
         if (after.ready_bytes != before.ready_bytes) {
             const chunk = before.staged orelse return error.InvalidDocumentSourceTransition;
             if (after.ready_bytes != try std.math.add(u64, chunk.offset, chunk.content.bytes) or after.staged != null or
@@ -206,8 +223,85 @@ pub const Admission = struct {
 /// Component-only native authorization composition. The embedding owner must
 /// serialize Catalog access through each call and share admission across roles.
 /// No installed Document authorization domain or signed route is enabled here.
+pub const Access = enum { inspect, read, mutate };
 pub const Authority = struct {
     context: *anyopaque,
     admission: *Admission,
-    make_guard: *const fn (*anyopaque, std.mem.Allocator, Descriptor, enum { inspect, read, mutate }) anyerror!c.storage.PublicationGuard,
+    make_guard: *const fn (*anyopaque, std.mem.Allocator, p.Authorization.Guard, ?p.DocumentOperation.Target, Access) anyerror!c.storage.PublicationGuard,
 };
+
+pub const Lookup = union(enum) {
+    key: Token.Key,
+    operation: struct { scope: c.DirectRecord.Scope, id: u64 },
+    pub fn scope(self: Lookup) c.DirectRecord.Scope {
+        return switch (self) {
+            .key => |key| key.scope(),
+            .operation => |value| value.scope,
+        };
+    }
+};
+pub const Observation = struct {
+    entry: Entry,
+    descriptor: Descriptor,
+    staged: ?storage.Chunk,
+    charged_bytes: u64,
+    work_bytes: u64,
+    work_pages: u64,
+    pub fn from(progress: Token.Progress) !Observation {
+        const source = progress.source orelse return error.InvalidDocumentSource;
+        return .{ .entry = try Entry.from(progress), .descriptor = source.descriptor, .staged = source.staged, .charged_bytes = source.charged_bytes, .work_bytes = source.work_bytes, .work_pages = source.work_pages };
+    }
+};
+
+/// Trusted process-local continuation: never deserialize it from a caller.
+/// Reopening starts again at zero; completed step charges survive process loss.
+pub const Verifier = struct {
+    key: Token.Key,
+    admission: *Admission,
+    root: ?storage.pages.Reference = null,
+    offset: u64 = 0,
+    hash: std.crypto.hash.sha2.Sha256 = .init(.{}),
+    buffer: [storage.chunk_bytes]u8 = undefined,
+    held: bool = true,
+    done: bool = false,
+    pub fn init(key: Token.Key, admission: *Admission) !Verifier {
+        try key.validate();
+        try admission.acquire();
+        return .{ .key = key, .admission = admission };
+    }
+    pub fn deinit(self: *Verifier) void {
+        if (self.held) self.admission.release();
+        self.held = false;
+        @memset(&self.buffer, 0);
+    }
+};
+
+test "Document source independent descriptor commitment and scoped chunk fixture" {
+    const t = std.testing;
+    const Fixture = struct { descriptor: Descriptor, binding: Token.Binding, chunk_key: []const u8 };
+    const fixture = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/document-source-v1.json"));
+    defer fixture.deinit();
+    try fixture.value.descriptor.validate();
+    try fixture.value.descriptor.requireBinding(fixture.value.binding);
+    const chunk: storage.Chunk = .{ .offset = 0, .content = fixture.value.descriptor.source };
+    var path: [96]u8 = undefined;
+    try t.expectEqualStrings(fixture.value.chunk_key, try storage.key(try fixture.value.descriptor.key.digest(), chunk, &path));
+    var changed = fixture.value.descriptor;
+    changed.part += 1;
+    try t.expectError(error.InvalidDocumentSource, changed.requireBinding(fixture.value.binding));
+    changed = fixture.value.descriptor;
+    changed.target.document[0] ^= 1;
+    try t.expectError(error.InvalidDocumentSource, changed.requireBinding(fixture.value.binding));
+    changed = fixture.value.descriptor;
+    changed.limits.work_bytes += 1;
+    try t.expectError(error.InvalidDocumentSource, changed.requireBinding(fixture.value.binding));
+    var progress = Token.Progress.initial(.{ .binding = fixture.value.binding, .position = .{ .partition = 1, .next_lsn = 2 }, .coordination = null });
+    progress.source = State.initial(fixture.value.descriptor);
+    try progress.validate();
+    progress.source = null;
+    const encoded = try p.Json.valueAlloc(t.allocator, progress);
+    defer t.allocator.free(encoded);
+    const omitted = try std.mem.replaceOwned(u8, t.allocator, encoded, ",\"source\":null", "");
+    defer t.allocator.free(omitted);
+    try t.expectError(error.MissingField, p.Json.parseFromSlice(Token.Progress, t.allocator, omitted));
+}

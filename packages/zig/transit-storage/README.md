@@ -43,6 +43,17 @@ compose Table and KV through one decision; the catalog owns selection and curren
 kind-specific rights. Stream/Queue preparation and decision components exist; public mixed state/log
 transaction admission remains pending.
 
+`DocumentSource` stores immutable source chunks of at most 64 KiB under
+`document-sources/`, with offset/length/hash entries in a paged `TreeStore`
+inventory. Chunk names bind the current definition and original token identity;
+these names grant no authority or lifetime. The catalog's protected source owner
+reserves each chunk before creation and roots its ready inventory and pending
+chunk in `DirectStorageGraph`. Missing reserved bytes are permitted; missing or
+corrupt ready bytes/pages fail. Closure releases the graph only through the
+normal allocation-epoch and reader-grace collection fences. Helpers neither
+parse a profile nor accept a Document. See the
+[protected source contract](../../../contracts/TRANSIT_STORAGE_V1.md#protected-document-source-objects).
+
 `BranchSnapshot` stages immutable manifest proposals and paged Table source
 directories. Each entry binds an exact interpretation and accepted frontier to
 a Table snapshot handle. Canonical content checks, explicit object/work bounds

@@ -97,6 +97,7 @@ pub const Work = union(enum) {
     historical_walk: struct { root: c.DirectHistoryDirectory.Root, walk: c.DirectCatalogWalk, descriptors: bool = false },
     transaction: struct { root: r.Root, progress: c.DirectClientToken.Progress, slot: u8 = 0 },
     queue_transfer_plan: c.DirectClientToken.Progress,
+    document_source: struct { walk: c.DirectCatalogWalk, owner: [32]u8, source_bytes: u64, ready_bytes: u64, next_offset: u64 = 0 },
     workload_intent: c.DirectWorkloadIntent.Reference,
     transaction_walk: struct { walk: c.DirectCatalogWalk, head: W.Head, scope: c.DirectRecord.Scope, tables: bool },
     transaction_intent: W.Request,
@@ -159,7 +160,7 @@ pub fn collectible(key: []const u8) bool {
     // Saved staging references and permanent operation-to-target reservations
     // have independent lifetimes. Unknown generic object namespaces also remain
     // outside this collector's authority.
-    for ([_][]const u8{ "transaction-records/", "progress-records/", "owned-records/", "catalog-history/", "catalog-definitions/", "catalog-definition-intents/", "catalog-foreign/", "data-index/", "bitmap-containers/", "data-maintenance/", "catalog-intents/", "catalog-log-intents/", "log-definitions/", "log-evidence/", "log-reads/", "log-tx-sources/", "log-preparations/", "transaction-log-actions/", "transaction-log-payload/", "log-checkpoints/", "log-segments/", "log-segment-metadata/", "queue-selections/", "queue-time-buffers/", "queue-time-runs/", "document-definitions/", "document-evidence/", "document-reads/", "document-collections/", "document-checkpoints/", "document-payloads/", "document-states/", "document-segment/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
+    for ([_][]const u8{ "transaction-records/", "progress-records/", "owned-records/", "catalog-history/", "catalog-definitions/", "catalog-definition-intents/", "catalog-foreign/", "data-index/", "bitmap-containers/", "data-maintenance/", "catalog-intents/", "catalog-log-intents/", "log-definitions/", "log-evidence/", "log-reads/", "log-tx-sources/", "log-preparations/", "transaction-log-actions/", "transaction-log-payload/", "log-checkpoints/", "log-segments/", "log-segment-metadata/", "queue-selections/", "queue-time-buffers/", "queue-time-runs/", "document-sources/", "document-definitions/", "document-evidence/", "document-reads/", "document-collections/", "document-checkpoints/", "document-payloads/", "document-states/", "document-segment/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
         if (std.mem.startsWith(u8, key, prefix)) return true;
     }
     return false;
@@ -437,6 +438,19 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
                 const latest = try tree.get(walk.cut.root.client_tokens, try s.TreeStore.pages.Key.init(&try progress.receipt.binding.key.digest())) orelse return error.InvalidClientToken;
                 if (latest.len != 8) return error.InvalidClientToken;
                 if (std.mem.readInt(u64, latest.data[0..8], .little) + 1 == progress.revision.next_lsn) {
+                    if (progress.source) |source| if (source.phase != .closed) {
+                        const owner = try progress.receipt.binding.key.digest();
+                        if (source.root) |reference| try workspace.enqueue(.{ .document_source = .{
+                            .walk = try .init(walk.cut.root, .{ .reference = reference, .kind = .values }),
+                            .owner = owner,
+                            .source_bytes = source.descriptor.source.bytes,
+                            .ready_bytes = source.ready_bytes,
+                        } });
+                        if (source.staged) |chunk| {
+                            const path = try s.DocumentSource.key(owner, chunk, &key_buffer);
+                            if (try index.store.head(path) != null) try markContent(workspace, path, chunk.content);
+                        }
+                    };
                     if (progress.original) |original| if (original.phase != .closed) {
                         const reference = progress.receipt.binding.intent.external.record;
                         const path = try c.DirectRecord.key(reference, &key_buffer);
@@ -630,6 +644,23 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
                 const content = plan.transfer.destination.payload;
                 try markContent(workspace, try s.LogTransactionActions.payloadKey(content, &key_buffer), content);
             }
+        },
+        .document_source => |*value| {
+            const edge = try value.walk.next(allocator, index) orelse {
+                if (value.next_offset != value.ready_bytes) return error.InvalidDocumentSourceState;
+                return true;
+            };
+            switch (edge) {
+                .page => |page| try markPage(index, workspace, page.reference),
+                .declaration => return error.InvalidDocumentSourceState,
+                .value => |entry| {
+                    const chunk = try s.DocumentSource.Chunk.fromEntry(entry.key, entry.value, value.source_bytes);
+                    if (chunk.offset != value.next_offset or chunk.content.bytes > value.ready_bytes - value.next_offset) return error.InvalidDocumentSourceState;
+                    try markContent(workspace, try s.DocumentSource.key(value.owner, chunk, &key_buffer), chunk.content);
+                    value.next_offset += chunk.content.bytes;
+                },
+            }
+            return false;
         },
         .transaction_walk => |*value| {
             const edge = try value.walk.next(allocator, index) orelse return true;
