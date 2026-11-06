@@ -120,7 +120,11 @@ pub const Operation = struct {
         if ((self.phase == .ready or self.phase == .active) and self.command == null) return error.InvalidSqlOperation;
         if (self.wait) |value| {
             try value.validate();
-            if (self.identity.kind != .workload or self.command != .claim or self.phase != .ready or self.result_kind != .rows) return error.InvalidSqlOperation;
+            const command: results.Command = switch (value.binding) {
+                .stream => .consume,
+                .queue => .claim,
+            };
+            if (self.identity.kind != .workload or self.command != command or self.phase != .ready or self.result_kind != .rows) return error.InvalidSqlOperation;
         }
     }
     pub fn completion(self: Operation) !results.CommandCompletion {
@@ -366,4 +370,47 @@ test "transaction attachment requests and replies require valid original recover
     var invalid = request;
     invalid.action.attach_transaction.account = @splat(0);
     try t.expectError(error.InvalidTransactionHandle, invalid.validate());
+}
+
+test "independent Stream and Queue wait observations require matching command and pending shape" {
+    const t = std.testing;
+    const fixture = try Json.parseFromSliceOwned([]const Operation, t.allocator, @embedFile("fixtures/workload-waits.json"));
+    defer fixture.deinit();
+    try t.expectEqual(@as(usize, 2), fixture.value.len);
+    for (fixture.value) |operation| {
+        try operation.validate();
+        try t.expectEqual(@as(u64, 18446744073709551614), operation.identity.id);
+        try t.expectEqual(@as(u64, 9007199254740993), operation.wait.?.timed_out.?.next);
+        try t.expectError(error.SqlRowsRequired, operation.completion());
+        var invalid = operation;
+        invalid.command = if (operation.command == .consume) .claim else .consume;
+        try t.expectError(error.InvalidSqlOperation, invalid.validate());
+        invalid = operation;
+        invalid.result_kind = .command;
+        try t.expectError(error.InvalidSqlOperation, invalid.validate());
+        invalid = operation;
+        invalid.phase = .active;
+        try t.expectError(error.InvalidSqlOperation, invalid.validate());
+        invalid = operation;
+        invalid.matched = 1;
+        try t.expectError(error.InvalidSqlOperation, invalid.validate());
+        for ([_]u32{ 0, 1001 }) |milliseconds| {
+            invalid = operation;
+            invalid.wait.?.milliseconds = milliseconds;
+            try t.expectError(error.InvalidWorkloadWait, invalid.validate());
+        }
+        invalid = operation;
+        switch (invalid.wait.?.binding) {
+            .stream => |*binding| binding.kind = .offset,
+            .queue => |*binding| binding.kind = .settle,
+        }
+        try t.expectError(error.InvalidWorkloadWait, invalid.validate());
+        invalid = operation;
+        invalid.wait.?.timed_out.?.target.partition ^= 1;
+        try t.expectError(error.LogPartitionConflict, invalid.validate());
+        var status = operation;
+        status.wait.?.timed_out = null;
+        try status.validate();
+        try operation.wait.?.requireSame(status.wait.?);
+    }
 }

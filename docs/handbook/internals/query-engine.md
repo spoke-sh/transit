@@ -14,6 +14,26 @@ for successive complete results. The physical mechanisms below preserve those
 semantics. Typed maintained owners require explicit host activation and wakeups;
 they do not establish an automatic SQL materialized-view service.
 
+## Original Stream and Queue wait attempts
+
+The SQL workload binder saves the exact native request, Fuze projection and
+nullable `wait_ms` in one canonical Catalog record. The first token-binding
+winner can dispatch one native wait. `WorkloadOperations` first inspects the
+original receipt; passive recovery can settle that receipt or requested
+cancellation, but cannot start another wait. Explicit resume reuses the same
+record and native operation on the data lane.
+
+Stream readiness uses the saved positional start or group checkpoint and an
+open upper frontier. Native publication captures one finite cut before Fuze
+applies payload predicates and logical LIMIT. A timeout accepts no read and
+creates no progress proof. `DirectStreamResponse` validates its cut against the
+complete request before SQL exposes the nonterminal observation. Status never
+reuses a previous attempt's timeout cut. Queue waits share the lifecycle while
+retaining their own eligibility, lease and FIFO checks. Native parking uses the
+existing bounded registration owner without retaining a data lock; wakeups only
+prompt a fresh authorized check. See the
+[SQL wait contract](../../../contracts/SQL_SESSION_V1.md#stream-wait-attempts).
+
 ## Direct Table snapshots and interrupted SQL reads
 
 The question is how a finite SQL result retains its exact source when accepted

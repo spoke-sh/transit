@@ -168,7 +168,7 @@ additional payload READ rights. Data appends, consumption and acquisition
 still require their exact preparation interpretation. GROUP binds an explicit
 native assignment/checkpoint binary descriptor. COMMIT OFFSET binds the original
 read receipt and authenticated completion progress, using the same workload
-token and command-result lifecycle. Queue payload predicates, Stream WAIT and
+token and command-result lifecycle. Queue payload predicates and
 attached-transaction workloads remain outside the SQL execution profile.
 
 ### Queue wait attempts
@@ -208,6 +208,32 @@ original gateway operation ID when no claim completed; neither
 returns `CLAIM 0` or successful empty rows. The console reports a nonzero outcome
 and includes original recovery identity in JSON. These callers may use native
 status/resume/cancel under current authorization; repeating SQL creates new work.
+
+### Stream wait attempts
+
+`CONSUME ... WAIT ...` uses the same saved-policy, initial-attempt, passive
+observation, explicit resume and cancellation lifecycle as Queue WAIT above.
+The saved native work is exactly a Stream consume, and the pending command is
+`consume`. Duration is 1–1000 whole milliseconds, owned by the canonical SQL
+intent; it does not change the underlying native consume identity.
+
+SQL fixes one partition and positional start or binary group assignment/checkpoint.
+The native request has `until = null`: a fresh wait becomes ready when
+`from < next`. SQL upper-offset comparisons remain output predicates and do not
+set a native upper frontier. Payload predicates and LIMIT, including LIMIT 0,
+do not affect readiness. Native acceptance selects one finite cut; filtering may
+then yield an empty result. Later appends cannot extend that accepted cut.
+An observed timeout carries no read receipt, retained pin or authenticated progress.
+Current rights, retention, definition and group generation/checkpoint checks
+apply on every native attempt and before disclosure. A final authorized check
+can accept ready work even at the deadline. Native `recovering`, timeout and
+missing/lost replies remain nonterminal observations, not permission to recapture.
+
+Resume and result reopening return the original receipt or closure. Successful
+grouped completion retains authenticated progress for a separate `COMMIT OFFSET`;
+row counts, closing a result and waiting never settle progress or release a pin.
+PostgreSQL/MySQL and console pending outcomes carry the same original identity
+and diagnostics as Queue WAIT; they never report a timeout as `CONSUME 0`.
 
 Prepared descriptions always include `schema`. It is null when the statement
 returns no rows, including DML and schema commands; parameters and the mutation

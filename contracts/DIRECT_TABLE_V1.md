@@ -486,7 +486,12 @@ original work; a body alone does not establish token acceptance.
 `DirectWorkloadIntent` uses format `WLI1` (`0x574c4931`) for canonical JSON
 containing mandatory current `definition`, `connection`, complete source
 declaration/schema, native Stream/Queue mutation with its nullable payload, and
-an explicit nullable `projection` (no missing-field default).
+explicit nullable `projection` and `wait_ms` fields (no missing-field defaults).
+Non-null wait policy admits only Stream consume or Queue claim and is bounded
+to 1–1000 milliseconds. It commits SQL attempt policy without changing the
+underlying native mutation identity. The reference's execute operation dispatches
+the matching native wait; inspect and cancel retain their original operations.
+Passive SQL recovery does not execute a saved wait.
 The source matches the exact original target; append/enqueue payload bytes,
 row attribution, schema and partition routing are validated before staging.
 The 4 MiB record ceiling includes base64 and metadata overhead. Restoring rejects
@@ -501,7 +506,9 @@ invalid requests; source mismatches remain conflicts. Allocation failure is
 preserved separately and never establishes invalid caller data.
 Current projections support application columns, partition and offset, plus
 original lease epoch and attempt for claims. They cannot aggregate or impose a
-result limit; native acquisition and coverage retain their own bounds. Predicates
+claim result limit; native acquisition and coverage retain their own bounds.
+Stream projections can retain a logical output LIMIT, including zero, separately
+from authenticated traversal coverage. Predicates
 are supported only for Stream consumption; claim filtering must precede lease
 acquisition. The native result action returns raw original rows; the SQL service
 evaluates the frozen projection through its shared original-result reader.

@@ -78,9 +78,10 @@ Both interval boundaries are authenticated; the larger read can remain partial. 
 for budgets, empty results and unavailable retained history. SQL supports
 [append and positional consumption](sql/streaming.md#consume-a-finite-stream-cut);
 group consumption accepts explicit native assignment descriptors and SQL offset
-settlement accepts authenticated progress. Assignment, read release and Stream waits
-retain their native interfaces. [Queue WAIT](sql/streaming.md#wait-for-eligible-queue-work)
-uses the shared SQL original-operation lifecycle.
+settlement accepts authenticated progress. Assignment and read release retain
+their native interfaces. [Stream WAIT](sql/streaming.md#wait-for-a-stream-frontier)
+and [Queue WAIT](sql/streaming.md#wait-for-eligible-queue-work) use the shared SQL
+original-operation lifecycle.
 SQL ACK, NACK and [lease renewal](sql/streaming.md#renew-a-queue-lease) bind an
 original binary lease receipt through the shared native settlement owner.
 
@@ -227,7 +228,10 @@ an offset after `from`. A timestamp filter does not wait for a matching event.
 If data is ready at the final check, the read can still be accepted. Retrying an
 already accepted identity always returns its original cut. Cancellation or a
 lost reply requires inspection of the original consume operation; it does not
-roll back acceptance.
+roll back acceptance. SQL `CONSUME ... WAIT` uses the open upper bound; upper
+offset predicates filter output without supplying a different readiness frontier.
+After timeout, SQL status stays passive and only explicit resume starts another
+bounded attempt for the original operation.
 
 Consumer groups have explicit assignment generations and committed next
 offsets. Group reads require current acquire rights; committing an offset is a

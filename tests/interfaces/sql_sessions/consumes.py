@@ -43,12 +43,12 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
     for sql, error in (
         ('CONSUME value FROM consume_events', 'SqlAdmissionTokenRequired'),
         ('CONSUME value FROM append_manual', 'LogPartitionRequired'),
-        ("CONSUME value FROM consume_events WAIT '1s'", 'UnsupportedConstruct'),
+        ("CONSUME value FROM consume_events WAIT '1001ms'", 'InvalidStreamWait'),
     ):
         token = None if error == 'SqlAdmissionTokenRequired' else list(os.urandom(16))
         client.call(dict(execute=dict(sql=sql, token=token)), error=error)
 
-    sql = 'CONSUME value, _offset FROM consume_events WHERE _offset >= 2 AND value >= 5 LIMIT 3'
+    sql = "CONSUME value, _offset FROM consume_events WHERE _offset >= 2 AND value >= 5 LIMIT 3 WAIT '1s'"
     original = dict(definition=client.definition, sql=sql, token=list(os.urandom(16)))
     saved = root / 'sql-consume-original.json'
     saved.write_text(json.dumps(original))
@@ -68,15 +68,19 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
     assert {key: coverage[key] for key in ('from', 'until', 'through', 'rows', 'complete')} == dict(
         **{'from': 2}, until=65, through=8, rows=6, complete=False), coverage
 
-    complete_read = submit('CONSUME value FROM consume_events')['identity']
+    complete_read = submit("CONSUME value FROM consume_events WAIT '1ms'")['identity']
     all_rows = rows(complete_read)
     assert [unsigned(row[0]) for row in all_rows[0]] == list(range(65))
     assert all_rows[1] == [32, 32, 1]
     assert all_rows[3]['workload']['position']['consume']['coverage']['complete']
-    filtered = rows(submit('CONSUME value FROM consume_events WHERE value > 1000 LIMIT 1')['identity'])
+    filtered = rows(submit("CONSUME value FROM consume_events WHERE value > 1000 LIMIT 1 WAIT '1s'")['identity'])
     assert filtered[0] == [] and filtered[1] == [0]
     coverage = filtered[3]['workload']['position']['consume']['coverage']
     assert coverage['through'] == coverage['rows'] == 65 and coverage['complete']
+    # A row predicate above the current frontier must not become native until.
+    bounded = rows(submit("CONSUME value FROM consume_events WHERE _offset < 100 LIMIT 1 WAIT '1ms'")['identity'])
+    assert [unsigned(row[0]) for row in bounded[0]] == [0]
+    assert bounded[2]['data']['workload']['selection']['consume']['until'] == 65
     routed = rows(submit('CONSUME value, _partition, _offset FROM append_manual WHERE _partition = 1')['identity'])
     assert [list(map(unsigned, row)) for row in routed[0]] == [[1, 1, 0]]
     for limit, start, expected in ((0, 2, []), (9, 63, [63, 64]), (1, 65, [])):
@@ -101,15 +105,17 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
     kind = descriptor('uint64')
     def parameter(value):
         return (b'FVL1' + struct.pack('<H', len(kind)) + kind + b'\x01\x03' + struct.pack('<Q', value)).hex()
-    typed = 'CONSUME value FROM consume_events WHERE _offset >= $1 LIMIT $2'
+    typed = "CONSUME value FROM consume_events WHERE _offset >= $1 LIMIT $2 WAIT $3"
+    duration_kind = descriptor('utf8')
+    duration = (b'FVL1' + struct.pack('<H', len(duration_kind)) + duration_kind + b'\x01\x03' + struct.pack('<I', 3) + b'1ms').hex()
     described = client.call(dict(prepare=dict(sql=typed)))['described']
     assert described['mutation'] and described['schema'] is not None
-    assert described['parameters'] == [kind.hex(), kind.hex()]
-    typed_rows = rows(submit(typed, parameters=[parameter(64), parameter(2)])['identity'])
+    assert described['parameters'] == [kind.hex(), kind.hex(), duration_kind.hex()]
+    typed_rows = rows(submit(typed, parameters=[parameter(64), parameter(2), duration])['identity'])
     assert [unsigned(row[0]) for row in typed_rows[0]] == [64, 65]
     client.call(dict(release=described['statement']))
 
-    for identity in (original['identity'], complete_read, submit('CONSUME value FROM consume_events LIMIT 0')['identity']):
+    for identity in (original['identity'], complete_read, submit("CONSUME value FROM consume_events LIMIT 0 WAIT '1s'")['identity']):
         batch = client.call(dict(result=identity))['batch']
         authorize(False)
         try:
@@ -129,14 +135,15 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
     assignment = stream_native('stream-assign', 'grouped_events', 51, 8051)
     grouped_sql = f'CONSUME value FROM grouped_events GROUP {binary(assignment)} WHERE value >= 5 LIMIT 3'
     group_token = list(os.urandom(16))
-    original_group = submit(grouped_sql, group_token)
+    waited_group_sql = grouped_sql + " WAIT '1s'"
+    original_group = submit(waited_group_sql, group_token)
     grouped = rows(original_group['identity'])
     assert [unsigned(row[0]) for row in grouped[0]] == [5, 6, 7]
     progress = handle(grouped)
     interval = progress['progress']['interval']
     assert interval['first']['coverage']['through'] == 0
     assert interval['last']['coverage']['through'] == 8 and not interval['last']['coverage']['complete']
-    zero = rows(submit(f'CONSUME value FROM grouped_events GROUP {binary(assignment)} LIMIT 0')['identity'])
+    zero = rows(submit(f'CONSUME value FROM grouped_events GROUP {binary(assignment)} LIMIT 0' + " WAIT '1s'")['identity'])
     assert zero[0] == [] and handle(zero)['progress']['interval']['last']['coverage']['through'] == 0
     forged = copy.deepcopy(progress)
     forged['progress']['interval']['last']['authentication'][0] ^= 1
@@ -162,15 +169,15 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
     assert reassigned['group']['next'] == 8 and reassigned['group']['group']['generation'] == 2
     client.call(dict(fetch=dict(cursor=before_reassignment['cursor'], batch=0)), error='Conflict')
     client.call(dict(close_result=before_reassignment['cursor']))
-    assert submit(grouped_sql, group_token) == original_group
+    assert submit(waited_group_sql, group_token) == original_group
     client.call(dict(result=original_group['identity']), error='Conflict')
     fenced = client.terminal(client.execute(grouped_sql, list(os.urandom(16)))['operation'], outcomes=('rejected',))
     assert fenced['workload']['receipt']['closed']['reason'] == {'refused': 'group_fenced'}
     assert submit(commit_sql, commit_token) == committed
-    after = rows(submit(f'CONSUME value FROM grouped_events GROUP {binary(reassigned)} WHERE value > 1000')['identity'])
+    after = rows(submit(f'CONSUME value FROM grouped_events GROUP {binary(reassigned)} WHERE value > 1000' + " WAIT '1s'")['identity'])
     assert after[0] == [] and handle(after)['progress']['exhausted']['coverage']['through'] == 65
     released_group = stream_native('stream-assign', 'grouped_events', 55, 8055)
-    released_read = rows(submit(f'CONSUME value FROM grouped_events GROUP {binary(released_group)} LIMIT 1')['identity'])
+    released_read = rows(submit(f'CONSUME value FROM grouped_events GROUP {binary(released_group)} LIMIT 1' + " WAIT '1s'")['identity'])
     released_handle = handle(released_read)
     (root / 'group-release.bin').write_bytes(stream_handle(released_handle))
     stream_native('stream-release', 'group-release.bin', 9055)
@@ -209,14 +216,14 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
     wire_proofs = []
     for group in (52, 53, 54):
         assigned = stream_native('stream-assign', 'grouped_events', group, 8000 + group)
-        delivered = rows(submit(f'CONSUME value FROM grouped_events GROUP {binary(assigned)}')['identity'])
+        delivered = rows(submit(f'CONSUME value FROM grouped_events GROUP {binary(assigned)}' + " WAIT '1s'")['identity'])
         assert len(delivered[0]) == 65 and delivered[1] == [32, 32, 1]
         wire_proofs.append((assigned, handle(delivered)))
     client.close()
 
     with psycopg.connect(**postgres) as wire:
         with wire.cursor() as cursor:
-            cursor.execute('CONSUME value, _offset FROM consume_events WHERE _offset >= %s LIMIT %s', (63, 2), prepare=True)
+            cursor.execute("CONSUME value, _offset FROM consume_events WHERE _offset >= %s LIMIT %s WAIT '1s'", (63, 2), prepare=True)
             assert cursor.fetchall() == [(63, 63), (64, 64)]
             assert cursor.statusmessage == 'CONSUME 2'
             cursor.execute('CONSUME value FROM consume_events LIMIT 0')
@@ -227,7 +234,7 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
             assert cursor.statusmessage == 'COMMIT OFFSET'
     with mysql.connector.connect(**mysql_options) as wire:
         with wire.cursor(prepared=True) as cursor:
-            cursor.execute('CONSUME value FROM consume_events WHERE _offset >= %s LIMIT %s', (64, 2))
+            cursor.execute("CONSUME value FROM consume_events WHERE _offset >= %s LIMIT %s WAIT '1s'", (64, 2))
             assert cursor.fetchall() == [(64,), (65,)]
         with wire.cursor() as cursor:
             cursor.execute('CONSUME value FROM consume_events LIMIT 0')
@@ -236,7 +243,7 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
             assert cursor.fetchall() == []
             cursor.execute(f'COMMIT OFFSET ON STREAM grouped_events RECEIPT {binary(wire_proofs[1][1])}')
     script = consumer / 'consumes.sql'
-    script.write_text('CONSUME value FROM consume_events WHERE _offset >= 64 LIMIT 1;\nCONSUME value FROM consume_events LIMIT 0;\n')
+    script.write_text("CONSUME value FROM consume_events WHERE _offset >= 64 LIMIT 1 WAIT '1s';\nCONSUME value FROM consume_events LIMIT 0 WAIT '1s';\n")
     with script.open('a') as extra:
         extra.write(f'CONSUME value FROM grouped_events GROUP {binary(wire_proofs[2][0])} LIMIT 0;\nCOMMIT OFFSET ON STREAM grouped_events RECEIPT {binary(wire_proofs[2][1])};\n')
     rendered = subprocess.run([console, 'console', '--config', str(config), '--no-rc', '-f', str(script)],
@@ -247,5 +254,5 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
     print(json.dumps(dict(profile='sql_positional_consumes', native=True, postgres=True, mysql=True, console=True,
                           original_cut_after_append_and_replacement=True, result_batches=all_rows[1],
                           filtered_partial_coverage=True, zero_limit=True, exhausted_before_limit=True,
-                          typed_parameters=True, explicit_groups=True, authenticated_offsets=True, stale_group_and_checkpoint_refusal=True, reassignment_fences_buffered_and_reopened_reads=True,
+                          typed_parameters=True, waited_cuts=True, waited_group_progress=True, explicit_groups=True, authenticated_offsets=True, stale_group_and_checkpoint_refusal=True, reassignment_fences_buffered_and_reopened_reads=True,
                           current_disclosure_authorization=True, passed=True)), flush=True)

@@ -307,7 +307,7 @@ with scripted semantic sources and native messages, varied chunk boundaries,
 malformed evidence and allocation failure. These checks do not establish honest
 computation by an untrusted service.
 
-Queue WAIT ends with original rows or a typed `unresolved` outcome whose reason
+Stream and Queue WAIT end with original rows or a typed `unresolved` outcome whose reason
 is `waiting`. Its wait evidence separates an observed timeout cut from passive
 pending status. `Executor.resumeWorkload` accepts that unresolved original and
 makes at most one explicit attempt, validating instance, account, token, operation,

@@ -1,6 +1,6 @@
 {
   "$id": "urn:transit:sql-read:v1",
-  "definition": "240baa2bb21e59ab138b0b8a21097676d142d401f2a726e2a283d7ad01a885e5",
+  "definition": "2dce803c5e406b5fbf526daee33411a03a71b22bea0e8ebe30fa7afdbd2457b6",
   "$defs": {
     "ReadRequest": {
       "$ref": "#/$defs/ReadRequest/$defs/T0",
@@ -29,7 +29,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "240baa2bb21e59ab138b0b8a21097676d142d401f2a726e2a283d7ad01a885e5"
+            "2dce803c5e406b5fbf526daee33411a03a71b22bea0e8ebe30fa7afdbd2457b6"
           ]
         },
         "T2": {
@@ -253,7 +253,7 @@
             "lifetime_ms"
           ],
           "x-transit-defaults": {
-            "definition": "240baa2bb21e59ab138b0b8a21097676d142d401f2a726e2a283d7ad01a885e5",
+            "definition": "2dce803c5e406b5fbf526daee33411a03a71b22bea0e8ebe30fa7afdbd2457b6",
             "readers": 4,
             "window_rows": 100,
             "window_bytes": 2097152,
@@ -263,7 +263,7 @@
         "T2": {
           "type": "string",
           "enum": [
-            "240baa2bb21e59ab138b0b8a21097676d142d401f2a726e2a283d7ad01a885e5"
+            "2dce803c5e406b5fbf526daee33411a03a71b22bea0e8ebe30fa7afdbd2457b6"
           ]
         },
         "T3": {
@@ -382,7 +382,7 @@
             "stopped"
           ],
           "x-transit-defaults": {
-            "definition": "240baa2bb21e59ab138b0b8a21097676d142d401f2a726e2a283d7ad01a885e5"
+            "definition": "2dce803c5e406b5fbf526daee33411a03a71b22bea0e8ebe30fa7afdbd2457b6"
           }
         },
         "T10": {
@@ -2097,7 +2097,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "240baa2bb21e59ab138b0b8a21097676d142d401f2a726e2a283d7ad01a885e5"
+            "2dce803c5e406b5fbf526daee33411a03a71b22bea0e8ebe30fa7afdbd2457b6"
           ]
         },
         "T2": {
@@ -2478,7 +2478,7 @@
             "namespace"
           ],
           "x-transit-defaults": {
-            "definition": "240baa2bb21e59ab138b0b8a21097676d142d401f2a726e2a283d7ad01a885e5",
+            "definition": "2dce803c5e406b5fbf526daee33411a03a71b22bea0e8ebe30fa7afdbd2457b6",
             "cells": 4,
             "rows": 10000,
             "value_bytes": 16777216,
@@ -2490,7 +2490,7 @@
         "T2": {
           "type": "string",
           "enum": [
-            "240baa2bb21e59ab138b0b8a21097676d142d401f2a726e2a283d7ad01a885e5"
+            "2dce803c5e406b5fbf526daee33411a03a71b22bea0e8ebe30fa7afdbd2457b6"
           ]
         },
         "T3": {
@@ -2875,7 +2875,7 @@
             "stopped"
           ],
           "x-transit-defaults": {
-            "definition": "240baa2bb21e59ab138b0b8a21097676d142d401f2a726e2a283d7ad01a885e5"
+            "definition": "2dce803c5e406b5fbf526daee33411a03a71b22bea0e8ebe30fa7afdbd2457b6"
           }
         },
         "T23": {

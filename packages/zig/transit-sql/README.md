@@ -58,9 +58,12 @@ LIMIT bounds acquisition and never hides accepted result rows. Native FIFO,
 capacity and lease checks remain authoritative. Group consumption binds an
 explicit native assignment/checkpoint descriptor, and COMMIT OFFSET freezes
 the original read receipt and authenticated traversal interval. Grouped result
-completion preserves both boundaries even at a partial LIMIT or LIMIT 0. Queue WAIT freezes a bounded attempt policy; passive recovery only observes
+completion preserves both boundaries even at a partial LIMIT or LIMIT 0. Stream
+and Queue WAIT freeze a bounded attempt policy; passive recovery only observes
 waited work or honors cancellation, while explicit resume dispatches the same
-native wait on the data lane. Stream WAIT and Queue payload predicates remain unimplemented; group assignment
+native wait on the data lane. Stream readiness uses the saved start/checkpoint
+and open upper frontier, independently of filters and LIMIT. Queue payload
+predicates remain unimplemented; group assignment
 and read-release tokens stay with their native owners.
 
 Run `zig build test` or `zig build check` from this directory. The build graph

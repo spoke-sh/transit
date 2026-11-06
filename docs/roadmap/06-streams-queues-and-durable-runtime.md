@@ -14,8 +14,9 @@ The [current completion plan](#first-implementation-changes), refreshed on
 caller operations, transaction qualification, Station cutover and performance
 work. Start there for the source assessment, milestone handoffs, review boundaries
 and acceptance gates. The shared SQL wait contract and unfiltered Queue WAIT
-(4b.2) are implemented by the first follow-up below. Stream WAIT (4a.2) is the
-next feature unit; grouped Stream consumption and offset settlement (4a.1),
+(4b.2) and bounded SQL Stream WAIT (4a.2) are implemented in the follow-ups
+below. The [Stream WAIT slice plan](#next-slice-sql-stream-wait-4a2--2026-11-05)
+records its source basis at merged PR #386; grouped Stream consumption and offset settlement (4a.1),
 NACK and original renewal results remain regression inputs.
 The [earlier source audit](#source-baseline-and-remaining-gaps) and dated progress
 records preserve their original attribution. Delivery-sequence SQL examples
@@ -1380,6 +1381,188 @@ to **Completed** only when R0–R10 and the applicable completion criteria agree
 
 ### First implementation changes
 
+#### Next slice: SQL Stream WAIT (4a.2) — 2026-11-05
+
+**Status: Implemented; [qualification remains partial](../history/qualification/sql.md#bounded-sql-stream-waits--2026-11-05). Plan source basis:** `origin/main` at
+`d8b756f08116ac50c53b72886dca239abb74cbb3`, including merged
+[PR #386](https://github.com/spoke-sh/transit/pull/386). That change delivers
+shared SQL wait recovery and unfiltered Queue WAIT (4b.2). This plan selects one
+subsequent implementation PR, with logical commits below. It supersedes only the
+next-slice ordering and Queue-wait gaps in the earlier source assessment; Batches
+0–9 retain their remaining gates. This source review executes no runtime proof.
+
+**Application outcome:** a caller waits briefly for a declared Stream's offset
+frontier, receives one finite retained read when ready, or inspects a pending
+original operation after timeout. Explicit resume preserves the same request.
+Grouped consumption retains authenticated progress for a separate `COMMIT OFFSET`.
+Reading, waiting, closing delivery and inspecting status never commit progress.
+
+The implemented forms reuse the existing grammar:
+
+```sql
+CONSUME value, _offset FROM events WHERE _offset >= $1 LIMIT 128 WAIT '1s';
+CONSUME value, _offset FROM events GROUP $1 LIMIT $2 WAIT $3;
+```
+
+The source revision above refused these forms. The slice now binds and dispatches
+the saved native Stream wait through shared SQL recovery. Current semantics live
+in the [SQL reference](../handbook/reference/sql/streaming.md#wait-for-a-stream-frontier).
+The group parameter is the existing binary `StreamHandle.Group`, the limit is
+an unsigned row count, and the wait parameter is a duration string. SQL still
+selects exactly one partition. Follow the current
+[SQL consumption profile](../handbook/reference/sql/streaming.md#consume-and-settle-an-assigned-group),
+[native wait contract](../../contracts/DIRECT_TABLE_V1.md#stream-payload-and-consumer-progress)
+and [SQL wait recovery contract](../../contracts/SQL_SESSION_V1.md#queue-wait-attempts)
+when extending admission.
+
+##### Source findings and implementation owners
+
+| Boundary | Delivered owner | Change needed for this slice |
+| --- | --- | --- |
+| Grammar and owned operands | [`LogConsumeSql`](../../packages/zig/transit-fuze/src/LogConsumeSql.zig) already parses GROUP, predicates, LIMIT and WAIT, including parameters | Preserve existing syntax and owned literals; add native-range diagnostics and executable capability fixtures |
+| Catalog binding | [`DirectLogPreparedConsume.freeze`](../../packages/zig/transit-catalog/src/DirectLogPreparedConsume.zig) freezes a positional start or explicit group checkpoint, with native `until = null` | Remove WAIT refusal only after saved-work semantics are implemented; retain routing, predicates and logical LIMIT |
+| Saved intent | [`DirectWorkloadIntent`](../../packages/zig/transit-catalog/src/DirectWorkloadIntent.zig) persists mandatory nullable `wait_ms`; validation and `Reference.operation` currently dispatch only waited Queue claims | Admit waited Stream consume bodies, validate the exact native request and dispatch Stream wait from the saved reference |
+| Shared observations | [`Workload.Wait`](../../packages/zig/transit-sql-results/src/Workload.zig) and [`Operation.validate`](../../packages/zig/transit-sql-protocol/src/root.zig) restrict waiting to Queue claim bindings/commands | Admit precisely Stream consume and Queue claim, with matching command, binding and nonterminal row-result shape |
+| SQL execution/recovery | [`WorkloadOperations`](../../packages/zig/transit-sql/src/WorkloadOperations.zig) has receipt-first passive, initial and explicit paths; dispatch and timeout validation are Queue-specific | Add the Stream branch using `DirectStreamResponse`; keep first-admission and resume scheduling in the existing `DatabaseRuntime` |
+| Native parking and authority | [`DirectStream`](../../packages/zig/transit-catalog/src/DirectStream.zig), [`DirectStreamResponse`](../../packages/zig/transit-catalog/src/DirectStreamResponse.zig) and node `LocalLogWaits` already implement bounded frontier waits | Reuse them; extend their real-owner tests where SQL introduces a new composition or exposes a missing race |
+| Delivery and callers | `DirectWorkloadResult`, `WorkloadRead`, shared-client `Pending`/`Executor.resumeWorkload` and the wire adapters already preserve original results | Prove Stream wait observations, finite cuts and grouped completion through these owners; add no new result or recovery protocol |
+
+##### Contract choices to freeze before admission
+
+1. **Separate SQL policy from native work identity.** Freeze a positive duration
+   of 1–1000 whole milliseconds in the canonical SQL intent and token
+   fingerprint. The native accepted identity remains the exact underlying
+   consume request; its wait duration is a transient scheduling bound. Null
+   policy continues to mean ordinary consumption. Missing fields, other workload
+   kinds, changed frozen inputs and foreign definitions refuse. A resume can
+   obtain a new bounded deadline, never a new source, checkpoint or operation.
+2. **Keep readiness independent of output selection.** SQL retains native
+   `until = null`: readiness is `from < next`, where positional `from` is the
+   existing conservative lower bound and grouped `from` is the saved checkpoint.
+   Upper `_offset` comparisons remain row predicates. Payload filters and LIMIT,
+   including LIMIT 0, do not bypass the wait or require matching rows before
+   acceptance. A ready read may therefore produce zero rows. Native explicit
+   `until <= next` behavior remains a regression case; this slice introduces no
+   SQL upper-frontier operand or timestamp syntax and does not reinterpret a
+   WHERE upper bound as one. Preserve rejection of contradictory routing bounds.
+3. **Retain exactly one accepted cut.** The native owner selects the finite
+   upper cut at acceptance. Later appends never extend it, and resume/reopening
+   never recapture it. Group descriptors retain principal, generation, partition
+   and expected checkpoint; every native attempt checks current assignment and
+   rights. Fresh expired history, stale groups and changed definitions follow
+   their existing refusal rules, without refreshing the saved request.
+4. **Keep timeout, uncertainty and acceptance distinct.** An actual native
+   timeout yields a ready/pending SQL operation with no receipt, terminal rows,
+   counts or coverage. Only that attempt's response may carry its observed cut;
+   passive status carries null `timed_out`. Validate the timeout through
+   `DirectStreamResponse` against the complete request, including its unready
+   frontier and retained boundary. Timeout is neither a retained pin nor proof
+   that a concurrent attempt cannot accept. An original receipt or durable
+   closure takes precedence over waiting, including an accepted empty read.
+5. **Reuse explicit recovery and cancellation.** Only the first winning SQL
+   admission or an explicit original-work resume may dispatch one wait attempt.
+   Same-token execute, status and service recovery cannot consume plainly or
+   start another wait. Preserve lost-reply uncertainty and the original identity
+   when subsequent observation is denied. A local stopped wait is separate from
+   durable cancellation; cancellation races use the existing consume closure
+   owner. Resume uses the data lane; observation and cancellation retain control
+   capacity. Bound shutdown/join and preserve SQL activation fencing.
+6. **Reuse delivery, progress and transport semantics.** Successful results use
+   the existing consume selection and bounded result lifecycle. Grouped terminal
+   metadata authenticates traversal, including filtered and partial-LIMIT cases;
+   row counts cannot authorize offset settlement. Local result close neither
+   commits offsets nor releases the native pin. Pending PostgreSQL/MySQL outcomes
+   retain the existing 57014 and 1317/70100 mapping and original operation ID;
+   the console returns nonzero with typed recovery JSON. All four callers obtain
+   rows on success; group progress remains exposed through the native result API.
+7. **Make one coherent current-v1 change.** Extending accepted saved-work and
+   wait-observation semantics requires a replacement shared definition. Update
+   the Stream, direct workload, SQL session/result contracts, reflected schemas,
+   independent fixtures, SDK validator resources and signing digests together.
+   Preserve missing/foreign-definition refusal. Do not default old persisted
+   policy, reinterpret old accepted work or add a second compatibility profile.
+
+##### Implementation and logical commit sequence
+
+| Commit unit | Concrete work | Review gate |
+| --- | --- | --- |
+| 1. `feat(sql): define original Stream wait observations` | Extend shared wait/operation validation and contract fixtures for Stream consume; specify readiness, timeout, cancellation and original-result evidence. Coordinate the current-v1 definition and generated consumer cutover | Independent valid/invalid observations distinguish Stream consume from append/offset and Queue claim from settlement; mismatched command/binding/target, terminal-plus-wait and foreign definitions reject |
+| 2. `feat(catalog): bind bounded Stream waits to saved consumption` | Extend `Saved.validate` and `Reference.operation`; freeze `wait_ms` through `createWaited` in `DirectLogPreparedConsume`. Preserve the existing projection, partition and group binding; no pin or admission during preparation | Parameter buffers and prepared objects can be destroyed; restore reproduces the same identity/projection/duration. Allocation failures, invalid durations, ambiguous routing and changed canonical inputs refuse safely |
+| 3. `feat(sql): execute and resume original Stream waits` | Dispatch and validate Stream wait in `WorkloadOperations`; reuse `DatabaseRuntime`'s first-binding winner, passive recovery and explicit resume. Carry the observation through SQL service, shared client, wire and console adapters | A timeout stays pending through status, same-token execution and replacement; only explicit resume can accept later arrivals. Lost replies, recovering owners, current denial and cancellation preserve original identity |
+| 4. `test(sql): qualify waited Stream cuts and group progress` | Extend installed log/wait schedules and owning native concurrency checks; exercise real typed, native SQL, PostgreSQL, MySQL and console paths. Keep Queue WAIT and ordinary consume/offset regressions | Acceptance matrix below passes with unchanged deadlines, budgets and exact operation/receipt assertions; controlled race tests establish both allowed outcomes |
+| 5. `docs(sql): publish Stream wait behavior and evidence` | Update the public Stream/SQL references, Catalog/SQL/client guides, capability inventory and relevant Internals explanation. Record executed revision-specific proof and update this milestone's slice status | Public owners explain current behavior without a roadmap; proof records distinguish component, installed, caller and unexecuted scenarios |
+
+These are commits within one review unit, not permission to expose partially
+supported syntax between dependent PRs. Implementation may combine inseparable
+contract/generated changes, but the final tree must reject unsupported work
+before admission. Keep native Stream/Queue storage and database ownership intact.
+
+##### Acceptance matrix
+
+| Case | Required observation | Starting owner |
+| --- | --- | --- |
+| Binding and bounds | Literal/parameter 1 ms and 1000 ms accepted; zero, null, malformed and 1001 ms refused. Owned parameters, full-width offsets, multi-partition ambiguity, explicit groups, LIMIT 0 and AND/OR/NOT retain their existing semantics | `LogConsumeSql`, `DirectLogPreparedConsume`, saved-intent and shared protocol tests |
+| Ready versus empty output | Existing data accepts immediately; filtered/all-hidden input and LIMIT 0 can complete empty after readiness. An upper-offset predicate does not delay until that upper offset. Partial LIMIT preserves authenticated progress | Catalog owner, `WorkloadRead`, installed consume/group schedules |
+| Timeout and late publication | No read receipt or pin is accepted by the timed-out attempt. Later append plus repeated passive observation/same-token execute still leaves SQL pending. Explicit resume retains original identities and selects one finite cut | `tests/interfaces/sql_sessions/waits.py`, original token/result checks |
+| Arrival at the deadline | Registration-before-check and final authorized recheck allow either original acceptance or timeout followed by explicit resume; deterministic controls exercise both, not just whichever branch an uncontrolled race reaches | `apps/transit-node/local_log_wait_test.zig`, Catalog wait tests, installed waits |
+| Recovery and response loss | Drop initial admission, timeout, accepted execute/resume and fetch replies separately; replace SQL service/node and inspect the same saved work. Denied observation preserves known identity and clears stale timeout evidence; no automatic retry or recapture | SQL fault proxy, shared-client peer tests and installed original-result recovery |
+| Groups and offsets | Reassignment, changed checkpoint or revoked acquire rights while parked fence work. Waited empty/filtered/multi-batch/partial results produce authentic progress; separate COMMIT OFFSET succeeds or returns the original recorded refusal. Forged and released descriptors still fail | Existing group/offset installed schedules, Stream response/result validators |
+| Accepted-cut lifetime | Append after acceptance, result reopen, compatible catalog edits, compaction gaps and restart preserve original receipt/cut and available payload. Released or unavailable history fails explicitly; no silent fresh read | Disk Catalog/native Stream tests and installed results |
+| Current rights and cancellation | Denial before admission, while parked and after buffering prevents disclosure. Durable cancellation versus acceptance resolves one original outcome; session loss/shutdown joins local waits without promising rollback | Native wait schedules, service/client cancellation and after-buffer controls |
+| Capacity and ownership | Four native wait lanes, 64 aggregate Stream/Queue registrations and smaller declaration limits remain bounded. Saturation preserves unrelated control progress; completion/cancellation releases registrations. SQL parking holds no data lock | `LocalLogWaits`, native host/service and SQL concurrency checks |
+| Caller carriage and regressions | Native SQL/shared client, PostgreSQL, MySQL and console preserve pending identity and successful finite rows. Ordinary consume, group settlement, Queue WAIT, ACK/NACK and exact renewed-handle results continue to pass | Full installed `sessions-log`, SQL package/wire suites |
+
+The native wait owner's existing explicit-upper-frontier, timestamp-filter and
+producer-retry controls remain regressions; they do not expand SQL syntax or
+qualify new Arrow/Flight ingress. Preserve separate native page, examined-offset,
+SQL result-page and display budgets. Use bounded scratch and retained output
+lifetimes; never collect a whole Stream to decide readiness or column widths.
+
+##### Validation and completion
+
+During implementation use the affected package tests in `transit-fuze`,
+`transit-catalog`, `transit-sql-results`, `transit-sql-protocol`, `transit-sql`,
+`transit-sql-service` and `transit-sql-client`, then real owning disk/service
+tests (`just test catalog`, `just test local-catalog`, `just test service`).
+The existing focused installed command is:
+
+```sh
+nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe -- sessions-wait
+```
+
+Extend that selector to run both Queue and Stream schedules; retain their
+inclusion in `just test sql-log-declarations` (`sessions-log`). A focused pass
+cannot substitute for the full log/group/offset regressions. Run
+`just check contracts`, `just test sql-wire-contracts` and
+`just test sql-wire-types` inside their owning pinned shells. Before the
+implementation PR, run the root fast gate and both handbook install/check
+commands, the pinned `ci-experience` console-latency gate followed by
+`server-sql-types`, and affected committed-HEAD clean `core`, `storage-query`,
+`interfaces-sql` and `installation-ui` lanes. The definition cutover also requires
+the dependent SDK/browser contract checks selected from the final generated diff
+and [suite inventory](../../tests/runner/suite.json). Keep timed latency runs
+separate from heavy builds and retain failed original attempts. Record commands,
+revision/definition, binaries, outcomes and omissions; no skipped check or pass
+from an earlier revision qualifies the final implementation.
+
+Update [SQL streaming](../handbook/reference/sql/streaming.md),
+[Streams](../handbook/reference/streams.md), the owning package guides and
+[service internals](../handbook/internals/service-interfaces.md) with executable
+behavior when it lands. Reconcile stale blanket WAIT refusals in component
+guides while retaining the actual Queue predicate and Stream-source limits.
+Put executed results in [SQL qualification](../history/qualification/sql.md#bounded-sql-stream-waits--2026-11-05).
+This planning change needs documentation checks only and establishes no runtime
+or latency result.
+
+**Slice exit:** waited consumption preserves one original operation; each accepted
+read retains one finite cut and, when grouped, authenticated progress across the
+matrix above, through supported callers under current rights. Mark 4a.2 delivered only
+with its implementation and source-attributed evidence. M6 remains In Progress:
+Queue predicates, `STREAM_SLICE`, mixed SQL, automatic group assignment,
+transactional Station, the Document handoff and Batches 0/1/2/8/9 remain separate.
+Continuous consumption/activation and new producer or Arrow ingress profiles are
+not added by this slice.
+
 #### Completion plan at current main — 2026-11-05
 
 **Source basis:** fetched `origin/main` at
@@ -1490,7 +1673,7 @@ Preserve the following evidence and remaining blockers separately:
 | [Installed scenarios](../history/qualification/performance.md#installed-scenario-qualification--2026-11-04) and [scalar interface parity](../history/qualification/sql.md#scalar-parity-across-sql-interfaces--2026-11-04) | Preserve verified values/recovery and the existing console budget gate. Scenario observations are not a paired speedup, and passing smoke ceilings does not meet M6's Table targets or supply complete Stream/Queue/Station baselines |
 
 **Immediate order:** preserve 4a.1, 4b.1 and the Queue WAIT implementation
-(4b.2) below as regression inputs. Next implement **Stream WAIT (4a.2)** against
+(4b.2) and **Stream WAIT (4a.2)** below as regression inputs. The latter uses
 the shared wait identity/result/recovery contract, extending its Queue-only
 validation deliberately and reusing group coverage rather than redefining it. Batch 0 investigates the original
 maintenance failure and distinct setup/BEGIN uncertainties, using the later
@@ -1578,7 +1761,7 @@ estimates.
 | 1 | R9 | Existing drivers; current-definition controls; Batch 0 for blocked profiles | All six log profiles plus required extended scenarios and preserved Station comparison, with measured budgets |
 | 2 | R0/R4/R5 | Existing mixed/DLQ owners | Complete common-decision faults, correspondence and integrated automatic transfer proof |
 | 3 | R0/R6 | Existing workload results/closures, delivered group coverage and ACK/NACK/renewal, latest admission tracking | Wait contract/recovery first, then predicate and mixed-statement semantics with shared caller composition |
-| 4a–4d | R3/R4/R6 | Batch 3 per verb; Batch 2 for mixed SQL; 4a.1 and 4b.1 delivered | Queue WAIT (4b.2) implemented; Stream WAIT (4a.2) next; native predicates (4b.3), finite TVF (4c), mixed SQL (4d) as separate units; groups/offsets and renewal remain regression gates |
+| 4a–4d | R3/R4/R6 | Batch 3 per verb; Batch 2 for mixed SQL; 4a.1 and 4b.1 delivered | Queue WAIT (4b.2) and Stream WAIT (4a.2) implemented; native predicates (4b.3), finite TVF (4c), mixed SQL (4d) as separate units; groups/offsets and renewal remain regression gates |
 | 5 | R0/R7 | Batch 2, replacement contracts, saved Station baseline | One real handler commits inbox ACK, Table/KV state, journal and output together |
 | 6 | R7 | Batch 5 | Durable calls, names, timers and supervision migrated |
 | 7 | R8 | Batches 5–6, owner gates for affected consumers | Effects/SDKs/query consumers migrated; replacement activated and old delivery removed |
@@ -1856,6 +2039,9 @@ upper/open-ended bounds, register/recheck races, publication at timeout,
 cancellation, revocation/reassignment while parked and saturation. A successful
 wait yields one finite retained cut; later appends never extend it. Preserve
 observed high watermark/lag attribution and keep data locks out of parked work.
+The [next-slice plan](#next-slice-sql-stream-wait-4a2--2026-11-05) fixes the
+SQL/native boundary: existing SQL upper-offset predicates remain filters;
+explicit native upper-frontier waits remain native regression coverage.
 
 - Extend the delivered offset regression through waited reads, compaction gaps
   and released/unavailable history. Reopening an accepted wait result must return
@@ -1933,7 +2119,8 @@ Native saturation, lease algorithms and broader milestone profiles retain their
 independent qualification owners.
 
 The review units below remain the regression map for **4b.2** and prerequisites
-for the planned **4b.3** extension. Stream WAIT is still a separate **4a.2** unit.
+for the planned **4b.3** extension. Stream WAIT is delivered by the separate
+**4a.2** unit above.
 
 | Review unit | Owning change | Required exit |
 | --- | --- | --- |

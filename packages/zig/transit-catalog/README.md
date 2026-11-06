@@ -116,7 +116,9 @@ advances a group checkpoint. The upper cut is chosen once by the native owner at
 acceptance; upper-offset comparisons remain row predicates within that cut.
 The complete predicate retains Fuze's eager evaluation for traversed rows.
 LIMIT stays in the logical plan and never becomes an offset span. Contradictory
-metadata selections and waits are refused by this preparation profile. A binary
+metadata selections are refused by this preparation profile. WAIT freezes a
+1–1000 ms policy in `DirectWorkloadIntent`; execution dispatches the same native
+consume with an open upper frontier. Filters and LIMIT do not change readiness. A binary
 `StreamHandle.Group` binds an existing native assignment, selects its partition
 and starts at its checkpoint; predicates never skip earlier group input.
 `DirectLogPreparedOffset` freezes `COMMIT OFFSET` from the original read receipt
@@ -129,7 +131,8 @@ A missing selector requires a single partition; otherwise only exact `_partition
 equality is admitted. It freezes the declared claim maximum (or a smaller LIMIT),
 checked lease duration and complete original-row projection. Routing becomes the
 native target, so the result plan has neither a predicate nor an output limit.
-Other selection predicates and WAIT refuse before admission. The native owner
+Other selection predicates refuse before admission. WAIT freezes a 1–1000 ms
+policy for the original native claim; timeout creates no claim receipt. The native owner
 still checks eligibility, FIFO, capacity, current rights and trusted time.
 SQL sessions reuse the same workload token and original-result runtime.
 

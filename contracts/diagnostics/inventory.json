@@ -6720,7 +6720,7 @@
         "LogGroupFenced": 1,
         "LogPartitionRequired": 1,
         "QueryTypeError": 1,
-        "UnsupportedConstruct": 2
+        "UnsupportedConstruct": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -6736,7 +6736,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 47,
+        "try": 48,
         "catch": 0
       },
       "imports": [
@@ -9156,7 +9156,7 @@
         "IncompatibleDefinition": 1,
         "InvalidWorkloadIntent": 6,
         "InvalidWorkloadProjection": 2,
-        "InvalidWorkloadWait": 1,
+        "InvalidWorkloadWait": 2,
         "OutOfMemory": 1,
         "SourceChanged": 1,
         "WorkloadProjectionSourceChanged": 1,
@@ -9200,7 +9200,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 48,
+        "try": 49,
         "catch": 3
       },
       "imports": [
@@ -23648,7 +23648,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"240baa2bb21e59ab138b0b8a21097676d142d401f2a726e2a283d7ad01a885e5\""
+          "@\"2dce803c5e406b5fbf526daee33411a03a71b22bea0e8ebe30fa7afdbd2457b6\""
         ],
         "Effect.phase": [
           "pending",
@@ -34096,7 +34096,7 @@
     "packages/zig/transit-sql/src/WorkloadOperations.zig": {
       "errors": {
         "CatalogIdentityConflict": 1,
-        "InvalidWorkloadEvidence": 5,
+        "InvalidWorkloadEvidence": 6,
         "MissingGatewayTerminal": 1,
         "UnsupportedSqlWorkload": 5,
         "WorkloadOperationRequired": 1
@@ -34127,7 +34127,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 23,
+        "try": 24,
         "catch": 0
       },
       "imports": [

@@ -40,6 +40,21 @@ else:
     native = json.loads((ROOT / 'packages/zig/transit-protocol/src/fixtures/stream-queue-v1.json').read_text())
     assert native['read']['request']['target']['definition'] == current
     intent = dict(bytes=4096, sha256=[71]*32)
+    waits = []
+    for kind, command, target, operation in (
+        ('stream', 'consume', native['read']['request']['target'], native['read']['request']['operation']),
+        ('queue', 'claim', native['claim']['claim']['target'], native['claim']['claim']['operation']),
+    ):
+        binding = {kind: dict(definition=current, operation=operation, target=target, kind=command, intent=[83]*32)}
+        # A timeout is observation only. This fixture checks carriage, not an
+        # authenticated native request or proof that its frontier is unready.
+        waits.append(dict(identity=dict(account=[89]*32, id=2**64-2, kind='workload'),
+            command=command, token=[97]*16, phase='ready', result_kind='rows',
+            wait=dict(intent=intent, binding=binding, milliseconds=1000,
+                timed_out=dict(target=target, accepted=native['read']['cut']['accepted'], retained_from=0, next=2**53+1))))
+    waits_path = path.with_name('workload-waits.json')
+    if args.write: waits_path.write_text(json.dumps(waits, indent=2) + '\n')
+    else: assert json.loads(waits_path.read_text()) == waits, 'workload wait fixture drift'
     claim_position = copy.deepcopy(native['queue_cursor'])
     claim_position['next'] = native['claim']['rows']
     renewal = copy.deepcopy(native['settlement'])

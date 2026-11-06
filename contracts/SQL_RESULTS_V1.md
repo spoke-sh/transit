@@ -159,15 +159,16 @@ checks the returned intent and selection against settlement evidence. SQL text
 admission supports `PRODUCE INTO` and `ENQUEUE INTO`, including optional
 `RETURNING`, positional/grouped `CONSUME`, authenticated `COMMIT OFFSET`,
 partition-routed `CLAIM` and receipt-bound
-`ACK`/`NACK` and `EXTEND LEASE`. Group assignment and Stream waits remain native-only. Queue WAIT returns a
+`ACK`/`NACK` and `EXTEND LEASE`. Group assignment remains native-only.
+Timed-out Stream and Queue WAIT return a
 nonterminal `Workload.Wait` observation through `Unresolved.reason.waiting`.
-It binds saved content, the original native claim and the fixed 1–1000 ms
+It binds saved content, the original native consume or claim and the fixed 1–1000 ms
 attempt duration. Nullable `timed_out` identifies only an observed timeout cut;
 status carries null rather than inventing a past timeout. Neither shape supplies
-a result schema, rows, successful empty claim or terminal coverage. Explicit
+a result schema, rows, successful empty result or terminal coverage. Explicit
 resume preserves the original identity and validates any eventual receipt
 against that same saved content and native binding. See the
-[session wait contract](SQL_SESSION_V1.md#queue-wait-attempts).
+[session wait contract](SQL_SESSION_V1.md#stream-wait-attempts).
 
 ## Ownership and consumers
 

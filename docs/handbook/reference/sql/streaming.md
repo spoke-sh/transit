@@ -2,7 +2,8 @@
 
 Transit has durable streams, application materialization and recorded connector
 effects. SQL executes finite reads, Table DDL/DML and Stream/Queue declarations
-and appends, positional Stream consumption, partition-routed Queue claims and
+and appends, positional and grouped Stream consumption, bounded Stream/Queue
+waits, partition-routed Queue claims and
 receipt-bound ACK/NACK and lease renewal. The transport of a result in
 several batches does not make that query continuous.
 
@@ -12,9 +13,9 @@ several batches does not make that query continuous.
 | --- | --- | --- |
 | Declare and inspect a Stream or Queue | Shared Catalog declaration owner | `CREATE`, policy `ALTER`, `RENAME`, `DROP`, named `SHOW` and `DESCRIBE` below |
 | Append schema-bound events or work | Stream/Queue native owner with Catalog operation identity | `PRODUCE INTO`, `ENQUEUE INTO`, optional `RETURNING` below |
-| Consume a finite Stream cut | Native read with retained identity and bounded Fuze projection | Positional or explicitly grouped `CONSUME`, typed predicates and logical `LIMIT` below |
+| Consume a finite Stream cut | Native read with retained identity and bounded Fuze projection | Positional or explicitly grouped `CONSUME`, typed predicates, logical `LIMIT` and bounded `WAIT` below |
 | Settle Stream progress | Native group checkpoint owner with authenticated read boundaries | `COMMIT OFFSET ... RECEIPT` below |
-| Acquire Queue work | Native fenced leases and retained original selection | `CLAIM ... WITH LEASE`, one partition and an acquisition maximum below |
+| Acquire Queue work | Native fenced leases and retained original selection | `CLAIM ... WITH LEASE`, optional bounded `WAIT`, one partition and an acquisition maximum below |
 | Settle or renew Queue work | Native settlement of an exact lease | `ACK`, `NACK` and `EXTEND LEASE` below |
 | Read an explicit state projection | Fuze over declared KV, Table or accepted Document state | Finite `SELECT` |
 | Configure an external connector | HTTP/gRPC connector configuration and credential references | `CREATE CONNECTION` is grammar only |
@@ -95,8 +96,9 @@ history. Deployment memory and storage quotas still apply.
 
 ALTER cannot change schema, partitioning, routing keys, ordering, compaction
 keys or timestamp identity. `IF EXISTS`, `IF NOT EXISTS` and schema evolution
-are outside this SQL profile. Group assignment and Stream waits require typed native
-callers. Queue waits use the claim interface below. SQL group reads and offset settlement use their native descriptors. The admitted partition-routed CLAIM and
+are outside this SQL profile. Group assignment requires typed native callers.
+Stream and Queue waits use the interfaces below. SQL group reads and offset
+settlement use their native descriptors. The admitted partition-routed CLAIM and
 receipt-bound settlement profiles are described below.
 
 Named `SHOW` returns the published object identity, definition revision,
@@ -232,8 +234,43 @@ the same settlement even after reassignment. Reassignment fences further deliver
 of the old grouped read, including buffered and reopened results; the original
 operation and accepted settlement remain recoverable. Closing results advances
 no offset and releases no native pin. Group assignment and read release remain native
-operations. Stream WAIT and attached interactive workload transactions remain outside
-this SQL profile.
+operations. Attached interactive workload transactions remain outside this SQL
+profile.
+
+### Wait for a Stream frontier
+
+```sql
+CONSUME value, _offset FROM events WHERE _offset >= $1 LIMIT 128 WAIT '1s';
+CONSUME value FROM events GROUP $1 LIMIT $2 WAIT $3;
+```
+
+WAIT accepts a duration or bound string parameter from 1 through 1000 whole
+milliseconds. Transit freezes that policy with the original SQL operation and
+makes one bounded native attempt. A positional read waits for an offset after
+its starting position; a group read waits after its supplied checkpoint. Upper
+`_offset` comparisons, payload filters and LIMIT, including LIMIT 0, filter or
+bound output without changing readiness. A ready read can therefore complete
+with zero rows. The accepted upper cut is finite and never grows on resume or
+result reopening.
+
+A timeout leaves the original SQL operation pending, without an accepted read,
+result rows or group progress. Only the response to that attempt carries its
+observed timeout cut; passive status has no timeout cut. Same-token execute,
+status and service recovery do not begin another attempt. Use the shared SQL
+client's `Executor.resumeWorkload` or native session `resume` to make another
+bounded attempt for the same saved operation. Current rights, group assignment
+and checkpoint are checked again. Assignment or checkpoint conflicts do not
+refresh the saved descriptor; inspect or cancel that original operation.
+
+The shared client returns typed `unresolved` evidence with reason `waiting`.
+PostgreSQL reports SQLSTATE 57014 and MySQL reports error 1317 / SQLSTATE 70100,
+including the original operation ID. The console exits nonzero and its JSON
+output preserves the pending identity. A timeout is not a successful empty
+result. Preserve the original identity after a lost reply; an accepted receipt
+or recorded closure wins over waiting. Successful grouped reads still require a
+separate authenticated `COMMIT OFFSET`. Closing delivery commits no progress
+and releases no native pin. See the
+[Stream wait contract](../../../../contracts/SQL_SESSION_V1.md#stream-wait-attempts).
 
 ## Acquire Queue work
 
