@@ -9,6 +9,7 @@ const LogWaits = @import("LocalLogWaits.zig");
 const w = c.DirectTableProtocol;
 pub const Protocol = w;
 const Self = @This();
+const Deadline = c.client.Deadline;
 const stripe_count = 64;
 pub const request_owners = 10;
 const ResidentSlot = struct { mutex: std.Io.Mutex = .init, value: ?*Service.Resident = null };
@@ -161,12 +162,13 @@ pub fn executeCapacity(self: *Self, io: std.Io, engine: *backend.DataAuthority.E
     return self.executeMeasured(io, engine, arena, output_allocator, request, control, null);
 }
 pub fn executeMeasured(self: *Self, io: std.Io, engine: *backend.DataAuthority.Engine, arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: w.Request, control: bool, memory_report: ?*?@import("DirectRequestMemory.zig").Report) ![]const u8 {
-    return self.executeResult(.json, io, engine, arena, output_allocator, request, control, memory_report);
+    return self.executeResult(.json, io, engine, arena, output_allocator, request, control, memory_report, null);
 }
-pub fn executeTyped(self: *Self, io: std.Io, engine: *backend.DataAuthority.Engine, arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: w.Request, control: bool) !w.Response {
-    return self.executeResult(.typed, io, engine, arena, output_allocator, request, control, null);
+pub fn executeTyped(self: *Self, io: std.Io, engine: *backend.DataAuthority.Engine, arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: w.Request, control: bool, deadline: ?Deadline) !w.Response {
+    return self.executeResult(.typed, io, engine, arena, output_allocator, request, control, null, deadline);
 }
-fn executeResult(self: *Self, comptime format: Service.Output, io: std.Io, engine: *backend.DataAuthority.Engine, arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: w.Request, control: bool, memory_report: ?*?@import("DirectRequestMemory.zig").Report) !Service.Result(format) {
+fn executeResult(self: *Self, comptime format: Service.Output, io: std.Io, engine: *backend.DataAuthority.Engine, arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: w.Request, control: bool, memory_report: ?*?@import("DirectRequestMemory.zig").Report, parent: ?Deadline) !Service.Result(format) {
+    if (parent) |cap| try cap.check(io);
     const milliseconds: ?u32 = switch (request.action) {
         .stream => |value| if (value == .wait) value.wait.milliseconds else null,
         .queue => |value| if (value == .wait) value.wait.milliseconds else null,
@@ -176,7 +178,7 @@ fn executeResult(self: *Self, comptime format: Service.Output, io: std.Io, engin
         // Wake even when accepted work loses its reply. Read-only probes never
         // wake other probes; this is notification, not an idle polling loop.
         defer if ((request.action == .stream and request.action.stream.mutation()) or (request.action == .queue and request.action.queue.mutation()) or exclusive(request.action)) self.notifyLogs();
-        return self.executeSingle(format, io, engine, arena, output_allocator, request, control, memory_report, null);
+        return self.executeSingle(format, io, engine, arena, output_allocator, request, control, memory_report, null, parent);
     }
     if (control) return error.InvalidRequest;
     const waits = self.log_waits orelse return if (request.action == .queue) error.QueueWaitUnavailable else error.StreamWaitUnavailable;
@@ -198,12 +200,13 @@ fn executeResult(self: *Self, comptime format: Service.Output, io: std.Io, engin
     defer scratch.deinit();
     var expired = false;
     while (true) {
+        if (parent) |cap| try cap.check(io);
         _ = scratch.reset(.retain_capacity);
         expired = expired or deadline.toDurationFromNow(io).?.raw.nanoseconds <= 0;
         const ticket = try waits.register(wait_target);
         defer waits.release(ticket);
         var wake_after_ms: ?u64 = null;
-        const result = self.executeSingle(format, io, engine, &scratch, output_allocator, request, false, memory_report, .{ .expired = expired, .registrations = try waits.count(ticket), .wake_after_ms = &wake_after_ms }) catch |err| {
+        const result = self.executeSingle(format, io, engine, &scratch, output_allocator, request, false, memory_report, .{ .expired = expired, .registrations = try waits.count(ticket), .wake_after_ms = &wake_after_ms }, parent) catch |err| {
             if (err != error.StreamWaitPending and err != error.QueueWaitPending) {
                 self.notifyLogs(); // Acceptance may precede a failed reply.
                 return err;
@@ -215,7 +218,8 @@ fn executeResult(self: *Self, comptime format: Service.Output, io: std.Io, engin
                 .clock = .awake,
             } } else deadline;
             const bounded = if (park.toDurationFromNow(io).?.raw.nanoseconds < deadline.toDurationFromNow(io).?.raw.nanoseconds) park else deadline;
-            switch (try waits.wait(ticket, bounded)) {
+            const capped = if (parent) |cap| cap.limit(.{ .until = bounded.toDeadline(io).deadline }).timeout() else bounded;
+            switch (try waits.wait(ticket, capped)) {
                 .changed, .timeout => {},
                 .closed => return if (request.action == .queue) error.QueueWaitUnavailable else error.StreamWaitUnavailable,
             }
@@ -225,15 +229,18 @@ fn executeResult(self: *Self, comptime format: Service.Output, io: std.Io, engin
         return result;
     }
 }
-fn executeSingle(self: *Self, comptime format: Service.Output, io: std.Io, engine: *backend.DataAuthority.Engine, arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: w.Request, control: bool, memory_report: ?*?@import("DirectRequestMemory.zig").Report, waiting: @FieldType(c.DirectStream.Environment, "waiting")) !Service.Result(format) {
+fn executeSingle(self: *Self, comptime format: Service.Output, io: std.Io, engine: *backend.DataAuthority.Engine, arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: w.Request, control: bool, memory_report: ?*?@import("DirectRequestMemory.zig").Report, waiting: @FieldType(c.DirectStream.Environment, "waiting"), parent: ?Deadline) !Service.Result(format) {
+    if (parent) |cap| try cap.check(io);
     if (control and request.transport().control == null) return error.InvalidRequest;
     const write = exclusive(request.action);
     if (write) try self.directory.lock(io) else try self.directory.lockShared(io);
     defer if (write) self.directory.unlock(io) else self.directory.unlockShared(io);
+    if (parent) |cap| try cap.check(io);
     const index = if (write) null else stripe(request.action);
     const mutex = if (index) |slot| &self.tables[slot] else null;
     if (mutex) |lock| try lock.lock(io);
     defer if (mutex) |lock| lock.unlock(io);
+    if (parent) |cap| try cap.check(io);
     try self.recovery_mutex.lock(io);
     var recovered = self.recovery;
     self.recovery_mutex.unlock(io);
@@ -254,6 +261,7 @@ fn executeSingle(self: *Self, comptime format: Service.Output, io: std.Io, engin
         break :blk &slots[0];
     };
     defer resident.mutex.unlock(io);
+    if (parent) |cap| try cap.check(io);
     if (resident.value) |value| value.probe.begin(false) else resident.value = Service.Resident.create(engine.journal.backend.allocator, self.resident_memory.request(engine.journal.backend.allocator, control), engine.journal.backend, self.configuration, options, recovered) catch |err| return if (err == error.TableResidentCapacity) (if (control) error.ControlCapacity else error.StorageQuota) else err;
     var discard_on_error = true;
     errdefer if (discard_on_error) {
@@ -264,6 +272,7 @@ fn executeSingle(self: *Self, comptime format: Service.Output, io: std.Io, engin
         report.* = @import("DirectRequestMemory.zig").Report.capture(&resident.value.?.probe);
     };
     var service: Service = .{ .engine = engine, .configuration = self.configuration, .registrar = self.registrar, .options = options, .recovery_state = &recovered, .resident = resident.value, .waiting = waiting };
+    if (parent) |cap| try cap.check(io);
     return service.executeResult(format, arena, output_allocator, request) catch |err| {
         if (err == error.StreamWaitPending or err == error.QueueWaitPending) discard_on_error = false;
         // A terminal probe can advance a bounded native replay without reaching
@@ -276,6 +285,33 @@ fn executeSingle(self: *Self, comptime format: Service.Output, io: std.Io, engin
             return if (control) error.ControlCapacity else error.StorageQuota;
         return err;
     };
+}
+
+test "deadline expiry after directory admission releases the lock before owner dispatch" {
+    const Fixture = struct {
+        checks: usize = 0,
+        fn now(raw: ?*anyopaque, clock: std.Io.Clock) std.Io.Timestamp {
+            std.debug.assert(clock == .awake);
+            const self: *@This() = @ptrCast(@alignCast(raw.?));
+            self.checks += 1;
+            return .{ .nanoseconds = if (self.checks == 1) 0 else 100 };
+        }
+    };
+    var fixture: Fixture = .{};
+    var vtable = std.testing.io.vtable.*;
+    vtable.now = Fixture.now;
+    const io: std.Io = .{ .userdata = &fixture, .vtable = &vtable };
+    var host: Self = undefined;
+    host.directory = .init;
+    var request: w.Request = undefined;
+    request.action = .{ .column_scan = undefined };
+    const deadline: Deadline = .{ .until = .{ .clock = .awake, .raw = .{ .nanoseconds = 100 } } };
+    // All later owner state is deliberately absent: no dispatch or storage
+    // access may occur after acquiring the lock consumes the remaining budget.
+    try std.testing.expectError(error.AuthorityTimeout, host.executeSingle(.typed, io, undefined, undefined, std.testing.allocator, request, false, null, null, deadline));
+    try std.testing.expectEqual(2, fixture.checks);
+    try std.testing.expect(host.directory.tryLock(io));
+    host.directory.unlock(io);
 }
 
 test "projected and filtered Table reads share the retained object's host lock" {

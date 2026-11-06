@@ -2343,7 +2343,7 @@ fn branchDispatch(service: *@import("LocalTableService.zig"), owner_role: u64) !
             var scratch: std.heap.ArenaAllocator = .init(t.allocator);
             defer scratch.deinit();
             const incoming = try invocation.request(w.Request);
-            try invocation.respond(try self.host.executeTyped(t.io, self.service.engine, &scratch, invocation.allocator, incoming, incoming.transport().control != null));
+            try invocation.respond(try self.host.executeTyped(t.io, self.service.engine, &scratch, invocation.allocator, incoming, incoming.transport().control != null, invocation.deadline));
         }
     };
     var host: Host = .{ .configuration = service.configuration, .registrar = service.registrar, .options = service.options, .recovery = try catalog.recoveryState() };

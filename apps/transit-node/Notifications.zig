@@ -6,7 +6,9 @@ pub const capacity = 4;
 const Scope = union(enum) { process: u64, outputs };
 const Slot = struct { scope: ?Scope = null, changed: std.Io.Condition = .init };
 slots: [capacity]Slot = @splat(.{}),
-pub fn wait(self: *Self, io: std.Io, mutex: *std.Io.Mutex, query: g.Query, milliseconds: u32) !void {
+pub fn wait(self: *Self, io: std.Io, mutex: *std.Io.Mutex, query: g.Query, milliseconds: u32, parent: ?@import("transit_client").Deadline) !void {
+    const deadline = @import("transit_client").Deadline.init(io, milliseconds, parent);
+    if (parent) |cap| try cap.check(io);
     const slot = for (&self.slots) |*slot| {
         if (slot.scope == null) break slot;
     } else return error.ControlCapacity;
@@ -16,10 +18,11 @@ pub fn wait(self: *Self, io: std.Io, mutex: *std.Io.Mutex, query: g.Query, milli
         else => return error.InvalidWaitHint,
     };
     defer slot.scope = null;
-    slot.changed.waitTimeout(io, mutex, .{ .duration = .{ .raw = .fromMilliseconds(milliseconds), .clock = .awake } }) catch |err| switch (err) {
+    slot.changed.waitTimeout(io, mutex, deadline.timeout()) catch |err| switch (err) {
         error.Timeout => {},
         else => return err,
     };
+    if (parent) |cap| try cap.check(io);
 }
 fn relevant(scope: Scope, command: g.Command) bool {
     switch (command) {
