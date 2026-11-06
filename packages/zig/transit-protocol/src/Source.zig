@@ -128,10 +128,11 @@ pub const Poll = struct {
         if (self.sequence == 0 or self.control_epoch == 0 or std.mem.allEqual(u8, &self.capture_id, 0) or
             !std.meta.eql(self.source.object.scope, self.operation.scope)) return error.InvalidSourcePoll;
     }
-    pub fn requireDispatch(self: Poll, current: Control) !void {
+    pub fn requireDispatch(self: Poll, source: d.Definition, current: Control) !void {
         try self.validate();
+        try source.validate();
         try current.validate();
-        if (current.state != .active or current.epoch != self.control_epoch) return error.SourceFenced;
+        if (!std.meta.eql(self.source, source) or current.state != .active or current.epoch != self.control_epoch) return error.SourceFenced;
         if (self.state != .scheduled) return error.SourceAttemptAlreadyStarted;
     }
     /// Durable owners record the transition before dispatch. Transport recovery
@@ -261,10 +262,13 @@ test "source original attempt never returns to scheduled and unknown blocks succ
     defer parsed.deinit();
     var poll = parsed.value.poll;
     poll.state = .scheduled;
-    try poll.requireDispatch(parsed.value.control);
-    try t.expectError(error.SourceFenced, poll.requireDispatch(try parsed.value.control.apply(.suspend_source)));
+    try poll.requireDispatch(parsed.value.declaration.interpretation, parsed.value.control);
+    try t.expectError(error.SourceFenced, poll.requireDispatch(parsed.value.declaration.interpretation, try parsed.value.control.apply(.suspend_source)));
+    var replaced = parsed.value.declaration.interpretation;
+    replaced.revision += 1;
+    try t.expectError(error.SourceFenced, poll.requireDispatch(replaced, parsed.value.control));
     poll = try poll.transition(.dispatching);
-    try t.expectError(error.SourceAttemptAlreadyStarted, poll.requireDispatch(parsed.value.control));
+    try t.expectError(error.SourceAttemptAlreadyStarted, poll.requireDispatch(parsed.value.declaration.interpretation, parsed.value.control));
     try t.expectError(error.InvalidSourceAttemptTransition, poll.transition(.scheduled));
     poll = try poll.transition(.unknown);
     try t.expectError(error.SourcePollUnsettled, poll.nextDue(10000, 300000));
