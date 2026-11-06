@@ -150,10 +150,16 @@ pub fn initEndpoint(allocator: std.mem.Allocator, io: std.Io, url: []const u8, e
     return self;
 }
 fn activate(self: *Self) !void {
-    const caller = self.private.table(self.execution.configuration.bindings[0]);
+    var caller = self.private.table(self.execution.configuration.bindings[0]);
     const configuration = try self.execution.configuration.digest();
     const key: c.DirectClientToken.Key = .{ .definition = p.Growth.current_definition, .connection = caller.connection, .account = g.AccountIdentity.internal(self.execution.configuration.account, "activation", ""), .token = @splat(0) };
-    var state = try c.DirectClientToken.inspect(caller, key);
+    const inspected = try caller.call(.{ .client_progress = .{ .inspect = key } });
+    defer inspected.deinit();
+    const epoch = inspected.value.subject.credential_epoch;
+    self.private.credential_epoch = epoch;
+    self.ingress.credential_epoch = epoch;
+    caller.credential_epoch = epoch;
+    var state = inspected.value.result.client_progress.state;
     if (state == null) {
         const body = try c.DirectRecord.stage(caller, key.account, activation_format, &configuration);
         const receipt = try c.DirectClientToken.bind(caller, .{ .key = key, .fingerprint = configuration, .intent = .{ .external = .{ .connection = caller.connection, .namespace = self.execution.configuration.bindings[0].namespace, .operation = (std.mem.readInt(u64, configuration[0..8], .little) % p.max_counter) + 1, .record = body } } });
