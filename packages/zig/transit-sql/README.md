@@ -1,5 +1,11 @@
 # transit-sql
 
+`SourceSql` parses explicit `CREATE SOURCE ... INTO STREAM ...` HTTP declarations,
+connection origins and source lifecycle/inspection forms without side effects.
+It validates typed options but is not installed in statement execution. Catalog
+binding, durable capture publication and activation retain the gates in the
+[source contract](../../../contracts/SOURCE_V1.md).
+
 SQL database execution over the public Catalog and direct query interfaces.
 `Statement` prepares authorized metadata and binds complete immutable intents.
 `DatabaseRuntime` admits account tokens, recovers accepted work, and projects

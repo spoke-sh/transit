@@ -83,6 +83,19 @@ def check():
         assert accepted == case['postgres'], case['id']
     for sql in data['extensions']:
         tree(sql)
+    for invalid in (
+        "CREATE SOURCE q FROM HTTP CONNECTION api",
+        "CREATE SOURCE q FROM HTTP CONNECTION api WITH (capture_stream='raw')",
+        "CREATE SOURCE q FROM HTTP CONNECTION api INTO raw WITH (method='GET')",
+        "CREATE SOURCE q FROM HTTP CONNECTION api INTO STREAM raw",
+        "CREATE SOURCE q FROM HTTP CONNECTION api INTO STREAM raw WITH ()",
+        "CREATE SOURCE q FROM HTTP CONNECTION api INTO STREAM raw WITH (path=SECRET('path'))",
+        "REFRESH SOURCE q",
+        "ACTIVATE SOURCE q trailing",
+    ):
+        try: tree(invalid)
+        except ValueError: pass
+        else: raise AssertionError(('invalid source syntax accepted', invalid))
     for statement in ('SELECT id FROM items', 'SHOW TABLES', 'DESCRIBE items', 'EXPLAIN SELECT id FROM items'):
         tree(statement + " AS OF SNAPSHOT 'selector'")
         tree(statement + " AS OF SNAPSHOT 'selector' IN SCHEMA public")

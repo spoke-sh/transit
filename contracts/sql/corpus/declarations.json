@@ -55,7 +55,7 @@
       "error": "UnsupportedDeclaration"
     },
     {
-      "sql": "CREATE SOURCE records FROM http CONNECTION conn;",
+      "sql": "CREATE SOURCE trades FROM HTTP CONNECTION market INTO STREAM captures WITH (method='GET', path='/trades', poll_interval='5m', request_timeout='10s', response_max_bytes=4194304);",
       "error": "UnsupportedDeclaration"
     },
     {

@@ -106,7 +106,8 @@ other administrative SQL families retain their own stated support boundaries.
 
 | Form or family | Support | Semantic target and boundary |
 | --- | --- | --- |
-| `CREATE CONNECTION`, `CREATE SOURCE`, `CREATE SINK` | **Planned — checked grammar** | Typed options, secret references, dependencies and separately authorized activation; declarations confer no access |
+| `CREATE CONNECTION`, `CREATE SINK` | **Planned — checked grammar** | Connector options and secret references; declarations confer no access |
+| `CREATE SOURCE ... INTO STREAM`, SOURCE controls/inspection | **Typed parser — execution not installed** | HTTP GET options, explicit destination and neutral lifecycle contract; durable binding, capture publication and activation remain unimplemented |
 | `CREATE SCHEMA`, `ALTER SCHEMA ... RENAME`, `DROP SCHEMA RESTRICT` | **Implemented — native SQL execution** | Exact direct-catalog bindings, current ownership, durable outcomes and bounded dependency checks; PostgreSQL/MySQL and query-only interfaces exclude these forms |
 | Role administration, ownership transfer, `GRANT`, `REVOKE` | **Dedicated authorization compiler and explicit apply** | [Selected forms](authorization.md) lower to native policy operations; console and query-only interfaces reject administrative execution |
 | `SHOW SOURCES`, `SHOW SINKS`, `SHOW CONNECTIONS` | **Planned — checked grammar** | Authorized paged catalog inspection; a configured-source listing is not a global catalog |

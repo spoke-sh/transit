@@ -101,6 +101,11 @@
       "source": "packages/zig/transit-fuze/src/LogOffsetSql.zig",
       "contract": "contracts/STREAM_V1.md",
       "behavior": "Pure authenticated progress descriptor preparation; no native settlement or cursor authentication."
+    },
+    "source": {
+      "source": "packages/zig/transit-sql/src/SourceSql.zig",
+      "contract": "contracts/SOURCE_V1.md",
+      "behavior": "Pure typed HTTP source and connection parsing with explicit Stream destination and lifecycle/inspection forms. No catalog binding, publication, dispatch or execution."
     }
   },
   "cases": [
@@ -1375,7 +1380,7 @@
     },
     {
       "id": "source-0",
-      "sql": "CREATE SOURCE x FROM http CONNECTION c",
+      "sql": "CREATE SOURCE x FROM http CONNECTION c INTO STREAM raw WITH (path='/feed')",
       "profile": "query",
       "grammar": "sql",
       "root": "statement",
@@ -1392,7 +1397,7 @@
     },
     {
       "id": "source-1",
-      "sql": "CREATE SOURCE x FROM http CONNECTION c (path = 'x')",
+      "sql": "CREATE SOURCE x FROM http CONNECTION c INTO STREAM raw WITH (path='/feed', response_max_bytes=4194304)",
       "profile": "query",
       "grammar": "sql",
       "root": "statement",
@@ -1409,7 +1414,7 @@
     },
     {
       "id": "source-2",
-      "sql": "CREATE SOURCE x FROM http CONNECTION c WITH (path = 'x', mode = 'y')",
+      "sql": "CREATE SOURCE x FROM http CONNECTION c INTO STREAM raw WITH (path='/feed', method='GET', response_max_bytes=4194304)",
       "profile": "query",
       "grammar": "sql",
       "root": "statement",
@@ -9032,6 +9037,149 @@
       "profile": "template",
       "grammar": "sql",
       "root": "parameterTemplate",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "source-typed-0",
+      "sql": "CREATE SOURCE x FROM HTTP CONNECTION c INTO STREAM raw WITH (method='GET', path='/feed', poll_interval='5m', request_timeout='10s', response_max_bytes=4194304)",
+      "profile": "source",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "source-typed-1",
+      "sql": "EXPLAIN CREATE SOURCE x FROM HTTP CONNECTION c INTO STREAM raw WITH (method='GET', path='/feed', poll_interval='5m', request_timeout='10s', response_max_bytes=4194304)",
+      "profile": "source",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "source-typed-2",
+      "sql": "SHOW SOURCES",
+      "profile": "source",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "source-typed-3",
+      "sql": "SHOW SOURCE x",
+      "profile": "source",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "source-typed-4",
+      "sql": "DESCRIBE SOURCE x",
+      "profile": "source",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "source-typed-5",
+      "sql": "DROP SOURCE x",
+      "profile": "source",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "source-typed-6",
+      "sql": "DROP CONNECTION c",
+      "profile": "source",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "source-typed-7",
+      "sql": "AUTHORIZE SOURCE x",
+      "profile": "source",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "source-typed-8",
+      "sql": "ACTIVATE SOURCE x",
+      "profile": "source",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "source-typed-9",
+      "sql": "SUSPEND SOURCE x",
+      "profile": "source",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "source-typed-10",
+      "sql": "RESUME SOURCE x",
+      "profile": "source",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "source-typed-11",
+      "sql": "RETIRE SOURCE x",
+      "profile": "source",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "source-typed-12",
+      "sql": "CREATE CONNECTION c TO HTTP (endpoint='https://example.test')",
+      "profile": "source",
+      "grammar": "sql",
+      "root": "statement",
       "reference": true,
       "expected": {
         "accepted": true

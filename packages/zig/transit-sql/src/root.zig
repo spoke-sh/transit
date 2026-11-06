@@ -16,6 +16,7 @@ pub const ReadBatch = session_protocol.Wire.ReadBatch;
 pub const HistoricalSql = @import("HistoricalSql.zig");
 pub const Statement = @import("Statement.zig");
 pub const ManagedSql = @import("ManagedSql.zig");
+pub const SourceSql = @import("SourceSql.zig");
 pub const TransactionSql = @import("TransactionSql.zig");
 pub const TransactionWork = @import("TransactionWork.zig");
 pub const WorkloadRead = @import("WorkloadRead.zig");

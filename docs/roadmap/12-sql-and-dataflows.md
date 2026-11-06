@@ -2197,11 +2197,15 @@ gates still require their specified executed proofs.
 
 ## CREATE SOURCE implementation plan — 2026-11-05
 
-**Status: Planned.** This is the bounded R8 ingestion slice requested after the
+**Status: In Progress.** This is the bounded R8 ingestion slice requested after the
 [earthquake example audit, issue #398](https://github.com/spoke-sh/transit/issues/398).
-Source basis: `fe420d98bab493e7037adf1654c96a7055fc1280`. The decisions and SQL
-below are implementation targets, not changes to the current executable profile.
-They do not close R8, the earthquake tracker or the full dataflow milestone.
+Audit basis: `fe420d98bab493e7037adf1654c96a7055fc1280`. The
+[neutral source contract](../../contracts/SOURCE_V1.md), reflected schema,
+independent fixtures and typed `SourceSql` parser establish the initial contract
+and syntax foundation. Installed execution remains unchanged. Durable catalog
+publication, owned capture storage/read guards, connector handoff, scheduling and
+the installed SQL lifecycle below remain implementation targets. This foundation
+does not complete S0–S6, R8, the earthquake tracker or the dataflow milestone.
 
 ### Outcome and language decision
 
@@ -2234,7 +2238,7 @@ Target example; all SOURCE/CONNECTION operations shown remain proposed:
 CREATE STREAM quake_captures (
   capture_id UUID NOT NULL,
   source_sequence UINT64 NOT NULL,
-  observed_at TIMESTAMP NOT NULL,
+  observed_at TIMESTAMPTZ NOT NULL,
   http_status INTEGER NOT NULL,
   body_ref BINARY NOT NULL,
   body_bytes UINT64 NOT NULL,

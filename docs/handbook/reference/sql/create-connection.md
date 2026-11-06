@@ -27,9 +27,11 @@ CREATE CONNECTION remote_api TO HTTP (
 );
 ```
 
-The option names above illustrate the grammar; they are not an implemented SQL
-configuration schema. The reference parser does not check unknown or duplicate
-options, resolve the credential binding or validate destination policy.
+The example above illustrates the broader reference grammar. The separate
+`SourceSql` typed parser accepts only HTTP with one `endpoint` origin option;
+it rejects credentials, a query/fragment and a non-root path in that origin.
+It does not support the illustrated token option. Neither parser publishes a
+connection or validates dispatch authority.
 
 ## Meaning and current interface
 
