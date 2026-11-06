@@ -86,8 +86,8 @@ const Server = struct {
             };
             return self.json(req, .ok, result);
         }
-        if (!self.query_lock.tryLock()) return self.failure(req, .too_many_requests, .RateLimited);
-        defer self.query_lock.unlock(self.io);
+        if (!acquireWorkspaceLock(&runtime.sql_lock)) return self.failure(req, .too_many_requests, .RateLimited);
+        defer runtime.sql_lock.unlock(self.io);
         const reader = if (runtime.sql) |*value| value else return self.failure(req, .not_found, .QueryDisabled);
         const parsed = query_api.Values.parse(api.SqlReadRequest, arena.allocator(), body) catch return self.failure(req, .bad_request, .InvalidQuery);
         const result = reader.apply(arena.allocator(), parsed.value) catch |err| {
@@ -116,8 +116,8 @@ const Server = struct {
         const runtime = self.workbench orelse return self.failure(req, .not_found, .QueryDisabled);
         const owner = if (runtime.workbook) |*value| value else return self.failure(req, .not_found, .QueryDisabled);
         if (req.head.method != .POST) return self.failure(req, .not_found, .NotFound);
-        if (!self.query_lock.tryLock()) return self.failure(req, .too_many_requests, .RateLimited);
-        defer self.query_lock.unlock(self.io);
+        if (!acquireWorkspaceLock(&runtime.workbook_lock)) return self.failure(req, .too_many_requests, .RateLimited);
+        defer runtime.workbook_lock.unlock(self.io);
         var memory: sql_client.results.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = 32 * 1024 * 1024 };
         var arena: std.heap.ArenaAllocator = .init(memory.allocator());
         defer arena.deinit();
@@ -136,6 +136,14 @@ const Server = struct {
 
     fn now(self: *Server) i64 {
         return std.Io.Clock.boot.now(self.io).toMilliseconds();
+    }
+    fn acquireWorkspaceLock(lock: *std.Io.Mutex) bool {
+        var attempt: u8 = 0;
+        while (attempt < 25) : (attempt += 1) {
+            if (lock.tryLock()) return true;
+            _ = std.c.nanosleep(&.{ .sec = 0, .nsec = 2_000_000 }, null);
+        }
+        return lock.tryLock();
     }
     fn admitRead(self: *Server) bool {
         const current = self.now();

@@ -7,6 +7,11 @@ import {
   type WorkbookView,
 } from "@transit/query-client/workbook";
 import { readFailure } from "./observation";
+import {
+  extractReferencedCellNames,
+  projectWorkbookDag,
+  type WorkbookPhase,
+} from "./workbook-state";
 
 /** Scheduling and disclosure are independent of folds, selection and display order. */
 export class WorkbookOwner {
@@ -20,7 +25,10 @@ export class WorkbookOwner {
   error = "";
   cleanup = "";
   composing = false;
+  watermark = 1;
   private manual: { target: string; revision: number } | null = null;
+  private flushQueued = false;
+  private forceNext = false;
   private active = false;
   private disposed = false;
   private revision = 0;
@@ -45,6 +53,45 @@ export class WorkbookOwner {
   get remaining() {
     return this.status?.remaining ?? 32;
   }
+  get phase(): WorkbookPhase {
+    if (this.validating) return "validating";
+    if (this.busy) return "evaluating";
+    if (this.quiet !== undefined) return "debouncing";
+    return "idle";
+  }
+  dag() {
+    return projectWorkbookDag(this.cells, {
+      live: this.live,
+      phase: this.phase,
+      validation: this.validation,
+      results: this.status?.results ?? [],
+      hasView: (id) => this.views.has(id),
+      isCurrent: (id) => this.current(id),
+    });
+  }
+  private propagateDirty() {
+    const byName = new Map<string, string>();
+    for (const cell of this.cells) {
+      if (cell.name?.trim()) byName.set(cell.name.trim(), cell.id);
+    }
+    for (let pass = 0; pass < 4; pass++) {
+      for (const binding of this.dependencies) {
+        if (binding.input && this.dirty.has(binding.input)) {
+          this.dirty.add(binding.cell);
+          this.pending.add(binding.cell);
+        }
+      }
+      for (const cell of this.cells) {
+        for (const refName of extractReferencedCellNames(cell.sql)) {
+          const upId = byName.get(refName);
+          if (upId && upId !== cell.id && this.dirty.has(upId)) {
+            this.dirty.add(cell.id);
+            this.pending.add(cell.id);
+          }
+        }
+      }
+    }
+  }
   edit(cells: WorkbookCell[], changed: string) {
     this.cells = cells.map((cell) => ({ ...cell }));
     this.revision++;
@@ -55,13 +102,25 @@ export class WorkbookOwner {
     for (const id of this.views.keys()) if (!present.has(id)) this.views.delete(id);
     this.dirty.add(changed);
     if (present.has(changed)) this.pending.add(changed);
-    for (let pass = 0; pass < 4; pass++)
-      for (const binding of this.dependencies) {
-        if (binding.input && this.dirty.has(binding.input)) this.dirty.add(binding.cell);
-      }
+    this.propagateDirty();
     for (const id of this.dirty) if (!present.has(id)) this.dirty.delete(id);
     this.schedule();
     this.notify();
+  }
+  watermarkAdvance(nextWatermark?: number) {
+    if (this.disposed) return;
+    if (nextWatermark !== undefined && nextWatermark <= this.watermark) return;
+    this.watermark = nextWatermark ?? this.watermark + 1;
+    this.forceNext = true;
+    for (const cell of this.cells) {
+      this.dirty.add(cell.id);
+      this.pending.add(cell.id);
+    }
+    if (this.active && this.live && !this.composing) {
+      void this.flush();
+    } else {
+      this.notify();
+    }
   }
   activity(value: boolean) {
     if (value === this.active || this.disposed) return;
@@ -70,8 +129,10 @@ export class WorkbookOwner {
     this.views.clear();
     if (!value) {
       this.manual = null;
+      this.flushQueued = false;
       this.live = false;
       clearTimeout(this.quiet);
+      this.quiet = undefined;
       clearTimeout(this.observation);
     } else if (!this.busy && this.session) void this.refresh();
     this.notify();
@@ -86,25 +147,34 @@ export class WorkbookOwner {
   pause() {
     this.live = false;
     clearTimeout(this.quiet);
+    this.quiet = undefined;
     this.notify();
   }
   composition(value: boolean) {
     this.composing = value;
-    if (value) clearTimeout(this.quiet);
-    else this.schedule();
+    if (value) {
+      clearTimeout(this.quiet);
+      this.quiet = undefined;
+    } else this.schedule();
   }
   private schedule() {
     clearTimeout(this.quiet);
+    this.quiet = undefined;
     if (this.active && !this.disposed && !this.composing)
-      this.quiet = setTimeout(() => void this.flush(), 300);
+      this.quiet = setTimeout(() => {
+        this.quiet = undefined;
+        void this.flush();
+      }, 300);
   }
   async flush(target?: string) {
     clearTimeout(this.quiet);
+    this.quiet = undefined;
     if (!this.active || this.disposed || this.composing || this.cells.length === 0) return;
     if (this.busy) {
       // Blur validation can start between pointerdown and click on Run. Retain one
       // explicit request for this exact draft, without queuing further evaluations.
       if (target && this.validating) this.manual = { target, revision: this.revision };
+      else if (!target) this.flushQueued = true;
       return;
     }
     const revision = this.revision;
@@ -141,9 +211,13 @@ export class WorkbookOwner {
         this.pending.delete(id);
         this.hidden.delete(id);
       }
-      this.status = await this.session.evaluate(cells, targets, !target, Boolean(target));
-      if (revision === this.revision)
+      const force = Boolean(target) || this.forceNext;
+      this.forceNext = false;
+      this.status = await this.session.evaluate(cells, targets, !target, force);
+      if (revision === this.revision) {
+        this.dirty.clear();
         for (const id of this.pending) if (this.current(id)) this.pending.delete(id);
+      }
       if (this.status.failure || this.remaining === 0) this.live = false;
       if (this.active && !this.disposed) await this.loadViews();
     } catch (cause) {
@@ -152,9 +226,13 @@ export class WorkbookOwner {
       this.busy = false;
       this.validating = false;
       const manual = this.manual;
+      const flushQueued = this.flushQueued;
       this.manual = null;
+      this.flushQueued = false;
       if (manual?.revision === this.revision && this.active && !this.disposed) {
         void this.flush(manual.target);
+      } else if (flushQueued && revision === this.revision && this.active && !this.disposed) {
+        void this.flush();
       }
       if (!this.disposed && this.active && revision !== this.revision) this.schedule();
       this.poll();
@@ -177,16 +255,26 @@ export class WorkbookOwner {
   }
   private async loadViews() {
     const session = this.session;
-    if (!session || !this.active || this.disposed) return;
+    if (!session || !this.active || !this.status || this.disposed) return;
     const disclosure = this.disclosure;
-    const results = this.status?.results ?? [];
-    for (const binding of results) {
-      if (this.hidden.has(binding.cell)) continue;
+    const results = this.status.results;
+    const sequence = this.status.sequence;
+    const toObserve = results.filter((binding) => {
+      if (this.hidden.has(binding.cell)) return false;
       const old = this.views.get(binding.cell);
-      const offset = old?.binding.result === binding.result ? Number(old.view.start) : 0;
-      const value = await session.observe(binding, offset);
-      if (this.disposed || !this.active || disclosure !== this.disclosure) return;
-      this.views.set(binding.cell, value);
+      return !old || old.binding.result !== binding.result || old.sequence !== sequence;
+    });
+    const observed = await Promise.all(
+      toObserve.map(async (binding) => {
+        const old = this.views.get(binding.cell);
+        const offset = old?.binding.result === binding.result ? Number(old.view.start) : 0;
+        const value = await session.observe(binding, offset);
+        return [binding.cell, value] as const;
+      }),
+    );
+    if (this.disposed || !this.active || disclosure !== this.disclosure) return;
+    for (const [cellId, value] of observed) {
+      this.views.set(cellId, value);
     }
     for (const id of this.views.keys())
       if (!results.some((value) => value.cell === id)) this.views.delete(id);
@@ -203,6 +291,10 @@ export class WorkbookOwner {
       this.failed(cause);
     } finally {
       this.busy = false;
+      if (this.flushQueued && this.active && !this.disposed) {
+        this.flushQueued = false;
+        void this.flush();
+      }
       this.poll();
       this.notify();
     }
@@ -255,6 +347,7 @@ export class WorkbookOwner {
     this.live = false;
     this.views.clear();
     clearTimeout(this.quiet);
+    this.quiet = undefined;
     clearTimeout(this.observation);
     try {
       await this.session?.close();

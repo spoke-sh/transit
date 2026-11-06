@@ -741,6 +741,14 @@ test("reactive workbook retains drafts, complete inputs and independent results 
   await expect.poll(() => evaluations.length).toBe(2);
   const original = evaluations[1]!;
   expect(original.remaining).toBe(28);
+  const depGraph = page.getByLabel("Cell dependency graph", { exact: true });
+  await expect(depGraph).toBeVisible();
+  await expect(depGraph.getByRole("button", { name: "source", exact: true })).toBeVisible();
+  await expect(depGraph.getByRole("button", { name: "filtered", exact: true })).toBeVisible();
+  await expect(depGraph.getByRole("button", { name: "counted", exact: true })).toBeVisible();
+  await expect(depGraph).toContainText("+ 1 independent cell");
+  await expect(cell(2).getByText("uses source", { exact: true })).toBeVisible();
+  await expect(cell(3).getByText("uses filtered", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Enable Live", exact: true }).click();
   const sql = cell(2).getByRole("textbox", { name: "SQL", exact: true });
   await sql.fill('SELECT id FROM "workbook.source" WHERE id >= 120');

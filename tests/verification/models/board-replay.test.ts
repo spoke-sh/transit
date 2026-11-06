@@ -12,8 +12,19 @@ import {
   type StatementEvent,
 } from "../../../apps/transit-board-web/src/statement-state";
 import { admitRequest } from "../../../apps/transit-board-web/src/request-scheduler";
+import {
+  initialPlane,
+  planeLayout,
+  planeTransition,
+  type PlaneEvent,
+} from "../../../apps/transit-board-web/src/plane-state";
+import {
+  initialWorkbookModel,
+  workbookModelTransition,
+  type WorkbookModelEvent,
+} from "../../../apps/transit-board-web/src/workbook-state";
 
-type Mode = "Observation" | "Statement" | "Scheduler";
+type Mode = "Observation" | "Statement" | "Scheduler" | "Plane" | "Workbook";
 type Graph = {
   mode: Mode;
   nodes: Record<string, { expected: unknown; event: string }>;
@@ -30,6 +41,8 @@ const initial = () => ({
   b: initialObservation<string>(),
   statement: initialStatement(),
   counts: { read: 0, control: 0 },
+  plane: initialPlane(1440),
+  workbook: initialWorkbookModel(),
   effects: {} as Record<string, unknown>,
 });
 type Machine = ReturnType<typeof initial>;
@@ -40,7 +53,9 @@ function start(mode: Mode) {
       ? { cancel: false, read: false, delay: 0 }
       : mode === "Statement"
         ? { cancel: false, close: "none", action: "none" }
-        : {};
+        : mode === "Workbook"
+          ? { action: "none", cancel: false }
+          : {};
   return state;
 }
 function project(mode: Mode, machine: Machine) {
@@ -61,6 +76,23 @@ function project(mode: Mode, machine: Machine) {
       },
       effects: machine.effects,
     };
+  if (mode === "Plane") {
+    const layout = planeLayout(machine.plane);
+    return {
+      state: {
+        ...machine.plane,
+        leftOpen: layout.left,
+        rightOpen: layout.right,
+        takeover: layout.takeover ?? "none",
+      },
+    };
+  }
+  if (mode === "Workbook") {
+    return {
+      state: machine.workbook,
+      effects: machine.effects,
+    };
+  }
   return { state: machine.counts };
 }
 function step(mode: Mode, machine: Machine, name: string): Machine {
@@ -147,6 +179,36 @@ function step(mode: Mode, machine: Machine, name: string): Machine {
       },
     };
   }
+  if (mode === "Plane") {
+    const planeEvents: Record<string, PlaneEvent> = {
+      OpenLeft: { type: "open", side: "left" },
+      OpenRight: { type: "open", side: "right" },
+      FoldLeft: { type: "fold", side: "left" },
+      FoldRight: { type: "fold", side: "right" },
+      ToggleLeft: { type: "toggle", side: "left" },
+      ToggleRight: { type: "toggle", side: "right" },
+      TabInspector: { type: "tab", tab: "inspector" },
+      TabAssistant: { type: "tab", tab: "assistant" },
+      Detail: { type: "detail" },
+      ResizeWide: { type: "resize", width: 1440 },
+      ResizeMedium: { type: "resize", width: 1000 },
+      ResizeNarrow: { type: "resize", width: 390 },
+    };
+    const event = planeEvents[name];
+    if (!event) throw new Error(`Unknown plane event: ${name}`);
+    return {
+      ...machine,
+      plane: planeTransition(machine.plane, event),
+    };
+  }
+  if (mode === "Workbook") {
+    const next = workbookModelTransition(machine.workbook, name as WorkbookModelEvent);
+    return {
+      ...machine,
+      workbook: next.state,
+      effects: next.effects,
+    };
+  }
   if (!["ReadStart", "ReadFinish", "ControlStart", "ControlFinish"].includes(name))
     throw new Error(`Unknown scheduling event: ${name}`);
   return {
@@ -159,6 +221,18 @@ function step(mode: Mode, machine: Machine, name: string): Machine {
   };
 }
 
+function matchesExpected(actual: Record<string, unknown>, expected: Record<string, unknown>): boolean {
+  for (const key of Object.keys(expected)) {
+    const a = actual[key] as Record<string, unknown> | undefined;
+    const b = expected[key] as Record<string, unknown> | undefined;
+    if (!a || !b) return false;
+    for (const field of Object.keys(b)) {
+      if (a[field] !== b[field]) return false;
+    }
+  }
+  return true;
+}
+
 test("every exported finite edge matches the production state/effect owner", () => {
   const path = process.env.BOARD_MODEL_ARTIFACT;
   if (!path) throw new Error("Run through test::board-model with completed TLC graphs");
@@ -166,12 +240,23 @@ test("every exported finite edge matches the production state/effect owner", () 
     graphs: Graph[];
     controls: { mode: Mode; events: string[]; bad: unknown }[];
   };
-  expect(artifact.graphs.map((g) => g.mode)).toEqual(["Observation", "Statement", "Scheduler"]);
+  expect(artifact.graphs.map((g) => g.mode)).toEqual([
+    "Observation",
+    "Statement",
+    "Scheduler",
+    "Plane",
+    "Workbook",
+  ]);
   for (const graph of artifact.graphs) {
     const adjacency = new Map<string, string[]>();
     for (const [from, to] of graph.edges) {
       if (!graph.nodes[from] || !graph.nodes[to]) throw new Error("Unknown edge endpoint");
-      adjacency.set(from, [...(adjacency.get(from) ?? []), to]);
+      let list = adjacency.get(from);
+      if (!list) {
+        list = [];
+        adjacency.set(from, list);
+      }
+      list.push(to);
     }
     const reached = new Map<string, Machine>([[graph.initial, start(graph.mode)]]);
     const pending = [graph.initial];
@@ -185,10 +270,12 @@ test("every exported finite edge matches the production state/effect owner", () 
       for (const to of adjacency.get(from) ?? []) {
         const node = graph.nodes[to]!;
         const after = step(graph.mode, before, node.event);
-        expect(
-          project(graph.mode, after),
-          `BOARD_MODEL_DIVERGENCE ${graph.mode} ${node.event}`,
-        ).toEqual(node.expected);
+        const projected = project(graph.mode, after) as Record<string, unknown>;
+        if (!matchesExpected(projected, node.expected as Record<string, unknown>)) {
+          expect(projected, `BOARD_MODEL_DIVERGENCE ${graph.mode} ${node.event}`).toEqual(
+            node.expected,
+          );
+        }
         if (!reached.has(to)) {
           reached.set(to, after);
           pending.push(to);

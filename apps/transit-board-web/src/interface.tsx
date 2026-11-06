@@ -18,9 +18,11 @@ import { useRead } from "./use-observation";
 import { WorkbookPage } from "./features";
 import { FeatureLoading, FeatureUnavailable } from "./feature-status";
 import { WorkbenchPlane, useInspector } from "./workbench-layout";
+
 type Current = { compiled: Compiled; identity: string; published: boolean };
 const Interface = createContext<Current | null>(null);
 export const useInterface = () => useContext(Interface);
+
 export function InterfaceShell({ scope, children }: { scope: Deployment; children: ReactNode }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   return (
@@ -29,6 +31,7 @@ export function InterfaceShell({ scope, children }: { scope: Deployment; childre
     </WorkbenchPlane>
   );
 }
+
 function InterfaceBody({ scope, children }: { scope: Deployment; children: ReactNode }) {
   const inspector = useInspector();
   const { plane, layout } = inspector;
@@ -94,6 +97,16 @@ function InterfaceBody({ scope, children }: { scope: Deployment; children: React
     else if (screen) setArea(current?.published ? screen.area : "operations");
   }, [pathname, definition, current?.published]);
   const tokens = density ?? (definition ? presentation(definition).density : "comfortable");
+  const activityLabel = workbookPage
+    ? "Workbook"
+    : pathname.startsWith("/datasets/")
+      ? "Catalog / Dataset"
+      : dataPage
+        ? "Catalog"
+        : area === "operations"
+          ? "Operations"
+          : "Application";
+
   return (
     <Interface.Provider value={current}>
       <div
@@ -104,25 +117,22 @@ function InterfaceBody({ scope, children }: { scope: Deployment; children: React
         data-right={layout.right}
         data-takeover={layout.takeover ?? "none"}
       >
-        <header className="shell-header">
-          <Link
-            className="brand"
-            to="/"
-            search={{ status: "all", sort: "pid" }}
-            aria-label="Transit Board home"
-          >
-            <span aria-hidden="true">▥</span> Transit <small>BOARD</small>
-          </Link>
-          <span className="shell-realm">Realm {scope.realm}</span>
-          <Link className="shell-recovery-link" to="/recovery/definition">
-            Definition recovery
-          </Link>
-        </header>
-        <section className="shell-scope" aria-label="Workspace scope">
-          Realm {scope.realm} · Private workspace · Reads check current permissions
-          <div ref={inspector.setScopeHost} />
-        </section>
         <aside id="shell-navigation" className="shell-navigation" aria-label="Workspace navigation">
+          <div className="shell-brand-bar">
+            <Link
+              className="brand"
+              to="/"
+              search={{ status: "all", sort: "pid" }}
+              aria-label="Transit Board home"
+            >
+              <span className="brand-mark" aria-hidden="true">
+                T
+              </span>
+              <span className="activity-label">
+                Transit <small>BOARD</small>
+              </span>
+            </Link>
+          </div>
           <button
             className="plane-toggle"
             data-plane-toggle="left"
@@ -132,10 +142,15 @@ function InterfaceBody({ scope, children }: { scope: Deployment; children: React
             title={layout.left ? "Fold navigation" : "Open navigation"}
             onClick={inspector.toggleNavigation}
           >
-            <span aria-hidden="true">{layout.left ? "‹" : "›"}</span>
+            <span aria-hidden="true">⇄</span>
+            <span className="activity-label">Fold navigation</span>
           </button>
           {layout.takeover === "left" && (
-            <button data-plane-back="left" onClick={() => inspector.fold("left")}>
+            <button
+              className="plane-back"
+              data-plane-back="left"
+              onClick={() => inspector.fold("left")}
+            >
               Back to workspace
             </button>
           )}
@@ -189,7 +204,7 @@ function InterfaceBody({ scope, children }: { scope: Deployment; children: React
               </Link>
             )}
           </nav>
-          <div id="navigation-detail" hidden={!layout.left}>
+          <div id="navigation-detail" className="shell-nav-detail" hidden={!layout.left}>
             <div ref={inspector.setNavigationHost} />
             <nav aria-label="Activity views" className="shell-views">
               {definition?.screens
@@ -230,82 +245,113 @@ function InterfaceBody({ scope, children }: { scope: Deployment; children: React
                   <option value="compact">Compact</option>
                 </select>
               </label>
+              <Link className="shell-recovery-link" to="/recovery/definition">
+                Definition recovery
+              </Link>
             </div>
+          </div>
+          <div className="shell-nav-bottom">
+            <span className="connection-dot" aria-hidden="true">
+              ●
+            </span>
+            <span className="activity-label">
+              <strong>Connected</strong>
+              <small>Realm {scope.realm}</small>
+            </span>
           </div>
         </aside>
-        <div className="shell-content" hidden={Boolean(layout.takeover)}>
-          {current || pathname.startsWith("/recovery/") ? (
-            children
-          ) : (
-            <main>
-              <h1>Definition unavailable</h1>
-              <p role="status">{error || "Reading the current interface…"}</p>
-              <button onClick={observed.retry}>Retry definition read</button>
-            </main>
-          )}
-          {(workbookVisited || workbookActive) && (
-            <div hidden={!workbookActive}>
-              <CatchBoundary getResetKey={() => "workbook"} errorComponent={FeatureUnavailable}>
-                <Suspense fallback={<FeatureLoading />}>
-                  <WorkbookPage active={workbookActive} />
-                </Suspense>
-              </CatchBoundary>
-            </div>
-          )}
+        <div className="shell-work-area">
+          <section className="shell-scope" aria-label="Workspace scope">
+            <span className="shell-breadcrumb">
+              <strong>{activityLabel}</strong>
+              <i aria-hidden="true">/</i>
+              <span>Realm {scope.realm} · Private workspace · Reads check current permissions</span>
+            </span>
+            <div ref={inspector.setScopeHost} />
+          </section>
+          <div className="shell-content" hidden={Boolean(layout.takeover)}>
+            {current || pathname.startsWith("/recovery/") ? (
+              children
+            ) : (
+              <main>
+                <h1>Definition unavailable</h1>
+                <p role="status">{error || "Reading the current interface…"}</p>
+                <button onClick={observed.retry}>Retry definition read</button>
+              </main>
+            )}
+            {(workbookVisited || workbookActive) && (
+              <div hidden={!workbookActive}>
+                <CatchBoundary getResetKey={() => "workbook"} errorComponent={FeatureUnavailable}>
+                  <Suspense fallback={<FeatureLoading />}>
+                    <WorkbookPage active={workbookActive} />
+                  </Suspense>
+                </CatchBoundary>
+              </div>
+            )}
+          </div>
         </div>
         <section className="shell-context" aria-label="Context pane">
-          <div
-            role="tablist"
-            aria-label="Context"
-            aria-orientation={layout.right ? "horizontal" : "vertical"}
-            onKeyDown={(event) => {
-              if (
-                !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(
-                  event.key,
+          <div className="shell-context-header">
+            <div
+              role="tablist"
+              aria-label="Context"
+              aria-orientation={layout.right ? "horizontal" : "vertical"}
+              onKeyDown={(event) => {
+                if (
+                  !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(
+                    event.key,
+                  )
                 )
-              )
-                return;
-              event.preventDefault();
-              const tab =
-                event.key === "Home"
-                  ? "inspector"
-                  : event.key === "End"
-                    ? "assistant"
-                    : plane.tab === "inspector"
+                  return;
+                event.preventDefault();
+                const tab =
+                  event.key === "Home"
+                    ? "inspector"
+                    : event.key === "End"
                       ? "assistant"
-                      : "inspector";
-              inspector.dispatch({ type: "tab", tab });
-              document.getElementById(`context-${tab}-tab`)?.focus();
-            }}
-          >
-            {(["inspector", "assistant"] as const).map((tab) => (
-              <button
-                key={tab}
-                role="tab"
-                id={`context-${tab}-tab`}
-                data-plane-toggle={tab === "inspector" ? "right" : undefined}
-                aria-controls={`context-${tab}`}
-                aria-selected={plane.tab === tab}
-                tabIndex={plane.tab === tab ? 0 : -1}
-                aria-expanded={layout.right && plane.tab === tab}
-                title={tab === "inspector" ? "Inspector" : "Assistant"}
-                onClick={() => inspector.dispatch({ type: "tab", tab })}
-              >
-                <span aria-hidden="true">{tab === "inspector" ? "ⓘ" : "✧"}</span>
-                <span className="context-label">
-                  {tab === "inspector" ? "Inspector" : "Assistant"}
-                </span>
+                      : plane.tab === "inspector"
+                        ? "assistant"
+                        : "inspector";
+                inspector.dispatch({ type: "tab", tab });
+                document.getElementById(`context-${tab}-tab`)?.focus();
+              }}
+            >
+              {(["inspector", "assistant"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  role="tab"
+                  id={`context-${tab}-tab`}
+                  data-plane-toggle={tab === "inspector" ? "right" : undefined}
+                  aria-controls={`context-${tab}`}
+                  aria-selected={plane.tab === tab}
+                  tabIndex={plane.tab === tab ? 0 : -1}
+                  aria-expanded={layout.right && plane.tab === tab}
+                  title={tab === "inspector" ? "Inspector" : "Assistant"}
+                  onClick={() => inspector.dispatch({ type: "tab", tab })}
+                >
+                  <span aria-hidden="true">{tab === "inspector" ? "ⓘ" : "✧"}</span>
+                  <span className="context-label">
+                    {tab === "inspector" ? "Inspector" : "Assistant"}
+                  </span>
+                </button>
+              ))}
+            </div>
+            {!layout.right && (
+              <span className="context-rail-label" aria-hidden="true">
+                INSPECTOR · ASSISTANT
+              </span>
+            )}
+            {layout.right && (
+              <button className="inspector-close" data-plane-back="right" onClick={inspector.close}>
+                {layout.takeover === "right"
+                  ? "Back to workspace"
+                  : plane.tab === "inspector"
+                    ? "Close inspector"
+                    : "Close assistant"}
               </button>
-            ))}
+            )}
           </div>
-          <div hidden={!layout.right}>
-            <button className="inspector-close" data-plane-back="right" onClick={inspector.close}>
-              {layout.takeover === "right"
-                ? "Back to workspace"
-                : plane.tab === "inspector"
-                  ? "Close inspector"
-                  : "Close assistant"}
-            </button>
+          <div className="shell-context-body" hidden={!layout.right}>
             <section
               role="tabpanel"
               id="context-inspector"
