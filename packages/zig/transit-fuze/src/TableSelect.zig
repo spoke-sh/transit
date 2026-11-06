@@ -15,6 +15,7 @@ const Item = struct { column: Reference, alias: ?[]const u8, scalar: ?Scalar.Syn
 const Selection = struct {
     aggregate: Aggregate = .rows,
     star: bool = false,
+    star_qualifier: ?Reference = null,
     items: [max_columns]Item = undefined,
     count: usize = 0,
     fn parse(parser: *Parser) !Selection {
@@ -46,8 +47,9 @@ const Selection = struct {
     }
     fn rows(parser: *Parser) !Selection {
         var result: Selection = .{};
-        if (try parser.take(.star)) {
+        if (try Reference.wildcard(parser)) |wildcard| {
             result.star = true;
+            result.star_qualifier = wildcard.qualifier;
         } else while (true) {
             if (result.count == max_columns) return error.InvalidProjection;
             const column = try Reference.parse(parser);
@@ -60,6 +62,10 @@ const Selection = struct {
         return result;
     }
     fn lower(self: Selection, allocator: std.mem.Allocator, schema: t.Type, qualifier: []const u8, basis: [32]u8, location: ?*sql.Location, semantics: []const Semantics) !logical.Plan {
+        if (self.star_qualifier) |reference| if (!std.mem.eql(u8, reference.name, qualifier)) {
+            if (location) |at| at.* = .{ .offset = reference.span.start };
+            return error.UnknownQualifier;
+        };
         var scalars: Scalar.Builder = .{};
         const count = if (self.star and self.aggregate == .rows) schema.structure.len else self.count;
         const columns = try allocator.alloc(u8, count);

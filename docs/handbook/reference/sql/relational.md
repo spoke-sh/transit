@@ -49,8 +49,17 @@ For example, the two `id` columns are named `people.id` and `items.id`.
 `JOIN` and `INNER JOIN` are equivalent. Single-Table `*` retains the original
 column names. Wildcards obey the existing projection, type and name limits;
 use explicit columns with `AS` names if qualification exceeds a name limit or
-quoted identifiers containing dots produce duplicate labels. Qualified wildcards
-such as `people.*` and mixing `*` with explicit columns are not supported.
+quoted identifiers containing dots produce duplicate labels.
+
+A qualified wildcard selects only that Table's columns, retaining their original
+names and order:
+
+```sql
+SELECT i.* FROM people p JOIN items i ON i.id = p.id;
+```
+
+The qualifier must use the alias when present, otherwise the Table name.
+Mixing a wildcard with other selections is not supported.
 
 Tables retain bag multiplicity. Every equal-key pair contributes, including
 duplicate rows. NULL keys do not match. A left join emits one null-extended row

@@ -9,6 +9,48 @@ const sources = [_]r.Source{
     .{ .alias = "r", .realm = 1, .resource = 202, .catalog = 9, .owner = 7, .schema = .{ .object = 22, .revision = 1, .next_column = 3, .columns = &columns } },
 };
 const budgets: r.Budgets = .{ .resident_bytes = 4096, .spill_bytes = 8192, .result_bytes = 16384, .output_rows = 1000, .work_steps = 10000, .source_pins = 2 };
+test "relational qualified wildcard selects one source in schema order" {
+    var cols = columns;
+    for (&cols) |*column| column.nullable = false;
+    var inputs = sources;
+    for (&inputs) |*input| input.schema.columns = &cols;
+    for ([_][]const u8{ "r", "l" }, 0..) |qualifier, index| {
+        const source_index = 1 - index;
+        const text = try std.fmt.allocPrint(t.allocator, "SELECT {s}.* FROM lefts l LEFT JOIN rights r ON r.key = l.key ORDER BY l.key", .{qualifier});
+        defer t.allocator.free(text);
+        var syntax = try sql.parse(t.allocator, text, null);
+        defer syntax.deinit();
+        const plan = try syntax.bind(&inputs, .interactive, budgets, null);
+        try t.expectEqual(columns.len, plan.outputs.len);
+        var fields: [2]@import("Types.zig").Field = undefined;
+        _ = try plan.outputSchema(&fields);
+        for (fields) |field| try t.expectEqual(source_index == 1, field.nullable);
+        for (plan.outputs, columns) |output, column| {
+            try t.expectEqualStrings(column.name, output.name);
+            try t.expect(output.expression.eql(.{ .column = .{ .source = @intCast(source_index), .id = column.id } }));
+        }
+        const explicit_text = try std.fmt.allocPrint(t.allocator, "SELECT {s}.key, {s}.value FROM lefts l LEFT JOIN rights r ON r.key = l.key ORDER BY l.key", .{ qualifier, qualifier });
+        defer t.allocator.free(explicit_text);
+        var explicit = try sql.parse(t.allocator, explicit_text, null);
+        defer explicit.deinit();
+        try t.expectEqualSlices(u8, &try plan.fingerprint(), &try (try explicit.bind(&inputs, .interactive, budgets, null)).fingerprint());
+    }
+    var single = try sql.parse(t.allocator, "SELECT l.* FROM lefts l ORDER BY key", null);
+    defer single.deinit();
+    const plan = try single.bind(sources[0..1], .interactive, budgets, null);
+    try t.expectEqualStrings("key", plan.outputs[0].name);
+    for ([_][]const u8{
+        "SELECT missing.* FROM lefts l JOIN rights r ON l.key = r.key",
+        "SELECT lefts.* FROM lefts l JOIN rights r ON l.key = r.key",
+    }) |text| {
+        var syntax = try sql.parse(t.allocator, text, null);
+        defer syntax.deinit();
+        var location: @import("Sql.zig").Location = .{};
+        try t.expectError(error.UnknownRelationalSource, syntax.bind(&sources, .interactive, budgets, &location));
+        try t.expectEqual(@as(usize, 7), location.offset);
+    }
+}
+
 test "relational joined star expands both schemas with qualified output names" {
     const cols = [_]schema.Column{ .{ .id = 5, .name = "id", .type = .int64 }, .{ .id = 9, .name = "value", .type = .int64 } };
     var inputs = sources;
@@ -114,6 +156,10 @@ test "relational joined star retains projection and generated name bounds" {
     try t.expectEqual(r.max_outputs, plan.outputs.len);
     inputs[1].schema.columns = &cols;
     try t.expectError(error.InvalidRelationalOutputs, syntax.bind(&inputs, .interactive, budgets, null));
+
+    var selected = try sql.parse(t.allocator, "SELECT r.* FROM lefts l JOIN rights r ON l.c0 = r.c0", null);
+    defer selected.deinit();
+    try t.expectEqual(@as(usize, 65), (try selected.bind(&inputs, .interactive, budgets, null)).outputs.len);
 
     const long_name: [254]u8 = @splat('x');
     cols[0].name = &long_name;

@@ -374,6 +374,17 @@ test "general Table highlighting follows aliases nested type and literal positio
     });
 }
 
+test "qualified wildcards retain contextual highlighting after the projection" {
+    // COUNT is an identifier as the alias, while the later AS keyword and
+    // numeric LIMIT prove that classification continued beyond count.*.
+    try expectRoles("SELECT count.* FROM items AS count WHERE count.id > 0 LIMIT 2;", &.{
+        .{ "SELECT", .keyword }, .{ "count", .identifier }, .{ "FROM", .keyword }, .{ "items", .identifier }, .{ "AS", .keyword }, .{ "count", .identifier }, .{ "WHERE", .keyword }, .{ "count", .identifier }, .{ "id", .identifier }, .{ "0", .number }, .{ "LIMIT", .keyword }, .{ "2", .number },
+    });
+    try expectRoles("SELECT \"I\".* FROM items \"I\" LEFT JOIN people p ON p.id = \"I\".id ORDER BY p.id;", &.{
+        .{ "SELECT", .keyword }, .{ "\"I\"", .identifier }, .{ "FROM", .keyword }, .{ "items", .identifier }, .{ "\"I\"", .identifier }, .{ "LEFT", .keyword }, .{ "JOIN", .keyword }, .{ "people", .identifier }, .{ "p", .identifier }, .{ "ON", .keyword }, .{ "p", .identifier }, .{ "id", .identifier }, .{ "\"I\"", .identifier }, .{ "id", .identifier }, .{ "ORDER", .keyword }, .{ "BY", .keyword }, .{ "p", .identifier }, .{ "id", .identifier },
+    });
+}
+
 test "general ALTER DROP and EXPLAIN consume contextual grammar without metadata" {
     try expectRoles("ALTER TABLE alter RENAME COLUMN rename TO renamed; DROP TABLE IF EXISTS alter RESTRICT;", &.{
         .{ "ALTER", .keyword }, .{ "TABLE", .keyword }, .{ "alter", .identifier }, .{ "RENAME", .keyword }, .{ "COLUMN", .keyword }, .{ "rename", .identifier }, .{ "TO", .keyword }, .{ "renamed", .identifier }, .{ "DROP", .keyword }, .{ "TABLE", .keyword }, .{ "IF", .keyword }, .{ "EXISTS", .keyword }, .{ "alter", .identifier }, .{ "RESTRICT", .keyword },

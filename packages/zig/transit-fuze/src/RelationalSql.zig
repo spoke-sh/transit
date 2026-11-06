@@ -114,6 +114,7 @@ pub const Owned = struct {
     targets: []const Target,
     selections: []const Selection,
     star: bool = false,
+    star_qualifier: ?Reference = null,
     join: ?struct { kind: @FieldType(r.Join, "kind"), left: Reference, right: Reference },
     predicate: ?Predicate.Syntax,
     groups: []const Reference,
@@ -138,7 +139,7 @@ pub const Owned = struct {
         if (sources.len != self.targets.len) return error.InvalidRelationalSources;
         for (sources, self.targets) |source, input| if (!std.mem.eql(u8, source.alias, input.alias)) return error.RelationalSourceChanged;
         var scalars: Scalar.Builder = .{};
-        const outputs = if (self.star) try expandStar(allocator, sources) else try allocator.alloc(r.Output, self.selections.len);
+        const outputs = if (self.star) try self.expandStar(allocator, sources, location) else try allocator.alloc(r.Output, self.selections.len);
         if (!self.star) {
             for (self.selections, outputs) |selection, *output| output.* = .{
                 .name = selection.name,
@@ -232,20 +233,27 @@ pub const Owned = struct {
         return plan;
     }
 
-    fn expandStar(allocator: std.mem.Allocator, sources: []const r.Source) ![]r.Output {
+    fn expandStar(self: *const Owned, allocator: std.mem.Allocator, sources: []const r.Source, location: ?*sql.Location) ![]r.Output {
+        const selected: ?usize = if (self.star_qualifier) |qualifier| found: {
+            for (sources, 0..) |source, i| if (std.mem.eql(u8, source.alias, qualifier.name)) break :found i;
+            if (location) |at| at.* = .{ .offset = qualifier.span.start };
+            return error.UnknownRelationalSource;
+        } else null;
         var count: usize = 0;
-        for (sources) |source| {
+        for (sources, 0..) |source, i| {
+            if (selected != null and selected.? != i) continue;
             if (source.schema.columns.len > r.max_outputs - count) return error.InvalidRelationalOutputs;
             count += source.schema.columns.len;
         }
         const outputs = try allocator.alloc(r.Output, count);
         var index: usize = 0;
         for (sources, 0..) |source, source_index| {
+            if (selected != null and selected.? != source_index) continue;
             for (source.schema.columns) |column| {
                 outputs[index] = .{
                     // Joined schemas commonly repeat names, including the join
                     // key. Keep every column and qualify the result labels.
-                    .name = if (sources.len == 1) column.name else try std.fmt.allocPrint(allocator, "{s}.{s}", .{ source.alias, column.name }),
+                    .name = if (sources.len == 1 or selected != null) column.name else try std.fmt.allocPrint(allocator, "{s}.{s}", .{ source.alias, column.name }),
                     .expression = .{ .column = .{ .source = @intCast(source_index), .id = column.id } },
                 };
                 index += 1;
@@ -324,7 +332,8 @@ pub fn parseWithContext(allocator: std.mem.Allocator, text: []const u8, location
     try parser.requireWord("SELECT");
     var selections: [r.max_outputs]Selection = undefined;
     var count: usize = 0;
-    const star = try parser.take(.star);
+    const wildcard = try Reference.wildcard(&parser);
+    const star = wildcard != null;
     while (!star) {
         if (count == selections.len) return error.InvalidRelationalOutputs;
         const expression = try parseExpression(&parser);
@@ -426,6 +435,7 @@ pub fn parseWithContext(allocator: std.mem.Allocator, text: []const u8, location
         .targets = inputs,
         .selections = outputs,
         .star = star,
+        .star_qualifier = if (wildcard) |value| value.qualifier else null,
         .join = join,
         .predicate = predicate,
         .groups = keys,

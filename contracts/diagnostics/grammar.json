@@ -9184,6 +9184,111 @@
       "expected": {
         "accepted": true
       }
+    },
+    {
+      "id": "table_query-qualified-star-implicit",
+      "sql": "SELECT i.* FROM items i;",
+      "profile": "table_query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "table_query-qualified-star-explicit",
+      "sql": "SELECT i.* FROM items AS i;",
+      "profile": "table_query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "table_query-qualified-star-source",
+      "sql": "SELECT items.* FROM items;",
+      "profile": "table_query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "table_query-qualified-star-quoted",
+      "sql": "SELECT \"I\".* FROM items \"I\";",
+      "profile": "table_query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "table_query-qualified-star-derived",
+      "sql": "SELECT COUNT(*) FROM (SELECT i.* FROM items AS i LIMIT 1) AS chosen",
+      "profile": "table_query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "relational-qualified-star-ordered",
+      "sql": "SELECT i.* FROM items i ORDER BY i.id",
+      "profile": "relational",
+      "grammar": "sql",
+      "root": "relationalQuery",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "relational-qualified-star-joined",
+      "sql": "SELECT r.* FROM items l LEFT JOIN items r ON l.id = r.id",
+      "profile": "relational",
+      "grammar": "sql",
+      "root": "relationalQuery",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "table_query-wildcard-lookahead-location",
+      "sql": "SELECT id @ FROM items",
+      "profile": "table_query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": false,
+      "expected": {
+        "accepted": false,
+        "code": "sql.unsupported_construct",
+        "category": "unsupported",
+        "location": "@"
+      }
+    },
+    {
+      "id": "relational-wildcard-lookahead-location",
+      "sql": "SELECT i. @ FROM items i ORDER BY i.id",
+      "profile": "relational",
+      "grammar": "sql",
+      "root": "relationalQuery",
+      "reference": false,
+      "expected": {
+        "accepted": false,
+        "code": "sql.unsupported_construct",
+        "category": "unsupported",
+        "location": "@"
+      }
     }
   ]
 }

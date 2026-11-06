@@ -58,10 +58,18 @@
     "SELECT k FROM t ORDER BY DECIMAL_DIVIDE(a,b,8,2,REJECT) ASC LIMIT 1",
     "SELECT SUM(DECIMAL_RESCALE(v,8,2,HALF_EVEN)) AS total FROM t ORDER BY total",
     "SELECT VECTOR_DISTANCE(a,b,L2_SQUARED) AS distance FROM t ORDER BY distance LIMIT 4",
-    "SELECT RANGE_OVERLAPS(a,b) AS intersecting FROM t ORDER BY intersecting DESC"
+    "SELECT RANGE_OVERLAPS(a,b) AS intersecting FROM t ORDER BY intersecting DESC",
+    "SELECT i.* FROM items i;",
+    "SELECT i.* FROM items AS i;",
+    "SELECT items.* FROM items;",
+    "SELECT I /* qualifier */ . /* wildcard */ * FROM items i;",
+    "SELECT \"I\".* FROM items AS \"I\";",
+    "SELECT i.* FROM items i WHERE i.id > $1 ORDER BY i.id LIMIT $2",
+    "SELECT t.* FROM t JOIN u ON t.k=u.k",
+    "SELECT r.* FROM t l LEFT JOIN u r ON l.k=r.k",
+    "SELECT \"I\".* FROM \"Items\" \"I\" LEFT JOIN \"Items\" \"Other\" ON \"I\".id=\"Other\".id"
   ],
   "reject": [
-    "SELECT t.* FROM t JOIN u ON t.k=u.k",
     "SELECT *, u.v FROM t JOIN u ON t.k=u.k",
     "SELECT SUM(*) FROM t GROUP BY k",
     "SELECT k FROM t RIGHT JOIN u ON t.k=u.k",
@@ -82,6 +90,12 @@
     "SELECT k FROM t GROUP BY k; SELECT k FROM t",
     "SELECT t.k FROM t LEFT JOIN u ON t.k=u.k AND t.v=u.v",
     "SELECT k FROM t GROUP BY k,",
-    "SELECT FROM t JOIN u ON t.k=u.k"
+    "SELECT FROM t JOIN u ON t.k=u.k",
+    "SELECT i.*, i.id FROM items i",
+    "SELECT i.id, i.* FROM items i",
+    "SELECT i.* AS renamed FROM items i",
+    "SELECT COUNT(i.*) FROM items i",
+    "SELECT id FROM items i ORDER BY i.*",
+    "SELECT id FROM items i WHERE i.* = 1"
   ]
 }

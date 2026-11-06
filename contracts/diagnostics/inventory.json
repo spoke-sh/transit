@@ -17488,7 +17488,7 @@
         "PredicateTooComplex": 1,
         "PredicateTooDeep": 1,
         "RelationalSourceChanged": 1,
-        "UnknownRelationalSource": 1,
+        "UnknownRelationalSource": 2,
         "UnsupportedAggregate": 1,
         "UnsupportedConstruct": 1,
         "UnsupportedRelationalPredicate": 4,
@@ -18818,12 +18818,13 @@
       "error_returns": {
         "parse()": "<inferred>",
         "resolve()": "<inferred>",
-        "unqualified()": "<inferred>"
+        "unqualified()": "<inferred>",
+        "wildcard()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 4,
-        "catch": 0
+        "try": 8,
+        "catch": 2
       },
       "imports": [
         "Sql.zig",
@@ -19978,6 +19979,7 @@
         "InvalidSqlSyntax": 1,
         "LiteralOutOfRange": 1,
         "NullLimitParameter": 1,
+        "UnknownQualifier": 1,
         "UnknownSource": 2,
         "UnsupportedAggregate": 2,
         "UnsupportedAggregateLimit": 2,
@@ -43777,7 +43779,7 @@
       "templatePredicate": "columnReference ( IS cellState | comparison ( literal | PARAMETER ) )",
       "templateLimitClause": "LIMIT ( INTEGER | PARAMETER )",
       "relationalQuery": "EXPLAIN ? relationalSelect snapshotClause ? SEMI ? EOF",
-      "relationalSelect": "SELECT ( STAR | relationalSelection ( COMMA relationalSelection ) * ) FROM relationalTarget relationalJoin ? whereClause ? ( GROUP BY columnReference ( COMMA columnReference ) * ) ? havingClause ? orderByClause ? limitClause ?",
+      "relationalSelect": "SELECT ( STAR | identifier DOT STAR | relationalSelection ( COMMA relationalSelection ) * ) FROM relationalTarget relationalJoin ? whereClause ? ( GROUP BY columnReference ( COMMA columnReference ) * ) ? havingClause ? orderByClause ? limitClause ?",
       "relationalExpression": "( columnReference | scalarCall ) ( AT TIME ZONE STRING ) ? | COUNT LPAREN ( STAR | ( columnReference | scalarCall ) ( AT TIME ZONE STRING ) ? ) RPAREN | SUM LPAREN ( columnReference | scalarCall ) ( AT TIME ZONE STRING ) ? RPAREN",
       "relationalSelection": "relationalExpression outputAlias ?",
       "havingClause": "HAVING havingDisjunction",
@@ -43795,7 +43797,7 @@
       "sourceAlias": "AS identifier",
       "selection": "projection | aggregateSelection",
       "aggregateSelection": "( COUNT LPAREN ( STAR | columnReference | scalarCall ) RPAREN | SUM LPAREN ( columnReference | scalarCall ) RPAREN ) outputAlias ?",
-      "projection": "STAR | projectionItem ( COMMA projectionItem ) *",
+      "projection": "STAR | identifier DOT STAR | projectionItem ( COMMA projectionItem ) *",
       "projectionItem": "( columnReference ( AT TIME ZONE STRING ) ? | scalarCall ) outputAlias ?",
       "scalarCall": "scalarFunction LPAREN scalarArgument ( COMMA scalarArgument ) * RPAREN",
       "scalarArgument": "( columnReference | scalarCall ) ( AT TIME ZONE STRING ) ? | signedInteger | STRING",
