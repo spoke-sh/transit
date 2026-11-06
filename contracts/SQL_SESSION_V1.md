@@ -52,6 +52,17 @@ an exact bounded Content-Length and identity content encoding. Content type
 selects the decoder; a JSON batch is invalid. Compression is not supported by
 this profile.
 There is no cookie authentication, automatic redirect or automatic SQL replay.
+The original HTTP total request deadline caps service admission, authentication,
+commands and nested foreground native/settings calls on both Unix and HTTP/TLS
+listeners. The service command limit, including the session's statement timeout,
+can shorten that cap. Reading the body or waiting for a slot does not renew it.
+Each control request has its own budget and admission reserve; it does not inherit
+an expired data command. These are server-local timestamps, not new message fields.
+Expiry after possible acceptance retains the original token and operation for
+inspection; it cannot establish a rejection, empty claim or native wait-timeout cut.
+If expiry suppresses encoded result data, its cursor closes before the session
+can be reused. An execute failure retains its original-token recovery guidance;
+a bounded diagnostic can use the remaining HTTP output budget.
 Connection reuse is an optimization, never a session identity. Idle HTTP headers
 have a one-second deadline; clients replace a quiescent transport before sending
 new work. This does not replay a request. Fixed byte identities and SQLSTATE use

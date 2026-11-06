@@ -163,7 +163,7 @@ pub fn handleConnection(self: *Self, _: std.Io, _: std.mem.Allocator, connection
     const parsed = api.parse(api.Request, a, body) catch |err| return respond(request, try self.registry.failure(a, err));
     defer parsed.deinit();
     if (parsed.value.control() != control) return respond(request, try self.registry.failure(a, error.InvalidSqlLane));
-    const response = self.registry.request(a, if (working) |*slab| slab.allocator() else a, parsed.value, connection.peer) catch |err| try self.registry.failure(a, err);
+    const response = self.registry.request(a, if (working) |*slab| slab.allocator() else a, parsed.value, connection.peer, .{ .until = connection.transport.deadline.deadline }) catch |err| try self.registry.failure(a, err);
     try respond(request, response);
 }
 fn respond(request: *std.http.Server.Request, body: []const u8) !void {

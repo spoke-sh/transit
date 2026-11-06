@@ -125,9 +125,14 @@ fn locate(self: *Self, id: api.Id) !*Slot {
 }
 /// Returns a locked slot, including for a wire connection. All adapters consume
 /// the same total/per-account admission budget and the same DatabaseRuntime.
-pub fn create(self: *Self, account: usize, credential: g.Configuration.Credential, database: []const u8, dialect: f.Sql.Dialect, native: bool) !*Slot {
+pub fn create(self: *Self, account: usize, credential: g.Configuration.Credential, database: []const u8, dialect: f.Sql.Dialect, native: bool, deadline: ?g.wire.Deadline) !*Slot {
+    if (deadline) |cap| cap.check(self.io) catch return error.GatewayDeadline;
     self.sweep();
     try self.mutex.lock(self.io);
+    if (deadline) |cap| cap.check(self.io) catch {
+        self.mutex.unlock(self.io);
+        return error.GatewayDeadline;
+    };
     var count: usize = 0;
     var free: ?*Slot = null;
     for (self.slots) |*slot| {
@@ -156,7 +161,7 @@ pub fn create(self: *Self, account: usize, credential: g.Configuration.Credentia
     errdefer slot.reserve.reset(true) catch unreachable;
     slot.cancellation.store(false, .release);
     slot.active.store(false, .release);
-    slot.host = try g.Session.init(slot.memory.allocator(), self.io, self.configuration, account, self.runtimes[account], credential, database, dialect, &slot.cancellation, &slot.active);
+    slot.host = try g.Session.initOptions(slot.memory.allocator(), self.io, self.configuration, account, self.runtimes[account], credential, database, dialect, &slot.cancellation, &slot.active, .{ .deadline = deadline });
     slot.host.?.wire.observer = self.observer;
     slot.host.?.native_profile = native;
     slot.last = std.Io.Clock.awake.now(self.io);
@@ -239,7 +244,7 @@ pub fn failure(self: *Self, allocator: std.mem.Allocator, err: anyerror) ![]alig
         error.AuthenticationFailed, error.InvalidAuthentication => "28000".*,
         error.GatewayDenied, error.GatewayDatabaseDenied, error.GatewayCatalogDenied, error.CatalogDenied, error.AccessDenied, error.QueryDenied, error.GatewayCredentialChanged => "42501".*,
         error.GatewayConnectionCapacity, error.SqlSessionBusy, error.OutOfMemory => "53000".*,
-        error.GatewayDeadline, error.GatewayWaitCancelled => "57014".*,
+        error.GatewayDeadline, error.GatewayWaitCancelled, error.AuthorityTimeout => "57014".*,
         else => "HY000".*,
     }, .message = "SQL request failed; inspect the error code and original operation before retrying", .retry = .never } });
 }
@@ -247,14 +252,35 @@ pub fn failure(self: *Self, allocator: std.mem.Allocator, err: anyerror) ![]alig
 /// the request allocator and never borrow a result freed by another connection.
 /// `working` is independent reusable control storage: freeing a temporary
 /// Session must reclaim it even while request JSON/output remains alive.
-pub fn request(self: *Self, allocator: std.mem.Allocator, working: std.mem.Allocator, input: api.Request, peer: Peer) ![]align(api.ResultFrame.alignment) u8 {
+pub fn request(self: *Self, allocator: std.mem.Allocator, working: std.mem.Allocator, input: api.Request, peer: Peer, parent: ?g.wire.Deadline) ![]align(api.ResultFrame.alignment) u8 {
+    const deadline = g.wire.Deadline.init(self.io, self.configuration.limits.command_ms, parent);
+    deadline.check(self.io) catch return error.GatewayDeadline;
+    return self.requestWithin(allocator, working, input, peer, deadline);
+}
+/// Consumes the encoded response. Expiry can suppress late data, but cannot
+/// replace an admitted execute's recovery guidance with a generic refusal.
+/// A session owner remains locked through expiry cleanup. The bounded error
+/// still uses the HTTP owner's original output deadline.
+fn finishResponse(self: *Self, allocator: std.mem.Allocator, bytes: []align(api.ResultFrame.alignment) u8, deadline: g.wire.Deadline, recover_original: bool, owner: ?*Slot) ![]align(api.ResultFrame.alignment) u8 {
+    deadline.check(self.io) catch {
+        allocator.free(bytes);
+        if (owner) |slot| slot.clearCursor();
+        return self.response(allocator, .{ .err = .{ .code = "GatewayDeadline", .sqlstate = "57014".*, .message = "Request wait ended; inspect the original operation before retrying", .retry = if (recover_original) .control else .never } });
+    };
+    return bytes;
+}
+fn requestWithin(self: *Self, allocator: std.mem.Allocator, working: std.mem.Allocator, input: api.Request, peer: Peer, deadline: g.wire.Deadline) ![]align(api.ResultFrame.alignment) u8 {
     try input.validate();
-    if (input.action == .hello) return self.response(allocator, .{ .hello = .{ .encoding = api.encoding, .session_lease_ms = self.configuration.limits.session_lease_ms, .maximum_message = api.max_message_bytes, .maximum_batch = api.max_batch_bytes, .maximum_rows = api.max_rows, .capabilities = &.{ "catalog_reads", "table_ddl", "table_dml", "logical_types", "typed_parameters", "finite_relational", "source_bindings", "captured_queries", "settings", "configuration_reload", "operation_recovery", "table_transactions", "transaction_savepoints", "schema_migrations", "historical_catalog_reads" } } });
+    if (input.action == .hello) return self.finishResponse(allocator, try self.response(allocator, .{ .hello = .{ .encoding = api.encoding, .session_lease_ms = self.configuration.limits.session_lease_ms, .maximum_message = api.max_message_bytes, .maximum_batch = api.max_batch_bytes, .maximum_rows = api.max_rows, .capabilities = &.{ "catalog_reads", "table_ddl", "table_dml", "logical_types", "typed_parameters", "finite_relational", "source_bindings", "captured_queries", "settings", "configuration_reload", "operation_recovery", "table_transactions", "transaction_savepoints", "schema_migrations", "historical_catalog_reads" } } }), deadline, false, null);
     if (!std.mem.eql(u8, &input.instance.?, &self.instance)) return error.SqlInstanceChanged;
-    if (input.action == .open) return self.open(allocator, input.action.open, peer);
-    if (input.action == .authenticate) return self.authenticate(allocator, input.action.authenticate);
-    if (input.action == .cancel or input.action == .status or input.action == .operations or (input.action == .@"resume" and input.action.@"resume".kind != .workload)) return self.control(allocator, working, input);
+    if (input.action == .open) return self.finishResponse(allocator, try self.open(allocator, input.action.open, peer, deadline), deadline, false, null);
+    if (input.action == .authenticate) return self.finishResponse(allocator, try self.authenticate(allocator, input.action.authenticate, deadline), deadline, false, null);
+    if (input.action == .cancel or input.action == .status or input.action == .operations or (input.action == .@"resume" and input.action.@"resume".kind != .workload)) return self.finishResponse(allocator, try self.control(allocator, working, input, deadline), deadline, false, null);
     try self.mutex.lock(self.io);
+    deadline.check(self.io) catch {
+        self.mutex.unlock(self.io);
+        return error.GatewayDeadline;
+    };
     const slot = self.locate(input.session.?) catch |err| {
         self.mutex.unlock(self.io);
         return err;
@@ -282,15 +308,22 @@ pub fn request(self: *Self, allocator: std.mem.Allocator, working: std.mem.Alloc
     var buffered = false;
     errdefer if (!buffered) slot.clearCursor();
     if (input.action == .close) {
-        try host.begin();
-        host.end();
+        {
+            const scope = host.withDeadline(deadline);
+            defer scope.restore();
+            try host.begin();
+            host.end();
+        }
         self.remove(slot);
-        return self.response(allocator, .closed);
+        return self.finishResponse(allocator, try self.response(allocator, .closed), deadline, false, null);
     }
+    const scope = host.withDeadline(deadline);
+    defer scope.restore();
     try host.begin();
     defer host.end();
     host.sql_diagnostic = null;
     host.execution_diagnostic = null;
+    var recover_original = false;
     const result = self.action(allocator, slot, input.action) catch |err| {
         slot.clearCursor();
         const info = host.diagnostic(err);
@@ -303,22 +336,26 @@ pub fn request(self: *Self, allocator: std.mem.Allocator, working: std.mem.Alloc
             .binding => if (std.mem.eql(u8, &info.state, "XX000")) "22023".* else info.state,
             .limit => "54000".*,
         } else info.state;
-        return self.response(allocator, .{ .err = .{ .code = @errorName(err), .sqlstate = state, .message = info.message, .diagnostic = diagnostic, .retry = if (input.action == .execute and input.action.execute.token != null and slot.acceptance_possible and err != error.SqlTokenConflict and diagnostic == null) .control else .never } });
+        recover_original = input.action == .execute and input.action.execute.token != null and slot.acceptance_possible and err != error.SqlTokenConflict and diagnostic == null;
+        return self.finishResponse(allocator, try self.response(allocator, .{ .err = .{ .code = @errorName(err), .sqlstate = state, .message = info.message, .diagnostic = diagnostic, .retry = if (recover_original) .control else .never } }), host.deadline.budget, recover_original, slot);
     };
+    recover_original = input.action == .execute and input.action.execute.token != null and slot.acceptance_possible;
     // A complete logical batch already owns its ordinal, contents and disclosure
     // evidence. Request encoding failure must not destroy that retained state;
     // repeating the same ordinal still revalidates current rights in action().
     buffered = result == .batch;
-    return self.response(allocator, result);
+    return self.finishResponse(allocator, try self.response(allocator, result), host.deadline.budget, recover_original, slot);
 }
-fn opened(self: *Self, allocator: std.mem.Allocator, account: usize, credential: g.Configuration.Credential, database: []const u8, source: ?[]const u8, proof: []const u8) ![]align(api.ResultFrame.alignment) u8 {
-    const slot = try self.create(account, credential, database, .transit, true);
+fn opened(self: *Self, allocator: std.mem.Allocator, account: usize, credential: g.Configuration.Credential, database: []const u8, source: ?[]const u8, proof: []const u8, deadline: g.wire.Deadline) ![]align(api.ResultFrame.alignment) u8 {
+    const slot = try self.create(account, credential, database, .transit, true, deadline);
     defer self.borrowerJoined(slot);
     errdefer self.remove(slot);
+    const scope = slot.host.?.withDeadline(deadline);
+    defer scope.restore();
     try slot.host.?.selectSource(source);
     return self.response(allocator, .{ .opened = .{ .session = slot.id, .account = self.configuration.accounts[account].execution.account, .database = slot.host.?.database, .proof = proof } });
 }
-fn open(self: *Self, allocator: std.mem.Allocator, input: @FieldType(api.Action, "open"), peer: Peer) ![]align(api.ResultFrame.alignment) u8 {
+fn open(self: *Self, allocator: std.mem.Allocator, input: @FieldType(api.Action, "open"), peer: Peer, deadline: g.wire.Deadline) ![]align(api.ResultFrame.alignment) u8 {
     self.sweep();
     if (!self.acquireAuthentication()) return error.GatewayConnectionCapacity;
     var retained = false;
@@ -331,11 +368,11 @@ fn open(self: *Self, allocator: std.mem.Allocator, input: @FieldType(api.Action,
     switch (input.authentication) {
         .peer => {
             if (account.authentication != .peer or peer.uid == null or account.peer_uid != peer.uid) return error.AuthenticationFailed;
-            return self.opened(allocator, index, credential, input.database, source, "");
+            return self.opened(allocator, index, credential, input.database, source, "", deadline);
         },
         .trust => {
             if (account.authentication != .trust or !peer.loopback or peer.uid != null) return error.AuthenticationFailed;
-            return self.opened(allocator, index, credential, input.database, source, "");
+            return self.opened(allocator, index, credential, input.database, source, "", deadline);
         },
         .scram => {
             if (account.authentication != .password or !peer.tls or credential.verifier == null) return error.AuthenticationFailed;
@@ -369,7 +406,7 @@ fn databaseName(account: *const g.Configuration.Account, name: []const u8) ![]co
     for (account.databases) |database| if (std.mem.eql(u8, database.name, name)) return database.name;
     return error.GatewayDatabaseDenied;
 }
-fn authenticate(self: *Self, allocator: std.mem.Allocator, input: @FieldType(api.Action, "authenticate")) ![]align(api.ResultFrame.alignment) u8 {
+fn authenticate(self: *Self, allocator: std.mem.Allocator, input: @FieldType(api.Action, "authenticate"), deadline: g.wire.Deadline) ![]align(api.ResultFrame.alignment) u8 {
     try self.mutex.lock(self.io);
     const found = for (&self.challenges) |*entry| {
         if (entry.*) |value| if (std.crypto.timing_safe.eql(api.Id, value.id, input.challenge)) {
@@ -389,7 +426,7 @@ fn authenticate(self: *Self, allocator: std.mem.Allocator, input: @FieldType(api
     const credential = try g.Session.loadCredential(allocator, self.io, &self.configuration.accounts[challenge.account]);
     if (!std.meta.eql(credential, challenge.credential)) return error.AuthenticationFailed;
     const proof = try challenge.scram.finish(input.final);
-    return self.opened(allocator, challenge.account, credential, challenge.database, challenge.source, &proof);
+    return self.opened(allocator, challenge.account, credential, challenge.database, challenge.source, &proof, deadline);
 }
 fn findStatement(slot: *Slot, id: api.Id) !*Statement {
     for (&slot.statements) |*entry| if (entry.*) |*statement| if (std.mem.eql(u8, &statement.id, &id)) return statement;
@@ -403,6 +440,13 @@ fn describe(allocator: std.mem.Allocator, host: *g.Session, statement: Statement
     return .{ .statement = statement.id, .schema = if (fields.len == 0) null else try api.Codec.schema(allocator, fields), .parameters = parameters, .mutation = !statement.prepared.readOnly() };
 }
 fn action(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: api.Action) !@FieldType(api.Response, "result") {
+    if (input == .execute) slot.acceptance_possible = false;
+    try slot.host.?.deadline.check(self.io);
+    const result = try self.actionWithin(allocator, slot, input);
+    try slot.host.?.deadline.check(self.io);
+    return result;
+}
+fn actionWithin(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: api.Action) !@FieldType(api.Response, "result") {
     const host = slot.host.?;
     switch (input) {
         .touch => return .closed,
@@ -568,8 +612,6 @@ fn action(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: api.Act
 }
 fn execute(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: @FieldType(api.Action, "execute")) !@FieldType(api.Response, "result") {
     const host = slot.host.?;
-    slot.acceptance_possible = false;
-
     if (slot.cursor != null) return error.SqlResultActive;
     const digest = if (input.token != null) try api.fingerprint(allocator, self.instance, host.account.execution.account, host.database, host.sourceName(), input) else null;
     if (input.token) |token| {
@@ -690,8 +732,12 @@ fn batch(self: *Self, slot: *Slot, ordinal: u64) !api.Batch {
 /// Controls use a separately owned transport, even while the session's read or
 /// admission request is stalled. Authentication is checked afresh before any
 /// atomic cancellation or protected operation observation.
-fn control(self: *Self, allocator: std.mem.Allocator, working: std.mem.Allocator, input: api.Request) ![]align(api.ResultFrame.alignment) u8 {
+fn control(self: *Self, allocator: std.mem.Allocator, working: std.mem.Allocator, input: api.Request, deadline: g.wire.Deadline) ![]align(api.ResultFrame.alignment) u8 {
     try self.mutex.lock(self.io);
+    deadline.check(self.io) catch {
+        self.mutex.unlock(self.io);
+        return error.GatewayDeadline;
+    };
     const slot = self.locate(input.session.?) catch |err| {
         self.mutex.unlock(self.io);
         return err;
@@ -721,8 +767,10 @@ fn control(self: *Self, allocator: std.mem.Allocator, working: std.mem.Allocator
     var cancelled: std.atomic.Value(bool) = .init(false);
     var active: std.atomic.Value(bool) = .init(false);
     var budget: g.query.QueryMemory = .{ .parent = working, .limit = self.configuration.limits.session_bytes };
-    const host = try g.Session.initOptions(budget.allocator(), self.io, self.configuration, account, self.runtimes[account], credential, database, .transit, &cancelled, &active, .{ .capture_settings = false });
+    const host = try g.Session.initOptions(budget.allocator(), self.io, self.configuration, account, self.runtimes[account], credential, database, .transit, &cancelled, &active, .{ .capture_settings = false, .deadline = deadline });
     defer host.deinit();
+    const scope = host.withDeadline(deadline);
+    defer scope.restore();
     try host.selectSource(source_name);
     try host.begin();
     defer host.end();
@@ -847,6 +895,60 @@ fn reserveFailures(allocator: std.mem.Allocator) !void {
 }
 test "registry reserve admission rolls back every partial initialization" {
     try std.testing.checkAllAllocationFailures(std.testing.allocator, reserveFailures, .{});
+}
+test "expired request and authentication budgets do not borrow slots and the registry remains reusable" {
+    const t = std.testing;
+    var registry = try init(t.allocator, t.io, &reserve_configuration, &.{}, @splat(1));
+    defer registry.deinit();
+    const expired = g.wire.Deadline.init(t.io, 0, null);
+    // Deliberately absent account/runtime: an expired admission must return
+    // before looking up either or reserving a foreground session.
+    try t.expectError(error.GatewayDeadline, registry.create(0, undefined, "data", .transit, true, expired));
+    const hello: api.Request = .{ .version = 1, .definition = api.native.current_definition, .action = .hello };
+    try t.expectError(error.GatewayDeadline, registry.request(t.allocator, t.allocator, hello, .{}, expired));
+    for (registry.slots) |slot| try t.expect(!slot.present);
+    var host: g.Session = undefined;
+    host.deadline = .{ .budget = expired };
+    var expired_slot: Slot = undefined;
+    expired_slot.host = &host;
+    expired_slot.acceptance_possible = true; // A prior command's observation.
+    try t.expectError(error.GatewayDeadline, registry.action(t.allocator, &expired_slot, .{ .execute = .{ .sql = "SELECT 1" } }));
+    try t.expect(!expired_slot.acceptance_possible);
+    const bytes = try registry.request(t.allocator, t.allocator, hello, .{}, null);
+    defer t.allocator.free(bytes);
+    try t.expect(bytes.len != 0);
+}
+test "expiry after response encoding preserves original recovery and frees late output" {
+    const t = std.testing;
+    var registry = try init(t.allocator, t.io, &reserve_configuration, &.{}, @splat(1));
+    defer registry.deinit();
+    const expired = g.wire.Deadline.init(t.io, 0, null);
+    for ([_]bool{ false, true }) |recover_original| {
+        var expired_slot: Slot = undefined;
+        var cursor: Cursor = undefined;
+        cursor.read = null;
+        cursor.owned = false;
+        cursor.arena = .init(t.allocator);
+        cursor.batch_arena = .init(t.allocator);
+        _ = try cursor.arena.allocator().alloc(u8, 37);
+        _ = try cursor.batch_arena.allocator().alloc(u8, 53);
+        expired_slot.cursor = cursor;
+        defer expired_slot.clearCursor();
+        const encoded = try registry.response(t.allocator, .closed);
+        const bytes = try registry.finishResponse(t.allocator, encoded, expired, recover_original, &expired_slot);
+        defer t.allocator.free(bytes);
+        try t.expect(expired_slot.cursor == null);
+        var decoded = try api.parse(api.Response, t.allocator, bytes);
+        defer decoded.deinit();
+        try t.expectEqualStrings("GatewayDeadline", decoded.value.result.err.code);
+        try t.expectEqualStrings("57014", &decoded.value.result.err.sqlstate);
+        const expected: @FieldType(api.Error, "retry") = if (recover_original) .control else .never;
+        try t.expectEqual(expected, decoded.value.result.err.retry);
+    }
+    // Failure to allocate the diagnostic must still release the original bytes.
+    const late = try registry.response(t.allocator, .closed);
+    var failing = std.testing.FailingAllocator.init(t.allocator, .{ .fail_index = 0 });
+    try t.expectError(error.OutOfMemory, registry.finishResponse(failing.allocator(), late, expired, true, null));
 }
 test "session slot reserves and recovery capacity remain independent across reassignment" {
     const t = std.testing;

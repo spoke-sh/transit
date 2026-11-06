@@ -110,7 +110,7 @@ fn sessionFraming(init: std.process.Init, runtime: *gateway.DatabaseRuntime, dir
     var repeats: usize = 0;
     var advances: usize = 0;
     for (cases) |case| {
-        const slot = try sessions.create(0, credential, "data", .transit, true);
+        const slot = try sessions.create(0, credential, "data", .transit, true, null);
         slot.mutex.unlock(init.io);
         defer {
             slot.mutex.lockUncancelable(init.io);
@@ -118,7 +118,7 @@ fn sessionFraming(init: std.process.Init, runtime: *gateway.DatabaseRuntime, dir
             slot.mutex.unlock(init.io);
         }
         const request: api.Request = .{ .version = 1, .definition = native.current_definition, .instance = sessions.instance, .session = slot.id, .action = .{ .execute = .{ .sql = case.sql } } };
-        var bytes = try sessions.request(init.gpa, init.gpa, request, .{});
+        var bytes = try sessions.request(init.gpa, init.gpa, request, .{}, null);
         defer init.gpa.free(bytes);
         var frame = try api.ResultFrame.parseBorrowed(init.arena.allocator(), bytes);
         const schema = try api.results.Types.decodeInto(init.arena.allocator(), frame.description.?.schema);
@@ -148,7 +148,7 @@ fn sessionFraming(init: std.process.Init, runtime: *gateway.DatabaseRuntime, dir
                 try refuseFrame(init, &sessions, fetch);
                 refused += 1;
                 if (slot.cursor == null) return error.LostRetainedBatch;
-                const repeated = try sessions.request(init.gpa, init.gpa, fetch, .{});
+                const repeated = try sessions.request(init.gpa, init.gpa, fetch, .{}, null);
                 defer init.gpa.free(repeated);
                 if (!std.mem.eql(u8, bytes, repeated)) return error.ChangedRetainedBatch;
                 repeats += 1;
@@ -160,7 +160,7 @@ fn sessionFraming(init: std.process.Init, runtime: *gateway.DatabaseRuntime, dir
             try refuseFrame(init, &sessions, fetch);
             refused += 1;
             if (slot.cursor == null) return error.LostRetainedBatch;
-            const next = try sessions.request(init.gpa, init.gpa, fetch, .{});
+            const next = try sessions.request(init.gpa, init.gpa, fetch, .{}, null);
             init.gpa.free(bytes);
             bytes = next;
             frame = try api.ResultFrame.parseBorrowed(init.arena.allocator(), bytes);
@@ -174,7 +174,7 @@ fn sessionFraming(init: std.process.Init, runtime: *gateway.DatabaseRuntime, dir
         revoked.enabled = false;
         try support.save(init, directory, "gateway-credential.json", revoked);
         defer support.save(init, directory, "gateway-credential.json", credential) catch unreachable;
-        if (sessions.request(init.gpa, init.gpa, fetch, .{})) |disclosed| {
+        if (sessions.request(init.gpa, init.gpa, fetch, .{}, null)) |disclosed| {
             init.gpa.free(disclosed);
             return error.DisclosedRevokedBatch;
         } else |err| if (err != error.InvalidAuthentication) return err;
@@ -184,7 +184,7 @@ fn sessionFraming(init: std.process.Init, runtime: *gateway.DatabaseRuntime, dir
 }
 fn refuseFrame(init: std.process.Init, sessions: *gateway.Registry, request: gateway.session_protocol.Request) !void {
     var failing = std.testing.FailingAllocator.init(init.gpa, .{ .fail_index = 0 });
-    if (sessions.request(failing.allocator(), init.gpa, request, .{})) |bytes| {
+    if (sessions.request(failing.allocator(), init.gpa, request, .{}, null)) |bytes| {
         init.gpa.free(bytes);
         return error.ExpectedFramingRefusal;
     } else |err| if (err != error.OutOfMemory) return err;
@@ -264,7 +264,7 @@ fn readWorkloads(init: std.process.Init, runtime: *gateway.DatabaseRuntime, dire
     var batches: usize = 0;
     for (saved.bindings, 0..) |binding, index| {
         var source = try runtime.ingress.source();
-        const deadline: gateway.DatabaseRuntime.Deadline = .{ .start = std.Io.Clock.awake.now(init.io), .milliseconds = 60000 };
+        const deadline: gateway.DatabaseRuntime.Deadline = .{ .budget = .init(init.io, 60000, null) };
         var state = (try source.lookup(binding.key.token, binding.fingerprint)) orelse return error.MissingWorkloadToken;
         while (state.pending) {
             try deadline.check(init.io);
@@ -272,7 +272,7 @@ fn readWorkloads(init: std.process.Init, runtime: *gateway.DatabaseRuntime, dire
             state = (try source.lookup(binding.key.token, binding.fingerprint)).?;
         }
         try std.testing.expectEqualDeep(binding, state.receipt.binding);
-        const slot = try sessions.create(0, credential, "data", .transit, true);
+        const slot = try sessions.create(0, credential, "data", .transit, true, null);
         slot.mutex.unlock(init.io);
         defer {
             slot.mutex.lockUncancelable(init.io);
@@ -282,7 +282,7 @@ fn readWorkloads(init: std.process.Init, runtime: *gateway.DatabaseRuntime, dire
         const status = try runtime.status(init.gpa, &slot.host.?.observer, &slot.host.?.table, binding.intent.namespace(), state.id());
         if (status.phase != .terminal or status.outcome != .applied or status.result_kind != .rows or status.identity.kind != .workload) return error.InvalidWorkloadStatus;
         const request: api.Request = .{ .version = 1, .definition = native.current_definition, .instance = sessions.instance, .session = slot.id, .action = .{ .result = status.identity } };
-        var bytes = try sessions.request(init.gpa, init.gpa, request, .{});
+        var bytes = try sessions.request(init.gpa, init.gpa, request, .{}, null);
         defer init.gpa.free(bytes);
         var frame = try api.ResultFrame.parseBorrowed(init.arena.allocator(), bytes);
         const observation = frame.description.?.observation;
@@ -318,7 +318,7 @@ fn readWorkloads(init: std.process.Init, runtime: *gateway.DatabaseRuntime, dire
             count += frame.rows;
             batches += 1;
             total += frame.rows;
-            const repeated = try sessions.request(init.gpa, init.gpa, fetch, .{});
+            const repeated = try sessions.request(init.gpa, init.gpa, fetch, .{}, null);
             defer init.gpa.free(repeated);
             if (!std.mem.eql(u8, bytes, repeated)) return error.ChangedRetainedBatch;
             if (frame.completion) |completion| {
@@ -329,7 +329,7 @@ fn readWorkloads(init: std.process.Init, runtime: *gateway.DatabaseRuntime, dire
                 break;
             }
             fetch.action.fetch.batch += 1;
-            const next = try sessions.request(init.gpa, init.gpa, fetch, .{});
+            const next = try sessions.request(init.gpa, init.gpa, fetch, .{}, null);
             init.gpa.free(bytes);
             bytes = next;
             frame = try api.ResultFrame.parseBorrowed(init.arena.allocator(), bytes);
@@ -338,7 +338,7 @@ fn readWorkloads(init: std.process.Init, runtime: *gateway.DatabaseRuntime, dire
         revoked.enabled = false;
         try support.save(init, directory, "gateway-credential.json", revoked);
         defer support.save(init, directory, "gateway-credential.json", credential) catch unreachable;
-        if (sessions.request(init.gpa, init.gpa, fetch, .{})) |disclosed| {
+        if (sessions.request(init.gpa, init.gpa, fetch, .{}, null)) |disclosed| {
             init.gpa.free(disclosed);
             return error.DisclosedRevokedBatch;
         } else |err| if (err != error.InvalidAuthentication) return err;
@@ -503,7 +503,7 @@ pub fn main(init: std.process.Init) !void {
         defer worker.cancel(init.io) catch |err| if (err != error.Cancelled and err != error.Canceled) {
             std.debug.print("Runtime failed: {s}\n", .{@errorName(err)});
         };
-        const deadline: gateway.DatabaseRuntime.Deadline = .{ .start = std.Io.Clock.awake.now(init.io), .milliseconds = 60000 };
+        const deadline: gateway.DatabaseRuntime.Deadline = .{ .budget = .init(init.io, 60000, null) };
         while (!runtime.ready.load(.acquire)) {
             try deadline.check(init.io);
             try init.io.sleep(.fromMilliseconds(2), .awake);

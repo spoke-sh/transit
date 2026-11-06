@@ -11079,6 +11079,28 @@
         "std"
       ]
     },
+    "packages/zig/transit-client/src/Deadline.zig": {
+      "errors": {
+        "AuthorityTimeout": 1
+      },
+      "outcomes": {},
+      "error_sets": {
+        "check().<error>": [
+          "AuthorityTimeout"
+        ]
+      },
+      "error_returns": {
+        "check()": "error { AuthorityTimeout }"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "std"
+      ]
+    },
     "packages/zig/transit-client/src/Host.zig": {
       "errors": {
         "InvalidSeed": 1,
@@ -11150,10 +11172,11 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 10,
+        "try": 13,
         "catch": 0
       },
       "imports": [
+        "Deadline.zig",
         "root.zig",
         "std"
       ]
@@ -11516,7 +11539,7 @@
       },
       "open_error_set_uses": 8,
       "propagation": {
-        "try": 33,
+        "try": 34,
         "catch": 12
       },
       "imports": [
@@ -11527,6 +11550,7 @@
         "AuthorizationSet.zig",
         "BlockBatch.zig",
         "BoundedBody.zig",
+        "Deadline.zig",
         "HttpPost.zig",
         "LocalEndpoint.zig",
         "ResourceReader.zig",
@@ -31358,7 +31382,7 @@
         "GatewayActivationSyncFailed": 1,
         "GatewayConnectionCapacity": 2,
         "GatewayCredentialChanged": 1,
-        "GatewayDeadline": 4,
+        "GatewayDeadline": 5,
         "GatewayDraining": 3,
         "GatewayOwnerUnavailable": 1,
         "InvalidAuthentication": 5,
@@ -31422,8 +31446,8 @@
       },
       "open_error_set_uses": 23,
       "propagation": {
-        "try": 106,
-        "catch": 27
+        "try": 105,
+        "catch": 28
       },
       "imports": [
         "Connection.zig",
@@ -32925,6 +32949,7 @@
       "errors": {
         "AccessDenied": 2,
         "AuthenticationFailed": 8,
+        "AuthorityTimeout": 1,
         "CapturedSourceRequired": 1,
         "CatalogDenied": 2,
         "ConfigurationCancellationUnsupported": 1,
@@ -32932,7 +32957,7 @@
         "GatewayConnectionCapacity": 4,
         "GatewayCredentialChanged": 1,
         "GatewayDatabaseDenied": 4,
-        "GatewayDeadline": 1,
+        "GatewayDeadline": 6,
         "GatewayDenied": 5,
         "GatewayWaitCancelled": 1,
         "InvalidAuthentication": 1,
@@ -32965,6 +32990,7 @@
       "error_sets": {},
       "error_returns": {
         "action()": "<inferred>",
+        "actionWithin()": "<inferred>",
         "authenticate()": "<inferred>",
         "batch()": "<inferred>",
         "control()": "<inferred>",
@@ -32974,6 +33000,7 @@
         "execute()": "<inferred>",
         "failure()": "<inferred>",
         "findStatement()": "<inferred>",
+        "finishResponse()": "<inferred>",
         "init()": "<inferred>",
         "locate()": "<inferred>",
         "open()": "<inferred>",
@@ -32983,6 +33010,7 @@
         "operationStatus()": "<inferred>",
         "recover()": "<inferred>",
         "request()": "<inferred>",
+        "requestWithin()": "<inferred>",
         "reserveFailures()": "<inferred>",
         "response()": "<inferred>",
         "selectOperation()": "<inferred>",
@@ -32990,8 +33018,8 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 136,
-        "catch": 9
+        "try": 146,
+        "catch": 15
       },
       "imports": [
         "SessionSettings.zig",
@@ -33004,6 +33032,7 @@
       "errors": {
         "AccessDenied": 1,
         "AmbiguousLocalTime": 1,
+        "AuthorityTimeout": 1,
         "AuthorityUnavailable": 2,
         "Canceled": 1,
         "Cancelled": 1,
@@ -33573,7 +33602,7 @@
       "open_error_set_uses": 1,
       "propagation": {
         "try": 136,
-        "catch": 18
+        "catch": 19
       },
       "imports": [
         "root.zig",
