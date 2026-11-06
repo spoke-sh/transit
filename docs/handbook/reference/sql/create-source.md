@@ -84,7 +84,9 @@ SHOW/DESCRIBE are ordinary typed SQL results. Exact metadata includes the
 immutable definition, executor, dependency identities, current control epoch and
 Catalog position. Poll and publication positions remain absent. Listings scan
 at most 32 Catalog entries and return at most four summaries per native page;
-SQL consumes these pages with bounded buffers. Current rights are checked before
+SQL consumes these pages with bounded buffers and a limit of 10,000 native page
+requests per result. Exhausting that budget reports `QueryPageBudget`; an emitted
+prefix does not establish complete coverage. Current rights are checked before
 disclosure, including repeated and terminal batches. These are live Catalog
 observations, not an atomic snapshot of concurrently changing names.
 

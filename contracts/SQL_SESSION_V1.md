@@ -637,6 +637,8 @@ missing or corrupt retained request cannot be replaced by resubmitting SQL.
 SHOW CONNECTIONS/SOURCES, singular SHOW/DESCRIBE and EXPLAIN use the shared result
 lifecycle. Lists follow live directory continuations, including empty filtered
 pages, and recheck buffered object permissions before disclosure or repetition.
+Each result permits at most 10,000 native page requests. Exhaustion reports
+`QueryPageBudget` and cannot establish completion for an emitted prefix.
 Their metadata observation is independent, not a data snapshot. EXPLAIN resolves
 and validates the proposal without selecting identities, reserving, registering,
 staging or dispatching. Metadata reports `execution_supported=false`,
