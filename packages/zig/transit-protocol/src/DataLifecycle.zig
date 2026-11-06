@@ -355,6 +355,7 @@ pub const SchemaTypes = struct {
     document: p.DocumentOperation.SchemaTypes,
     document_collection: p.DocumentOperation.Read.Collection.SchemaTypes,
     dataflow: p.Dataflow.SchemaTypes,
+    source: p.Source.SchemaTypes,
 };
 
 test {

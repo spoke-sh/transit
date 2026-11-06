@@ -49,6 +49,7 @@ pub const DirectResourceClient = @import("DirectResourceClient.zig");
 pub const TableMetadata = @import("TableMetadata.zig");
 pub const TableAuthority = @import("TableAuthority.zig");
 pub const DirectLog = @import("DirectLog.zig");
+pub const SourceBinding = @import("SourceBinding.zig");
 pub const DirectLogProtocol = @import("DirectLogProtocol.zig");
 pub const DirectLogIntent = @import("DirectLogIntent.zig");
 pub const DirectWorkloadIntent = @import("DirectWorkloadIntent.zig");
@@ -149,6 +150,7 @@ test {
     _ = DirectProgressRecord;
     _ = DirectBranch;
     _ = DirectLog;
+    _ = SourceBinding;
     _ = DirectLogPreparedAppend;
     _ = DirectLogPreparedConsume;
     _ = DirectLogPreparedClaim;

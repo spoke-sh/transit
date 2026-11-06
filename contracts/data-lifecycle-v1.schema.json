@@ -16,7 +16,8 @@
         "stream_queue",
         "document",
         "document_collection",
-        "dataflow"
+        "dataflow",
+        "source"
       ],
       "properties": {
         "resource_initialization": {
@@ -54,6 +55,9 @@
         },
         "dataflow": {
           "$ref": "#/$defs/T209"
+        },
+        "source": {
+          "$ref": "#/$defs/T226"
         }
       },
       "required": [
@@ -68,7 +72,8 @@
         "stream_queue",
         "document",
         "document_collection",
-        "dataflow"
+        "dataflow",
+        "source"
       ],
       "x-transit-defaults": {}
     },
@@ -5821,6 +5826,334 @@
         "schema",
         "rows",
         "cut"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T226": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "connection",
+        "declaration",
+        "control",
+        "poll",
+        "capture"
+      ],
+      "properties": {
+        "connection": {
+          "$ref": "#/$defs/T227"
+        },
+        "declaration": {
+          "$ref": "#/$defs/T229"
+        },
+        "control": {
+          "$ref": "#/$defs/T233"
+        },
+        "poll": {
+          "$ref": "#/$defs/T235"
+        },
+        "capture": {
+          "$ref": "#/$defs/T237"
+        }
+      },
+      "required": [
+        "connection",
+        "declaration",
+        "control",
+        "poll",
+        "capture"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T227": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "definition",
+        "interpretation",
+        "endpoint"
+      ],
+      "properties": {
+        "definition": {
+          "$ref": "#/$defs/T2"
+        },
+        "interpretation": {
+          "$ref": "#/$defs/T3"
+        },
+        "endpoint": {
+          "$ref": "#/$defs/T228"
+        }
+      },
+      "required": [
+        "definition",
+        "interpretation",
+        "endpoint"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T228": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "T229": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "definition",
+        "interpretation",
+        "connection",
+        "destination",
+        "executor",
+        "http",
+        "columns"
+      ],
+      "properties": {
+        "definition": {
+          "$ref": "#/$defs/T2"
+        },
+        "interpretation": {
+          "$ref": "#/$defs/T3"
+        },
+        "connection": {
+          "$ref": "#/$defs/T3"
+        },
+        "destination": {
+          "$ref": "#/$defs/T3"
+        },
+        "executor": {
+          "$ref": "#/$defs/T6"
+        },
+        "http": {
+          "$ref": "#/$defs/T230"
+        },
+        "columns": {
+          "$ref": "#/$defs/T232"
+        }
+      },
+      "required": [
+        "definition",
+        "interpretation",
+        "connection",
+        "destination",
+        "executor",
+        "http",
+        "columns"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T230": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "method",
+        "path",
+        "poll_interval_ms",
+        "request_timeout_ms",
+        "response_max_bytes"
+      ],
+      "properties": {
+        "method": {
+          "$ref": "#/$defs/T231"
+        },
+        "path": {
+          "$ref": "#/$defs/T228"
+        },
+        "poll_interval_ms": {
+          "$ref": "#/$defs/T6"
+        },
+        "request_timeout_ms": {
+          "$ref": "#/$defs/T6"
+        },
+        "response_max_bytes": {
+          "$ref": "#/$defs/T6"
+        }
+      },
+      "required": [
+        "method",
+        "path",
+        "poll_interval_ms",
+        "request_timeout_ms",
+        "response_max_bytes"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T231": {
+      "type": "string",
+      "enum": [
+        "GET"
+      ]
+    },
+    "T232": {
+      "type": "array",
+      "minItems": 7,
+      "maxItems": 7,
+      "items": {
+        "$ref": "#/$defs/T6"
+      }
+    },
+    "T233": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "state",
+        "epoch"
+      ],
+      "properties": {
+        "state": {
+          "$ref": "#/$defs/T234"
+        },
+        "epoch": {
+          "$ref": "#/$defs/T6"
+        }
+      },
+      "required": [
+        "state",
+        "epoch"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T234": {
+      "type": "string",
+      "enum": [
+        "published",
+        "authorized",
+        "active",
+        "suspended",
+        "retired"
+      ]
+    },
+    "T235": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "definition",
+        "source",
+        "operation",
+        "capture_id",
+        "sequence",
+        "control_epoch",
+        "due_ms",
+        "state"
+      ],
+      "properties": {
+        "definition": {
+          "$ref": "#/$defs/T2"
+        },
+        "source": {
+          "$ref": "#/$defs/T3"
+        },
+        "operation": {
+          "$ref": "#/$defs/T11"
+        },
+        "capture_id": {
+          "$ref": "#/$defs/T84"
+        },
+        "sequence": {
+          "$ref": "#/$defs/T6"
+        },
+        "control_epoch": {
+          "$ref": "#/$defs/T6"
+        },
+        "due_ms": {
+          "$ref": "#/$defs/T6"
+        },
+        "state": {
+          "$ref": "#/$defs/T236"
+        }
+      },
+      "required": [
+        "definition",
+        "source",
+        "operation",
+        "capture_id",
+        "sequence",
+        "control_epoch",
+        "due_ms",
+        "state"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T236": {
+      "type": "string",
+      "enum": [
+        "scheduled",
+        "dispatching",
+        "captured",
+        "incomplete",
+        "unknown",
+        "closed_unknown",
+        "published",
+        "retired"
+      ]
+    },
+    "T237": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "definition",
+        "source",
+        "connection",
+        "destination",
+        "operation",
+        "capture_id",
+        "sequence",
+        "observed_at_ms",
+        "http_status",
+        "body_bytes",
+        "body_sha256",
+        "manifest"
+      ],
+      "properties": {
+        "definition": {
+          "$ref": "#/$defs/T2"
+        },
+        "source": {
+          "$ref": "#/$defs/T3"
+        },
+        "connection": {
+          "$ref": "#/$defs/T3"
+        },
+        "destination": {
+          "$ref": "#/$defs/T3"
+        },
+        "operation": {
+          "$ref": "#/$defs/T11"
+        },
+        "capture_id": {
+          "$ref": "#/$defs/T84"
+        },
+        "sequence": {
+          "$ref": "#/$defs/T6"
+        },
+        "observed_at_ms": {
+          "$ref": "#/$defs/T6"
+        },
+        "http_status": {
+          "$ref": "#/$defs/T127"
+        },
+        "body_bytes": {
+          "$ref": "#/$defs/T6"
+        },
+        "body_sha256": {
+          "$ref": "#/$defs/T7"
+        },
+        "manifest": {
+          "$ref": "#/$defs/T31"
+        }
+      },
+      "required": [
+        "definition",
+        "source",
+        "connection",
+        "destination",
+        "operation",
+        "capture_id",
+        "sequence",
+        "observed_at_ms",
+        "http_status",
+        "body_bytes",
+        "body_sha256",
+        "manifest"
       ],
       "x-transit-defaults": {}
     }

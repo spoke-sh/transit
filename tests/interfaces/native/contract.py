@@ -22,6 +22,8 @@ if sys.argv[1:] == ["--data-lifecycle"]:
                  ("dataflow", "declaration"), ("dataflow", "control"),
                  ("dataflow", "candidate"), ("dataflow", "completion", "candidate"),
                  ("dataflow", "revision"), ("dataflow", "revision", "cut", "begin"),
+                 ("source", "connection"), ("source", "declaration"),
+                 ("source", "poll"), ("source", "capture"),
                  ("stream_queue", "append", "append", "target"),
                  ("stream_queue", "declaration"),
                  ("stream_queue", "producer", "target"),
@@ -50,6 +52,11 @@ if sys.argv[1:] == ["--data-lifecycle"]:
     changed = copy.deepcopy(fixture)
     changed['binding']['definition'] = '0' * 64
     assert not validator.is_valid(changed)
+    assert fixture['source'] == json.loads((root / 'packages/zig/transit-protocol/src/fixtures/source-v1.json').read_text())
+    for member in ('connection', 'declaration', 'poll', 'capture'):
+        changed = copy.deepcopy(fixture)
+        changed['source'][member]['definition'] = '0' * 64
+        assert not validator.is_valid(changed), f'foreign source definition accepted: {member}'
     assert fixture['binding']['identity']['operation'] == 2**64 - 1
     assert fixture['source_cut']['checkpoint_lsn'] < fixture['source_cut']['accepted']['next_lsn']
     print("Data lifecycle: reflected schema, independent fixture and mandatory definitions passed.")

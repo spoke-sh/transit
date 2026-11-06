@@ -1,5 +1,10 @@
 # transit-catalog
 
+`SourceBinding` validates an explicitly supplied HTTP capture-envelope schema
+and Stream policy, returning stable column IDs independently of column order.
+It performs no catalog lookup or ingestion. The [source contract](../../../contracts/SOURCE_V1.md)
+keeps durable declaration, capture and activation gates separate.
+
 `DirectCatalogRead.apply` composes read-only inspection, resource and dependency
 callers for data exploration. It returns bounded pages and exact Table metadata;
 lookup checks the supplied interpretation rather than accepting a changed name
