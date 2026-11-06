@@ -7,10 +7,12 @@ pub fn lookup(host: *g.Session, token: api.Token, fingerprint: ?[32]u8) !?g.Sess
 }
 
 pub fn admit(host: *g.Session, prepared: *g.Session.Prepared, values: []const ?g.fuze.Types.Values.Atom, token: api.Token, fingerprint: [32]u8, acceptance_possible: *bool) !api.Operation {
+    return admitReviewed(host, prepared, values, token, fingerprint, acceptance_possible, null);
+}
+pub fn admitReviewed(host: *g.Session, prepared: *g.Session.Prepared, values: []const ?g.fuze.Types.Values.Atom, token: api.Token, fingerprint: [32]u8, acceptance_possible: *bool, guard: ?g.ManagedOperations.Guard) !api.Operation {
     switch (prepared.*) {
         .managed => {
-            acceptance_possible.* = true;
-            return g.ManagedOperations.admit(host, &prepared.managed, token, fingerprint);
+            return g.ManagedOperations.admitReviewed(host, &prepared.managed, token, fingerprint, acceptance_possible, guard);
         },
         .native => {
             const fresh = host.fresh_prepared == prepared;
@@ -41,4 +43,20 @@ pub fn resumeOperation(host: *g.Session, ref: g.SessionOperations.Reference) !ap
         },
     }
     return status(host, ref);
+}
+
+/// Reopen retained rows from the original accepted operation, without SQL replay.
+pub fn prepareResult(host: *g.Session, ref: g.SessionOperations.Reference) !g.Session.Prepared {
+    return switch (ref.kind) {
+        .workload => blk: {
+            var source = try host.observer.source();
+            const state = try source.operation(ref.id);
+            if (state.receipt.binding.intent != .workload) return error.InvalidSqlOperationReference;
+            const original = state.receipt.binding.intent.workload;
+            if (original.namespace != host.namespace) return error.SqlOperationBindingChanged;
+            break :blk .{ .workload = try g.database.WorkloadRead.Prepared.init(host.table, original) };
+        },
+        .captured => .{ .captured = try g.CapturedOperations.prepareResult(host, ref.id) },
+        .table, .transaction, .dataflow, .configuration => error.InvalidSqlOperationReference,
+    };
 }

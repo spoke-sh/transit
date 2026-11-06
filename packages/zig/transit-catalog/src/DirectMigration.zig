@@ -6,7 +6,7 @@ const c = @import("root.zig");
 const p = c.protocol;
 const f = c.fuze;
 
-pub const definition = "transit.direct.migration.v1.2026-10-30";
+pub const definition = "transit.direct.migration.v1.2026-11-06";
 pub const directory_format: u32 = 0x544d4431; // "TMD1"
 pub const version_format: u32 = 0x544d5631; // "TMV1"
 pub const max_versions = 256;
@@ -40,55 +40,10 @@ pub const Reconciliation = union(enum) {
     drift: DriftDetail,
 };
 
-pub const StepOwner = enum {
-    schema_ddl,
-    data_transform,
-    authorization_grant,
-    publication,
-    verification,
-};
-
-pub const StepEffect = enum {
-    create_table,
-    alter_table,
-    drop_table,
-    create_schema,
-    alter_schema,
-    drop_schema,
-    insert_rows,
-    update_rows,
-    delete_rows,
-    grant_privilege,
-    publish_resource,
-    verify_query,
-};
-
-pub const StepState = enum {
-    pending,
-    will_apply,
-    already_satisfied,
-    already_diverged,
-    blocked_by_policy,
-    claimed,
-    applying,
-    applied,
-    verified,
-    failed,
-    uncertain,
-};
-
-pub const VersionState = enum {
-    pending,
-    will_apply,
-    already_satisfied,
-    already_diverged,
-    claimed,
-    applying,
-    applied,
-    verified,
-    failed,
-    uncertain,
-};
+pub const StepOwner = p.Migration.StepOwner;
+pub const StepEffect = p.Migration.StepEffect;
+pub const StepState = p.Migration.StepState;
+pub const VersionState = p.Migration.VersionState;
 
 pub const StepReceipt = struct {
     step_index: u16,
@@ -99,6 +54,9 @@ pub const StepReceipt = struct {
     step_token: [16]u8,
     state: StepState,
     operation_id: ?u64 = null,
+    operation_kind: ?p.Migration.OperationKind = null,
+    computation: ?p.Migration.Computation = null,
+    object_definition: ?p.DataLifecycle.Definition = null,
     commit_lsn: ?u64 = null,
     affected_rows: ?u64 = null,
     expected_schema_sha256: ?[32]u8 = null,
@@ -108,7 +66,7 @@ pub const StepReceipt = struct {
 };
 
 pub const VersionEntry = struct {
-    definition: []const u8 = definition,
+    definition: []const u8,
     namespace: u64,
     version_id: []const u8,
     name: []const u8,
@@ -131,12 +89,15 @@ pub const VersionEntry = struct {
         if (self.steps.len == 0 or self.steps.len > max_steps) return error.InvalidMigrationStepCount;
         for (self.steps, 0..) |step, index| {
             if (step.step_index != index + 1) return error.InvalidMigrationStepIndex;
+            if (step.computation) |value| try value.validate();
+            if (step.owner == .computation and step.computation == null) return error.InvalidMigrationDependency;
+            if (step.object_definition) |value| try value.validate();
         }
     }
 };
 
 pub const Directory = struct {
-    definition: []const u8 = definition,
+    definition: []const u8,
     namespace: u64,
     versions: []const []const u8,
 
@@ -400,7 +361,7 @@ pub const InspectedDirectory = struct {
 pub fn readDirectory(allocator: std.mem.Allocator, client: c.DirectTableClient, account: [32]u8, namespace: u64) !InspectedDirectory {
     const key = directoryKey(client.connection, account, namespace);
     const progress = try c.DirectClientToken.inspect(client, key) orelse return .{
-        .directory = .{ .namespace = namespace, .versions = &.{} },
+        .directory = .{ .definition = definition, .namespace = namespace, .versions = &.{} },
         .progress = null,
     };
     const reference = progress.record orelse progress.receipt.binding.intent.external.record;
@@ -415,7 +376,7 @@ pub fn readDirectory(allocator: std.mem.Allocator, client: c.DirectTableClient, 
     for (parsed.value.versions, versions) |item, *slot| slot.* = try allocator.dupe(u8, item);
     parsed.deinit();
     return .{
-        .directory = .{ .namespace = namespace, .versions = versions },
+        .directory = .{ .definition = definition, .namespace = namespace, .versions = versions },
         .progress = progress,
     };
 }
@@ -437,7 +398,7 @@ pub fn ensureVersionListed(allocator: std.mem.Allocator, client: c.DirectTableCl
                 return std.mem.order(u8, lhs, rhs) == .lt;
             }
         }.lessThan);
-        const next_dir: Directory = .{ .namespace = namespace, .versions = next_versions };
+        const next_dir: Directory = .{ .definition = definition, .namespace = namespace, .versions = next_versions };
         try next_dir.validate();
         const bytes = try p.Json.valueAlloc(allocator, next_dir);
         const record_ref = try c.DirectRecord.stage(client, key.account, directory_format, bytes);
@@ -672,4 +633,11 @@ test "migration step tokens and ledger keys bind scope, branch, namespace, versi
     try t.expectEqualSlices(u8, &tok1, &tok2);
     try t.expect(!std.mem.eql(u8, &tok1, &tok_other_step));
     try t.expect(!std.mem.eql(u8, &tok1, &tok_other_branch));
+}
+
+test "migration ledger rejects missing and previous definitions" {
+    const t = std.testing;
+    try t.expectError(error.MissingField, p.Json.parseFromSlice(Directory, t.allocator, "{\"namespace\":1,\"versions\":[]}"));
+    const previous: Directory = .{ .definition = "transit.direct.migration.v1.2026-10-30", .namespace = 1, .versions = &.{} };
+    try t.expectError(error.IncompatibleDefinition, previous.validate());
 }

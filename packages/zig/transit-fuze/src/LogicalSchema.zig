@@ -4,12 +4,12 @@ const std = @import("std");
 const json = @import("LogicalJson.zig");
 const types = @import("Types.zig");
 const Graph = struct {
-    nodes: [192]type = @splat(void),
+    // Construct the exact reachable type graph at comptime, including cycles.
+    nodes: []const type = &.{},
     count: usize = 0,
     fn add(self: *Graph, comptime T: type) void {
         for (self.nodes[0..self.count]) |node| if (node == T) return;
-        if (self.count == self.nodes.len) @compileError("Logical schema type graph exceeded its explicit bound");
-        self.nodes[self.count] = T;
+        self.nodes = self.nodes ++ .{T};
         self.count += 1;
         switch (@typeInfo(T)) {
             .@"struct" => |info| for (info.field_types) |F| self.add(F),

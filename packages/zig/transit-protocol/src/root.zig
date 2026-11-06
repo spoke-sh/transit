@@ -16,6 +16,7 @@ pub const Growth = @import("Growth.zig");
 pub const Inspection = Growth.Inspection;
 pub const Lifecycle = @import("Lifecycle.zig");
 pub const DataLifecycle = @import("DataLifecycle.zig");
+pub const Migration = @import("Migration.zig");
 pub const Dataflow = @import("Dataflow.zig");
 pub const Source = @import("Source.zig");
 pub const Transaction = @import("Transaction.zig");
@@ -81,6 +82,7 @@ test {
     _ = EffectDiagnostic;
     _ = Authorization;
     _ = DataLifecycle;
+    _ = Migration;
     _ = Dataflow;
     _ = Source;
     _ = Transaction;

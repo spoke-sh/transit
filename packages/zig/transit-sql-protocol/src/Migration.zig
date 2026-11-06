@@ -1,6 +1,7 @@
 //! Declarative application schema migration protocol and plan/result contracts.
 const std = @import("std");
 const api = @import("root.zig");
+const p = @import("transit_protocol");
 
 pub const plan_format = "transit_migration_plan_v1";
 pub const result_format = "migration_result_v1";
@@ -45,55 +46,10 @@ pub const TargetAssertion = struct {
     }
 };
 
-pub const StepOwner = enum {
-    schema_ddl,
-    data_transform,
-    authorization_grant,
-    publication,
-    verification,
-};
-
-pub const StepEffect = enum {
-    create_table,
-    alter_table,
-    drop_table,
-    create_schema,
-    alter_schema,
-    drop_schema,
-    insert_rows,
-    update_rows,
-    delete_rows,
-    grant_privilege,
-    publish_resource,
-    verify_query,
-};
-
-pub const StepState = enum {
-    pending,
-    will_apply,
-    already_satisfied,
-    already_diverged,
-    blocked_by_policy,
-    claimed,
-    applying,
-    applied,
-    verified,
-    failed,
-    uncertain,
-};
-
-pub const VersionState = enum {
-    pending,
-    will_apply,
-    already_satisfied,
-    already_diverged,
-    claimed,
-    applying,
-    applied,
-    verified,
-    failed,
-    uncertain,
-};
+pub const StepOwner = p.Migration.StepOwner;
+pub const StepEffect = p.Migration.StepEffect;
+pub const StepState = p.Migration.StepState;
+pub const VersionState = p.Migration.VersionState;
 
 pub const Drift = struct {
     aspect: []const u8,
@@ -114,6 +70,9 @@ pub const StepReport = struct {
     step_token: [16]u8,
     state: StepState,
     operation_id: ?u64 = null,
+    operation_kind: ?p.Migration.OperationKind = null,
+    computation: ?p.Migration.Computation = null,
+    object_definition: ?p.DataLifecycle.Definition = null,
     commit_lsn: ?u64 = null,
     affected_rows: ?u64 = null,
     expected_schema_sha256: ?[32]u8 = null,
@@ -180,7 +139,6 @@ pub const Request = struct {
     expected_plan_digest: ?[32]u8 = null,
     attempt_id: ?[16]u8 = null,
     allow_grants: bool = false,
-    allow_publication: bool = false,
 
     pub fn validate(self: Request) !void {
         try self.target.validate();
@@ -224,7 +182,6 @@ pub const SavedPlan = struct {
     target: ObservedTarget,
     plan_digest: [32]u8,
     allow_grants: bool = false,
-    allow_publication: bool = false,
     sources: []const SourceFile,
     versions: []const VersionReport,
 

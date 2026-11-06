@@ -530,11 +530,8 @@ fn actionWithin(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: a
                 const reference = try host.fresh(operationReference, .{ host, value.id });
                 if (reference.kind != .workload) return error.InvalidSqlOperationReference;
                 try host.fresh(selectOperation, .{ host, reference });
-                var source = try host.observer.source();
-                const state = try source.operation(value.id);
-                if (state.receipt.binding.intent != .workload) return error.InvalidSqlOperationReference;
-                prepared.* = .{ .workload = try g.database.WorkloadRead.Prepared.init(host.table, state.receipt.binding.intent.workload) };
-            } else prepared.* = .{ .captured = try g.CapturedOperations.prepareResult(host, value.id) };
+                prepared.* = try g.StatementOperations.prepareResult(host, reference);
+            } else prepared.* = try g.StatementOperations.prepareResult(host, .{ .id = value.id, .kind = .captured, .nonce = @splat(0) });
             errdefer if (owned) switch (prepared.*) {
                 .workload => |*body| body.deinit(),
                 .captured => |*body| body.deinit(),
@@ -590,6 +587,7 @@ fn actionWithin(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: a
             else
                 "public";
             const context: g.MigrationRunner.Context = .{
+                .session = host,
                 .account_id = host.account.execution.account,
                 .account_name = host.account.name,
                 .database = host.database,
@@ -824,21 +822,17 @@ fn control(self: *Self, allocator: std.mem.Allocator, working: std.mem.Allocator
         .query => unreachable,
     };
     try host.fresh(selectOperation, .{ host, reference });
-    if (reference.kind == .dataflow) {
-        if (input.action == .cancel) return error.ManagedControlCancellationUnsupported;
-        return self.response(allocator, .{ .operation = if (input.action == .@"resume") try g.ManagedOperations.resumeOperation(host, reference.id) else try g.ManagedOperations.status(host, reference.id) });
+    if (input.action == .status) return self.response(allocator, .{ .operation = try g.StatementOperations.status(host, reference) });
+    if (input.action == .@"resume") return self.response(allocator, .{ .operation = try g.StatementOperations.resumeOperation(host, reference) });
+    switch (reference.kind) {
+        .dataflow => return error.ManagedControlCancellationUnsupported,
+        .configuration => return error.ConfigurationCancellationUnsupported,
+        .captured => return self.response(allocator, .{ .operation = try g.CapturedOperations.cancel(host, reference.id) }),
+        .table, .transaction, .workload => {
+            _ = try operationStatus(host, reference);
+            try host.fresh(g.DatabaseRuntime.cancel, .{ runtime, &host.observer, reference.id });
+        },
     }
-    if (reference.kind == .configuration) {
-        if (input.action == .cancel) return error.ConfigurationCancellationUnsupported;
-        return self.response(allocator, .{ .operation = if (input.action == .@"resume") try g.ConfigurationOperations.resumeOperation(host, reference.id) else try g.ConfigurationOperations.status(host, reference.id) });
-    }
-    if (reference.kind == .captured) {
-        return self.response(allocator, .{ .operation = if (input.action == .cancel) try g.CapturedOperations.cancel(host, reference.id) else if (input.action == .@"resume") try g.CapturedOperations.resumeOperation(host, reference.id) else try g.CapturedOperations.status(host, reference.id) });
-    }
-    const current_status = try operationStatus(host, reference);
-    if (input.action == .status) return self.response(allocator, .{ .operation = current_status });
-    if (input.action == .cancel) try host.fresh(g.DatabaseRuntime.cancel, .{ runtime, &host.observer, reference.id });
-    if (input.action == .@"resume") try runtime.resumeOperation(&host.observer, reference.id);
     return self.response(allocator, .{ .operation = try operationStatus(host, reference) });
 }
 fn selectOperation(host: *g.Session, ref: g.SessionOperations.Reference) !void {

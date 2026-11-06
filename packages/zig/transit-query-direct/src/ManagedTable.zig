@@ -162,12 +162,7 @@ pub fn prepare(self: Self, namespace: u64, name: []const u8, object: u64, identi
     defer self.client.allocator.free(bytes);
     var schema = try f.TableSchema.decode(self.client.allocator, bytes);
     defer schema.deinit();
-    var fields: [f.Relational.max_outputs]f.Types.Field = undefined;
-    const row_type = try compiled.plan.outputSchema(&fields);
-    if (row_type.structure.len != schema.schema.columns.len) return error.ManagedTableSchemaMismatch;
-    for (row_type.structure, schema.schema.columns) |field, column| {
-        if (!std.mem.eql(u8, field.name, column.name) or !try field.type.eql(column.type) or (field.nullable and !column.nullable)) return error.ManagedTableSchemaMismatch;
-    }
+    try validateOutput(compiled.plan, schema.schema);
     var selected_object = object;
     if (selected_object == 0) {
         selected_object = 1;
@@ -187,6 +182,16 @@ pub fn prepare(self: Self, namespace: u64, name: []const u8, object: u64, identi
     };
     try result.validate();
     return result;
+}
+
+/// Shared logical output validation for live preparation and read-only plans.
+pub fn validateOutput(plan: f.Relational.Plan, schema: f.TableSchema.Schema) !void {
+    var fields: [f.Relational.max_outputs]f.Types.Field = undefined;
+    const row_type = try plan.outputSchema(&fields);
+    if (row_type.structure.len != schema.columns.len) return error.ManagedTableSchemaMismatch;
+    for (row_type.structure, schema.columns) |field, column| {
+        if (!std.mem.eql(u8, field.name, column.name) or !try field.type.eql(column.type) or (field.nullable and !column.nullable)) return error.ManagedTableSchemaMismatch;
+    }
 }
 
 fn readObjects(value: Declaration) [3]?d.Object {

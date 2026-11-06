@@ -22,9 +22,12 @@ pub const Request = struct {
 fn manager(host: *g.Session) M {
     return .{ .client = host.table };
 }
-pub fn validate(host: *g.Session, prepared: *const Prepared) !void {
+pub fn requireProfile(host: *g.Session) !void {
     if (!host.native_profile or host.source != null or host.transaction.handle != null) return error.UnsupportedManagedTable;
     if (host.wire.local == null or host.wire.local.?.changes == null) return error.ManagedTableRequiresCohostedService;
+}
+pub fn validate(host: *g.Session, prepared: *const Prepared) !void {
+    try requireProfile(host);
     const m = manager(host);
     switch (prepared.statement) {
         .create => |value| {
@@ -48,7 +51,26 @@ fn read(host: *g.Session, id: u64) !std.json.Parsed(Request) {
     try value.value.declaration().validate();
     return value;
 }
+pub const Guard = struct {
+    source: p.DataLifecycle.Definition,
+    output: p.DataLifecycle.Definition,
+    definition: ?p.DataLifecycle.Definition,
+    control: ?p.Dataflow.Control,
+    sql_sha256: [32]u8,
+    fn require(self: Guard, value: M.Declaration, control: ?p.Dataflow.Control, allocator: std.mem.Allocator) !void {
+        if (!std.meta.eql(self.source, value.source.interpretation.interpretation) or !std.meta.eql(self.output, value.output.interpretation.interpretation)) return error.DataflowSourceChanged;
+        if (self.definition) |expected| if (!std.meta.eql(expected, try value.interpretation(allocator))) return error.DataflowSourceChanged;
+        if (!std.meta.eql(self.control, control)) return error.DataflowControlChanged;
+        var digest: [32]u8 = undefined;
+        std.crypto.hash.sha2.Sha256.hash(value.sql, &digest, .{});
+        if (!std.mem.eql(u8, &digest, &self.sql_sha256)) return error.DataflowSourceChanged;
+    }
+};
 pub fn admit(host: *g.Session, prepared: *const Prepared, token: api.Token, fingerprint: [32]u8) !api.Operation {
+    var acceptance_possible = false;
+    return admitReviewed(host, prepared, token, fingerprint, &acceptance_possible, null);
+}
+pub fn admitReviewed(host: *g.Session, prepared: *const Prepared, token: api.Token, fingerprint: [32]u8, acceptance_possible: *bool, guard: ?Guard) !api.Operation {
     try host.runtime.settings_mutex.lock(host.io);
     defer host.runtime.settings_mutex.unlock(host.io);
     if (try host.fresh(g.ConfigurationOperations.find, .{ host, token, @as(?[32]u8, fingerprint) })) |ref| return status(host, ref.id);
@@ -61,7 +83,11 @@ pub fn admit(host: *g.Session, prepared: *const Prepared, token: api.Token, fing
     defer arena.deinit();
     const m = manager(host);
     const action: @FieldType(Request, "action") = switch (prepared.statement) {
-        .create => |value| .{ .publish = try m.prepare(host.namespace, value.name.slice(), object, operation, value.output.slice(), value.sql, host.readOptions()) },
+        .create => |value| blk: {
+            const declared = try m.prepare(host.namespace, value.name.slice(), object, operation, value.output.slice(), value.sql, host.readOptions());
+            if (guard) |expected| try expected.require(declared, null, host.allocator);
+            break :blk .{ .publish = declared };
+        },
         .control => |value| blk: {
             const declared = try m.find(host.namespace, value.name) orelse return error.CatalogNameNotFound;
             // Parsed strings must outlive request serialization below.
@@ -69,6 +95,7 @@ pub fn admit(host: *g.Session, prepared: *const Prepared, token: api.Token, fing
             declared.deinit();
             const parsed = try p.Json.parseFromSlice(M.Declaration, arena.allocator(), copy);
             const observation = try m.inspect(parsed.value);
+            if (guard) |expected| try expected.require(parsed.value, observation.head.control, host.allocator);
             const saved = try m.prepareControl(parsed.value, .{ .definition = p.Growth.current_definition, .operation = .{ .scope = host.table.connection.scope, .principal = host.table.connection.principal, .operation = operation }, .target = try parsed.value.interpretation(host.allocator), .expected = observation.head.control, .command = value.command });
             defer host.allocator.free(saved);
             break :blk .{ .control = .{ .declaration = parsed.value, .saved = try c.DirectTableProtocol.Binary.encode(arena.allocator(), saved) } };
@@ -79,6 +106,7 @@ pub fn admit(host: *g.Session, prepared: *const Prepared, token: api.Token, fing
     const body = try c.DirectRecord.stage(host.table, host.account.execution.account, format, bytes);
     var reader = try host.observer.source();
     defer host.runtime.notifyExternal();
+    acceptance_possible.* = true;
     const ref = try ops.begin(&reader, .{ .nonce = token, .fingerprint = fingerprint, .kind = .dataflow, .binding = try host.account.database(host.database), .original = original, .source = body.content.sha256, .expected_generation = 1, .reservation = @intCast(bytes.len + 8192) }, body);
     return status(host, ref.id);
 }
@@ -128,4 +156,11 @@ fn apply(m: M, saved: Request) !void {
 
 test {
     std.testing.refAllDecls(@This());
+}
+
+/// Original accepted definition, independent of current name lookup.
+pub fn definition(host: *g.Session, id: u64) !p.DataLifecycle.Definition {
+    const saved = try read(host, id);
+    defer saved.deinit();
+    return saved.value.declaration().interpretation(host.allocator);
 }

@@ -121,15 +121,9 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
         }
         if (try parser.takeWord("DATAFLOW")) {
             if (!host.native_profile or host.source != null or selection.snapshot != null) return error.UnsupportedManagedTable;
-            const name = try c.TableMetadata.Name.init(try parser.name());
-            const revision: ?u64 = if (try parser.takeWord("REVISION")) blk: {
-                if (parser.token.tag != .integer) return error.InvalidDataflowRevision;
-                const value = std.fmt.parseInt(u64, parser.token.text, 10) catch return error.InvalidDataflowRevision;
-                if (value == 0) return error.InvalidDataflowRevision;
-                try parser.advance();
-                break :blk value;
-            } else null;
-            try parser.finish();
+            const command = (try g.database.ManagedSql.inspect(a, sql, host.dialect)) orelse return error.InvalidSqlSyntax;
+            const name = try c.TableMetadata.Name.init(command.name.slice());
+            const revision = command.revision;
             const response = host.table.call(.{ .managed_inspection = .{ .namespace = host.namespace, .name = try .init(name.slice()), .expected = null, .revision = revision } }) catch |err| return if (err == error.NotFound) (if (revision != null) error.DataflowRevisionNotFound else error.CatalogNameNotFound) else err;
             defer response.deinit();
             const inspected = response.value.result.managed_inspection;

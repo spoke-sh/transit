@@ -35,21 +35,66 @@ or `<version_id>_<name>.sql`.
 
 Each migration file is tokenized into 1-based ordered steps (`step_index`, source
 `line`, source `column`, `statement_digest`, `owner`, `effect`, `object_name`)
-using the Fuze lexical scanner. Comments, quoted strings and quoted identifiers
-are preserved; interactive transaction control statements (`BEGIN`, `START
-TRANSACTION`, `COMMIT`, `ROLLBACK`, `SAVEPOINT`, `RELEASE SAVEPOINT`) are
-rejected with `InteractiveTransactionInMigration` because Transit interactive
-transactions are scoped to local Table DML and cannot span DDL.
+using the Fuze lexical scanner. Migrations compose the ordinary SQL service's
+preparation and operation owners. The exhaustive `Session.Prepared.migrationPolicy`
+switch requires every prepared owner and native plan variant to choose read,
+durable-operation or unsupported migration semantics. Statements without a
+staged-definition adapter use ordinary SQL preparation against the live catalog;
+there is no migration keyword allowlist for those statements.
 
-Supported step owners and effects:
+Interactive transaction controls and session-setting mutations are unsupported:
+the migration ledger already owns ordered, independently committed steps, and
+its target cannot change within a version. Planning reports an owning SQL error
+or `MigrationSessionControlUnsupported` with source path, line, column, version
+and step. `COMMIT OFFSET` retains its distinct Stream workload semantics.
+Grammar-only forms, including connector publication and dataflow replacement,
+remain unsupported until their ordinary execution owners exist. The former
+`allow_publication` placeholder is removed; it never supplied those owners.
 
 | Owner | Effects | Execution authority |
 | --- | --- | --- |
 | `schema_ddl` | `create_table`, `alter_table`, `drop_table`, `create_schema`, `alter_schema`, `drop_schema` | `TableDdl` / `DirectCatalog` via `DatabaseRuntime` |
 | `data_transform` | `insert_rows`, `update_rows`, `delete_rows` | Bounded `TableDml` via `DatabaseRuntime` |
 | `authorization_grant` | `grant_privilege` | `AuthorizationSql` via `DirectCatalog` (requires explicit `allow_grants`) |
-| `publication` | `publish_resource` | Blocked unless explicitly enabled (`allow_publication`) |
-| `verification` | `verify_query` | Read-only `TableSelect` check |
+| `verification` | `verify_query` | Shared SQL read owner, consumed through verified completion |
+| `computation` | `create_dataflow`, `control_dataflow` | Shared `ManagedSql` / `ManagedOperations` / `ManagedTable` owners |
+| `service` | `execute_statement` | Ordinary SQL preparation and shared statement operation dispatcher |
+
+Table schema and finite Table dataflow adapters plan against ordered working
+schemas, including Tables declared earlier in the same file or an earlier
+version. Other statement owners require their dependencies to exist when ordinary
+preparation runs. Planning neither creates objects nor executes queries. Applying
+read statements consumes bounded batches, validates terminal completion and
+rechecks disclosure authority; it does not return their rows or infer assertions
+from a nonempty result. Retained workload rows are reopened by original operation
+identity and consumed through that same result lifecycle.
+
+## Dataflow planning, controls and verification
+
+The existing [finite managed Table profile](DATAFLOW_V1.md) applies unchanged:
+one Table source, an existing compatible output Table, and a cohosted native SQL
+service. `CREATE DATAFLOW` publishes a definition. `AUTHORIZE`, `ACTIVATE`,
+`SUSPEND`, `RESUME`, `REFRESH` and `RETIRE DATAFLOW` use their ordinary control
+transitions. A completed `ACTIVATE` step establishes that control transition;
+`SHOW DATAFLOW` reports background progress and verified computation completion
+separately. Definition replacement remains unsupported.
+
+A computation step records source/output logical schema fingerprints, exact
+existing definitions or preceding producer-step identities, the query digest,
+its existing definition or declaration step, and before/after control state.
+This evidence participates in the reviewed version digest. Producer references
+resolve only through successful migration receipts carrying their exact accepted
+`object_definition`. Before new admission, the executor compares live definitions
+and control state with this evidence. A replaced Table with the same name and
+columns cannot silently rebind the plan.
+
+On apply and resume, dataflow operations record their original `operation_kind`,
+`operation_id` and accepted `object_definition`. They do not manufacture a Table
+`commit_lsn` or row count from the SQL operation ID. Verification compares the
+final applied declaration/control for each name, including across later applied
+versions. Earlier controls legitimately superseded by those versions are not
+reported as drift. Independent background result revisions are not declaration
+or control drift; an external control change is `migration.dataflow_drift`.
 
 ## Target identity assertion
 
@@ -63,7 +108,9 @@ Callers may supply a `TargetAssertion` (`database`, `schema`, `branch`,
 observed target rejects before planning or execution with outcome
 `target_mismatch` (`migration.target_mismatch`). Applying a saved plan
 (`transit_migration_plan_v1`) also verifies `expected_plan_digest` against the
-computed `plan_digest` for the target and source set.
+computed `plan_digest` for the target and source set. The digest includes the
+account, principal and optional role as well as the catalog coordinates and
+database/schema names.
 
 ## Logical schema reconciliation and `IF NOT EXISTS` drift detection
 
@@ -100,9 +147,11 @@ scoped to `(account_id, namespace)`:
   `"transit.migration.step.v1\x00"`, `scope`, `branch`, `namespace`,
   `version_id`, `source_sha256`, `step_index`, and `statement_digest`.
 
-Each mutating step is admitted through `DatabaseRuntime` using its deterministic
-`step_token` as the 128-bit operation nonce and `statement_digest` as the
-fingerprint.
+SQL operation steps use the shared `StatementOperations` dispatcher with their
+deterministic `step_token` as the 128-bit operation nonce and `statement_digest`
+as the fingerprint. It selects the original database, managed-computation or
+other service owner for admission, status, result opening and resume. Explicit
+authorization/grant steps retain their separate opt-in policy path.
 
 - Concurrent runners attempting to claim an already `claimed` or `applying`
   version with a different `attempt_id` receive `claim_conflict`
@@ -111,6 +160,17 @@ fingerprint.
   their durable `applied` receipts and `operation_id`/`commit_lsn` in `TMV1`,
   while step $k$ records `failed` with its diagnostic code and message.
 - If transport loss or timeout leaves step $k$ in `applying` or `uncertain`,
-  `resume` queries `DatabaseRuntime.status` / `resumeOperation` by the original
-  deterministic `step_token` without recompiling SQL or duplicating mutations,
+  `resume` resolves the original deterministic `step_token` through the shared
+  dispatcher and resumes its recorded owner without recompiling accepted SQL
+  or duplicating mutations,
   then advances remaining steps in the version.
+
+
+## Current-v1 cutover
+
+The migration ledger definition is `transit.direct.migration.v1.2026-11-06`.
+The shared contract-set fingerprint changes with the computation receipts and
+statement execution semantics. Missing or foreign ledger/plan definitions are
+rejected. Old plans, installations and accepted work must be handled by their
+matching build; this change provides no converter or automatic reset. See
+[versioning](../docs/handbook/reference/versioning.md).

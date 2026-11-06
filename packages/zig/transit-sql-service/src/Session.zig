@@ -95,6 +95,21 @@ pub const Prepared = union(enum) {
     captured: g.CapturedOperations.Prepared,
     managed: g.ManagedOperations.Prepared,
     workload: g.database.WorkloadRead.Prepared,
+    /// Exhaustive owner inventory: new SQL owners must decide their migration
+    /// semantics here. The migration planner uses ordinary preparation for
+    /// statements without a staged-definition planning adapter.
+    pub fn migrationPolicy(self: *const Prepared) enum { read, operation, unsupported } {
+        return switch (self.*) {
+            .native => |value| switch (value.plan) {
+                .select, .relational => .read,
+                .ddl, .dml, .namespace_change, .log_ddl, .log_append, .log_consume, .log_claim, .log_settlement, .log_offset => .operation,
+            },
+            .managed => .operation,
+            .inspection, .source, .captured, .workload => .read,
+            .probe, .settings => if (self.readOnly()) .read else .unsupported,
+            .transaction => .unsupported,
+        };
+    }
     pub fn parameters(self: *const Prepared) []const f.Types.Type {
         return switch (self.*) {
             .native => |*value| value.parameters(),
@@ -153,9 +168,11 @@ test "read-only admission excludes row-returning configuration effects" {
     defer reload.settings.deinit();
     try t.expect(!reload.mutation()); // Ordinary reload still uses row dispatch.
     try t.expect(!reload.readOnly());
+    try t.expectEqual(.unsupported, reload.migrationPolicy());
     var catalog: Prepared = .{ .settings = .{ .plan = (try q.SettingsSql.parse(t.allocator, "SHOW TABLES", .transit)).?, .output = null } };
     defer catalog.settings.deinit();
     try t.expect(catalog.readOnly());
+    try t.expectEqual(.read, catalog.migrationPolicy());
 }
 pub const Read = struct {
     host: *Self,

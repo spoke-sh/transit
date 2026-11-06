@@ -14,6 +14,23 @@ pub const Prepared = struct {
         self.arena.deinit();
     }
 };
+pub const Inspection = struct { name: Name, revision: ?u64 };
+pub fn inspect(allocator: std.mem.Allocator, sql: []const u8, dialect: f.Sql.Dialect) !?Inspection {
+    var arena: std.heap.ArenaAllocator = .init(allocator);
+    defer arena.deinit();
+    var parser = try f.SqlTyped.initDialect(arena.allocator(), sql, null, false, dialect);
+    if (!try parser.takeWord("SHOW") or !try parser.takeWord("DATAFLOW")) return null;
+    const name = try Name.init(try parser.name());
+    const revision: ?u64 = if (try parser.takeWord("REVISION")) blk: {
+        if (parser.token.tag != .integer) return error.InvalidDataflowRevision;
+        const value = std.fmt.parseInt(u64, parser.token.text, 10) catch return error.InvalidDataflowRevision;
+        if (value == 0) return error.InvalidDataflowRevision;
+        try parser.advance();
+        break :blk value;
+    } else null;
+    try parser.finish();
+    return .{ .name = name, .revision = revision };
+}
 pub fn parse(allocator: std.mem.Allocator, sql: []const u8, dialect: f.Sql.Dialect) !?Prepared {
     var arena: std.heap.ArenaAllocator = .init(allocator);
     errdefer arena.deinit();

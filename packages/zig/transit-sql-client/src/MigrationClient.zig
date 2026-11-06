@@ -84,14 +84,12 @@ pub fn toSavedPlan(
     report: Migration.Report,
     sources: []const Migration.SourceFile,
     allow_grants: bool,
-    allow_publication: bool,
 ) Migration.SavedPlan {
     return .{
         .definition = report.definition,
         .target = report.target,
         .plan_digest = report.plan_digest,
         .allow_grants = allow_grants,
-        .allow_publication = allow_publication,
         .sources = sources,
         .versions = report.versions,
     };
