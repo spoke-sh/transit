@@ -40,7 +40,7 @@ pub fn prepareProjectedAt(allocator: std.mem.Allocator, client: c.DirectTableCli
     } else response.value.result.lookup orelse return prepareView(allocator, client, namespace, name, text, dialect, detail, access, snapshot, projection);
     var binding = try c.DirectTableBinding.init(client.connection, metadata);
     binding.catalog = snapshot;
-    _ = try binding.require(client, access);
+    if (snapshot != null or access != .inspect) _ = try binding.require(client, access);
     const projected = if (projection) |target| try c.DirectSchemaProjection.resolve(client, binding.interpretation, target) else null;
     defer if (projected) |value| value.deinit();
     const target = if (projected) |value| value.value.result.schema_projection.prepared.target else null;
