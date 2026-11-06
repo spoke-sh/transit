@@ -1220,7 +1220,10 @@ identity. Scalar predicates, decoded vector/page kernels, oversized-row fallback
 and Table UPDATE/DELETE share the declared comparison semantics. Prepared
 parameters acquire the vector from their original declaration at binding.
 Relational join/group/order operators use the same collation descriptors.
-Join columns must have matching types and collations. Group equality and order
+Join columns must have matching types and collations, except signed integer keys
+through 64 bits may join across widths. Mixed signed keys use a common int64
+descriptor for comparison and exchange hashing; source validation and projected
+types retain their declared widths. Group equality and order
 use canonical sort bytes while output retains the first contributor's spelling.
 Exchange hashing streams those same sort bytes, so equivalent keys colocate
 even when their original bytes differ. The [text checks](../../../packages/zig/transit-fuze/src/relational_text_test.zig)

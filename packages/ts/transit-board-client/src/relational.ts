@@ -13,6 +13,9 @@ import {
   type LogicalCell,
 } from "@transit/query-client/logical";
 const scalarTypes: LogicalType[] = [
+  { int8: {} },
+  { int16: {} },
+  { int32: {} },
   { int64: {} },
   { uint64: {} },
   { float64: {} },

@@ -73,7 +73,7 @@ templateLimitClause: LIMIT (INTEGER | PARAMETER);
 // The single-source statement root retains its independent LIMIT/subquery profile.
 relationalQuery: EXPLAIN? relationalSelect snapshotClause? SEMI? EOF;
 relationalSelect
-    : SELECT (STAR FROM relationalTarget | relationalSelection (COMMA relationalSelection)* FROM relationalTarget relationalJoin?)
+    : SELECT (STAR | relationalSelection (COMMA relationalSelection)*) FROM relationalTarget relationalJoin?
       whereClause? (GROUP BY columnReference (COMMA columnReference)*)?
       havingClause? orderByClause? limitClause?
     ;

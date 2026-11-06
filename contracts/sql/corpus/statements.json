@@ -2205,7 +2205,7 @@
     },
     {
       "id": "excluded-12",
-      "sql": "SELECT * FROM items JOIN other ON id = id",
+      "sql": "SELECT * FROM items RIGHT JOIN other ON id = id",
       "postgres": true
     },
     {

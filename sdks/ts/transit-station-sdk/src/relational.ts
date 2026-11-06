@@ -150,6 +150,9 @@ function description(value: NativeDescription): Description {
         const type = decodeType(column.type);
         if (
           ![
+            "int8",
+            "int16",
+            "int32",
             "int64",
             "uint64",
             "float64",

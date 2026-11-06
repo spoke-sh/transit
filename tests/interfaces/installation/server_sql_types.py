@@ -71,7 +71,7 @@ def run(cli, output):
     fixture.config['applications'] = {'port': fixture.reserve_port()}
     fixture.path.write_text(json.dumps(fixture.config))
     interfaces = ('console','postgres','mysql')
-    expected_cases = [f'{creator}.{stage}' for creator in interfaces for stage in ('empty','insert','update','delete','batch','scalars','restart')]+['negative','native-projection','aggregate-aliases']
+    expected_cases = [f'{creator}.{stage}' for creator in interfaces for stage in ('empty','insert','update','delete','batch','scalars','restart')]+['negative','native-projection','aggregate-aliases','join-wildcards','join-wildcards-restart']
     with open(fixture.cli,'rb') as binary:
         digest = hashlib.file_digest(binary,'sha256').hexdigest()
     report = dict(profile='sql-scalar-interfaces', source=provenance(ROOT), binary_sha256=digest,
@@ -140,6 +140,31 @@ def run(cli, output):
                 'SELECT value, SUM(value) AS sum FROM alias_items GROUP BY value HAVING sum > 2 ORDER BY sum DESC',
                 ('int64','int64')) == [(3,6),(1,3)], reader
         record('aggregate-aliases')
+        clients.execute('console','CREATE TABLE join_people (id INT, name TEXT)')
+        clients.execute('console','CREATE TABLE join_items (id BIGINT, value TEXT)')
+        clients.execute('console',"INSERT INTO join_people VALUES (-2147483648, 'Min'), (1, 'Ada'), (2, 'Bea'), (3, 'Cy'), (2147483647, 'Max'), (NULL, 'No key')")
+        clients.execute('console',"INSERT INTO join_items VALUES (-2147483648, 'minimum'), (1, 'book'), (1, 'pen'), (2, 'cup'), (4, 'orphan'), (2147483647, 'maximum'), (4294967297, 'wide'), (NULL, 'no key')")
+        inner_rows = [(-2147483648,'Min',-2147483648,'minimum'),(1,'Ada',1,'book'),(1,'Ada',1,'pen'),(2,'Bea',2,'cup'),(2147483647,'Max',2147483647,'maximum')]
+        left_rows = inner_rows[:4] + [(3,'Cy',None,None)] + inner_rows[4:] + [(None,'No key',None,None)]
+        def joined_rows():
+            for join, expected in (('JOIN',inner_rows),('INNER JOIN',inner_rows),('LEFT JOIN',left_rows),('LEFT OUTER JOIN',left_rows)):
+                query = f'SELECT * FROM join_people {join} join_items ON join_items.id = join_people.id'
+                for reader in interfaces:
+                    actual = clients.execute(reader,query,('int32','utf8','int64','utf8'))
+                    assert sorted(actual,key=repr) == sorted(expected,key=repr), (reader,query,actual,expected)
+            query = 'SELECT * FROM join_people p LEFT JOIN join_items i ON i.id = p.id ORDER BY p.id ASC NULLS LAST, i.value ASC'
+            for reader in interfaces:
+                assert clients.execute(reader,query,('int32','utf8','int64','utf8')) == left_rows, reader
+                # A wide key that would truncate to 1 must never match Ada.
+                assert clients.execute(reader,
+                    'SELECT * FROM join_items i LEFT JOIN join_people p ON p.id = i.id WHERE i.id = 4294967297',
+                    ('int64','utf8','int32','utf8')) == [(4294967297,'wide',None,None)], reader
+            result = fixture.console(query+';\n')[-1]
+            fields = result['schema']['type']['structure']
+            assert [field['name'] for field in fields] == ['p.id','p.name','i.id','i.value'], fields
+            assert [field['type'] for field in fields] == [{'int32':{}},{'utf8':{}},{'int64':{}},{'utf8':{}}], fields
+        joined_rows()
+        record('join-wildcards')
         for protocol in ('postgres','mysql'):
             before = len(clients.operations())
             clients.execute(protocol,f'CREATE TABLE refused_{protocol} (bad INT128)',reject='bad')
@@ -153,6 +178,8 @@ def run(cli, output):
             clients.execute(protocol,'SELECT * FROM native_wide',reject='opaque')
         record('native-projection')
         fixture.stop(); fixture.start(); fixture.ready()
+        joined_rows()
+        record('join-wildcards-restart')
         for creator in interfaces:
             all_rows(f'SELECT * FROM employees_{creator}',('int32','utf8','decimal'),[(i,None,Decimal(f'{i}.01')) for i in range(65)])
             all_rows(f'SELECT * FROM scalars_{creator}',[case.kind for case in CASES],[tuple(case.value for case in CASES)])

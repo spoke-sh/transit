@@ -242,6 +242,11 @@ fn expectRoles(text: []const u8, expected: []const ExpectedRole) !void {
 }
 
 test "relational highlighting follows joins aliases and grouped aggregate syntax" {
+    try expectRoles("SELECT * FROM people INNER JOIN items ON items.id = people.id;", &.{
+        .{ "SELECT", .keyword },   .{ "FROM", .keyword }, .{ "people", .identifier }, .{ "INNER", .keyword }, .{ "JOIN", .keyword },
+        .{ "items", .identifier }, .{ "ON", .keyword },   .{ "items", .identifier },  .{ "id", .identifier }, .{ "people", .identifier },
+        .{ "id", .identifier },
+    });
     try expectRoles("SELECT value, COUNT(*) AS count FROM items GROUP BY value ORDER BY count ASC;", &.{
         .{ "SELECT", .keyword }, .{ "value", .identifier }, .{ "COUNT", .function },   .{ "AS", .keyword },  .{ "count", .identifier },
         .{ "FROM", .keyword },   .{ "items", .identifier }, .{ "GROUP", .keyword },    .{ "BY", .keyword },  .{ "value", .identifier },
