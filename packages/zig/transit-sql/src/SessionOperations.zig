@@ -275,7 +275,7 @@ pub fn beginOwned(source: *g.Client.Source, input: Begin, payload: []const u8) !
     defer caller.allocator.free(binary.base64);
     const bytes = try p.Json.valueAllocBounded(caller.allocator, Initial{ .begin = input, .body = null, .inline_body = binary }, c.DirectRecord.max_bytes);
     defer caller.allocator.free(bytes);
-    const id = (std.mem.readInt(u64, input.original[8..16], .big) % p.max_counter) + 1;
+    const id = connectorTokenOperation(input.original);
     const state = try c.DirectOwnedRecord.stage(caller, .{ .definition = p.Growth.current_definition, .connection = caller.connection, .account = source.client.execution.configuration.account, .token = input.nonce }, input.binding.namespace, id, input.fingerprint, source.client.execution.configuration.budget(input.reservation), initial_format, bytes);
     return projection(source, state);
 }
@@ -302,5 +302,22 @@ pub fn retain(source: *g.Client.Source, id: u64) !void {
     if (state.original) |owned| {
         if (owned.phase == .retained) return;
         _ = try c.DirectOwnedRecord.call(source.direct(state), .{ .retain_original = .{ .key = state.receipt.binding.key, .expected = state.revision } });
+    }
+}
+
+// SQL token bookkeeping and its connector operation share the Catalog's global
+// caller-operation namespace. Reserve a distinct ID even before either exists.
+fn connectorTokenOperation(original: [16]u8) u64 {
+    const connector = (std.mem.readInt(u64, original[8..16], .big) % p.max_counter) + 1;
+    return if (connector == p.max_counter) 1 else connector + 1;
+}
+test "SOURCE SQL token and native publication use distinct operation identities" {
+    for ([_]u64{ 0, 1, 9007199254741011, p.max_counter - 1, p.max_counter }) |suffix| {
+        var original: [16]u8 = @splat(0);
+        std.mem.writeInt(u64, original[8..16], suffix, .big);
+        const native = (suffix % p.max_counter) + 1;
+        const bookkeeping = connectorTokenOperation(original);
+        try std.testing.expect(bookkeeping > 0 and bookkeeping <= p.max_counter);
+        try std.testing.expect(bookkeeping != native);
     }
 }
