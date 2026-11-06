@@ -111,6 +111,18 @@ pub fn store(objects: Objects.ObjectStore, scope: Scope, format: u32, bytes: []c
     if (stored[0].size != value.content.bytes or !std.mem.eql(u8, &stored[0].sha256, &value.content.sha256)) return error.InvalidDirectRecord;
     return value;
 }
+pub fn verify(allocator: std.mem.Allocator, objects: Objects.ObjectStore, value: Reference) !void {
+    var name: [96]u8 = undefined;
+    const path = try key(value, &name);
+    const metadata = try objects.head(path) orelse return error.DirectRecordMissing;
+    if (metadata.size != value.content.bytes or !std.mem.eql(u8, &metadata.sha256, &value.content.sha256)) return error.InvalidDirectRecord;
+    var stack_buf: [4096]u8 = undefined;
+    const len: usize = @intCast(value.content.bytes);
+    const bytes = if (len <= stack_buf.len) stack_buf[0..len] else try allocator.alloc(u8, len);
+    defer if (len > stack_buf.len) allocator.free(bytes);
+    if ((try objects.getRange(path, 0, @intCast(bytes.len), bytes)).len != bytes.len) return error.InvalidDirectRecord;
+    try value.requireSame(try reference(value.scope, value.format, bytes));
+}
 pub fn load(allocator: std.mem.Allocator, objects: Objects.ObjectStore, value: Reference) ![]u8 {
     var name: [96]u8 = undefined;
     const path = try key(value, &name);

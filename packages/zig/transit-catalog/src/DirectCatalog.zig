@@ -1732,14 +1732,13 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
             if (value.record.format == c.DirectOwnedRecord.format) {
                 if (reservation == .none) return error.OwnedRecordOperationRequired;
             } else {
-                const bytes = try c.DirectRecord.load(self.allocator, self.data_objects, value.record);
-                defer self.allocator.free(bytes);
+                try c.DirectRecord.verify(arena.allocator(), self.data_objects, value.record);
             }
             try check(current);
             try c.OperationBinding.claimExternalInTree(self.allocator, &self.store.index, value);
         },
         .table => |table| {
-            var intent = try c.DirectTableIntentStore.load(self.allocator, self.data_objects, table);
+            var intent = try c.DirectTableIntentStore.load(arena.allocator(), self.data_objects, table);
             defer intent.deinit();
             if (intent.parsed.value.work == .ddl) _ = try self.preview(try intent.parsed.value.work.ddl.native(arena.allocator(), self.config()), policy);
             try check(current);
@@ -1848,8 +1847,7 @@ pub fn clientProgressWithWorkloads(self: *Self, request: c.DirectClientToken.Pro
         } else try self.requireClientTerminal(state.receipt.binding.intent, policy, workloads);
     }
     if (value.record) |reference| {
-        const bytes = try c.DirectRecord.load(self.allocator, self.data_objects, reference);
-        defer self.allocator.free(bytes);
+        try c.DirectRecord.verify(arena.allocator(), self.data_objects, reference);
     }
     state.pending = value.pending;
     state.cancel = value.cancel;
@@ -5525,15 +5523,19 @@ pub fn applySavedRows(self: *Self, allocator: std.mem.Allocator, reference: c.Di
     try c.Model.nativeId(reference.namespace);
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
-    try check(try self.guard(arena.allocator(), policy, null, null, .database));
-    const namespace_value = try self.authorizationSchema(reference.namespace);
-    try check(try self.guard(arena.allocator(), policy, namespace_value, null, .schema));
+    const namespace_value = self.authorizationSchema(reference.namespace) catch |err| {
+        try check(try self.guard(arena.allocator(), policy, null, null, .database));
+        return err;
+    };
     const target = try self.entry(reference.binding.target.object) orelse return error.CatalogDenied;
     if (target.seed == null) return error.CatalogDenied;
     var view = try self.open(self.allocator, target, false);
     defer view.deinit();
     if (view.properties.namespace != reference.namespace or view.table.root.next_lsn == 0) return error.CatalogDenied;
-    if (view.table.root.kind != .table) return error.CatalogKindMismatch;
+    if (view.table.root.kind != .table) {
+        try check(try self.guard(arena.allocator(), policy, namespace_value, null, .schema));
+        return error.CatalogKindMismatch;
+    }
     const access: a.Access = switch (reference.binding.action) {
         .insert => .insert,
         .update => .update,
@@ -5543,12 +5545,7 @@ pub fn applySavedRows(self: *Self, allocator: std.mem.Allocator, reference: c.Di
     const required = try self.requirements(policy, namespace_value, view.properties.target(target.object), access);
     var current = try policy.make_guard(policy.context, arena.allocator(), required, null);
     try check(current);
-    var intent = try c.DirectTableIntentStore.load(self.allocator, self.data_objects, reference);
-    defer intent.deinit();
-    const request = switch (intent.parsed.value.work) {
-        inline .rows, .statement => |value| try value.native(allocator),
-        .ddl => return error.UnsupportedTableAction,
-    };
+    const request = (try c.DirectTableIntentStore.loadRows(allocator, arena.allocator(), self.data_objects, reference)) orelse return error.UnsupportedTableAction;
     try request.validate();
     if (request.binding.prerequisite != null) {
         current = try policy.make_guard(policy.context, arena.allocator(), required, request.binding.prerequisite);
