@@ -70,6 +70,7 @@ test "protected Document sources survive real collection cuts and closure surviv
     descriptor.profile = try descriptor.profile.sealed();
     descriptor.budget.bytes = 32 * 1024 * 1024;
     descriptor.limits.work_bytes = 128 * 1024 * 1024;
+    descriptor.limits.work_pages = 100_000;
     var original = try catalog.documentSourceReserve(descriptor, owner.policy(), owner.sourceAuthority());
     var chunk_hash: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(&bytes, &chunk_hash, .{});

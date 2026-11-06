@@ -4644,7 +4644,8 @@
         "BranchRetentionOwned": 1,
         "BranchRetired": 1,
         "BranchSourceChanged": 3,
-        "CatalogDenied": 83,
+        "BufferTooSmall": 1,
+        "CatalogDenied": 84,
         "CatalogDependencyOwned": 1,
         "CatalogHistoryMissing": 1,
         "CatalogIdentityConflict": 9,
@@ -4658,18 +4659,21 @@
         "CatalogObservationChanged": 2,
         "CatalogRegistrationRequired": 12,
         "CheckConstraintViolation": 1,
-        "ClientOperationConflict": 7,
-        "ClientOperationMissing": 28,
+        "ClientOperationConflict": 11,
+        "ClientOperationMissing": 29,
         "ClientOperationPending": 8,
         "ClientTokenBudget": 3,
         "ClientTokenCapacity": 1,
-        "ClientTokenConflict": 5,
+        "ClientTokenConflict": 7,
         "ColumnReferencedByCheckConstraint": 1,
         "ColumnReferencedByForeignKey": 1,
         "ConflictingRetry": 1,
         "DataIdentityConflict": 11,
         "DataflowIdentityConflict": 5,
         "DataflowRevisionNotFound": 1,
+        "DocumentSourceMissing": 1,
+        "DocumentSourceOperationRequired": 8,
+        "DocumentSourceWorkLimit": 1,
         "DuplicatePrimaryKey": 1,
         "Forbidden": 9,
         "ForeignKeyDefinitionRequired": 1,
@@ -4702,12 +4706,16 @@
         "InvalidCatalogCursor": 3,
         "InvalidCatalogDependency": 11,
         "InvalidCatalogDescriptor": 10,
+        "InvalidClientToken": 1,
         "InvalidDirectCatalogCompletion": 1,
         "InvalidDirectCatalogEntry": 16,
         "InvalidDirectCatalogName": 2,
         "InvalidDirectCatalogOperation": 28,
         "InvalidDirectCatalogTransition": 1,
         "InvalidDirectRecord": 3,
+        "InvalidDocumentSource": 3,
+        "InvalidDocumentSourceChunk": 3,
+        "InvalidDocumentSourceCursor": 1,
         "InvalidHistoricalBinding": 4,
         "InvalidHistoricalState": 9,
         "InvalidKVOperation": 1,
@@ -4754,9 +4762,9 @@
         "OutOfMemory": 11,
         "Overflow": 1,
         "OwnedRecordAttached": 2,
-        "OwnedRecordClosed": 2,
+        "OwnedRecordClosed": 5,
         "OwnedRecordOperationRequired": 3,
-        "OwnedRecordPending": 4,
+        "OwnedRecordPending": 6,
         "OwnedRecordRetained": 1,
         "QueueDependencyRetained": 1,
         "QueueDestinationChanged": 1,
@@ -4835,6 +4843,11 @@
           "advance",
           "abandon",
           "release"
+        ],
+        "clientTokenSelected().reservation": [
+          "none",
+          "original",
+          "source"
         ],
         "rowOperation().action": [
           "admit",
@@ -4925,6 +4938,13 @@
         "descriptorReason()": "<inferred>",
         "descriptorRecord()": "<inferred>",
         "directRecord()": "<inferred>",
+        "documentSourceClose()": "<inferred>",
+        "documentSourceInspect()": "<inferred>",
+        "documentSourceList()": "<inferred>",
+        "documentSourceRead()": "<inferred>",
+        "documentSourceReserve()": "<inferred>",
+        "documentSourceUpload()": "<inferred>",
+        "documentSourceVerify()": "<inferred>",
         "entry()": "<inferred>",
         "evaluateTransactionLogStatement()": "<inferred>",
         "executeTransactionCall()": "anyerror",
@@ -5038,6 +5058,7 @@
         "publishBranchState()": "<inferred>",
         "publishHistoryState()": "<inferred>",
         "publishProgress()": "<inferred>",
+        "publishSource()": "<inferred>",
         "publishTransactionCall()": "<inferred>",
         "publishTransactionControl()": "<inferred>",
         "publishTransactionRecord()": "<inferred>",
@@ -5100,6 +5121,8 @@
         "snapshotDefinition()": "<inferred>",
         "snapshotRead()": "<inferred>",
         "sourceAuthority()": "<inferred>",
+        "sourceGuard()": "<inferred>",
+        "sourceState()": "<inferred>",
         "stageDefinitionInput()": "<inferred>",
         "stageOriginal()": "anyerror",
         "stageTransactionKV()": "<inferred>",
@@ -5146,7 +5169,7 @@
       },
       "open_error_set_uses": 13,
       "propagation": {
-        "try": 2304,
+        "try": 2398,
         "catch": 30
       },
       "imports": [
@@ -5763,6 +5786,7 @@
         "InvalidDirectCatalogHistory": 8,
         "InvalidDirectCatalogOperation": 17,
         "InvalidDirectCatalogTransition": 189,
+        "InvalidDocumentSourceTransition": 2,
         "InvalidHistoricalState": 4,
         "InvalidHistoricalTransition": 1,
         "InvalidLogCatalogOperation": 2,
@@ -5840,7 +5864,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 382,
+        "try": 383,
         "catch": 1
       },
       "imports": [
@@ -5892,6 +5916,7 @@
         "DataIdentityConflict": 4,
         "IncompatibleDefinition": 1,
         "InvalidClientToken": 16,
+        "InvalidDocumentSourceState": 2,
         "InvalidOwnedRecord": 2,
         "InvalidTableResponse": 2,
         "TransactionAccountCapacity": 1
@@ -5947,7 +5972,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 53,
+        "try": 55,
         "catch": 0
       },
       "imports": [
@@ -6121,6 +6146,73 @@
         "catch": 1
       },
       "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectDocumentSource.zig": {
+      "errors": {
+        "ClientTokenBudget": 1,
+        "DocumentSourceResidentLimit": 1,
+        "DocumentSourceWorkLimit": 1,
+        "InvalidDocumentSource": 4,
+        "InvalidDocumentSourceLimits": 2,
+        "InvalidDocumentSourceState": 4,
+        "InvalidDocumentSourceTransition": 7
+      },
+      "outcomes": {
+        "Access": [
+          "inspect",
+          "read",
+          "mutate"
+        ],
+        "Descriptor.kind": [
+          "create",
+          "replace"
+        ],
+        "Entry.phase": [
+          "reserved",
+          "uploading",
+          "verified",
+          "failed",
+          "closed"
+        ],
+        "Lookup": [
+          "key",
+          "operation"
+        ],
+        "State.phase": [
+          "uploading",
+          "verified",
+          "failed",
+          "closed"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Admission.acquire()": "<inferred>",
+        "Authority.make_guard()": "anyerror",
+        "Descriptor.binding()": "<inferred>",
+        "Descriptor.encode()": "<inferred>",
+        "Descriptor.requireBinding()": "<inferred>",
+        "Descriptor.validate()": "<inferred>",
+        "Entry.from()": "<inferred>",
+        "Limits.validate()": "<inferred>",
+        "Observation.from()": "<inferred>",
+        "Selection.validate()": "<inferred>",
+        "State.charge()": "<inferred>",
+        "State.transition()": "<inferred>",
+        "State.validate()": "<inferred>",
+        "StepBudget.validate()": "<inferred>",
+        "Verifier.init()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 29,
+        "catch": 0
+      },
+      "imports": [
+        "DirectCatalogRecords.zig",
         "root.zig",
         "std"
       ]
@@ -7530,6 +7622,7 @@
         "InvalidClientToken": 4,
         "InvalidDataIndexObject": 1,
         "InvalidDirectCatalogHistory": 1,
+        "InvalidDocumentSourceState": 3,
         "InvalidDocumentStorageGraph": 17,
         "InvalidHistoricalDirectory": 3,
         "InvalidLogCatalogOperation": 1,
@@ -7592,6 +7685,7 @@
           "historical_walk",
           "transaction",
           "queue_transfer_plan",
+          "document_source",
           "workload_intent",
           "transaction_walk",
           "transaction_intent",
@@ -7676,7 +7770,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 612,
+        "try": 623,
         "catch": 1
       },
       "imports": [
@@ -10489,7 +10583,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 21,
+        "try": 23,
         "catch": 0
       },
       "imports": [
@@ -10537,6 +10631,7 @@
         "DirectClientToken.zig",
         "DirectDefinition.zig",
         "DirectDependency.zig",
+        "DirectDocumentSource.zig",
         "DirectHistory.zig",
         "DirectHistoryDirectory.zig",
         "DirectIntent.zig",
@@ -39726,6 +39821,35 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-storage/src/DocumentSource.zig": {
+      "errors": {
+        "DocumentSourceMissing": 2,
+        "InvalidDocumentSourceChunk": 7
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Chunk.fromEntry()": "<inferred>",
+        "Chunk.indexKey()": "<inferred>",
+        "Chunk.validate()": "<inferred>",
+        "Chunk.value()": "<inferred>",
+        "key()": "<inferred>",
+        "lookup()": "<inferred>",
+        "put()": "<inferred>",
+        "read()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 9,
+        "catch": 0
+      },
+      "imports": [
+        "TransitObjectStore.zig",
+        "TreeStore.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-storage/src/DocumentStorageRoots.zig": {
       "errors": {
         "DocumentInitializationMissing": 1,
@@ -42993,6 +43117,7 @@
         "DocumentRead.zig",
         "DocumentRecovery.zig",
         "DocumentShredder.zig",
+        "DocumentSource.zig",
         "DocumentStorageRoots.zig",
         "FilePublication.zig",
         "KVDeclaration.zig",
