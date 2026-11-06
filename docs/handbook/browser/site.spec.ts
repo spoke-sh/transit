@@ -143,7 +143,12 @@ test("production navigation, search, generated references and exact downloads", 
     page.getByText(/CREATE TABLE publishes a general typed Table in the console/),
   ).toBeVisible();
   await sidebar.getByRole("link", { name: "CREATE CONNECTION", exact: true }).click();
-  await expect(page.getByText("Grammar only.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "CREATE CONNECTION", exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Reference grammar and a limited typed parser; execution is not installed.", {
+      exact: true,
+    }),
+  ).toBeVisible();
   await sidebar
     .getByRole("link", { name: "Grammar surface: implemented and planned", exact: true })
     .click();
