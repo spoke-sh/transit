@@ -323,6 +323,7 @@ const Access = struct {
     missing_schema: bool = false,
     denied_resource: ?u64 = null,
     denied_metadata: ?u64 = null,
+    denied_metadata_error: anyerror = error.CatalogDenied,
     denied_privileges: ?struct { id: u64, mask: u64 } = null,
     visible_despite_denied_privileges: bool = false,
     deny_create: bool = false,
@@ -354,7 +355,7 @@ const Access = struct {
         for (value.requested.requirements) |slot| if (slot) |requirement| {
             if (value.access.deny_create and std.meta.eql(requirement.object, a.reference(profile.initial_schema_authority)) and requirement.privileges & a.create != 0) return error.CatalogDenied;
             if (requirement.object.kind == .resource and requirement.object.id == value.access.denied_resource) return error.CatalogDenied;
-            if (value.access.denied_metadata) |id| if (std.meta.eql(requirement.object, a.reference(id))) return error.CatalogDenied;
+            if (value.access.denied_metadata) |id| if (std.meta.eql(requirement.object, a.reference(id))) return value.access.denied_metadata_error;
             if (value.access.denied_privileges) |denied| if (std.meta.eql(requirement.object, a.reference(denied.id)) and requirement.privileges & denied.mask != 0 and !(value.access.visible_despite_denied_privileges and requirement.access == .visible)) return error.CatalogDenied;
         };
         if (value.requested.subject.principal() != 1 or value.requested.requirements[0].?.object.id != profile.database) return error.CatalogDenied;
@@ -10570,9 +10571,16 @@ test "SOURCE bounded sparse pages own metadata and quota exhaustion preserves cl
     catalog.store.index.clearCache();
     try t.expectEqualStrings("upstream_0", retained.declaration.properties.name.slice());
     access.denied_metadata = retained.declaration.properties.authorization;
-    try t.expectError(error.CatalogDenied, catalog.inspectSource(t.allocator, retained.declaration.interpretation, access.policy()));
-    const filtered = try catalog.listSources(.{ .namespace = 1, .kind = .connection }, null, access.policy());
-    try t.expectEqualStrings("upstream_1", filtered.entries[0].?.declaration.properties.name.slice());
+    for ([_]anyerror{ error.CatalogDenied, error.AccessDenied, error.Forbidden }) |denial| {
+        access.denied_metadata_error = denial;
+        try t.expectError(denial, catalog.inspectSource(t.allocator, retained.declaration.interpretation, access.policy()));
+        const filtered = try catalog.listSources(.{ .namespace = 1, .kind = .connection }, null, access.policy());
+        try t.expectEqualStrings("upstream_1", filtered.entries[0].?.declaration.properties.name.slice());
+    }
+    // Failed authorization observation is not evidence of a hidden entry.
+    access.denied_metadata_error = error.AuthorityUnavailable;
+    try t.expectError(error.AuthorityUnavailable, catalog.listSources(.{ .namespace = 1, .kind = .connection }, null, access.policy()));
+    access.denied_metadata_error = error.CatalogDenied;
     access.denied_metadata = null;
     const pending = try connectorCreation(1040, 2040, "pending", .{ .connection = .{ .endpoint = "https://example.com" } });
     _ = try catalog.sourceOperation(pending, .reserve, access.policy());

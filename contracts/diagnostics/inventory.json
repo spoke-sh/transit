@@ -4635,7 +4635,7 @@
     },
     "packages/zig/transit-catalog/src/DirectCatalog.zig": {
       "errors": {
-        "AccessDenied": 4,
+        "AccessDenied": 5,
         "BranchIdentityConflict": 1,
         "BranchNameConflict": 1,
         "BranchNotFound": 1,
@@ -4676,7 +4676,7 @@
         "DocumentSourceOperationRequired": 8,
         "DocumentSourceWorkLimit": 1,
         "DuplicatePrimaryKey": 1,
-        "Forbidden": 9,
+        "Forbidden": 10,
         "ForeignKeyDefinitionRequired": 1,
         "ForeignKeyScopeUnsupported": 1,
         "ForeignKeySetNullRequiresNullableColumn": 1,

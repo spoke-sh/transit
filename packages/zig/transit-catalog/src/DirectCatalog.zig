@@ -7636,7 +7636,10 @@ pub fn listSources(self: *Self, selection: Connector.Selection, cursor: ?Connect
                         required = try required.merge(entry_required);
                         result.entries[count] = state;
                         count += 1;
-                    } else |err| if (err != error.CatalogDenied) return err;
+                    } else |err| switch (err) {
+                        error.CatalogDenied, error.AccessDenied, error.Forbidden => {},
+                        else => return err,
+                    }
                 }
             };
             if (count == result.entries.len or examined == 32) break :outer;
