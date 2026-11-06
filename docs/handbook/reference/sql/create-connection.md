@@ -1,6 +1,7 @@
 # CREATE CONNECTION
 
-**Grammar only.** This statement describes a named connector configuration.
+**Reference grammar and a limited typed parser; execution is not installed.**
+This statement describes a named connector configuration.
 The console, Board query workspace and Flight SQL do not execute it, resolve
 credentials or open a connection.
 
