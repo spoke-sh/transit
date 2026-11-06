@@ -108,7 +108,7 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`9c67f065f6ee429a3688ee424fefc7c6665cb1b94dccef5ebd1d84c833507e96`.
+`65287f89db5a4ee587cb90ddcec6d819f1974613e89ee14c410ebff01c342ab4`.
 It binds dedicated CONNECTION/SOURCE declarations, mandatory distinct native
 authority domains, Catalog connector entries and paged writer ownership,
 immutable source artifacts, original control receipts and typed SQL connector

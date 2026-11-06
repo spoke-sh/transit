@@ -252,6 +252,12 @@ def dataflow_lifecycle(root, env, cli, ports, migrations, restart):
     rejected = migrate('flow-owner-rejection', 'plan', expected=3)
     assert rejected['diagnostic_code'] == 'migration.statement_unsupported', rejected
     assert '0006-unsupported.sql:2:1' in rejected['diagnostic_message'], rejected
+    unsupported.write_text("-- retained source location\nCREATE CONNECTION migration_http TO HTTP (endpoint = 'https://example.test');\n")
+    rejected = migrate('connector-owner-rejection', 'plan', expected=3)
+    assert rejected['diagnostic_code'] == 'migration.statement_unsupported', rejected
+    assert 'MigrationSessionControlUnsupported' in rejected['diagnostic_message'], rejected
+    assert '0006-unsupported.sql:2:1' in rejected['diagnostic_message'], rejected
+    assert sql_query_records(root, env, cli, 'connector-not-published', 'SHOW CONNECTIONS') == []
     unsupported.unlink()
 
     # Plans from the previous contract, and plans without a definition, fail locally.

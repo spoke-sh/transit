@@ -115,8 +115,10 @@ reparsing accepted SQL against new names.
 AUTHORIZE, ACTIVATE, SUSPEND and RESUME have typed syntax but reject before
 admission at both SQL and typed Catalog boundaries. No operation in this profile
 polls, appends a capture row or creates a capture body. A SOURCE is not a SELECT
-relation. Explicit transactions, PostgreSQL/MySQL, Flight SQL, standalone services
-and query-source sessions do not execute this profile.
+relation. Migration files reject connector declarations before admission;
+their reviewed dependency and step-recovery semantics are not installed.
+Explicit transactions, PostgreSQL/MySQL, Flight SQL, standalone services and
+query-source sessions do not execute this profile.
 
 Latest-success selection, JSON decoding, current-Table replacement and alerts
 remain separate work. Existing [connector APIs](../connectors.md) and configured

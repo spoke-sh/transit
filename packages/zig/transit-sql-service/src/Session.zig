@@ -108,7 +108,7 @@ pub const Prepared = union(enum) {
             .managed => .operation,
             .inspection, .source, .captured, .workload => .read,
             .probe, .settings => if (self.readOnly()) .read else .unsupported,
-            .transaction => .unsupported,
+            .transaction, .connector => .unsupported,
         };
     }
     pub fn parameters(self: *const Prepared) []const f.Types.Type {
@@ -174,6 +174,20 @@ test "read-only admission excludes row-returning configuration effects" {
     defer catalog.settings.deinit();
     try t.expect(catalog.readOnly());
     try t.expectEqual(.read, catalog.migrationPolicy());
+}
+test "connector declarations require separate migration semantics" {
+    const t = std.testing;
+    for ([_][]const u8{
+        "CREATE CONNECTION upstream TO HTTP (endpoint = 'https://example.test')",
+        "CREATE SOURCE feed FROM HTTP CONNECTION upstream INTO STREAM captures WITH (method = 'GET', path = '/feed', poll_interval = '1m', request_timeout = '10s', response_max_bytes = 1024)",
+        "RETIRE SOURCE feed",
+        "DROP SOURCE feed RESTRICT",
+    }) |sql| {
+        var prepared: Prepared = .{ .connector = (try g.database.SourceSql.parse(t.allocator, sql, .transit)).? };
+        defer prepared.connector.deinit();
+        try t.expect(prepared.mutation());
+        try t.expectEqual(.unsupported, prepared.migrationPolicy());
+    }
 }
 pub const Read = struct {
     host: *Self,

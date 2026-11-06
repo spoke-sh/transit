@@ -4,6 +4,8 @@ Status: durable CONNECTION/SOURCE declarations, bounded inspection, retirement
 and restricted DROP through the typed Catalog and native cohosted SQL service.
 HTTP scheduling, capture and activation remain uninstalled; their execution gates
 below are requirements for a later slice.
+Migration files reject connector declarations before admission; reviewed
+dependency plans and migration step recovery for these objects are not installed.
 
 The public [CREATE SOURCE reference](../docs/handbook/reference/sql/create-source.md)
 owns syntax and capability labels. [`Source.zig`](../packages/zig/transit-protocol/src/Source.zig)

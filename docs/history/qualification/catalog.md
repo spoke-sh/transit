@@ -14,13 +14,16 @@ and [test index](../../../tests/README.md) for current navigation.
 This experiment checks whether an application can publish connector declarations,
 inspect their exact dependencies under current rights, and recover the original
 outcome without starting ingestion. The implementation is based on `9b544406e`;
-the installed proof passes at
-[`f524b7fa1`](https://github.com/spoke-sh/transit/commit/f524b7fa1b279486a6ca8e83d586e31f92e466ea)
-with current-v1 definition
+the installed proof passes at pre-rebase source `f524b7fa1` with then-current-v1 definition
 `9c67f065f6ee429a3688ee424fefc7c6665cb1b94dccef5ebd1d84c833507e96`.
 Current semantics belong to [CREATE SOURCE](../../handbook/reference/sql/create-source.md),
 [CREATE CONNECTION](../../handbook/reference/sql/create-connection.md) and
 [SOURCE_V1](../../../contracts/SOURCE_V1.md).
+
+These results precede the rebase onto `aa1328f2d`, which adds shared migration
+execution and changes the contract definition. They do not qualify that combined
+source. The pre-rebase commits and raw evidence remain in the local qualification
+archive; final combined qualification must use the new definition.
 
 `nix develop --command just test source-declarations` builds and runs the copied
 ReleaseSafe installation through

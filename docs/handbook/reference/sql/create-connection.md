@@ -32,9 +32,10 @@ The original creation receipt remains attributable after DROP and name reuse.
 
 ## Scope
 
-The native console uses the same Catalog owner as typed callers. Explicit
-transactions, PostgreSQL/MySQL, Flight SQL, standalone services and query-source
-sessions do not execute these declarations. Board remains read-only.
+The native console uses the same Catalog owner as typed callers. Migration files
+reject connector declarations before admission. Explicit transactions,
+PostgreSQL/MySQL, Flight SQL, standalone services and query-source sessions do not
+execute these declarations. Board remains read-only.
 
 The broader reference grammar permits other connector identifiers, options and
 `SECRET('credential_reference')`. Those forms are not installed connection
