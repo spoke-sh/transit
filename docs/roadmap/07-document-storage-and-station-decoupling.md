@@ -1098,12 +1098,13 @@ not enable installed behavior.
 | Review | Changes and source owners | Required exit |
 | --- | --- | --- |
 | 1A — Logical deletion and partition/lifetime contracts (component delivered) | Extend `Transaction.Target`/`Guard` and `DocumentRead.Collection` in `transit-protocol`; amend `DOCUMENT_V1`, `DATA_LIFECYCLE_V1` and `TRANSIT_STORAGE_V1`. Define logical deletion, Document partition ordinals, collection coverage, one preparation per physical partition and installed pin/key ownership | Independent fixtures cover full-width identities, empty/absent/deleted heads, malformed ordinals and wrong pin kinds. Existing Table/KV/log targets remain valid; Document transaction execution stays rejected until packet 4. Replace the current definition if these persisted/wire shapes change |
-| 1B — Freeze staging and discovery contracts | Extend the owning `DirectOwnedRecord`/`DirectClientToken` interfaces and `DirectStorageGraph` inventory with Document candidate roots, attachment/closure and bounded original-operation selection. Bind principal/object/logical-document, original bytes, expected base, definition, parts and verification coverage | A transition/fault table assigns durable ownership before every staged write. Specify caller-scoped continuation, payload redaction, unknown versus absent outcomes, late attachment fencing and numeric aggregate quotas. Record the C0 removal map for every existing Document operation, artifact and consumer |
+| 1B — Protected source staging and discovery ([next implementation slice](#protected-source-staging-and-operation-discovery-plan--2026-11-05)) | Extend `DirectOwnedRecord`/`DirectClientToken`, catalog progress and `DirectStorageGraph` with reserved source chunks, a paged inventory, bounded verification and caller-scoped discovery. Freeze the later Document attachment handoff and record the C0 removal map | A 10 MiB source survives interrupted upload, process loss, discovery, verification and collection with fixed resident budgets. Closure permanently fences further writes; original identity survives payload reclamation. Source verification does not accept a Document revision |
 | 2 — Implement protected streaming candidates | Extend `DocumentIndex`, `DocumentOrderedTree`, `DocumentPartition`, catalog ownership and the M16 candidate sink through their package interfaces; use shared immutable publication and local collection | A 10 MiB value/tree is constructed and reopened with fixed admitted windows, without a whole-input/output allocation. Duplicate/conflicting chunks, parser backpressure, late hash failure, lost attach reply, link/cleanup uncertainty and collector restart preserve original outcomes and live roots |
 
-Reviews 1A/1B specify dependencies together before packet 2 changes persistent
-ownership. Streaming canonical input is part of packet 2: accepting chunks and
-then concatenating them into the current `change_bytes` buffer does not remove
+The contract portion of reviews 1A/1B specifies dependencies before implementing
+protected source ownership. Streaming canonical input remains part of packet 2:
+accepting chunks and then concatenating them into the current `change_bytes`
+buffer does not remove
 the resident whole-request requirement. Keep a bounded one-request evaluator
 adapter for existing component regressions, with both paths feeding the same
 logical semantics. M16 owns parser verification; M7 owns staged storage and
@@ -1167,11 +1168,12 @@ basis through their owning contracts.
    owners. Specify which catalog records protect standalone candidates and
    permit original-operation enumeration; do not expose arbitrary caller-record
    payloads or call a logical-head list an operation-discovery API.
-2. Wire the reviewed host pin/key obligations into the installed lifecycle:
-   persist the key, recover the original operation and release exact pins under
-   current authority. Any proposed expiry requires application opt-in and its
-   own recorded semantics. Key rotation cannot turn a missing retained source
-   into a new read.
+2. Map the reviewed host pin/key obligations to the installed lifecycle owners
+   for C4: persist the key, recover the original operation and release exact
+   pins under current authority. The next source-staging PR records this handoff;
+   C4 implements it. Any proposed expiry requires application opt-in and its own
+   recorded semantics. Key rotation cannot turn a missing retained source into
+   a new read.
 3. Build protected streaming candidates (review 2), then direct lifecycle and
    the Document preparation/common-cut path (reviews 3–4). Keep transaction
    execution refused until that owner supplies preparation, decision-aware reads
@@ -1189,6 +1191,250 @@ no installed route, executable SQL, Board persistence or Station turn.
 **Remaining packet-1 exit:** complete protected candidate ownership, original-
 operation discovery and the C0 migration inventory; map the reviewed pin/key
 lifetimes to installed owners before dependent adapters implement them.
+
+#### Protected source staging and operation discovery plan — 2026-11-05
+
+**Next implementation PR:** an authorized owner can reserve a Document source,
+upload it in bounded chunks, lose its process, discover the original operation,
+resume and verify the exact source, then explicitly close it. Every acknowledged
+chunk remains reachable through restart and collection until closure; the
+original operation remains discoverable after the source becomes collectible.
+This delivers executable ownership and discovery from review 1B and the source
+storage prerequisite for review 2. It does not complete review 2 or C0/C3.
+
+The source basis is `origin/main` at `bb4bbd3ad`, including the merged
+[logical deletion and partition guards, #388](https://github.com/spoke-sh/transit/pull/388).
+The plan is proposed work; existing component and installed guarantees remain
+those in the [Document reference](../handbook/reference/documents.md) and
+[owned-original contract](../../contracts/DIRECT_TABLE_V1.md#durable-client-token-bindings).
+Preserve the preceding increment's
+[qualification limits](../history/qualification/storage.md#logical-document-deletion-and-partition-guards--2026-11-05).
+
+##### Scope and dependency boundary
+
+Use one local source part per operation, an explicit source length and digest,
+an exact Document target and expected base, and sequential immutable chunks.
+Keep the current native operation identity, definition and partition-ordinal
+rules. This PR exercises the catalog/storage component boundary with an explicit
+authority guard. A new installed Document domain, declaration/genesis path and
+signed Document endpoints belong to C4; unsupported installed routes remain
+refused. A bound target is not proof of permission to mutate that target.
+
+The completion state means **source bytes verified**, not parser/profile
+verification, a sealed logical tree or an accepted revision. Existing SOR1
+`ready` means the original envelope exists; it cannot also mean those later
+states. Define a typed source-progress record inside the existing original's
+lifetime. Keep Document attachment unavailable in this PR, including through the
+existing KV attachment route. State the later handoff now so the source layout
+does not require a second recovery authority.
+
+| Existing owner or adjacent work | Reuse and change in this slice |
+| --- | --- |
+| [`DirectOwnedRecord`](../../packages/zig/transit-catalog/src/DirectOwnedRecord.zig), [`DirectClientToken`](../../packages/zig/transit-catalog/src/DirectClientToken.zig) and [`DirectCatalog`](../../packages/zig/transit-catalog/src/DirectCatalog.zig) | Reuse SOR1 reservation/closure and immutable original receipts, CPR1 progress replacement, revision comparison and account charging. Extend typed ownership for a paged source graph; the existing complete-payload `stage_original` helper cannot carry the source itself |
+| [`DirectCatalogStore`](../../packages/zig/transit-catalog/src/DirectCatalogStore.zig) | Reuse the account-scoped `client_operations` and `client_pending` directories and eight-entry pages. Add bounded, redacted source-operation selection over these indexes; do not introduce another operation registry |
+| [`DirectStorageGraph`](../../packages/zig/transit-catalog/src/DirectStorageGraph.zig) and [local storage](../../packages/zig/transit-storage/README.md) | Trace original descriptors, ready and reserved chunk references, inventory pages and pending publications. Reuse allocation epochs, reader grace and immutable-file publication, including #384's uncertain link/cleanup outcomes |
+| [`DocumentPartition`](../../packages/zig/transit-storage/src/DocumentPartition.zig) and [`DocumentAuthority`](../../packages/zig/transit-catalog/src/DocumentAuthority.zig) | Preserve expected-cut semantics and current authority checks; no partition mutation occurs during staging. Continue refusing Document transaction execution |
+| [M12 ownership](12-sql-and-dataflows.md#next-implementation-slice-owned-staging-and-finite-qualification) | Keep existing complete-record staging, managed progress and KV attachment behavior as regressions. Document chunks must not acquire indefinite ownership through generic `direct-records/` |
+| [M16 candidates](16-document-profiles-and-gateway-exchange-lifecycle.md#immediate-representation-gap-and-m7-acceptance-handoff) | Bind the intended profile and source commitment, but defer the persistent parser sink. Its offline `Candidate` verification is not a durable source receipt or a Document acceptance |
+| M6, M8/M9 and M30 | Preserve current Queue wait/original-operation recovery, host disclosure and saved-attempt rules. This slice supplies storage prerequisites for later shared-client and Save/Open work; it adds no wait loop, SQL result protocol, Station migration or Board persistence |
+
+##### Contracts and durable ownership
+
+Amend `DIRECT_TABLE_V1`, `DOCUMENT_V1` and `TRANSIT_STORAGE_V1` before their
+dependent implementation. Put neutral source identity/progress types with their
+existing protocol/catalog owners. The expected persisted/wire changes require
+one current-v1 definition replacement, generated schemas/bindings, strict
+decoders and independent signing/rejection fixtures in the same PR. Preserve
+unrelated M6/M8 definition changes when rebasing; old stored layouts must reject.
+
+The immutable original descriptor binds the principal/account/token, catalog
+scope, stable target and logical Document identity, partition ordinal, intended
+operation kind, expected base, current definition, intended profile, one part
+identity, exact source length/hash and admitted limits. It must not pretend to
+know the future derived-tree digest. Changed bytes, targets, bases, profiles or
+limits require a different operation; an exact retry recovers the original.
+
+Keep mutable progress in a paged, immutable inventory selected by the original
+operation's latest catalog revision. Its small root records the contiguous
+ready prefix, one optional pending chunk/publication, verification outcome and
+charged work. Chunk references and history must not grow an inline array or
+force all prior descriptors into memory. Scope chunk identities to the original
+operation and part; do not introduce cross-operation deduplication or ownership
+transfer in this slice.
+
+Reserve the source record formats for this owner. Generic progress updates,
+record staging and original retain/attach controls must not replace its inventory,
+erase charges or bypass its transitions. Route source closure through the typed
+owner while preserving the existing complete-record profile. Test these bypass
+attempts through the actual catalog dispatch, not only the source validator.
+
+| Transition | Required durable owner and outcome |
+| --- | --- |
+| Reserve original | Atomically bind the original token and budget before writing its descriptor. A reserved original is discoverable even if no descriptor bytes exist; retries must match the complete original commitment |
+| Reserve chunk | Compare the current progress revision and publish the next exact offset, length and hash before its physical creation. Admit one outstanding chunk; reject holes, overlap, changed retry content and writes beyond the declared source length |
+| Publish chunk and inventory | Write and verify the immutable chunk, then publish the new ready prefix and inventory root. Keep the previous ready root and pending reservation protected until the replacement is durable. Repeating a ready write verifies existing bytes; it never recreates missing acknowledged data |
+| Verify source | Read the complete ready source in bounded steps and check coverage, length and digest. Only exact success records source verification. A digest mismatch is an explicit failed observation with retained evidence; it neither accepts a Document nor silently closes the original |
+| Recover | Inspect the exact original and its current revision. Resume a matching pending write or restart bounded digest verification from the retained source. A missing ready object is corruption; an absent object belonging only to an unfulfilled reservation may be created |
+| Close | Compare the current revision, fence active writers and irreversibly close the unaccepted source. Release pending capacity once; retain the original receipt, commitments and account charge. The collector may reclaim source payloads only after its normal fences |
+| Late request | After closure, reject new writes, verification publication and attachment; an exact original retry reports closure without opening or recreating source bytes. A paused writer must not publish through the closure fence |
+
+The graph-publication design must cover **inventory pages as well as chunks**.
+Before implementing the writer, record the ownership ordering for every physical
+write, including root and index bookkeeping. Use bounded reservations and the
+existing allocation-epoch/publication guards to bridge private index construction
+to catalog publication. An unpublished manifest that names files does not protect
+those files by itself. A collector must tolerate absent reserved objects, require
+all ready objects, and traverse pending/ready inventories with bounded memory.
+Hold the owning publication fence through each write, or supply an equivalent
+proved exclusion, so closure cannot race a later physical creation.
+
+Keep verification state independent of borrowed input buffers. The first profile
+may restart digest verification after process loss, using the same source and
+operation. Persist charges before doing work, and charge repeat verification
+against an explicit work allowance. Do not persist parser pointers or portable
+hash internals, reinterpret a partial digest as completion, or concatenate the
+source to call a whole-buffer validator. Work-budget exhaustion preserves the
+original outcome and leaves inspection/closure available.
+
+Freeze the future attachment rule in the contract: source verification is only
+an input to M16 verification and the streaming logical builder. A later qualified
+candidate must bind the same original, base, source and profile evidence. Before
+acceptance it must reserve its exact native operation; a lost reply is resolved
+through that operation. Accepted roots must own all live parts before staging
+ownership can end. Unknown or denied native observation cannot authorize
+abandonment. This PR has no attachment transition to execute or qualify.
+
+##### Discovery and current authority
+
+Keep three operations distinct: logical-head listing, exact original-operation
+lookup and bounded discovery of source operations. Reuse the existing all/pending
+account indexes. A source selection fixes the exact scope, optional target and
+pending/all choice, and returns at most eight metadata entries. Inspect at most
+32 token entries per call; advance continuation by the last **scanned** operation,
+including when no entry matches. Return explicit continuation on a budget stop.
+Do not scan an account's entire history to fill a page or open every payload to
+classify it; keep the necessary type/target commitment in bounded catalog metadata.
+
+The continuation carries its selection identity and last scanned ID. Validate
+scope and selection on every call. This is live enumeration, not an atomic
+snapshot or a retention pin: later admissions or settlements can change later
+pages. An empty filtered page, end of a live scan, denial or a failed observation
+cannot establish that an uncertain mutation was rejected. Recovery uses exact
+lookup of the immutable original identity.
+
+Return only the caller's authorized operation metadata: original ID, target,
+expected base, phase, byte progress, verification/closure outcome and continuation.
+Exclude source bytes, credentials and arbitrary inner progress payloads. The
+original principal/account owns recovery; independent Document read rights do
+not confer access to another principal's pending operations. Recheck current
+scope and target authority before disclosure, including retries and buffered or
+empty pages. A component fixture supplies the explicit guard; it must not imply
+that the installed catalog already has a Document authorization domain.
+Bounded source reads use that same original ownership and current authority;
+generic record reads must not bypass it or expose unready chunks.
+
+##### Resource profile and failure proofs
+
+Freeze these first-profile limits in the owning types and tests. Account defaults
+and accepted budgets remain explicit; the fixtures below do not increase an
+existing account's limits or establish production throughput guarantees.
+
+| Bound | Proposed implementation/qualification requirement |
+| --- | --- |
+| Source and chunk shape | One part; at most 64 KiB per chunk; one outstanding chunk publication per original. Source size comes from the admitted descriptor, with checked arithmetic and a paged directory |
+| Durable bytes | Reserve the complete per-operation ceiling through `DirectClientToken.Budget`. Charge source chunks, descriptor/inventory bytes, current and pending progress and simultaneously retained publication metadata. Preserve the existing 4 GiB default account ceiling and permanent original charge; the 10 MiB proof explicitly requests a 32 MiB operation budget |
+| Work | Each step admits an explicit page/byte budget; source verification reads at most 4 MiB per step. Persist a cumulative work ceiling, including retries and restarted verification, separately from retained bytes. Metadata/index work also consumes budget |
+| Resident memory | Instrument a proposed 8 MiB ceiling for the complete active source path, including owned input/output buffers, cache, scratch and metadata. Qualify with a one-page cache and a 10 MiB source. Reserve active residency through the account/host admission owner; test a 64 MiB aggregate ceiling across roles, independent of durable pending count |
+| Discovery | At most eight returned metadata entries and 32 inspected token entries per call; charge actual page work and preserve continuation when that budget stops the scan |
+| Controls | Inspection and explicit closure use reserved control capacity even when source byte, active-work or verification budgets are exhausted. No budget pressure authorizes expiry |
+
+Keep superseded physical objects bounded by the admitted byte/work allowance and
+collector progress. Record when accounting becomes reusable, if ever, in the
+contract; physical deletion does not refund the permanent original reservation.
+Do not treat a logical current-root size as the peak staging footprint. Fail a
+new step before exceeding its reservation, without dropping an acknowledged
+prefix. Qualification must measure the declared allocation scope rather than
+infer it from Docker RSS or claim zero steady-state allocations without evidence.
+
+| Fault or negative control | Required evidence |
+| --- | --- |
+| Loss before/after original or chunk reservation; loss after put before readiness | Reopen on disk; discover and recover the same original, exact prefix and reservation. No duplicate charge or new operation; physical writes have a durable owner |
+| Changed duplicate, hole, overlap, extra bytes, wrong part/base/profile/definition | Reject before advancing the ready prefix; preserve the original binding and earlier acknowledged chunks |
+| Missing/corrupt ready chunk or inventory; late digest mismatch | Report the exact incomplete/corrupt state. Do not rebuild ready storage, fabricate verification or accept a revision |
+| Verification interrupted repeatedly; byte/page/work limit one below need | Resume bounded work or report exhaustion with original identity intact. Borrowed buffers remain valid only for their declared window |
+| Close racing a paused writer, verification publication or retry | One permanent closure fence; no later source publication or resurrection. An original closed before payload collection is still discoverable after collection and restart |
+| Collector before/after reservation, readiness, root replacement and closure | Preserve ready and pending roots at the collector cut; tolerate only legitimate absent reservations. Cover new allocation epochs, active read guards, collector restart and uncertain file link/cleanup |
+| Directory larger than cache; sparse target filter; pending work settles between pages | Bounded steps and increasing continuation, including empty nonterminal pages. Exact lookup retains original identity; enumeration makes no atomic coverage claim |
+| Different principal/account/role; revocation after buffering | No private payload or cross-principal metadata disclosure. Role changes cannot evade aggregate quotas or create another identity for the same token |
+
+##### Implementation order and migration inventory
+
+Make the following logical commits on a branch rebased onto current main. Keep
+the definition replacement and all affected consumers consistent at the final
+PR revision. Types and fixtures alone do not satisfy a runtime exit.
+
+1. **Contract and neutral types:** establish source commitments, typed progress,
+   discovery projection, limits and transition/ownership tables. Regenerate the
+   shared definition, schemas and independent fixtures. Map installed pin/key
+   ownership and every affected legacy operation before adding an adapter.
+2. **Reserved chunk storage and retained graph:** implement paged source
+   inventories, immutable publication, ready/pending traversal and closure fences
+   with disk fault tests. Keep this behind component admission until catalog
+   transitions and authority checks are connected.
+3. **Catalog ownership and accounting:** connect original reservation, exact
+   retries, progress CAS, bounded source verification, cumulative charges and
+   closure through existing token/progress owners. Preserve SOR1/CPR1/KV behavior.
+4. **Operation discovery:** add bounded metadata selection and exact recovery,
+   current-authority checks and sparse-page continuation over existing indexes.
+5. **Integrated component proof and documentation:** run the 10 MiB journey and
+   fault matrix against local disk, including process reopen and collection.
+   Publish implemented component semantics/limits in the Document/storage and
+   catalog owners, record evidence and keep installed routes explicitly refused.
+
+The C0 inventory is a checked table, not a deletion in this PR. Start with these
+families, then enumerate their exact call sites, fixtures and generated surfaces
+before marking that inventory complete:
+
+| Existing family | Replacement owner and removal gate |
+| --- | --- |
+| `DirectResource`, `DirectResourceClient`, `NamedResource` and Station initialization | C4 direct declaration, native identity allocation, genesis and name publication. Preserve original create/recovery and failure behavior before removing the handshake |
+| `STATION_DOCUMENT_V1` requests, `SDC1` changes, `STATION_INDEX_V1`/`SIX1` and publication artifacts | C1–C3 logical evaluation, protected candidates and accepted `.tseg` roots, followed by C7's coordinated stored-format cutover. This source PR replaces none of those accepted artifacts |
+| Existing Document SDK/ABI methods, waits, examples and installed tests | C4/C7 shared Document client and original-outcome recovery. M9 supplies composition, but existing consumers must migrate with the owning cutover |
+| Read/collection handles, host signing keys and retained source references | C4 installed persistence, exact release and restart/rotation policy; no key loss, timeout or quota pressure implies expiry. Keep deletion and retained-membership regressions throughout |
+| SQL/Fuze, Station state/effects, Board and profile/exchange consumers | C5/C6/C7 plus M6/M16/M30 handoffs. Keep typed results, common-decision semantics and parser evidence with their existing owners |
+
+##### Validation and exit
+
+During implementation, extend `direct_catalog_test.zig`,
+`direct_storage_graph_test.zig` and the owning storage tests with the fault cases
+above. Use existing package `zig build test` targets inside the pinned Nix shell;
+retain protocol/signing, ordered/causal Document, deletion, collection and
+managed-original regressions. If a new installed test task becomes necessary,
+register it with the runner and its lane rather than leave an ad hoc script.
+
+Before the implementation PR, run the required fast check, locked docs install
+and complete handbook check, plus `just check contracts`. Against committed
+HEAD, run clean `core` and `storage-query` lanes and affected SDK/consumer lanes
+selected by the final definition changes, following the
+[CI workflow](../../tasks/README.md). If the final diff touches server, SQL,
+gateway or their startup/build paths, also run the required pinned console
+latency and server SQL type gates. Record exact source revisions and all
+outcomes; #388's incomplete runtime/browser evidence is not a pass for this work.
+
+Exit requires the complete component journey and negative controls at one
+definition: reserve → upload a 10 MiB source → lose the process → discover the
+same operation → resume → verify → explicitly close → collect → reopen and
+observe permanent closure. The source must exceed resident memory, operation
+directories must exceed cache, and every admitted write must have a demonstrated
+ownership/fencing path. No Document head changes during this journey.
+
+The immediately following PR completes review 2: connect this protected source
+to M16's bounded event sink and a streaming `DocumentIndex`/ordered-tree builder,
+persist exact profile/coverage evidence and attach through `DocumentPartition`
+with original-outcome recovery. It must prove a large value/tree without whole
+input/output buffers; the current complete-frame adapter remains an oracle.
+Direct lifecycle, mixed transactions, merges/spans/subcolumns, SQL and the
+Station/consumer cutover retain their existing packages and completion gates.
 
 #### Follow-on reviews: caller and common-decision path
 
