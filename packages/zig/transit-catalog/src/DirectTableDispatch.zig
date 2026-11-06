@@ -435,15 +435,7 @@ fn applySelected(comptime action_tag: std.meta.Tag(w.Action), allocator: std.mem
         },
         .commit_saved => {
             const reference = @field(action.*, @tagName(action_tag));
-
-            if (reference.binding.action != .insert and reference.binding.action != .update and reference.binding.action != .delete) return error.UnsupportedTableAction;
-            try catalog.checkOperation(reference.binding, reference.namespace, policy);
-            var intent = try c.DirectTableIntentStore.load(catalog.allocator, catalog.data_objects, reference);
-            defer intent.deinit();
-            return .{ .rows = try catalog.applyRows(switch (intent.parsed.value.work) {
-                inline .rows, .statement => |value| try value.native(allocator),
-                .ddl => return error.UnsupportedTableAction,
-            }, policy) };
+            return .{ .rows = try catalog.applySavedRows(allocator, reference, policy) };
         },
         .admit_saved => {
             const reference = @field(action.*, @tagName(action_tag));

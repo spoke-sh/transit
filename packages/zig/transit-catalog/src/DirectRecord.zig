@@ -105,8 +105,10 @@ pub fn key(value: Reference, output: *[96]u8) ![]const u8 {
 pub fn store(objects: Objects.ObjectStore, scope: Scope, format: u32, bytes: []const u8) !Reference {
     const value = try reference(scope, format, bytes);
     var name: [96]u8 = undefined;
-    const stored = try objects.putImmutable(try key(value, &name), bytes, value.content.sha256);
-    if (stored.size != value.content.bytes or !std.mem.eql(u8, &stored.sha256, &value.content.sha256)) return error.InvalidDirectRecord;
+    const put = [1]Objects.ImmutablePut{.{ .key = try key(value, &name), .bytes = bytes, .sha256 = value.content.sha256 }};
+    var stored: [1]Objects.ObjectMeta = undefined;
+    try objects.putImmutableBatch(&put, &stored);
+    if (stored[0].size != value.content.bytes or !std.mem.eql(u8, &stored[0].sha256, &value.content.sha256)) return error.InvalidDirectRecord;
     return value;
 }
 pub fn load(allocator: std.mem.Allocator, objects: Objects.ObjectStore, value: Reference) ![]u8 {
