@@ -674,11 +674,12 @@ pub fn admit(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, tab
     try selected.lock(self.io);
     defer selected.unlock(self.io);
     defer self.notify();
-    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, null, true, false, false, false, false, null);
+    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, null, true, false, false, false, false, null, null);
     return self.execution.operationFromState(state);
 }
-fn admitWithWake(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64, acceptance_possible: ?*bool, wake: bool, fresh_nonce: bool, fresh_prepared: bool, fresh_table: bool, fresh_fenced: bool, newly_bound: ?*bool) !c.DirectClientToken.Progress {
+fn admitWithWake(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64, acceptance_possible: ?*bool, wake: bool, fresh_nonce: bool, fresh_prepared: bool, fresh_table: bool, fresh_fenced: bool, newly_bound: ?*bool, retained_workload: ?*?c.DirectWorkloadIntent) !c.DirectClientToken.Progress {
     if (newly_bound) |flag| flag.* = false;
+    if (retained_workload) |slot| slot.* = null;
     if (acceptance_possible) |flag| flag.* = false;
     try deadline.check(self.io);
     if (!fresh_fenced) try self.available(observer, deadline, Self.fence, .{ self, observer });
@@ -710,7 +711,8 @@ fn admitWithWake(self: *Self, allocator: std.mem.Allocator, observer: *g.Client,
         }
         return err;
     };
-    defer intent.deinit();
+    var intent_owned = true;
+    defer if (intent_owned) intent.deinit();
     if (try intent.workBytes() > self.execution.configuration.intent_bytes) return error.GatewayRecordTooLarge;
     const reference = try self.available(observer, deadline, g.Statement.Write.stage, .{ &intent, table.*, statement.namespace, self.execution.configuration.account });
     // Workload recovery retains the complete frozen body as well as its
@@ -733,11 +735,18 @@ fn admitWithWake(self: *Self, allocator: std.mem.Allocator, observer: *g.Client,
         }
         return err;
     };
-    if (newly_bound) |flag| flag.* = std.meta.eql(receipt.binding.intent, reference);
+    const is_newly_bound = std.meta.eql(receipt.binding.intent, reference);
+    if (newly_bound) |flag| flag.* = is_newly_bound;
     operation.* = receipt.position.next_lsn;
     if (wake) self.notify();
     const state = c.DirectClientToken.Progress.initial(receipt);
     _ = try self.execution.operationFromState(state);
+    if (is_newly_bound and intent == .workload) {
+        if (retained_workload) |slot| {
+            slot.* = intent.workload;
+            intent_owned = false;
+        }
+    }
     return state;
 }
 /// Submit through the same durable token owner and attempt bounded foreground
@@ -758,19 +767,25 @@ pub fn submitPrepared(self: *Self, allocator: std.mem.Allocator, observer: *g.Cl
     errdefer self.notify();
     try self.settlePendingTableClaim(table_claim, observer, table, deadline);
     var newly_bound = false;
+    var retained_workload: ?c.DirectWorkloadIntent = null;
+    defer if (retained_workload) |*workload| workload.deinit();
     const fresh_table = tableFresh(table_claim, statement, fresh_prepared);
-    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, acceptance_possible, false, true, fresh_prepared, fresh_table, fresh_fenced, &newly_bound);
+    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, acceptance_possible, false, true, fresh_prepared, fresh_table, fresh_fenced, &newly_bound, &retained_workload);
     recordPendingTableClaim(table_claim, state);
     errdefer finishTableClaim(table_claim, statement, null);
     try requireRoute(state, table, statement.namespace);
     if (state.receipt.binding.intent == .workload and newly_bound) {
         try deadline.check(self.io);
-        const wait = try g.WorkloadOperations.initialWait(table.*, state);
+        const attempt = try g.WorkloadOperations.initialWaitWithIntent(table.*, state, if (retained_workload) |*workload| workload else null, true);
+        if (attempt.terminal) |completed| {
+            finishTableClaim(table_claim, statement, null);
+            return completed;
+        }
         if (state.pending) self.notify();
         var result = try self.status(allocator, observer, table, statement.namespace, state.id());
-        if (result.wait != null and wait != null) {
-            try result.wait.?.requireSame(wait.?);
-            result.wait = wait;
+        if (result.wait != null and attempt.wait != null) {
+            try result.wait.?.requireSame(attempt.wait.?);
+            result.wait = attempt.wait;
         }
         return result;
     }
@@ -830,6 +845,10 @@ pub const Execution = struct { terminal: g.Terminal, completion: g.results.Comma
 /// The protocol-neutral result distinguishes command completion from rows;
 /// neither branch recreates SQL or turns an absent receipt into rejection.
 pub fn executeWorkloadPrepared(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, deadline: Deadline, operation: *?u64, fresh_prepared: bool, fresh_fenced: bool) !g.session_protocol.Operation {
+    return self.executeWorkloadRetained(allocator, observer, table, statement, values, deadline, operation, fresh_prepared, fresh_fenced, null, null);
+}
+pub fn executeWorkloadRetained(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, deadline: Deadline, operation: *?u64, fresh_prepared: bool, fresh_fenced: bool, out_reference: ?*c.DirectWorkloadIntent.Reference, out_intent: ?*?c.DirectWorkloadIntent) !g.session_protocol.Operation {
+    if (out_intent) |slot| slot.* = null;
     if (!statement.isWorkload()) return error.ExpectedSqlWorkload;
     var nonce: [16]u8 = undefined;
     try self.io.randomSecure(&nonce);
@@ -842,25 +861,43 @@ pub fn executeWorkloadPrepared(self: *Self, allocator: std.mem.Allocator, observ
         self.endForeground();
     };
     errdefer self.notify();
-    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation, null, false, true, fresh_prepared, fresh_prepared, fresh_fenced, null);
+    var newly_bound = false;
+    var retained_workload: ?c.DirectWorkloadIntent = null;
+    defer if (retained_workload) |*workload| workload.deinit();
+    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation, null, false, true, fresh_prepared, fresh_prepared, fresh_fenced, &newly_bound, &retained_workload);
     try requireRoute(state, table, statement.namespace);
-    const wait = try g.WorkloadOperations.attempt(table.*, state);
+    const attempt = try g.WorkloadOperations.attemptWithIntent(table.*, state, if (retained_workload) |*workload| workload else null, newly_bound);
     claimed = false;
     selected.unlock(self.io);
     self.endForeground();
+    if (attempt.terminal) |terminal| {
+        if (out_reference) |slot| slot.* = state.receipt.binding.intent.workload;
+        if (out_intent) |slot| {
+            slot.* = retained_workload;
+            retained_workload = null;
+        }
+        return terminal;
+    }
     if (state.pending) self.notify();
     while (true) {
         try deadline.check(self.io);
         const epoch = self.progress_epoch.load(.acquire);
         var result = try self.status(allocator, observer, table, statement.namespace, state.id());
         if (result.wait != null) {
-            if (wait) |value| {
+            if (attempt.wait) |value| {
                 try result.wait.?.requireSame(value);
                 result.wait = value;
             }
             return result;
         }
-        if (result.phase == .terminal) return result;
+        if (result.phase == .terminal) {
+            if (out_reference) |slot| slot.* = state.receipt.binding.intent.workload;
+            if (out_intent) |slot| {
+                slot.* = retained_workload;
+                retained_workload = null;
+            }
+            return result;
+        }
         try self.waitProgressAfter(epoch, deadline);
     }
 }
@@ -885,7 +922,7 @@ pub fn executePrepared(self: *Self, allocator: std.mem.Allocator, observer: *g.C
     errdefer self.notify();
     try self.settlePendingTableClaim(table_claim, observer, table, deadline);
     const fresh_table = tableFresh(table_claim, statement, fresh_prepared);
-    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation, null, false, true, fresh_prepared, fresh_table, fresh_fenced, null);
+    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation, null, false, true, fresh_prepared, fresh_table, fresh_fenced, null, null);
     recordPendingTableClaim(table_claim, state);
     errdefer finishTableClaim(table_claim, statement, null);
     const intent = state.receipt.binding.intent;

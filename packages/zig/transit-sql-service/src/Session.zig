@@ -792,29 +792,47 @@ fn requireWorkloadOutcome(result: g.session_protocol.Operation) !void {
         else => return error.InvalidSqlOperationReference,
     }
 }
-fn executeWorkload(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !g.session_protocol.Operation {
+fn executeWorkload(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom, out_reference: ?*c.DirectWorkloadIntent.Reference, out_intent: ?*?c.DirectWorkloadIntent) !g.session_protocol.Operation {
     try g.SessionTransaction.require(self, prepared);
     const is_fresh = self.fresh_prepared == prepared;
     if (is_fresh) self.fresh_prepared = null else try self.validate(prepared);
-    const result = try self.runtime.executeWorkloadPrepared(self.allocator, &self.observer, &self.table, &prepared.native, values, self.deadline, &self.operation, is_fresh, true);
+    const result = try self.runtime.executeWorkloadRetained(self.allocator, &self.observer, &self.table, &prepared.native, values, self.deadline, &self.operation, is_fresh, true, out_reference, out_intent);
+    errdefer if (out_intent) |slot| if (slot.*) |*workload| {
+        workload.deinit();
+        slot.* = null;
+    };
     try requireWorkloadOutcome(result);
     try self.current();
     return result;
 }
 fn openWorkloadResult(self: *Self, statement: *Prepared, values: []const ?f.Types.Values.Atom) !*Read {
     if (statement.fields().len == 0) return error.ExpectedGatewayRead;
-    const result = try self.executeWorkload(statement, values);
+    var retained_reference: ?c.DirectWorkloadIntent.Reference = null;
+    var retained_intent: ?c.DirectWorkloadIntent = null;
+    defer if (retained_intent) |*workload| workload.deinit();
+    var ref_value: c.DirectWorkloadIntent.Reference = undefined;
+    const result = try self.executeWorkload(statement, values, &ref_value, &retained_intent);
+    retained_reference = ref_value;
     if (result.result_kind != .rows or result.identity.kind != .workload) return error.InvalidSqlOperationReference;
-    var source = try self.observer.source();
-    const state = try source.operation(result.identity.id);
-    if (state.receipt.binding.intent != .workload) return error.InvalidSqlOperationReference;
-    const reference = state.receipt.binding.intent.workload;
-    if (reference.namespace != self.namespace or !std.meta.eql(reference.connection, self.table.connection)) return error.CatalogIdentityConflict;
+    const reference = retained_reference orelse blk: {
+        var source = try self.observer.source();
+        const state = try source.operation(result.identity.id);
+        if (state.receipt.binding.intent != .workload) return error.InvalidSqlOperationReference;
+        break :blk state.receipt.binding.intent.workload;
+    };
+    if (reference.namespace != self.namespace or self.source != null or !std.meta.eql(reference.connection, self.table.connection)) return error.CatalogIdentityConflict;
     const prepared = try self.allocator.create(Prepared);
     errdefer self.allocator.destroy(prepared);
-    prepared.* = .{ .workload = try g.database.WorkloadRead.Prepared.init(self.table, reference) };
+    if (retained_intent) |intent| {
+        retained_intent = null;
+        prepared.* = .{ .workload = try g.database.WorkloadRead.Prepared.initOwned(self.table, reference, intent) };
+    } else {
+        prepared.* = .{ .workload = try g.database.WorkloadRead.Prepared.init(self.table, reference) };
+    }
     errdefer prepared.workload.deinit();
     if (!std.mem.eql(u8, &try prepared.workload.output.type.fingerprint(), &try statement.native.output.?.type.fingerprint())) return error.WorkloadResultConflict;
+    self.fresh_prepared = prepared;
+    defer self.fresh_prepared = null;
     const read = try self.acquireRead(prepared, &.{});
     read.owns_prepared = true;
     return read;
@@ -944,7 +962,7 @@ fn releasePinsWithin(self: *Self, read: *Read) void {
 pub fn write(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !g.results.CommandCompletion {
     if (prepared.* == .native and prepared.native.isWorkload()) {
         if (prepared.fields().len != 0) return error.SqlRowsRequired;
-        return (try self.executeWorkload(prepared, values)).completion();
+        return (try self.executeWorkload(prepared, values, null, null)).completion();
     }
     const is_fresh = self.fresh_prepared == prepared;
     if (is_fresh) {

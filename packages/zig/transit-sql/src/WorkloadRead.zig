@@ -23,8 +23,14 @@ pub const Prepared = struct {
         if (!std.meta.eql(caller.connection, reference.connection)) return error.CatalogIdentityConflict;
         const bytes = try c.DirectRecord.read(caller.allocator, caller, reference.record);
         defer caller.allocator.free(bytes);
-        var intent = try c.DirectWorkloadIntent.restore(caller.allocator, bytes);
+        const intent = try c.DirectWorkloadIntent.restore(caller.allocator, bytes);
+        return initOwned(caller, reference, intent);
+    }
+    pub fn initOwned(caller: c.DirectTableClient, reference: c.DirectWorkloadIntent.Reference, intent_in: c.DirectWorkloadIntent) !Prepared {
+        var intent = intent_in;
         errdefer intent.deinit();
+        try reference.validate();
+        if (!std.meta.eql(caller.connection, reference.connection)) return error.CatalogIdentityConflict;
         try reference.requireSame(try intent.reference(reference.record.scope.account));
         const projection = intent.parsed.value.projection orelse return error.WorkloadProjectionUnavailable;
         var declaration = try c.DirectLogProtocol.decodeMetadata(caller.allocator, caller.connection, intent.parsed.value.source);

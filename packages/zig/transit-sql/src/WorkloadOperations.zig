@@ -96,29 +96,73 @@ pub fn evidence(reference: Intent.Reference, work: Intent.Work, result: w.Result
 /// Passive recovery can settle an original receipt or requested cancellation.
 /// A saved wait can execute only through a foreground, explicitly requested
 /// attempt. A timeout never creates an empty result or closes accepted SQL work.
+pub const Attempt = struct {
+    pending: bool,
+    wait: ?g.results.Workload.Wait = null,
+    terminal: ?g.session_protocol.Operation = null,
+};
 pub fn advance(caller: c.DirectTableClient, state: c.DirectClientToken.Progress) !bool {
-    return (try step(caller, state, .passive)).pending;
+    return (try step(caller, state, .passive, null, false)).pending;
 }
 pub fn attempt(caller: c.DirectTableClient, state: c.DirectClientToken.Progress) !?g.results.Workload.Wait {
-    return (try step(caller, state, .explicit)).wait;
+    return (try step(caller, state, .explicit, null, false)).wait;
+}
+pub fn attemptWithIntent(caller: c.DirectTableClient, state: c.DirectClientToken.Progress, provided_intent: ?*const Intent, skip_initial_inspect: bool) !Attempt {
+    return step(caller, state, .explicit, provided_intent, skip_initial_inspect);
 }
 pub fn initialWait(caller: c.DirectTableClient, state: c.DirectClientToken.Progress) !?g.results.Workload.Wait {
-    return (try step(caller, state, .initial_wait)).wait;
+    return (try step(caller, state, .initial_wait, null, false)).wait;
 }
-const Step = struct { pending: bool, wait: ?g.results.Workload.Wait = null };
+pub fn initialWaitWithIntent(caller: c.DirectTableClient, state: c.DirectClientToken.Progress, provided_intent: ?*const Intent, skip_initial_inspect: bool) !Attempt {
+    return step(caller, state, .initial_wait, provided_intent, skip_initial_inspect);
+}
 fn waiting(reference: Intent.Reference, milliseconds: u32) g.results.Workload.Wait {
     return .{ .intent = reference.record.content, .binding = reference.binding, .milliseconds = milliseconds };
 }
-fn step(caller: c.DirectTableClient, state: c.DirectClientToken.Progress, mode: enum { passive, explicit, initial_wait }) !Step {
+fn buildOperation(state: c.DirectClientToken.Progress, saved: Intent.Saved, terminal: ?g.results.Workload.Evidence) !g.session_protocol.Operation {
+    const kind = try command(saved.work);
+    const counts = if (terminal) |value| value.counts(kind) else null;
+    const result: g.session_protocol.Operation = .{
+        .identity = .{ .account = state.receipt.binding.key.account, .id = state.id(), .kind = .workload },
+        .command = kind,
+        .token = state.receipt.binding.key.token,
+        .phase = if (terminal != null) .terminal else .ready,
+        .cancellation_requested = state.cancel,
+        .outcome = if (terminal) |value| value.outcome() else null,
+        .matched = if (counts) |value| value.matched else 0,
+        .changed = if (counts) |value| value.changed else 0,
+        .result_kind = if (saved.projection != null and (terminal == null or terminal.?.outcome() == .applied)) .rows else .command,
+        .workload = terminal,
+        .wait = if (terminal == null and saved.wait_ms != null) waiting(state.receipt.binding.intent.workload, saved.wait_ms.?) else null,
+    };
+    try result.validate();
+    return result;
+}
+fn step(caller: c.DirectTableClient, state: c.DirectClientToken.Progress, mode: enum { passive, explicit, initial_wait }, provided_intent: ?*const Intent, skip_initial_inspect: bool) !Attempt {
     if (!state.pending) return .{ .pending = false };
-    var intent = try load(caller, state);
-    defer intent.deinit();
+    var owned_intent: ?Intent = null;
+    defer if (owned_intent) |*value| value.deinit();
+    const intent: *const Intent = if (provided_intent) |provided| blk: {
+        if (state.receipt.binding.intent != .workload) return error.WorkloadOperationRequired;
+        const reference = state.receipt.binding.intent.workload;
+        if (!std.meta.eql(reference.connection, caller.connection)) return error.CatalogIdentityConflict;
+        if (!supported(reference)) return error.UnsupportedSqlWorkload;
+        try reference.requireSame(try provided.reference(state.receipt.binding.key.account));
+        break :blk provided;
+    } else blk: {
+        owned_intent = try load(caller, state);
+        break :blk &owned_intent.?;
+    };
     const reference = state.receipt.binding.intent.workload;
     const saved = intent.parsed.value;
     if (mode == .initial_wait and saved.wait_ms == null) return .{ .pending = true };
-    const observed = try call(caller, saved, .inspect);
-    defer observed.deinit();
-    if (try evidence(reference, saved.work, observed.value.result) == null) {
+    var terminal: ?g.results.Workload.Evidence = null;
+    if (!skip_initial_inspect) {
+        const observed = try call(caller, saved, .inspect);
+        defer observed.deinit();
+        terminal = try evidence(reference, saved.work, observed.value.result);
+    }
+    if (terminal == null) {
         if (saved.wait_ms != null and mode == .passive and !state.cancel) return .{ .pending = true };
         const response = try call(caller, saved, if (state.cancel) .cancel else .execute);
         defer response.deinit();
@@ -145,10 +189,11 @@ fn step(caller: c.DirectTableClient, state: c.DirectClientToken.Progress, mode: 
                 }
             }
         }
-        if (try evidence(reference, saved.work, response.value.result) == null) return .{ .pending = true };
+        terminal = try evidence(reference, saved.work, response.value.result);
+        if (terminal == null) return .{ .pending = true };
     }
     _ = try c.DirectClientToken.update(caller, .{ .key = state.receipt.binding.key, .expected = state.revision, .pending = false, .cancel = state.cancel, .record = state.record });
-    return .{ .pending = false };
+    return .{ .pending = false, .terminal = try buildOperation(state, saved, terminal) };
 }
 pub fn status(caller: c.DirectTableClient, state: c.DirectClientToken.Progress) !g.session_protocol.Operation {
     var intent = try load(caller, state);
@@ -157,21 +202,5 @@ pub fn status(caller: c.DirectTableClient, state: c.DirectClientToken.Progress) 
     defer response.deinit();
     const terminal = try evidence(state.receipt.binding.intent.workload, intent.parsed.value.work, response.value.result);
     if (!state.pending and terminal == null) return error.MissingGatewayTerminal;
-    const kind = try command(intent.parsed.value.work);
-    const counts = if (terminal) |value| value.counts(kind) else null;
-    const result: g.session_protocol.Operation = .{
-        .identity = .{ .account = state.receipt.binding.key.account, .id = state.id(), .kind = .workload },
-        .command = kind,
-        .token = state.receipt.binding.key.token,
-        .phase = if (terminal != null) .terminal else .ready,
-        .cancellation_requested = state.cancel,
-        .outcome = if (terminal) |value| value.outcome() else null,
-        .matched = if (counts) |value| value.matched else 0,
-        .changed = if (counts) |value| value.changed else 0,
-        .result_kind = if (intent.parsed.value.projection != null and (terminal == null or terminal.?.outcome() == .applied)) .rows else .command,
-        .workload = terminal,
-        .wait = if (terminal == null and intent.parsed.value.wait_ms != null) waiting(state.receipt.binding.intent.workload, intent.parsed.value.wait_ms.?) else null,
-    };
-    try result.validate();
-    return result;
+    return buildOperation(state, intent.parsed.value, terminal);
 }
