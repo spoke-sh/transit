@@ -22,7 +22,7 @@ const Selection = struct {
         var result: Selection = .{};
         const is_count = parser.word("COUNT");
         const is_sum = parser.word("SUM");
-        if (is_count or is_sum) {
+        if ((is_count or is_sum) and (try parser.lexer.peek()).tag == .left) {
             result.aggregate = if (parser.word("COUNT")) .count_values else .sum;
             parser.annotate(.function);
             try parser.advance();
@@ -231,7 +231,7 @@ pub fn syntax(parser: *Parser, hints: ?t.Type) !Syntax {
 /// It admits no aggregate or derived source and consumes no WHERE/LIMIT or
 /// workload clauses. The enclosing parser owns their order and semantics.
 pub fn rowHeader(parser: *Parser) !Syntax {
-    if (parser.word("COUNT") or parser.word("SUM")) return error.UnsupportedAggregate;
+    if ((parser.word("COUNT") or parser.word("SUM")) and (try parser.lexer.peek()).tag == .left) return error.UnsupportedAggregate;
     const selection = try Selection.rows(parser);
     const subject = try Reference.unqualified(parser, .source);
     const qualifier = if (try parser.takeWord("AS")) try parser.name() else subject.name;

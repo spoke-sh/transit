@@ -89,7 +89,7 @@ pub fn requiredDialect(text: []const u8, dialect: sql.Dialect) !bool {
                 if (next.tag == .word or next.tag == .quoted or next.tag == .left) return true;
             }
         }
-        if (selection and (std.ascii.eqlIgnoreCase(token.text, "COUNT") or std.ascii.eqlIgnoreCase(token.text, "SUM"))) aggregate = true;
+        if (selection and (std.ascii.eqlIgnoreCase(token.text, "COUNT") or std.ascii.eqlIgnoreCase(token.text, "SUM")) and (try lexer.peek()).tag == .left) aggregate = true;
     }
 }
 const ScalarExpression = struct { syntax: Scalar.Syntax, name: []const u8 };
@@ -418,7 +418,7 @@ pub fn parseWithContext(allocator: std.mem.Allocator, text: []const u8, location
 fn parseExpression(parser: *Parser) !Expression {
     const is_count = parser.word("COUNT");
     const is_sum = parser.word("SUM");
-    if (is_count or is_sum) {
+    if ((is_count or is_sum) and (try parser.lexer.peek()).tag == .left) {
         parser.annotate(.function);
         try parser.advance();
         try parser.require(.left);

@@ -275,6 +275,11 @@ pub const Lexer = struct {
     dialect: Dialect = .transit,
     parameter_ordinal: u32 = 0,
     start: usize = 0,
+    /// Look ahead without consuming a token or advancing parameter ordinals.
+    pub fn peek(self: Lexer) !Token {
+        var copy = self;
+        return copy.next();
+    }
     pub fn next(self: *Lexer) !Token {
         while (self.position < self.text.len) {
             self.start = self.position;
@@ -495,7 +500,7 @@ const Parser = struct {
     }
     fn selection(self: *Parser, result: *Selection) !void {
         const count = self.word("COUNT");
-        if (count or self.word("SUM")) {
+        if ((count or self.word("SUM")) and (try self.lexer.peek()).tag == .left) {
             self.annotate(.function);
             try self.advance();
             try self.require(.left);

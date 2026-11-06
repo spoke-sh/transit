@@ -56,7 +56,7 @@ const Boundary = struct {
         defer selection.deinit();
         if (request.connection.principal != selection.value.principal) return false;
         try directory.deleteFile(self.io, "drop-activation.json");
-        const response = try real.LocalEndpoint.call(self.endpoint, invocation.client, invocation.allocator, c.DirectTableProtocol.Response, invocation.path, request);
+        const response = try real.LocalEndpoint.call(self.endpoint, invocation.client, invocation.allocator, c.DirectTableProtocol.Response, invocation.path, request, invocation.deadline);
         const state = response.result.client_progress.state orelse return error.MissingAcceptedActivation;
         const evidence = try g.wire.protocol.Json.valueAlloc(self.allocator, .{ .key = request.action.client_progress.update.key, .state = state });
         defer self.allocator.free(evidence);

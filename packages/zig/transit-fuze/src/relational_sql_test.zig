@@ -9,6 +9,31 @@ const sources = [_]r.Source{
     .{ .alias = "r", .realm = 1, .resource = 202, .catalog = 9, .owner = 7, .schema = .{ .object = 22, .revision = 1, .next_column = 3, .columns = &columns } },
 };
 const budgets: r.Budgets = .{ .resident_bytes = 4096, .spill_bytes = 8192, .result_bytes = 16384, .output_rows = 1000, .work_steps = 10000, .source_pins = 2 };
+test "relational aggregate names remain identifiers outside function calls" {
+    var input = sources[0];
+    input.alias = "items";
+    for ([_][]const u8{
+        "SELECT value, COUNT(*) AS count FROM items GROUP BY value ORDER BY count ASC;",
+        "SELECT value, COUNT /* call */ (*) AS CoUnT FROM items GROUP BY value ORDER BY COUNT ASC;",
+        "SELECT value, COUNT(*) AS \"count\" FROM items GROUP BY value ORDER BY \"count\" ASC;",
+    }) |text| {
+        try t.expect(try sql.required(text));
+        var syntax = try sql.parse(t.allocator, text, null);
+        defer syntax.deinit();
+        const plan = try syntax.bind(&.{input}, .interactive, budgets, null);
+        try t.expectEqualStrings("count", plan.outputs[1].name);
+        try t.expect(plan.outputs[1].expression.eql(.count_all));
+        try t.expect(plan.order_by[0].expression.eql(.count_all));
+        try t.expectEqual(r.Direction.asc, plan.order_by[0].direction);
+    }
+    var syntax = try sql.parse(t.allocator, "SELECT value, SUM(key) AS sum, COUNT(key) AS count FROM items GROUP BY value HAVING count > 1 AND sum IS NOT NULL ORDER BY sum DESC, count ASC", null);
+    defer syntax.deinit();
+    const plan = try syntax.bind(&.{input}, .interactive, budgets, null);
+    try t.expect(plan.having.instructions[0].compare.expression.eql(.{ .count = .{ .source = 0, .id = 1 } }));
+    try t.expect(plan.order_by[0].expression.eql(.{ .sum = .{ .source = 0, .id = 1 } }));
+    try t.expect(plan.order_by[1].expression.eql(.{ .count = .{ .source = 0, .id = 1 } }));
+}
+
 test "MySQL relational dialect preserves the same bound plan with backtick identifiers" {
     const quoted = "SELECT `l`.`key`, COUNT(*) AS `rows`, COUNT(`r`.`value`) AS `values`, SUM(`r`.`value`) AS `total` FROM `lefts` `l` LEFT JOIN `rights` `r` ON `r`.`key` = `l`.`key` GROUP BY `l`.`key`";
     try t.expect(try sql.requiredDialect(quoted, .mysql));
@@ -57,6 +82,8 @@ test "relational parameters preserve typed templates through grouping ordering a
 }
 test "relational routing distinguishes clause words from existing names" {
     for ([_][]const u8{
+        "SELECT count, sum FROM items",
+        "SELECT value AS count, key AS sum FROM items",
         "SELECT join, group FROM items",
         "SELECT value FROM join",
         "SELECT value FROM group",

@@ -310,6 +310,28 @@
       }
     },
     {
+      "id": "relational-count-alias",
+      "sql": "SELECT value, COUNT(*) AS count FROM items GROUP BY value ORDER BY count ASC;",
+      "profile": "relational",
+      "grammar": "sql",
+      "root": "relationalQuery",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "relational-sum-alias",
+      "sql": "SELECT SUM(value) AS sum FROM items HAVING sum > 1 ORDER BY sum DESC;",
+      "profile": "relational",
+      "grammar": "sql",
+      "root": "relationalQuery",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
       "id": "relational-having-order-limit",
       "sql": "SELECT id, COUNT(*) AS n FROM items GROUP BY id HAVING COUNT(*) > 1 AND id IS NULL OR SUM(value) = 0 ORDER BY id ASC NULLS FIRST LIMIT 1",
       "profile": "relational",

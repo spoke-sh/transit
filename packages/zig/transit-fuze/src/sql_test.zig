@@ -3,6 +3,18 @@ const f = @import("root.zig");
 const sql = f.Sql;
 const m = f.model;
 const t = std.testing;
+test "finite SQL distinguishes aggregate calls from count and sum identifiers" {
+    const rows = try sql.parse("SELECT count, sum FROM items WHERE sum > 0");
+    try t.expectEqualStrings("count", rows.selection.rows[0].?.column.name.slice());
+    try t.expectEqualStrings("sum", rows.selection.rows[1].?.column.name.slice());
+    const count = try sql.parse("SELECT COUNT /* call */ (*) AS count FROM items");
+    try t.expect(count.selection == .count);
+    try t.expectEqualStrings("count", count.output_alias.?.slice());
+    const sum = try sql.parse("SELECT SUM(sum) AS sum FROM items");
+    try t.expectEqualStrings("sum", sum.selection.sum.name.slice());
+    try t.expectEqualStrings("sum", sum.output_alias.?.slice());
+}
+
 fn source(allocator: std.mem.Allocator, kind: f.Unified.Type) !f.Unified.Sql.Source {
     const columns = try allocator.dupe(f.Unified.Column, &.{
         .{ .name = try f.Unified.Name.init("id"), .type = .int64 },

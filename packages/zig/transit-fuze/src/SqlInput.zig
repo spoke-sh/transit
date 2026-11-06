@@ -242,6 +242,16 @@ fn expectRoles(text: []const u8, expected: []const ExpectedRole) !void {
 }
 
 test "relational highlighting follows joins aliases and grouped aggregate syntax" {
+    try expectRoles("SELECT value, COUNT(*) AS count FROM items GROUP BY value ORDER BY count ASC;", &.{
+        .{ "SELECT", .keyword }, .{ "value", .identifier }, .{ "COUNT", .function },   .{ "AS", .keyword },  .{ "count", .identifier },
+        .{ "FROM", .keyword },   .{ "items", .identifier }, .{ "GROUP", .keyword },    .{ "BY", .keyword },  .{ "value", .identifier },
+        .{ "ORDER", .keyword },  .{ "BY", .keyword },       .{ "count", .identifier }, .{ "ASC", .keyword },
+    });
+    try expectRoles("SELECT SUM(value) AS sum FROM items HAVING sum > 1 ORDER BY sum DESC;", &.{
+        .{ "SELECT", .keyword }, .{ "SUM", .function },     .{ "value", .identifier }, .{ "AS", .keyword },     .{ "sum", .identifier },
+        .{ "FROM", .keyword },   .{ "items", .identifier }, .{ "HAVING", .keyword },   .{ "sum", .identifier }, .{ "1", .number },
+        .{ "ORDER", .keyword },  .{ "BY", .keyword },       .{ "sum", .identifier },   .{ "DESC", .keyword },
+    });
     try expectRoles("EXPLAIN SELECT l.k, SUM(r.v) AS total FROM lefts l LEFT JOIN rights r ON l.k=r.k GROUP BY l.k;", &.{
         .{ "EXPLAIN", .keyword }, .{ "SELECT", .keyword }, .{ "l", .identifier }, .{ "k", .identifier }, .{ "SUM", .function }, .{ "r", .identifier }, .{ "v", .identifier }, .{ "AS", .keyword }, .{ "total", .identifier }, .{ "FROM", .keyword }, .{ "lefts", .identifier }, .{ "l", .identifier }, .{ "LEFT", .keyword }, .{ "JOIN", .keyword }, .{ "rights", .identifier }, .{ "r", .identifier }, .{ "ON", .keyword }, .{ "l", .identifier }, .{ "k", .identifier }, .{ "r", .identifier }, .{ "k", .identifier }, .{ "GROUP", .keyword }, .{ "BY", .keyword }, .{ "l", .identifier }, .{ "k", .identifier },
     });

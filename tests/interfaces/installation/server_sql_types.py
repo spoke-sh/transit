@@ -71,7 +71,7 @@ def run(cli, output):
     fixture.config['applications'] = {'port': fixture.reserve_port()}
     fixture.path.write_text(json.dumps(fixture.config))
     interfaces = ('console','postgres','mysql')
-    expected_cases = [f'{creator}.{stage}' for creator in interfaces for stage in ('empty','insert','update','delete','batch','scalars','restart')]+['negative','native-projection']
+    expected_cases = [f'{creator}.{stage}' for creator in interfaces for stage in ('empty','insert','update','delete','batch','scalars','restart')]+['negative','native-projection','aggregate-aliases']
     with open(fixture.cli,'rb') as binary:
         digest = hashlib.file_digest(binary,'sha256').hexdigest()
     report = dict(profile='sql-scalar-interfaces', source=provenance(ROOT), binary_sha256=digest,
@@ -128,6 +128,18 @@ def run(cli, output):
             clients.execute(creator,f'INSERT INTO scalars_{creator} VALUES ('+','.join(case.literal for case in CASES)+')')
             all_rows(f'SELECT * FROM scalars_{creator}',[case.kind for case in CASES],[tuple(case.value for case in CASES)])
             record(creator+'.scalars')
+        clients.execute('console','CREATE TABLE alias_items (value BIGINT)')
+        clients.execute('console','INSERT INTO alias_items VALUES (1), (1), (1), (2), (3), (3)')
+        for reader in interfaces:
+            # Preserve returned order: sorting in the test would hide a failure
+            # to resolve the aggregate alias in ORDER BY.
+            assert clients.execute(reader,
+                'SELECT value, COUNT(*) AS count FROM alias_items GROUP BY value ORDER BY count ASC',
+                ('int64','uint64')) == [(2,1),(3,2),(1,3)], reader
+            assert clients.execute(reader,
+                'SELECT value, SUM(value) AS sum FROM alias_items GROUP BY value HAVING sum > 2 ORDER BY sum DESC',
+                ('int64','int64')) == [(3,6),(1,3)], reader
+        record('aggregate-aliases')
         for protocol in ('postgres','mysql'):
             before = len(clients.operations())
             clients.execute(protocol,f'CREATE TABLE refused_{protocol} (bad INT128)',reject='bad')
