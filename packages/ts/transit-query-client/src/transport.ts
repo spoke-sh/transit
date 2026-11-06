@@ -66,17 +66,21 @@ export function httpTransport(endpoint: string, timeoutMs = 6000): Transport {
           if (!reader) throw new QueryError(0, "InvalidResponse");
           let length = 0;
           const bytes = new Uint8Array(1048576);
+          let done = false;
           try {
             while (true) {
               const chunk = await reader.read();
-              if (chunk.done) break;
+              if (chunk.done) {
+                done = true;
+                break;
+              }
               if (chunk.value.length > bytes.length - length)
                 throw new QueryError(0, "ResponseTooLarge");
               bytes.set(chunk.value, length);
               length += chunk.value.length;
             }
           } finally {
-            await reader.cancel();
+            if (!done) await reader.cancel();
           }
           let value: unknown;
           try {

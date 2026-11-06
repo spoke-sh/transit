@@ -315,13 +315,17 @@ export class Transport {
     if (!reader) invalid();
     const bytes = new Uint8Array(16384);
     let length = 0;
+    let done = false;
     try {
       while (true) {
         const part = await reader.read().catch((error: unknown) => {
           if (signal?.aborted) throw error;
           throw new ReactiveError(503, "unavailable");
         });
-        if (part.done) break;
+        if (part.done) {
+          done = true;
+          break;
+        }
         if (length + part.value.length > bytes.length)
           throw new ReactiveError(0, "response_too_large");
         bytes.set(part.value, length);
@@ -335,7 +339,7 @@ export class Transport {
         return invalid();
       }
     } finally {
-      await reader.cancel().catch(() => {});
+      if (!done) await reader.cancel().catch(() => {});
       reader.releaseLock();
     }
   }
