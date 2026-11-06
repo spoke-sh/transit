@@ -2202,9 +2202,12 @@ gates still require their specified executed proofs.
 Audit basis: `fe420d98bab493e7037adf1654c96a7055fc1280`. The
 [neutral source contract](../../contracts/SOURCE_V1.md), reflected schema,
 independent fixtures and typed `SourceSql` parser establish the initial contract
-and syntax foundation. Installed execution remains unchanged. Durable catalog
-publication, owned capture storage/read guards, connector handoff, scheduling and
-the installed SQL lifecycle below remain implementation targets. This foundation
+and syntax foundation, merged in [PR #400](https://github.com/spoke-sh/transit/pull/400).
+The [next SOURCE slice](#next-source-slice-durable-declarations-and-inspection--2026-11-06)
+details recoverable declaration publication and inspection. Installed execution
+remains unchanged. Durable catalog publication, owned capture storage/read guards,
+connector handoff, scheduling and the installed SQL lifecycle below remain
+implementation targets. This foundation
 does not complete S0–S6, R8, the earthquake tracker or the dataflow milestone.
 
 ### Outcome and language decision
@@ -2305,7 +2308,7 @@ with a matching schema cannot masquerade as verified connector observations.
 
 | Boundary | Reuse and exact missing work |
 | --- | --- |
-| Grammar and typed SQL | [Current SOURCE](../handbook/reference/sql/create-source.md) and [reference grammar](../../contracts/sql/TransitExtensions.g4) accept illustrative connector declarations only. Add typed source options, the mandatory destination and lifecycle roots; production lowering must agree with the reference. |
+| Grammar and typed SQL | [Current SOURCE](../handbook/reference/sql/create-source.md), [reference grammar](../../contracts/sql/TransitExtensions.g4) and `SourceSql` now cover the mandatory destination, typed HTTP options and SOURCE lifecycle roots. Installed lowering, catalog resolution and execution remain absent. |
 | Identity, definitions and dependencies | [Catalog](../../packages/zig/transit-catalog/README.md) and [data lifecycle](../../contracts/DATA_LIFECYCLE_V1.md) own stable identities, exact definitions and current rights. Extend their object/dependent variants and persisted operations; do not store a second name registry in a poller. |
 | Control and scheduling | Reuse [managed lifecycle obligations](../../contracts/DATAFLOW_V1.md), direct KV/progress/token ownership and the paged discovery/wakeup patterns in [DatabaseRuntime](../../packages/zig/transit-sql/src/DatabaseRuntime.zig). Source has its own typed state and poll records, not a fake finite Table query. |
 | Atomic decisions | [M6 R5](06-streams-queues-and-durable-runtime.md#r5-extend-the-transaction-owner-and-deliver-direct-kv) and the [direct transaction owner](../../contracts/DIRECT_TABLE_V1.md#signed-transaction-action) must compose source KV, intent/completion Queue work and Stream appends with exact retry. A sequence of standalone SQL writes is not a substitute. |
@@ -2323,9 +2326,10 @@ activation. Do not ship an unqualified Station bridge to bypass those gates.
 
 Add neutral source/connection/capture types under `transit-protocol`; exact
 format specifications and generated resources follow the owning public types.
-A dedicated `SOURCE_V1` contract is proposed for these semantics. Its definition
-identity follows the repository's current-v1 policy; it is not a parallel legacy
-profile or a replacement for the HTTP, Stream or transaction contracts.
+A dedicated [SOURCE_V1](../../contracts/SOURCE_V1.md) contract now records these
+semantics. Its definition identity follows the repository's current-v1 policy;
+it is not a parallel legacy profile or a replacement for the HTTP, Stream or
+transaction contracts.
 
 Persist four distinct records:
 
@@ -2482,20 +2486,21 @@ successor; this source plan supplies the attributable input and no hidden
 
 ### Implementation sequence and reviewable increments
 
-Proposed new modules are `transit-protocol/Source.zig` for neutral declarations
-and evidence, `transit-catalog/ManagedSource.zig` for the durable lifecycle,
-`transit-sql/SourceSql.zig` for typed statements and
-`transit-sql-service/SourceOperations.zig` for original SQL admission/settlement.
-Each lives in its package's existing `src/` directory. Expose source handles and
+`transit-protocol/Source.zig` and `transit-sql/SourceSql.zig` now provide neutral
+declarations/evidence and typed statements. The next slice proposes
+`transit-catalog/DirectSource.zig` for catalog requests and observations and
+`transit-sql-service/SourceOperations.zig` for original SQL admission/settlement;
+`transit-catalog/ManagedSource.zig` remains a later scheduling/lifecycle target.
+Each belongs in its package's existing `src/` directory. Expose source handles and
 the bounded capture reader through `transit-data-client`; extend the existing
 `DatabaseRuntime` composition for scheduling. Connector I/O remains in its effect
-host. These names are implementation targets, not existing modules or a proposal
-for another standalone server.
+host. The remaining module names are implementation targets, not existing modules
+or a proposal for another standalone server.
 
 | Increment | Implementation owners and scope | Required exit evidence |
 | --- | --- | --- |
 | S0 — Contract and cutover | `transit-protocol`, source/HTTP/Stream/direct-transaction contracts, neutral fixtures and capability ledger. Freeze identities, output envelope, schedule/unknown/lifecycle rules, authority, retention graph and M6/M16 handoff obligations above. | Independent transition/encoding fixtures, foreign/missing-definition rejection, explicit proof obligations and consumer inventory. No runtime exposure. |
-| S1 — Typed declarations and Catalog lifecycle | `transit-catalog`: CONNECTION/SOURCE variants, exact dependency registration, original-token operations, immutable control/poll records and paged inspection. `transit-sql`/Fuze: source AST and typed lowering with destination resolution. | CREATE/EXPLAIN/inspect/recover through typed callers; duplicate names/tokens, unknown options, wrong schema, denied rights, DROP conflicts and crash during publication. EXPLAIN and CREATE open zero sockets. Activation reports unsupported until S2–S4 qualify. |
+| S1 — Typed declarations and Catalog lifecycle | The [next SOURCE slice](#next-source-slice-durable-declarations-and-inspection--2026-11-06): CONNECTION/SOURCE variants, atomic dependencies, original-token publication, declaration/control records, paged inspection and narrow native SQL lowering. Poll records remain with S3/S4. | CREATE/EXPLAIN/inspect/recover through typed callers; duplicate names/tokens, wrong schema, denied rights, DROP conflicts and crash during publication. These operations issue no connector requests. Activation reports unsupported until S2–S4 qualify. |
 | S2 — Owned capture storage and reader | Catalog/storage/data-client with M16: paged raw-body manifest, transaction-owned candidate attachment, Stream read guards, graph traversal and explicit original capture handoff. | 4 MiB and empty bodies, corrupt/missing/reordered chunks, restart at staging/commit/hold release, revoked buffered reads, retention/GC and growth beyond cache. No orphan accepted output or raw-read bypass. |
 | S3 — Fenced connector consumer | HTTP/effect host and M6 Queue owner: configured route/TLS/secret binding, original attempt, one bounded GET, terminal evidence and completion handoff. Keep I/O outside database/query packages. | Independent HTTP/TLS peers; kill before/after send and final seal; duplicate claims, expired leases, revoked policy/secret, timeout, non-2xx, unsupported compression and unknown closure. Replay sends nothing. |
 | S4 — Durable source scheduler and atomic output | Catalog/source owner plus cohosted `DatabaseRuntime`: paged discovery, fixed-delay timers, one pending poll, common KV/Queue schedule and KV/Stream/completion publication, suspend/resume/retire fencing. | Full lost-reply/crash matrix, original offset recovery, no duplicate append, no overlapping request, no catch-up burst, bounded idle/recovery work and settlement under pressure. Enable typed activation only after S2/S3 gates. |
@@ -2543,3 +2548,269 @@ and diff whitespace check. Before opening or updating a PR, also run all three
 Keep capability labels and current public behavior unchanged until execution is
 proved. The source slice completes when S0–S6 establish the installed journey and
 all gates above; general R8 and #398 remain open for their other workloads.
+
+## Next SOURCE slice: durable declarations and inspection — 2026-11-06
+
+**Status: Planned.** Start from `origin/main` at
+`39a1ef64059576a041025be64a60c8b051ba5385`, after
+[PR #400](https://github.com/spoke-sh/transit/pull/400) and
+[PR #401](https://github.com/spoke-sh/transit/pull/401). This slice delivers S1 and
+the declaration/metadata portion of S5 above. It advances **G2 — Governed capture**
+in [issue #398](https://github.com/spoke-sh/transit/issues/398); it does not close
+G2 or the earthquake workload. G1's constant projections and column comparisons
+remain an adjacent SQL task, followed by capture-to-JSON/current-Table replacement.
+Qualified wildcard projection does not establish those expression capabilities.
+
+### Deliverable and boundary
+
+An application can publish an HTTP CONNECTION and a SOURCE bound to an existing
+Stream, inspect their exact definitions and dependencies, recover the original
+publication after a lost response or process restart, retire the source, and
+drop declarations under dependency checks. The installed native SQL/console and
+typed Catalog caller must use the same operation owner. Metadata publication is
+the delivered behavior; no poll, effect intent, capture body or Stream row is
+created by this slice.
+
+Keep the existing branch-one, same-catalog HTTP GET profile and seven-column
+capture envelope in [SOURCE_V1](../../contracts/SOURCE_V1.md). CONNECTION/SOURCE
+names occupy the existing schema namespace alongside other catalog objects.
+Creation neither creates a Stream nor changes its schema, retention or grants.
+SOURCE is not a SELECT relation. Generic SINKs, credentials/secret interpolation,
+ALTER/rename/replacement, historical branch publication, schedulers and connector
+network execution remain outside this slice.
+
+Install only these operations after their shared owner is proved:
+
+| Surface | Delivered behavior |
+| --- | --- |
+| CREATE CONNECTION / CREATE SOURCE | Recoverable declaration publication; SOURCE starts in `published`, epoch one. |
+| EXPLAIN CREATE SOURCE | Resolve current definitions, validate schema/options and show the explicit executor and proposed dependencies; allocate no identity, reservation, native permission object or staged artifact. |
+| SHOW CONNECTIONS / SHOW CONNECTION name / DESCRIBE CONNECTION name | Bounded current-policy metadata. Add missing singular/describe forms to both reference and typed grammar. |
+| SHOW SOURCES / SHOW SOURCE name / DESCRIBE SOURCE name | Declaration, state, exact dependency identities, executor and execution capability; no payload reads. |
+| RETIRE SOURCE | Conditional, original-token `published → retired` transition; preserve the immutable definition and increment the control epoch. |
+| DROP SOURCE / DROP CONNECTION | RESTRICT semantics. SOURCE must be retired and have no outstanding original work; CONNECTION must have no dependents. Add explicit `RESTRICT` spelling alongside bare DROP; exclude CASCADE. |
+
+AUTHORIZE, ACTIVATE, SUSPEND and RESUME remain typed-parser forms that installed
+execution rejects before admission or control mutation. Enforce this at the
+typed Catalog boundary as well as SQL, so a caller cannot bypass the gate.
+Do not report `authorized`, fabricate an unavailable-executor diagnosis, or
+schedule a first poll merely because a declaration was accepted. Report
+`execution_supported = false`, `never_run`, and absent poll/publication positions.
+These capability fields are proposed metadata, distinct from `Source.Blocked`.
+
+### Source basis and implementation owners
+
+| Existing owner at the planning revision | Reuse and required extension |
+| --- | --- |
+| [Source](../../packages/zig/transit-protocol/src/Source.zig), [SourceSql](../../packages/zig/transit-sql/src/SourceSql.zig), [SourceBinding](../../packages/zig/transit-catalog/src/SourceBinding.zig) | Reuse HTTP validation, control transitions and stable column binding. They currently perform no catalog lookup, authorization or persistence. Do not reimplement these rules in service adapters. |
+| [DirectCatalogRecords](../../packages/zig/transit-catalog/src/DirectCatalogRecords.zig), [DirectCatalogStore](../../packages/zig/transit-catalog/src/DirectCatalogStore.zig), [DirectCatalog](../../packages/zig/transit-catalog/src/DirectCatalog.zig) | Extend object entries, control records, recovery and existing name/operation/pending directories. Add one paged destination-writer index rooted in the same Catalog. No independent source-name registry or Station state resource. |
+| [DirectDefinition](../../packages/zig/transit-catalog/src/DirectDefinition.zig) and `recordDescriptor` | Reuse the pattern of one control-log publication for object/name/dependency updates. Its current artifacts require a relational output schema and Table sources; do not encode a CONNECTION as a fake view or empty Table. Add a dedicated connector declaration variant. |
+| [DirectDependency](../../packages/zig/transit-catalog/src/DirectDependency.zig) | Add SOURCE dependent identity and CONNECTION source resolution. Extend `dependentDefinition`, `dependentRequirements`, `dependencySource` and DROP checks; merely adding an enum tag cannot register these dependencies today. |
+| [TableAuthority](../../packages/zig/transit-catalog/src/TableAuthority.zig), [LogAuthority](../../packages/zig/transit-catalog/src/LogAuthority.zig) | Reuse native CONNECT, USAGE, CREATE, ownership and current-policy fences. Add explicit CONNECTION/SOURCE kind bindings and registered domains, with connector-specific logical actions. |
+| [DirectClientToken](../../packages/zig/transit-catalog/src/DirectClientToken.zig), [OperationBinding](../../packages/zig/transit-catalog/src/OperationBinding.zig), [DirectStorageGraph](../../packages/zig/transit-catalog/src/DirectStorageGraph.zig) | Bind original work before creating retained bytes; retain pending/accepted definitions and receipts through recovery and collection. Extend walkers and all exhaustive object-kind consumers. |
+| [ManagedOperations](../../packages/zig/transit-sql-service/src/ManagedOperations.zig), [SessionOperations](../../packages/zig/transit-sql/src/SessionOperations.zig), [DatabaseAccount](../../packages/zig/transit-sql/src/DatabaseAccount.zig) | Follow saved typed request and original-token settlement patterns, with a dedicated SOURCE request/action and explicit executor binding. Do not represent a source as a finite managed Table computation. |
+
+Proposed `DirectSource` request/observation types and Catalog implementation own
+publication. `SourceOperations` only adapts SQL admission and completion to that
+owner. Put shared typed handles in `transit-data-client` and the existing Catalog
+host boundary; protocol/framework semantics stay in Zig. `ManagedSource`
+scheduling is not needed to complete this slice.
+
+### Contracts to freeze before persistence
+
+Extend SOURCE_V1 and the [direct catalog contract](../../contracts/DIRECT_TABLE_V1.md)
+with canonical declaration artifacts, saved requests, publication receipts,
+inspection pages, retirement and DROP. Define a non-self-referential digest:
+hash the canonical immutable definition payload including object/revision and
+dependencies, excluding its own digest field; construct and verify the full
+`DataLifecycle.Definition` from that result. Keep definition identity, catalog
+position, operation identity and control epoch distinct.
+
+Store the original name/namespace, native authorization binding, owner, exact
+connection and destination definitions, executor, typed HTTP options and seven
+ColumnIds. Control changes reference that immutable definition instead of
+recomputing its identity. Preserve original receipts and tombstones after DROP
+and name reuse. A retry with the same token and different content must fail;
+another token for an occupied name is a conflict, not an identical-create success.
+
+Use separately owned bounded artifacts, with a proposed 64 KiB encoded ceiling
+and an independent maximum-value encoding proof. Preserve the current 16 KiB
+Catalog WAL record bound by storing content references and bounded metadata,
+not repeated origin/path strings. Charge staging and index overhead before work;
+do not increase existing row, mailbox or WAL limits. Per-operation bounds may be
+fixed; durable declaration/receipt cardinality must use paged indexes and quotas.
+
+Changing persisted Catalog roots/entries and authorization configuration requires
+a coordinated **current-v1 hard cutover**. Replace the shared definition ID;
+regenerate schemas, signed fixtures, ABI/host resources and affected consumers
+together. Inventory every exhaustive decoder, registration/configuration path,
+launcher, catalog walker, collector and metadata adapter before wiring execution.
+Reject foreign or missing definitions and old stored roots before use; no default
+new fields, fallback decoder, old-request reinterpretation or silent reset.
+
+### Authority and executor binding
+
+Use the existing native authorization graph, with separately registered
+CONNECTION and SOURCE domains and mandatory, distinct domain IDs in the Catalog
+profile. Map metadata to `inspect`, CONNECTION binding to `use`, and declaration
+administration to ownership; CREATE additionally requires schema CREATE.
+Per-object registration follows the original request and existing registrar.
+Native registration alone never publishes the declaration. Migrate provisioners,
+configuration fixtures and generic grant callers in the same cutover.
+
+SOURCE publication requires the publisher's current CONNECTION `use` and Stream
+`inspect`/`append` rights, plus namespace and ownership-selection checks. Neither
+edge confers those rights on the executor. Recheck exact dependencies and the
+combined current authorization fence at the acceptance boundary; revocation after
+preparation prevents publication. Inspecting a receipt after acceptance also
+requires current disclosure rights, even if its final response was lost.
+
+The typed request requires an explicit executor identity. For native SQL, add an
+explicit per-database SOURCE executor binding to the existing account/host
+configuration, including its digest and saved-request validation. An omitted
+binding rejects CREATE SOURCE before admission; never substitute the submitting
+caller, account's Table principal or administrator. Validate that the identity is
+valid and admitted by that configuration. Publication grants it no role membership,
+Stream privileges, credentials or dispatch authority. Route/TLS configuration and
+current executor/connector authorization remain activation prerequisites for S3/S4.
+
+Independent readers can inspect published source metadata through their own
+grants; they do not acquire the publisher's private token-recovery rights.
+Source metadata may expose its bound reference identities, but resolving related
+names/configuration checks those objects' rights. Endpoint details require
+CONNECTION inspection; no renderer performs a raw-record bypass or resolves secrets.
+
+### Original publication, dependencies and cleanup
+
+Use one recoverable sequence, driven by public typed operations:
+
+1. **Prepare/preview:** parse and resolve the current namespace, connection and
+   Stream; load its exact schema/policy and call `SourceBinding`. Return owned
+   metadata and refusal reasons. Perform no publication or connector I/O.
+2. **Reserve original work:** bind the caller token, fingerprint, immutable
+   resolved request and object identity. Atomically reserve the name, staging
+   ownership and destination-writer slot under the Catalog's pending operation.
+   Retries return this reservation; they do not resolve replacement names or
+   allocate another object. A frozen reservation is not a visible declaration.
+3. **Stage and register:** create only bytes owned by that reservation; verify
+   canonical content and complete original native permission registration.
+   Record bounded progress. Missing/corrupt bytes cannot be normalized into an
+   accepted declaration. A crash or uncertain registration keeps the original
+   discoverable and resumable, without conferring activation authority.
+4. **Publish:** recheck dependencies, schema, exact expectations and current
+   policy; accept one Catalog decision containing the visible declaration,
+   initial control, both forward/reverse dependency edges, writer ownership and
+   original operation outcome. No interval exposes a source without its edges.
+5. **Observe or close:** a lost acceptance response resolves the original receipt.
+   Rejection/cancellation closes only unaccepted work and releases its private
+   reservations through an authoritative decision. Collection follows recorded
+   ownership and terminal disposition; timeout or quota pressure cannot delete
+   unresolved work. Reserve enough control budget for observation and closure.
+
+The two source edges bind SOURCE to CONNECTION and destination STREAM. The
+writer index is keyed by the destination's **stable object**, with the exact
+definition recorded in its value: changing a definition cannot evade exclusivity.
+Competing reservations must have one winner without scanning all sources.
+This is exclusivity among registered SOURCE writers, not a new restriction on
+ordinary Stream producers; ordinary append grants remain the policy mechanism.
+
+DROP CONNECTION and DROP STREAM must reject while the source's edges remain.
+Preserve existing permitted Stream ALTER/RENAME behavior: a changed dependency
+invalidates an unpublished frozen request, while a published source retains its
+original definition and reports `definition_changed` on inspection. It never
+silently follows the new name/definition. Destination maintenance that changes no
+definition does not invalidate the binding.
+
+RETIRE SOURCE leaves its name, dependency edges and writer slot retained. DROP
+requires retirement, no dependents and authoritative absence of pending work;
+it removes live visibility, edges and writer reservation in one decision while
+retaining the original definition/control/receipt graph. Only then can a new
+source claim that Stream. S1 admits no polls, but the DROP precondition must be
+explicit so later attempted work cannot accidentally pass an empty implementation.
+Neither operation drops or expires the destination Stream.
+
+### Installed callers and inspection
+
+Install the bounded native cohosted SQL/console profile through `SourceSql`,
+the service's shared command routing, `SourceOperations` and the Catalog owner.
+Reject these mutations inside explicit transactions in this slice. Add explicit
+capability rejection to PostgreSQL/MySQL, Flight and standalone/inspection
+profiles until their own journeys execute; parser acceptance cannot enable them
+incidentally through shared routing. Board continues to use read-only operations.
+
+Use [SQL_RESULTS_V1](../../contracts/SQL_RESULTS_V1.md) and the existing shared
+SQL client for command completion and SHOW/DESCRIBE/EXPLAIN results. Commands
+report authoritative applied/rejected/cancelled outcomes and original identity;
+do not invent affected data-row counts for declaration changes. Admission is not
+completion, stopping a wait is not rollback, and a disconnected console cannot
+erase accepted publication. Recovery executes the saved typed request, not SQL
+text reparsed against new names or settings.
+
+Listings scan at most 32 Catalog entries and emit at most four owned summaries
+per page; exact lookups may return the bounded full artifact. Bind continuation
+to principal/role, namespace, kind/selector and last **scanned** object. Support
+empty nonterminal pages under filtering. Check current rights after buffering and
+before repeated, empty or terminal disclosure. Report live catalog observation
+positions and metadata provenance; these pages are not an atomic data snapshot
+or a promise of complete coverage of concurrent inserts before the cursor.
+Preserve output memory independently from reusable scratch.
+
+### Commit sequence and exit evidence
+
+Each implementation commit includes its owning positive/negative controls.
+The final proof combines the owners rather than postponing testing until SQL.
+
+| Commit | Change | Required evidence |
+| --- | --- | --- |
+| C1 — Contract, identities and authority | Freeze declaration/control/request formats, dependency/action kinds, domains, executor binding and current-v1 cutover inventory. Regenerate affected resources. | Independent maximum/empty/foreign-definition fixtures; domain/kind separation and no implicit executor. Existing catalog consumers migrate together. |
+| C2 — Durable CONNECTION | Catalog entry, original reservation, bounded staging, registration, publication, inspect and restricted DROP. Extend recovery/storage graph. | Lost replies at reservation/registration/publication; current-policy denial; no visible partial definition; original receipt after restart/name reuse. |
+| C3 — Bound SOURCE | Resolve Stream schema through `SourceBinding`, freeze exact identities, atomically publish edges/control/writer slot; implement retirement and DROP. | Wrong types/kind/scope, reordered valid columns, concurrent writers, altered dependencies, revocation and every publication/closure fault boundary. |
+| C4 — Shared caller and metadata | Typed data-client/Catalog host requests, saved original handles, independent read access and bounded pages. | Full-width IDs, owned lifetimes, sparse/empty/terminal pages, changed cursor selection, revocation after buffering and original-token recovery. |
+| C5 — Native SQL composition | Install the declared subset, explicit configured executor, shared completion/results and unsupported-profile controls. Update grammar/diagnostics together. | Native console journey, no reparsing on restart, session closure, typed/native parity, forbidden controls/transactions/adapters, no external requests. |
+| C6 — Combined qualification and publication | Disk-backed installed fixture, fault/growth controls, public capability descriptions and qualification evidence at one revision. Link results to #398. | Complete lifecycle and exact counts/identities under restart, denied rights, pressure and collection; no claim that HTTP capture is implemented. |
+
+Acceptance journey: create the seven-column Stream from the parent plan;
+configure a distinct executor without dispatch credentials; CREATE CONNECTION;
+EXPLAIN and CREATE SOURCE; inspect through a separate authorized reader; restart
+and recover the same operation, object, definitions and epoch. Verify that DROP
+CONNECTION/STREAM is refused, a second SOURCE cannot reserve the Stream, and all
+execution controls reject with no control or Stream change. RETIRE and DROP the
+source, then DROP the connection; the Stream still exists and has zero new rows.
+Create a new declaration using the old name and verify old receipts still resolve
+the original identity. A denied reader observes no protected metadata.
+
+Run this journey against a controlled HTTP peer and record **zero connector
+requests** during compile, preview, publication, inspection, retirement, DROP and
+replay. Catalog/SQL transport calls are not connector requests. With more
+declarations/receipts than the configured resident cache, verify bounded scan,
+staging and recovery work, current-policy filtering, quotas and usable closure
+under exhausted admission capacity. Inject storage errors and process death
+before/after each owned stage, native registration and Catalog acceptance;
+assert the exact original result, dependency graph, writer slot and retained
+roots, not merely a final object count.
+
+### Validation, handoff and completion
+
+For the implementation, run repository fast and handbook gates, contract/schema
+generation checks, affected protocol/Catalog/SQL/service/data-client package
+checks, grammar/diagnostic checks and registered native caller/recovery proofs.
+SQL service/startup integration additionally requires `console-latency-gate`
+in the pinned `ci-experience` shell and `server-sql-types`. Run committed-HEAD
+clean `core` and affected caller/SDK lanes selected from the
+[runner inventory](../../tests/runner/README.md); public host/ABI cutovers include
+dependent binding consumers. Preserve explicit adapter rejection tests without
+claiming those adapters now execute SOURCE. Record commands, revision, budgets,
+raw evidence and terminal results in the qualification owner.
+
+This planning change runs the documentation source-link/fence and whitespace
+checks plus all repository pre-PR baselines. It executes no SOURCE lifecycle
+proof and changes no current capability claim. Keep M12 `In Progress`, this
+slice `Planned` until implementation starts, and #398 open.
+
+After C1–C6, S2 implements owned paged captures and Stream-scoped disclosure;
+S3 implements the fenced original HTTP attempt and retained handoff. S4 joins
+those owners through the mixed transaction boundary before activation is exposed.
+G3 can then select and validate a complete GeoJSON capture for atomic current-Table
+replacement; G4–G7 retain their own composition, reviewed-policy, delivery and
+installed-workload gates. No closure of those gaps follows from declaration
+publication alone.
