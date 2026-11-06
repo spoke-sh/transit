@@ -545,8 +545,8 @@ pub fn freshOn(self: *Self, source: ObservationSource, comptime function: anytyp
             // Recovery and native admission may need more than 64 short polls.
             // Bound those waits by both configured time budgets; retain the
             // conflict-attempt limit for repeatedly changing metadata.
-            if ((!stale and !unavailable) or (unavailable and started.durationTo(std.Io.Clock.awake.now(self.io)).toMilliseconds() >= self.config.request_timeout_ms) or (!unavailable and attempts == 64)) return err;
-            if (!unavailable) attempts += 1;
+            if ((!stale and !unavailable) or (unavailable and attempts > 0 and started.durationTo(std.Io.Clock.awake.now(self.io)).toMilliseconds() >= self.config.request_timeout_ms) or (!unavailable and attempts == 64)) return err;
+            attempts +|= 1;
             try self.io.sleep(.fromMilliseconds(if (unavailable) 20 else 1), .awake);
             continue;
         };
@@ -713,6 +713,7 @@ pub fn validate(self: *Self, prepared: *Prepared) !void {
             // not the data frontier observed at preparation. A later execution
             // must observe that frontier before selecting a cached read pin.
             if (statement.plan == .select) statement.plan.select.metadata = null;
+            if (statement.plan == .dml and statement.kind() != .insert) statement.plan.dml.metadata.position.next_lsn = 0;
         },
         .source => |*statement| try self.fresh(g.SourceSession.validate, .{ self.source orelse return error.UnknownSqlSource, statement }),
         .managed => |*managed| try g.ManagedOperations.validate(self, managed),
@@ -839,7 +840,7 @@ fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values
                     statement.plan.select.metadata = null;
                     break :blk value;
                 } else null;
-                read.pins[i] = try self.runtime.read_pins.?.acquireCurrentWithMetadata(self.table, binding, known_metadata);
+                read.pins[i] = try self.fresh(g.database.ReadCache.acquireCurrentWithMetadata, .{ &self.runtime.read_pins.?, self.table, binding, known_metadata });
                 snapshots[i] = try read.pins[i].?.snapshot();
             }
             if (statement.plan == .relational) {
@@ -848,7 +849,7 @@ fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values
                 var path: [64]u8 = undefined;
                 const name = try std.fmt.bufPrint(&path, "sql-{x}", .{nonce});
                 read.value = .{ .relational = try statement.openRelational(self.allocator, self.io, self.directory, name, &self.table, values, snapshots[0..count], self.readOptions(), self.cancellation) };
-            } else read.value = .{ .single = try statement.openSelectValidated(self.allocator, &self.table, values, snapshots[0], .{ .requests = 10000, .rows = 10000, .result_bytes = 16 * 1024 * 1024 }, self.cancellation, true) };
+            } else read.value = .{ .single = try self.fresh(g.Statement.openSelectValidated, .{ statement, self.allocator, &self.table, values, snapshots[0], .{ .requests = 10000, .rows = 10000, .result_bytes = 16 * 1024 * 1024 }, self.cancellation, true }) };
         },
     }
     return read;

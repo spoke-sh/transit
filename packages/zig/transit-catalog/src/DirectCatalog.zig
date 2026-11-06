@@ -39,12 +39,22 @@ pub const Options = struct {
     /// Optional same-storage-owner hint, serialized by the embedding host.
     /// No request allocations, permission or retained read are cached here.
     table_recovery: ?*?P.RecoveryState = null,
+    /// Optional disposable prefix array indexed by `object % len`, used when
+    /// the caller holds exclusive directory access across all Table stripes.
+    table_recoveries: ?[]?P.RecoveryState = null,
     /// Optional bounded live-owner slot. The host serializes borrowing, binds
     /// its provider/allocator lifetime and destroys it before storage replacement.
     table_owner: ?*?CachedTable = null,
+    /// Optional additional live-owner slots within the same serialized workspace.
+    table_owners: ?[]?CachedTable = null,
 };
 
-pub const CachedTable = struct { seed: s.TableDeclaration.Stored, table: P };
+pub const CachedTable = struct {
+    seed: s.TableDeclaration.Stored,
+    namespace: u64 = 0,
+    name: ?a.Name = null,
+    table: P,
+};
 
 /// The service implements these callbacks using the existing native authority.
 /// make_guard returns an independently owned context in the supplied request
@@ -76,7 +86,7 @@ pub const View = struct {
         if (self.owner_slot) |slot| {
             if (self.table.recoveryState()) |_| {
                 if (slot.*) |*previous| previous.table.deinit();
-                slot.* = .{ .seed = self.seed.?, .table = self.table };
+                slot.* = .{ .seed = self.seed.?, .namespace = self.properties.namespace, .name = self.properties.name, .table = self.table };
             } else |_| self.table.deinit();
         } else self.table.deinit();
         self.* = undefined;
@@ -4144,30 +4154,64 @@ fn openTransaction(self: *Self, allocator: std.mem.Allocator, target: r.Entry, c
     if (target.resource != null or target.log != null) return error.CatalogKindMismatch;
     const resident = if (transaction_control or self.transaction_read != null) null else self.options.table_owner;
     const original_seed = target.seed orelse return error.CatalogRegistrationRequired;
-    if (resident) |slot| if (slot.*) |cached| {
-        slot.* = null;
-        var table = cached.table;
-        if (table.root.partition == target.partition and std.meta.eql(cached.seed, original_seed)) {
+    const recovery_slot: ?*?P.RecoveryState = if (self.options.table_recovery) |slot|
+        slot
+    else if (self.options.table_recoveries) |slots|
+        &slots[@intCast(target.object % slots.len)]
+    else
+        null;
+    const prior = if (recovery_slot) |value| value.* else null;
+    var target_slot: ?*?CachedTable = resident;
+    if (resident) |primary_slot| {
+        const match_slot: ?*?CachedTable = blk: {
+            if (primary_slot.*) |cached| {
+                if (cached.table.root.partition == target.partition and std.meta.eql(cached.seed, original_seed))
+                    break :blk primary_slot;
+            }
+            if (self.options.table_owners) |extra| {
+                for (extra) |*slot| if (slot.*) |cached| {
+                    if (cached.table.root.partition == target.partition and std.meta.eql(cached.seed, original_seed))
+                        break :blk slot;
+                };
+            }
+            break :blk null;
+        };
+        if (match_slot) |slot| {
+            const cached = slot.*.?;
+            slot.* = null;
+            if (recovery_slot) |value| value.* = null;
+            var table = cached.table;
             errdefer table.deinit();
             table.log = if (control) self.store.log else self.data_log;
             table.objects = if (control) self.store.objects else self.data_objects;
             table.index.store = table.objects;
-            try table.refresh();
+            try table.refreshSince(prior);
             const properties = try Properties.decode(allocator, table.declaration.definition.properties);
-            return .{ .table = table, .properties = properties, .recovery_state = self.options.table_recovery, .owner_slot = slot, .seed = original_seed };
+            return .{ .table = table, .properties = properties, .recovery_state = recovery_slot, .owner_slot = slot, .seed = original_seed };
         }
-        table.deinit();
-    };
-    const slot = self.options.table_recovery;
-    const prior = if (slot) |value| value.* else null;
-    if (slot) |value| value.* = null;
+        if (primary_slot.* != null) {
+            if (self.options.table_owners) |extra| {
+                for (extra) |*slot| {
+                    if (slot.* == null) {
+                        target_slot = slot;
+                        break;
+                    }
+                }
+            }
+        }
+        if (target_slot) |slot| if (slot.*) |*evicted| {
+            evicted.table.deinit();
+            slot.* = null;
+        };
+    }
+    if (recovery_slot) |value| value.* = null;
     var seed = try s.TableDeclaration.load(allocator, self.data_objects, target.seed orelse return error.CatalogRegistrationRequired);
     defer seed.deinit();
     var options = self.options.table;
     options.control = .{ .log = self.store.log, .objects = self.store.objects };
     options.transaction_control = transaction_control;
     options.kind = seed.definition.kind;
-    var table = try P.init(if (resident != null) self.allocator else allocator, target.partition, seed.definition, if (control) self.store.log else self.data_log, if (control) self.store.objects else self.data_objects, options);
+    var table = try P.init(if (target_slot != null) self.allocator else allocator, target.partition, seed.definition, if (control) self.store.log else self.data_log, if (control) self.store.objects else self.data_objects, options);
 
     errdefer table.deinit();
     if (prior != null and prior.?.root.partition == target.partition and
@@ -4176,7 +4220,7 @@ fn openTransaction(self: *Self, allocator: std.mem.Allocator, target: r.Entry, c
     else
         try table.recover();
     const properties = try Properties.decode(allocator, table.declaration.definition.properties);
-    return .{ .table = table, .properties = properties, .recovery_state = slot, .owner_slot = resident, .seed = original_seed };
+    return .{ .table = table, .properties = properties, .recovery_state = recovery_slot, .owner_slot = target_slot, .seed = original_seed };
 }
 
 fn candidate(self: *Self, namespace: u64, name: a.Name) !?r.Name {

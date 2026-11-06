@@ -62,6 +62,9 @@ terminal outcome and schedules recovery of the original token. Per-token
 scheduling claims prevent background execution from racing its foreground owner;
 these bounded in-memory stripes carry no durable authority. Concurrent identical
 tokens still converge through Catalog, and replacement needs no old claim.
+Per-table-object scheduling stripes also serialize concurrent foreground DML
+admissions on the same table and refresh `UPDATE`/`DELETE` frontier metadata
+when an earlier writer on that stripe advances the table LSN after preparation.
 Terminal completion does not promise that failed pending-accounting cleanup has
 finished. Status and lookup remain observation-only, and disclosure retains
 current authorization.

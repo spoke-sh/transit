@@ -5853,6 +5853,7 @@
         "recoverSinceOptions()": "<inferred>",
         "recoveryState()": "<inferred>",
         "refresh()": "<inferred>",
+        "refreshSince()": "<inferred>",
         "requireNoHistoryTransfer()": "<inferred>",
         "resourceAt()": "<inferred>",
         "resourceOperation()": "<inferred>",
@@ -30902,7 +30903,7 @@
       "open_error_set_uses": 3,
       "propagation": {
         "try": 48,
-        "catch": 2
+        "catch": 3
       },
       "imports": [
         "Response.zig",
@@ -31012,7 +31013,7 @@
       "open_error_set_uses": 7,
       "propagation": {
         "try": 56,
-        "catch": 8
+        "catch": 9
       },
       "imports": [
         "NativeResult.zig",
@@ -33890,6 +33891,7 @@
         "GatewayConfigurationChanged": 1,
         "GatewayDeadline": 3,
         "GatewayIdentityConflict": 1,
+        "GatewayOwnerUnavailable": 1,
         "GatewayRecordTooLarge": 1,
         "GatewayWaitCancelled": 1,
         "InvalidGatewayConfiguration": 1,
@@ -33934,6 +33936,7 @@
         "resumeTransactionClaimed()": "<inferred>",
         "resumeTransactionSubmission()": "<inferred>",
         "resumeWorkload()": "<inferred>",
+        "settlePendingTableClaim()": "<inferred>",
         "status()": "<inferred>",
         "submit()": "<inferred>",
         "submitPrepared()": "<inferred>",
@@ -33945,7 +33948,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 136,
+        "try": 144,
         "catch": 19
       },
       "imports": [
@@ -42602,6 +42605,7 @@
         "recoverSinceOptions()": "<inferred>",
         "recoveryState()": "<inferred>",
         "refresh()": "<inferred>",
+        "refreshSince()": "<inferred>",
         "releaseSnapshot()": "<inferred>",
         "reply()": "<inferred>",
         "requireAdmissionBasis()": "<inferred>",

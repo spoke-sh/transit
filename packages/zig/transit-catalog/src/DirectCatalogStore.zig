@@ -24,7 +24,7 @@ root: r.Root,
 chain: [32]u8 = @splat(0),
 recovery_required: bool = true,
 lose_reply: bool = false,
-recent_tokens: [16]?CachedToken = @splat(null),
+recent_tokens: [64]?CachedToken = @splat(null),
 recent_token_next: usize = 0,
 
 pub fn init(allocator: std.mem.Allocator, configuration: r.Configuration, log: s.TransitLog.Log, objects: s.TransitObjectStore.ObjectStore, resident_pages: usize) !Self {
@@ -60,10 +60,16 @@ pub fn recoverSince(self: *Self, prior: ?RecoveryState) !void {
 
 fn recoverSinceOptions(self: *Self, prior: ?RecoveryState, retain_cache: bool) !void {
     self.recovery_required = true;
-    self.recent_tokens = @splat(null);
-    self.recent_token_next = 0;
-    if (!retain_cache) self.index.clearCache();
-    errdefer self.index.clearCache();
+    if (!retain_cache) {
+        self.recent_tokens = @splat(null);
+        self.recent_token_next = 0;
+        self.index.clearCache();
+    }
+    errdefer {
+        self.recent_tokens = @splat(null);
+        self.recent_token_next = 0;
+        self.index.clearCache();
+    }
     const end = try self.log.tail(self.root.configuration.partition);
     if (end < self.root.next_lsn) return error.CatalogHistoryMissing;
     var next = try r.Root.empty(self.root.configuration);
@@ -83,6 +89,7 @@ fn recoverSinceOptions(self: *Self, prior: ?RecoveryState, retain_cache: bool) !
             const frame = anchor.frames[0];
             const record = try decodeFrame(self.allocator, frame, known.root.configuration.partition, known.root.next_lsn - 1);
             if (!std.meta.eql(record.root, known.root) or !std.mem.eql(u8, &r.hash(frame.payload), &known.chain)) return error.InvalidDirectCatalogHistory;
+            if (record.action == .client_token) self.cacheToken(known.root.configuration.partition, known.root.next_lsn - 1, record.action.client_token);
         }
         next = known.root;
         chain = known.chain;
@@ -96,6 +103,7 @@ fn recoverSinceOptions(self: *Self, prior: ?RecoveryState, retain_cache: bool) !
         try successor(next, record.root);
         try self.operationTransition(next, record);
         if (!std.mem.eql(u8, &record.previous, &chain)) return error.InvalidDirectCatalogHistory;
+        if (record.action == .client_token) self.cacheToken(next.configuration.partition, next.next_lsn, record.action.client_token);
         next = record.root;
         chain = r.hash(frame.payload);
     }
@@ -108,9 +116,15 @@ fn recoverSinceOptions(self: *Self, prior: ?RecoveryState, retain_cache: bool) !
 }
 
 pub fn refresh(self: *Self) !void {
+    return self.refreshSince(null);
+}
+
+pub fn refreshSince(self: *Self, prior: ?RecoveryState) !void {
     try self.ready();
+    const current = try self.recoveryState();
+    const basis = if (prior) |known| (if (std.meta.eql(known.root.configuration, current.root.configuration) and known.root.next_lsn > current.root.next_lsn) known else current) else current;
     if (try self.log.tail(self.root.configuration.partition) != self.root.next_lsn)
-        try self.recoverSinceOptions(try self.recoveryState(), true);
+        try self.recoverSinceOptions(basis, true);
 }
 
 fn successor(before: r.Root, after: r.Root) !void {

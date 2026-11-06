@@ -217,6 +217,8 @@ fn local(self: *Self, path: []const u8, body: []const u8, allocator: std.mem.All
     _ = try reader.bodyReader(&.{}, head.transfer_encoding, head.content_length).streamRemaining(&output);
     if (output.buffered().len != received.bytes.len) return error.InvalidSqlHttpResponse;
     if (!keep_alive) {
+        var eof: [1]u8 = undefined;
+        _ = self.unix_reader.interface.readSliceShort(&eof) catch {};
         self.unix.?.close(self.io);
         self.unix = null;
     }

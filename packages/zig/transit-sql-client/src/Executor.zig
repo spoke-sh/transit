@@ -391,10 +391,19 @@ pub fn call(self: *Self, action: api.Action, allocator: std.mem.Allocator) !sdk.
     }
 }
 pub fn release(self: *Self, action: api.Action) void {
-    const prior = self.control.timeout_ms;
-    self.control.timeout_ms = @min(prior, 1000);
-    defer self.control.timeout_ms = prior;
-    if (self.control.call(action)) |reply| reply.deinit() else |_| {}
+    const client = if (action == .cancel) self.control else self.client;
+    const prior = client.timeout_ms;
+    client.timeout_ms = @min(prior, 1000);
+    defer client.timeout_ms = prior;
+    var attempt: u8 = 0;
+    while (attempt < 4) : (attempt += 1) {
+        if (client.call(action)) |reply| {
+            reply.deinit();
+            return;
+        } else |_| {
+            if (attempt + 1 < 4) client.io.sleep(.fromMilliseconds(10), .awake) catch return;
+        }
+    }
 }
 /// Renew this same session while a consumer is doing work between reads. An
 /// expired session fails; this never reopens or substitutes an interactive cut.
