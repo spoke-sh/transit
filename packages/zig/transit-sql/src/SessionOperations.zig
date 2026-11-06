@@ -165,7 +165,9 @@ pub fn list(execution: g.DatabaseAccount, source: *g.Client.Source, after_id: u6
     var states: [64]?c.DirectClientToken.Progress = @splat(null);
     var count: usize = 0;
     var through: ?u64 = null;
-    for (execution.configuration.bindings) |binding| {
+    const bindings = execution.configuration.bindings;
+    for (bindings, 0..) |binding, index| {
+        if (g.Client.isDuplicateBindingConnection(bindings, index)) continue;
         const page = try c.DirectClientToken.list(source.client.table(binding), execution.configuration.account, after_id, pending);
         if (page.next) |next| through = if (through) |previous| @min(previous, next) else next;
         for (page.entries) |slot| if (slot) |state| {
