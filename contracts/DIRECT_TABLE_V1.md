@@ -476,6 +476,68 @@ atomically with the token; settlement releases only pending capacity. Catalog-wi
 quota and data-owner limits remain separate. A changed budget profile conflicts;
 no implicit quota increase, expiry or data reset occurs.
 
+### Protected Document sources
+
+`DirectDocumentSource` is a component API over the same Catalog token, original
+receipt and SOR1 lifetime. It requires the embedding owner's serialized Catalog
+access, host-shared active admission and a current native Document authority
+guard. It enables no installed Document route or authorization domain.
+
+The SOR1 inner format `DSS1` (`0x44535331`) contains the exact typed source
+descriptor: original principal/account/token and native operation, namespace,
+Document target/partition ordinal, create-or-replace intent, nullable expected
+cut, profile descriptor, one part identity, source length/SHA-256 and accepted
+byte/work limits. The complete descriptor envelope determines the original
+record reference and token fingerprint. Profile descriptors bind intended
+interpretation; staging does not verify that grammar or accept a Document.
+
+`Progress.source` is mandatory and nullable. Non-null typed state retains the
+descriptor, immutable inventory root, contiguous ready prefix, optional pending
+chunk, verification result and monotonic charges. Its lifetime matches
+`Progress.original`. Generic record/progress, retain and KV attachment routes
+cannot create, mutate, disclose or adopt this profile. Missing fields from a
+previous definition reject; no migration default or fallback reader is provided.
+
+The owner reserves the original before writing its descriptor, then reserves
+each exact chunk before physical creation. Chunks are sequential, 64 KiB except
+the final shorter chunk, scoped to the original, and immutable. One pending
+chunk is allowed. Publishing the inventory and ready prefix is a separate
+Catalog acceptance. An exact pending retry resumes; a ready retry verifies
+existing bytes without recreating missing accepted storage. Holes, overlapping
+or changed retries, changed original bindings and extra bytes reject.
+
+Source verification reads at most 4 MiB per call with explicit page/byte limits.
+Its process-local digest continuation is not a wire capability or persisted
+hash state. Restart replays the exact retained source and charges the work
+again. Only complete coverage and a matching whole-source digest establish
+`verified`; a mismatch records `failed`. Neither state is a verified profile,
+logical tree or accepted revision. Document attachment remains unavailable.
+
+Explicit source closure compares the current Catalog revision, fences writers
+and permanently closes the original. It preserves identity, commitments,
+verification evidence and the accepted account byte reservation; pending
+capacity releases once. Original retries observe closure without reopening
+payloads. No failure, timeout, denied observation or quota exhaustion closes
+work implicitly. Closure and inspection retain separate control capacity.
+
+Source discovery reuses the all/pending account indexes, returning at most
+eight redacted entries after inspecting at most 32 token entries. Continuations
+bind the complete scope/target/pending selection and last scanned ID. Empty
+nonterminal pages are valid. Pages observe live state, not an atomic snapshot;
+enumeration cannot prove absence of an uncertain write. Exact original lookup
+resolves that identity. Current scope/target authority is checked before
+disclosure, including buffered and empty results. Independent Document readers
+do not inherit another principal's recovery rights.
+
+Source chunks and pending/current inventory publication work share the original
+byte reservation. Work counters include bounded index/publication allowances
+and payload processing, including retry verification. Admission reserves 8 MiB
+per active source operation against a shared 64 MiB default host ceiling;
+durable account quotas remain the existing token limits. These are component
+resource bounds, not throughput or whole-process memory guarantees.
+
+### Generic caller records
+
 `record.stage` publishes a complete immutable opaque body, up to 4 MiB, under a
 current-definition connection/account scope and nonzero format tag. Its reference
 binds exact byte length and SHA-256. `record.read` verifies both. Current CONNECT
