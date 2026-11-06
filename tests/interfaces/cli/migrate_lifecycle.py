@@ -225,7 +225,10 @@ def dataflow_lifecycle(root, env, cli, ports, migrations, restart):
     update_ledger_version(root, ports, '0005', lose_control_receipt)
     migrate('flow-competing-claim', 'apply', expected=3)
     restart()
-    resumed = migrate('flow-resume', 'resume')
+    resume_result = run_cli(root, env, cli, 'flow-resume', 'migrate', 'resume', '--format', 'json')
+    assert resume_result.returncode == 0, (resume_result.stdout, resume_result.stderr)
+    resumed = json.loads(resume_result.stdout)
+    assert resumed['outcome'] == 'verified', resumed
     assert resumed['versions'][-1]['steps'][1]['operation_id'] == activated['versions'][-1]['steps'][1]['operation_id']
     assert head()['observation']['head']['control'] == current['control']
 
@@ -274,6 +277,9 @@ def dataflow_lifecycle(root, env, cli, ports, migrations, restart):
     assert drift.returncode == 0, drift
     divergent = migrate('flow-control-drift', 'plan', expected=3)
     assert divergent['diagnostic_code'] == 'migration.dataflow_drift', divergent
+    resumed_drift = run_cli(root, env, cli, 'flow-resume-drift', 'migrate', 'resume', '--format', 'json')
+    assert resumed_drift.returncode == 3, (resumed_drift.stdout, resumed_drift.stderr)
+    assert json.loads(resumed_drift.stdout)['outcome'] == 'drift_detected', resumed_drift.stdout
     disable_sql_credential(root, ports)
     denied = run_cli(root, env, cli, 'flow-revoked-apply', 'migrate', 'apply', '--plan', str(denied_plan), '--format', 'json')
     assert denied.returncode != 0 and ('denied' in denied.stderr.lower() or 'AccessDenied' in denied.stderr), denied.stderr

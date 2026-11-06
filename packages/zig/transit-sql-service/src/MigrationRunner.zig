@@ -1372,6 +1372,7 @@ fn verifyVersionSteps(
             };
             if (!superseded) g.MigrationDataflow.verify(table.*, context.namespace, step.*) catch |err| {
                 step.state = .already_diverged;
+                version.state = .already_diverged;
                 step.diagnostic_code = "migration.dataflow_drift";
                 step.diagnostic_message = try std.fmt.allocPrint(allocator, "Dataflow '{s}' no longer matches its recorded definition/control: {s}", .{ step.object_name, @errorName(err) });
                 return false;
@@ -1580,6 +1581,7 @@ fn applyMigrations(
                     plan.recovery_command = "transit migrate resume";
                     return plan;
                 }
+                step.state = .failed;
                 version.state = .failed;
                 version.active_attempt_id = null;
                 _ = saveReportVersion(allocator, table, context, version, expected_rev) catch {};
@@ -1819,9 +1821,8 @@ fn resumeExecution(
         return report;
     }
 
-    var report = try statusReport(allocator, runtime, observer, table, context, target, request);
+    var report = try verifyMigrations(allocator, table, context, target, request);
     report.action = .@"resume";
-    if (report.outcome == .inspected) report.outcome = .verified;
     return report;
 }
 
