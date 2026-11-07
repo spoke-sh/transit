@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type ReactElement } from "react";
 import Link from "@docusaurus/Link";
 import ContextFabric from "./ContextFabric";
 import Radiograph from "./Radiograph";
+import Statement from "./Statement";
+import { deliveryStatements } from "../delivery-story";
 
 import lateralResonance from "../../../design/handbook-theme/images/d3-lateral-basin.jpg";
 
@@ -102,66 +104,64 @@ export default function RefractionStory(): ReactElement {
           </div>
           <div className="refraction-narrative">
             <section className="refraction-chapter" aria-labelledby="structure-title">
-              <p className="transit-kicker">01 / STRUCTURE</p>
+              <p className="transit-kicker">01 / STREAM · DOCUMENT · KV</p>
               <h2 id="structure-title">
-                Begin with
+                Keep what
                 <br />
-                what matters.
+                happened.
               </h2>
               <p>
-                Describe the data your application needs, the computation it performs, and the
-                policies that govern its use.
+                An order is running late. Keep the event in a STREAM, the delivery context in
+                DOCUMENT, and the customer's rule in KV. The next decision starts with evidence.
               </p>
-              <p>
-                Tables, documents, key-value state and streams give different kinds of data a place
-                in the same model.
-              </p>
-              <Link className="transit-text-link" to="/reference/data-model">
-                Data, computation and policies <span aria-hidden="true">↗</span>
+              <Statement
+                example={deliveryStatements.capture}
+                caption="Target workflow: order 42 is delayed by 45 minutes."
+              />
+              <Link className="transit-text-link" to="/stories/capture-context">
+                Keep what happened <span aria-hidden="true">↗</span>
               </Link>
             </section>
             <section className="refraction-chapter" aria-labelledby="activity-title">
-              <p className="transit-kicker">02 / ACTIVITY</p>
+              <p className="transit-kicker">02 / TABLE · DATAFLOW</p>
               <h2 id="activity-title">
-                Let the structure
+                Give your answer
                 <br />
-                do useful work.
+                a future.
               </h2>
               <p>
-                Ask a point-in-time question, maintain a derived view, or coordinate stateful work.
-                Choose the lifetime that fits the computation.
+                Which deliveries need attention? Shape the inputs into a TABLE. Declare a DATAFLOW
+                to keep the answer current as the facts change. Give every result a source basis you
+                can inspect.
               </p>
-              <p>
-                Fuze computes over your data. Station coordinates durable processes and recorded
-                external effects.
-              </p>
-              <Link className="transit-text-link" to="/reference/queries">
-                Explore computation lifetimes <span aria-hidden="true">↗</span>
+              <Statement
+                example={deliveryStatements.derive}
+                caption="Target workflow: a named computation and an explicit destination."
+              />
+              <Link className="transit-text-link" to="/stories/keep-answers-current">
+                Keep answers current <span aria-hidden="true">↗</span>
               </Link>
             </section>
           </div>
         </div>
         <section className="refraction-context" aria-labelledby="context-title">
           <div ref={contextCopy} className="refraction-chapter context-copy">
-            <p className="transit-kicker">03 / CONTEXT</p>
+            <p className="transit-kicker">03 / QUEUE · EFFECTS</p>
             <h2 id="context-title">
-              See the result.
+              Turn what you know
               <br />
-              Keep its context.
+              into what happens next.
             </h2>
             <p>
-              A useful answer has a basis. Inspect versioned data, recorded progress and outcomes to
-              understand what a declaration produced.
+              A late delivery needs follow-up. Put the work in a QUEUE, let a worker claim it, and
+              record the outcome. That outcome becomes a new event, ready to inform the next answer.
             </p>
-            <p>
-              Explicit permissions, retention and resource budgets define the boundaries in which
-              that work happens.
-            </p>
-            <Link
-              className="transit-text-link"
-              to="/reference/data-model#inspect-whether-a-declaration-is-being-fulfilled"
-            >
-              Follow a declaration to its outcome <span aria-hidden="true">↗</span>
+            <Statement
+              example={deliveryStatements.claim}
+              caption="Target workflow: one follow-up, one lease, an outcome to inspect."
+            />
+            <Link className="transit-text-link" to="/stories/turn-changes-into-work">
+              Turn changes into work <span aria-hidden="true">↗</span>
             </Link>
           </div>
           <div className="context-visual">

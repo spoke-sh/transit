@@ -144,6 +144,44 @@ light Refraction artwork to a 1200×630 social card with paper padding for `og:i
 to use that same source image. [`src/css/home.css`](src/css/home.css) scopes the
 homepage layout and visual layers.
 
+The homepage follows a delivery through three connected chapters: keep what
+happened, keep answers current, then turn changes into work. STREAM retains the
+events, DOCUMENT preserves context, KV supplies application rules, TABLE and
+DATAFLOW maintain useful answers, and QUEUE carries follow-up work. Its recorded
+outcome returns to the event history. Each short sequence leads into a longer
+story; a shared journey links all three. The data-model story connects their
+roles. The hero also retains a direct entry to the runnable first-dataset story.
+
+[`src/stories.ts`](src/stories.ts) owns the runnable task examples and combined
+search entries. Those SQL excerpts are checked against the quickstart.
+[`src/delivery-story.ts`](src/delivery-story.ts) owns the forward-looking delivery
+scenario, with target examples highlighted as SQL and visibly labeled proposed.
+[`src/theme/prism-include-languages.ts`](src/theme/prism-include-languages.ts)
+extends the standard SQL highlighter with Transit declaration and workload
+keywords from [the SQL grammar](../../contracts/sql/TransitExtensions.g4).
+It preserves the standard rules for comments, strings and quoted identifiers.
+The source basis is [Streams and Queues](../roadmap/06-streams-queues-and-durable-runtime.md),
+[Documents](../roadmap/07-document-storage-and-station-decoupling.md),
+[dataflows](../roadmap/12-sql-and-dataflows.md) and
+[branch review](../roadmap/20-branches-merges-and-restore.md).
+The [grammar direction](../roadmap/43-sql-grammar-and-dialect-ergonomics.md)
+preserves workload-specific verbs and shared lifecycle controls. The stories
+illustrate the existing declaration shapes and proposed `STREAM_SLICE` form;
+they do not invent settled Document mutations, KV query adapters or automatic
+dataflow-to-queue syntax. Adding these examples implements no grammar or runtime
+behavior. Public story links lead to current interface owners, not delivery plans.
+
+[`StoryPage`](src/components/StoryPage.tsx) renders the six stories under
+`src/pages/stories/`, with chapter anchors, scenario context, expected outcomes
+and links to the owning guides and references. `StoryJourney` connects the
+delivery chapters from every story, including the runnable entry. These static
+pages execute no queries.
+[`src/css/stories.css`](src/css/stories.css) supplies the reading layout: a chapter
+rail and paired explanation/evidence on wide screens, a single column on narrow
+screens, and ordinary document scrolling throughout. Reduced motion and short
+screens keep chapter navigation in flow. All story content and links work without
+JavaScript and are included in local search and the sitemap.
+
 In light mode, [`RefractionStory`](src/components/RefractionStory.tsx) imports the selected
 [lateral resonance portrait](../design/handbook-theme/images/d3-lateral-basin.jpg)
 directly from its design owner. Falling graphite waves widen sideways into
@@ -152,9 +190,9 @@ and shading carry the depth; the horizontal transformation is part of the artwor
 On desktop with no reduced-motion preference, a sticky viewport travels vertically
 through the portrait in response to native scrolling. The travel distance comes
 from the rendered image and viewport heights, so the first and last positions
-stay within the artwork. Structure and Activity share this portrait. Its framing
-uses the two Activity chapters plus the Context copy height, independently of the
-longer Context illustration, preserving the selected R1 view.
+stay within the artwork. The definition and query chapters share this portrait.
+Its framing uses those chapters plus the schema-evolution copy height,
+independently of the longer fabric illustration, preserving the selected R1 view.
 
 [`ContextFabric`](src/components/ContextFabric.tsx) continues below the resonance
 zones with a [single tall drawing](../design/handbook-theme/images/d5-fabric-pockets.jpg).
@@ -180,8 +218,8 @@ All narrative and handbook links are server-rendered; motion never gates
 navigation or access to content.
 
 In dark mode, [`Radiograph`](src/components/Radiograph.tsx) replaces the two light
-illustrations with a single depth passage beside the same Structure, Activity and
-Context text. [`src/css/radiograph.css`](src/css/radiograph.css) owns its layout,
+illustrations with a single depth passage beside the same definition, query and
+schema-evolution story. [`src/css/radiograph.css`](src/css/radiograph.css) owns its layout,
 translucency and perspective. Three distinct D6 image layers sit at z = 80, −240
 and −650px under a fixed 900px perspective. Scrolling down advances the shared
 camera transform from 0 to 650px; scrolling up retraces it immediately. Near
@@ -243,6 +281,9 @@ pause/resume, native theme changes, static fallbacks and no-JavaScript navigatio
 and the introduction’s vector architecture figure.
 It follows the homepage into the data model and dataset tutorial, and finds the
 shared data/computation/policy model through search.
+It also follows statement stories into their reference owners, checks expected
+observations and search discovery, and exercises direct story routes on mobile
+with reduced motion and JavaScript disabled.
 It follows the top-level interface sections into executable SELECT, grammar-only
 DDL and application declarations, and finds a statement through search.
 It opens Internals from desktop/mobile navigation, finds its scientific standard

@@ -5,10 +5,22 @@ import { pages, handbookPages, sdkPages } from "../catalog";
 import { pageContent, resolveLink } from "./content";
 import { object, readSpecification, renderSpecification, specifications } from "./specs";
 import { downloads } from "./downloads";
+import { statements } from "../src/stories";
 
 const root = path.resolve(import.meta.dirname, "../../..");
 
 describe("documentation ownership and navigation", () => {
+  it("keeps story statements as exact excerpts of the runnable quickstart", () => {
+    const quickstart = readFileSync(path.join(root, "docs/handbook/guides/quickstart.md"), "utf8");
+    const fences = [...quickstart.matchAll(/```(?:sql|sh)\n([\s\S]*?)```/g)].map(
+      (match) => match[1]!,
+    );
+    for (const [name, statement] of Object.entries(statements))
+      expect(
+        fences.some((fence) => fence.includes(statement.code)),
+        name,
+      ).toBe(true);
+  });
   it("keeps public commands independent of repository tooling and executable paths", () => {
     for (const entry of pages) {
       const content = pageContent(root, entry.source);
