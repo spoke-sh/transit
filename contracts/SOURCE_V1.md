@@ -279,3 +279,30 @@ closure; common output/checkpoint decisions; restart/lost replies at all handoff
 steps; control/publication races; bounded memory and retention; and the installed
 SQL journey. Parser, schema and deterministic-model tests establish only their
 own boundaries.
+
+## Published capture reader
+
+The native `capture_read` action resolves an accepted protected publication before
+serving bytes. `inspect` returns provenance independently of payload availability.
+`open` acquires an original Stream pin over the exact envelope offset;
+`inspect_open` observes that original, and `cancel_open` irreversibly closes an
+unaccepted original or returns its accepted pin. `close` releases only that pin
+using a separately saved operation. Lost replies never authorize another identity.
+
+Continuations bind the current definition, connection, effective role, publication,
+read receipt and aligned body offset with the installed Stream authority's private
+HMAC key. Each `next` returns at most 65,536 raw bytes, encoded for transport, and
+an explicit completion flag. The last data page is terminal when its coverage is
+known; empty captures and repeated terminal reads return empty terminal pages.
+The shared reader verifies the whole-body SHA-256 before reporting completion.
+Output bytes are owned independently of subsequent scratch reuse.
+
+Current destination READ, database CONNECT and schema USAGE are checked after
+buffering, including repeated and empty terminal requests. Producer or connector
+credentials are unnecessary. A failed shared reader cannot splice a resumed prefix.
+Its saved originals remain available for explicit close even after a read failure.
+Explicit Stream age expiry rejects new pins below the retained boundary with
+`LogRangeExpired`; existing pins retain the attachment graph. Releasing the final
+pin permits collection only after other recovery roots release it. SOURCE or
+CONNECTION retirement/drop does not remove destination-owned bytes. Original
+publication metadata remains attributable after payload collection.

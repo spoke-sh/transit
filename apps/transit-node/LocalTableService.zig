@@ -153,7 +153,7 @@ pub fn executeResult(self: *Self, comptime format: Output, arena: *std.heap.Aren
         if (catalog.recoveryState()) |known| prior.* = known else |_| {}
     };
     if (request.lease) |lease| try catalog.requireClientLease(lease, policy.policy());
-    const execution: c.DirectTableDispatch.Execution = .{ .context = self, .ddl = executeDdl, .namespace = executeNamespace, .resource = executeResource, .log = executeLog, .descriptor = executeDescriptor, .source = executeSource, .stream = executeStream, .queue = executeQueue };
+    const execution: c.DirectTableDispatch.Execution = .{ .context = self, .connection = request.connection, .capture_read = executeCaptureRead, .ddl = executeDdl, .namespace = executeNamespace, .resource = executeResource, .log = executeLog, .descriptor = executeDescriptor, .source = executeSource, .stream = executeStream, .queue = executeQueue };
     const result = if (request.transaction) |selected|
         try c.DirectTransactionRead.apply(allocator, catalog, policy.policy(), selected, request.action, execution)
     else
@@ -216,6 +216,23 @@ fn executeStream(raw: *anyopaque, output: std.mem.Allocator, catalog: *D, policy
         .clock = if (self.engine.clock != null) .{ .context = self, .read = streamTime } else null,
         .waiting = self.waiting,
     }, request, policy);
+}
+
+fn executeCaptureRead(raw: *anyopaque, output: std.mem.Allocator, catalog: *D, policy: D.Policy, connection: w.Connection, request: c.DirectSourceRead.Request) !c.DirectSourceRead.Result {
+    const self: *Self = @ptrCast(@alignCast(raw));
+    var scratch: std.heap.ArenaAllocator = .init(catalog.allocator);
+    defer scratch.deinit();
+    var temporary: ?c.DirectStream.Cached = null;
+    defer if (temporary) |*cached| cached.deinit();
+    const slot = if (self.resident) |resident| &resident.stream else &temporary;
+    var authority: c.storage.LogRead.Authority = undefined;
+    self.streamAuthority(&authority);
+    defer std.crypto.secureZero(u8, &authority.secret);
+    return c.DirectSourceRead.apply(scratch.allocator(), output, catalog, slot, catalog.options.logs.stream, .{
+        .authority = authority,
+        .clock = if (self.engine.clock != null) .{ .context = self, .read = streamTime } else null,
+        .waiting = self.waiting,
+    }, connection, request, policy);
 }
 
 fn executeDdl(raw: *anyopaque, catalog: *D, binding: d.Binding, policy: D.Policy, steps: u16) !D.Observation {

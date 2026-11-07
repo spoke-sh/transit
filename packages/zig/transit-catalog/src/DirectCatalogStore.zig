@@ -384,6 +384,15 @@ pub fn clientTokenState(self: *Self, key: c.DirectClientToken.Key) !?c.DirectCli
     try self.ready();
     return self.clientTokenAt(self.root, key);
 }
+/// Internal graph/publication resolution. The caller enforces the published
+/// destination's policy; this does not expose original-token discovery publicly.
+pub fn clientTokenDigest(self: *Self, digest: [32]u8) !?c.DirectClientToken.Progress {
+    try self.ready();
+    const value = try self.tree().get(self.root.client_tokens, try pages.Key.init(&digest)) orelse return null;
+    const state = try self.tokenRecord(self.root, value);
+    if (!std.mem.eql(u8, &digest, &try state.receipt.binding.key.digest())) return error.DataIdentityConflict;
+    return state;
+}
 fn tokenRecord(self: *Self, basis: r.Root, value: pages.Value) !c.DirectClientToken.Progress {
     if (value.len != 8) return error.InvalidClientToken;
     const at = std.mem.readInt(u64, value.data[0..8], .little);

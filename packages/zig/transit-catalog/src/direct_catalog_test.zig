@@ -316,6 +316,7 @@ test "Document source lost reservations exact retries closure and generic bypass
 // Injected policy exercises required scopes and fence placement. Native signed
 // proofs, registration and service enforcement need separate composition tests.
 const Access = struct {
+    principal: u64 = 1,
     calls: usize = 0,
     deny_at: usize = std.math.maxInt(usize),
     mismatch: bool = false,
@@ -358,7 +359,7 @@ const Access = struct {
             if (value.access.denied_metadata) |id| if (std.meta.eql(requirement.object, a.reference(id))) return value.access.denied_metadata_error;
             if (value.access.denied_privileges) |denied| if (std.meta.eql(requirement.object, a.reference(denied.id)) and requirement.privileges & denied.mask != 0 and !(value.access.visible_despite_denied_privileges and requirement.access == .visible)) return error.CatalogDenied;
         };
-        if (value.requested.subject.principal() != 1 or value.requested.requirements[0].?.object.id != profile.database) return error.CatalogDenied;
+        if (value.requested.subject.principal() != value.access.principal or value.requested.requirements[0].?.object.id != profile.database) return error.CatalogDenied;
         if (value.access.exclusive) value.access.held = true;
         return .{ .writer_epoch = 1, .policy_epoch = if (value.access.calls >= value.access.epoch_change_at) 2 else 1 };
     }
@@ -384,7 +385,7 @@ const Access = struct {
         }, .revision = 1 };
     }
     fn policy(self: *Access) D.Policy {
-        return .{ .context = self, .subject = .{ .accepted = .{ .pid = 3, .input = 1, .principal = 1 } }, .make_guard = make, .registered = registered, .native_resource = .{ .context = self, .prepare = prepareAllocation, .allocation = allocation, .make_guard = nativeGuard } };
+        return .{ .context = self, .subject = .{ .accepted = .{ .pid = 3, .input = 1, .principal = self.principal } }, .make_guard = make, .registered = registered, .native_resource = .{ .context = self, .prepare = prepareAllocation, .allocation = allocation, .make_guard = nativeGuard } };
     }
     fn prepareAllocation(_: *anyopaque, binding_value: c.DirectResource.Binding) !c.DirectResource.Allocation {
         return .{ .sequence = binding_value.operation + 50 };
@@ -10752,10 +10753,14 @@ const CaptureHost = struct {
 };
 
 fn captureSetup(catalog: *D, access: *Access) !p.Source.Definition {
+    return captureSetupRetention(catalog, access, null);
+}
+fn captureSetupRetention(catalog: *D, access: *Access, max_age_ms: ?u64) !p.Source.Definition {
     var ddl = try c.fuze.LogDdl.compile(t.allocator, "CREATE STREAM captures (capture_id UUID NOT NULL, source_sequence UINT64 NOT NULL, observed_at TIMESTAMPTZ NOT NULL, http_status INTEGER NOT NULL, body_ref BINARY NOT NULL, body_bytes UINT64 NOT NULL, body_sha256 BINARY NOT NULL)", .transit, null);
     defer ddl.deinit();
     var request = try logCreation(.stream, 50, 50, "captures", 1);
     request.intent.action.create.schema = try ddl.statement.action.create.bind(50);
+    request.intent.action.create.configuration.retention.max_age_ms = max_age_ms;
     request.binding.intent = try request.intent.digest(t.allocator);
     _ = try catalog.admitLog(request, access.policy());
     const log = (try catalog.logOperation(request.binding, .execute, access.policy())).operation.resulting.?;
@@ -10833,7 +10838,7 @@ test "SOURCE capture publication recovers one protected transaction and exact or
         observed = try catalog.captureVerify(&verifier, .{ .bytes = 64, .pages = 64 }, access.policy(), host.authority());
         const plan = try capturePublication(observed);
         // The importer may append without destination raw-byte disclosure.
-        access.denied_privileges = .{ .id = 50, .mask = c.LogAuthority.read };
+        access.denied_privileges = .{ .id = 150, .mask = c.LogAuthority.read };
         catalog.store.lose_reply = true;
         try t.expectError(error.LostAcknowledgement, catalog.capturePublish(plan, access.policy(), host.authority()));
         catalog.store.lose_reply = false;
@@ -10888,10 +10893,183 @@ fn captureSmall(catalog: *D, access: *Access, host: *CaptureHost, source: p.Sour
     const descriptor = captureDescriptor(source, id, bytes.len, digest);
     host.expected = descriptor.evidence;
     var observed = try catalog.captureReserve(descriptor, access.policy(), host.authority());
-    if (bytes.len != 0) observed = try catalog.captureUpload(.{ .control = .{ .key = descriptor.key, .expected = observed.revision }, .chunk = .{ .offset = 0, .content = .{ .bytes = bytes.len, .sha256 = digest } }, .bytes = bytes }, access.policy(), host.authority());
+    var offset: usize = 0;
+    while (offset < bytes.len) {
+        const chunk = bytes[offset..@min(offset + Capture.storage.chunk_bytes, bytes.len)];
+        observed = try catalog.captureUpload(.{ .control = .{ .key = descriptor.key, .expected = observed.revision }, .chunk = .{ .offset = offset, .content = s.LogBatch.content(chunk) }, .bytes = chunk }, access.policy(), host.authority());
+        offset += chunk.len;
+    }
     var verifier = try Capture.Verifier.init(descriptor.key, &host.admission);
     defer verifier.deinit();
-    return catalog.captureVerify(&verifier, .{ .bytes = Capture.storage.chunk_bytes, .pages = 64 }, access.policy(), host.authority());
+    while (!verifier.done) observed = try catalog.captureVerify(&verifier, .{ .bytes = Capture.storage.chunk_bytes, .pages = 64 }, access.policy(), host.authority());
+    return observed;
+}
+
+fn capturePublicRead(catalog: *D, access: *Access, cached: *?c.DirectStream.Cached, connection: c.DirectTableProtocol.Connection, request: c.DirectSourceRead.Request, output: std.mem.Allocator) !c.DirectSourceRead.Result {
+    var scratch: std.heap.ArenaAllocator = .init(t.allocator);
+    defer scratch.deinit();
+    const result = try c.DirectSourceRead.apply(scratch.allocator(), output, catalog, cached, .{ .resident_pages = 1 }, .{ .authority = try s.LogRead.Authority.init(@splat(4)), .clock = null }, connection, request, access.policy());
+    errdefer result.deinit(output);
+    try c.DirectSourceRead.validateResult(scratch.allocator(), connection, request, result);
+    return result;
+}
+
+test "SOURCE capture reader owns raw batches verifies pins and fences repeated and terminal disclosure" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{ .exclusive = true };
+    try catalog.initialize(access.policy());
+    const source = try captureSetup(&catalog, &access);
+    var host: CaptureHost = .{ .access = &access };
+    var body: [Capture.storage.chunk_bytes + 1]u8 = undefined;
+    capturePattern(&body, 0);
+    var observed = try captureSmall(&catalog, &access, &host, source, 1, &body);
+    const plan = try capturePublication(observed);
+    observed = try catalog.capturePublish(plan, access.policy(), host.authority());
+    while (observed.state.phase == .publishing) observed = try catalog.captureAdvance(plan.candidate, .commit, 8, access.policy(), host.authority());
+    var cached: ?c.DirectStream.Cached = null;
+    defer if (cached) |*value| value.deinit();
+    var connection = plan.key.connection;
+    connection.principal = 2;
+    access.principal = 2;
+    // Readers have no source-capture disclosure or producer credentials.
+    access.denied_privileges = .{ .id = 9500, .mask = c.LogAuthority.read };
+    const open: c.DirectSourceRead.Open = .{ .reference = plan.reference, .operation = .{ .scope = scope, .principal = 2, .operation = 500001 } };
+    const opened = (try capturePublicRead(&catalog, &access, &cached, connection, .{ .open = open }, t.allocator)).opened;
+    const retried = (try capturePublicRead(&catalog, &access, &cached, connection, .{ .open = open }, t.allocator)).opened;
+    try t.expectEqualDeep(opened, retried);
+    const original = (try capturePublicRead(&catalog, &access, &cached, connection, .{ .inspect_open = open }, t.allocator)).original.?;
+    try t.expectEqualDeep(opened.handle, original);
+    const first = try capturePublicRead(&catalog, &access, &cached, connection, .{ .next = opened }, t.allocator);
+    defer first.deinit(t.allocator);
+    const first_bytes = try first.page.bytes.decode(t.allocator, Capture.storage.chunk_bytes);
+    defer t.allocator.free(first_bytes);
+    try t.expectEqualSlices(u8, body[0..Capture.storage.chunk_bytes], first_bytes);
+    try t.expect(!first.page.complete);
+    const second = try capturePublicRead(&catalog, &access, &cached, connection, .{ .next = first.page.next }, t.allocator);
+    defer second.deinit(t.allocator);
+    try t.expect(second.page.complete);
+    try t.expectEqualSlices(u8, body[0..Capture.storage.chunk_bytes], first_bytes);
+    var forged = first.page.next;
+    forged.authentication[0] ^= 1;
+    try t.expectError(error.SourceCaptureCursorUnauthenticated, capturePublicRead(&catalog, &access, &cached, connection, .{ .next = forged }, t.allocator));
+    var foreign = connection;
+    foreign.principal = 3;
+    access.principal = 3;
+    try t.expectError(error.CatalogDenied, capturePublicRead(&catalog, &access, &cached, foreign, .{ .next = first.page.next }, t.allocator));
+    const independent_open: c.DirectSourceRead.Open = .{ .reference = plan.reference, .operation = .{ .scope = scope, .principal = 3, .operation = 500001 } };
+    const independent = (try capturePublicRead(&catalog, &access, &cached, foreign, .{ .open = independent_open }, t.allocator)).opened;
+    access.principal = 2;
+    const close: c.DirectSourceRead.Request = .{ .close = .{ .handle = opened.handle, .operation = .{ .scope = scope, .principal = 2, .operation = 500002 } } };
+    _ = try capturePublicRead(&catalog, &access, &cached, connection, close, t.allocator);
+    _ = try capturePublicRead(&catalog, &access, &cached, connection, close, t.allocator);
+    try t.expectError(error.StreamReadReleased, capturePublicRead(&catalog, &access, &cached, connection, .{ .next = second.page.next }, t.allocator));
+    access.principal = 3;
+    const warm = try capturePublicRead(&catalog, &access, &cached, foreign, .{ .next = independent }, t.allocator);
+    defer warm.deinit(t.allocator);
+    const before = access.calls;
+    const repeat = try capturePublicRead(&catalog, &access, &cached, foreign, .{ .next = independent }, t.allocator);
+    defer repeat.deinit(t.allocator);
+    const guards = access.calls - before;
+    // The measured final guard is after raw read and output encoding. Keep the
+    // output allocation observable to prove buffering preceded the refusal.
+    access.deny_at = access.calls + guards;
+    var counted = std.testing.FailingAllocator.init(t.allocator, .{});
+    try t.expectError(error.CatalogDenied, capturePublicRead(&catalog, &access, &cached, foreign, .{ .next = independent }, counted.allocator()));
+    try t.expectEqual(1, counted.alloc_index);
+    try t.expectEqual(warm.page.bytes.base64.len, counted.allocated_bytes);
+    try t.expectEqual(counted.allocated_bytes, counted.freed_bytes);
+    access.deny_at = std.math.maxInt(usize);
+    access.denied_privileges = .{ .id = 150, .mask = c.LogAuthority.read };
+    try t.expectError(error.CatalogDenied, capturePublicRead(&catalog, &access, &cached, foreign, .{ .next = independent }, t.allocator));
+    access.denied_privileges = null;
+    const last = try capturePublicRead(&catalog, &access, &cached, foreign, .{ .next = warm.page.next }, t.allocator);
+    defer last.deinit(t.allocator);
+    const terminal = try capturePublicRead(&catalog, &access, &cached, foreign, .{ .next = last.page.next }, t.allocator);
+    defer terminal.deinit(t.allocator);
+    try t.expectEqualStrings("", terminal.page.bytes.base64);
+    try t.expect(terminal.page.complete);
+    access.denied_privileges = .{ .id = 150, .mask = c.LogAuthority.read };
+    try t.expectError(error.CatalogDenied, capturePublicRead(&catalog, &access, &cached, foreign, .{ .next = terminal.page.next }, t.allocator));
+}
+
+test "SOURCE capture expiry preserves existing pins and releases bodies without losing original receipts" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{ .exclusive = true };
+    try catalog.initialize(access.policy());
+    const source = try captureSetupRetention(&catalog, &access, 100);
+    var host: CaptureHost = .{ .access = &access };
+    var clock: QueueClock = .{};
+    const environment: c.DirectTransactionLog.Environment = .{ .clock = clock.source() };
+    catalog.log_environment = &environment;
+    var observed = try captureSmall(&catalog, &access, &host, source, 1, "retained through reader lifetime");
+    const plan = try capturePublication(observed);
+    observed = try catalog.capturePublish(plan, access.policy(), host.authority());
+    while (observed.state.phase == .publishing) observed = try catalog.captureAdvance(plan.candidate, .commit, 8, access.policy(), host.authority());
+    const receipt = observed.state.outcome.?;
+    // SOURCE retirement and both metadata drops leave destination ownership intact.
+    var meta = try catalog.inspectSource(t.allocator, source.interpretation, access.policy());
+    defer meta.deinit();
+    const retired = (try connectorExecute(&catalog, &access, try connectorEdit(meta.value.state, 510001, .{ .control = .{ .expected_epoch = 1, .command = .retire } }))).resulting.?;
+    _ = try connectorExecute(&catalog, &access, try connectorEdit(retired, 510002, .{ .drop = .{ .expected_epoch = 2 } }));
+    var connection_meta = try catalog.inspectSource(t.allocator, source.connection, access.policy());
+    defer connection_meta.deinit();
+    _ = try connectorExecute(&catalog, &access, try connectorEdit(connection_meta.value.state, 510003, .{ .drop = .{ .expected_epoch = null } }));
+    var cached: ?c.DirectStream.Cached = null;
+    defer if (cached) |*value| value.deinit();
+    var connection = plan.key.connection;
+    connection.principal = 2;
+    access.principal = 2;
+    var open: c.DirectSourceRead.Open = .{ .reference = plan.reference, .operation = .{ .scope = scope, .principal = 2, .operation = 500001 } };
+    const first = (try capturePublicRead(&catalog, &access, &cached, connection, .{ .open = open }, t.allocator)).opened;
+    open.operation.operation += 1;
+    const second = (try capturePublicRead(&catalog, &access, &cached, connection, .{ .open = open }, t.allocator)).opened;
+    const cut = cached.?.owner.root.position();
+    var scratch: std.heap.ArenaAllocator = .init(t.allocator);
+    defer scratch.deinit();
+    const authorization = try catalog.logAuthorization(scratch.allocator(), .stream, first.handle.publication.target(), .read, access.policy());
+    cached.?.owner.options.clock = clock.source();
+    while (!(try cached.?.owner.flush(cut, authorization.guard)).complete) {}
+    clock.now = .exact(300);
+    try t.expectEqual(.complete, (try cached.?.owner.expireHistory(cached.?.initialization.declared, cut, authorization.guard)).status);
+    try t.expectEqual(1, cached.?.owner.root.retained_from);
+    open.operation.operation += 1;
+    try t.expectError(error.LogRangeExpired, capturePublicRead(&catalog, &access, &cached, connection, .{ .open = open }, t.allocator));
+    // Old recovery frames are intentionally archived and checkpointed before
+    // testing physical collection; expiry alone is not a cleanup permission.
+    var through = cached.?.owner.root.position();
+    while (!(try cached.?.owner.archive(through, .{ .frames = 2 }, authorization.guard)).complete) {}
+    _ = try cached.?.owner.checkpoint(through, authorization.guard);
+    _ = try cached.?.owner.trimArchived(authorization.guard);
+    try collectHistoricalFixture(&catalog, &wal, &objects, &access, &.{});
+    const page = try capturePublicRead(&catalog, &access, &cached, connection, .{ .next = first }, t.allocator);
+    defer page.deinit(t.allocator);
+    try t.expect(page.page.complete);
+    _ = try capturePublicRead(&catalog, &access, &cached, connection, .{ .close = .{ .handle = first.handle, .operation = .{ .scope = scope, .principal = 2, .operation = 500004 } } }, t.allocator);
+    try collectHistoricalFixture(&catalog, &wal, &objects, &access, &.{});
+    const independent = try capturePublicRead(&catalog, &access, &cached, connection, .{ .next = second }, t.allocator);
+    defer independent.deinit(t.allocator);
+    try t.expect(independent.page.complete);
+    _ = try capturePublicRead(&catalog, &access, &cached, connection, .{ .close = .{ .handle = second.handle, .operation = .{ .scope = scope, .principal = 2, .operation = 500005 } } }, t.allocator);
+    through = cached.?.owner.root.position();
+    while (!(try cached.?.owner.archive(through, .{ .frames = 2 }, authorization.guard)).complete) {}
+    _ = try cached.?.owner.checkpoint(through, authorization.guard);
+    _ = try cached.?.owner.trimArchived(authorization.guard);
+    try collectHistoricalFixture(&catalog, &wal, &objects, &access, &.{});
+    try t.expectError(error.SourceCaptureMissing, Capture.Manifest.load(t.allocator, objects.objectStore(), plan.reference));
+    const publication = (try capturePublicRead(&catalog, &access, &cached, connection, .{ .inspect = plan.reference }, t.allocator)).publication;
+    try t.expectEqualDeep(receipt.decision, publication.decision);
+    try t.expectEqualDeep(receipt.append.?, publication.append);
+    for (objects.objects.items) |item| try t.expect(!std.mem.startsWith(u8, item.key, "source-captures/"));
 }
 
 test "SOURCE capture publication graph retains committed and uncertain bodies and releases aborted bytes" {

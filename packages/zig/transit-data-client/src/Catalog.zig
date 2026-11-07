@@ -59,6 +59,13 @@ pub const StreamOutcome = struct {
         return self.attempt.mutation != null;
     }
 };
+pub const CaptureOutcome = struct {
+    value: union(enum) { result: c.DirectSourceRead.Result, failure: Failure },
+    attempt: c.DirectTableClient.Attempt,
+    pub fn mutationAttempted(self: CaptureOutcome) bool {
+        return self.attempt.mutation != null;
+    }
+};
 pub const QueueOutcome = struct {
     value: union(enum) { result: c.DirectQueueClient.Result, failure: Failure },
     attempt: c.DirectTableClient.Attempt,
@@ -179,6 +186,20 @@ pub fn callStream(self: *Self, output: *std.heap.ArenaAllocator, action: c.Direc
     var attempt: c.DirectTableClient.Attempt = .{};
     const caller: c.DirectTableClient = .{ .allocator = self.allocator, .authority = &self.authority, .service = &self.service, .connection = self.connection, .key = self.key, .attempt = &attempt };
     const result = c.DirectStreamClient.apply(output, caller, action) catch |err| {
+        const native = self.service.last_rejection orelse self.authority.last_rejection;
+        return .{ .attempt = attempt, .value = .{ .failure = .{ .cause = err, .protocol_error = native, .diagnostic = attempt.failure(err, native) catch null } } };
+    };
+    return .{ .attempt = attempt, .value = .{ .result = result } };
+}
+
+pub fn callCapture(self: *Self, output: *std.heap.ArenaAllocator, action: c.DirectSourceRead.Request) error{Busy}!CaptureOutcome {
+    if (self.busy.swap(true, .acquire)) return error.Busy;
+    defer self.busy.store(false, .release);
+    self.authority.last_rejection = null;
+    self.service.last_rejection = null;
+    var attempt: c.DirectTableClient.Attempt = .{};
+    const caller: c.DirectTableClient = .{ .allocator = self.allocator, .authority = &self.authority, .service = &self.service, .connection = self.connection, .key = self.key, .attempt = &attempt };
+    const result = c.DirectSourceReadClient.apply(output, caller, action) catch |err| {
         const native = self.service.last_rejection orelse self.authority.last_rejection;
         return .{ .attempt = attempt, .value = .{ .failure = .{ .cause = err, .protocol_error = native, .diagnostic = attempt.failure(err, native) catch null } } };
     };
