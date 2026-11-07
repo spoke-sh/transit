@@ -47,7 +47,14 @@ pub fn open(allocator: std.mem.Allocator, catalog: *c.DirectCatalog, definition:
     }
     errdefer result.deinit();
     switch (result.owner) {
-        inline else => |*owner| while (!(try owner.recoverStep(guard_value, 256)).complete) {},
+        inline else => |*owner_value| {
+            while (!(try owner_value.recoverStep(guard_value, 256)).complete) {}
+            // This temporary owner has finished replay, with no scratch borrows.
+            // Evaluation installs a separately metered decode arena; retaining
+            // replay scratch alongside it can exhaust the transaction budget.
+            const owner = if (@TypeOf(owner_value.*) == s.QueuePartition) &owner_value.owner else owner_value;
+            _ = owner.scratch.reset(.free_all);
+        },
     }
     return result;
 }

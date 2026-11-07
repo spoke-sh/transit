@@ -5167,12 +5167,16 @@ test "transaction log statements atomically enqueue and ACK with lost decision r
 }
 
 test "transaction log terminal transfers preserve both owners through denial rollback expiry and disk replacement" {
-    return terminalTransferCases() catch |err| {
+    return terminalTransferCases(t.allocator) catch |err| {
         std.debug.print("terminal transfer error: {s}\n", .{@errorName(err)});
         return err;
     };
 }
-fn terminalTransferCases() !void {
+test "transaction log terminal transfers fit default memory without in-place allocator growth" {
+    var no_resize = t.FailingAllocator.init(t.allocator, .{ .resize_fail_index = 0 });
+    try terminalTransferCases(no_resize.allocator());
+}
+fn terminalTransferCases(allocator: std.mem.Allocator) !void {
     const Case = enum { commit, exhausted, expire, rollback };
     for ([_]Case{ .commit, .exhausted, .expire, .rollback }) |case| {
         var phase: []const u8 = "initialization";
@@ -5191,9 +5195,9 @@ fn terminalTransferCases() !void {
             defer wal.deinit();
             var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
             defer objects.deinit();
-            var catalog = try owner(&wal, &objects);
+            var catalog = try D.init(allocator, try configuration(), wal.log(), objects.objectStore(), wal.log(), objects.objectStore(), .{ .table = .{ .resident_pages = 1 } });
             defer catalog.deinit();
-            catalog.options.resident_pages = (D.Options{}).resident_pages;
+            try catalog.recover();
             var clock: QueueClock = .{};
             var cached: ?c.DirectQueue.Cached = null;
             defer if (cached) |*value| value.deinit();

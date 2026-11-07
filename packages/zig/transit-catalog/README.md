@@ -198,7 +198,9 @@ paged action directories compose append, authenticated offset commit and fenced
 ACK and paired dead-letter transfer with Table/KV changes in the common decision.
 Transfers reserve both operation identities, open one temporary Queue owner at a
 time, verify the original source row against the destination encoding, and check
-current source and destination rights. `DirectTransactionClient`
+current source and destination rights. Temporary log owners release replay
+scratch before evaluation or preparation allocates its own decode arena, keeping
+both phases within the transaction's resident memory limit. `DirectTransactionClient`
 exposes staging, admission, evaluation and original outcome inspection. Prepared
 data verification traverses the owning graph with a metered depth-first stack;
 the final lease/retention check uses trusted host time immediately before the
