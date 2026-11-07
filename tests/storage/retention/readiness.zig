@@ -25,7 +25,8 @@ fn collect(e: *Engine, key: p.Ed25519.KeyPair, pid: u64, kind: @FieldType(g.Coll
     _ = try send(e, key, .{ .collect = .{ .pid = pid, .kind = kind, .id = id } });
 }
 pub fn main(init: std.process.Init) !void {
-    const args = try init.minimal.args.toSlice(init.arena.allocator());
+    const raw_args = try init.minimal.args.toSlice(init.arena.allocator());
+    const args = if (raw_args.len == 4) raw_args[1..] else raw_args;
     if (args.len != 3) return error.ExpectedUrlAndPhase;
     const key = try p.Ed25519.KeyPair.generateDeterministic(@splat(7));
     const genesis: core.Genesis = .{ .realm = 81, .root_key = key.public_key.toBytes(), .allow_history_trim = true, .max_clock_error_ms = 0 };

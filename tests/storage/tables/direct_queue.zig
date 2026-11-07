@@ -58,7 +58,7 @@ pub fn prepare(init: std.process.Init, client: c.DirectTableClient, role: u64, p
     const intent: c.DirectLog.Intent = .{ .kind = .queue, .namespace = 1, .name = try .init("queued_work"), .action = .{ .create = .{
         .owner = role,
         .schema = schema,
-        .configuration = .{ .partitioning = .{ .count = 1, .key_column = null, .hash = .sha256_64 }, .retention = .{ .max_age_ms = null }, .policy = .{ .queue = .{ .ordering = .key_fifo, .key_column = 1, .lease_ms = 60000, .maximum_lease_ms = 60000, .maximum_attempts = 5, .backoff = .{ .initial_ms = 10, .maximum_ms = 1000, .multiplier = 2 }, .dead_letter = null } } },
+        .configuration = .{ .partitioning = .{ .count = 1, .key_column = null, .hash = .sha256_64 }, .retention = .{ .max_age_ms = null }, .policy = .{ .queue = .{ .ordering = .key_fifo, .key_column = 1, .lease_ms = 5000, .maximum_lease_ms = 60000, .maximum_attempts = 5, .backoff = .{ .initial_ms = 10, .maximum_ms = 1000, .multiplier = 2 }, .dead_letter = null } } },
         .limits = .{ .append_rows = 128, .append_bytes = 1024 * 1024, .claim_rows = 16, .read_rows = 128, .read_bytes = 1024 * 1024, .active_leases = 64, .waiters = 64, .timer_steps = 64 },
     } } };
     const creation: c.DirectLog.Request = .{ .intent = intent, .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 633000 }, .target = .{ .scope = client.connection.scope, .branch = 1, .object = schema.object }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(init.gpa) } };
@@ -72,7 +72,7 @@ pub fn prepare(init: std.process.Init, client: c.DirectTableClient, role: u64, p
     const payload = try c.storage.LogBatch.encode(schema, operation, .queue, &.{ .{ .cells = &a }, .{ .cells = &a }, .{ .cells = &b } }, &buffer);
     const enqueue: c.DirectQueueMutation.Request = .{ .enqueue = .{ .target = target, .operation = operation, .kind = .queue, .producer = .{ .id = @splat(13), .epoch = 1, .sequence = 1 }, .rows = 3, .payload = c.storage.LogBatch.content(payload) } };
     operation.operation = 633002;
-    var state: State = .{ .definition = p.Growth.current_definition, .enqueue = try c.DirectQueueClient.save(init.arena.allocator(), client.connection, .{ .work = enqueue, .payload = payload }), .claim = .{ .target = target, .operation = operation, .maximum = 3, .lease_ms = 60000 }, .claimed = null, .ack = null, .acked = null, .successor = null };
+    var state: State = .{ .definition = p.Growth.current_definition, .enqueue = try c.DirectQueueClient.save(init.arena.allocator(), client.connection, .{ .work = enqueue, .payload = payload }), .claim = .{ .target = target, .operation = operation, .maximum = 3, .lease_ms = 5000 }, .claimed = null, .ack = null, .acked = null, .successor = null };
     try save(init, path, state);
     const timed_out = try call(&caller, &output, .{ .wait = .{ .claim = state.claim, .milliseconds = 1 } });
     try t.expectEqual(@as(u64, 0), timed_out.timed_out.next);

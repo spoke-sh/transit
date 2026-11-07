@@ -170,11 +170,11 @@ def main():
     print(f'SQL compiler: {len(data["select"])} Zig/ANTLR ASTs agree; {executed} real plans, '
           f'codec round trips and paged Arrow results independently checked; all exclusions rejected.')
     from query.sql.unified import check as check_unified
-    check_unified(sys.argv[2])
+    check_unified(sys.argv[1])
     from query.sql.mutations import check as check_mutations
-    check_mutations(sys.argv[3])
+    check_mutations(sys.argv[1])
     from query.sql.declarations import check as check_declarations
-    check_declarations(sys.argv[4])
+    check_declarations(sys.argv[1])
     from query.sql.parameters import check as check_parameters
     check_parameters(sys.argv[1])
 

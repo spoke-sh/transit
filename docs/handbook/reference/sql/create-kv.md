@@ -33,8 +33,14 @@ Keys are non-empty UTF-8 strings (`'key'`) or binary hex literals (`X'...'`,
 ## Examples
 
 ```sql
-CREATE KV settings (UTF8 NOT NULL);
+CREATE KV settings (UTF8);
 CREATE KV counters (INT64);
+```
+
+Direct catalog sessions also accept explicit nullability, point-keyed workload verbs and inspection forms:
+
+```text
+CREATE KV settings (UTF8 NOT NULL);
 
 PUT INTO counters KEY 'requests' VALUE 1 IF ABSENT;
 PUT INTO counters KEY 'requests' VALUE 2 IF PRESENT;

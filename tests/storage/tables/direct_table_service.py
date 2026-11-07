@@ -637,7 +637,7 @@ def run(node, caller, mode="tables", *artifacts):
                         # The original 1-s leases and configured 10-s clock error
                         # have elapsed before verification. The caller checks the
                         # owner's trusted expired observation, not elapsed wall time.
-                        time.sleep(32)
+                        time.sleep(21)
                 assert Path(str(profile) + ".workload-result.positions").read_bytes() == positions
                 assert set(fault["commands"]) <= {"authorization"}, fault["commands"]
                 print(json.dumps(dict(profile="direct_workload_results", source=provenance(ROOT),
@@ -822,7 +822,7 @@ def run(node, caller, mode="tables", *artifacts):
                     if observed["expired"]:
                         break
                     assert time.monotonic() < deadline, observed
-                    time.sleep(1)
+                    time.sleep(.25)
                 assert not list((root / "native").rglob("*.tseg")), "Disabled flushing sealed Queue payloads"
                 # Expiry has now recorded the retired definition in the Queue
                 # root. Physical relocation must remain possible in this order.

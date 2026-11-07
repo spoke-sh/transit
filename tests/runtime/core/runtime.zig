@@ -11,7 +11,8 @@ fn submit(e: *Engine, key: core.Ed25519.KeyPair, command: core.Command) !u64 {
     return e.submit(try core.sign(.{ .realm = e.genesis.realm, .principal = 0, .sequence = (try e.principal(0)).sequence + 1, .command = current }, key));
 }
 pub fn main(init: std.process.Init) !void {
-    const args = try init.minimal.args.toSlice(init.arena.allocator());
+    const raw_args = try init.minimal.args.toSlice(init.arena.allocator());
+    const args = if (raw_args.len == 4) raw_args[1..] else raw_args;
     if (args.len != 3) return error.ExpectedUrlAndPhase;
     const root = try core.Ed25519.KeyPair.generateDeterministic(@splat(7));
     const worker = try core.Ed25519.KeyPair.generateDeterministic(@splat(8));

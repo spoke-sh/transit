@@ -31,7 +31,7 @@ def matrix(tasks, suite=SUITE):
 def native_matrix(tasks, suite=SUITE):
     selected = set(tasks) & {task for lane in suite['tiers']['sdks'] for task in suite['lanes'][lane]}
     return {'include': [dict(family=family, optimize='ReleaseSafe')
-                        for family in ('clients', 'authority')]} if selected else {'include': []}
+                        for family in ('clients', 'authority', 'c-sdk')]} if selected else {'include': []}
 
 
 def affected(paths, suite=SUITE):

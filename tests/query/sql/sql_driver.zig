@@ -204,6 +204,16 @@ fn parse(case: Case) !sql.TemplateAst {
 }
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
+    if (args.len >= 3) {
+        inline for (.{
+            .{ "unified", @import("proof_unified") },
+            .{ "mutation", @import("proof_mutation") },
+            .{ "declaration", @import("proof_declaration") },
+            .{ "relational", @import("proof_relational") },
+        }) |entry| {
+            if (std.mem.eql(u8, args[1], entry[0])) return entry[1].main(init);
+        }
+    }
     if (args.len != 3) return error.Usage;
     const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[1], init.gpa, .limited(2 * 1024 * 1024));
     defer init.gpa.free(bytes);

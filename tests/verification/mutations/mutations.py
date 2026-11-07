@@ -113,18 +113,24 @@ def main():
     destination.mkdir(parents=True, exist_ok=True)
     evidence = {"version": 1, "revision": revision, "status": "inconclusive", "mutants": []}
     try:
-        with tempfile.TemporaryDirectory(prefix="transit-mutants-") as directory:
-            checkout = Path(directory) / "src"
+        checkout = ROOT / ".cache/mutants-worktree"
+        if not (checkout / ".git").exists():
+            if checkout.exists():
+                shutil.rmtree(checkout)
+            checkout.parent.mkdir(parents=True, exist_ok=True)
             subprocess.run(["git", "clone", "--quiet", "--local", "--no-hardlinks", "--no-checkout", str(ROOT), str(checkout)], check=True)
-            subprocess.run(["git", "checkout", "--quiet", "--detach", revision], cwd=checkout, check=True)
-            code, output = execute(checkout, mode)
-            (destination / "baseline.log").write_text(output)
-            if code or passed not in output:
-                raise RuntimeError("unmodified mutation baseline failed; no mutant result is qualified")
-            for name, (filename, guard, replacement) in mutants.items():
-                source = checkout / (Path("packages/zig") if mode == "domain" else Path("packages/zig/transit-client/src") if mode == "scheduler" else CORE) / filename
-                original = source.read_text()
-                assert original.count(guard) == 1, f"review changed guard: {name}"
+        subprocess.run(["git", "fetch", "--quiet", str(ROOT), revision], cwd=checkout, check=True)
+        subprocess.run(["git", "checkout", "--force", "--quiet", "--detach", revision], cwd=checkout, check=True)
+        subprocess.run(["git", "clean", "-fdq", "-e", ".zig-cache"], cwd=checkout, check=True)
+        code, output = execute(checkout, mode)
+        (destination / "baseline.log").write_text(output)
+        if code or passed not in output:
+            raise RuntimeError("unmodified mutation baseline failed; no mutant result is qualified")
+        for name, (filename, guard, replacement) in mutants.items():
+            source = checkout / (Path("packages/zig") if mode == "domain" else Path("packages/zig/transit-client/src") if mode == "scheduler" else CORE) / filename
+            original = source.read_text()
+            assert original.count(guard) == 1, f"review changed guard: {name}"
+            try:
                 source.write_text(original.replace(guard, replacement))
                 started = time.monotonic()
                 code, output = execute(checkout, mode)
@@ -139,6 +145,7 @@ def main():
                 (destination / f"{name}.json").write_bytes(failure.read_bytes())
                 if mode == "domain":
                     shutil.copytree(checkout / ".cache/verification/domain-simulation", destination / name, dirs_exist_ok=True)
+            finally:
                 source.write_text(original)
         evidence["status"] = "passed"
         print(f"{mode} mutations: {', '.join(mutants)} detected by real-engine schedules.")

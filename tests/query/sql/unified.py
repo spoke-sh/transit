@@ -200,7 +200,7 @@ def check(driver):
     with tempfile.TemporaryDirectory(prefix='transit-unified-sql-') as temp:
         root = Path(temp)
         (root/'cases.json').write_text(json.dumps(cases))
-        result = subprocess.run([driver, str(root/'cases.json'), temp], capture_output=True, text=True, timeout=120)
+        result = subprocess.run([driver, 'unified', str(root/'cases.json'), temp], capture_output=True, text=True, timeout=120)
         assert result.returncode == 0, result.stderr
         seen = set()
         for line in result.stdout.splitlines():

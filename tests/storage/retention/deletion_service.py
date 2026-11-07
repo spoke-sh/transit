@@ -13,7 +13,7 @@ from harness.services import free_port, wait_ready
 
 def run(node, cli, proof):
     with Fixture() as store:
-        subprocess.run([str(proof), store.url, "service_seed"], check=True, timeout=30)
+        subprocess.run([str(proof), "deletion", store.url, "service_seed"], check=True, timeout=30)
         # Public test vector matching the isolated fixture's genesis, never a
         # deployment credential. Keep the same private-file transport as services.
         seed = store.root / "seed"
@@ -54,7 +54,7 @@ def run(node, cli, proof):
                 assert all(child.poll() is None for child in children)
                 assert time.monotonic() < limit, view
                 time.sleep(0.05)
-            subprocess.run([str(proof), store.url, "service_verify"], check=True, timeout=30)
+            subprocess.run([str(proof), "deletion", store.url, "service_verify"], check=True, timeout=30)
             print("Background payload retirement/deletion preserves tombstones and unlimited-retention bytes.")
         except BaseException:
             for log in logs:

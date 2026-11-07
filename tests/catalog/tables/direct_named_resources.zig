@@ -25,18 +25,22 @@ pub fn growthWrite(init: std.process.Init, client: c.DirectTableClient, admin: a
     template_client.allocator = template_arena.allocator();
     const templates = try prepare(template_client, admin, role);
     const worker_role = (try admin.client.query(.{ .realm = 42, .principal = 102, .kind = .{ .authorization = .{ .kind = .identity } } }, try key(31))).body.authorization.body.identity.login_role;
+    _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .realm, .id = 0 }, .grantee = role, .privileges = p.permission(.inspect) | p.permission(.admin) | p.permission(.send) } });
+    _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .realm, .id = 0 }, .grantee = worker_role, .privileges = p.permission(.inspect) | p.permission(.execute) | p.permission(.publish) } });
+    const worker_key = try key(31);
     var result: GrowthState = undefined;
     for (0..growth_count) |i| {
+        const edge = i < 2 or i + 1 == growth_count;
         var arena = std.heap.ArenaAllocator.init(init.gpa);
         defer arena.deinit();
         var current = client;
         current.allocator = arena.allocator();
-        const resources: HostClient = .{ .catalog = current };
+        const host_resources: HostClient = .{ .catalog = current };
+        const direct_resources: c.DirectResourceClient = .{ .catalog = current };
         var binding = templates.bindings[i % 2];
         if (i >= 2) {
             const writer = try admin.submit(.{ .spawn = .{} });
             _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .process, .id = writer }, .grantee = role, .privileges = p.permission(.admin) | p.permission(.send) } });
-            _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .process, .id = writer }, .grantee = worker_role, .privileges = p.permission(.inspect) | p.permission(.execute) | p.permission(.publish) } });
             binding.action.create.writer = writer;
         }
         binding.object.object = growth_first + i;
@@ -47,34 +51,49 @@ pub fn growthWrite(init: std.process.Init, client: c.DirectTableClient, admin: a
         // replaces this checkpoint only after the previous operation completes.
         const saved = try c.DirectResourceClient.save(arena.allocator(), binding);
         try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = checkpoint, .data = saved });
-        try t.expectEqual(.admitted, (try resources.operation(binding, .admit, 1)).operation.phase);
-        const prepared = (try resources.operation(binding, .execute, 64)).operation;
+        const admitted = if (i < 2) try host_resources.operation(binding, .admit, 1) else try direct_resources.operation(binding, .admit, 1);
+        try t.expectEqual(.admitted, admitted.operation.phase);
+        const prepared = (if (i < 2) try host_resources.operation(binding, .execute, 64) else try direct_resources.operation(binding, .execute, 64)).operation;
         try t.expectEqual(.prepared, prepared.phase);
-        try t.expectError(error.AccessDenied, resources.operation(binding, .execute, 64));
+        try t.expectError(error.AccessDenied, if (i < 2) host_resources.operation(binding, .execute, 64) else direct_resources.operation(binding, .execute, 64));
         const request = try binding.allocation(prepared.allocation.?);
         const receipt = (try current.authority.query(.{ .realm = 42, .principal = 101, .kind = .{ .authorization = .{ .kind = .{ .receipt = request } } } }, current.key)).body.authorization.body.receipt.?;
-        for ([_]u64{ 0, 101, 102 }) |subject| _ = try admin.submit(.{ .grant_resource = .{ .resource = receipt.position, .subject = subject, .permissions = p.State.all_permissions } });
-        const allocated = (try resources.operation(binding, .execute, 64)).operation;
+        try adminSubmitBatch(admin, &.{
+            .{ .grant_resource = .{ .resource = receipt.position, .subject = 101, .permissions = p.State.all_permissions } },
+            .{ .grant_resource = .{ .resource = receipt.position, .subject = 102, .permissions = p.State.all_permissions } },
+        });
+        const allocated = (if (i < 2) try host_resources.operation(binding, .execute, 64) else try direct_resources.operation(binding, .execute, 64)).operation;
         try t.expectEqual(.allocated, allocated.phase);
         const definition = allocated.resulting.?;
-        try t.expectEqual(null, try resources.lookup(1, binding.action.create.name.slice()));
-        try t.expectEqual(null, try inspect(current, definition));
+        if (edge) {
+            try t.expectEqual(null, try host_resources.lookup(1, binding.action.create.name.slice()));
+            try t.expectEqual(null, try inspect(current, definition));
+        }
         const writer = definition.creation.writer;
-        _ = try admin.submit(.{ .associate = .{ .pid = writer, .name = try .init("state"), .resource = definition.resource } });
-        const process = (try admin.client.query(.{ .realm = 42, .principal = 0, .kind = .{ .process = writer } }, try key(17))).body.process.process;
-        _ = try admin.submit(.{ .own = .{ .pid = writer, .expected_generation = process.generation, .worker = 102 } });
-        for (0..3) |_| _ = try runTurn(init.io, current, admin, definition, 0);
-        try t.expectEqual(Owner.Step.complete, (try inspect(current, definition)).?);
-        const complete = (try resources.operation(binding, .execute, 64)).operation;
+        const zero_frame = try (s.Frame{ .kind = .cast, .payload = p.Value.integer(0) }).encode();
+        try clientSubmitBatch(current, &.{
+            .{ .associate = .{ .pid = writer, .name = try .init("state"), .resource = definition.resource } },
+            .{ .own = .{ .pid = writer, .expected_generation = 1, .worker = 102 } },
+            .{ .send = .{ .pid = writer, .value = zero_frame } },
+            .{ .send = .{ .pid = writer, .value = zero_frame } },
+            .{ .send = .{ .pid = writer, .value = zero_frame } },
+        });
+        var server = try s.GenServer.init(.{ .client = current.authority, .realm = 42, .principal = 102, .pid = writer, .generation = 2, .key = worker_key }, "state");
+        var tracked_resource: g.Resource = .{ .id = definition.resource, .writer = writer, .owner = null, .revision = definition.resource, .deadline_ms = null };
+        for (0..3) |_| _ = try stepCommitted(init.io, current, &server, &tracked_resource, definition);
+        if (edge) try t.expectEqual(Owner.Step.complete, (try inspect(current, definition)).?);
+        const complete = (if (i < 2) try host_resources.operation(binding, .execute, 64) else try direct_resources.operation(binding, .execute, 64)).operation;
         try t.expectEqual(.complete, complete.phase);
         if (i == 0) result = .{ .first = binding, .original = complete };
-        _ = try runTurn(init.io, current, admin, definition, 1);
-        for ([_]i64{ 2, 3 }) |code| {
-            for (0..128) |_| {
-                if (try runTurn(init.io, current, admin, definition, code)) break;
-            } else return error.DocumentDidNotComplete;
-        }
-        try growthValue(current, definition);
+        var client_sequence = (try current.authority.query(.{ .realm = 42, .principal = 101, .kind = .{ .authorization = .{ .kind = .identity } } }, current.key)).principal_sequence;
+        try sendBatchTracked(current, &client_sequence, writer, &.{ 5, 5 });
+        try t.expect(!try stepCommitted(init.io, current, &server, &tracked_resource, definition));
+        try t.expect(try stepCommitted(init.io, current, &server, &tracked_resource, definition));
+        for (0..32) |_| {
+            try sendBatchTracked(current, &client_sequence, writer, &.{3});
+            if (try stepCommitted(init.io, current, &server, &tracked_resource, definition)) break;
+        } else return error.NamedResourceStepBudget;
+        if (edge) try growthValue(current, definition);
         if (i % 16 == 0) std.debug.print("Named resource growth: {d}/{d} initialized and read.\n", .{ i + 1, growth_count });
     }
     std.debug.print("Named resource growth: all {d} resources initialized and read; setup complete.\n", .{growth_count});
@@ -274,12 +293,64 @@ const Handler = struct {
                 1 => _ = try service.prepare(turn, 1, change, 256),
                 2 => self.done = try service.upload(turn, 1, change),
                 3 => self.done = (try service.advance(turn, 1)) != .progress,
+                5 => {
+                    if (try turn.read(service.key('j', 1)) == null) {
+                        _ = try service.prepare(turn, 1, change, 256);
+                    }
+                    self.done = while (true) {
+                        const done = service.upload(turn, 1, change) catch |err| {
+                            if (err == error.MutationBudgetExceeded) break false;
+                            return err;
+                        };
+                        if (done) break true;
+                    };
+                },
                 else => return error.UnexpectedCommand,
             }
         }
     }
 };
 
+fn adminSubmitBatch(admin: anytype, commands: []const g.Command) !void {
+    const admin_key = try key(17);
+    var sequence = (try admin.query(.identity)).principal_sequence;
+    for (commands) |command| {
+        sequence += 1;
+        _ = try admin.client.submit(try g.sign(.{ .realm = 42, .principal = 0, .sequence = sequence, .command = command }, admin_key));
+    }
+}
+fn clientSubmitBatch(client: c.DirectTableClient, commands: []const g.Command) !void {
+    var sequence = (try client.authority.query(.{ .realm = 42, .principal = 101, .kind = .{ .authorization = .{ .kind = .identity } } }, client.key)).principal_sequence;
+    for (commands) |command| {
+        sequence += 1;
+        _ = try client.authority.submit(try g.sign(.{ .realm = 42, .principal = 101, .sequence = sequence, .command = command }, client.key));
+    }
+}
+fn sendBatchTracked(client: c.DirectTableClient, sequence: *u64, pid: u64, codes: []const i64) !void {
+    for (codes) |code| {
+        sequence.* += 1;
+        _ = try client.authority.submit(try g.sign(.{ .realm = 42, .principal = 101, .sequence = sequence.*, .command = .{ .send = .{ .pid = pid, .value = try (s.Frame{ .kind = .cast, .payload = p.Value.integer(code) }).encode() } } }, client.key));
+    }
+}
+fn stepCommitted(io: std.Io, client: c.DirectTableClient, server: *s.GenServer, tracked_resource: *g.Resource, definition: R.Definition) !bool {
+    server.resource = tracked_resource.*;
+    var handler: Handler = .{ .owner = .{ .initial = definition }, .allocator = client.allocator };
+    for (0..32) |_| {
+        const step = try server.step(.{ .context = &handler, .handle = Handler.handle }, @as(u64, @intCast(std.Io.Clock.real.now(io).toMilliseconds())) + 30000);
+        switch (step) {
+            .committed => {
+                const pos = server.confirmation.?.receipt.position;
+                tracked_resource.revision = pos;
+                tracked_resource.last_turn = pos;
+                return handler.done;
+            },
+            .blocked => return server.handler_error orelse error.NamedResourceBehaviorBlocked,
+            .idle => return error.MissingInput,
+            .progress => {},
+        }
+    }
+    return error.NamedResourceStepBudget;
+}
 fn send(client: c.DirectTableClient, pid: u64, code: i64) !void {
     const identity = try client.authority.query(.{ .realm = 42, .principal = 101, .kind = .{ .authorization = .{ .kind = .identity } } }, client.key);
     _ = try client.authority.submit(try g.sign(.{ .realm = 42, .principal = 101, .sequence = identity.principal_sequence + 1, .command = .{ .send = .{ .pid = pid, .value = try (s.Frame{ .kind = .cast, .payload = p.Value.integer(code) }).encode() } } }, client.key));
