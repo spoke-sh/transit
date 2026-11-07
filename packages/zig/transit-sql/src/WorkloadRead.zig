@@ -17,6 +17,7 @@ pub const Prepared = struct {
     output: f.Types.Decoded,
     projector: f.WorkloadProjection.Projector,
     projection_hash: [32]u8,
+    opened_reference: ?native.Reference = null,
 
     pub fn init(caller: c.DirectTableClient, reference: c.DirectWorkloadIntent.Reference) !Prepared {
         try reference.validate();
@@ -59,10 +60,11 @@ pub const Prepared = struct {
         const page: c.storage.StreamPartition.ReadLimits = .{ .rows = @min(g.session_protocol.max_rows, declared.read_rows), .encoded_bytes = @min(1024 * 1024, declared.read_bytes) };
         return .{ .rows = page.rows, .encoded_bytes = page.encoded_bytes, .scanned_rows = page.scanned_rows };
     }
-    pub fn open(self: *const Prepared, caller: c.DirectTableClient) !c.DirectWorkloadResultProtocol.Opened {
+    pub fn open(self: *Prepared, caller: c.DirectTableClient) !c.DirectWorkloadResultProtocol.Opened {
         const response = try caller.call(.{ .workload_result = .{ .open = .{ .intent = self.reference, .limits = self.limits() } } });
         defer response.deinit();
         const value = response.value.result.workload_result.opened;
+        self.opened_reference = value.reference;
         // Only fixed-value fields escape this response. Its source schema is
         // already owned by Prepared and checked by the native response validator.
         return .{ .reference = value.reference, .position = value.position, .source = self.intent.parsed.value.source };

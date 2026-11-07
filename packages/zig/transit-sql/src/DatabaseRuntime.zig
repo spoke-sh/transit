@@ -636,11 +636,12 @@ pub fn resumeWorkload(self: *Self, allocator: std.mem.Allocator, observer: *g.Cl
     const state = try source.operation(id);
     try requireRoute(state, table, namespace);
     if (state.receipt.binding.intent != .workload) return error.WorkloadOperationRequired;
-    const wait = try g.WorkloadOperations.attempt(table.*, state);
+    const attempt = try g.WorkloadOperations.attemptWithIntent(table.*, state, null, false);
+    if (attempt.terminal) |completed| return completed;
     var result = try self.status(allocator, observer, table, namespace, id);
-    if (result.wait != null and wait != null) {
-        try result.wait.?.requireSame(wait.?);
-        result.wait = wait;
+    if (result.wait != null and attempt.wait != null) {
+        try result.wait.?.requireSame(attempt.wait.?);
+        result.wait = attempt.wait;
     }
     return result;
 }
@@ -749,6 +750,15 @@ fn admitWithWake(self: *Self, allocator: std.mem.Allocator, observer: *g.Client,
     }
     return state;
 }
+pub const RetainedWorkload = struct {
+    id: u64,
+    reference: c.DirectWorkloadIntent.Reference,
+    intent: c.DirectWorkloadIntent,
+    pub fn deinit(self: *RetainedWorkload) void {
+        self.intent.deinit();
+        self.* = undefined;
+    }
+};
 /// Submit through the same durable token owner and attempt bounded foreground
 /// DML completion. Interrupted work remains pending under its original identity;
 /// recovery is notified if foreground execution cannot settle the original work.
@@ -756,6 +766,10 @@ pub fn submit(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, ta
     return self.submitPrepared(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, null, false, false);
 }
 pub fn submitPrepared(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64, acceptance_possible: ?*bool, fresh_prepared: bool, fresh_fenced: bool) !g.session_protocol.Operation {
+    return self.submitPreparedRetained(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, acceptance_possible, fresh_prepared, fresh_fenced, null);
+}
+pub fn submitPreparedRetained(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64, acceptance_possible: ?*bool, fresh_prepared: bool, fresh_fenced: bool, out_retained_workload: ?*?RetainedWorkload) !g.session_protocol.Operation {
+    if (out_retained_workload) |slot| slot.* = null;
     const selected = self.claim(nonce);
     try selected.lock(self.io);
     self.beginForeground();
@@ -776,12 +790,20 @@ pub fn submitPrepared(self: *Self, allocator: std.mem.Allocator, observer: *g.Cl
     try requireRoute(state, table, statement.namespace);
     if (state.receipt.binding.intent == .workload and newly_bound) {
         try deadline.check(self.io);
-        const attempt = try g.WorkloadOperations.initialWaitWithIntent(table.*, state, if (retained_workload) |*workload| workload else null, true);
+        const is_wait = if (retained_workload) |*workload| workload.parsed.value.wait_ms != null else false;
+        const attempt = g.WorkloadOperations.attemptWithIntent(table.*, state, if (retained_workload) |*workload| workload else null, true) catch |err| switch (err) {
+            error.GatewayDeadline, error.Conflict => if (!is_wait) g.WorkloadOperations.Attempt{ .pending = true } else return err,
+            else => if (!is_wait and wire.Client.unavailable(err)) g.WorkloadOperations.Attempt{ .pending = true } else return err,
+        };
         if (attempt.terminal) |completed| {
             finishTableClaim(table_claim, statement, null);
+            if (out_retained_workload) |slot| if (retained_workload != null and completed.result_kind == .rows) {
+                slot.* = .{ .id = state.id(), .reference = state.receipt.binding.intent.workload, .intent = retained_workload.? };
+                retained_workload = null;
+            };
             return completed;
         }
-        if (state.pending) self.notify();
+        if (state.pending and !is_wait) self.notify();
         var result = try self.status(allocator, observer, table, statement.namespace, state.id());
         if (result.wait != null and attempt.wait != null) {
             try result.wait.?.requireSame(attempt.wait.?);

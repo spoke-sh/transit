@@ -43,6 +43,7 @@ compile_binding: f.Sql.Binding = .{},
 wire_failure: g.Type.Failure = .{},
 fresh_current: bool = false,
 fresh_prepared: ?*const Prepared = null,
+retained_workload: ?g.DatabaseRuntime.RetainedWorkload = null,
 transaction: g.SessionTransaction.State = .{},
 transaction_completion: ?g.results.CommandCompletion = null,
 const ObservationSource = enum { native, settings };
@@ -361,6 +362,7 @@ pub const Read = struct {
         const maximum = if (self.value == .inspection and self.value.inspection.prepared.historical_list != null) @min(requested, 8) else requested;
         self.validated_disclosure = false;
         try self.host.deadline.check(self.host.io);
+        const was_validated_open = self.validated_open;
         if (self.validated_open) {
             self.validated_open = false;
         } else {
@@ -397,7 +399,9 @@ pub const Read = struct {
         if (self.value == .settings) {
             if (self.value.settings.settings) |settings| self.disclosure.origins = settings.origins orelse false;
         }
-        try self.disclosure.validate(self.host, self.prepared);
+        if (!(was_validated_open and self.value == .workload)) {
+            try self.disclosure.validate(self.host, self.prepared);
+        }
         self.validated_disclosure = true;
         self.emitted_rows = try std.math.add(u64, self.emitted_rows, self.builder.len);
         return .{ .rows = self.builder.rows, .len = self.builder.len, .complete = complete };
@@ -506,9 +510,23 @@ pub fn initOptions(allocator: std.mem.Allocator, io: std.Io, config: *const g.Co
     }
     return self;
 }
+pub fn clearRetainedWorkload(self: *Self) void {
+    if (self.retained_workload) |*retained| retained.deinit();
+    self.retained_workload = null;
+}
+pub fn takeRetainedWorkload(self: *Self, id: u64) ?g.DatabaseRuntime.RetainedWorkload {
+    if (self.retained_workload) |retained| {
+        if (retained.id == id) {
+            self.retained_workload = null;
+            return retained;
+        }
+    }
+    return null;
+}
 pub fn deinit(self: *Self) void {
     _ = self.cleanupDeadline();
     self.active.store(false, .release);
+    self.clearRetainedWorkload();
     if (self.source) |source| source.deinit();
     self.directory.close(self.io);
     self.wire.deinit();
@@ -611,6 +629,7 @@ pub fn transactionStatus(self: *const Self) g.results.Transaction.SessionState {
 }
 pub fn reset(self: *Self) !void {
     if (self.transaction.active()) return error.SqlTransactionActive;
+    self.clearRetainedWorkload();
     self.fresh_current = false;
     try self.current();
     self.operation = null;
@@ -618,6 +637,7 @@ pub fn reset(self: *Self) !void {
 }
 pub fn selectSource(self: *Self, name: ?[]const u8) !void {
     if (self.transaction.active()) return error.SqlTransactionActive;
+    self.clearRetainedWorkload();
     if (self.source) |source| {
         self.fresh_current = false;
         source.deinit();
@@ -633,6 +653,7 @@ pub fn sourceName(self: *const Self) ?[]const u8 {
 }
 pub fn selectDatabase(self: *Self, name: []const u8) !void {
     if (self.transaction.active()) return error.SqlTransactionActive;
+    self.clearRetainedWorkload();
     try self.current();
     const binding = try self.account.database(name);
     var candidate = self.table;

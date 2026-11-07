@@ -27,8 +27,8 @@ pub fn validate(self: Self, host: *g.Session, prepared: *g.Session.Prepared) !vo
     try host.validate(prepared);
     if (self.workload) |reference| {
         if (prepared.* != .workload) return error.WorkloadResultConflict;
-        const opened = try prepared.workload.open(host.table);
-        try reference.requireSame(opened.reference);
+        const opened = if (prepared.workload.opened_reference) |cached| cached else (try prepared.workload.open(host.table)).reference;
+        try reference.requireSame(opened);
     }
     if (self.transaction_context != null and (!std.meta.eql(self.transaction_context, host.table.transaction) or !std.meta.eql(self.transaction, host.transaction.handle))) return error.TransactionReadChanged;
     if (self.origins) {
