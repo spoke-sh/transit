@@ -29,7 +29,7 @@ fn execute(client: c.DirectTableClient, original: d.Binding) !w.Result {
 fn binding(client: c.DirectTableClient, operation: u64, action: d.Action, basis: w.Definition) d.Binding {
     return .{ .definition = p.Growth.current_definition, .identity = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = operation }, .target = basis.interpretation.interpretation.object, .action = action, .expected_definition = basis.interpretation.interpretation, .expected_data = basis.position, .intent = @splat(0) };
 }
-fn lookup(client: c.DirectTableClient, name: []const u8) !std.json.Parsed(w.Response) {
+fn lookup(client: c.DirectTableClient, name: []const u8) !c.DirectTableClient.OwnedResponse {
     return client.call(.{ .lookup = .{ .namespace = 1, .name = name } });
 }
 fn absent(client: c.DirectTableClient, name: []const u8) !void {

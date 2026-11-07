@@ -44,7 +44,7 @@ fn load(caller: c.DirectTableClient, state: c.DirectClientToken.Progress) !Inten
     try reference.requireSame(try intent.reference(state.receipt.binding.key.account));
     return intent;
 }
-fn call(caller: c.DirectTableClient, saved: Intent.Saved, action: enum { inspect, execute, cancel }) !std.json.Parsed(w.Response) {
+fn call(caller: c.DirectTableClient, saved: Intent.Saved, action: enum { inspect, execute, cancel }) !c.DirectTableClient.OwnedResponse {
     return caller.call(switch (saved.work) {
         .stream => |value| .{ .stream = switch (action) {
             .inspect => .{ .operation = value.work },

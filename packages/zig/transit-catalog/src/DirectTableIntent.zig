@@ -63,12 +63,12 @@ pub const Reference = struct {
         try other.validate();
         if (!std.meta.eql(self, other)) return error.DataIdentityConflict;
     }
-    pub fn admit(self: Reference, client: c.DirectTableClient) !std.json.Parsed(w.Response) {
+    pub fn admit(self: Reference, client: c.DirectTableClient) !c.DirectTableClient.OwnedResponse {
         try self.validate();
         if (!std.meta.eql(self.connection, client.connection)) return error.CatalogIdentityConflict;
         return client.call(.{ .admit_saved = self });
     }
-    pub fn operation(self: Reference, client: c.DirectTableClient, command: @FieldType(@FieldType(w.Action, "operation"), "command"), steps: u16) !std.json.Parsed(w.Response) {
+    pub fn operation(self: Reference, client: c.DirectTableClient, command: @FieldType(@FieldType(w.Action, "operation"), "command"), steps: u16) !c.DirectTableClient.OwnedResponse {
         try self.validate();
         if (!std.meta.eql(self.connection, client.connection)) return error.CatalogIdentityConflict;
         return client.call(.{ .operation = .{ .binding = self.binding, .command = command, .steps = steps } });
@@ -222,13 +222,13 @@ pub fn check(self: *const Self, connection: w.Connection) !void {
 }
 /// Submission remains separate from execution. The caller must retain these
 /// bytes before either mutation attempt; errors may follow accepted admission.
-pub fn admit(self: *const Self, client: c.DirectTableClient) !std.json.Parsed(w.Response) {
+pub fn admit(self: *const Self, client: c.DirectTableClient) !c.DirectTableClient.OwnedResponse {
     try self.check(client.connection);
     return client.call(self.parsed.value.work.action());
 }
 /// Re-sign current authorization for the same immutable operation. This never
 /// reconstructs its payload, replaces its expectations or submits fresh SQL.
-pub fn operation(self: *const Self, client: c.DirectTableClient, command: @FieldType(@FieldType(w.Action, "operation"), "command"), steps: u16) !std.json.Parsed(w.Response) {
+pub fn operation(self: *const Self, client: c.DirectTableClient, command: @FieldType(@FieldType(w.Action, "operation"), "command"), steps: u16) !c.DirectTableClient.OwnedResponse {
     try self.check(client.connection);
     return client.call(.{ .operation = .{ .binding = self.binding(), .command = command, .steps = steps } });
 }
