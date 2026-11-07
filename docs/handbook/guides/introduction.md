@@ -1,18 +1,53 @@
 # What is Transit?
 
-**Transit is a declarative, versioned multi-model database, vectorized/incremental query engine, and durable execution runtime written in Zig.**
+Build applications that can work with changing information, explain their answers
+and carry work through failure. Transit brings versioned data, queries and durable
+execution into the same system, with explicit policies for who may use them.
 
-Transit separates responsibility into three architectural planes.
+A record changes. An answer needs refreshing. A worker restarts halfway through a
+request. These are connected parts of an application's life. Transit gives each
+part an inspectable basis: accepted data, the source versions behind a result,
+and the original outcome of an operation.
 
-- **Control & Policy Plane:** Catalog identities and definitions, current authorization, retention and resource budgets govern data access and execution.
-- **Direct Data Plane:** Direct Table storage preserves accepted rows and snapshots. Fuze executes queries over authorized sources, including supported Table, KV and Document adapters.
-- **Process & Effect Plane:** Station coordinates stateful durable processes. Connectors record authorized external attempts and outcomes, preserving the distinction between replaying history and dispatching an effect.
+**Transit is a declarative, versioned multi-model database, a query engine called
+Fuze, and a durable execution runtime called Station.** It is written in Zig,
+with SQL, language SDKs and protocol gateways for its supported operations.
 
-[![Transit three-plane architecture: control and policy govern direct data and durable processes separately; public interfaces reach each plane through its owning operations.](../static/img/architecture/three-plane-architecture.svg)](../static/img/architecture/three-plane-architecture.svg)
+Start by [creating your first dataset](quickstart.md), or follow the
+[data model](../reference/data-model.md) from data and computation to policy.
 
-SQL, CLI, SDKs and protocol gateways are entry points to these operations. A gateway does not create a separate policy authority, and data requests need not pass through a process mailbox. The [architecture reference](../reference/architecture.md) explains the owners and boundaries; the [capability map](../reference/data-model.md#declarations-and-current-interfaces) identifies the operations available for each data kind.
+## See what you could build
 
-Start with the data your application needs: its logical schema, physical encoding and collation, how it changes, what computations derive from it, and which policies govern its use. The [data model](../reference/data-model.md) connects these concerns to their supported interfaces, and [Internals](../internals/README.md) formalizes the underlying storage, query and execution mechanisms. The [local quickstart](quickstart.md) takes you from an empty installation to a Table you define, query and evolve through the console.
+An operations desk combines changing records with queries and leased work. A
+reproducible investigation keeps the basis of an answer inspectable. A recoverable
+integration preserves the original request and its observed outcome. These are
+application patterns built from Transit's documented interfaces, with application
+logic connecting the pieces.
+
+The [workload examples](workload-examples.md) provide complete executable callers.
+The [business stories](../reference/collaborative-decisions.md) explore the broader
+proposed experience: people and agents sharing evidence, comparing alternatives
+and reviewing changes before publication. Their availability table separates
+those integrated experiences from the building blocks available today.
+
+## Work with data
+
+Start with the information your application needs to preserve, then choose how
+it changes and what you want to learn from it.
+
+| You want to… | Transit gives you… | Explore |
+| --- | --- | --- |
+| Keep operational records and evolve their shape | Typed Tables, keys, defaults, queries and schema changes | [Tables](../reference/tables.md) |
+| Preserve events and coordinate work | Partitioned Streams and Queues with explicit progress and leases | [Streams and Queues](../reference/streams.md) |
+| Keep structured context and shared edits | Documents with accepted revisions, collaborative text and explicit conflicts | [Documents](../reference/documents.md) |
+| Store application-selected values by key | KV objects with explicit types, encodings and retained versions | [KV resources](../reference/state.md) |
+| Ask a question now or retain its answer | Interactive, captured and maintained computation lifetimes with different interfaces | [Query lifetimes](../reference/data-model.md#choose-a-computation-lifetime) |
+| Govern who may use data and how long it remains | Current authorization, retention and bounded execution budgets | [Permissions](../reference/security.md) and [retention](../reference/retention.md) |
+
+SQL, SDKs, HTTP APIs and Board expose different portions of this lifecycle. Use
+[Choose an interface](choose-interface.md) to find the path that supports the
+operation you need. A source's representation, its computation lifetime and the
+interface you use are separate choices.
 
 ## Describe intent and inspect the result
 
@@ -33,21 +68,26 @@ The product direction is:
 
 The supported path is most complete for Tables: create and evolve their schemas, read and change rows independently of actor turns, and inspect outcomes through a configured catalog. KV and Documents have client/service APIs, while their SQL declarations compile offline without creating objects. Named captured and maintained relational queries have typed Zig interfaces with explicit host activation and scheduling; SQL view and subscription declarations are unavailable. See the [capability map](../reference/data-model.md#declarations-and-current-interfaces) for the boundary between the direction and today's operations.
 
-## Work with data
+## Understand the machinery
 
-The [business stories](../reference/collaborative-decisions.md) follow a delivery manager, a reviewer and an operations lead using shared evidence to answer questions, compare branch proposals and respond to meaningful changes. They describe the proposed human/agent collaboration experience and identify its available building blocks separately from capabilities still to be implemented.
+Three architectural planes connect the user-facing model to its implementation.
 
-| Need | Start here |
-| --- | --- |
-| Store records with typed columns, keys, physical codecs and collations | [Tables and materialization](../reference/tables.md) and [data types and cell states](../reference/sql/types.md) |
-| Store keys and values under an explicit encoding | [KV resources](../reference/state.md) |
-| Accept structured edits and collaborative text with explicit conflicts | [Documents](../reference/documents.md) |
-| Read, filter, join or aggregate supported sources with `Fuze` | [SQL](../reference/sql.md), [queries](../reference/queries.md) and [query lifetimes](../reference/data-model.md#choose-a-computation-lifetime) |
-| Control access, retention and resource budgets | [Permissions](../reference/security.md) and [retention](../reference/retention.md) |
-| Inspect definitions, results and progress | [Observe the lifecycle](../reference/data-model.md#inspect-whether-a-declaration-is-being-fulfilled) and [Board](inspect-board.md) |
-| Capture external observations or coordinate external actions | [Connectors and recorded outcomes](../reference/connectors.md) |
+- **Control & Policy Plane:** Catalog identities and definitions, current
+  authorization, retention and resource budgets govern data access and execution.
+- **Direct Data Plane:** Direct storage preserves accepted data and snapshots.
+  Fuze executes queries over authorized sources, including supported Table, KV
+  and Document adapters.
+- **Process & Effect Plane:** Station coordinates stateful durable processes.
+  Connectors record authorized external attempts and outcomes, keeping replay
+  distinct from dispatching an effect.
 
-SQL, language SDKs, HTTP APIs and Board expose different operations over shared owners and contracts. [Choose an interface](choose-interface.md) for the data kind, computation lifetime and operations you need. An interface that reads a source does not necessarily create it or maintain a derived result.
+[![Transit three-plane architecture: control and policy govern direct data and durable processes separately; public interfaces reach each plane through its owning operations.](../static/img/architecture/three-plane-architecture.svg)](../static/img/architecture/three-plane-architecture.svg)
+
+The [architecture reference](../reference/architecture.md) explains the owners and
+boundaries. [Internals](../internals/README.md) develops the storage, query and
+execution mechanisms with their assumptions and evidence. A data request need
+not pass through a process mailbox, and a protocol gateway creates no separate
+policy authority.
 
 ## Durable execution supports the data lifecycle
 

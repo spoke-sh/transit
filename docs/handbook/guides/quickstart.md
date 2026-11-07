@@ -1,8 +1,16 @@
 # Run Transit locally
 
-Start a local installation, define a task dataset, then inspect and change it
-from independent SQL sessions. The server supplies the catalog and execution
-services for this walkthrough. Use Linux x86_64 with `transit` available on
+Create a small task dataset and ask what remains to be done. Change a task from
+another session, evolve the schema, then restart the server and find your data
+where you left it.
+
+By the end, you will have observed a complete loop: **define → write → query →
+change → inspect → recover**. The same dataset runs through every step.
+
+## Before you begin
+
+The server supplies the catalog and execution services for this walkthrough.
+Use Linux x86_64 with `transit` available on
 `PATH` in both terminals. This single executable includes the node, query host,
 SQL gateway and Board with its frontend assets. Native storage runs inside the node;
 no external storage service or Docker is required at runtime.

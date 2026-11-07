@@ -1,9 +1,14 @@
 # Workload examples across languages
 
-Build a telemetry reader, a recoverable service request, a research result
-consumer or a shared incident notebook with the same durable boundaries. These
-recipes connect the [workload model](../reference/workloads.md) to existing
-executable examples in Python, TypeScript, Rust and Zig, plus console SQL.
+Take one useful behavior all the way through: inspect changing task data,
+record sensor observations, recover a service request, read a retained research
+result or reconcile a shared incident notebook. These recipes connect application
+ideas to complete examples in Python, TypeScript, Rust and Zig, plus console SQL.
+
+Choose the outcome first. Each recipe identifies the data it preserves, the
+boundary it exercises and the complete application you can run. The
+[workload model](../reference/workloads.md) explains how their latency, freshness
+and recovery needs differ.
 
 The code blocks are excerpts from the linked complete applications, not standalone
 scripts. Their runners supply imports/codecs, provision identities and grants,
@@ -35,8 +40,8 @@ tarball does not register a worker with that supervisor.
 
 ## Inspect an operational Table with SQL
 
-Start the [local quickstart](quickstart.md). From its `.cache/docs-start` working
-directory, open the console:
+Complete the dataset steps in the [local quickstart](quickstart.md). From its
+`.cache/docs-start` working directory, open the console:
 
 ```sh
 transit console
@@ -45,20 +50,21 @@ transit console
 ```text
 .mode table
 .timer on
-SELECT id, value FROM items WHERE id >= 0 LIMIT 8;
-SELECT COUNT(*) FROM items;
+SELECT id, title, done, priority FROM tasks;
+SELECT COUNT(*) FROM tasks WHERE done = FALSE;
 ```
 
-The default Table is empty: the first query displays typed `id`/`value` headings
-and zero rows; the second returns a count of zero. Once an application supplies
-rows through its owning mutation API, the same read pattern can inspect work-item
-states, sensor readings or keyed features. SQL does not insert those rows or
-declare a different source. There are no joins, grouping or general sorting.
+After the quickstart, the first query returns both task rows with priority **1**;
+the second returns **1** unfinished task. Each SELECT reads a fresh snapshot.
+Change a task in another console and query again to observe the new accepted
+state. The same pattern can inspect work-item states, sensor readings or keyed
+features. The [SQL reference](../reference/sql.md) describes supported Table
+declarations, mutations, joins, grouping and ordering.
 
 For one statement and exit:
 
 ```sh
-transit console -c 'SELECT COUNT(*) FROM items;'
+transit console -c 'SELECT COUNT(*) FROM tasks WHERE done = FALSE;'
 ```
 
 Read the phase timings alongside the [performance reference](../reference/performance.md).
