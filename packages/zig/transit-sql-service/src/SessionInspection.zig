@@ -427,7 +427,9 @@ pub const Read = struct {
             return result;
         }
         self.subject = null;
-        try self.prepared.validate(self.host);
+        // Revalidate the original metadata before advancing this iterator.
+        // Concurrent catalog progress can invalidate a pure authority read.
+        try self.host.fresh(Self.validate, .{ self.prepared, self.host });
         if (self.prepared.connector_list) |selection| return self.connectorNext(selection);
         if (self.prepared.historical_list) |snapshot| return self.historicalNext(snapshot);
         if (self.complete()) return null;

@@ -27,6 +27,9 @@ class Faults:
         self.fail_open = False
         self.fail_once = False
         self.fail_snapshot_once = False
+        self.fail_scan_once = False
+        self.fail_inspection_once = False
+        self.snapshot_attempts = None
         self.before_pin_once = None
         self.lose_copy_reply_once = False
         self.copy_reply_losses = 0
@@ -132,6 +135,9 @@ class Faults:
                         if owner.record_pins:
                             owner.pin_attempts.append(table['pin'])
                             del owner.pin_attempts[:-8]
+                    if owner.snapshot_attempts is not None and 'snapshot' in table:
+                        owner.snapshot_attempts.append(table['snapshot'])
+                        del owner.snapshot_attempts[:-8]
                 if before_pin is not None:
                     before_pin()
                 configuration = request.get('configuration', {}) if self.path == '/configuration/v1' else {}
@@ -163,16 +169,23 @@ class Faults:
                 metadata_failure = owner.fail_once and 'lookup' in table
                 acquisition_failure = owner.fail_open and 'pin' in table
                 snapshot_failure = owner.fail_snapshot_once and 'snapshot' in table
-                if explain_failure or (settings_failure is not None and not settings_failure['after']) or source_failure or result_failure or metadata_failure or acquisition_failure or snapshot_failure or (owner.fail_coordinator is not None and request.get('connection', {}).get('principal') == owner.fail_coordinator and 'inspect' in table.get('client_progress', {})):
+                scan_failure = owner.fail_scan_once and any(name in table for name in ('scan', 'column_scan', 'filter_scan', 'read_key', 'key_range'))
+                inspection_failure = owner.fail_inspection_once and table.get('check', {}).get('access') == 'inspect' and table['check'].get('target') is not None
+                if explain_failure or (settings_failure is not None and not settings_failure['after']) or source_failure or result_failure or metadata_failure or acquisition_failure or snapshot_failure or scan_failure or inspection_failure or (owner.fail_coordinator is not None and request.get('connection', {}).get('principal') == owner.fail_coordinator and 'inspect' in table.get('client_progress', {})):
                     if source_failure:
                         owner.fail_source_once = None
                     if result_failure:
                         owner.fail_result_once = None
                     if snapshot_failure:
                         owner.fail_snapshot_once = False
+                    if scan_failure:
+                        owner.fail_scan_once = False
                     owner.fail_once = False
                     owner.failures += 1
                     status, body = 503, b'{"err":"HttpCapacity"}'
+                    if inspection_failure:
+                        owner.fail_inspection_once = False
+                        status, body = 409, b'{"err":"Conflict"}'
                     content_type = 'application/json'
                 else:
                     upstream = http.client.HTTPConnection(target.hostname, target.port, timeout=40)
@@ -319,6 +332,19 @@ class Faults:
                     probe.close()
 
     def check(self, client):
+        # Preparation binds metadata through lookup. The first exact Table
+        # inspection check happens while yielding its row, after preparation.
+        # Retry that pure check without restarting or advancing the iterator.
+        before = self.failures
+        self.fail_inspection_once = True
+        try:
+            result = client.execute('SHOW STORAGE FOR native_sessions')['batch']
+            assert self.failures == before + 1 and not self.fail_inspection_once
+            assert result['complete'] and len(result['rows']) == 1, result
+            assert client.call(dict(fetch=dict(cursor=result['cursor'], batch=result['batch'])))['batch'] == result
+            client.call(dict(close_result=result['cursor']))
+        finally:
+            self.fail_inspection_once = False
         before = self.failures
         self.fail_once = True
         result = client.execute('SELECT id FROM native_sessions')['batch']
@@ -361,14 +387,31 @@ class Faults:
         finally:
             self.fail_open = False
         client.terminal(client.execute('DELETE FROM native_sessions WHERE id = 998', list(os.urandom(16)))['operation'])
-        # The retained pin exists before this failed source open. Its successful
-        # cleanup must not erase the capacity diagnosis from the read attempt.
+        # Opening an already retained snapshot is a pure observation and may
+        # recover from one transient failure without acquiring a new source.
         before = self.failures
+        self.snapshot_attempts = []
         self.fail_snapshot_once = True
-        failure = client.call(dict(execute=dict(sql='SELECT id FROM native_sessions')), error='AuthorityUnavailable')['err']
-        assert self.failures == before + 1 and failure['sqlstate'] == list(b'53000'), failure
-        # A failed open must not publish a partially initialized cursor or
-        # double-free its preparation. Reuse the same logical session.
+        try:
+            result = client.execute('SELECT id FROM native_sessions')['batch']
+            assert self.failures == before + 1 and not self.fail_snapshot_once and result['rows']
+            assert len(self.snapshot_attempts) >= 2, self.snapshot_attempts
+            assert all(attempt == self.snapshot_attempts[0] for attempt in self.snapshot_attempts), self.snapshot_attempts
+        finally:
+            self.fail_snapshot_once = False
+            self.snapshot_attempts = None
+        client.call(dict(close_result=result['cursor']))
+        # Data iteration must not retry. Its cleanup must preserve the capacity
+        # diagnosis and leave this same logical session reusable.
+        before = self.failures
+        self.fail_scan_once = True
+        try:
+            failure = client.call(dict(execute=dict(sql='SELECT id FROM native_sessions')), error='AuthorityUnavailable')['err']
+            assert self.failures == before + 1 and not self.fail_scan_once and failure['sqlstate'] == list(b'53000'), failure
+        finally:
+            self.fail_scan_once = False
+        # A failed read must not publish a partial result or double-free its
+        # preparation. Reuse the same logical session.
         result = client.execute('SELECT id FROM native_sessions')['batch']
         assert result['rows']
         client.call(dict(close_result=result['cursor']))

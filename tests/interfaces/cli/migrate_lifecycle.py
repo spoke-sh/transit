@@ -33,7 +33,7 @@ def run_cli(root, env, cli, label, *args, input_text=None):
 
 def sql_query_records(root, env, cli, label, sql):
     result = run_cli(root, env, cli, label, 'console', '--no-rc', '--format', 'json', '-c', sql)
-    assert result.returncode == 0, (result.returncode, result.stdout, result.stderr)
+    assert result.returncode == 0, (label, result.returncode, result.stdout, result.stderr)
     batches = table_results(json.loads(line) for line in result.stdout.splitlines() if line.strip())
     assert batches, result.stdout
     return records(batches[-1])
