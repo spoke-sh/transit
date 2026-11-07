@@ -491,6 +491,9 @@ fn clientTokenTransition(self: *Self, before: r.Root, record: r.Record) !void {
     if (prior) |old| {
         if (!std.meta.eql(old.receipt, accepted.receipt) or (!old.pending and accepted.pending) or
             (old.cancel and !accepted.cancel) or record.root.client_token_count != before.client_token_count) return error.InvalidDirectCatalogTransition;
+        if (old.capture) |capture| {
+            try c.DirectSourceCapture.State.transition(capture, accepted.capture orelse return error.InvalidSourceCaptureTransition);
+        } else if (accepted.capture != null) return error.InvalidSourceCaptureTransition;
         if (old.source) |source| {
             try c.DirectDocumentSource.State.transition(source, accepted.source orelse return error.InvalidDocumentSourceTransition);
         } else if (accepted.source != null) return error.InvalidDocumentSourceTransition;
@@ -513,6 +516,7 @@ fn clientTokenTransition(self: *Self, before: r.Root, record: r.Record) !void {
         };
     } else {
         var initial = c.DirectClientToken.Progress.initial(accepted.receipt);
+        if (accepted.capture) |capture| initial.capture = c.DirectSourceCapture.State.initial(capture.descriptor);
         if (accepted.source) |source| initial.source = c.DirectDocumentSource.State.initial(source.descriptor);
         if (!std.meta.eql(accepted, initial) or
             record.root.client_token_count != try std.math.add(u64, before.client_token_count, 1)) return error.InvalidDirectCatalogTransition;

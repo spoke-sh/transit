@@ -476,6 +476,34 @@ atomically with the token; settlement releases only pending capacity. Catalog-wi
 quota and data-owner limits remain separate. A changed budget profile conflicts;
 no implicit quota increase, expiry or data reset occurs.
 
+### Owned SOURCE capture candidates
+
+`DirectSourceCapture` is a component owner over Catalog original-token progress.
+Its reserved SOR1 inner format is `SCC1` (`0x53434331`). The descriptor binds the
+original poll operation and token, destination namespace, complete finite
+`SourceCapture.Evidence`, and permanent byte/cumulative work budgets. The host
+verifies that original evidence and composes source disclosure with native
+Stream APPEND, database CONNECT and schema USAGE. New reservation additionally
+checks the exact published SOURCE and destination definitions. A caller's captured
+state or declaration executor is insufficient authority.
+
+Mandatory nullable `Progress.capture` is separate from Document source ownership.
+Its states are uploading, sealing, verified, failed and closed. Sequential chunk
+reservation precedes creation; readiness publishes a paged contiguous inventory.
+Verification freezes the canonical manifest commitment before its immutable put,
+then publishes verified readiness. `SCM1` (`0x53434d31`) manifests bind the original
+token digest, full evidence and nullable inventory root; only a verified empty
+body has a null inventory. The original poll cannot be rebound to another token.
+
+Chunks use the `source-captures/` namespace and manifests use
+`source-capture-manifests/`. Both are traversed from current accepted ownership,
+including uncertain puts protected by allocation epochs. Explicit closure fences
+late writes and releases private reachability without deleting the original
+receipt. Generic staging, records, progress and token routes reject this owner.
+These component operations do not install SOURCE activation or public mutation
+routes. [SOURCE_V1](SOURCE_V1.md#owned-capture-representation) specifies disclosure,
+body/reference bounds and the later accepted-attachment boundary.
+
 ### Protected Document sources
 
 `DirectDocumentSource` is a component API over the same Catalog token, original

@@ -400,6 +400,34 @@ reservations are not refunded by collection. These component operations enable
 no installed Document domain, route or attachment. See the
 [source contract](../../../contracts/DIRECT_TABLE_V1.md#protected-document-sources).
 
+### Owned SOURCE capture staging
+
+`DirectSourceCapture` owns private, destination-bound HTTP capture candidates.
+The embedding host supplies original finite-exchange verification and current
+source-disclosure requirements; Catalog independently checks destination Stream
+APPEND, CONNECT and USAGE. `captureReserve` validates the exact published SOURCE
+binding and reserves the original poll before creating bytes. `captureUpload`
+reserves sequential 64 KiB chunks before writing and publishes readiness after
+the immutable put. A ready retry verifies retained bytes rather than repairing
+missing accepted content. `captureVerify` incrementally hashes complete ordered
+coverage, including an explicit empty body, then reserves and seals its manifest.
+
+`captureInspect`, private `captureRead` and `captureClose` use the original token.
+Reads copy one chunk into caller-owned output and clear it on failure. Closure
+fences late writes and releases private payload reachability while retaining the
+original receipt. Generic record, token and progress operations reject this
+owner. Capture chunks and manifests have disjoint collectible namespaces;
+the Catalog storage graph retains pending reservations and ready inventories.
+
+Each active operation reserves 8 MiB against a shared default 64 MiB admission
+ceiling. Permanent account reservations and cumulative work charges remain
+separate: 64 KiB metadata allowances cover bounded index updates and the unchanged
+16 KiB WAL ceiling, with 384 KiB initially reserved for descriptor/manifest and
+control publications. Inspection and closure do not require active-data admission.
+Hosts serialize these component calls with Catalog publication and collection.
+They install no capture mutation route or SOURCE activation by themselves.
+See the [capture contract](../../../contracts/SOURCE_V1.md#owned-capture-representation).
+
 ### Transaction and query callers
 
 `DirectTransaction.Reference` binds a begin descriptor and mandatory purpose

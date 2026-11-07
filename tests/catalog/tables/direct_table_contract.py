@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "65287f89db5a4ee587cb90ddcec6d819f1974613e89ee14c410ebff01c342ab4"
+definition = "392e8215c91e8c33ff6f21aa53f6b74051b1203551902e1cab05ce652cb3b3e7"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -822,6 +822,44 @@ source_key = "document-sources/" + hashlib.sha256(b"transit.document.source.chun
                                                  + source_owner + struct.pack(">QQ", 0, 3) + source_digest).hexdigest() + ".data"
 persist(root / "packages/zig/transit-catalog/src/fixtures/document-source-v1.json",
         (json.dumps({"descriptor": source_descriptor, "binding": source_binding, "chunk_key": source_key}, indent=2) + "\n").encode())
+
+# Capture candidates share the original-token owner, with a disjoint storage
+# namespace and no inherited Document target or authority.
+capture_evidence = copy.deepcopy(json.loads((root / "packages/zig/transit-protocol/src/fixtures/source-capture-v1.json").read_text())["evidence"])
+def capture_scope(value):
+    if isinstance(value, dict):
+        for name, child in value.items():
+            if name == "scope":
+                value[name] = copy.deepcopy(request_input["connection"]["scope"])
+            else:
+                capture_scope(child)
+    elif isinstance(value, list):
+        for child in value:
+            capture_scope(child)
+capture_scope(capture_evidence)
+capture_evidence["poll"]["operation"] = copy.deepcopy(source_descriptor["operation"])
+capture_evidence["body"] = dict(bytes=3, sha256=list(source_digest))
+capture_descriptor = dict(key=token_key, operation=source_descriptor["operation"], namespace=1,
+                          evidence=capture_evidence, budget=source_descriptor["budget"], limits=source_descriptor["limits"])
+capture_validator = jsonschema.Draft202012Validator({**schema, "$ref": "#/$defs/SourceCaptureDescriptor"})
+capture_validator.validate(capture_descriptor)
+for field in capture_descriptor:
+    invalid = copy.deepcopy(capture_descriptor)
+    del invalid[field]
+    assert not capture_validator.is_valid(invalid), field
+capture_envelope = canonical(dict(definition=definition, key=token_key, format=0x53434331,
+                                 bytes=dict(base64=base64.b64encode(canonical(capture_descriptor)).decode())))
+capture_reference = dict(scope=original_reference["scope"], format=0x534F5231,
+                         content=dict(bytes=len(capture_envelope), sha256=list(hashlib.sha256(capture_envelope).digest())))
+capture_binding = dict(key=token_key, fingerprint=capture_reference["content"]["sha256"],
+                       intent=dict(external=dict(connection=request_input["connection"], namespace=1,
+                                                 operation=2**64 - 1, record=capture_reference)),
+                       budget=capture_descriptor["budget"])
+capture_key = "source-captures/" + hashlib.sha256(b"transit.source.capture.chunk.v1\0" + bytes.fromhex(definition)
+                                                + source_owner + struct.pack(">QQ", 0, 3) + source_digest).hexdigest() + ".data"
+assert capture_key != source_key
+persist(root / "packages/zig/transit-catalog/src/fixtures/source-capture-v1.json",
+        (json.dumps(dict(descriptor=capture_descriptor, binding=capture_binding, chunk_key=capture_key), indent=2) + "\n").encode())
 
 # A log declaration token commits to its complete canonical saved body before
 # declaration admission. Content, account and the original binding are explicit.

@@ -4647,8 +4647,8 @@
         "BranchRetentionOwned": 1,
         "BranchRetired": 1,
         "BranchSourceChanged": 3,
-        "BufferTooSmall": 1,
-        "CatalogDenied": 92,
+        "BufferTooSmall": 2,
+        "CatalogDenied": 93,
         "CatalogDependencyOwned": 1,
         "CatalogHistoryMissing": 1,
         "CatalogIdentityConflict": 10,
@@ -4662,12 +4662,12 @@
         "CatalogObservationChanged": 2,
         "CatalogRegistrationRequired": 13,
         "CheckConstraintViolation": 1,
-        "ClientOperationConflict": 11,
-        "ClientOperationMissing": 29,
+        "ClientOperationConflict": 15,
+        "ClientOperationMissing": 30,
         "ClientOperationPending": 9,
         "ClientTokenBudget": 3,
         "ClientTokenCapacity": 1,
-        "ClientTokenConflict": 7,
+        "ClientTokenConflict": 9,
         "ColumnReferencedByCheckConstraint": 1,
         "ColumnReferencedByForeignKey": 1,
         "ConflictingRetry": 1,
@@ -4710,7 +4710,7 @@
         "InvalidCatalogCursor": 4,
         "InvalidCatalogDependency": 12,
         "InvalidCatalogDescriptor": 10,
-        "InvalidClientToken": 1,
+        "InvalidClientToken": 2,
         "InvalidDirectCatalogCompletion": 1,
         "InvalidDirectCatalogEntry": 16,
         "InvalidDirectCatalogName": 2,
@@ -4730,6 +4730,10 @@
         "InvalidOwnedRecord": 3,
         "InvalidPartitionLease": 2,
         "InvalidQueueDestination": 1,
+        "InvalidSourceCapture": 5,
+        "InvalidSourceCaptureChunk": 3,
+        "InvalidSourceCaptureCursor": 1,
+        "InvalidSourceCaptureState": 1,
         "InvalidSourceDeclaration": 5,
         "InvalidStorageBudget": 1,
         "InvalidStreamReadAuthority": 2,
@@ -4747,7 +4751,7 @@
         "InvalidTransactionWork": 8,
         "InvalidTransactionWorkspace": 9,
         "LogCatalogRequestRequired": 1,
-        "LogDeclarationConflict": 10,
+        "LogDeclarationConflict": 12,
         "LogGroupFenced": 1,
         "LogOffsetConflict": 1,
         "LogProducerConflict": 1,
@@ -4767,9 +4771,9 @@
         "OutOfMemory": 11,
         "Overflow": 1,
         "OwnedRecordAttached": 2,
-        "OwnedRecordClosed": 5,
+        "OwnedRecordClosed": 8,
         "OwnedRecordOperationRequired": 3,
-        "OwnedRecordPending": 6,
+        "OwnedRecordPending": 8,
         "OwnedRecordRetained": 1,
         "QueueDependencyRetained": 1,
         "QueueDestinationChanged": 1,
@@ -4778,6 +4782,9 @@
         "QueueLeaseFenced": 1,
         "QueueTimeUnavailable": 2,
         "ReadOnlyTransaction": 5,
+        "SourceCaptureMissing": 1,
+        "SourceCaptureOperationRequired": 8,
+        "SourceCaptureWorkLimit": 1,
         "SourceDeclarationQuota": 2,
         "SourceReservationRequired": 2,
         "SourceSchemaMismatch": 1,
@@ -4859,6 +4866,7 @@
         "clientTokenSelected().reservation": [
           "none",
           "original",
+          "capture",
           "source"
         ],
         "rowOperation().action": [
@@ -4923,7 +4931,16 @@
         "cancel()": "<inferred>",
         "cancelRows()": "<inferred>",
         "candidate()": "<inferred>",
+        "captureClose()": "<inferred>",
+        "captureGuard()": "<inferred>",
+        "captureInspect()": "<inferred>",
+        "captureList()": "<inferred>",
+        "captureRead()": "<inferred>",
+        "captureReserve()": "<inferred>",
         "captureRowsDefined()": "<inferred>",
+        "captureState()": "<inferred>",
+        "captureUpload()": "<inferred>",
+        "captureVerify()": "<inferred>",
         "check()": "<inferred>",
         "checkAccess()": "<inferred>",
         "checkOperation()": "<inferred>",
@@ -4974,6 +4991,7 @@
         "executeTransactionCall()": "anyerror",
         "executeTransactionLog()": "<inferred>",
         "executeTransactionStatement()": "<inferred>",
+        "finishCaptureSeal()": "<inferred>",
         "flushStorage()": "<inferred>",
         "foreignRequirements()": "<inferred>",
         "freezeTransaction()": "<inferred>",
@@ -5088,6 +5106,7 @@
         "projectionLocations()": "<inferred>",
         "protectForeignColumn()": "<inferred>",
         "publishBranchState()": "<inferred>",
+        "publishCapture()": "<inferred>",
         "publishHistoryState()": "<inferred>",
         "publishProgress()": "<inferred>",
         "publishSource()": "<inferred>",
@@ -5209,7 +5228,7 @@
       },
       "open_error_set_uses": 13,
       "propagation": {
-        "try": 2627,
+        "try": 2739,
         "catch": 31
       },
       "imports": [
@@ -5832,6 +5851,7 @@
         "InvalidHistoricalTransition": 1,
         "InvalidLogCatalogOperation": 2,
         "InvalidPartitionLease": 1,
+        "InvalidSourceCaptureTransition": 2,
         "InvalidSourceDeclaration": 2,
         "InvalidTransactionControl": 1,
         "LostAcknowledgement": 1
@@ -5912,7 +5932,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 427,
+        "try": 428,
         "catch": 1
       },
       "imports": [
@@ -5966,6 +5986,7 @@
         "InvalidClientToken": 16,
         "InvalidDocumentSourceState": 2,
         "InvalidOwnedRecord": 2,
+        "InvalidSourceCaptureState": 2,
         "InvalidTableResponse": 2,
         "TransactionAccountCapacity": 1
       },
@@ -6020,7 +6041,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 55,
+        "try": 57,
         "catch": 0
       },
       "imports": [
@@ -7708,6 +7729,61 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectSourceCapture.zig": {
+      "errors": {
+        "ClientTokenBudget": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidSourceCapture": 3,
+        "InvalidSourceCaptureLimits": 1,
+        "InvalidSourceCaptureState": 5,
+        "InvalidSourceCaptureTransition": 8,
+        "SourceCaptureOperationRequired": 1,
+        "SourceCaptureResidentLimit": 1,
+        "SourceCaptureWorkLimit": 1
+      },
+      "outcomes": {
+        "Lookup": [
+          "key",
+          "operation"
+        ],
+        "State.phase": [
+          "uploading",
+          "sealing",
+          "verified",
+          "failed",
+          "closed"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Admission.acquire()": "<inferred>",
+        "Authority.make_guard()": "anyerror",
+        "Authority.verify_original()": "anyerror",
+        "Descriptor.binding()": "<inferred>",
+        "Descriptor.encode()": "<inferred>",
+        "Descriptor.requireBinding()": "<inferred>",
+        "Descriptor.validate()": "<inferred>",
+        "Manifest.encode()": "<inferred>",
+        "Manifest.validate()": "<inferred>",
+        "Observation.from()": "<inferred>",
+        "Selection.validate()": "<inferred>",
+        "State.charge()": "<inferred>",
+        "State.transition()": "<inferred>",
+        "State.validate()": "<inferred>",
+        "StepBudget.validate()": "<inferred>",
+        "Verifier.init()": "<inferred>"
+      },
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 27,
+        "catch": 0
+      },
+      "imports": [
+        "DirectCatalogRecords.zig",
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DirectSourceClient.zig": {
       "errors": {
         "DataIdentityConflict": 1,
@@ -7749,6 +7825,7 @@
         "InvalidLogCatalogOperation": 1,
         "InvalidLogStorageGraph": 47,
         "InvalidQueueDestination": 2,
+        "InvalidSourceCaptureState": 3,
         "InvalidSourceDeclaration": 2,
         "InvalidTableStorageGraph": 23,
         "InvalidTransactionActions": 2,
@@ -7808,6 +7885,7 @@
           "transaction",
           "queue_transfer_plan",
           "document_source",
+          "capture_source",
           "workload_intent",
           "transaction_walk",
           "transaction_intent",
@@ -7894,7 +7972,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 638,
+        "try": 652,
         "catch": 1
       },
       "imports": [
@@ -10813,7 +10891,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 23,
+        "try": 25,
         "catch": 0
       },
       "imports": [
@@ -10894,6 +10972,7 @@
         "DirectResourceClient.zig",
         "DirectSchemaProjection.zig",
         "DirectSource.zig",
+        "DirectSourceCapture.zig",
         "DirectSourceClient.zig",
         "DirectStorageGraph.zig",
         "DirectStream.zig",
@@ -24020,7 +24099,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"65287f89db5a4ee587cb90ddcec6d819f1974613e89ee14c410ebff01c342ab4\""
+          "@\"392e8215c91e8c33ff6f21aa53f6b74051b1203551902e1cab05ce652cb3b3e7\""
         ],
         "Effect.phase": [
           "pending",
@@ -24872,6 +24951,31 @@
         "std"
       ]
     },
+    "packages/zig/transit-protocol/src/SourceCapture.zig": {
+      "errors": {
+        "IncompatibleDefinition": 2,
+        "InvalidSourceCapture": 8
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Body.validate()": "<inferred>",
+        "Evidence.capture()": "<inferred>",
+        "Evidence.requireSource()": "<inferred>",
+        "Evidence.validate()": "<inferred>",
+        "Reference.encode()": "<inferred>",
+        "Reference.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 15,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-protocol/src/State.zig": {
       "errors": {},
       "outcomes": {
@@ -25585,6 +25689,7 @@
         "Runtime.zig",
         "Schema.zig",
         "Source.zig",
+        "SourceCapture.zig",
         "State.zig",
         "Storage.zig",
         "StreamHandle.zig",
@@ -40403,32 +40508,17 @@
       ]
     },
     "packages/zig/transit-storage/src/DocumentSource.zig": {
-      "errors": {
-        "DocumentSourceMissing": 2,
-        "InvalidDocumentSourceChunk": 7
-      },
+      "errors": {},
       "outcomes": {},
       "error_sets": {},
-      "error_returns": {
-        "Chunk.fromEntry()": "<inferred>",
-        "Chunk.indexKey()": "<inferred>",
-        "Chunk.validate()": "<inferred>",
-        "Chunk.value()": "<inferred>",
-        "key()": "<inferred>",
-        "lookup()": "<inferred>",
-        "put()": "<inferred>",
-        "read()": "<inferred>"
-      },
+      "error_returns": {},
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 9,
+        "try": 0,
         "catch": 0
       },
       "imports": [
-        "TransitObjectStore.zig",
-        "TreeStore.zig",
-        "std",
-        "transit_protocol"
+        "SourceChunks.zig"
       ]
     },
     "packages/zig/transit-storage/src/DocumentStorageRoots.zig": {
@@ -42321,6 +42411,42 @@
         "std"
       ]
     },
+    "packages/zig/transit-storage/src/SourceChunks.zig": {
+      "errors": {
+        "DocumentSourceMissing": 1,
+        "InvalidDocumentSourceChunk": 1,
+        "InvalidSourceCaptureChunk": 1,
+        "SourceCaptureMissing": 1
+      },
+      "outcomes": {
+        "Namespace": [
+          "document",
+          "capture"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "For().<return>.Chunk.fromEntry()": "<inferred>",
+        "For().<return>.Chunk.indexKey()": "<inferred>",
+        "For().<return>.Chunk.validate()": "<inferred>",
+        "For().<return>.Chunk.value()": "<inferred>",
+        "For().<return>.key()": "<inferred>",
+        "For().<return>.lookup()": "<inferred>",
+        "For().<return>.put()": "<inferred>",
+        "For().<return>.read()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 9,
+        "catch": 0
+      },
+      "imports": [
+        "TransitObjectStore.zig",
+        "TreeStore.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-storage/src/StreamCompaction.zig": {
       "errors": {
         "InvalidStreamCompaction": 4
@@ -43742,6 +43868,7 @@
         "QueueTimeRun.zig",
         "QueueTimingWheel.zig",
         "S3ObjectStore.zig",
+        "SourceChunks.zig",
         "StreamCompaction.zig",
         "StreamPartition.zig",
         "SyncBatch.zig",
