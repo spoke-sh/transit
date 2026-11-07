@@ -298,14 +298,14 @@ pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.
             var page = try owner.readPage(value.cursor, environment.authority, value.limits, catalog.allocator, current.guard);
             defer page.deinit();
             const original = (try owner.operation(value.cursor.read.owner, current.guard)).?;
-            var declaration = try s.LogDeclaration.load(catalog.allocator, catalog.data_objects, original.declared);
+            var declaration = try owner.loadDeclaration(catalog.allocator, original.declared);
             defer declaration.deinit();
             var definition = current.definition;
             definition.stored = original.declared;
-            definition.properties = try c.DirectCatalog.Properties.decode(scratch, declaration.definition.properties);
+            definition.properties = try c.DirectCatalog.Properties.decode(scratch, declaration.declaration.definition.properties);
             const schema_buffer = try catalog.allocator.alloc(u8, c.fuze.TableSchema.max_bytes);
             defer catalog.allocator.free(schema_buffer);
-            const schema = try w.Binary.encode(output, try declaration.definition.schema.encode(schema_buffer));
+            const schema = try w.Binary.encode(output, try declaration.declaration.definition.schema.encode(schema_buffer));
             errdefer output.free(schema.base64);
             const rows = try output.alloc(Row, page.count);
             errdefer output.free(rows);

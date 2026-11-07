@@ -219,14 +219,14 @@ pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.
         .page => |value| blk: {
             var page = try owner.readClaimPage(current.definition.stored, value.cursor, value.limits, catalog.allocator, current.guard);
             defer page.deinit();
-            var declaration = try s.LogDeclaration.load(catalog.allocator, catalog.data_objects, page.source);
+            var declaration = try owner.loadDeclaration(catalog.allocator, page.source);
             defer declaration.deinit();
             var definition = current.definition;
             definition.stored = page.source;
-            definition.properties = try c.DirectCatalog.Properties.decode(scratch, declaration.definition.properties);
+            definition.properties = try c.DirectCatalog.Properties.decode(scratch, declaration.declaration.definition.properties);
             const schema_buffer = try catalog.allocator.alloc(u8, c.fuze.TableSchema.max_bytes);
             defer catalog.allocator.free(schema_buffer);
-            const schema = try w.Binary.encode(output, try declaration.definition.schema.encode(schema_buffer));
+            const schema = try w.Binary.encode(output, try declaration.declaration.definition.schema.encode(schema_buffer));
             errdefer output.free(schema.base64);
             const rows = try output.alloc(Row, page.len);
             errdefer output.free(rows);

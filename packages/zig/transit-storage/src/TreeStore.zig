@@ -86,7 +86,18 @@ pub fn flush(self: *Self) !void {
     for (puts[0..count], metas[0..count]) |put, meta| {
         if (meta.size != put.bytes.len or !std.mem.eql(u8, &meta.sha256, &put.sha256)) return error.InvalidDataIndexObject;
     }
+    if (self.load_provenance == null) {
+        for (batch.references[0..count]) |maybe_ref| if (maybe_ref) |ref| self.markVerified(ref.location);
+    }
     batch.count = 0;
+}
+
+pub fn markVerified(self: *Self, location: [32]u8) void {
+    for (self.cache, 0..) |slot, index| if (slot) |cached| {
+        if (std.mem.eql(u8, &cached.reference.location, &location)) {
+            self.cache[index].?.verified = true;
+        }
+    };
 }
 
 pub fn stageObject(self: *Self, object_key: []const u8, bytes: []const u8, sha256: [32]u8) !objects.ObjectMeta {
