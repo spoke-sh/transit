@@ -1,8 +1,7 @@
 import type { ReactElement } from "react";
 import Layout from "@theme/Layout";
 import Link from "@docusaurus/Link";
-import refraction from "../../../design/transit-artwork/images/d1-refraction-graphite.jpg";
-import radiograph from "../../../design/handbook-theme/images/d6-radiograph.jpg";
+import HeroArtwork from "../components/HeroArtwork";
 import RefractionStory from "../components/RefractionStory";
 import "../css/home.css";
 import "../css/radiograph.css";
@@ -58,9 +57,9 @@ export default function Home(): ReactElement {
             </h1>
             <div className="transit-hero-introduction">
               <p>
-                Keep what happened. Turn it into answers that stay current. Put those answers to
-                work. Transit is bringing data, computation and policies into one programmable model
-                for your application.
+                Keep what happened. Turn it into answers that stay <strong>current</strong>. Put
+                those answers to work. Transit is bringing data, computation and policies into one
+                programmable model for your application.
               </p>
               <p className="transit-implementation">
                 Written in Zig. SDKs for a wide range of languages.
@@ -75,25 +74,7 @@ export default function Home(): ReactElement {
               </div>
             </div>
           </div>
-          <figure className="transit-hero-art">
-            <img
-              className="transit-hero-light"
-              src={refraction}
-              alt="A measured score becomes waves, branching upward into graphite terrain and downward into translucent planes, joined by a vermilion thread."
-              width={1774}
-              height={887}
-              fetchPriority="high"
-            />
-            <img
-              className="transit-hero-dark"
-              src={radiograph}
-              alt="Silver membranes open into depth, exposing translucent internal folds and a vermilion thread receding through them."
-              width={1774}
-              height={887}
-              loading="lazy"
-              fetchPriority="high"
-            />
-          </figure>
+          <HeroArtwork />
           <div className="transit-hero-foot">
             <a href="#structure-title">
               Follow the connected workflow <span aria-hidden="true">↓</span>

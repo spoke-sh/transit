@@ -112,7 +112,6 @@ const config: Config = {
       logo: { alt: "", src: "img/transit.svg", width: 28, height: 28 },
       items: [
         { to: "/guides/introduction", label: "Documentation", position: "left" },
-        { to: "/reference/data-model", label: "Data model", position: "left" },
         { to: "/reference/cli", label: "CLI", position: "left" },
         { to: "/reference/sql", label: "SQL", position: "left" },
         { to: "/reference/sdks", label: "SDKs", position: "left" },

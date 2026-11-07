@@ -36,7 +36,7 @@ Flight SQL/ADBC and the native protocol. Usage guides and wire contracts sit wit
 their interface; execution mechanisms and custom applications have their own
 sections. Existing page routes
 stay stable when their navigation location changes. Internals has a navbar entry
-beside Data model, CLI, SQL and SDKs and its own compact sidebar for nine scientific
+beside CLI, SQL and SDKs and its own compact sidebar for nine scientific
 accounts, the overview, standard and template. SDKs has its own sidebar with foundations and installation guides for each language,
 read directly from `sdks/<language>/README.md`. Detailed API links retain their
 component owners. All sections share the same site and search index.
@@ -131,8 +131,8 @@ styles. Use the theme's stable classes and Infima variables; do not target
 hashed upstream CSS-module names. Reading pages retain the existing sidebar,
 breadcrumbs, table of contents, search and source routes.
 
-[`src/pages/index.tsx`](src/pages/index.tsx) owns the custom React homepage and
-imports the selected light [Refraction artwork](../design/transit-artwork/images/d1-refraction-graphite.jpg)
+[`src/pages/index.tsx`](src/pages/index.tsx) owns the custom React homepage.
+[`HeroArtwork`](src/components/HeroArtwork.tsx) imports the selected light [Refraction artwork](../design/transit-artwork/images/d1-refraction-graphite.jpg)
 and dark [radiograph](../design/handbook-theme/images/d6-radiograph.jpg) from their
 design owners. Docusaurus fingerprints the images with the page's assets; their
 URLs follow the configured publication base path. Both hero images are present in
@@ -143,6 +143,37 @@ light Refraction artwork to a 1200×630 social card with paper padding for `og:i
 `twitter:image` previews. The root README continues
 to use that same source image. [`src/css/home.css`](src/css/home.css) scopes the
 homepage layout and visual layers.
+
+The original hero image files remain unchanged. A decorative SVG layer adds a
+small, slender graphite fire lookout tower and translucent amber/lilac/blue channel
+highlights to the light composition. Pointer proximity reveals the structure
+and its faint amber window light together. A soft beam shines to the right from
+the raised cabin, and moving away fades the tower and light completely out;
+touch layouts use the summit's viewport position while scrolling. Light shifts
+are bounded and event-driven, with one pending frame while visible, rather than
+an idle animation loop. Channel colors ease in and out over 1.4 seconds, returning
+to the original grayscale at rest. Reduced motion retains a static composition. The dark
+radiograph keeps its own composition without the light image's aligned overlays.
+[`src/css/hero-artwork.css`](src/css/hero-artwork.css) owns these layers and controls.
+The transparent [fire lookout asset](src/assets/hero-fire-lookout.webp) was
+generated with the built-in image-generation tool using this
+[saved prompt](src/assets/hero-fire-lookout.prompt.txt), then downscaled to a 448-pixel
+WebP with its alpha preserved. Its graphite shading blends into the summit
+without replacing or editing the original landscape.
+
+The sequence's arrow-only play button fades in on hover or keyboard focus and remains visible
+on touch screens and during playback. [`hero-score.ts`](src/components/hero-score.ts)
+synthesizes a quiet original four-chord score with the browser's Web Audio API;
+it downloads no audio and creates no audio context until a click, tap or keyboard
+activation. Stop fades out and releases the context; another play starts the score
+again. Navigation, a hidden tab or an audio interruption stops playback, without
+automatic resumption. Unsupported browsers and no-JavaScript pages omit the play
+control. While music plays, the window's small amber glow gently breathes,
+and staggered highlights travel through the channels. These animations share the
+score's chord duration and are separate from the proximity lighting; they pause
+offscreen and in dark mode. Stopping music fades its lighting away, leaving any
+current proximity lighting. Reduced motion uses steady illumination during
+explicitly requested music, with no pulses or traveling highlights.
 
 The homepage follows a delivery through three connected chapters: keep what
 happened, keep answers current, then turn changes into work. STREAM retains the
@@ -279,6 +310,8 @@ search, generated references, exact spec downloads, diagrams and accessibility.
 It checks light-mode scroll motion, dark-mode perspective and exact reversal,
 pause/resume, native theme changes, static fallbacks and no-JavaScript navigation,
 and the introduction’s vector architecture figure.
+Hero checks exercise cursor/scroll lighting, reduced motion, keyboard/touch play,
+native audio generation and cleanup, and missing or rejected audio support.
 It follows the homepage into the data model and dataset tutorial, and finds the
 shared data/computation/policy model through search.
 It also follows statement stories into their reference owners, checks expected
