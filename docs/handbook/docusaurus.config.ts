@@ -6,6 +6,7 @@ import { pages } from "./catalog";
 import { pageContent, repository, repositoryLinks } from "./lib/content";
 import { specifications } from "./lib/specs";
 import { downloads } from "./lib/downloads";
+import { storySearchEntries } from "./src/stories";
 
 const root = path.resolve(__dirname, "../..");
 const url = process.env.TRANSIT_DOCS_URL ?? "https://spoke-sh.github.io";
@@ -25,8 +26,9 @@ writeFileSync(
 );
 writeFileSync(
   path.join(generated, "search-index.json"),
-  JSON.stringify(
-    pages.map((page) => ({
+  JSON.stringify([
+    ...storySearchEntries,
+    ...pages.map((page) => ({
       title: page.label,
       route: page.route,
       text: pageContent(root, page.source)
@@ -34,7 +36,7 @@ writeFileSync(
         .replace(/[#*`|]/g, "")
         .replace(/\s+/g, " "),
     })),
-  ),
+  ]),
 );
 
 const config: Config = {

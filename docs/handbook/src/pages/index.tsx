@@ -58,17 +58,17 @@ export default function Home(): ReactElement {
             </h1>
             <div className="transit-hero-introduction">
               <p>
-                Transit is a declarative, versioned multi-model database, vectorized/incremental
-                query engine, and durable execution runtime.
+                Describe your data. Ask questions of it. Evolve it as your application grows.
+                Transit keeps definitions, accepted changes and query outcomes inspectable.
               </p>
               <p className="transit-implementation">
                 Written in Zig. SDKs for a wide range of languages.
               </p>
               <div className="transit-actions">
-                <Link className="button button--primary" to="/guides/quickstart">
+                <Link className="button button--primary" to="/stories/first-dataset">
                   Create your first dataset <span aria-hidden="true">↗</span>
                 </Link>
-                <Link className="transit-text-link" to="/reference/data-model">
+                <Link className="transit-text-link" to="/stories/data-model">
                   Explore the data model <span aria-hidden="true">↗</span>
                 </Link>
               </div>
@@ -94,7 +94,9 @@ export default function Home(): ReactElement {
             />
           </figure>
           <div className="transit-hero-foot">
-            <span>One system. Many ways to work with data.</span>
+            <a href="#structure-title">
+              Follow a dataset through three statements <span aria-hidden="true">↓</span>
+            </a>
             <a href="#handbook">
               Go to the handbook <span aria-hidden="true">↓</span>
             </a>

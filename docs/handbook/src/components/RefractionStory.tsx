@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type ReactElement } from "react";
 import Link from "@docusaurus/Link";
 import ContextFabric from "./ContextFabric";
 import Radiograph from "./Radiograph";
+import Statement from "./Statement";
+import { statements } from "../stories";
 
 import lateralResonance from "../../../design/handbook-theme/images/d3-lateral-basin.jpg";
 
@@ -102,65 +104,62 @@ export default function RefractionStory(): ReactElement {
           </div>
           <div className="refraction-narrative">
             <section className="refraction-chapter" aria-labelledby="structure-title">
-              <p className="transit-kicker">01 / STRUCTURE</p>
+              <p className="transit-kicker">01 / DEFINE YOUR DATA</p>
               <h2 id="structure-title">
-                Begin with
+                Give your data
                 <br />
-                what matters.
+                a place to begin.
               </h2>
               <p>
-                Describe the data your application needs, the computation it performs, and the
-                policies that govern its use.
+                Start with a task list. Give each task an identity, a required title and a default.
+                A few lines make the application's expectations explicit.
               </p>
-              <p>
-                Tables, documents, key-value state and streams give different kinds of data a place
-                in the same model.
-              </p>
-              <Link className="transit-text-link" to="/reference/data-model">
-                Data, computation and policies <span aria-hidden="true">↗</span>
+              <Statement
+                example={statements.define}
+                caption="A published schema. Ready to hold tasks."
+              />
+              <Link className="transit-text-link" to="/stories/first-dataset">
+                Build the dataset, step by step <span aria-hidden="true">↗</span>
               </Link>
             </section>
             <section className="refraction-chapter" aria-labelledby="activity-title">
-              <p className="transit-kicker">02 / ACTIVITY</p>
+              <p className="transit-kicker">02 / COMPUTE AN ANSWER</p>
               <h2 id="activity-title">
-                Let the structure
+                Turn what you have
                 <br />
-                do useful work.
+                into what you know.
               </h2>
               <p>
-                Ask a point-in-time question, maintain a derived view, or coordinate stateful work.
-                Choose the lifetime that fits the computation.
+                Add two unfinished tasks in the walkthrough. Then ask how much work remains. The
+                result answers a precise question about the data it read.
               </p>
-              <p>
-                Fuze computes over your data. Station coordinates durable processes and recorded
-                external effects.
-              </p>
-              <Link className="transit-text-link" to="/reference/queries">
-                Explore computation lifetimes <span aria-hidden="true">↗</span>
+              <Statement
+                example={statements.count}
+                caption="Expected after the walkthrough's two inserts: 2 unfinished tasks."
+              />
+              <Link className="transit-text-link" to="/stories/query-results">
+                Follow a query to its result <span aria-hidden="true">↗</span>
               </Link>
             </section>
           </div>
         </div>
         <section className="refraction-context" aria-labelledby="context-title">
           <div ref={contextCopy} className="refraction-chapter context-copy">
-            <p className="transit-kicker">03 / CONTEXT</p>
+            <p className="transit-kicker">03 / EVOLVE THE DEFINITION</p>
             <h2 id="context-title">
-              See the result.
+              Make room for
               <br />
-              Keep its context.
+              what comes next.
             </h2>
             <p>
-              A useful answer has a basis. Inspect versioned data, recorded progress and outcomes to
-              understand what a declaration produced.
+              The task list now needs priorities. Add the column, inspect its definition, and read
+              the rows. Existing readers keep the schema and data they started with.
             </p>
-            <p>
-              Explicit permissions, retention and resource budgets define the boundaries in which
-              that work happens.
-            </p>
-            <Link
-              className="transit-text-link"
-              to="/reference/data-model#inspect-whether-a-declaration-is-being-fulfilled"
-            >
+            <Statement
+              example={statements.evolve}
+              caption="Expected after publication: both tasks have priority 1."
+            />
+            <Link className="transit-text-link" to="/stories/data-model">
               Follow a declaration to its outcome <span aria-hidden="true">↗</span>
             </Link>
           </div>

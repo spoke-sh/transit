@@ -144,10 +144,13 @@ test("dark motion responds to preferences, native theme switching and route life
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await expect(track).toHaveAttribute("data-depth-motion", "enabled");
   await page.getByRole("link", { name: "Explore the data model", exact: true }).click();
+  await page.getByRole("link", { name: "Data, computation and policies", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Data, computation and policies", exact: true }),
   ).toBeVisible();
   await expect(page.locator("html")).toHaveCSS("--ifm-background-color", "#14191e");
+  await page.goBack();
+  await expect(page.getByRole("navigation", { name: "Story chapters" })).toBeVisible();
   await page.goBack();
   await expect(track).toHaveAttribute("data-depth-motion", "enabled");
   await moveToDepth(page, 0.5);

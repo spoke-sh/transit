@@ -31,7 +31,7 @@
 }
 [data-theme="dark"] .refraction-track {
   display: grid;
-  grid-template-columns: 0.8fr 1.4fr;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.4fr);
   column-gap: 4%;
 }
 .radiograph-visual {

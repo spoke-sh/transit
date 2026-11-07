@@ -70,6 +70,47 @@
 .transit-text-link span {
   margin-left: 0.35rem;
 }
+.transit-statement {
+  min-width: 0;
+  margin: 1.5rem 0;
+  border-block: 1px solid var(--docs-line);
+}
+.transit-statement-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.7rem 0;
+  color: var(--docs-muted);
+  font: 0.65rem/1.5 var(--ifm-font-family-monospace);
+}
+.transit-statement pre {
+  border-radius: 0;
+  font-size: 0.85rem;
+  /* Override Prism's inline palette within stories to match both paper themes. */
+  background: var(--docs-panel) !important;
+  color: var(--ifm-font-color-base) !important;
+}
+.transit-statement .token {
+  color: var(--ifm-font-color-base) !important;
+  font-style: normal !important;
+}
+.transit-statement .token.keyword,
+.transit-statement .token.boolean {
+  color: var(--ifm-color-primary) !important;
+}
+.transit-statement > div:has(pre) {
+  margin-bottom: 0;
+  box-shadow: none;
+}
+.transit-statement figcaption {
+  padding: 0.85rem 0;
+  color: var(--docs-muted);
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+.transit-statement figcaption span {
+  color: var(--ifm-color-primary);
+}
 .transit-hero-art {
   margin: 0 -3rem;
 }
@@ -99,7 +140,7 @@
 .refraction-activity,
 .refraction-context {
   display: grid;
-  grid-template-columns: 0.8fr 1.4fr;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.4fr);
   column-gap: 4%;
 }
 .refraction-visual,
@@ -110,10 +151,12 @@
   padding-top: 3rem;
 }
 .refraction-narrative {
+  min-width: 0;
   grid-column: 1;
   grid-row: 1;
 }
 .refraction-chapter {
+  min-width: 0;
   padding: 4rem 0;
 }
 .refraction-chapter h2 {

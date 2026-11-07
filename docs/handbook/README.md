@@ -144,6 +144,25 @@ light Refraction artwork to a 1200×630 social card with paper padding for `og:i
 to use that same source image. [`src/css/home.css`](src/css/home.css) scopes the
 homepage layout and visual layers.
 
+The homepage follows the quickstart's task dataset through three compact statement
+sequences: define its shape, count unfinished work, then add a priority. Each
+statement has an expected observation and leads into a longer story. The hero's
+dataset and data-model actions open these stories before the detailed reference.
+The handbook directory and navbar retain direct reference access.
+
+[`src/stories.ts`](src/stories.ts) owns the three story outlines, shared statement
+excerpts and search entries. [`StoryPage`](src/components/StoryPage.tsx) renders
+the dataset, data-model and query-result stories under `src/pages/stories/`, with
+chapter anchors, prerequisites, expected observations and links to the owning
+guides and references. The dataset story is sequential; the other stories explain
+its examples. Statements are checked against the runnable quickstart rather than
+introducing another SQL example authority. These static pages execute no queries.
+[`src/css/stories.css`](src/css/stories.css) supplies the reading layout: a chapter
+rail and paired explanation/evidence on wide screens, a single column on narrow
+screens, and ordinary document scrolling throughout. Reduced motion and short
+screens keep chapter navigation in flow. All story content and links work without
+JavaScript and are included in local search and the sitemap.
+
 In light mode, [`RefractionStory`](src/components/RefractionStory.tsx) imports the selected
 [lateral resonance portrait](../design/handbook-theme/images/d3-lateral-basin.jpg)
 directly from its design owner. Falling graphite waves widen sideways into
@@ -152,9 +171,9 @@ and shading carry the depth; the horizontal transformation is part of the artwor
 On desktop with no reduced-motion preference, a sticky viewport travels vertically
 through the portrait in response to native scrolling. The travel distance comes
 from the rendered image and viewport heights, so the first and last positions
-stay within the artwork. Structure and Activity share this portrait. Its framing
-uses the two Activity chapters plus the Context copy height, independently of the
-longer Context illustration, preserving the selected R1 view.
+stay within the artwork. The definition and query chapters share this portrait.
+Its framing uses those chapters plus the schema-evolution copy height,
+independently of the longer fabric illustration, preserving the selected R1 view.
 
 [`ContextFabric`](src/components/ContextFabric.tsx) continues below the resonance
 zones with a [single tall drawing](../design/handbook-theme/images/d5-fabric-pockets.jpg).
@@ -180,8 +199,8 @@ All narrative and handbook links are server-rendered; motion never gates
 navigation or access to content.
 
 In dark mode, [`Radiograph`](src/components/Radiograph.tsx) replaces the two light
-illustrations with a single depth passage beside the same Structure, Activity and
-Context text. [`src/css/radiograph.css`](src/css/radiograph.css) owns its layout,
+illustrations with a single depth passage beside the same definition, query and
+schema-evolution story. [`src/css/radiograph.css`](src/css/radiograph.css) owns its layout,
 translucency and perspective. Three distinct D6 image layers sit at z = 80, −240
 and −650px under a fixed 900px perspective. Scrolling down advances the shared
 camera transform from 0 to 650px; scrolling up retraces it immediately. Near
@@ -243,6 +262,9 @@ pause/resume, native theme changes, static fallbacks and no-JavaScript navigatio
 and the introduction’s vector architecture figure.
 It follows the homepage into the data model and dataset tutorial, and finds the
 shared data/computation/policy model through search.
+It also follows statement stories into their reference owners, checks expected
+observations and search discovery, and exercises direct story routes on mobile
+with reduced motion and JavaScript disabled.
 It follows the top-level interface sections into executable SELECT, grammar-only
 DDL and application declarations, and finds a statement through search.
 It opens Internals from desktop/mobile navigation, finds its scientific standard
