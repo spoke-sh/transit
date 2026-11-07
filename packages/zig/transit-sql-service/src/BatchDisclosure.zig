@@ -6,6 +6,7 @@ const Self = @This();
 pub const Subject = union(enum) {
     connector: g.catalog.protocol.DataLifecycle.Definition,
     table: g.catalog.protocol.DataLifecycle.Definition,
+    kv: g.catalog.DirectKV.Definition,
     historical: @FieldType(g.catalog.DirectHistory.Request, "source"),
     log: g.catalog.DirectLog.Definition,
     namespace: g.catalog.TableAuthority.Schema,
@@ -48,6 +49,12 @@ pub fn validate(self: Self, host: *g.Session, prepared: *g.Session.Prepared) !vo
         },
         .table => |definition| {
             _ = try host.table.require(.{ .namespace = host.namespace, .target = definition, .access = .inspect });
+        },
+        .kv => |definition| {
+            if (definition.namespace != host.namespace) return error.CatalogIdentityConflict;
+            const response = try host.table.call(.{ .kv = .{ .observe = definition.interpretation.interpretation.object } });
+            defer response.deinit();
+            if (response.value.result.kv.definition.retired or !std.meta.eql(response.value.result.kv.definition.interpretation, definition.interpretation)) return error.CatalogDefinitionChanged;
         },
         .log => |definition| {
             if (definition.properties.namespace != host.namespace) return error.CatalogIdentityConflict;

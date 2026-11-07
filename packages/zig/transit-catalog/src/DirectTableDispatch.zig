@@ -149,6 +149,40 @@ fn applySelected(comptime action_tag: std.meta.Tag(w.Action), allocator: std.mem
                 break :next std.mem.readInt(u64, cursor.data[0..8], .big);
             } else null, .directory_position = page.directory_position, .consistency = .independent } };
         },
+        .document_declaration => {
+            var scratch: std.heap.ArenaAllocator = .init(catalog.allocator);
+            defer scratch.deinit();
+            const value = action.document_declaration;
+            const request = try value.declaration.request(scratch.allocator());
+            return .{ .document_declaration = switch (value.command) {
+                .preview => .{ .preview = try catalog.preview(request, policy) },
+                .admit => blk: {
+                    _ = try catalog.admit(request, policy);
+                    break :blk .{ .operation = try catalog.status(request.binding, policy) };
+                },
+                .inspect => .{ .operation = try catalog.status(request.binding, policy) },
+                .execute => .{ .operation = try execution.ddl(execution.context, catalog, request.binding, policy, value.steps) },
+                .cancel => .{ .operation = try catalog.cancel(request.binding, policy) },
+            } };
+        },
+        .document_lookup => {
+            const value = action.document_lookup;
+            var view = try catalog.resolveDocument(catalog.allocator, value.namespace, try c.TableAuthority.Name.init(value.name), policy) orelse return .{ .document_lookup = null };
+            defer view.deinit();
+            return .{ .document_lookup = .{
+                .definition = try encodeDefinition(allocator, catalog.allocator, &view),
+                .policy = view.document.?,
+            } };
+        },
+        .document_list => {
+            const value = action.document_list;
+            const after = if (value.after) |id| try @import("DirectCatalogRecords.zig").idKey(id) else null;
+            const page = try catalog.listDocuments(value.namespace, after, policy);
+            return .{ .document_list = .{ .entries = page.entries, .next = if (page.next) |cursor| next: {
+                if (cursor.len != 8) return error.InvalidCatalogCursor;
+                break :next std.mem.readInt(u64, cursor.data[0..8], .big);
+            } else null, .directory_position = page.directory_position, .consistency = .independent } };
+        },
         .queue => {
             const run = execution.queue orelse return error.QueueServiceUnavailable;
             return .{ .queue = try run(execution.context, allocator, catalog, policy, action.queue) };

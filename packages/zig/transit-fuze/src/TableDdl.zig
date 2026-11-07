@@ -284,7 +284,7 @@ pub const Syntax = union(enum) {
         };
     }
 };
-const AlterSyntax = struct {
+pub const AlterSyntax = struct {
     name: []const u8,
     column: ?Reference = null,
     action: union(enum) {
@@ -300,7 +300,7 @@ const AlterSyntax = struct {
         drop_constraint: []const u8,
         validate_constraint: []const u8,
     },
-    fn bind(self: AlterSyntax, allocator: std.mem.Allocator, basis: s.Schema, location: ?*sql.Location, resolver: ?ForeignKey.Resolver) !Alter {
+    pub fn bind(self: AlterSyntax, allocator: std.mem.Allocator, basis: s.Schema, location: ?*sql.Location, resolver: ?ForeignKey.Resolver) !Alter {
         try basis.validate();
         const index: ?usize = if (self.column) |column_| try column_.resolve(self.name, basis.columns, location) else null;
         const id: s.ColumnId = if (index) |i| basis.columns[i].id else 0;
@@ -389,7 +389,10 @@ pub fn syntax(parser: *Parser, hints: ?s.Schema) !Syntax {
 }
 fn alter(parser: *Parser, hints: ?s.Schema) !AlterSyntax {
     try parser.requireWord("TABLE");
-    var result: AlterSyntax = .{ .name = try parser.named(.source), .action = undefined };
+    return alterBody(parser, try parser.named(.source), hints);
+}
+pub fn alterBody(parser: *Parser, name: []const u8, hints: ?s.Schema) !AlterSyntax {
+    var result: AlterSyntax = .{ .name = name, .action = undefined };
     result.action = if (try parser.takeWord("RENAME")) blk: {
         if (try parser.takeWord("TO")) break :blk .{ .rename_table = try parser.named(.proposed) };
         _ = try parser.takeWord("COLUMN");
@@ -409,10 +412,10 @@ fn alter(parser: *Parser, hints: ?s.Schema) !AlterSyntax {
         break :blk .{ .add = .{ .name = added.value.name, .type = added.value.type, .nullable = added.value.nullable, .default = added.value.default, .max_characters = added.value.max_characters, .encoding = added.value.encoding, .collation = added.value.collation, .semantics = added.value.semantics } };
     } else if (try parser.takeWord("DROP")) blk: {
         if (try parser.takeWord("CONSTRAINT")) {
-            const name = try parser.named(.column);
+            const constraint_name = try parser.named(.column);
             if (try parser.takeWord("CASCADE")) return error.UnsupportedCascade;
             _ = try parser.takeWord("RESTRICT");
-            break :blk .{ .drop_constraint = name };
+            break :blk .{ .drop_constraint = constraint_name };
         }
         _ = try parser.takeWord("COLUMN");
         result.column = try Reference.unqualified(parser, .column);

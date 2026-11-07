@@ -6,7 +6,7 @@ const f = q.fuze;
 const C = q.settings.Contract;
 const R = q.settings.Registry;
 const Parser = f.SqlTyped;
-pub const Catalog = enum { databases, schemas, tables, streams, queues };
+pub const Catalog = enum { databases, schemas, tables, kvs, documents, streams, queues };
 pub const Relation = enum { settings, reloads };
 pub const Statement = union(enum) {
     show: ?[]const u8,
@@ -35,6 +35,8 @@ pub const Owned = struct {
                 .databases => &.{.{ .name = "database", .type = .utf8 }},
                 .schemas => &.{.{ .name = "schema", .type = .utf8 }},
                 .tables => &.{.{ .name = "table", .type = .utf8 }},
+                .kvs => &.{.{ .name = "kv", .type = .utf8 }},
+                .documents => &.{.{ .name = "document", .type = .utf8 }},
                 .streams => &.{.{ .name = "stream", .type = .utf8 }},
                 .queues => &.{.{ .name = "queue", .type = .utf8 }},
             },
@@ -92,7 +94,7 @@ pub fn parse(allocator: std.mem.Allocator, text: []const u8, dialect: f.Sql.Dial
     var parser = try Parser.initDialect(a, text, null, false, dialect);
     if (try parser.takeWord("SHOW")) {
         if (try parser.takeWord("ALL")) owned.statement = .{ .show = null } else {
-            inline for (.{ .{ "DATABASES", Catalog.databases }, .{ "SCHEMAS", Catalog.schemas }, .{ "TABLES", Catalog.tables }, .{ "STREAMS", Catalog.streams }, .{ "QUEUES", Catalog.queues } }) |pair| if (try parser.takeWord(pair[0])) {
+            inline for (.{ .{ "DATABASES", Catalog.databases }, .{ "SCHEMAS", Catalog.schemas }, .{ "TABLES", Catalog.tables }, .{ "KVS", Catalog.kvs }, .{ "DOCUMENTS", Catalog.documents }, .{ "STREAMS", Catalog.streams }, .{ "QUEUES", Catalog.queues } }) |pair| if (try parser.takeWord(pair[0])) {
                 try parser.finish();
                 owned.statement = .{ .catalog = pair[1] };
                 return owned;

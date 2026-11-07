@@ -40,7 +40,12 @@ inspection, retirement and restricted DROP. The [source contract](../SOURCE_V1.m
 distinguishes that installed profile from future activation and capture gates.
 
 `LogDdl` owns dedicated Stream/Queue CREATE, policy ALTER, RENAME and DROP
-compilation, sharing the logical column grammar with `TableDdl`. The independent
+compilation, sharing the logical column grammar with `TableDdl`. `DocumentDdl`
+owns Direct Data Plane Document collection CREATE, ALTER and DROP compilation
+with `profile` (`versioned` or `causal_crdt`) and `retention` policy options.
+`KVDdl` and `KVWorkloadSql` own Direct Data Plane KV CREATE, RENAME, DROP,
+conditional/unconditional `PUT INTO`, point `GET FROM`, and keyed `DELETE FROM`
+compilation. The independent
 `corpus/log-declarations.json` cases cover defaults, routing, retention, FIFO,
 limits and unsupported options through `just test::table-ddl-sql`. Named
 `SHOW STREAM/QUEUE` and `DESCRIBE STREAM/QUEUE` use the ordinary SQL metadata

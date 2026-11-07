@@ -4664,7 +4664,7 @@
         "CheckConstraintViolation": 1,
         "ClientOperationConflict": 11,
         "ClientOperationMissing": 29,
-        "ClientOperationPending": 9,
+        "ClientOperationPending": 11,
         "ClientTokenBudget": 3,
         "ClientTokenCapacity": 1,
         "ClientTokenConflict": 7,
@@ -5015,6 +5015,7 @@
         "list()": "<inferred>",
         "listBranches()": "<inferred>",
         "listDefinitions()": "<inferred>",
+        "listDocuments()": "<inferred>",
         "listHistory()": "<inferred>",
         "listKV()": "<inferred>",
         "listLogs()": "<inferred>",
@@ -5122,6 +5123,7 @@
         "requirements()": "<inferred>",
         "resolve()": "<inferred>",
         "resolveDefinition()": "<inferred>",
+        "resolveDocument()": "<inferred>",
         "resolveKV()": "<inferred>",
         "resolveLog()": "<inferred>",
         "resolveResource()": "<inferred>",
@@ -5209,7 +5211,7 @@
       },
       "open_error_set_uses": 13,
       "propagation": {
-        "try": 2627,
+        "try": 2661,
         "catch": 31
       },
       "imports": [
@@ -5615,7 +5617,7 @@
         "InvalidDirectCatalogEntry": 7,
         "InvalidDirectCatalogHistory": 12,
         "InvalidDirectCatalogName": 1,
-        "InvalidDirectCatalogOperation": 11,
+        "InvalidDirectCatalogOperation": 13,
         "InvalidDirectCatalogProperties": 2,
         "InvalidDirectCatalogRoot": 6,
         "UnsupportedKVAlter": 1,
@@ -5663,8 +5665,10 @@
       "error_sets": {},
       "error_returns": {
         "Configuration.validate()": "<inferred>",
+        "Entry.jsonStringify()": "<inferred>",
         "Entry.validate()": "<inferred>",
         "Intent.digest()": "<inferred>",
+        "Intent.jsonStringify()": "<inferred>",
         "Intent.validate()": "<inferred>",
         "IntentHash.drain()": "std . Io . Writer . Error",
         "Name.validate()": "<inferred>",
@@ -5685,7 +5689,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 51,
+        "try": 81,
         "catch": 4
       },
       "imports": [
@@ -6199,6 +6203,103 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectDocument.zig": {
+      "errors": {
+        "DataIdentityConflict": 1,
+        "InvalidCatalogStepBudget": 1
+      },
+      "outcomes": {
+        "DeclarationRequest.command": [
+          "preview",
+          "admit",
+          "inspect",
+          "execute",
+          "cancel"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Declaration.digest()": "<inferred>",
+        "Declaration.intent()": "<inferred>",
+        "Declaration.request()": "<inferred>",
+        "Declaration.validate()": "<inferred>",
+        "DeclarationRequest.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 12,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectDocumentIntent.zig": {
+      "errors": {
+        "CatalogIdentityConflict": 3,
+        "DataIdentityConflict": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidDirectCatalogOperation": 5,
+        "TablePayloadTooLarge": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Reference.admit()": "<inferred>",
+        "Reference.operation()": "<inferred>",
+        "Reference.requireSame()": "<inferred>",
+        "Reference.validate()": "<inferred>",
+        "Saved.validate()": "<inferred>",
+        "create()": "<inferred>",
+        "load()": "<inferred>",
+        "reference()": "<inferred>",
+        "restore()": "<inferred>",
+        "stage()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 35,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectDocumentPreparedDdl.zig": {
+      "errors": {
+        "CatalogIdentityConflict": 2,
+        "DocumentNotFound": 2,
+        "InvalidDataIdentity": 1,
+        "InvalidDataOperation": 1,
+        "InvalidDirectCatalogOperation": 1,
+        "TableDefinitionChanged": 2
+      },
+      "outcomes": {
+        "Write": [
+          "document",
+          "name_assertion"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "assertion()": "<inferred>",
+        "bind()": "<inferred>",
+        "bindPrepared()": "<inferred>",
+        "prepare()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 23,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DirectDocumentSource.zig": {
       "errors": {
         "ClientTokenBudget": 1,
@@ -6449,9 +6550,13 @@
           "transaction_call",
           "external",
           "table",
+          "kv",
+          "document",
           "log",
           "workload",
           "name_assertion",
+          "kv_name_assertion",
+          "document_name_assertion",
           "namespace_change"
         ]
       },
@@ -6473,7 +6578,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 28,
+        "try": 30,
         "catch": 0
       },
       "imports": [
@@ -6606,6 +6711,132 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 22,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectKVIntent.zig": {
+      "errors": {
+        "CatalogIdentityConflict": 3,
+        "CatalogRecordTooLarge": 1,
+        "DataIdentityConflict": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidKVOperation": 6
+      },
+      "outcomes": {
+        "Kind": [
+          "ddl",
+          "put",
+          "delete"
+        ],
+        "Work": [
+          "ddl",
+          "put",
+          "delete"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Reference.admit()": "<inferred>",
+        "Reference.operation()": "<inferred>",
+        "Reference.requireSame()": "<inferred>",
+        "Reference.validate()": "<inferred>",
+        "Saved.validate()": "<inferred>",
+        "Work.validate()": "<inferred>",
+        "create()": "<inferred>",
+        "load()": "<inferred>",
+        "reference()": "<inferred>",
+        "restore()": "<inferred>",
+        "stage()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 38,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectKVPreparedDdl.zig": {
+      "errors": {
+        "CatalogDefinitionChanged": 4,
+        "CatalogIdentityConflict": 2,
+        "CatalogNameNotFound": 3,
+        "InvalidDataOperation": 1
+      },
+      "outcomes": {
+        "Write": [
+          "kv",
+          "name_assertion"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "assertion()": "<inferred>",
+        "bindPrepared()": "<inferred>",
+        "prepare()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 19,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectKVPreparedGet.zig": {
+      "errors": {
+        "CatalogDefinitionChanged": 2,
+        "CatalogIdentityConflict": 1,
+        "CatalogNameNotFound": 1,
+        "UnsupportedStatement": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Read.next()": "<inferred>",
+        "checkValues()": "<inferred>",
+        "open()": "<inferred>",
+        "prepare()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 8,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectKVPreparedWrite.zig": {
+      "errors": {
+        "CatalogDefinitionChanged": 1,
+        "CatalogIdentityConflict": 2,
+        "CatalogNameNotFound": 1,
+        "InvalidDataOperation": 1,
+        "UnsupportedStatement": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "bindPrepared()": "<inferred>",
+        "checkValues()": "<inferred>",
+        "prepare()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 9,
         "catch": 0
       },
       "imports": [
@@ -8233,7 +8464,7 @@
     "packages/zig/transit-catalog/src/DirectTableDispatch.zig": {
       "errors": {
         "InvalidBranchCursor": 1,
-        "InvalidCatalogCursor": 6,
+        "InvalidCatalogCursor": 7,
         "LogCatalogExecutionUnavailable": 1,
         "NamedResourceNativeUnavailable": 1,
         "QueueServiceUnavailable": 2,
@@ -8267,7 +8498,7 @@
       },
       "open_error_set_uses": 12,
       "propagation": {
-        "try": 247,
+        "try": 259,
         "catch": 0
       },
       "imports": [
@@ -8513,7 +8744,10 @@
           "kv",
           "kv_declaration",
           "kv_lookup",
-          "kv_list"
+          "kv_list",
+          "document_declaration",
+          "document_lookup",
+          "document_list"
         ],
         "Action.operation.command": [
           "inspect",
@@ -8621,7 +8855,10 @@
           "kv",
           "kv_declaration",
           "kv_lookup",
-          "kv_list"
+          "kv_list",
+          "document_declaration",
+          "document_lookup",
+          "document_list"
         ],
         "RowChange": [
           "insert",
@@ -8665,7 +8902,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 179,
+        "try": 180,
         "catch": 6
       },
       "imports": [
@@ -8745,7 +8982,7 @@
         "DataIdentityConflict": 3,
         "IncompatibleDefinition": 1,
         "InvalidKVResponse": 1,
-        "InvalidTableResponse": 169
+        "InvalidTableResponse": 172
       },
       "outcomes": {},
       "error_sets": {},
@@ -8771,7 +9008,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 236,
+        "try": 245,
         "catch": 10
       },
       "imports": [
@@ -10861,12 +11098,19 @@
         "DirectClientToken.zig",
         "DirectDefinition.zig",
         "DirectDependency.zig",
+        "DirectDocument.zig",
+        "DirectDocumentIntent.zig",
+        "DirectDocumentPreparedDdl.zig",
         "DirectDocumentSource.zig",
         "DirectHistory.zig",
         "DirectHistoryDirectory.zig",
         "DirectIntent.zig",
         "DirectKV.zig",
         "DirectKVClient.zig",
+        "DirectKVIntent.zig",
+        "DirectKVPreparedDdl.zig",
+        "DirectKVPreparedGet.zig",
+        "DirectKVPreparedWrite.zig",
         "DirectKVResponse.zig",
         "DirectLog.zig",
         "DirectLogClient.zig",
@@ -15196,6 +15440,58 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/DocumentDdl.zig": {
+      "errors": {
+        "DocumentNotFound": 2,
+        "DuplicateDocumentOption": 1,
+        "InvalidDocumentOption": 7,
+        "InvalidDocumentPolicyEvolution": 1,
+        "InvalidDocumentRetention": 1,
+        "UnsupportedCascade": 1,
+        "UnsupportedDocumentOption": 1,
+        "UnsupportedStatement": 2,
+        "UnsupportedTableConstraint": 1
+      },
+      "outcomes": {
+        "OptionTag": [
+          "profile",
+          "retention"
+        ],
+        "Statement": [
+          "create",
+          "alter",
+          "drop"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Create.bind()": "<inferred>",
+        "Policy.validate()": "<inferred>",
+        "bindOptions()": "<inferred>",
+        "compile()": "<inferred>",
+        "compileDialect()": "<inferred>",
+        "durationOption()": "<inferred>",
+        "inspection()": "<inferred>",
+        "parseOptions()": "<inferred>",
+        "stringOption()": "<inferred>",
+        "target()": "<inferred>",
+        "targetDialect()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 53,
+        "catch": 2
+      },
+      "imports": [
+        "PerfectHash.zig",
+        "Sql.zig",
+        "SqlTyped.zig",
+        "TableDdl.zig",
+        "TableSchema.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-fuze/src/Ebcdic037.zig": {
       "errors": {
         "UnrepresentableEbcdic037": 1
@@ -15744,6 +16040,121 @@
       },
       "imports": [
         "DiagnosticPath.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/KVDdl.zig": {
+      "errors": {
+        "DuplicateColumnConstraint": 1,
+        "UnsupportedCascade": 1,
+        "UnsupportedConstruct": 1,
+        "UnsupportedKVValueType": 2,
+        "UnsupportedStatement": 2
+      },
+      "outcomes": {
+        "Statement.action": [
+          "create",
+          "rename",
+          "drop"
+        ],
+        "ValueType": [
+          "int64",
+          "boolean",
+          "utf8",
+          "binary"
+        ],
+        "compile().verb": [
+          "create",
+          "alter",
+          "drop"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "ValueType.fromLogical()": "<inferred>",
+        "compile()": "<inferred>",
+        "inspection()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 31,
+        "catch": 0
+      },
+      "imports": [
+        "Sql.zig",
+        "SqlTyped.zig",
+        "Types.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/KVWorkloadSql.zig": {
+      "errors": {
+        "DuplicateKVKey": 2,
+        "InvalidKVKey": 3,
+        "InvalidLiteral": 1,
+        "InvalidParameterIndex": 1,
+        "InvalidSqlSyntax": 3,
+        "KVBatchTooLarge": 2,
+        "NullConstraintViolation": 2,
+        "NullKVKey": 2,
+        "ParameterCountMismatch": 4,
+        "ParameterGap": 1,
+        "ParameterTypeConflict": 1,
+        "UnsupportedStatement": 1
+      },
+      "outcomes": {
+        "BoundChange": [
+          "put",
+          "remove"
+        ],
+        "Entry": [
+          "put",
+          "remove"
+        ],
+        "Expectation": [
+          "any",
+          "absent",
+          "present"
+        ],
+        "KeyOperand.value": [
+          "literal",
+          "parameter"
+        ],
+        "Kind": [
+          "put",
+          "get",
+          "delete"
+        ],
+        "ValueOperand.value": [
+          "literal",
+          "parameter"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "KeyOperand.bind()": "<inferred>",
+        "KeyOperand.parse()": "<inferred>",
+        "PreparedGet.bind()": "<inferred>",
+        "PreparedGet.init()": "<inferred>",
+        "PreparedWrite.bind()": "<inferred>",
+        "PreparedWrite.init()": "<inferred>",
+        "ValueOperand.bind()": "<inferred>",
+        "ValueOperand.parse()": "<inferred>",
+        "addParameter()": "<inferred>",
+        "finalizeParameterTypes()": "<inferred>",
+        "isDelete()": "<inferred>",
+        "parseExpectation()": "<inferred>",
+        "rejectLiteralDuplicates()": "<inferred>",
+        "target()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 82,
+        "catch": 2
+      },
+      "imports": [
+        "SqlReference.zig",
+        "root.zig",
         "std"
       ]
     },
@@ -19676,6 +20087,7 @@
         "Syntax.bind()": "<inferred>",
         "Syntax.bindWithForeignKeys()": "<inferred>",
         "alter()": "<inferred>",
+        "alterBody()": "<inferred>",
         "column()": "<inferred>",
         "columnDefinitions()": "<inferred>",
         "compile()": "<inferred>",
@@ -21447,12 +21859,15 @@
         "ColumnSemantics.zig",
         "DecimalArithmetic.zig",
         "Declaration.zig",
+        "DocumentDdl.zig",
         "Ebcdic1047.zig",
         "FileQuery.zig",
         "FileSource.zig",
         "FuzeDelta.zig",
         "GermanString.zig",
         "HybridSearch.zig",
+        "KVDdl.zig",
+        "KVWorkloadSql.zig",
         "LogAppendSql.zig",
         "LogClaimSql.zig",
         "LogConsumeSql.zig",
@@ -22443,7 +22858,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 63,
+        "try": 64,
         "catch": 0
       },
       "imports": [
@@ -28168,6 +28583,8 @@
           "databases",
           "schemas",
           "tables",
+          "kvs",
+          "documents",
           "streams",
           "queues"
         ],
@@ -32992,9 +33409,16 @@
           "insert",
           "update",
           "delete",
+          "put",
           "create_table",
           "alter_table",
           "drop_table",
+          "create_kv",
+          "alter_kv",
+          "drop_kv",
+          "create_document",
+          "alter_document",
+          "drop_document",
           "create_schema",
           "alter_schema",
           "drop_schema",
@@ -33092,7 +33516,8 @@
     },
     "packages/zig/transit-sql-service/src/BatchDisclosure.zig": {
       "errors": {
-        "CatalogIdentityConflict": 2,
+        "CatalogDefinitionChanged": 1,
+        "CatalogIdentityConflict": 3,
         "ConfigurationDenied": 1,
         "InvalidReadBatch": 1,
         "TransactionReadChanged": 1,
@@ -33102,6 +33527,7 @@
         "Subject": [
           "connector",
           "table",
+          "kv",
           "historical",
           "log",
           "namespace",
@@ -33115,7 +33541,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 11,
+        "try": 12,
         "catch": 0
       },
       "imports": [
@@ -33632,6 +34058,9 @@
         "DataflowRevisionNotFound": 1,
         "DecimalOverflow": 1,
         "DivisionByZero": 1,
+        "DocumentPrimaryKeyRequired": 1,
+        "DuplicateDocumentOption": 1,
+        "DuplicateKVOption": 1,
         "DuplicateLogOption": 1,
         "DuplicateWirePortal": 1,
         "DuplicateWireStatement": 1,
@@ -33657,8 +34086,14 @@
         "InvalidAuthentication": 3,
         "InvalidColumnSemantics": 1,
         "InvalidDataflowRevision": 1,
+        "InvalidDocumentOption": 1,
+        "InvalidDocumentProfile": 1,
+        "InvalidDocumentRetention": 1,
         "InvalidHistoricalObservation": 1,
         "InvalidHistoricalSelector": 1,
+        "InvalidKVLimits": 1,
+        "InvalidKVOption": 1,
+        "InvalidKVRetention": 1,
         "InvalidLogAppendOperand": 1,
         "InvalidLogKeyColumn": 1,
         "InvalidLogLimits": 1,
@@ -33688,6 +34123,7 @@
         "InvalidTransactionRead": 1,
         "InvalidWireCompletion": 3,
         "InvalidWireValue": 1,
+        "KVDeleteLimitExceeded": 1,
         "LogAppendLimitExceeded": 1,
         "LogPartitionKeyMismatch": 1,
         "LogPartitionRequired": 1,
@@ -33745,10 +34181,12 @@
         "UnknownSqlSource": 1,
         "UnknownWirePortal": 1,
         "UnknownWireStatement": 1,
+        "UnsupportedDocumentOption": 1,
         "UnsupportedExecutionCycle": 1,
         "UnsupportedGatewayStatement": 1,
         "UnsupportedHistoricalKind": 1,
         "UnsupportedHistoricalTransaction": 1,
+        "UnsupportedKVOption": 1,
         "UnsupportedLogAppendOption": 1,
         "UnsupportedLogKeyChange": 1,
         "UnsupportedLogOption": 1,
@@ -33795,6 +34233,7 @@
         "Read.value": [
           "single",
           "relational",
+          "kv_get",
           "probe",
           "settings",
           "inspection",
@@ -33839,7 +34278,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 148,
+        "try": 153,
         "catch": 9
       },
       "imports": [
@@ -33851,9 +34290,10 @@
     },
     "packages/zig/transit-sql-service/src/SessionInspection.zig": {
       "errors": {
-        "CatalogIdentityConflict": 5,
+        "CatalogDefinitionChanged": 1,
+        "CatalogIdentityConflict": 6,
         "CatalogKindMismatch": 1,
-        "CatalogNameNotFound": 3,
+        "CatalogNameNotFound": 5,
         "DataflowRevisionNotFound": 1,
         "Forbidden": 1,
         "HistoricalObjectNotSelected": 1,
@@ -33866,7 +34306,7 @@
         "UnknownSqlSource": 1,
         "UnsupportedCatalogView": 2,
         "UnsupportedConstruct": 2,
-        "UnsupportedHistoricalKind": 2,
+        "UnsupportedHistoricalKind": 4,
         "UnsupportedHistoricalTransaction": 1,
         "UnsupportedManagedTable": 2,
         "UnsupportedSourceStatement": 1
@@ -33879,6 +34319,7 @@
         "Read.next()": "<inferred>",
         "describeRows()": "<inferred>",
         "describeView()": "<inferred>",
+        "kvDescribeRows()": "<inferred>",
         "prepare()": "<inferred>",
         "prepareConnector()": "<inferred>",
         "prepareSource()": "<inferred>",
@@ -33887,7 +34328,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 131,
+        "try": 153,
         "catch": 2
       },
       "imports": [
@@ -33922,10 +34363,11 @@
     "packages/zig/transit-sql-service/src/SessionSettings.zig": {
       "errors": {
         "AccessDenied": 1,
+        "CatalogDefinitionChanged": 1,
         "CatalogDenied": 1,
         "CatalogIdentityConflict": 1,
         "ConfigurationDenied": 1,
-        "ConfigurationReadBudgetExceeded": 2,
+        "ConfigurationReadBudgetExceeded": 4,
         "ConfigurationReloadRejected": 1,
         "ConfigurationServiceRequired": 1,
         "ExpectedGatewayRead": 1,
@@ -33944,7 +34386,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 37,
+        "try": 47,
         "catch": 1
       },
       "imports": [
@@ -34203,6 +34645,8 @@
         "CatalogIdentityConflict": 1,
         "ClientOperationConflict": 1,
         "Conflict": 3,
+        "DuplicateBatchKey": 2,
+        "DuplicatePrimaryKey": 2,
         "ExpectedSqlWorkload": 1,
         "GatewayCatalogDenied": 1,
         "GatewayConfigurationChanged": 1,
@@ -34218,6 +34662,9 @@
         "MissingGatewayOperation": 1,
         "MissingGatewayTerminal": 2,
         "StaleGatewayCoordinator": 6,
+        "TableDataChanged": 2,
+        "TableDefinitionChanged": 2,
+        "TableRowMissing": 2,
         "Timeout": 2,
         "WorkloadOperationRequired": 1
       },
@@ -34267,8 +34714,8 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 143,
-        "catch": 20
+        "try": 152,
+        "catch": 23
       },
       "imports": [
         "root.zig",
@@ -34304,6 +34751,8 @@
         "BranchOperationRequired": 1,
         "ExternalOperationOwnerRequired": 1,
         "HistoricalOperationRequired": 1,
+        "InvalidDocumentIntent": 1,
+        "InvalidKVOperation": 1,
         "InvalidLogIntent": 1,
         "TransactionOperationRequired": 1,
         "WorkloadOperationRequired": 1
@@ -34577,15 +35026,15 @@
     },
     "packages/zig/transit-sql/src/Statement.zig": {
       "errors": {
-        "CatalogIdentityConflict": 7,
+        "CatalogIdentityConflict": 11,
         "ExpectedGatewayWrite": 1,
         "ExpectedRelationalSelect": 1,
         "ExpectedSingleTableSelect": 1,
         "HistoricalReadOnly": 1,
         "InvalidCatalogIdentity": 1,
-        "UnsupportedGatewayStatement": 4,
+        "UnsupportedGatewayStatement": 6,
         "UnsupportedHistoricalTransaction": 1,
-        "WireParameterCountMismatch": 5
+        "WireParameterCountMismatch": 7
       },
       "outcomes": {
         "Kind": [
@@ -34593,6 +35042,8 @@
           "insert",
           "update",
           "delete",
+          "put",
+          "get",
           "create",
           "alter",
           "drop",
@@ -34612,15 +35063,23 @@
         ],
         "Write": [
           "table",
+          "document",
+          "kv",
           "log",
           "workload",
           "name_assertion",
+          "document_name_assertion",
+          "kv_name_assertion",
           "namespace_change"
         ],
         "plan": [
           "select",
           "dml",
           "ddl",
+          "document_ddl",
+          "kv_ddl",
+          "kv_write",
+          "kv_get",
           "log_ddl",
           "log_append",
           "log_consume",
@@ -34648,7 +35107,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 54,
+        "try": 71,
         "catch": 1
       },
       "imports": [
@@ -34661,7 +35120,7 @@
         "BranchOperationRequired": 1,
         "ExternalOperationOwnerRequired": 1,
         "GatewayIdentityConflict": 1,
-        "InvalidGatewayTerminal": 21,
+        "InvalidGatewayTerminal": 24,
         "TransactionOperationRequired": 1,
         "WorkloadOperationRequired": 1
       },
@@ -34683,15 +35142,17 @@
       "error_sets": {},
       "error_returns": {
         "base()": "<inferred>",
+        "cancelledKV()": "<inferred>",
         "completion()": "<inferred>",
         "fromReference()": "<inferred>",
         "fromResult()": "<inferred>",
         "matches()": "<inferred>",
+        "rejectedKV()": "<inferred>",
         "validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 26,
+        "try": 41,
         "catch": 0
       },
       "imports": [

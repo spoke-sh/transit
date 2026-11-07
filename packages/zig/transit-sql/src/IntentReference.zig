@@ -26,6 +26,16 @@ pub fn commandKind(self: Reference) !g.results.Command {
             .update => .update,
             .delete => .delete,
         },
+        .kv => |value| switch (value.kind) {
+            .ddl => switch (value.binding.action) {
+                .create => .create_kv,
+                .alter, .rename => .alter_kv,
+                .drop => .drop_kv,
+                else => error.InvalidKVOperation,
+            },
+            .put => .put,
+            .delete => .delete,
+        },
         .log => |value| switch (value.binding.action) {
             .create => if (value.kind == .stream) .create_stream else .create_queue,
             .alter, .rename => if (value.kind == .stream) .alter_stream else .alter_queue,
@@ -35,6 +45,20 @@ pub fn commandKind(self: Reference) !g.results.Command {
         .name_assertion => |value| switch (value.action) {
             .create_if_not_exists => .create_table,
             .drop_if_exists => .drop_table,
+        },
+        .kv_name_assertion => |value| switch (value.action) {
+            .create_if_not_exists => .create_kv,
+            .drop_if_exists => .drop_kv,
+        },
+        .document => |value| switch (value.binding.action) {
+            .create => .create_document,
+            .alter, .rename => .alter_document,
+            .drop => .drop_document,
+            else => error.InvalidDocumentIntent,
+        },
+        .document_name_assertion => |value| switch (value.action) {
+            .create_if_not_exists => .create_document,
+            .drop_if_exists => .drop_document,
         },
         .namespace_change => |value| switch (value.binding.action) {
             .create => .create_schema,

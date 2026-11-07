@@ -69,6 +69,29 @@ pub const Entry = struct {
     log: ?u64,
     descriptor: ?u64,
     connector: ?u64,
+    document: ?c.fuze.DocumentDdl.Policy = null,
+    pub fn jsonStringify(self: Entry, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("object");
+        try jws.write(self.object);
+        try jws.objectField("partition");
+        try jws.write(self.partition);
+        try jws.objectField("seed");
+        try jws.write(self.seed);
+        try jws.objectField("resource");
+        try jws.write(self.resource);
+        try jws.objectField("log");
+        try jws.write(self.log);
+        try jws.objectField("descriptor");
+        try jws.write(self.descriptor);
+        try jws.objectField("connector");
+        try jws.write(self.connector);
+        if (self.document) |doc| {
+            try jws.objectField("document");
+            try jws.write(doc);
+        }
+        try jws.endObject();
+    }
     pub fn validate(self: Entry, config: Configuration) !void {
         if (self.object == 0) return error.InvalidDirectCatalogEntry;
         if (self.connector) |at| {
@@ -324,6 +347,23 @@ pub const Intent = struct {
         alter: c.fuze.TableEvolution.Change,
         drop,
     },
+    document: ?c.fuze.DocumentDdl.Policy = null,
+    pub fn jsonStringify(self: Intent, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("kind");
+        try jws.write(self.kind);
+        try jws.objectField("namespace");
+        try jws.write(self.namespace);
+        try jws.objectField("name");
+        try jws.write(self.name);
+        try jws.objectField("action");
+        try jws.write(self.action);
+        if (self.document) |doc| {
+            try jws.objectField("document");
+            try jws.write(doc);
+        }
+        try jws.endObject();
+    }
     pub fn authorityKind(self: Intent) a.Kind {
         return switch (self.kind) {
             .table => .table,
@@ -334,6 +374,10 @@ pub const Intent = struct {
         try binding.validate();
         try c.Model.nativeId(self.namespace);
         try self.name.validate();
+        if (self.document) |doc| {
+            if (self.kind != .table) return error.InvalidDirectCatalogOperation;
+            if (doc.retention_max_age_ms) |ms| if (ms == 0) return error.InvalidDirectCatalogOperation;
+        }
         const action: d.Action = switch (self.action) {
             .create => .create,
             .rename => .rename,

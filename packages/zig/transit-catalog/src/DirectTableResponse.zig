@@ -170,6 +170,9 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .kv_declaration => .kv_declaration,
         .kv_lookup => .kv_lookup,
         .kv_list => .kv_list,
+        .document_declaration => .document_declaration,
+        .document_lookup => .document_lookup,
+        .document_list => .document_list,
         .transaction => .transaction,
         .record => .record,
         .managed_inspection => .managed_inspection,
@@ -249,6 +252,31 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
             try c.DirectKVResponse.definition(allocator, value);
             try request.connection.object(value.interpretation.interpretation.object);
             if (value.retired or value.namespace != request.action.kv_lookup.namespace or !std.mem.eql(u8, value.name.slice(), request.action.kv_lookup.name)) return error.InvalidKVResponse;
+        },
+        .document_declaration => |value| {
+            const req = request.action.document_declaration;
+            const original_binding = req.declaration.ddl.binding;
+            if ((req.command == .preview) != (value == .preview)) return error.InvalidTableResponse;
+            switch (value) {
+                .operation => |op| {
+                    if (req.command == .admit and op == .not_observed) return error.InvalidTableResponse;
+                    try ddl(original_binding, op);
+                },
+                .preview => |prev| {
+                    try original_binding.requireSame(prev.binding);
+                    try frontier(prev.directory_position, 0);
+                },
+            }
+        },
+        .document_lookup => |maybe| if (maybe) |found| {
+            try found.policy.validate();
+            const value = found.definition;
+            try workspace(request, value.workspace, value.interpretation.interpretation, value.position, value.changed_lsn, null);
+            try definition(request.connection, value.interpretation);
+            try value.name.validate();
+            try frontier(value.position, value.changed_lsn);
+            if (value.interpretation.retired or value.namespace != request.action.document_lookup.namespace or !std.mem.eql(u8, value.name.slice(), request.action.document_lookup.name)) return error.InvalidTableResponse;
+            try metadata(allocator, value);
         },
         .transaction => |value| try c.DirectTransactionRequest.validateResult(request.action.transaction, value),
         .managed_inspection => |value| try value.validate(allocator, request.action.managed_inspection),
@@ -718,7 +746,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
                 },
             }
         },
-        inline .list, .kv_list => |value, tag| {
+        inline .list, .kv_list, .document_list => |value, tag| {
             const input = @field(request.action, @tagName(tag));
             try value.directory_position.validate();
             var previous = input.after orelse 0;

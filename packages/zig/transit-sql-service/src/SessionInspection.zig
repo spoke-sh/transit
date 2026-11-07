@@ -11,6 +11,7 @@ postgres: ?PgCatalog = null,
 arena: std.heap.ArenaAllocator,
 name: ?c.TableMetadata.Name = null,
 metadata: ?c.DirectTableBinding = null,
+kv_metadata: ?struct { connection: c.DirectTableProtocol.Connection, definition: c.DirectKV.Definition } = null,
 log_metadata: ?struct { connection: c.DirectTableProtocol.Connection, definition: c.DirectLog.Definition } = null,
 statement: ?g.Statement = null,
 managed: ?g.direct.ManagedTable.Declaration = null,
@@ -62,8 +63,17 @@ const log_fields = [_]f.Types.Field{
     .{ .name = "partitions", .type = .uint64 }, .{ .name = "configuration", .type = .utf8 },
     .{ .name = "limits", .type = .utf8 },
 };
+const kv_fields = [_]f.Types.Field{
+    .{ .name = "object", .type = .uint64 },    .{ .name = "definition_revision", .type = .uint64 },
+    .{ .name = "key_type", .type = .utf8 },    .{ .name = "value_type", .type = .utf8 },
+    .{ .name = "nullable", .type = .boolean },
+};
+const document_fields = [_]f.Types.Field{
+    .{ .name = "object", .type = .uint64 }, .{ .name = "definition_revision", .type = .uint64 },
+    .{ .name = "profile", .type = .utf8 },  .{ .name = "retention", .type = .utf8 },
+};
 test "log metadata fields use the lossless common database wire matrix" {
-    for (log_fields ++ log_describe_fields) |field| _ = try g.Type.from(field);
+    for (log_fields ++ kv_fields ++ document_fields ++ log_describe_fields) |field| _ = try g.Type.from(field);
 }
 test "metadata preparation leaves dialect probes to their owner without allocation or I O" {
     // Only the dialect is available: no connected runtime or allocator may be
@@ -128,6 +138,57 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
             break :blk try describeRows(a, owned.schema);
         };
         return .{ .arena = arena, .name = name, .log_metadata = .{ .connection = host.table.connection, .definition = definition }, .rows = rows, .output = if (inspection.describe) &log_describe_fields else &log_fields };
+    }
+    if (try f.DocumentDdl.inspection(parser)) |inspection| {
+        if (selection.snapshot != null) return error.UnsupportedHistoricalKind;
+        const name = try c.TableMetadata.Name.init(inspection.name);
+        const response = try host.table.call(.{ .document_lookup = .{ .namespace = host.namespace, .name = name.slice() } });
+        defer response.deinit();
+        const metadata = response.value.result.document_lookup orelse return error.CatalogNameNotFound;
+        const binding = try c.DirectTableBinding.init(host.table.connection, metadata.definition);
+        const rows = if (!inspection.describe) blk: {
+            const rows = try a.alloc([]const f.Types.Values.Cell, 1);
+            const retention_text = if (metadata.policy.retention_max_age_ms) |ms|
+                try std.fmt.allocPrint(a, "{d}ms", .{ms})
+            else
+                "unlimited";
+            rows[0] = try a.dupe(f.Types.Values.Cell, &.{
+                unsigned(metadata.definition.interpretation.interpretation.object.object),
+                unsigned(metadata.definition.interpretation.interpretation.revision),
+                text(@tagName(metadata.policy.profile)),
+                text(retention_text),
+            });
+            break :blk rows;
+        } else blk: {
+            var owned = try f.TableSchema.decode(a, try metadata.definition.schema.decode(a, f.TableSchema.max_bytes));
+            defer owned.deinit();
+            break :blk try describeRows(a, owned.schema);
+        };
+        return .{ .arena = arena, .name = name, .metadata = binding, .rows = rows, .output = if (inspection.describe) &log_describe_fields else &document_fields };
+    }
+    if (try f.KVDdl.inspection(parser)) |inspection| {
+        if (selection.snapshot != null) return error.UnsupportedHistoricalKind;
+        const name = try c.TableMetadata.Name.init(inspection.name);
+        const response = try host.table.call(.{ .kv_lookup = .{ .namespace = host.namespace, .name = name.slice() } });
+        defer response.deinit();
+        const definition = response.value.result.kv_lookup orelse return error.CatalogNameNotFound;
+        const rows = if (!inspection.describe) blk: {
+            const rows = try a.alloc([]const f.Types.Values.Cell, 1);
+            rows[0] = try a.dupe(f.Types.Values.Cell, &.{
+                unsigned(definition.interpretation.interpretation.object.object),
+                unsigned(definition.interpretation.interpretation.revision),
+                text("UTF8"),
+                text(switch (definition.spec.value_type) {
+                    .int64 => "INT64",
+                    .boolean => "BOOLEAN",
+                    .utf8 => "UTF8",
+                    .binary => "BINARY",
+                }),
+                boolean(definition.spec.nullable),
+            });
+            break :blk rows;
+        } else try kvDescribeRows(a, definition);
+        return .{ .arena = arena, .name = name, .kv_metadata = .{ .connection = host.table.connection, .definition = definition }, .rows = rows, .output = if (inspection.describe) &log_describe_fields else &kv_fields };
     }
     const selected_namespace = if (selection.snapshot != null) try selection.resolveNamespace(host.table, host.namespace) else host.namespace;
     if (try parser.takeWord("SHOW")) {
@@ -256,6 +317,31 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
     arena.deinit();
     return null;
 }
+fn kvDescribeRows(a: std.mem.Allocator, definition: c.DirectKV.Definition) ![]const []const f.Types.Values.Cell {
+    const rows = try a.alloc([]const f.Types.Values.Cell, 2);
+    const object = definition.interpretation.interpretation.object.object;
+    const revision = definition.interpretation.interpretation.revision;
+    rows[0] = try a.dupe(f.Types.Values.Cell, &.{
+        text("key"), text("UTF8"), boolean(false), boolean(true), .null, .null, unsigned(object), unsigned(revision), unsigned(1),
+    });
+    rows[1] = try a.dupe(f.Types.Values.Cell, &.{
+        text("value"),
+        text(switch (definition.spec.value_type) {
+            .int64 => "INT64",
+            .boolean => "BOOLEAN",
+            .utf8 => "UTF8",
+            .binary => "BINARY",
+        }),
+        boolean(definition.spec.nullable),
+        boolean(false),
+        .null,
+        .null,
+        unsigned(object),
+        unsigned(revision),
+        unsigned(2),
+    });
+    return rows;
+}
 fn describeRows(a: std.mem.Allocator, schema: f.TableSchema.Schema) ![]const []const f.Types.Values.Cell {
     const rows = try a.alloc([]const f.Types.Values.Cell, schema.columns.len);
     for (schema.columns, rows) |column, *row| {
@@ -309,6 +395,12 @@ pub fn validate(self: *Self, host: *g.Session) !void {
     if (self.metadata) |binding| {
         if ((self.historical_namespace orelse host.namespace) != binding.namespace) return error.CatalogIdentityConflict;
         _ = try binding.require(host.table, .inspect);
+    }
+    if (self.kv_metadata) |binding| {
+        if (host.namespace != binding.definition.namespace or !std.meta.eql(host.table.connection, binding.connection)) return error.CatalogIdentityConflict;
+        const response = try host.table.call(.{ .kv = .{ .observe = binding.definition.interpretation.interpretation.object } });
+        defer response.deinit();
+        if (response.value.result.kv.definition.retired or !std.meta.eql(response.value.result.kv.definition.interpretation, binding.definition.interpretation)) return error.CatalogDefinitionChanged;
     }
     if (self.log_metadata) |binding| {
         if (host.namespace != binding.definition.properties.namespace or !std.meta.eql(host.table.connection, binding.connection)) return error.CatalogIdentityConflict;
@@ -457,6 +549,14 @@ pub const Read = struct {
 
 fn describeView(host: *g.Session, arena: *std.heap.ArenaAllocator, namespace: u64, name: c.TableMetadata.Name, snapshot: ?c.protocol.DataLifecycle.Snapshot, projection: ?c.DirectSchemaProjection.Target) !Self {
     if (projection != null) return error.UnsupportedCatalogView;
+    if (snapshot == null) {
+        const kv_response = try host.table.call(.{ .kv_lookup = .{ .namespace = namespace, .name = name.slice() } });
+        defer kv_response.deinit();
+        if (kv_response.value.result.kv_lookup) |definition| {
+            const rows = try kvDescribeRows(arena.allocator(), definition);
+            return .{ .arena = arena.*, .name = name, .kv_metadata = .{ .connection = host.table.connection, .definition = definition }, .rows = rows, .output = &log_describe_fields };
+        }
+    }
     var sql: std.Io.Writer.Allocating = .init(arena.allocator());
     const quote: u8 = if (host.dialect == .mysql) '`' else '"';
     try sql.writer.writeAll("SELECT * FROM ");

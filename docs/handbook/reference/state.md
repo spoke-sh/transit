@@ -66,8 +66,12 @@ explicitly removes them after resolving any uncertain publication.
 
 A completed definition is publication evidence, not a continuing data-access
 grant. Current reads enforce the selected data owner's rights and lifetime rules.
-`Declaration.compile` validates offline `CREATE KV` and `CREATE DOCUMENT` syntax;
-console SQL does not execute these named-resource lifecycle operations.
+Direct Data Plane SQL sessions (`transit console`, native SQL sessions, PostgreSQL
+and MySQL wire adapters) also execute [direct KV](sql/create-kv.md) and
+[direct Document collection](sql/create-document.md) declarations, point/row
+operations and inspection directly through the shared Catalog without Station
+actor turns; `Declaration.compile` additionally validates offline `CREATE KV`
+and `CREATE DOCUMENT` syntax.
 
 ## Identity, access and ownership
 

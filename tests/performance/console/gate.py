@@ -41,6 +41,26 @@ STATEMENT_CASES = (
     'select_after_delete',
     'delete_empty',
     'select_json_after_delete',
+    'document_select_cold',
+    'document_select_empty',
+    'document_select_empty_warm',
+    'document_insert',
+    'document_select_after_write',
+    'document_select_warm',
+    'document_update',
+    'document_select_after_update',
+    'document_select_json',
+    'document_delete',
+    'document_select_after_delete',
+    'kv_get_empty',
+    'kv_put_if_absent',
+    'kv_get_after_put',
+    'kv_put_if_present',
+    'kv_get_after_update',
+    'kv_get_json',
+    'kv_delete',
+    'kv_delete_empty',
+    'kv_get_after_delete',
     'stream_consume_empty',
     'stream_produce',
     'stream_consume_after_produce',
@@ -78,6 +98,36 @@ STATEMENT_CLASSES = {
         'update_empty',
         'delete',
         'delete_empty',
+    ),
+    'document_warm_read': (
+        'document_select_empty',
+        'document_select_empty_warm',
+        'document_select_warm',
+        'document_select_json',
+    ),
+    'document_refresh_read': (
+        'document_select_cold',
+        'document_select_after_write',
+        'document_select_after_update',
+        'document_select_after_delete',
+    ),
+    'document_write': (
+        'document_insert',
+        'document_update',
+        'document_delete',
+    ),
+    'kv_read': (
+        'kv_get_empty',
+        'kv_get_after_put',
+        'kv_get_after_update',
+        'kv_get_json',
+        'kv_get_after_delete',
+    ),
+    'kv_write': (
+        'kv_put_if_absent',
+        'kv_put_if_present',
+        'kv_delete',
+        'kv_delete_empty',
     ),
     'stream_read': (
         'stream_consume_empty',
@@ -130,6 +180,10 @@ def expected_statement_samples(workload):
     expected['select_empty'] = cycles - 1
     expected['select_empty_warm'] = cycles * warm_reads
     expected['select_one_warm'] = cycles * warm_reads
+    expected['document_select_cold'] = 1
+    expected['document_select_empty'] = cycles - 1
+    expected['document_select_empty_warm'] = cycles * warm_reads
+    expected['document_select_warm'] = cycles * warm_reads
     expected['stream_consume_warm'] = cycles * warm_reads
     return expected
 
@@ -188,7 +242,7 @@ def extract_metrics(startup_records, statement_records, workload=None):
         dist = distributions[case]
         require(dist.get('samples') == expected_counts[case],
                 f'Unexpected sample count for {case}: {dist.get("samples")} != {expected_counts[case]}')
-        metric = dist['min_ms'] if case == 'select_cold' else dist['p50_ms']
+        metric = dist['min_ms'] if case in ('select_cold', 'document_select_cold') else dist['p50_ms']
         require(isinstance(metric, (int, float)) and math.isfinite(metric) and metric > 0,
                 f'Invalid latency metric for {case}')
         statement_metrics[case] = round(float(metric), 3)
@@ -262,7 +316,7 @@ def freeze_budgets(runs, *, max_regression_pct=20.0, fast_read_threshold_ms=50.0
         for case in cases:
             observed_max = max(item['statements'][case] for item in extracted)
             statement_baselines[case] = (
-                observed_max if class_name == 'warm_read' else max(observed_max, class_envelope[class_name])
+                observed_max if class_name in ('warm_read', 'document_warm_read') else max(observed_max, class_envelope[class_name])
             )
     return {
         'version': 1,

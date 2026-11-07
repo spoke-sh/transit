@@ -19,6 +19,18 @@ def verify_table(text, expected):
     assert actual == expected, (actual, expected)
 
 
+def verify_kv(text, expected):
+    """Independent oracle for point-keyed KV GET output."""
+    assert text.count('┌') == text.count('└') == 1, text
+    assert text.endswith(f'{len(expected)} rows; complete coverage\n'), text
+    cells = [[cell.strip() for cell in line.split('│')[1:-1]]
+             for line in text.splitlines() if line.startswith('│')]
+    assert cells[0] == ['key', 'value'], cells
+    assert cells[1] == ['utf8', 'int64'], cells
+    actual = [(json.loads(row[0]), int(row[1])) for row in cells[2:]]
+    assert actual == expected, (actual, expected)
+
+
 def phases(timing):
     match = re.fullmatch(r'Time: (\d+) ms \(((?:\w+ \d+ ms, )*\w+ \d+ ms)\)', timing)
     assert match, timing
@@ -65,7 +77,8 @@ def run(fixture, repeat, probes, *, config=None, resource_observer=None, cpu_obs
                 # These database statements must not dispatch Station turns.
                 for operation in ('send', 'open_view', 'turn', 'turn_with_versions'):
                     assert counts.get('update:' + operation, 0) == 0, counts
-                if case in ('select_warm', 'select_empty_warm', 'select_one_warm'):
+                if case in ('select_warm', 'select_empty_warm', 'select_one_warm',
+                            'document_select_empty_warm', 'document_select_warm'):
                     assert counts.get('table:pin', 0) == 0, counts
             samples[case].append(total * 1_000_000)
             print(json.dumps(dict(phase='statement', case=case, cycle=cycle, sql=sql,
@@ -85,13 +98,14 @@ def run(fixture, repeat, probes, *, config=None, resource_observer=None, cpu_obs
             shell.process.stdin.flush()
             shell.mode = mode
 
-        def typed_readback(case):
+        def typed_readback(case, source='items', rows=None):
+            target_rows = expected if rows is None else rows
             set_mode('json')
-            value = call(case, 'SELECT * FROM items;')
+            value = call(case, f'SELECT * FROM {source};')
             actual = sorted(tuple(int(cell['value']['atom']['signed']) for cell in row)
                             for row in value['rows'])
-            assert actual == expected, (actual, expected)
-            assert int(value['complete']['rows']) == len(expected), value
+            assert actual == target_rows, (actual, target_rows)
+            assert int(value['complete']['rows']) == len(target_rows), value
             assert [field['name'] for field in value['schema']['type']['structure']] == ['id', 'value']
             assert all(field['type'] == {'int64': {}} for field in value['schema']['type']['structure'])
             set_mode('table')
@@ -111,6 +125,8 @@ def run(fixture, repeat, probes, *, config=None, resource_observer=None, cpu_obs
         for setup_sql in (
             'CREATE STREAM events (id INT64, value INT64);',
             "CREATE QUEUE tasks (id INT64, value INT64) WITH (max_lease_duration='5m', max_attempts=1);",
+            "CREATE DOCUMENT docs (id INT64 NOT NULL PRIMARY KEY, value INT64 NOT NULL) WITH (profile='versioned');",
+            'CREATE KV cache (INT64);',
         ):
             setup_value, setup_measurement = shell.call(setup_sql)
             assert setup_value == 'Statement completed. Matched 0; changed 0.\n', setup_value
@@ -151,6 +167,49 @@ def run(fixture, repeat, probes, *, config=None, resource_observer=None, cpu_obs
             output = call('delete_empty', 'DELETE FROM items WHERE id = -1;')
             assert output == 'Statement completed. Matched 0; changed 0.\n', output
             typed_readback('select_json_after_delete')
+
+            doc_expected = []
+            verify_table(call('document_select_cold' if cycle == 0 else 'document_select_empty', 'SELECT * FROM docs;'), doc_expected)
+            for _ in range(warm_reads):
+                verify_table(call('document_select_empty_warm', 'SELECT * FROM docs;'), doc_expected)
+            for index in range(1, repeat + 1):
+                output = call('document_insert', f'INSERT INTO docs (id, value) VALUES ({index}, {index * 10});')
+                assert output == 'Statement completed. Matched 1; changed 1.\n', output
+                doc_expected.append((index, index * 10))
+                verify_table(call('document_select_after_write', 'SELECT * FROM docs;'), doc_expected)
+                for _ in range(warm_reads):
+                    verify_table(call('document_select_warm', 'SELECT * FROM docs;'), doc_expected)
+                output = call('document_update', f'UPDATE docs SET value = {index * 100} WHERE id = {index};')
+                assert output == 'Statement completed. Matched 1; changed 1.\n', output
+                doc_expected[index - 1] = (index, index * 100)
+                verify_table(call('document_select_after_update', 'SELECT * FROM docs;'), doc_expected)
+            typed_readback('document_select_json', source='docs', rows=doc_expected)
+            for index in range(1, repeat + 1):
+                output = call('document_delete', f'DELETE FROM docs WHERE id = {index};')
+                assert output == 'Statement completed. Matched 1; changed 1.\n', output
+                doc_expected.remove((index, index * 100))
+                verify_table(call('document_select_after_delete', 'SELECT * FROM docs;'), doc_expected)
+
+            for index in range(1, repeat + 1):
+                key_name = f'k{index}'
+                verify_kv(call('kv_get_empty', f"GET FROM cache KEY '{key_name}';"), [])
+                output = call('kv_put_if_absent', f"PUT INTO cache KEY '{key_name}' VALUE {index * 10} IF ABSENT;")
+                assert output == 'Statement completed. Matched 1; changed 1.\n', output
+                verify_kv(call('kv_get_after_put', f"GET FROM cache KEY '{key_name}';"), [(key_name, index * 10)])
+                output = call('kv_put_if_present', f"PUT INTO cache KEY '{key_name}' VALUE {index * 100} IF PRESENT;")
+                assert output == 'Statement completed. Matched 1; changed 1.\n', output
+                verify_kv(call('kv_get_after_update', f"GET FROM cache KEY '{key_name}';"), [(key_name, index * 100)])
+                set_mode('json')
+                kv_json = call('kv_get_json', f"GET FROM cache KEY '{key_name}';")
+                assert int(kv_json['complete']['rows']) == 1 and len(kv_json['rows']) == 1, kv_json
+                kv_row = kv_json['rows'][0]
+                assert (kv_row[0]['value']['atom']['utf8'], int(kv_row[1]['value']['atom']['signed'])) == (key_name, index * 100), kv_json
+                set_mode('table')
+                output = call('kv_delete', f"DELETE FROM cache KEY '{key_name}';")
+                assert output == 'Statement completed. Matched 1; changed 1.\n', output
+                output = call('kv_delete_empty', "DELETE FROM cache KEY 'missing';")
+                assert output == 'Statement completed. Matched 0; changed 0.\n', output
+                verify_kv(call('kv_get_after_delete', f"GET FROM cache KEY '{key_name}';"), [])
 
             cycle_stream_start = stream_next_offset
             for index in range(1, repeat + 1):

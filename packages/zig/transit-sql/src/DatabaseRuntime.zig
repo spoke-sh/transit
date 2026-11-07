@@ -587,11 +587,24 @@ fn advance(self: *Self, source: *g.Client.Source, state: c.DirectClientToken.Pro
         _ = try c.DirectClientToken.update(caller, .{ .key = state.receipt.binding.key, .expected = state.revision, .pending = false, .cancel = state.cancel, .record = state.record });
         return false;
     }
+    if (reference == .kv and reference.kv.kind != .ddl) {
+        if (!state.cancel) {
+            const response = reference.admit(caller) catch |err| switch (err) {
+                error.DuplicatePrimaryKey, error.DuplicateBatchKey, error.TableRowMissing, error.TableDefinitionChanged, error.TableDataChanged => null,
+                else => return err,
+            };
+            defer if (response) |value| value.deinit();
+        }
+        _ = try c.DirectClientToken.update(caller, .{ .key = state.receipt.binding.key, .expected = state.revision, .pending = false, .cancel = state.cancel, .record = state.record });
+        return false;
+    }
     const absent = switch (observed.value.result) {
         inline .ddl, .rows, .name_assertion, .namespace_operation, .log_operation => |value| value == .not_observed,
+        .kv_declaration => |value| value.operation == .not_observed,
+        .document_declaration => |value| value.operation == .not_observed,
         else => return error.InvalidGatewayTerminal,
     };
-    const response = try if (absent and !(reference == .name_assertion and state.cancel)) reference.admit(caller) else reference.operation(caller, if (state.cancel) .cancel else .execute, 8);
+    const response = try if (absent and !((reference == .name_assertion or reference == .kv_name_assertion or reference == .document_name_assertion) and state.cancel)) reference.admit(caller) else reference.operation(caller, if (state.cancel) .cancel else .execute, 8);
     defer response.deinit();
     if (try g.Terminal.fromReference(reference, response.value.result) == null) return true;
     _ = try c.DirectClientToken.update(caller, .{ .key = state.receipt.binding.key, .expected = state.revision, .pending = false, .cancel = state.cancel, .record = state.record });
@@ -830,7 +843,31 @@ fn requireRoute(state: c.DirectClientToken.Progress, table: *c.DirectTableClient
 }
 fn foreground(self: *Self, observer: *g.Client, table: *c.DirectTableClient, state: c.DirectClientToken.Progress, deadline: Deadline) !?g.Terminal {
     const intent = state.receipt.binding.intent;
-    if (!state.pending or state.cancel or intent != .table) return null;
+    if (!state.pending or state.cancel) return null;
+    if (intent == .kv and intent.kv.kind != .ddl) {
+        try deadline.check(self.io);
+        var terminal: g.Terminal = undefined;
+        if (intent.kv.admit(table.*)) |response| {
+            defer response.deinit();
+            terminal = (try g.Terminal.fromReference(intent, response.value.result)) orelse return null;
+        } else |err| switch (err) {
+            error.DuplicatePrimaryKey, error.DuplicateBatchKey => terminal = try g.Terminal.rejectedKV(intent.kv, .duplicate_key),
+            error.TableRowMissing => terminal = try g.Terminal.rejectedKV(intent.kv, .missing_row),
+            error.TableDefinitionChanged => terminal = try g.Terminal.rejectedKV(intent.kv, .definition_changed),
+            error.TableDataChanged => terminal = try g.Terminal.rejectedKV(intent.kv, .data_changed),
+            else => return err,
+        }
+        deadline.check(self.io) catch {
+            self.notify();
+            return terminal;
+        };
+        _ = c.DirectClientToken.update(table.*, .{ .key = state.receipt.binding.key, .expected = state.revision, .pending = false, .cancel = state.cancel, .record = state.record }) catch {
+            self.notify();
+            return terminal;
+        };
+        return terminal;
+    }
+    if (intent != .table) return null;
     switch (intent.table.binding.action) {
         .insert, .update, .delete => {},
         else => return null,
@@ -981,7 +1018,10 @@ pub fn status(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, ta
     if (intent == .transaction_call) return g.TransactionWork.status(table.*, state);
     const response = try intent.operation(table.*, .inspect, 1);
     defer response.deinit();
-    const outcome = try g.Terminal.fromReference(intent, response.value.result);
+    var outcome = try g.Terminal.fromReference(intent, response.value.result);
+    if (!state.pending and outcome == null and intent == .kv and intent.kv.kind != .ddl) {
+        outcome = if (state.cancel) try g.Terminal.cancelledKV(intent.kv) else try g.Terminal.rejectedKV(intent.kv, .duplicate_key);
+    }
     if (!state.pending and outcome == null) return error.MissingGatewayTerminal;
     return self.project(state, outcome, if (response.value.result == .namespace_operation and response.value.result.namespace_operation == .operation) try response.value.result.namespace_operation.operation.diagnostic() else null);
 }
