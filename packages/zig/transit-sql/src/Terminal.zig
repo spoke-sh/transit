@@ -54,6 +54,13 @@ pub fn fromReference(reference: g.IntentReference.Reference, result: w.Result) !
     if (reference == .external) return error.ExternalOperationOwnerRequired;
     if (reference == .transaction or reference == .transaction_call) return error.TransactionOperationRequired;
     if (reference == .table) return fromResult(reference.table.binding, result);
+    if (reference == .document) {
+        if (result != .document_declaration or result.document_declaration != .operation) return error.InvalidGatewayTerminal;
+        var projected = (try fromResult(reference.document.binding, .{ .ddl = result.document_declaration.operation })) orelse return null;
+        projected.identity = try reference.digest();
+        try projected.validate();
+        return projected;
+    }
     if (reference == .kv) {
         if (reference.kv.kind == .ddl) {
             if (result != .kv_declaration or result.kv_declaration != .operation) return error.InvalidGatewayTerminal;
@@ -140,7 +147,11 @@ pub fn fromReference(reference: g.IntentReference.Reference, result: w.Result) !
         .not_observed => return null,
         .outcome => |value| value,
     };
-    const binding = if (reference == .kv_name_assertion) reference.kv_name_assertion else reference.name_assertion;
+    const binding = switch (reference) {
+        .kv_name_assertion => reference.kv_name_assertion,
+        .document_name_assertion => reference.document_name_assertion,
+        else => reference.name_assertion,
+    };
     try evidence.validate();
     try binding.requireSame(evidence.binding);
     const value: Self = .{
@@ -222,7 +233,7 @@ pub fn summary(self: Self) g.OperationRecords.Summary {
     };
 }
 
-pub fn rejectedKV(reference: c.DirectKVIntent.Reference, reason: c.storage.TablePartition.Reason) !Self {
+pub fn rejectedKV(reference: c.DirectKVIntent.Reference, reason: @FieldType(c.storage.TablePartition.Operation, "reason")) !Self {
     try reference.validate();
     const binding = reference.binding;
     const value: Self = .{
@@ -261,8 +272,8 @@ pub fn completion(self: Self, command: g.results.Command, operation: g.results.O
     try self.validate();
     const expected: @FieldType(Self, "kind") = switch (command) {
         .insert, .update, .delete, .put => .dml,
-        .create_table, .drop_table, .create_kv, .drop_kv => if (self.kind == .catalog_assertion) .catalog_assertion else .ddl,
-        .alter_table, .alter_kv => .ddl,
+        .create_table, .drop_table, .create_kv, .drop_kv, .create_document, .drop_document => if (self.kind == .catalog_assertion) .catalog_assertion else .ddl,
+        .alter_table, .alter_kv, .alter_document => .ddl,
         .create_schema, .alter_schema, .drop_schema => .namespace_change,
         .create_stream, .alter_stream, .drop_stream, .create_queue, .alter_queue, .drop_queue => .log_declaration,
         else => return error.InvalidGatewayTerminal,

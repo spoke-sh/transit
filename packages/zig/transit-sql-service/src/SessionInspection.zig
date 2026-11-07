@@ -64,12 +64,16 @@ const log_fields = [_]f.Types.Field{
     .{ .name = "limits", .type = .utf8 },
 };
 const kv_fields = [_]f.Types.Field{
-    .{ .name = "object", .type = .uint64 },     .{ .name = "definition_revision", .type = .uint64 },
-    .{ .name = "key_type", .type = .utf8 },     .{ .name = "value_type", .type = .utf8 },
+    .{ .name = "object", .type = .uint64 },    .{ .name = "definition_revision", .type = .uint64 },
+    .{ .name = "key_type", .type = .utf8 },    .{ .name = "value_type", .type = .utf8 },
     .{ .name = "nullable", .type = .boolean },
 };
+const document_fields = [_]f.Types.Field{
+    .{ .name = "object", .type = .uint64 }, .{ .name = "definition_revision", .type = .uint64 },
+    .{ .name = "profile", .type = .utf8 },  .{ .name = "retention", .type = .utf8 },
+};
 test "log metadata fields use the lossless common database wire matrix" {
-    for (log_fields ++ kv_fields ++ log_describe_fields) |field| _ = try g.Type.from(field);
+    for (log_fields ++ kv_fields ++ document_fields ++ log_describe_fields) |field| _ = try g.Type.from(field);
 }
 test "metadata preparation leaves dialect probes to their owner without allocation or I O" {
     // Only the dialect is available: no connected runtime or allocator may be
@@ -134,6 +138,33 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
             break :blk try describeRows(a, owned.schema);
         };
         return .{ .arena = arena, .name = name, .log_metadata = .{ .connection = host.table.connection, .definition = definition }, .rows = rows, .output = if (inspection.describe) &log_describe_fields else &log_fields };
+    }
+    if (try f.DocumentDdl.inspection(parser)) |inspection| {
+        if (selection.snapshot != null) return error.UnsupportedHistoricalKind;
+        const name = try c.TableMetadata.Name.init(inspection.name);
+        const response = try host.table.call(.{ .document_lookup = .{ .namespace = host.namespace, .name = name.slice() } });
+        defer response.deinit();
+        const metadata = response.value.result.document_lookup orelse return error.CatalogNameNotFound;
+        const binding = try c.DirectTableBinding.init(host.table.connection, metadata.definition);
+        const rows = if (!inspection.describe) blk: {
+            const rows = try a.alloc([]const f.Types.Values.Cell, 1);
+            const retention_text = if (metadata.policy.retention_max_age_ms) |ms|
+                try std.fmt.allocPrint(a, "{d}ms", .{ms})
+            else
+                "unlimited";
+            rows[0] = try a.dupe(f.Types.Values.Cell, &.{
+                unsigned(metadata.definition.interpretation.interpretation.object.object),
+                unsigned(metadata.definition.interpretation.interpretation.revision),
+                text(@tagName(metadata.policy.profile)),
+                text(retention_text),
+            });
+            break :blk rows;
+        } else blk: {
+            var owned = try f.TableSchema.decode(a, try metadata.definition.schema.decode(a, f.TableSchema.max_bytes));
+            defer owned.deinit();
+            break :blk try describeRows(a, owned.schema);
+        };
+        return .{ .arena = arena, .name = name, .metadata = binding, .rows = rows, .output = if (inspection.describe) &log_describe_fields else &document_fields };
     }
     if (try f.KVDdl.inspection(parser)) |inspection| {
         if (selection.snapshot != null) return error.UnsupportedHistoricalKind;

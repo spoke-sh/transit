@@ -25,6 +25,9 @@ pub const Command = enum {
     create_kv,
     alter_kv,
     drop_kv,
+    create_document,
+    alter_document,
+    drop_document,
     create_schema,
     alter_schema,
     drop_schema,
@@ -103,7 +106,7 @@ pub const CommandCompletion = struct {
             }
         }
         const counted = switch (self.kind) {
-            .insert, .update, .delete, .put, .produce, .enqueue, .create_table, .alter_table, .drop_table, .create_kv, .alter_kv, .drop_kv, .create_schema, .alter_schema, .drop_schema, .create_stream, .alter_stream, .drop_stream, .create_queue, .alter_queue, .drop_queue => true,
+            .insert, .update, .delete, .put, .produce, .enqueue, .create_table, .alter_table, .drop_table, .create_kv, .alter_kv, .drop_kv, .create_document, .alter_document, .drop_document, .create_schema, .alter_schema, .drop_schema, .create_stream, .alter_stream, .drop_stream, .create_queue, .alter_queue, .drop_queue => true,
             .select, .show => return error.InvalidCommandCompletion,
             else => false,
         };

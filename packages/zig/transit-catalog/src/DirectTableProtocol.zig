@@ -380,6 +380,9 @@ pub const Action = union(enum) {
     kv_declaration: c.DirectKV.DeclarationRequest,
     kv_lookup: struct { namespace: u64, name: []const u8 },
     kv_list: struct { namespace: u64, after: ?u64 },
+    document_declaration: c.DirectDocument.DeclarationRequest,
+    document_lookup: struct { namespace: u64, name: []const u8 },
+    document_list: struct { namespace: u64, after: ?u64 },
 };
 pub const Request = struct {
     definition: p.Growth.Definition,
@@ -423,7 +426,7 @@ pub const Request = struct {
             .historical_catalog => |value| value.mutation(),
             .descriptor => |value| value.mutation(),
             .source => |value| value.mutation(),
-            inline .kv, .kv_declaration => |value| value.mutation(),
+            inline .kv, .kv_declaration, .document_declaration => |value| value.mutation(),
             .transaction => |value| value.mutation(),
             .record => |value| value != .read,
             .client_token => |value| value == .bind,
@@ -438,7 +441,7 @@ pub const Request = struct {
             .log_operation => |value| value.command != .inspect,
             else => false,
         };
-        const control = (self.action == .client_progress and self.action.client_progress == .close_original) or (self.action == .historical_catalog and (self.action.historical_catalog == .inspect or self.action.historical_catalog == .abandon or self.action.historical_catalog == .release)) or (self.action == .kv and self.action.kv.control()) or (self.action == .kv_declaration and self.action.kv_declaration.control()) or (self.action == .branch and (self.action.branch == .inspect or self.action.branch == .cancel)) or (self.action == .stream and self.action.stream.control()) or (self.action == .queue and self.action.queue.control()) or (self.action == .log_operation and self.action.log_operation.command != .execute) or (self.action == .transaction and self.action.transaction.control()) or self.action == .release or self.action == .pin_status or self.action == .namespace_operation or self.action == .dependency_operation or (self.action == .resource_operation and (self.action.resource_operation.command == .inspect or self.action.resource_operation.command == .cancel)) or (self.action == .operation and self.action.operation.command != .execute) or (self.action == .name_assertion and self.action.name_assertion.command != .accept);
+        const control = (self.action == .client_progress and self.action.client_progress == .close_original) or (self.action == .historical_catalog and (self.action.historical_catalog == .inspect or self.action.historical_catalog == .abandon or self.action.historical_catalog == .release)) or (self.action == .kv and self.action.kv.control()) or (self.action == .kv_declaration and self.action.kv_declaration.control()) or (self.action == .document_declaration and self.action.document_declaration.control()) or (self.action == .branch and (self.action.branch == .inspect or self.action.branch == .cancel)) or (self.action == .stream and self.action.stream.control()) or (self.action == .queue and self.action.queue.control()) or (self.action == .log_operation and self.action.log_operation.command != .execute) or (self.action == .transaction and self.action.transaction.control()) or self.action == .release or self.action == .pin_status or self.action == .namespace_operation or self.action == .dependency_operation or (self.action == .resource_operation and (self.action.resource_operation.command == .inspect or self.action.resource_operation.command == .cancel)) or (self.action == .operation and self.action.operation.command != .execute) or (self.action == .name_assertion and self.action.name_assertion.command != .accept);
         return .{ .operation = @tagName(self.action), .mutation = mutation and self.transaction == null, .control = if (control) "table" else null, .wait = if (self.action == .stream and self.action.stream == .wait) .{ .after = 0, .milliseconds = self.action.stream.wait.milliseconds } else if (self.action == .queue and self.action.queue == .wait) .{ .after = 0, .milliseconds = self.action.queue.wait.milliseconds } else null };
     }
     pub fn validate(self: Request, allocator: std.mem.Allocator) !void {
@@ -479,7 +482,8 @@ pub const Request = struct {
                 try value.validate(allocator, connection.principal, connection.scope);
             },
             .kv_declaration => |value| try value.validate(allocator, connection),
-            inline .kv_lookup, .kv_list => |value| {
+            .document_declaration => |value| try value.validate(allocator, connection),
+            inline .kv_lookup, .kv_list, .document_lookup, .document_list => |value| {
                 try c.Model.nativeId(value.namespace);
                 if (@hasField(@TypeOf(value), "name")) _ = try c.TableAuthority.Name.init(value.name);
             },
@@ -905,6 +909,9 @@ pub const Result = union(enum) {
     kv_declaration: c.DirectKV.DeclarationResult,
     kv_lookup: ?c.DirectKV.Definition,
     kv_list: StateList,
+    document_declaration: c.DirectDocument.DeclarationResult,
+    document_lookup: ?c.DirectDocument.Definition,
+    document_list: StateList,
 };
 pub const Response = struct { definition: p.Growth.Definition, context: [32]u8, policy_revision: u64, subject: p.Authorization.Verified, result: Result };
 

@@ -13,7 +13,13 @@ pub const max_key_bytes: usize = 1024;
 
 pub const Kind = enum { put, get, delete };
 pub const Expectation = enum { any, absent, present };
-pub const Target = struct { kind: Kind, source: Reference };
+pub const Target = struct {
+    kind: Kind,
+    source: Reference,
+    pub fn deinit(self: Target, allocator: std.mem.Allocator) void {
+        allocator.free(self.source.name);
+    }
+};
 
 /// Recognizes PUT INTO, GET FROM, and DELETE FROM <name> KEY/KEYS.
 /// Returns null if the statement is not a KV workload statement (for example,
@@ -33,14 +39,23 @@ pub fn target(allocator: std.mem.Allocator, text: []const u8, dialect: f.Sql.Dia
         if (parser.token.tag != .word and parser.token.tag != .quoted) return null;
         const source = try Reference.unqualified(&parser, .source);
         if (parser.word("KEY") or parser.word("KEYS")) return .{ .kind = .delete, .source = source };
+        allocator.free(source.name);
         return null;
     }
     return null;
 }
 
+pub fn isDelete(allocator: std.mem.Allocator, text: []const u8, dialect: f.Sql.Dialect) !bool {
+    if (try target(allocator, text, dialect, null)) |selected| {
+        defer selected.deinit(allocator);
+        return selected.kind == .delete;
+    }
+    return false;
+}
+
 fn addParameter(allocator: std.mem.Allocator, parameters: *std.ArrayList(f.TableDmlPrepared.Parameter), site: f.Sql.Parameter, kind: f.Types.Type) !void {
     for (parameters.items) |existing| if (existing.site.index == site.index) {
-        if (!existing.type.eql(kind)) return error.ParameterTypeConflict;
+        if (!try existing.type.eql(kind)) return error.ParameterTypeConflict;
         return;
     };
     if (parameters.items.len == 64) return error.InvalidParameterIndex;
@@ -333,8 +348,8 @@ pub const PreparedGet = struct {
 test "KV workload SQL compiles PUT GET and DELETE with conditional expectations and parameters" {
     const t = std.testing;
     const spec: Spec = .{ .value_type = .utf8, .nullable = false };
-    try t.expect((try target(t.allocator, "DELETE FROM items WHERE id = 1", .transit, null)) == null);
-    try t.expectEqual(Kind.delete, (try target(t.allocator, "DELETE FROM cache KEY 'k1'", .transit, null)).?.kind);
+    try t.expect(!try isDelete(t.allocator, "DELETE FROM items WHERE id = 1", .transit));
+    try t.expect(try isDelete(t.allocator, "DELETE FROM cache KEY 'k1'", .transit));
 
     var put_single = try PreparedWrite.init(t.allocator, "PUT INTO cache KEY $1 VALUE $2 IF ABSENT", spec, .transit, null);
     defer put_single.deinit();

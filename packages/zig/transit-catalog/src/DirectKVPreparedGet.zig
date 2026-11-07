@@ -59,3 +59,54 @@ pub fn validate(self: *const Self, client: c.DirectTableClient) !void {
     const observed = response.value.result.kv.definition;
     if (observed.retired or !std.meta.eql(observed.interpretation, self.definition.interpretation)) return error.CatalogDefinitionChanged;
 }
+
+pub fn checkValues(self: *const Self, allocator: std.mem.Allocator, values: []const ?f.Types.Values.Atom) !void {
+    const key = try self.prepared.bind(allocator, values);
+    allocator.free(key);
+}
+
+pub const Read = struct {
+    arena: std.heap.ArenaAllocator,
+    definition: c.DirectKV.Definition,
+    cells: ?[2]f.Types.Values.Cell,
+    emitted: bool = false,
+    subject: ?c.DirectKV.Definition = null,
+
+    pub fn deinit(self: *Read) void {
+        self.arena.deinit();
+        self.* = undefined;
+    }
+
+    pub fn next(self: *Read) !?[]const f.Types.Values.Cell {
+        self.subject = null;
+        if (self.emitted) return null;
+        self.emitted = true;
+        if (self.cells) |*row| {
+            self.subject = self.definition;
+            return row;
+        }
+        return null;
+    }
+
+    pub fn complete(self: *const Read) bool {
+        return self.emitted or self.cells == null;
+    }
+};
+
+pub fn open(self: *const Self, allocator: std.mem.Allocator, client: c.DirectTableClient, values: []const ?f.Types.Values.Atom) !Read {
+    try self.validate(client);
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    errdefer arena.deinit();
+    const key = try self.prepared.bind(arena.allocator(), values);
+    const result = try c.DirectKVClient.apply(&arena, client, .{ .get = .{ .object = self.definition.interpretation.interpretation.object, .key = key } });
+    if (!std.meta.eql(result.value.interpretation, self.definition.interpretation)) return error.CatalogDefinitionChanged;
+    const cells: ?[2]f.Types.Values.Cell = if (result.value.value) |cell| .{
+        .{ .value = .{ .atom = .{ .bytes = key } } },
+        cell,
+    } else null;
+    return .{
+        .arena = arena,
+        .definition = self.definition,
+        .cells = cells,
+    };
+}

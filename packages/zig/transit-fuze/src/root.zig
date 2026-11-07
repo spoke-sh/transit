@@ -49,6 +49,7 @@ pub const TableSchemaProjection = @import("TableSchemaProjection.zig");
 pub const SqlTypes = @import("SqlTypes.zig");
 pub const SqlTyped = @import("SqlTyped.zig");
 pub const TableDdl = @import("TableDdl.zig");
+pub const DocumentDdl = @import("DocumentDdl.zig");
 pub const LogDdl = @import("LogDdl.zig");
 pub const KVDdl = @import("KVDdl.zig");
 pub const KVWorkloadSql = @import("KVWorkloadSql.zig");
@@ -120,6 +121,7 @@ test {
     _ = TableSchemaProjection;
     _ = SqlTypes;
     _ = TableDdl;
+    _ = DocumentDdl;
     _ = KVDdl;
     _ = KVWorkloadSql;
     _ = LogDdl;

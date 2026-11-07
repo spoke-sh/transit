@@ -49,6 +49,11 @@ pub fn parameterTypes(self: *const Self) []const f.Types.Type {
     return self.prepared.parameterTypes();
 }
 
+pub fn checkValues(self: *const Self, allocator: std.mem.Allocator, values: []const ?f.Types.Values.Atom) !void {
+    var bound = try self.prepared.bind(allocator, values);
+    defer bound.deinit();
+}
+
 pub fn validate(self: *const Self, client: c.DirectTableClient) !void {
     if (!std.meta.eql(self.connection, client.connection)) return error.CatalogIdentityConflict;
     const response = try client.call(.{ .kv = .{ .observe = self.definition.interpretation.interpretation.object } });

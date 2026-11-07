@@ -50,6 +50,16 @@ pub fn commandKind(self: Reference) !g.results.Command {
             .create_if_not_exists => .create_kv,
             .drop_if_exists => .drop_kv,
         },
+        .document => |value| switch (value.binding.action) {
+            .create => .create_document,
+            .alter, .rename => .alter_document,
+            .drop => .drop_document,
+            else => error.InvalidDocumentIntent,
+        },
+        .document_name_assertion => |value| switch (value.action) {
+            .create_if_not_exists => .create_document,
+            .drop_if_exists => .drop_document,
+        },
         .namespace_change => |value| switch (value.binding.action) {
             .create => .create_schema,
             .rename => .alter_schema,

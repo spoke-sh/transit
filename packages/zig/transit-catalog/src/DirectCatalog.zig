@@ -76,6 +76,7 @@ pub const Policy = struct {
 pub const View = struct {
     table: P,
     properties: Properties,
+    document: ?c.fuze.DocumentDdl.Policy = null,
     recovery_state: ?*?P.RecoveryState = null,
     owner_slot: ?*?CachedTable = null,
     seed: ?s.TableDeclaration.Stored = null,
@@ -1891,7 +1892,7 @@ fn intentGuardWithRowState(self: *Self, allocator: std.mem.Allocator, reference:
                 break :blk try self.requestGuard(allocator, policy, request, if (existing) |*view| view else null, false);
             }
             try self.original(policy, value.binding);
-            var selected = try self.kvAccess(allocator, value.binding.target, .mutate, false, value.binding.prerequisite, policy);
+            var selected = try self.kvAccess(allocator, value.binding.target, .write, false, value.binding.prerequisite, policy);
             defer selected.view.deinit();
             break :blk selected.current;
         },
@@ -1907,7 +1908,18 @@ fn intentGuardWithRowState(self: *Self, allocator: std.mem.Allocator, reference:
             break :blk authorized.guard;
         },
         .namespace_change => |value| self.namespaceGuard(allocator, value.binding, policy),
-        .name_assertion, .kv_name_assertion => |value| policy.make_guard(policy.context, allocator, try self.assertionRequirements(allocator, value, policy), null),
+        .document => |value| blk: {
+            var intent = try c.DirectDocumentIntent.load(allocator, self.data_objects, value);
+            defer intent.deinit();
+            const request = try intent.parsed.value.declaration.request(allocator);
+            var existing: ?View = null;
+            defer if (existing) |*view| view.deinit();
+            if (try self.entry(request.binding.target.object)) |target| if (target.seed != null) {
+                existing = try self.open(self.allocator, target, false);
+            };
+            break :blk try self.requestGuard(allocator, policy, request, if (existing) |*view| view else null, false);
+        },
+        .name_assertion, .kv_name_assertion, .document_name_assertion => |value| policy.make_guard(policy.context, allocator, try self.assertionRequirements(allocator, value, policy), null),
     };
 }
 
@@ -2030,7 +2042,14 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
                 }
             }
         },
-        .name_assertion, .kv_name_assertion => |value| try c.OperationBinding.claimAssertionInTree(self.allocator, &self.store.index, value),
+        .name_assertion, .kv_name_assertion, .document_name_assertion => |value| try c.OperationBinding.claimAssertionInTree(self.allocator, &self.store.index, value),
+        .document => |document| {
+            var intent = try c.DirectDocumentIntent.load(arena.allocator(), self.data_objects, document);
+            defer intent.deinit();
+            _ = try self.preview(try intent.parsed.value.declaration.request(arena.allocator()), policy);
+            try check(current);
+            try c.OperationBinding.claimInTree(self.allocator, &self.store.index, document.binding);
+        },
         .kv => |kv| {
             var intent = try c.DirectKVIntent.load(arena.allocator(), self.data_objects, kv);
             defer intent.deinit();
@@ -2577,7 +2596,11 @@ fn requireClientTerminal(self: *Self, reference: c.DirectIntent.Reference, polic
                 else => {},
             },
         },
-        .name_assertion, .kv_name_assertion => |value| if (try self.assertName(value, .inspect, policy) == .not_observed) return error.ClientOperationPending,
+        .name_assertion, .kv_name_assertion, .document_name_assertion => |value| if (try self.assertName(value, .inspect, policy) == .not_observed) return error.ClientOperationPending,
+        .document => |value| switch (try self.status(value.binding, policy)) {
+            .not_observed, .admitted, .finalizing => return error.ClientOperationPending,
+            else => {},
+        },
         .kv => |value| if (value.kind == .ddl) switch (try self.status(value.binding, policy)) {
             .not_observed, .admitted, .finalizing => return error.ClientOperationPending,
             else => {},
@@ -4475,7 +4498,7 @@ fn openTransaction(self: *Self, allocator: std.mem.Allocator, target: r.Entry, c
             table.index.store = table.objects;
             try table.refreshSince(prior);
             const properties = try Properties.decode(allocator, table.declaration.definition.properties);
-            return .{ .table = table, .properties = properties, .recovery_state = recovery_slot, .owner_slot = slot, .seed = original_seed };
+            return .{ .table = table, .properties = properties, .document = target.document, .recovery_state = recovery_slot, .owner_slot = slot, .seed = original_seed };
         }
         if (primary_slot.* != null) {
             if (self.options.table_owners) |extra| {
@@ -4508,7 +4531,7 @@ fn openTransaction(self: *Self, allocator: std.mem.Allocator, target: r.Entry, c
     else
         try table.recover();
     const properties = try Properties.decode(allocator, table.declaration.definition.properties);
-    return .{ .table = table, .properties = properties, .recovery_state = recovery_slot, .owner_slot = target_slot, .seed = original_seed };
+    return .{ .table = table, .properties = properties, .document = target.document, .recovery_state = recovery_slot, .owner_slot = target_slot, .seed = original_seed };
 }
 
 fn candidate(self: *Self, namespace: u64, name: a.Name) !?r.Name {
@@ -4523,6 +4546,14 @@ fn candidate(self: *Self, namespace: u64, name: a.Name) !?r.Name {
 /// exact observed Table root; it is not a catalog-wide consistent snapshot.
 pub fn resolve(self: *Self, allocator: std.mem.Allocator, namespace_id: u64, name: a.Name, policy: Policy) !?View {
     return self.resolveState(allocator, namespace_id, name, .table, policy);
+}
+pub fn resolveDocument(self: *Self, allocator: std.mem.Allocator, namespace_id: u64, name: a.Name, policy: Policy) !?View {
+    var view = try self.resolveState(allocator, namespace_id, name, .table, policy) orelse return null;
+    if (view.document == null) {
+        view.deinit();
+        return null;
+    }
+    return view;
 }
 pub fn resolveKV(self: *Self, allocator: std.mem.Allocator, namespace_id: u64, name: a.Name, policy: Policy) !?View {
     return self.resolveState(allocator, namespace_id, name, .kv, policy);
@@ -4563,12 +4594,15 @@ fn resolveState(self: *Self, allocator: std.mem.Allocator, namespace_id: u64, na
 /// filtered pages can have a continuation. Recheck every included object in one
 /// native guard before returning any of the page's metadata to its caller.
 pub fn list(self: *Self, namespace_id: u64, after: ?pages.Key, policy: Policy) !Page {
-    return self.listState(namespace_id, after, .table, policy);
+    return self.listState(namespace_id, after, .table, false, policy);
+}
+pub fn listDocuments(self: *Self, namespace_id: u64, after: ?pages.Key, policy: Policy) !Page {
+    return self.listState(namespace_id, after, .table, true, policy);
 }
 pub fn listKV(self: *Self, namespace_id: u64, after: ?pages.Key, policy: Policy) !Page {
-    return self.listState(namespace_id, after, .kv, policy);
+    return self.listState(namespace_id, after, .kv, false, policy);
 }
-fn listState(self: *Self, namespace_id: u64, after: ?pages.Key, kind: s.TableDeclaration.Kind, policy: Policy) !Page {
+fn listState(self: *Self, namespace_id: u64, after: ?pages.Key, kind: s.TableDeclaration.Kind, document_only: bool, policy: Policy) !Page {
     try self.requireInitialized();
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
@@ -4586,6 +4620,7 @@ fn listState(self: *Self, namespace_id: u64, after: ?pages.Key, kind: s.TableDec
         var view = try self.open(self.allocator, target, false);
         defer view.deinit();
         if (view.table.root.next_lsn == 0 or view.table.root.retired or view.properties.namespace != namespace_id) continue;
+        if (kind == .table and (view.document != null) != document_only) continue;
         const required = if (kind == .table) try self.requirements(policy, namespace, view.properties.target(target.object), .inspect) else try self.kvRequirements(policy, namespace, view.properties.target(target.object), .inspect);
         check(try policy.make_guard(policy.context, arena.allocator(), required, null)) catch |err| {
             if (err == error.CatalogDenied or err == error.Forbidden) continue;
@@ -5027,7 +5062,7 @@ fn admissionReason(self: *Self, request: Request, known: bool, existing: ?*View,
     if (request.intent.action == .create) {
         if (known) return .object_conflict;
     } else if (existing) |view| {
-        if (view.table.root.next_lsn == 0 or view.table.root.retired or view.properties.namespace != request.intent.namespace or !std.meta.eql(view.properties.name, request.intent.name)) return .object_conflict;
+        if (view.table.root.next_lsn == 0 or view.table.root.retired or view.properties.namespace != request.intent.namespace or !std.meta.eql(view.properties.name, request.intent.name) or (view.document != null) != (request.intent.document != null)) return .object_conflict;
         if (!std.meta.eql(request.binding.expected_definition, @as(?d.Definition, view.table.root.interpretation))) return .stale_definition;
         if (request.binding.expected_data) |expected| {
             if (!expected.unchangedAt(.{ .partition = view.table.root.partition, .next_lsn = view.table.root.next_lsn }, view.table.root.changed_lsn)) return .stale_data;
@@ -5120,10 +5155,14 @@ pub fn admit(self: *Self, request: Request, policy: Policy) !r.Operation {
         operation.reason = reason;
     } else {
         if (request.intent.action == .create) {
-            const target: r.Entry = .{ .object = object, .partition = next.next_partition, .seed = null, .resource = null, .log = null, .descriptor = null, .connector = null };
+            const target: r.Entry = .{ .object = object, .partition = next.next_partition, .seed = null, .resource = null, .log = null, .descriptor = null, .connector = null, .document = request.intent.document };
             next.next_partition = try std.math.add(u64, next.next_partition, 1);
             next.objects = try self.store.tree().put(next.objects, try r.idKey(object), try r.pageValue(target));
-        }
+        } else if (request.intent.document) |doc| if (!std.meta.eql(known.?.document, @as(?c.fuze.DocumentDdl.Policy, doc))) {
+            var updated = known.?;
+            updated.document = doc;
+            next.objects = try self.store.tree().put(next.objects, try r.idKey(object), try r.pageValue(updated));
+        };
         if (request.intent.action == .create or request.intent.action == .rename) {
             const name: r.Name = .{ .namespace = request.intent.namespace, .name = proposed_name, .object = object, .reservation = request.binding.identity };
             next.names = try self.store.tree().put(next.names, try r.nameKey(name.namespace, name.name), try r.pageValue(name));

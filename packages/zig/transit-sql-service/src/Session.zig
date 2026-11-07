@@ -104,7 +104,7 @@ pub const Prepared = union(enum) {
         return switch (self.*) {
             .native => |value| switch (value.plan) {
                 .select, .relational, .kv_get => .read,
-                .ddl, .dml, .kv_ddl, .kv_write, .namespace_change, .log_ddl, .log_append, .log_consume, .log_claim, .log_settlement, .log_offset => .operation,
+                .ddl, .dml, .document_ddl, .kv_ddl, .kv_write, .namespace_change, .log_ddl, .log_append, .log_consume, .log_claim, .log_settlement, .log_offset => .operation,
             },
             .managed => .operation,
             .inspection, .source, .captured, .workload => .read,
@@ -1179,6 +1179,11 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
         error.UnsupportedLogAppendOption => .{ "0A000".*, "Append option is outside this Stream or Queue profile" },
         error.UnsupportedLogOption, error.UnsupportedLogPrimaryKey, error.UnsupportedLogRepartition, error.UnsupportedLogKeyChange, error.UnsupportedLogTimestampChange => .{ "0A000".*, "Stream or Queue declaration option is unsupported" },
         error.InvalidLogOption, error.DuplicateLogOption, error.InvalidLogPartitioning, error.InvalidLogRetention, error.InvalidLogLimits, error.InvalidLogKeyColumn, error.InvalidStreamPolicy, error.InvalidStreamTimestampColumn, error.InvalidQueuePolicy, error.InvalidQueuePartitionKey, error.InvalidQueueBackoff, error.InvalidQueueDestination => .{ "22023".*, "Invalid Stream or Queue declaration policy or budget" },
+        error.KVDeleteLimitExceeded => .{ "54000".*, "Delete batch exceeds the declared KV budget" },
+        error.UnsupportedKVOption => .{ "0A000".*, "KV declaration option is unsupported" },
+        error.InvalidKVOption, error.DuplicateKVOption, error.InvalidKVRetention, error.InvalidKVLimits => .{ "22023".*, "Invalid KV declaration policy or budget" },
+        error.UnsupportedDocumentOption => .{ "0A000".*, "Document declaration option is unsupported" },
+        error.InvalidDocumentOption, error.DuplicateDocumentOption, error.InvalidDocumentProfile, error.InvalidDocumentRetention, error.DocumentPrimaryKeyRequired => .{ "22023".*, "Invalid Document declaration policy or key" },
         error.SqlTokenConflict => .{ "22023".*, "Client token already identifies different work" },
         error.EmptyWireQuery => .{ "42601".*, "Query is empty" },
         else => .{ "XX000".*, "Request failed; inspect admitted work before retrying SQL" },

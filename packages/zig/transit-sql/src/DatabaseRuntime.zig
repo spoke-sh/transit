@@ -601,9 +601,10 @@ fn advance(self: *Self, source: *g.Client.Source, state: c.DirectClientToken.Pro
     const absent = switch (observed.value.result) {
         inline .ddl, .rows, .name_assertion, .namespace_operation, .log_operation => |value| value == .not_observed,
         .kv_declaration => |value| value.operation == .not_observed,
+        .document_declaration => |value| value.operation == .not_observed,
         else => return error.InvalidGatewayTerminal,
     };
-    const response = try if (absent and !((reference == .name_assertion or reference == .kv_name_assertion) and state.cancel)) reference.admit(caller) else reference.operation(caller, if (state.cancel) .cancel else .execute, 8);
+    const response = try if (absent and !((reference == .name_assertion or reference == .kv_name_assertion or reference == .document_name_assertion) and state.cancel)) reference.admit(caller) else reference.operation(caller, if (state.cancel) .cancel else .execute, 8);
     defer response.deinit();
     if (try g.Terminal.fromReference(reference, response.value.result) == null) return true;
     _ = try c.DirectClientToken.update(caller, .{ .key = state.receipt.binding.key, .expected = state.revision, .pending = false, .cancel = state.cancel, .record = state.record });
