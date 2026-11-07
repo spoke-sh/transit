@@ -60,12 +60,15 @@ if "tests/runner/ci.py" in sys.argv or any(arg.startswith("check::") for arg in 
                             "CI_CLEAN_RECORD": str(record), "TRANSIT_FIXTURE_LEAK": "denied"}
         for lane, exit_code in (("formal", 0), ("installation-ui", 0),
                                 *((lane, 0) for lane in SUITE["tiers"]["sdks"]), ("sdks", 0), ("formal", 23),
-                                ("check::fast", 0), ("check::contracts", 0), ("check::contracts", 24)):
+                                ("check::fast", 0), ("check::contracts", 0), ("check::contracts", 24),
+                                ("browser", 0), ("browser", 25)):
             record.unlink(missing_ok=True)
             work = root / f"{lane}-{exit_code}"
             work.mkdir()
             check_scope = lane.removeprefix("check::") if lane.startswith("check::") else None
             selection = ["--check", check_scope] if check_scope else ["--lane", lane]
+            if lane == "browser":
+                selection += ["--browser-system-deps", "preinstalled"]
             result = subprocess.run([sys.executable, "-B", source / "tests/runner/ci_clean.py",
                                      *selection, "--work-root", work], cwd=source,
                                     env=env | {"CI_CLEAN_EXIT": str(exit_code)}, capture_output=True)
@@ -74,7 +77,7 @@ if "tests/runner/ci.py" in sys.argv or any(arg.startswith("check::") for arg in 
             expected = ({"shell": "default", "prepare": [] if check_scope == "fast" else
                         [["just", "ci::dependencies"],
                          ["vp", "install", "--frozen-lockfile", "--filter", "transit", "--filter", "@transit/client"]]}
-                        if check_scope else profile(SUITE, lane))
+                        if check_scope else profile(SUITE, lane, "preinstalled" if lane == "browser" else "install"))
             assert len(commands) == 2 + len(expected["prepare"]), commands
             assert all(command[:6] == ["develop", ".#" + expected["shell"],
                                        "--option", "eval-cache", "false", "--command"]
@@ -82,6 +85,10 @@ if "tests/runner/ci.py" in sys.argv or any(arg.startswith("check::") for arg in 
             assert [command[8:] for command in commands[1:-1]] == expected["prepare"]
             expected_command = ["just", lane] if check_scope else ["python3", "-B", "tests/runner/ci.py", lane]
             assert commands[-1][8:] == expected_command
+            if lane == "browser":
+                assert any("playwright" in command and "chromium" in command for command in commands)
+                assert not any("--with-deps" in command for command in commands)
+                assert any("--with-deps" in command for command in profile(SUITE, lane)["prepare"])
             if exit_code:
                 reports = list(work.glob("transit-ci-*/preparation.json"))
                 result_directory = "checks" if check_scope else "ci"
@@ -99,6 +106,7 @@ if "tests/runner/ci.py" in sys.argv or any(arg.startswith("check::") for arg in 
                     assert (reports[0].parent / "checks/result.json").is_file()
             metadata = json.loads(reports[0].read_text())
             assert metadata["completed"] == (exit_code == 0)
+            assert metadata["browser_system_deps"] == ("preinstalled" if lane == "browser" else "install")
             assert metadata["phases"][-1]["exit_code"] == exit_code
             assert metadata["shell"] == expected["shell"]
             assert all(row["seconds"] >= 0 for row in metadata["phases"])
