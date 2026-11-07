@@ -4847,6 +4847,10 @@
           "table",
           "kv"
         ],
+        "VerifiedWorkloadIntent.work": [
+          "stream",
+          "queue"
+        ],
         "advanceHistory().command": [
           "advance",
           "abandon",
@@ -4924,6 +4928,8 @@
         "checkAccess()": "<inferred>",
         "checkOperation()": "<inferred>",
         "claimDataBinding()": "<inferred>",
+        "claimQueueBinding()": "<inferred>",
+        "claimStreamBinding()": "<inferred>",
         "clientProgress()": "<inferred>",
         "clientProgressWithWorkloads()": "<inferred>",
         "clientToken()": "<inferred>",
@@ -5017,6 +5023,7 @@
         "listSources()": "<inferred>",
         "listState()": "<inferred>",
         "loadRequest()": "<inferred>",
+        "loadWorkloadIntent()": "<inferred>",
         "logAuthorization()": "<inferred>",
         "logDefinition()": "<inferred>",
         "logGuard()": "<inferred>",
@@ -5194,12 +5201,15 @@
         "validateLogRequest()": "<inferred>",
         "validateTransactionTransfer()": "<inferred>",
         "verifiedObject()": "<inferred>",
+        "verifiedWorkloadWork()": "<inferred>",
         "verifyDirectRecord()": "<inferred>",
-        "verifyHistoryDescriptor()": "<inferred>"
+        "verifyHistoryDescriptor()": "<inferred>",
+        "verifyQueueBinding()": "<inferred>",
+        "verifyStreamBinding()": "<inferred>"
       },
       "open_error_set_uses": 13,
       "propagation": {
-        "try": 2599,
+        "try": 2627,
         "catch": 31
       },
       "imports": [
@@ -7218,7 +7228,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 51,
+        "try": 50,
         "catch": 3
       },
       "imports": [
@@ -7956,7 +7966,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 64,
+        "try": 63,
         "catch": 2
       },
       "imports": [
@@ -9370,7 +9380,7 @@
     "packages/zig/transit-catalog/src/DirectWorkloadIntent.zig": {
       "errors": {
         "CatalogIdentityConflict": 2,
-        "CatalogRecordTooLarge": 1,
+        "CatalogRecordTooLarge": 2,
         "ClientOperationPending": 2,
         "DataIdentityConflict": 1,
         "IncompatibleDefinition": 1,
@@ -9380,7 +9390,7 @@
         "OutOfMemory": 1,
         "SourceChanged": 1,
         "WorkloadProjectionSourceChanged": 1,
-        "WriteFailed": 1
+        "WriteFailed": 2
       },
       "outcomes": {
         "Reader.Result": [
@@ -9414,14 +9424,15 @@
         "createProjected()": "<inferred>",
         "createWaited()": "<inferred>",
         "load()": "<inferred>",
+        "loadVerified()": "<inferred>",
         "reference()": "<inferred>",
         "restore()": "<inferred>",
         "stage()": "<inferred>"
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 49,
-        "catch": 3
+        "try": 52,
+        "catch": 4
       },
       "imports": [
         "root.zig",
@@ -9465,17 +9476,20 @@
         "checkDisclosure()": "<inferred>",
         "next()": "<inferred>",
         "nextRows()": "<inferred>",
+        "nextRowsVerified()": "<inferred>",
         "observe()": "<inferred>",
         "offsetIntervalWork()": "<inferred>",
         "offsetProgressWork()": "<inferred>",
         "offsetWork()": "<inferred>",
         "open()": "<inferred>",
+        "openInternal()": "<inferred>",
         "reopen()": "<inferred>",
+        "reopenAt()": "<inferred>",
         "seek()": "<inferred>"
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 53,
+        "try": 58,
         "catch": 0
       },
       "imports": [
@@ -9509,7 +9523,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 27,
+        "try": 26,
         "catch": 1
       },
       "imports": [
@@ -10238,6 +10252,8 @@
         "claimTransactionSavepoint()": "<inferred>",
         "claimTransactionStatement()": "<inferred>",
         "encodeData()": "<inferred>",
+        "encodeQueue()": "<inferred>",
+        "encodeStream()": "<inferred>",
         "key()": "<inferred>",
         "lookup()": "<inferred>",
         "lookupAssertion()": "<inferred>",
@@ -10254,7 +10270,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 52,
+        "try": 56,
         "catch": 1
       },
       "imports": [
@@ -33515,7 +33531,7 @@
         "GatewayCatalogDenied": 1,
         "GatewayConnectionCapacity": 4,
         "GatewayCredentialChanged": 1,
-        "GatewayDatabaseDenied": 5,
+        "GatewayDatabaseDenied": 6,
         "GatewayDeadline": 6,
         "GatewayDenied": 5,
         "GatewayWaitCancelled": 1,
@@ -33531,7 +33547,7 @@
         "SqlAdmissionTokenRequired": 6,
         "SqlInstanceChanged": 1,
         "SqlMessageTooLarge": 1,
-        "SqlOperationBindingChanged": 1,
+        "SqlOperationBindingChanged": 2,
         "SqlParameterTypeMismatch": 3,
         "SqlPreparedCapacity": 1,
         "SqlResultActive": 5,
@@ -33543,6 +33559,7 @@
         "SqlTokenConflict": 1,
         "SqlTransactionActive": 2,
         "Timeout": 1,
+        "UnsupportedSqlWorkload": 1,
         "WireParameterCountMismatch": 1
       },
       "outcomes": {},
@@ -33562,22 +33579,25 @@
         "finishResponse()": "<inferred>",
         "init()": "<inferred>",
         "locate()": "<inferred>",
+        "lookupWorkloadReference()": "<inferred>",
         "open()": "<inferred>",
         "opened()": "<inferred>",
         "operationPage()": "<inferred>",
         "operationReference()": "<inferred>",
         "operationStatus()": "<inferred>",
+        "prepareWorkloadResult()": "<inferred>",
         "recover()": "<inferred>",
         "request()": "<inferred>",
         "requestWithin()": "<inferred>",
         "reserveFailures()": "<inferred>",
         "response()": "<inferred>",
         "selectOperation()": "<inferred>",
+        "selectWorkloadDatabase()": "<inferred>",
         "waitExpiry()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 137,
+        "try": 143,
         "catch": 15
       },
       "imports": [
@@ -33819,7 +33839,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 147,
+        "try": 148,
         "catch": 9
       },
       "imports": [
@@ -34182,11 +34202,11 @@
         "Cancelled": 4,
         "CatalogIdentityConflict": 1,
         "ClientOperationConflict": 1,
-        "Conflict": 2,
+        "Conflict": 3,
         "ExpectedSqlWorkload": 1,
         "GatewayCatalogDenied": 1,
         "GatewayConfigurationChanged": 1,
-        "GatewayDeadline": 3,
+        "GatewayDeadline": 4,
         "GatewayIdentityConflict": 1,
         "GatewayOwnerUnavailable": 1,
         "GatewayRecordTooLarge": 1,
@@ -34218,6 +34238,7 @@
         "execute()": "<inferred>",
         "executePrepared()": "<inferred>",
         "executeWorkloadPrepared()": "<inferred>",
+        "executeWorkloadRetained()": "<inferred>",
         "fence()": "<inferred>",
         "foreground()": "<inferred>",
         "init()": "<inferred>",
@@ -34237,6 +34258,7 @@
         "status()": "<inferred>",
         "submit()": "<inferred>",
         "submitPrepared()": "<inferred>",
+        "submitPreparedRetained()": "<inferred>",
         "submitTransaction()": "<inferred>",
         "tick()": "<inferred>",
         "waitIdle()": "<inferred>",
@@ -34245,8 +34267,8 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 144,
-        "catch": 19
+        "try": 143,
+        "catch": 20
       },
       "imports": [
         "root.zig",
@@ -34563,7 +34585,7 @@
         "InvalidCatalogIdentity": 1,
         "UnsupportedGatewayStatement": 4,
         "UnsupportedHistoricalTransaction": 1,
-        "WireParameterCountMismatch": 4
+        "WireParameterCountMismatch": 5
       },
       "outcomes": {
         "Kind": [
@@ -34774,11 +34796,11 @@
     },
     "packages/zig/transit-sql/src/WorkloadOperations.zig": {
       "errors": {
-        "CatalogIdentityConflict": 1,
+        "CatalogIdentityConflict": 2,
         "InvalidWorkloadEvidence": 6,
         "MissingGatewayTerminal": 1,
-        "UnsupportedSqlWorkload": 5,
-        "WorkloadOperationRequired": 1
+        "UnsupportedSqlWorkload": 6,
+        "WorkloadOperationRequired": 2
       },
       "outcomes": {
         "call().action": [
@@ -34796,17 +34818,20 @@
       "error_returns": {
         "advance()": "<inferred>",
         "attempt()": "<inferred>",
+        "attemptWithIntent()": "<inferred>",
+        "buildOperation()": "<inferred>",
         "call()": "<inferred>",
         "command()": "<inferred>",
         "evidence()": "<inferred>",
         "initialWait()": "<inferred>",
+        "initialWaitWithIntent()": "<inferred>",
         "load()": "<inferred>",
         "status()": "<inferred>",
         "step()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 24,
+        "try": 27,
         "catch": 0
       },
       "imports": [
@@ -34816,7 +34841,7 @@
     },
     "packages/zig/transit-sql/src/WorkloadRead.zig": {
       "errors": {
-        "CatalogIdentityConflict": 1,
+        "CatalogIdentityConflict": 2,
         "IncompleteWorkloadCoverage": 1,
         "InvalidWorkloadResultCount": 2,
         "WorkloadProjectionUnavailable": 1
@@ -34825,6 +34850,7 @@
       "error_sets": {},
       "error_returns": {
         "Prepared.init()": "<inferred>",
+        "Prepared.initOwned()": "<inferred>",
         "Prepared.open()": "<inferred>",
         "Read.checkDisclosure()": "<inferred>",
         "Read.complete()": "<inferred>",
@@ -34836,7 +34862,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 28,
+        "try": 29,
         "catch": 1
       },
       "imports": [
@@ -40976,6 +41002,7 @@
         "Owner().<return>.historyFrame()": "<inferred>",
         "Owner().<return>.inspectTransactionSource()": "<inferred>",
         "Owner().<return>.leaseObservation()": "<inferred>",
+        "Owner().<return>.loadDeclaration()": "<inferred>",
         "Owner().<return>.loadEvidence()": "<inferred>",
         "Owner().<return>.loadRead()": "<inferred>",
         "Owner().<return>.materialize()": "<inferred>",
@@ -41050,7 +41077,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 890,
+        "try": 895,
         "catch": 20
       },
       "imports": [
@@ -41920,6 +41947,7 @@
         "expireTerminalHistory()": "<inferred>",
         "flush()": "<inferred>",
         "inspectTransactionSource()": "<inferred>",
+        "loadDeclaration()": "<inferred>",
         "observe()": "<inferred>",
         "open()": "<inferred>",
         "operation()": "<inferred>",
