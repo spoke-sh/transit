@@ -115,14 +115,14 @@ pub fn validateResult(allocator: std.mem.Allocator, connection: w.Connection, re
     }
 }
 
-pub fn call(client: c.DirectTableClient, request: Request) !std.json.Parsed(w.Response) {
+pub fn call(client: c.DirectTableClient, request: Request) !c.DirectTableClient.OwnedResponse {
     return client.call(.{ .schema_projection = request });
 }
 
 pub const Target = union(enum) { current, snapshot: d.Snapshot };
 /// A target snapshot selects metadata for the original stable object. Its name
 /// never participates in resolution and no target data is acquired or read.
-pub fn resolve(client: c.DirectTableClient, source: Stored, target: Target) !std.json.Parsed(w.Response) {
+pub fn resolve(client: c.DirectTableClient, source: Stored, target: Target) !c.DirectTableClient.OwnedResponse {
     const exact: ?Stored = switch (target) {
         .current => null,
         .snapshot => |snapshot| blk: {

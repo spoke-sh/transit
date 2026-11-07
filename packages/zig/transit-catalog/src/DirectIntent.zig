@@ -120,7 +120,7 @@ pub const Reference = union(enum) {
         try other.validate();
         if (!std.meta.eql(self, other)) return error.DataIdentityConflict;
     }
-    pub fn admit(self: Reference, client: c.DirectTableClient) !std.json.Parsed(w.Response) {
+    pub fn admit(self: Reference, client: c.DirectTableClient) !c.DirectTableClient.OwnedResponse {
         if (self == .history) return error.HistoricalOperationRequired;
         if (self == .branch) return error.BranchOperationRequired;
         if (self == .transaction or self == .transaction_call) return error.TransactionOperationRequired;
@@ -135,7 +135,7 @@ pub const Reference = union(enum) {
         }
         return self.operation(client, .execute, 1);
     }
-    pub fn operation(self: Reference, client: c.DirectTableClient, command: @FieldType(@FieldType(w.Action, "operation"), "command"), steps: u16) !std.json.Parsed(w.Response) {
+    pub fn operation(self: Reference, client: c.DirectTableClient, command: @FieldType(@FieldType(w.Action, "operation"), "command"), steps: u16) !c.DirectTableClient.OwnedResponse {
         try self.validate();
         if (!std.meta.eql(self.connection(), client.connection)) return error.CatalogIdentityConflict;
         return switch (self) {

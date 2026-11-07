@@ -78,7 +78,7 @@ pub const Read = struct {
     position: native.Position,
     initial: native.Position,
     projector: f.WorkloadProjection.Projector,
-    response: ?std.json.Parsed(w.Response) = null,
+    response: ?c.DirectTableClient.OwnedResponse = null,
     index: usize = 0,
     emitted: u64 = 0,
     scratch: std.heap.ArenaAllocator,

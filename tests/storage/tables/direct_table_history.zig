@@ -18,7 +18,7 @@ fn acquisition(state: State) w.Action {
     const binding = state.grant.binding;
     return .{ .retain_history = .{ .object = binding.interpretation.object, .owner = binding.owner, .expected = binding.expected } };
 }
-fn status(client: c.DirectTableClient, state: State) !std.json.Parsed(w.Response) {
+fn status(client: c.DirectTableClient, state: State) !c.DirectTableClient.OwnedResponse {
     return client.call(.{ .pin_status = .{ .object = state.grant.binding.interpretation.object, .owner = state.grant.binding.owner } });
 }
 pub fn prepare(client: c.DirectTableClient) !State {

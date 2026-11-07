@@ -183,7 +183,7 @@ pub const HistoricalPage = struct { snapshot: d.Snapshot, entries: [4]?c.DirectH
 pub const Historical = struct { snapshot: d.Snapshot, binding: c.DirectHistoryDirectory.DescriptorEntry, value: A.Definition };
 pub const Result = union(enum) { historical_page: HistoricalPage, authorized: d.Definition, historical: ?Historical, preview: Preview, observation: Observation, definition: ?A.Definition, page: Page, input: d.Content };
 /// Preserve the owning retention failure through the shared HTTP category.
-pub fn call(client: c.DirectTableClient, action: Action) !std.json.Parsed(c.DirectTableProtocol.Response) {
+pub fn call(client: c.DirectTableClient, action: Action) !c.DirectTableClient.OwnedResponse {
     return client.call(.{ .descriptor = action }) catch |err| {
         if ((action == .historical or action == .historical_list) and err == error.Conflict and client.service.last_rejection == .QueryExpired) return error.HistoricalSnapshotReleased;
         return err;

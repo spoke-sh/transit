@@ -348,6 +348,13 @@ Table action or ownership, and its resource lifetime. It checks accumulated
 requirements again before disclosure. Metadata is filtered by current visibility;
 a saved binding, pin or cached result never grants access.
 
+Each call returns `DirectTableClient.OwnedResponse`. Its `value` and nested
+slices remain valid until `deinit`; moving the owner transfers its single
+cleanup obligation. Cleanup takes a reference to avoid copying the full result
+union across deferred error paths. The owner adopts the parser's existing arena
+without another allocation. This changes local ownership plumbing only; request,
+response, authorization and original-operation semantics are unchanged.
+
 Callers that have already observed their signing credential epoch can supply
 `DirectTableClient.credential_epoch` to avoid another identity lookup for each
 signature. The node still authenticates every claim against the current epoch

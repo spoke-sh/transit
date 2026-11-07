@@ -40,7 +40,7 @@ pub const Reference = struct {
         try other.validate();
         if (!std.meta.eql(self, other)) return error.DataIdentityConflict;
     }
-    pub fn admit(self: Reference, client: c.DirectTableClient) !std.json.Parsed(w.Response) {
+    pub fn admit(self: Reference, client: c.DirectTableClient) !c.DirectTableClient.OwnedResponse {
         try self.validate();
         if (!std.meta.eql(self.connection, client.connection)) return error.CatalogIdentityConflict;
         const bytes = try c.DirectRecord.read(client.allocator, client, self.record);
@@ -50,7 +50,7 @@ pub const Reference = struct {
         try self.requireSame(try intent.reference(self.record.scope.account));
         return client.call(.{ .log_admit = intent.parsed.value.work });
     }
-    pub fn operation(self: Reference, client: c.DirectTableClient, command: @FieldType(@FieldType(w.Action, "operation"), "command"), steps: u16) !std.json.Parsed(w.Response) {
+    pub fn operation(self: Reference, client: c.DirectTableClient, command: @FieldType(@FieldType(w.Action, "operation"), "command"), steps: u16) !c.DirectTableClient.OwnedResponse {
         try self.validate();
         if (!std.meta.eql(self.connection, client.connection)) return error.CatalogIdentityConflict;
         return client.call(.{ .log_operation = .{ .binding = self.binding, .command = switch (command) {

@@ -33,7 +33,7 @@ pub fn check(self: *Self, principal: u64, authority: c.DirectReadAuthority) !voi
     _ = try self.subject.requireAuthorization(try authority.guard(self.subject.subject));
     self.observed = authority;
 }
-pub fn observe(self: *Self, source: r.Source, rows: ?c.storage.TablePartition.ReadLimits) !std.json.Parsed(w.Response) {
+pub fn observe(self: *Self, source: r.Source, rows: ?c.storage.TablePartition.ReadLimits) !c.DirectTableClient.OwnedResponse {
     try self.requireSource(source);
     return self.tables.call(.{ .observe = .{ .namespace = source.namespace, .interpretation = source.interpretation(), .rows = rows } }) catch |err| {
         if (err == error.Conflict and self.tables.service.last_rejection == .TableDefinitionChanged) return error.ReactiveResetRequired;
