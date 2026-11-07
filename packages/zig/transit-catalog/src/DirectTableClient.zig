@@ -42,11 +42,30 @@ pub const OwnedResponse = struct {
         return .{ .arena = parsed.arena, .value = parsed.value };
     }
     pub fn deinit(self: *const OwnedResponse) void {
-        const allocator = self.arena.child_allocator;
-        self.arena.deinit();
-        allocator.destroy(self.arena);
+        // The owner itself may live in the arena that is about to be released.
+        const arena = self.arena;
+        const allocator = arena.child_allocator;
+        arena.deinit();
+        allocator.destroy(arena);
     }
 };
+
+test "owned direct response may reside inside its parsed arena" {
+    const t = std.testing;
+    const arena = try t.allocator.create(std.heap.ArenaAllocator);
+    errdefer t.allocator.destroy(arena);
+    arena.* = .init(t.allocator);
+    errdefer arena.deinit();
+    const response = try arena.allocator().create(OwnedResponse);
+    response.* = .{ .arena = arena, .value = .{
+        .definition = p.Growth.current_definition,
+        .context = @splat(1),
+        .policy_revision = 1,
+        .subject = .{ .principal = 101, .login_role = 101, .role = 101, .credential_epoch = 1, .audience = 100, .context = @splat(1) },
+        .result = .initialized,
+    } };
+    response.deinit();
+}
 
 test "owned direct responses unwind retained arenas on a bounded stack" {
     const t = std.testing;
