@@ -11709,11 +11709,12 @@
         "Invocation.respond()": "<inferred>",
         "call()": "<inferred>",
         "clone()": "<inferred>",
-        "invoke()": "anyerror"
+        "invoke()": "anyerror",
+        "ownSlices()": "std . mem . Allocator . Error"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 13,
+        "try": 14,
         "catch": 0
       },
       "imports": [
