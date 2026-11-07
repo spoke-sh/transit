@@ -169,31 +169,79 @@ pub fn call(self: Self, client: *@import("root.zig").Client, allocator: std.mem.
 /// deliberately accepts only value trees, not arbitrary runtime object graphs.
 /// The caller supplies an arena so partial failure is released as one unit.
 pub fn clone(allocator: std.mem.Allocator, value: anytype) !@TypeOf(value) {
-    const T = @TypeOf(value);
-    return switch (@typeInfo(T)) {
-        .pointer => |info| blk: {
+    var result = value;
+    try ownSlices(allocator, &result);
+    return result;
+}
+
+// Walk the selected value in place. Returning a whole union from every switch
+// arm creates a stack temporary for each variant in Debug builds, even though
+// only one variant is live. Large protocol envelopes can exhaust a worker's
+// stack before any slice is copied. Scalar storage is already owned by result;
+// only borrowed slices need allocation and recursive ownership here.
+fn ownSlices(allocator: std.mem.Allocator, value: anytype) std.mem.Allocator.Error!void {
+    const T = @typeInfo(@TypeOf(value)).pointer.child;
+    switch (@typeInfo(T)) {
+        .pointer => |info| {
             if (info.size != .slice or info.sentinel_ptr != null) @compileError("local response must be a value tree");
-            const result = try allocator.alloc(info.child, value.len);
-            for (value, result) |item, *destination| destination.* = try clone(allocator, item);
-            break :blk result;
+            const owned = try allocator.dupe(info.child, value.*);
+            value.* = owned;
+            switch (@typeInfo(info.child)) {
+                .bool, .int, .float, .@"enum", .void => {},
+                else => for (owned) |*item| try ownSlices(allocator, item),
+            }
         },
-        .optional => if (value) |item| try clone(allocator, item) else null,
-        .array => blk: {
-            var result: T = undefined;
-            for (value, &result) |item, *destination| destination.* = try clone(allocator, item);
-            break :blk result;
+        .optional => if (value.*) |*item| try ownSlices(allocator, item),
+        .array => |info| switch (@typeInfo(info.child)) {
+            .bool, .int, .float, .@"enum", .void => {},
+            else => for (value) |*item| try ownSlices(allocator, item),
         },
-        .@"struct" => |info| blk: {
-            var result: T = undefined;
-            inline for (info.field_names) |name| @field(result, name) = try clone(allocator, @field(value, name));
-            break :blk result;
+        .@"struct" => |info| inline for (info.field_names) |name| try ownSlices(allocator, &@field(value.*, name)),
+        .@"union" => switch (value.*) {
+            inline else => |*item| try ownSlices(allocator, item),
         },
-        .@"union" => switch (value) {
-            inline else => |item, tag| @unionInit(T, @tagName(tag), try clone(allocator, item)),
-        },
-        .bool, .int, .float, .@"enum", .void => value,
+        .bool, .int, .float, .@"enum", .void => {},
         else => @compileError("unsupported local response value"),
+    }
+}
+
+test "local cloning owns selected wide union slices on a bounded worker stack" {
+    const t = std.testing;
+    const Payload = struct { bytes: [4 * 1024]u8, labels: [2]?[]const u8, rows: []const struct { text: []const u8 } };
+    const Value = union(enum) { a: Payload, b: Payload, c: Payload, d: Payload, e: Payload, f: Payload, g: Payload, h: Payload, i: Payload, j: Payload, k: Payload, l: Payload, m: Payload, n: Payload, o: Payload, p: Payload };
+    const Worker = struct {
+        fn run(input: *const Value, text: []u8, failure: *?anyerror) void {
+            check(input, text) catch |err| {
+                failure.* = err;
+            };
+        }
+        fn check(input: *const Value, text: []u8) !void {
+            var arena: std.heap.ArenaAllocator = .init(t.allocator);
+            defer arena.deinit();
+            const copied = try clone(arena.allocator(), input.*);
+            @memset(text, 'x');
+            try t.expectEqual(std.meta.activeTag(input.*), std.meta.activeTag(copied));
+            switch (copied) {
+                inline else => |*item| {
+                    try t.expect(std.mem.allEqual(u8, &item.bytes, 91));
+                    try t.expectEqualStrings("retained", item.labels[0].?);
+                    try t.expect(item.labels[1] == null);
+                    try t.expectEqualStrings("retained", item.rows[0].text);
+                },
+            }
+        }
     };
+    const input = try t.allocator.create(Value);
+    defer t.allocator.destroy(input);
+    inline for (@typeInfo(Value).@"union".field_names) |name| {
+        var text = "retained".*;
+        const rows = [_]@typeInfo(@FieldType(Payload, "rows")).pointer.child{.{ .text = &text }};
+        input.* = @unionInit(Value, name, .{ .bytes = @splat(91), .labels = .{ &text, null }, .rows = &rows });
+        var failure: ?anyerror = null;
+        const worker = try std.Thread.spawn(.{ .stack_size = 128 * 1024 }, Worker.run, .{ input, &text, &failure });
+        worker.join();
+        if (failure) |err| return err;
+    }
 }
 
 test "local invocation refuses mismatched types and owns nested response slices" {
