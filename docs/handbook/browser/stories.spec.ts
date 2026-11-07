@@ -35,7 +35,14 @@ test("statement stories connect examples, outcomes, references and search", asyn
   await page.screenshot({ path: testInfo.outputPath("query-dark.png") });
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   const index = await (await request.get(new URL("search-index.json", baseURL!).href)).json();
-  for (const route of ["stories/first-dataset", "stories/data-model", "stories/query-results"])
+  for (const route of [
+    "stories/first-dataset",
+    "stories/data-model",
+    "stories/query-results",
+    "stories/capture-context",
+    "stories/keep-answers-current",
+    "stories/turn-changes-into-work",
+  ])
     expect(index.some((entry: { route: string }) => entry.route === route)).toBe(true);
   await page.goto(new URL("search", baseURL!).href);
   await page.getByLabel("Words or an interface name").fill("Create your first dataset");
@@ -45,6 +52,50 @@ test("statement stories connect examples, outcomes, references and search", asyn
     .click();
   await expect(page.getByRole("heading", { level: 1 })).toContainText("A few statements.");
   expect(errors).toEqual([]);
+});
+
+test("the delivery story connects every capability and labels target examples", async ({
+  page,
+  baseURL,
+}, testInfo) => {
+  await page.goto(baseURL!);
+  await expect(
+    page.locator(".transit-statement-label").filter({ hasText: "TARGET SQL" }),
+  ).toHaveCount(3);
+  await page.getByRole("link", { name: "Keep what happened", exact: true }).click();
+  for (const [route, next] of [
+    ["capture-context", "Keep answers current"],
+    ["keep-answers-current", "Turn changes into work"],
+    ["turn-changes-into-work", "Create your first dataset"],
+  ]) {
+    await expect(page).toHaveURL(new URL(`stories/${route}`, baseURL!).href);
+    await expect(page.locator(".transit-story-preparation")).toContainText(
+      "planned connected workflow",
+    );
+    const journey = page.getByRole("navigation", { name: "The connected workflow" });
+    await expect(journey.locator('[aria-current="page"]')).toHaveCount(1);
+    await expect(journey.getByRole("link")).toHaveCount(3);
+    for (const example of await page.locator(".transit-statement-label").all())
+      await expect(example).toContainText("TARGET SQL");
+    await page.locator(".transit-story-nav li a").first().click();
+    await page.screenshot({ path: testInfo.outputPath(`${route}-desktop.png`) });
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    await page
+      .locator(".transit-story-next")
+      .getByRole("link", { name: next, exact: true })
+      .click();
+  }
+  await expect(page).toHaveURL(new URL("stories/first-dataset", baseURL!).href);
+  await expect(
+    page.locator(".transit-statement-label").filter({ hasText: "TARGET SQL" }),
+  ).toHaveCount(0);
+  await page.goto(new URL("search", baseURL!).href);
+  await page.getByLabel("Words or an interface name").fill("DATAFLOW");
+  await page
+    .locator(".search-results")
+    .getByRole("link", { name: "Keep answers current", exact: true })
+    .click();
+  await expect(page).toHaveURL(new URL("stories/keep-answers-current", baseURL!).href);
 });
 
 test("stories remain readable on mobile, with reduced motion and without JavaScript", async ({
@@ -60,7 +111,14 @@ test("stories remain readable on mobile, with reduced motion and without JavaScr
   try {
     await page.goto(baseURL!);
     await page.getByRole("link", { name: "Create your first dataset", exact: true }).click();
-    for (const route of ["stories/first-dataset", "stories/data-model", "stories/query-results"]) {
+    for (const route of [
+      "stories/first-dataset",
+      "stories/data-model",
+      "stories/query-results",
+      "stories/capture-context",
+      "stories/keep-answers-current",
+      "stories/turn-changes-into-work",
+    ]) {
       await page.goto(new URL(route, baseURL!).href);
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
       await expect(page.locator(".transit-story-nav")).toHaveCSS("position", "static");
@@ -71,6 +129,7 @@ test("stories remain readable on mobile, with reduced motion and without JavaScr
       );
       await page.screenshot({ path: testInfo.outputPath(`${route.split("/")[1]}-mobile.png`) });
     }
+    await page.goto(new URL("stories/query-results", baseURL!).href);
     await page.getByRole("link", { name: "Query execution and recovery", exact: true }).click();
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(
       "Query execution and result recovery",

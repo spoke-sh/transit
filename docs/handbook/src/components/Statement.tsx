@@ -12,7 +12,12 @@ export default function Statement({
   return (
     <figure className="transit-statement">
       <div className="transit-statement-label">
-        {example.language === "sql" ? "SQL" : "TERMINAL"} <span>tasks / walkthrough</span>
+        {example.intent === "target"
+          ? "TARGET SQL"
+          : example.language === "sql"
+            ? "SQL"
+            : "TERMINAL"}
+        <span>{example.intent === "target" ? "deliveries / proposed" : "tasks / walkthrough"}</span>
       </div>
       <CodeBlock language={example.language}>{example.code}</CodeBlock>
       <figcaption>

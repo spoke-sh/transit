@@ -58,8 +58,9 @@ export default function Home(): ReactElement {
             </h1>
             <div className="transit-hero-introduction">
               <p>
-                Describe your data. Ask questions of it. Evolve it as your application grows.
-                Transit keeps definitions, accepted changes and query outcomes inspectable.
+                Keep what happened. Turn it into answers that stay current. Put those answers to
+                work. Transit is bringing data, computation and policies into one programmable model
+                for your application.
               </p>
               <p className="transit-implementation">
                 Written in Zig. SDKs for a wide range of languages.
@@ -95,7 +96,7 @@ export default function Home(): ReactElement {
           </figure>
           <div className="transit-hero-foot">
             <a href="#structure-title">
-              Follow a dataset through three statements <span aria-hidden="true">↓</span>
+              Follow the connected workflow <span aria-hidden="true">↓</span>
             </a>
             <a href="#handbook">
               Go to the handbook <span aria-hidden="true">↓</span>

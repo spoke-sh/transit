@@ -1,4 +1,6 @@
-// Story examples stay tied to the runnable quickstart. The content check verifies
+import { deliveryStories } from "./delivery-story";
+
+// Runnable examples stay tied to the quickstart. The content check verifies
 // each excerpt against that owner; these pages do not execute SQL in the browser.
 export const statements = {
   define: {
@@ -27,7 +29,11 @@ export const statements = {
   restart: { language: "bash", code: "transit server" },
 } as const;
 
-export type Statement = (typeof statements)[keyof typeof statements];
+export type Statement = {
+  language: "sql" | "bash" | "text";
+  code: string;
+  intent?: "target";
+};
 type StoryLink = { label: string; to: string };
 export type StoryStep = {
   id: string;
@@ -35,6 +41,7 @@ export type StoryStep = {
   title: string;
   paragraphs: string[];
   statement?: Statement;
+  caption?: string;
   observation: { value: string; detail: string };
   reference: StoryLink;
 };
@@ -47,6 +54,7 @@ export type Story = {
   preparation: StoryLink;
   steps: StoryStep[];
   next: StoryLink;
+  intent?: "target";
 };
 
 export const stories = {
@@ -201,128 +209,6 @@ export const stories = {
     ],
     next: { label: "Explore the data model", to: "/stories/data-model" },
   },
-  model: {
-    route: "stories/data-model",
-    title: "Explore the data model",
-    headline: "Start with the data.\nFollow what it makes possible.",
-    description:
-      "A task list is a small example of a larger model: data with meaning, computation with a lifetime, and policies with observable consequences.",
-    premise:
-      "This story explains the task dataset from the quickstart; its SQL excerpts illustrate that walkthrough. Other data kinds and computation lifetimes have their own public operations; each chapter links to its owner.",
-    preparation: { label: "Create the example dataset", to: "/stories/first-dataset" },
-    steps: [
-      {
-        id: "shape",
-        label: "Represent",
-        title: "Give each kind of data the right shape.",
-        paragraphs: [
-          "Tasks fit a Table: typed records with keys, defaults and required fields. Key-value objects fit keyed state; Documents hold structured edits and collaborative text; Streams retain events; Queues carry leased work.",
-          "Choose the representation for what the data means. The data model reference identifies the SQL or typed caller operations available for each one.",
-        ],
-        statement: statements.define,
-        observation: {
-          value: "Data has a declared meaning",
-          detail:
-            "A task row has a typed value or SQL NULL in each cell. Documents and query adapters also distinguish missing values, conversion errors and conflicts.",
-        },
-        reference: {
-          label: "Representations and their interfaces",
-          to: "/reference/data-model#choose-a-data-representation",
-        },
-      },
-      {
-        id: "identity",
-        label: "Identify",
-        title: "Keep the object distinct from its name.",
-        paragraphs: [
-          "The name tasks helps you find a Table. Its stable identity and immutable definition tell an operation which object and interpretation it uses.",
-          "Renaming preserves Table and column identities. Dropping and recreating the same name makes a different object. Saved operations retain their original binding.",
-        ],
-        statement: statements.inspect,
-        observation: {
-          value: "A name. An object. A definition.",
-          detail:
-            "SHOW TABLES locates the published Table; DESCRIBE exposes its schema. These are separate from the rows a query reads.",
-        },
-        reference: {
-          label: "Definitions, data and dependencies",
-          to: "/reference/data-model#describe-definitions-data-and-dependencies-separately",
-        },
-      },
-      {
-        id: "change",
-        label: "Evolve",
-        title: "Change the definition without rewriting an earlier read.",
-        paragraphs: [
-          "The application now needs priorities. Publish a new column with a default, then inspect the schema and rows together.",
-          "New readers see the published successor. A reader holding an earlier snapshot keeps its original interpretation and data for that read's lifetime.",
-        ],
-        statement: statements.evolve,
-        observation: {
-          value: "New reads include priority",
-          detail:
-            "Both existing tasks have priority 1. Schema revisions, data revisions and read snapshots answer different questions.",
-        },
-        reference: {
-          label: "Change, history and retained reads",
-          to: "/reference/data-model#understand-change-and-history",
-        },
-      },
-      {
-        id: "compute",
-        label: "Compute",
-        title: "Choose how long an answer should live.",
-        paragraphs: [
-          "A finite SELECT answers a question against fresh source snapshots. Captured queries retain their original request, progress and result so callers can recover them. Maintained relations publish successive complete revisions as source history advances.",
-          "The console supports interactive and explicit captured queries. Maintained relational queries use typed Zig owners and an authenticated host with explicit activation and wakeups.",
-        ],
-        statement: statements.count,
-        observation: {
-          value: "A result has a basis and a lifetime",
-          detail:
-            "This SELECT is a finite read. It does not create an automatically maintained view.",
-        },
-        reference: {
-          label: "Computation lifetimes",
-          to: "/reference/data-model#choose-a-computation-lifetime",
-        },
-      },
-      {
-        id: "govern",
-        label: "Govern",
-        title: "Make the boundaries part of the model.",
-        paragraphs: [
-          "Permissions decide who can read and change an object. Retention decides which history may expire. Budgets bound the work a computation may consume.",
-          "Current authorization still applies to retained results. History has no expiry by default; application opt-in is required. These policies have distinct owners and do not form one cross-owner atomic transaction.",
-        ],
-        observation: {
-          value: "Access · lifetime · permitted work",
-          detail:
-            "An old snapshot cannot preserve revoked permission. Disk pressure cannot consent to deleting application history.",
-        },
-        reference: {
-          label: "Policy owners and controls",
-          to: "/reference/data-model#govern-access-and-lifetime",
-        },
-      },
-      {
-        id: "observe",
-        label: "Observe",
-        title: "Ask whether the declaration is being fulfilled.",
-        paragraphs: [
-          "Inspect the published definition, the original operation's outcome, and the data basis and completion of a result. Those observations tell you what happened, not just what was requested.",
-          "A valid definition, accepted work, a complete result and an up-to-date result are different facts. Their owning interfaces expose the evidence; Transit does not provide a single catalog-wide declaration health view.",
-        ],
-        observation: {
-          value: "Intent → operation → observable outcome",
-          detail:
-            "Keep definition identity, source basis and completion evidence together when presenting an answer.",
-        },
-        reference: { label: "Data, computation and policies", to: "/reference/data-model" },
-      },
-    ],
-    next: { label: "Follow a query to its result", to: "/stories/query-results" },
-  },
   queries: {
     route: "stories/query-results",
     title: "Follow a query to its result",
@@ -390,7 +276,7 @@ export const stories = {
         title: "Keep an answer you need to return to.",
         paragraphs: [
           "Choose captured execution when the original request, progress and retained result need to survive a disconnect or worker loss. Recover that original accepted query and inspect its recorded outcome.",
-          "Choose a maintained relation when you need successive complete revisions. Typed Zig owners bind the definition and source vectors; an authenticated host supplies activation and wakeups. SQL does not provide an automatic materialized-view service.",
+          "Choose a managed DATAFLOW when a supported Table query should keep publishing complete revisions. Publish its definition, authorize and activate it, then inspect its progress. The connected delivery story explores the planned expansion to richer inputs and outgoing work.",
         ],
         observation: {
           value: "Interactive · captured · maintained",
@@ -400,8 +286,9 @@ export const stories = {
         reference: { label: "Query execution and recovery", to: "/reference/queries" },
       },
     ],
-    next: { label: "Explore the data model", to: "/stories/data-model" },
+    next: { label: "Keep answers current", to: "/stories/keep-answers-current" },
   },
+  ...deliveryStories,
 } satisfies Record<string, Story>;
 
 export const storySearchEntries = Object.values(stories).map((story) => ({

@@ -19,6 +19,9 @@ test("static publication exposes canonical routes, search and crawl metadata", a
     "stories/first-dataset",
     "stories/data-model",
     "stories/query-results",
+    "stories/capture-context",
+    "stories/keep-answers-current",
+    "stories/turn-changes-into-work",
     "reference/data-model",
     "reference/interfaces",
     "reference/sql-sessions",
@@ -57,7 +60,14 @@ test("static publication exposes canonical routes, search and crawl metadata", a
   expect(sitemap.ok()).toBe(true);
   const sitemapText = await sitemap.text();
   expect(sitemapText).toContain(new URL(`${base}reference/sql-sessions`, origin).href);
-  for (const route of ["stories/first-dataset", "stories/data-model", "stories/query-results"])
+  for (const route of [
+    "stories/first-dataset",
+    "stories/data-model",
+    "stories/query-results",
+    "stories/capture-context",
+    "stories/keep-answers-current",
+    "stories/turn-changes-into-work",
+  ])
     expect(sitemapText).toContain(new URL(`${base}${route}`, origin).href);
   expect(sitemapText).not.toMatch(/localhost|\/roadmap\/|\/history\/|\/design\//);
   const robots = await request.get(new URL("robots.txt", baseURL).href);
@@ -104,7 +114,9 @@ test("production navigation, search, generated references and exact downloads", 
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.getByRole("link", { name: "Explore the data model", exact: true }).click();
   await expect(page.getByRole("navigation", { name: "Story chapters" })).toBeVisible();
-  await page.getByRole("link", { name: "Data, computation and policies", exact: true }).click();
+  await page
+    .getByRole("link", { name: "Versioned data, computation and policies", exact: true })
+    .click();
   await expect(
     page.getByRole("heading", { name: "Data, computation and policies", exact: true }),
   ).toBeVisible();
@@ -560,8 +572,10 @@ test("context reveals the oblique pocket, holds it briefly and releases it on sc
   // Short screens keep the copy in flow so its links remain reachable.
   await expect(page.locator(".context-copy")).toHaveCSS("position", "static");
   await expect(fabric).toHaveCSS("position", "static");
-  await page.getByRole("link", { name: "Follow a declaration to its outcome" }).click();
-  await page.getByRole("link", { name: "Data, computation and policies", exact: true }).click();
+  await page.getByRole("link", { name: "Turn changes into work", exact: true }).click();
+  await page
+    .getByRole("link", { name: "The shared data, computation and policy model", exact: true })
+    .click();
   await page.locator("#inspect-whether-a-declaration-is-being-fulfilled").scrollIntoViewIfNeeded();
   await expect(page.locator("#inspect-whether-a-declaration-is-being-fulfilled")).toBeInViewport();
 });

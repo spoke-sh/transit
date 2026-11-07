@@ -144,19 +144,34 @@ light Refraction artwork to a 1200×630 social card with paper padding for `og:i
 to use that same source image. [`src/css/home.css`](src/css/home.css) scopes the
 homepage layout and visual layers.
 
-The homepage follows the quickstart's task dataset through three compact statement
-sequences: define its shape, count unfinished work, then add a priority. Each
-statement has an expected observation and leads into a longer story. The hero's
-dataset and data-model actions open these stories before the detailed reference.
-The handbook directory and navbar retain direct reference access.
+The homepage follows a delivery through three connected chapters: keep what
+happened, keep answers current, then turn changes into work. STREAM retains the
+events, DOCUMENT preserves context, KV supplies application rules, TABLE and
+DATAFLOW maintain useful answers, and QUEUE carries follow-up work. Its recorded
+outcome returns to the event history. Each short sequence leads into a longer
+story; a shared journey links all three. The data-model story connects their
+roles. The hero also retains a direct entry to the runnable first-dataset story.
 
-[`src/stories.ts`](src/stories.ts) owns the three story outlines, shared statement
-excerpts and search entries. [`StoryPage`](src/components/StoryPage.tsx) renders
-the dataset, data-model and query-result stories under `src/pages/stories/`, with
-chapter anchors, prerequisites, expected observations and links to the owning
-guides and references. The dataset story is sequential; the other stories explain
-its examples. Statements are checked against the runnable quickstart rather than
-introducing another SQL example authority. These static pages execute no queries.
+[`src/stories.ts`](src/stories.ts) owns the runnable task examples and combined
+search entries. Those SQL excerpts are checked against the quickstart.
+[`src/delivery-story.ts`](src/delivery-story.ts) owns the forward-looking delivery
+scenario, with target examples rendered as text and visibly labeled proposed.
+The source basis is [Streams and Queues](../roadmap/06-streams-queues-and-durable-runtime.md),
+[Documents](../roadmap/07-document-storage-and-station-decoupling.md),
+[dataflows](../roadmap/12-sql-and-dataflows.md) and
+[branch review](../roadmap/20-branches-merges-and-restore.md).
+The [grammar direction](../roadmap/43-sql-grammar-and-dialect-ergonomics.md)
+preserves workload-specific verbs and shared lifecycle controls. The stories
+illustrate the existing declaration shapes and proposed `STREAM_SLICE` form;
+they do not invent settled Document mutations, KV query adapters or automatic
+dataflow-to-queue syntax. Adding these examples implements no grammar or runtime
+behavior. Public story links lead to current interface owners, not delivery plans.
+
+[`StoryPage`](src/components/StoryPage.tsx) renders the six stories under
+`src/pages/stories/`, with chapter anchors, scenario context, expected outcomes
+and links to the owning guides and references. `StoryJourney` connects the
+delivery chapters from every story, including the runnable entry. These static
+pages execute no queries.
 [`src/css/stories.css`](src/css/stories.css) supplies the reading layout: a chapter
 rail and paired explanation/evidence on wide screens, a single column on narrow
 screens, and ordinary document scrolling throughout. Reduced motion and short

@@ -3,7 +3,7 @@ import Link from "@docusaurus/Link";
 import ContextFabric from "./ContextFabric";
 import Radiograph from "./Radiograph";
 import Statement from "./Statement";
-import { statements } from "../stories";
+import { deliveryStatements } from "../delivery-story";
 
 import lateralResonance from "../../../design/handbook-theme/images/d3-lateral-basin.jpg";
 
@@ -104,63 +104,64 @@ export default function RefractionStory(): ReactElement {
           </div>
           <div className="refraction-narrative">
             <section className="refraction-chapter" aria-labelledby="structure-title">
-              <p className="transit-kicker">01 / DEFINE YOUR DATA</p>
+              <p className="transit-kicker">01 / STREAM · DOCUMENT · KV</p>
               <h2 id="structure-title">
-                Give your data
+                Keep what
                 <br />
-                a place to begin.
+                happened.
               </h2>
               <p>
-                Start with a task list. Give each task an identity, a required title and a default.
-                A few lines make the application's expectations explicit.
+                An order is running late. Keep the event in a STREAM, the delivery context in
+                DOCUMENT, and the customer's rule in KV. The next decision starts with evidence.
               </p>
               <Statement
-                example={statements.define}
-                caption="A published schema. Ready to hold tasks."
+                example={deliveryStatements.capture}
+                caption="Target workflow: order 42 is delayed by 45 minutes."
               />
-              <Link className="transit-text-link" to="/stories/first-dataset">
-                Build the dataset, step by step <span aria-hidden="true">↗</span>
+              <Link className="transit-text-link" to="/stories/capture-context">
+                Keep what happened <span aria-hidden="true">↗</span>
               </Link>
             </section>
             <section className="refraction-chapter" aria-labelledby="activity-title">
-              <p className="transit-kicker">02 / COMPUTE AN ANSWER</p>
+              <p className="transit-kicker">02 / TABLE · DATAFLOW</p>
               <h2 id="activity-title">
-                Turn what you have
+                Give your answer
                 <br />
-                into what you know.
+                a future.
               </h2>
               <p>
-                Add two unfinished tasks in the walkthrough. Then ask how much work remains. The
-                result answers a precise question about the data it read.
+                Which deliveries need attention? Shape the inputs into a TABLE. Declare a DATAFLOW
+                to keep the answer current as the facts change. Give every result a source basis you
+                can inspect.
               </p>
               <Statement
-                example={statements.count}
-                caption="Expected after the walkthrough's two inserts: 2 unfinished tasks."
+                example={deliveryStatements.derive}
+                caption="Target workflow: a named computation and an explicit destination."
               />
-              <Link className="transit-text-link" to="/stories/query-results">
-                Follow a query to its result <span aria-hidden="true">↗</span>
+              <Link className="transit-text-link" to="/stories/keep-answers-current">
+                Keep answers current <span aria-hidden="true">↗</span>
               </Link>
             </section>
           </div>
         </div>
         <section className="refraction-context" aria-labelledby="context-title">
           <div ref={contextCopy} className="refraction-chapter context-copy">
-            <p className="transit-kicker">03 / EVOLVE THE DEFINITION</p>
+            <p className="transit-kicker">03 / QUEUE · EFFECTS</p>
             <h2 id="context-title">
-              Make room for
+              Turn what you know
               <br />
-              what comes next.
+              into what happens next.
             </h2>
             <p>
-              The task list now needs priorities. Add the column, inspect its definition, and read
-              the rows. Existing readers keep the schema and data they started with.
+              A late delivery needs follow-up. Put the work in a QUEUE, let a worker claim it, and
+              record the outcome. That outcome becomes a new event, ready to inform the next answer.
             </p>
             <Statement
-              example={statements.evolve}
-              caption="Expected after publication: both tasks have priority 1."
+              example={deliveryStatements.claim}
+              caption="Target workflow: one follow-up, one lease, an outcome to inspect."
             />
-            <Link className="transit-text-link" to="/stories/data-model">
-              Follow a declaration to its outcome <span aria-hidden="true">↗</span>
+            <Link className="transit-text-link" to="/stories/turn-changes-into-work">
+              Turn changes into work <span aria-hidden="true">↗</span>
             </Link>
           </div>
           <div className="context-visual">

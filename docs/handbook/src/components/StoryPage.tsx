@@ -2,6 +2,7 @@ import type { ReactElement } from "react";
 import Layout from "@theme/Layout";
 import Link from "@docusaurus/Link";
 import Statement from "./Statement";
+import StoryJourney from "./StoryJourney";
 import { stories, type Story } from "../stories";
 import "../css/home.css";
 import "../css/stories.css";
@@ -21,6 +22,7 @@ export default function StoryPage({ story }: { story: Story }): ReactElement {
             Follow the story <span aria-hidden="true">↓</span>
           </a>
         </header>
+        <StoryJourney route={story.route} />
         <div className="transit-story-preparation">
           <p>{story.premise}</p>
           <Link className="transit-text-link" to={story.preparation.to}>
@@ -66,12 +68,16 @@ export default function StoryPage({ story }: { story: Story }): ReactElement {
                   {step.statement && (
                     <Statement
                       example={step.statement}
-                      caption="From the task-dataset walkthrough."
+                      caption={step.caption ?? "From the task-dataset walkthrough."}
                     />
                   )}
                   <div className="transit-story-observation">
                     <p className="transit-kicker">
-                      {step.statement ? "WHAT TO OBSERVE" : "WHAT THIS UNLOCKS"}
+                      {story.intent === "target"
+                        ? "WHAT THIS UNLOCKS"
+                        : step.statement
+                          ? "WHAT TO OBSERVE"
+                          : "WHAT THIS UNLOCKS"}
                     </p>
                     <p className="transit-story-value">{step.observation.value}</p>
                     <p>{step.observation.detail}</p>
@@ -88,7 +94,7 @@ export default function StoryPage({ story }: { story: Story }): ReactElement {
             <Link className="button button--primary" to={story.next.to}>
               {story.next.label} <span aria-hidden="true">↗</span>
             </Link>
-            {Object.values(stories)
+            {[stories.dataset, stories.model, stories.queries]
               .filter((other) => other.route !== story.route && `/${other.route}` !== story.next.to)
               .map((other) => (
                 <Link key={other.route} className="transit-text-link" to={`/${other.route}`}>
