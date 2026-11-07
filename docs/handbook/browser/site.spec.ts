@@ -359,7 +359,11 @@ test("mobile menu, readable content and dark-mode accessibility", async ({
   await expect(page.getByRole("heading", { name: "What is Transit?", exact: true })).toBeVisible();
   const planes = page.getByRole("img", { name: /^Transit three-plane architecture:/ });
   await expect(planes).toBeVisible();
-  expect(await planes.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBe(1280);
+  // Architecture follows the application studies; scroll to load its lazy image.
+  await planes.scrollIntoViewIfNeeded();
+  await expect
+    .poll(() => planes.evaluate((image: HTMLImageElement) => image.naturalWidth))
+    .toBe(1280);
   await page.getByRole("button", { name: "Toggle navigation bar" }).click();
   await page.getByRole("button", { name: "← Back to main menu", exact: true }).click();
   await expect(

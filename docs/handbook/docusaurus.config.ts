@@ -123,7 +123,33 @@ const config: Config = {
     footer: { style: "light", copyright: "Transit · Programmable data infrastructure." },
     colorMode: { respectPrefersColorScheme: true },
     tableOfContents: { minHeadingLevel: 2, maxHeadingLevel: 3 },
-    prism: { additionalLanguages: ["bash", "json", "sql", "python", "rust", "go", "toml", "zig"] },
+    prism: {
+      additionalLanguages: ["bash", "json", "sql", "python", "rust", "go", "toml", "zig"],
+      theme: {
+        plain: { color: "#282b29", backgroundColor: "#eeebe3" },
+        styles: [
+          {
+            types: ["comment", "prolog", "doctype", "cdata"],
+            style: { color: "#62645f", fontStyle: "italic" },
+          },
+          { types: ["keyword", "boolean", "constant", "deleted"], style: { color: "#a42e25" } },
+          { types: ["string", "char", "inserted"], style: { color: "#3f684b" } },
+          { types: ["number", "function", "class-name"], style: { color: "#635086" } },
+        ],
+      },
+      darkTheme: {
+        plain: { color: "#e6e7e5", backgroundColor: "#1d252b" },
+        styles: [
+          {
+            types: ["comment", "prolog", "doctype", "cdata"],
+            style: { color: "#adb9bf", fontStyle: "italic" },
+          },
+          { types: ["keyword", "boolean", "constant", "deleted"], style: { color: "#f28c78" } },
+          { types: ["string", "char", "inserted"], style: { color: "#a8c8a0" } },
+          { types: ["number", "function", "class-name"], style: { color: "#bcb1df" } },
+        ],
+      },
+    },
   } satisfies ThemeConfig,
 };
 export default config;

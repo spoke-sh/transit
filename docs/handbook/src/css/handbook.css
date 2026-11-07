@@ -1,0 +1,419 @@
+/* The reading experience: paper, precise ink, and a continuous vermilion thread. */
+.handbook-page {
+  padding: 1.6rem clamp(0.25rem, 2vw, 2rem) 3rem;
+  --handbook-serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+}
+.handbook-page .theme-doc-breadcrumbs {
+  margin-bottom: 2.5rem;
+}
+.handbook-page .breadcrumbs {
+  font-size: 0.72rem;
+}
+.handbook-page .breadcrumbs__link {
+  color: var(--docs-muted);
+  padding: 0.25rem 0.4rem;
+}
+.handbook-page .breadcrumbs__item--active .breadcrumbs__link {
+  background: transparent;
+  color: var(--ifm-color-primary);
+}
+.handbook-chapter {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin: 0 0 1.1rem;
+  color: var(--ifm-color-primary);
+  font: 0.65rem/1.5 var(--ifm-font-family-monospace);
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+.handbook-chapter-mark {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 14px;
+}
+.handbook-chapter-mark i {
+  width: 2px;
+  height: 5px;
+  background: currentColor;
+}
+.handbook-chapter-mark i:nth-child(2n) {
+  height: 10px;
+}
+.handbook-chapter-mark i:nth-child(3) {
+  height: 14px;
+}
+.handbook-page .theme-doc-markdown h1 {
+  font-size: clamp(2.6rem, 4.2vw, 4.2rem);
+  font-weight: 400;
+  line-height: 1.08;
+  letter-spacing: -0.045em;
+  text-wrap: balance;
+  border: 0;
+  margin-bottom: 1.5rem;
+  padding: 0;
+}
+.handbook-page .theme-doc-markdown > h1 + p,
+.handbook-page .theme-doc-markdown > header + p {
+  max-width: 56ch;
+  font-size: 1.18rem;
+  line-height: 1.7;
+  margin-bottom: 1.75rem;
+}
+.handbook-page[data-handbook-page="guides/introduction"] .theme-doc-markdown > header {
+  position: relative;
+  isolation: isolate;
+  padding: 0.6rem 0 1.1rem;
+}
+.handbook-page[data-handbook-page="guides/introduction"] .theme-doc-markdown > header::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  top: -2rem;
+  right: -1rem;
+  width: 45%;
+  height: 12rem;
+  background: url("../../../design/transit-artwork/images/d1-refraction-graphite.jpg") right top /
+    auto 12rem no-repeat;
+  mask-image: radial-gradient(ellipse at 80% 40%, black 12%, transparent 72%);
+  opacity: 0.7;
+}
+[data-theme="dark"]
+  .handbook-page[data-handbook-page="guides/introduction"]
+  .theme-doc-markdown
+  > header::after {
+  background-image: url("../../../design/handbook-theme/images/d6-radiograph.jpg");
+  opacity: 0.5;
+}
+.handbook-page .theme-doc-markdown > p,
+.handbook-page .theme-doc-markdown > ul,
+.handbook-page .theme-doc-markdown > ol {
+  max-width: 73ch;
+}
+.handbook-page .theme-doc-markdown h2 {
+  font-family: var(--handbook-serif);
+  font-size: clamp(1.8rem, 2.5vw, 2.3rem);
+  font-weight: 400;
+  line-height: 1.22;
+  text-wrap: balance;
+  margin: 3.5rem 0 1.25rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--docs-line);
+}
+.handbook-page .theme-doc-markdown h3 {
+  margin-top: 2rem;
+  font-size: 1.15rem;
+  line-height: 1.45;
+  font-weight: 550;
+}
+.handbook-page .theme-doc-markdown li {
+  margin-bottom: 0.55rem;
+}
+.handbook-page .theme-doc-markdown li::marker {
+  color: var(--docs-muted);
+}
+.handbook-page .theme-doc-markdown a:not(.hash-link) {
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in srgb, var(--ifm-color-primary) 40%, transparent);
+  text-underline-offset: 0.22em;
+}
+.handbook-page .theme-doc-markdown a:hover {
+  text-decoration-color: currentColor;
+}
+.handbook-page .theme-doc-markdown blockquote {
+  padding: 1.3rem 1.6rem;
+  margin: 1.75rem 0;
+  color: var(--ifm-font-color-base);
+  background: linear-gradient(110deg, var(--docs-panel), transparent);
+}
+.handbook-page .theme-doc-markdown blockquote p:last-child {
+  margin-bottom: 0;
+}
+.handbook-page .theme-doc-markdown table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 1.8rem 0;
+  font-size: 0.86rem;
+  line-height: 1.65;
+  border-collapse: collapse;
+}
+.handbook-page .theme-doc-markdown tr {
+  background: transparent;
+  border: 0;
+}
+.handbook-page .theme-doc-markdown th {
+  padding: 0.85rem 1rem;
+  background: var(--docs-panel);
+  color: var(--ifm-font-color-base);
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 0;
+  border-bottom: 1px solid var(--docs-line);
+}
+.handbook-page .theme-doc-markdown td {
+  vertical-align: top;
+  padding: 1rem;
+  border: 0;
+  border-bottom: 1px solid var(--docs-line);
+}
+.handbook-page .theme-doc-markdown td:first-child {
+  min-width: 9rem;
+}
+.handbook-page .theme-doc-markdown pre {
+  border: 1px solid var(--docs-line);
+  font-size: 0.84rem;
+  line-height: 1.75;
+}
+.handbook-page .theme-doc-markdown > p > img,
+.handbook-page .theme-doc-markdown > p > a > img {
+  display: block;
+  margin: 2rem auto;
+}
+.handbook-page .table-of-contents {
+  padding-left: 1.1rem;
+  font-size: 0.73rem;
+  line-height: 1.6;
+}
+.handbook-page .table-of-contents li {
+  margin-bottom: 0.7rem;
+}
+.theme-doc-sidebar-container .menu {
+  padding: 1.7rem 0.8rem 2rem;
+}
+.theme-doc-sidebar-container .menu__link {
+  padding: 0.55rem 0.75rem;
+  font-size: 0.82rem;
+}
+.theme-doc-sidebar-container .menu__list .menu__list {
+  margin-left: 0.65rem;
+  padding-left: 0.35rem;
+}
+.theme-doc-sidebar-container .menu__list-item-collapsible {
+  margin-top: 0.4rem;
+}
+.handbook-label {
+  font: 0.62rem/1.6 var(--ifm-font-family-monospace);
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--ifm-color-primary);
+}
+.handbook-next {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2rem;
+  padding: 2rem 0;
+  margin-top: 3.5rem;
+  border-top: 1px solid var(--docs-line);
+  border-bottom: 1px solid var(--docs-line);
+}
+.handbook-next a {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.7rem;
+  color: var(--ifm-font-color-base);
+  text-decoration: none;
+}
+.handbook-next a > strong {
+  font-family: var(--handbook-serif);
+  font-size: 1.65rem;
+  font-weight: 400;
+  line-height: 1.2;
+}
+.handbook-next a > span:last-child {
+  font-size: 0.85rem;
+  color: var(--docs-muted);
+}
+.handbook-next a:hover > strong {
+  color: var(--ifm-color-primary);
+}
+.handbook-page .pagination-nav {
+  margin-top: 2rem;
+}
+.handbook-page .pagination-nav__link {
+  padding: 1.15rem;
+  background: transparent;
+}
+.handbook-page .pagination-nav__label {
+  font-size: 0.9rem;
+}
+.possibility-atlas {
+  margin: 0 0 2rem;
+}
+.atlas-introduction {
+  color: var(--docs-muted);
+  font-size: 0.9rem;
+}
+.possibility-atlas details {
+  border-bottom: 1px solid var(--docs-line);
+}
+.possibility-atlas details:first-of-type {
+  border-top: 1px solid var(--docs-line);
+}
+.possibility-atlas summary {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1.4rem 0;
+  cursor: pointer;
+  list-style: none;
+}
+.possibility-atlas summary::-webkit-details-marker {
+  display: none;
+}
+.possibility-atlas summary > span:nth-child(2) {
+  flex: 1;
+}
+.possibility-atlas summary strong {
+  display: block;
+  font-family: var(--handbook-serif);
+  font-size: 1.65rem;
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+.possibility-atlas summary strong + span {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--docs-muted);
+  margin-top: 0.4rem;
+}
+.atlas-number,
+.atlas-toggle {
+  font-family: var(--ifm-font-family-monospace);
+  color: var(--ifm-color-primary);
+}
+.atlas-number {
+  font-size: 0.7rem;
+  align-self: flex-start;
+  padding-top: 0.4rem;
+}
+.atlas-toggle {
+  font-size: 1.4rem;
+  transition: transform 200ms ease;
+}
+.possibility-atlas details[open] .atlas-toggle {
+  transform: rotate(45deg);
+}
+.possibility-atlas summary:hover strong {
+  color: var(--ifm-color-primary);
+}
+.atlas-study {
+  padding: 0 0 1.8rem;
+}
+.atlas-study > p:first-child {
+  max-width: 66ch;
+  font-size: 0.92rem;
+  margin-bottom: 0.5rem;
+}
+.atlas-drawing {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.atlas-stages {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.6rem;
+}
+.handbook-page .atlas-stages h3 {
+  margin: 0.8rem 0 0.7rem;
+  font: 400 1.35rem/1.25 var(--handbook-serif);
+  letter-spacing: -0.02em;
+}
+.atlas-stages p {
+  font-size: 0.83rem;
+  line-height: 1.7;
+}
+.atlas-stages a {
+  font-size: 0.78rem;
+}
+.atlas-boundary {
+  display: grid;
+  grid-template-columns: 5.5rem 1fr;
+  gap: 0.7rem;
+  padding: 1rem 0 0;
+  margin: 1.6rem 0 0;
+  border-top: 1px solid var(--docs-line);
+  color: var(--docs-muted);
+  font-size: 0.76rem;
+  line-height: 1.7;
+}
+.atlas-boundary > span {
+  color: var(--ifm-font-color-base);
+  font-weight: 550;
+}
+.atlas-caption {
+  color: var(--docs-muted);
+  font-size: 0.73rem;
+  margin: 1rem 0 0;
+}
+@media (min-width: 997px) {
+  .handbook-page .theme-doc-toc-desktop {
+    padding-top: 0.4rem;
+  }
+}
+@media (max-width: 996px) {
+  .handbook-page {
+    padding: 0.75rem 0.25rem 2rem;
+  }
+  .handbook-page .theme-doc-breadcrumbs {
+    margin-bottom: 1.5rem;
+  }
+  .handbook-chapter {
+    margin-top: 1.5rem;
+  }
+}
+@media (max-width: 640px) {
+  .handbook-page .theme-doc-markdown h1 {
+    font-size: 2.8rem;
+  }
+  .handbook-page .theme-doc-markdown > h1 + p,
+  .handbook-page .theme-doc-markdown > header + p {
+    font-size: 1.06rem;
+  }
+  .handbook-page .theme-doc-markdown h2 {
+    margin-top: 2.6rem;
+    padding-top: 1.2rem;
+  }
+  .atlas-stages {
+    grid-template-columns: 1fr;
+    gap: 1.3rem;
+  }
+  .atlas-stages > div {
+    border-left: 1px solid var(--docs-line);
+    padding-left: 1rem;
+  }
+  .atlas-stages p {
+    margin-bottom: 0.45rem;
+  }
+  .atlas-drawing {
+    margin: 0.5rem 0 1rem;
+  }
+  .possibility-atlas summary {
+    gap: 0.8rem;
+  }
+  .possibility-atlas summary strong {
+    font-size: 1.45rem;
+  }
+  .atlas-boundary {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+  }
+  .handbook-next {
+    grid-template-columns: 1fr;
+    gap: 1.8rem;
+  }
+  .handbook-page .theme-doc-markdown blockquote {
+    padding: 1.1rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .atlas-toggle {
+    transition: none;
+  }
+}

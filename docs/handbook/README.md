@@ -131,6 +131,26 @@ styles. Use the theme's stable classes and Infima variables; do not target
 hashed upstream CSS-module names. Reading pages retain the existing sidebar,
 breadcrumbs, table of contents, search and source routes.
 
+The shared reading experience lives in
+[`src/css/handbook.css`](src/css/handbook.css). Wrappers for `DocItem/Layout`,
+`DocItem/Footer` and `MDXComponents/Heading` retain Docusaurus navigation, anchors,
+metadata and source links while adding chapter markers, editorial typography,
+quieter tables and task-oriented onward paths. The route lookup uses the existing
+catalog; it creates no second page inventory. These styles cover guides,
+reference, SDKs and Internals, including narrow screens and dark mode.
+The introduction reuses the original light/dark artwork as a quiet chapter
+illustration. The Prism themes in `docusaurus.config.ts` use matching paper and
+ink palettes with readable syntax colors in both modes.
+
+The introduction's [application studies](src/components/PossibilityAtlas.tsx)
+connect concrete application needs to their supported data, query and execution
+interfaces. They use native exclusive `details` controls, so keyboard interaction
+and exploration also work without JavaScript. The diagrams are explanatory;
+they neither execute queries nor imply an integrated application is provided.
+The Markdown introduction carries the same application patterns for repository
+readers and search. Keep implemented building blocks and proposed experiences
+distinct when changing these studies.
+
 [`src/pages/index.tsx`](src/pages/index.tsx) owns the custom React homepage.
 [`HeroArtwork`](src/components/HeroArtwork.tsx) imports the selected light [Refraction artwork](../design/transit-artwork/images/d1-refraction-graphite.jpg)
 and dark [radiograph](../design/handbook-theme/images/d6-radiograph.jpg) from their
