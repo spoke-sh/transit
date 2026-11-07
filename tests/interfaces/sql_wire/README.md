@@ -26,6 +26,10 @@ text/prepared paths, empty metadata, NULLs, exact decimals, numeric failures and
 unsupported DDL without durable acceptance. Pinned libpq/libmysqlclient additionally
 check INT/REAL/DECIMAL prepared metadata and exact values. `all` runs this slice
 with fresh state after its existing fault and CLI schedules.
+Each fresh slice uses the original supplied executable paths. When those inputs
+name the combined `transit` binary, the slice creates its own role-named links
+inside its installation and removes them during successful cleanup; later slices
+must not inherit those temporary paths.
 
 The installed smoke copies one ReleaseSafe executable outside the checkout and
 uses the native console plus real psql/mysql clients. It checks the employees
