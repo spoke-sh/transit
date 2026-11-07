@@ -33,7 +33,7 @@ pub fn name(table: u32) !c.TableAuthority.Name {
     return .init(try std.fmt.bufPrint(&bytes, "work_items_{d}", .{table}));
 }
 pub const Definition = struct {
-    response: std.json.Parsed(w.Response),
+    response: c.DirectTableClient.OwnedResponse,
     value: w.Definition,
     authority: c.DirectReadAuthority,
     pub fn deinit(self: *Definition) void {

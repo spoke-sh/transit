@@ -56,7 +56,7 @@ pub const Binding = struct {
 };
 
 pub const Definition = struct {
-    response: std.json.Parsed(w.Response),
+    response: c.DirectTableClient.OwnedResponse,
     value: w.Definition,
     authority: c.DirectReadAuthority,
     pub fn deinit(self: *Definition) void {

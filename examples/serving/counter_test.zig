@@ -63,7 +63,7 @@ const Store = struct {
     fn executeNamespace(_: *anyopaque, _: *c.DirectCatalog, _: c.DirectNamespace.Binding, _: c.DirectCatalog.Policy, _: u16) !c.DirectNamespace.Observation {
         return error.UnexpectedNamespaceMutation;
     }
-    fn exchange(raw: *anyopaque, connection: w.Connection, action: w.Action) !std.json.Parsed(w.Response) {
+    fn exchange(raw: *anyopaque, connection: w.Connection, action: w.Action) !c.DirectTableClient.OwnedResponse {
         const self: *Store = @ptrCast(@alignCast(raw));
         try t.expectEqualDeep(try binding.connection(2), connection);
         const arena = try t.allocator.create(std.heap.ArenaAllocator);
