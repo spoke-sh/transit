@@ -75,6 +75,11 @@ across unrelated resources. Settings and inspection results have no retained
 data basis. Current rights govern metadata, every batch including repeats, and
 terminal counts.
 
+Metadata preparation and revalidation retry transient authority failures within
+the current request budget. Revalidation keeps the original definition and
+buffered values; it does not restart result iteration or replace an earlier
+observation. Permission denial and definition changes still reject disclosure.
+
 Protected session operations check current credentials and database access before
 account readiness. Revocation returns an access denial even when it also stops
 the account's recovery work. An authorized caller still requires a ready account

@@ -105,11 +105,12 @@ test("Table storage links visual, grid and inspector without executing SQL", asy
   page.on("request", (request) => {
     if (request.url().endsWith("/api/v1/sql-read") && request.postDataJSON()?.action.run) runs++;
   });
-  const storageRead = page
-    .waitForResponse((response) => response.url().endsWith("/api/v1/storage") && response.ok())
-    .then((response) => response.json());
+  // These configured limits are independent of the browser response lifetime.
+  // Read them before navigation; Chromium can discard a page fetch's body.
+  const storageRead = await page.request.get("/api/v1/storage");
+  expect(storageRead.ok()).toBe(true);
+  const observed = await storageRead.json();
   await page.goto("/operations");
-  const observed = await storageRead;
   const capacity = page.getByRole("region", { name: "Capacity and allocation", exact: true });
   const limitRow = capacity
     .getByRole("row")
