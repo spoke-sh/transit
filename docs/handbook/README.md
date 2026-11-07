@@ -155,7 +155,11 @@ roles. The hero also retains a direct entry to the runnable first-dataset story.
 [`src/stories.ts`](src/stories.ts) owns the runnable task examples and combined
 search entries. Those SQL excerpts are checked against the quickstart.
 [`src/delivery-story.ts`](src/delivery-story.ts) owns the forward-looking delivery
-scenario, with target examples rendered as text and visibly labeled proposed.
+scenario, with target examples highlighted as SQL and visibly labeled proposed.
+[`src/theme/prism-include-languages.ts`](src/theme/prism-include-languages.ts)
+extends the standard SQL highlighter with Transit declaration and workload
+keywords from [the SQL grammar](../../contracts/sql/TransitExtensions.g4).
+It preserves the standard rules for comments, strings and quoted identifiers.
 The source basis is [Streams and Queues](../roadmap/06-streams-queues-and-durable-runtime.md),
 [Documents](../roadmap/07-document-storage-and-station-decoupling.md),
 [dataflows](../roadmap/12-sql-and-dataflows.md) and

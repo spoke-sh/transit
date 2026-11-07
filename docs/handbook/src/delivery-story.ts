@@ -2,8 +2,8 @@ import type { Statement, Story } from "./stories";
 
 // Product direction: Streams/Queues (06), Documents (07), managed computation
 // and source/output composition (12). See the site README for source owners.
-// These are illustrative target statements, deliberately rendered as text.
-const target = (code: string): Statement => ({ language: "text", intent: "target", code });
+// SQL highlighting is presentational; target labels identify proposed examples.
+const target = (code: string): Statement => ({ language: "sql", intent: "target", code });
 
 export const deliveryStatements = {
   capture: target(`CREATE STREAM delivery_events (
