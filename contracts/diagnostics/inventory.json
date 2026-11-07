@@ -22494,12 +22494,17 @@
       "errors": {
         "AmbiguousFraming": 1,
         "DuplicateHeader": 1,
+        "HttpBodyReadFailed": 1,
         "HttpCapacity": 1,
         "HttpDeadline": 3,
+        "InvalidBody": 3,
         "InvalidHost": 1,
         "InvalidHttpLimits": 1,
         "InvalidTarget": 1,
         "MissingHost": 1,
+        "OutOfMemory": 2,
+        "ReadFailed": 1,
+        "StreamTooLong": 1,
         "Timeout": 1,
         "UnsupportedContentEncoding": 1,
         "UnsupportedExpectation": 1,
@@ -22512,7 +22517,12 @@
           "timeout"
         ]
       },
-      "error_sets": {},
+      "error_sets": {
+        "readBody().<error>": [
+          "InvalidBody",
+          "HttpBodyReadFailed"
+        ]
+      },
       "error_returns": {
         "DeadlineFixture.handle()": "<inferred>",
         "DeadlineFixture.run()": "<inferred>",
@@ -22521,6 +22531,7 @@
         "deadline()": "<inferred>",
         "deadlineAt()": "<inferred>",
         "header()": "<inferred>",
+        "readBody()": "( std . mem . Allocator . Error | | error { InvalidBody , HttpBodyReadFailed } )",
         "receive()": "<inferred>",
         "respond()": "<inferred>",
         "serve()": "<inferred>",
@@ -22532,7 +22543,7 @@
       "open_error_set_uses": 6,
       "propagation": {
         "try": 31,
-        "catch": 5
+        "catch": 6
       },
       "imports": [
         "Socket.zig",
