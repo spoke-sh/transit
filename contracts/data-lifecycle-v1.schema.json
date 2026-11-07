@@ -17,7 +17,8 @@
         "document",
         "document_collection",
         "dataflow",
-        "source"
+        "source",
+        "source_capture"
       ],
       "properties": {
         "resource_initialization": {
@@ -58,6 +59,9 @@
         },
         "source": {
           "$ref": "#/$defs/T226"
+        },
+        "source_capture": {
+          "$ref": "#/$defs/T237"
         }
       },
       "required": [
@@ -73,7 +77,8 @@
         "document",
         "document_collection",
         "dataflow",
-        "source"
+        "source",
+        "source_capture"
       ],
       "x-transit-defaults": {}
     },
@@ -6153,6 +6158,150 @@
         "http_status",
         "body_bytes",
         "body_sha256",
+        "manifest"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T237": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "evidence",
+        "reference"
+      ],
+      "properties": {
+        "evidence": {
+          "$ref": "#/$defs/T238"
+        },
+        "reference": {
+          "$ref": "#/$defs/T240"
+        }
+      },
+      "required": [
+        "evidence",
+        "reference"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T238": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "definition",
+        "poll",
+        "connection",
+        "destination",
+        "columns",
+        "attempt",
+        "exchange",
+        "terminal",
+        "verifier",
+        "observed_at_ms",
+        "http_status",
+        "body"
+      ],
+      "properties": {
+        "definition": {
+          "$ref": "#/$defs/T2"
+        },
+        "poll": {
+          "$ref": "#/$defs/T234"
+        },
+        "connection": {
+          "$ref": "#/$defs/T3"
+        },
+        "destination": {
+          "$ref": "#/$defs/T3"
+        },
+        "columns": {
+          "$ref": "#/$defs/T231"
+        },
+        "attempt": {
+          "$ref": "#/$defs/T11"
+        },
+        "exchange": {
+          "$ref": "#/$defs/T31"
+        },
+        "terminal": {
+          "$ref": "#/$defs/T31"
+        },
+        "verifier": {
+          "$ref": "#/$defs/T3"
+        },
+        "observed_at_ms": {
+          "$ref": "#/$defs/T6"
+        },
+        "http_status": {
+          "$ref": "#/$defs/T127"
+        },
+        "body": {
+          "$ref": "#/$defs/T239"
+        }
+      },
+      "required": [
+        "definition",
+        "poll",
+        "connection",
+        "destination",
+        "columns",
+        "attempt",
+        "exchange",
+        "terminal",
+        "verifier",
+        "observed_at_ms",
+        "http_status",
+        "body"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T239": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "bytes",
+        "sha256"
+      ],
+      "properties": {
+        "bytes": {
+          "$ref": "#/$defs/T6"
+        },
+        "sha256": {
+          "$ref": "#/$defs/T7"
+        }
+      },
+      "required": [
+        "bytes",
+        "sha256"
+      ],
+      "x-transit-defaults": {}
+    },
+    "T240": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "definition",
+        "destination",
+        "candidate",
+        "manifest"
+      ],
+      "properties": {
+        "definition": {
+          "$ref": "#/$defs/T2"
+        },
+        "destination": {
+          "$ref": "#/$defs/T3"
+        },
+        "candidate": {
+          "$ref": "#/$defs/T7"
+        },
+        "manifest": {
+          "$ref": "#/$defs/T31"
+        }
+      },
+      "required": [
+        "definition",
+        "destination",
+        "candidate",
         "manifest"
       ],
       "x-transit-defaults": {}

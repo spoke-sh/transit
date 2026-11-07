@@ -190,6 +190,48 @@ unretained provider bytes can implement it.
 
 ## Disclosure, lifetime and qualification
 
+### Owned capture representation
+
+`SourceCapture.Evidence` binds a captured original poll, exact CONNECTION and
+destination definitions, the seven stable column IDs, original effect attempt,
+sealed exchange commitment, terminal coverage commitment and verifier definition.
+It distinguishes the whole-body digest from the manifest digest. Empty bodies
+have zero bytes and SHA-256 of the empty sequence. Shape validation establishes
+neither HTTP completeness nor execution authority. Admission requires a trusted
+host verifier of that exact original and current source-disclosure/destination
+append rights; an executor field or caller-supplied captured state is insufficient.
+
+`SourceCapture.Reference` identifies the candidate by its original token digest,
+exact destination definition and retained manifest commitment. Its canonical JSON
+encoding is bounded to 4 KiB. It contains no body, page inventory, credentials or
+provider URL. A copy continues to identify the original publication; appending a
+lookalike BINARY value does not create an attachment. Resolution must establish
+the authoritative common decision and exact Stream position before disclosure.
+
+The storage integration uses sequential 64 KiB chunks and a paged ordered
+inventory, retaining offsets, lengths and SHA-256 commitments. Reserve before
+creation; seal only after verifying complete ordered coverage. A missing page is
+an error, including for an expected empty body. Metadata and transport encoding
+are charged separately from raw bytes; the 16 KiB Catalog WAL limit is unchanged.
+These types are the representation contract; they do not install capture mutation
+or reader routes by themselves.
+
+Published capture reads require current destination Stream READ, database CONNECT
+and schema USAGE. Private candidates additionally require their original owner.
+SOURCE inspection/control, CONNECTION use and Stream metadata inspection grant no
+body access. The importer independently needs source disclosure and destination
+append rights. Buffered, repeated, empty and terminal responses recheck policy.
+Retention protects availability, never grants permission.
+
+The handoff holds the already sealed original exchange, verifies it once to
+freeze body metadata, reserves the destination, then replays it again in bounded
+chunks. Both passes and recovery are charged. It releases the original hold only
+after the destination decision is authoritative. An uncertain hold, commit or
+release remains attached to the same original identity. The common decision must
+attach the graph and exactly one envelope; receipt metadata survives later
+authorized payload release. Unrelated committed transaction records retain their
+existing lifetime. Activation remains gated by the execution proofs below.
+
 Every raw record access and buffered, repeated or terminal reader response must
 check current destination Stream and capture-disclosure rights. Generic record
 reads cannot bypass them. Source-control rights alone disclose no raw body.
