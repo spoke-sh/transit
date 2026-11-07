@@ -103,8 +103,8 @@ pub const Prepared = union(enum) {
     pub fn migrationPolicy(self: *const Prepared) enum { read, operation, unsupported } {
         return switch (self.*) {
             .native => |value| switch (value.plan) {
-                .select, .relational => .read,
-                .ddl, .dml, .namespace_change, .log_ddl, .log_append, .log_consume, .log_claim, .log_settlement, .log_offset => .operation,
+                .select, .relational, .kv_get => .read,
+                .ddl, .dml, .document_ddl, .kv_ddl, .kv_write, .namespace_change, .log_ddl, .log_append, .log_consume, .log_claim, .log_settlement, .log_offset => .operation,
             },
             .managed => .operation,
             .inspection, .source, .captured, .workload => .read,
@@ -134,7 +134,7 @@ pub const Prepared = union(enum) {
     pub fn mutation(self: *const Prepared) bool {
         return switch (self.*) {
             .transaction, .managed, .connector => true,
-            .native => |*value| value.kind() != .select,
+            .native => |*value| value.kind() != .select and value.kind() != .get,
             .probe => |value| value.kind == .set,
             .inspection, .source, .captured, .workload => false,
             .settings => |value| value.plan.statement == .set or value.plan.statement == .reset,
@@ -192,7 +192,7 @@ test "connector declarations require separate migration semantics" {
 }
 pub const Read = struct {
     host: *Self,
-    value: union(enum) { single: g.direct.DirectTableQuery, relational: *g.direct.DirectRelationalQuery, probe: g.Probe, settings: Settings.Read, inspection: Inspection.Read, source: g.SourceSession.Read, captured: g.CapturedOperations.Read, workload: g.database.WorkloadRead.Read },
+    value: union(enum) { single: g.direct.DirectTableQuery, relational: *g.direct.DirectRelationalQuery, kv_get: c.DirectKVPreparedGet.Read, probe: g.Probe, settings: Settings.Read, inspection: Inspection.Read, source: g.SourceSession.Read, captured: g.CapturedOperations.Read, workload: g.database.WorkloadRead.Read },
     prepared: *Prepared,
     owns_prepared: bool = false,
     builder: g.results.BatchBuilder,
@@ -275,6 +275,7 @@ pub const Read = struct {
                     metadata.historical = binding.catalog;
                     if (projectionObservation(binding.interpretation, prepared.projection)) |projection| metadata.projections = try allocator.dupe(g.results.Observation.Projection, &.{projection});
                 }
+                if (prepared.kv_metadata) |binding| metadata.definitions = try allocator.dupe(p.DataLifecycle.Definition, &.{binding.definition.interpretation.interpretation});
                 if (prepared.log_metadata) |binding| metadata.definitions = try allocator.dupe(p.DataLifecycle.Definition, &.{binding.definition.stored.declaration.interpretation});
                 if (prepared.statement) |statement| {
                     if (statement.plan == .select) {
@@ -325,6 +326,11 @@ pub const Read = struct {
                 metadata.session_settings = digest;
             },
             .probe => {},
+            .kv_get => |kv_get| {
+                metadata.kind = .catalog;
+                metadata.consistency = .exact_definitions;
+                metadata.definitions = try allocator.dupe(p.DataLifecycle.Definition, &.{kv_get.definition.interpretation.interpretation});
+            },
             else => unreachable,
         }
         return .{ .metadata = metadata };
@@ -391,6 +397,7 @@ pub const Read = struct {
             if (!try self.builder.append(self.prepared.fields(), self.input.rows[self.input_index].?)) break;
             if (self.value == .settings) try self.disclosure.append(self.value.settings.subject);
             if (self.value == .inspection) try self.disclosure.append(self.value.inspection.subject);
+            if (self.value == .kv_get) try self.disclosure.append(if (self.value.kv_get.subject) |def| .{ .kv = def } else null);
             self.input_index += 1;
         }
         complete = complete or (self.started and self.input.complete and self.input_index == self.input.len);
@@ -437,6 +444,7 @@ pub const Read = struct {
             },
             .settings => |*settings| try settings.next(),
             .inspection => |*inspection| try inspection.next(),
+            .kv_get => |*kv_get| try kv_get.next(),
             .probe => |probe| blk: {
                 if (self.emitted or probe.fields().len == 0) break :blk null;
                 self.emitted = true;
@@ -448,6 +456,7 @@ pub const Read = struct {
         result.len = @intFromBool(cells != null);
         result.complete = cells == null or switch (self.value) {
             .inspection => |inspection| inspection.complete(),
+            .kv_get => |kv_get| kv_get.complete(),
             .probe => true,
             .workload => |*value| try value.complete(),
             else => false,
@@ -878,6 +887,10 @@ fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values
         .settings => |*settings| read.value = .{ .settings = try Settings.Read.init(self, settings) },
         .probe => |probe| read.value = .{ .probe = probe },
         .native => |*statement| {
+            if (statement.plan == .kv_get) {
+                read.value = .{ .kv_get = try statement.plan.kv_get.open(self.allocator, self.table, values) };
+                return read;
+            }
             if (statement.kind() != .select) return error.ExpectedGatewayRead;
             const count = if (statement.plan == .relational) statement.plan.relational.plan.sources.len else 1;
             var snapshots: [f.Relational.max_sources]c.DirectTableProtocol.Snapshot = undefined;
@@ -953,6 +966,7 @@ pub fn closeRead(self: *Self, read: *Read) void {
         .captured => |*captured| captured.deinit(),
         .workload => |*value| value.deinit(),
         .probe => {},
+        .kv_get => |*kv_get| kv_get.deinit(),
         .inspection => |*inspection| inspection.deinit(),
         .settings => |*settings| settings.deinit(),
     }
@@ -1165,6 +1179,11 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
         error.UnsupportedLogAppendOption => .{ "0A000".*, "Append option is outside this Stream or Queue profile" },
         error.UnsupportedLogOption, error.UnsupportedLogPrimaryKey, error.UnsupportedLogRepartition, error.UnsupportedLogKeyChange, error.UnsupportedLogTimestampChange => .{ "0A000".*, "Stream or Queue declaration option is unsupported" },
         error.InvalidLogOption, error.DuplicateLogOption, error.InvalidLogPartitioning, error.InvalidLogRetention, error.InvalidLogLimits, error.InvalidLogKeyColumn, error.InvalidStreamPolicy, error.InvalidStreamTimestampColumn, error.InvalidQueuePolicy, error.InvalidQueuePartitionKey, error.InvalidQueueBackoff, error.InvalidQueueDestination => .{ "22023".*, "Invalid Stream or Queue declaration policy or budget" },
+        error.KVDeleteLimitExceeded => .{ "54000".*, "Delete batch exceeds the declared KV budget" },
+        error.UnsupportedKVOption => .{ "0A000".*, "KV declaration option is unsupported" },
+        error.InvalidKVOption, error.DuplicateKVOption, error.InvalidKVRetention, error.InvalidKVLimits => .{ "22023".*, "Invalid KV declaration policy or budget" },
+        error.UnsupportedDocumentOption => .{ "0A000".*, "Document declaration option is unsupported" },
+        error.InvalidDocumentOption, error.DuplicateDocumentOption, error.InvalidDocumentProfile, error.InvalidDocumentRetention, error.DocumentPrimaryKeyRequired => .{ "22023".*, "Invalid Document declaration policy or key" },
         error.SqlTokenConflict => .{ "22023".*, "Client token already identifies different work" },
         error.EmptyWireQuery => .{ "42601".*, "Query is empty" },
         else => .{ "XX000".*, "Request failed; inspect admitted work before retrying SQL" },

@@ -1,39 +1,59 @@
 # CREATE KV
 
-**Offline compiler; no publication.** Fuze's Zig `Declaration.compile` validates
-this statement as a named KV definition and formats it for review. It does not
-provision state, choose a writer or install a decoder. SQL query interfaces
-reject it; CLI, Board and language SDKs have no administrative route for it.
+Direct Data Plane SQL sessions (`transit console`, native SQL sessions, PostgreSQL
+and MySQL wire adapters) execute `CREATE KV`, `ALTER KV`, `DROP KV`, `PUT INTO`,
+`GET FROM`, `DELETE FROM ... KEY`, `SHOW KVS`, `SHOW KV` and `DESCRIBE KV`
+through the shared direct Catalog and `KVPartition` owner without a writer PID
+or Station actor turns. Fuze's Zig `Declaration.compile` also validates the single-type
+`CREATE KV name (data_type)` form as an offline definition.
 
 ## Syntax
 
 ```text
-CREATE KV name (data_type);
-data_type := INT64 | BOOL | UTF8 | BINARY
+CREATE KV [IF NOT EXISTS] name (data_type [NULL | NOT NULL]);
+ALTER KV name RENAME TO new_name;
+DROP KV [IF EXISTS] name [RESTRICT];
+
+PUT INTO name KEY key_operand VALUE value_operand [IF ABSENT | IF PRESENT];
+PUT INTO name VALUES ((key_operand, value_operand) [, ...]) [IF ABSENT | IF PRESENT];
+GET FROM name KEY key_operand;
+DELETE FROM name KEY key_operand;
+DELETE FROM name KEYS (key_operand [, ...]);
+
+SHOW KVS;
+SHOW KV name;
+DESCRIBE [KV] name;
+data_type := INT64 | BIGINT | BOOL | BOOLEAN | UTF8 | TEXT | BINARY | BYTEA
 ```
 
-`name` is an identifier. Exactly one type token is required. This rule has no
-key declaration, initial entries, nullability, retention options or
-`IF NOT EXISTS` clause. It does not define a byte codec or an executable type
-binding for the resource.
+`name` is an identifier. Value nullability defaults to `NOT NULL` when omitted.
+Keys are non-empty UTF-8 strings (`'key'`) or binary hex literals (`X'...'`,
+`'\x...'::bytea`) of 1–1,024 bytes.
 
 ## Examples
 
-These examples compile as offline definitions:
-
 ```sql
-CREATE KV settings (UTF8);
+CREATE KV settings (UTF8 NOT NULL);
 CREATE KV counters (INT64);
+
+PUT INTO counters KEY 'requests' VALUE 1 IF ABSENT;
+PUT INTO counters KEY 'requests' VALUE 2 IF PRESENT;
+GET FROM counters KEY 'requests';
+DELETE FROM counters KEY 'requests';
+
+SHOW KVS;
+SHOW KV counters;
+DESCRIBE KV counters;
 ```
 
 ## Meaning and current interface
 
-The form describes a typed [KV object](../state.md). Its executable typed
-interface is the [direct KV API](../../../../packages/zig/transit-catalog/docs/direct-kv.md):
+The declarations and point-keyed workload verbs operate on a typed [KV object](../state.md)
+backed by the [direct KV API](../../../../packages/zig/transit-catalog/docs/direct-kv.md):
 explicit catalog declaration, atomic put/remove batches, point reads and retained
-pins. These operations use `KVPartition` and current KV policy without a writer
-PID. They are separate from this offline SQL form; the compiler does not submit
-or execute a declaration.
+pins over `KVPartition` and current KV policy without a writer PID. Conditional
+`IF ABSENT` and `IF PRESENT` writes reject when the target key's presence does not
+match the condition. `GET FROM <kv> KEY <k>` returns zero or one `(key, value)` row.
 
 Native private state used by Station retains its own resource and turn contract.
 [Growing client operations](../../../../packages/zig/transit-client/docs/growing.md)

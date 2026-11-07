@@ -18,9 +18,16 @@ pub const Command = enum {
     insert,
     update,
     delete,
+    put,
     create_table,
     alter_table,
     drop_table,
+    create_kv,
+    alter_kv,
+    drop_kv,
+    create_document,
+    alter_document,
+    drop_document,
     create_schema,
     alter_schema,
     drop_schema,
@@ -99,7 +106,7 @@ pub const CommandCompletion = struct {
             }
         }
         const counted = switch (self.kind) {
-            .insert, .update, .delete, .produce, .enqueue, .create_table, .alter_table, .drop_table, .create_schema, .alter_schema, .drop_schema, .create_stream, .alter_stream, .drop_stream, .create_queue, .alter_queue, .drop_queue => true,
+            .insert, .update, .delete, .put, .produce, .enqueue, .create_table, .alter_table, .drop_table, .create_kv, .alter_kv, .drop_kv, .create_document, .alter_document, .drop_document, .create_schema, .alter_schema, .drop_schema, .create_stream, .alter_stream, .drop_stream, .create_queue, .alter_queue, .drop_queue => true,
             .select, .show => return error.InvalidCommandCompletion,
             else => false,
         };
@@ -108,7 +115,7 @@ pub const CommandCompletion = struct {
         if (self.pending_restart and self.outcome != .applied) return error.InvalidCommandCompletion;
         if (self.outcome == .partial and self.kind != .reload) return error.InvalidCommandCompletion;
         if (self.counts) |counts| switch (self.kind) {
-            .insert, .update, .delete, .produce, .enqueue => {},
+            .insert, .update, .delete, .put, .produce, .enqueue => {},
             else => if (counts.matched != 0 or counts.changed != 0) return error.InvalidCommandCounts,
         };
         if (self.operation) |operation| {

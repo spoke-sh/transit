@@ -25,7 +25,7 @@ pub fn prepare(host: *Host, sql: []const u8) !?Prepared {
     return .{ .plan = plan, .output = if (plan.statement == .set or plan.statement == .reset) null else try plan.output(host.allocator) };
 }
 pub fn authorize(host: *Host, plan: *const q.SettingsSql.Owned) !void {
-    if (plan.statement == .catalog and (plan.statement.catalog == .streams or plan.statement.catalog == .queues)) {
+    if (plan.statement == .catalog and (plan.statement.catalog == .streams or plan.statement.catalog == .queues or plan.statement.catalog == .kvs or plan.statement.catalog == .documents)) {
         // Namespace rights also protect empty results and terminal repeats,
         // whose batch has no object-specific disclosure subjects.
         _ = try host.table.require(.{ .namespace = host.namespace, .target = null, .access = .schema });
@@ -56,6 +56,8 @@ pub const Read = struct {
     started: bool = false,
     index: usize = 0,
     tables: ?@FieldType(q.catalog.DirectTableProtocol.Result, "list") = null,
+    documents: ?@FieldType(q.catalog.DirectTableProtocol.Result, "document_list") = null,
+    kvs: ?@FieldType(q.catalog.DirectTableProtocol.Result, "kv_list") = null,
     logs: ?q.catalog.DirectLogProtocol.Page = null,
     schemas: ?@FieldType(q.catalog.DirectTableProtocol.Result, "namespaces") = null,
     pages: u64 = 0,
@@ -87,6 +89,47 @@ pub const Read = struct {
             return try q.SettingsSql.cells(a, .{ .operation = id });
         }
         switch (self.plan.statement.catalog) {
+            .documents => while (true) {
+                if (self.documents) |page| while (self.index < page.entries.len) {
+                    const slot = page.entries[self.index];
+                    self.index += 1;
+                    if (slot) |entry| {
+                        _ = try self.host.table.require(.{ .namespace = self.host.namespace, .target = entry.interpretation, .access = .inspect });
+                        self.subject = .{ .table = entry.interpretation };
+                        return try q.SettingsSql.cells(a, .{ .name = try a.dupe(u8, entry.name.slice()) });
+                    }
+                };
+                if (self.started and self.documents.?.next == null) return null;
+                if (self.pages == 10000) return error.ConfigurationReadBudgetExceeded;
+                try self.host.deadline.check(self.host.io);
+                const response = try self.host.table.call(.{ .document_list = .{ .namespace = self.host.namespace, .after = if (self.documents) |page| page.next else null } });
+                defer response.deinit();
+                self.documents = response.value.result.document_list;
+                self.started = true;
+                self.index = 0;
+                self.pages += 1;
+            },
+            .kvs => while (true) {
+                if (self.kvs) |page| while (self.index < page.entries.len) {
+                    const slot = page.entries[self.index];
+                    self.index += 1;
+                    const entry = slot orelse continue;
+                    const observed = try self.host.table.call(.{ .kv = .{ .observe = entry.interpretation.object } });
+                    defer observed.deinit();
+                    if (observed.value.result.kv.definition.retired or !std.meta.eql(observed.value.result.kv.definition.interpretation.interpretation, entry.interpretation)) return error.CatalogDefinitionChanged;
+                    self.subject = .{ .kv = observed.value.result.kv.definition };
+                    return try q.SettingsSql.cells(a, .{ .name = try a.dupe(u8, entry.name.slice()) });
+                };
+                if (self.started and self.kvs.?.next == null) return null;
+                if (self.pages == 10000) return error.ConfigurationReadBudgetExceeded;
+                try self.host.deadline.check(self.host.io);
+                const response = try self.host.table.call(.{ .kv_list = .{ .namespace = self.host.namespace, .after = if (self.kvs) |page| page.next else null } });
+                defer response.deinit();
+                self.kvs = response.value.result.kv_list;
+                self.started = true;
+                self.index = 0;
+                self.pages += 1;
+            },
             .streams, .queues => |kind| while (true) {
                 if (self.logs) |page| while (self.index < page.entries.len) {
                     const slot = page.entries[self.index];
