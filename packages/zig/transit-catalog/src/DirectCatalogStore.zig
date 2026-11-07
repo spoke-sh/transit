@@ -15,6 +15,7 @@ const header_bytes = 40;
 /// snapshot, or authorization to skip initial recovery after owner replacement.
 pub const RecoveryState = struct { root: r.Root, chain: [32]u8 };
 const CachedToken = struct { partition: u64, lsn: u64, state: c.DirectClientToken.Progress };
+const CachedLog = struct { partition: u64, lsn: u64, log: c.DirectLog.Operation };
 
 allocator: std.mem.Allocator,
 log: s.TransitLog.Log,
@@ -26,6 +27,8 @@ recovery_required: bool = true,
 lose_reply: bool = false,
 recent_tokens: [64]?CachedToken = @splat(null),
 recent_token_next: usize = 0,
+recent_logs: [16]?CachedLog = @splat(null),
+recent_log_next: usize = 0,
 
 pub fn init(allocator: std.mem.Allocator, configuration: r.Configuration, log: s.TransitLog.Log, objects: s.TransitObjectStore.ObjectStore, resident_pages: usize) !Self {
     const root = try r.Root.empty(configuration);
@@ -63,11 +66,15 @@ fn recoverSinceOptions(self: *Self, prior: ?RecoveryState, retain_cache: bool) !
     if (!retain_cache) {
         self.recent_tokens = @splat(null);
         self.recent_token_next = 0;
+        self.recent_logs = @splat(null);
+        self.recent_log_next = 0;
         self.index.clearCache();
     }
     errdefer {
         self.recent_tokens = @splat(null);
         self.recent_token_next = 0;
+        self.recent_logs = @splat(null);
+        self.recent_log_next = 0;
         self.index.clearCache();
     }
     const end = try self.log.tail(self.root.configuration.partition);
@@ -90,6 +97,7 @@ fn recoverSinceOptions(self: *Self, prior: ?RecoveryState, retain_cache: bool) !
             const record = try decodeFrame(self.allocator, frame, known.root.configuration.partition, known.root.next_lsn - 1);
             if (!std.meta.eql(record.root, known.root) or !std.mem.eql(u8, &r.hash(frame.payload), &known.chain)) return error.InvalidDirectCatalogHistory;
             if (record.action == .client_token) self.cacheToken(known.root.configuration.partition, known.root.next_lsn - 1, record.action.client_token);
+            if (record.action == .log) self.cacheLog(known.root.configuration.partition, known.root.next_lsn - 1, record.action.log);
         }
         next = known.root;
         chain = known.chain;
@@ -104,6 +112,7 @@ fn recoverSinceOptions(self: *Self, prior: ?RecoveryState, retain_cache: bool) !
         try self.operationTransition(next, record);
         if (!std.mem.eql(u8, &record.previous, &chain)) return error.InvalidDirectCatalogHistory;
         if (record.action == .client_token) self.cacheToken(next.configuration.partition, next.next_lsn, record.action.client_token);
+        if (record.action == .log) self.cacheLog(next.configuration.partition, next.next_lsn, record.action.log);
         next = record.root;
         chain = r.hash(frame.payload);
     }
@@ -183,6 +192,7 @@ pub fn publish(self: *Self, next: r.Root, action: @FieldType(r.Record, "action")
     self.root = next;
     self.chain = chain;
     if (action == .client_token) self.cacheToken(next.configuration.partition, before_lsn, action.client_token);
+    if (action == .log) self.cacheLog(next.configuration.partition, before_lsn, action.log);
     if (self.lose_reply) return error.LostAcknowledgement;
 }
 
@@ -195,6 +205,17 @@ fn cacheToken(self: *Self, partition: u64, lsn: u64, state: c.DirectClientToken.
     };
     self.recent_tokens[self.recent_token_next] = .{ .partition = partition, .lsn = lsn, .state = state };
     self.recent_token_next = (self.recent_token_next + 1) % self.recent_tokens.len;
+}
+
+fn cacheLog(self: *Self, partition: u64, lsn: u64, log_op: c.DirectLog.Operation) void {
+    for (&self.recent_logs) |*slot| if (slot.*) |*cached| {
+        if (cached.partition == partition and cached.lsn == lsn) {
+            cached.log = log_op;
+            return;
+        }
+    };
+    self.recent_logs[self.recent_log_next] = .{ .partition = partition, .lsn = lsn, .log = log_op };
+    self.recent_log_next = (self.recent_log_next + 1) % self.recent_logs.len;
 }
 
 pub fn operation(self: *Self, binding: p.DataLifecycle.Binding) !?r.Operation {
@@ -698,12 +719,16 @@ pub fn logRecord(self: *Self, at: u64) !c.DirectLog.Operation {
 }
 fn logRecordAt(self: *Self, basis: r.Root, at: u64) !c.DirectLog.Operation {
     if (at == 0 or at >= basis.next_lsn) return error.InvalidLogCatalogOperation;
+    for (self.recent_logs) |slot| if (slot) |cached| {
+        if (cached.partition == basis.configuration.partition and cached.lsn == at) return cached.log;
+    };
     var batch = try self.log.read(self.allocator, basis.configuration.partition, at, 1);
     defer batch.deinit();
     if (batch.frames.len != 1) return error.CatalogHistoryMissing;
     const record = try decodeFrame(self.allocator, batch.frames[0], basis.configuration.partition, at);
     if (record.action != .log) return error.DataIdentityConflict;
     if (!std.meta.eql(record.root.configuration, basis.configuration)) return error.InvalidDirectCatalogOperation;
+    self.cacheLog(basis.configuration.partition, at, record.action.log);
     return record.action.log;
 }
 pub fn logOperation(self: *Self, binding: p.DataLifecycle.Binding) !?c.DirectLog.Operation {

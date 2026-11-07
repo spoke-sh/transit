@@ -54,6 +54,12 @@ pub const Resident = struct {
         for (self.extra_tables) |slot| if (slot) |cached| if (cached.seed.interpretation.object.object == object) return true;
         return false;
     }
+    pub fn hasObject(self: *const Resident, object: u64) bool {
+        if (self.hasTable(object)) return true;
+        if (self.stream) |cached| if (cached.initialization.declared.declaration.interpretation.object.object == object) return true;
+        if (self.queue) |cached| if (cached.initialization.declared.declaration.interpretation.object.object == object) return true;
+        return false;
+    }
     pub fn hasTableName(self: *const Resident, namespace: u64, name: []const u8) bool {
         if (self.table) |cached| if (cached.namespace == namespace and cached.name != null and std.mem.eql(u8, cached.name.?.slice(), name)) return true;
         for (self.extra_tables) |slot| if (slot) |cached| if (cached.namespace == namespace and cached.name != null and std.mem.eql(u8, cached.name.?.slice(), name)) return true;

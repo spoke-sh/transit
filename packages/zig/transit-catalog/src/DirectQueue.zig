@@ -169,7 +169,7 @@ pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.
         else => null,
     } else null;
     const reserved = if (private_observation) |work| try c.OperationBinding.transactionLogObservation(scratch, catalog.data_objects, work) else false;
-    if (!reserved) if (binding) |original| if (try c.OperationBinding.lookupQueue(scratch, catalog.data_objects, original.operation)) |known| try known.requireSame(original);
+    if (!reserved) if (binding) |original| try catalog.verifyQueueBinding(scratch, catalog.data_objects, original);
     const initial = try current.definition.genesis(request.target().partition);
     if (slot.*) |*cached| if (!std.meta.eql(cached.initialization, initial)) {
         cached.deinit();
@@ -211,7 +211,7 @@ pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.
         .wait => unreachable,
         .cancel => |value| blk: {
             try authorize(current.guard);
-            try c.OperationBinding.claimQueue(scratch, catalog.store.objects, binding.?);
+            try catalog.claimQueueBinding(scratch, catalog.store.objects, binding.?);
             break :blk .{ .operation = try originalReceipt(value, try owner.cancel(current.definition.stored, value, current.guard)) };
         },
         .observe => .{ .cut = try owner.observe(current.definition.stored, current.guard) },
@@ -219,14 +219,14 @@ pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.
         .page => |value| blk: {
             var page = try owner.readClaimPage(current.definition.stored, value.cursor, value.limits, catalog.allocator, current.guard);
             defer page.deinit();
-            var declaration = try s.LogDeclaration.load(catalog.allocator, catalog.data_objects, page.source);
+            var declaration = try owner.loadDeclaration(catalog.allocator, page.source);
             defer declaration.deinit();
             var definition = current.definition;
             definition.stored = page.source;
-            definition.properties = try c.DirectCatalog.Properties.decode(scratch, declaration.definition.properties);
+            definition.properties = try c.DirectCatalog.Properties.decode(scratch, declaration.declaration.definition.properties);
             const schema_buffer = try catalog.allocator.alloc(u8, c.fuze.TableSchema.max_bytes);
             defer catalog.allocator.free(schema_buffer);
-            const schema = try w.Binary.encode(output, try declaration.definition.schema.encode(schema_buffer));
+            const schema = try w.Binary.encode(output, try declaration.declaration.definition.schema.encode(schema_buffer));
             errdefer output.free(schema.base64);
             const rows = try output.alloc(Row, page.len);
             errdefer output.free(rows);
@@ -243,7 +243,7 @@ pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.
             if (value.work == .enqueue and !std.meta.eql(s.LogBatch.content(payload), value.work.enqueue.payload)) return error.LogPayloadConflict;
             try authorize(current.guard);
             const objects = if (value.work.control()) catalog.store.objects else catalog.data_objects;
-            try c.OperationBinding.claimQueue(scratch, objects, binding.?);
+            try catalog.claimQueueBinding(scratch, objects, binding.?);
             const accepted = mutate(owner, current.definition.stored, value.work, payload, environment, current.guard, request == .wait) catch |err| failure: {
                 // The mutation owner already checks original success. Only its
                 // closed/conflicting path needs another receipt lookup.

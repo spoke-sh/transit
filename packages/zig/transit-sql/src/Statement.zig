@@ -298,6 +298,7 @@ pub fn bindWritePrepared(self: *const Self, allocator: std.mem.Allocator, client
     const fresh = fresh_prepared.*;
     fresh_prepared.* = false;
     if (operation == 0 or operation > c.protocol.max_counter) return error.InvalidCatalogIdentity;
+    if (values.len != self.parameters().len) return error.WireParameterCountMismatch;
     if (self.plan == .log_append) return .{ .workload = try self.plan.log_append.bindPrepared(allocator, client.*, operation, values, null, fresh) };
     if (self.plan == .log_consume) return .{ .workload = try self.plan.log_consume.bindPrepared(allocator, client.*, operation, values, null, fresh) };
     if (self.plan == .log_claim) return .{ .workload = try self.plan.log_claim.bindPrepared(allocator, client.*, operation, values, null, fresh) };

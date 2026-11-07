@@ -48,6 +48,10 @@ pub fn persist(candidates: *Candidates, store: *Store, scratch: *std.heap.ArenaA
         }
     }
     try candidates.persistSelected(&self);
+    for (candidates.entries[0..candidates.count], 0..) |entry, index| {
+        const name = candidates.keyAt(index);
+        if (self.keep(name) and std.mem.startsWith(u8, name, "data-index/")) store.markVerified(entry.digest);
+    }
 }
 
 fn tree(self: *Self, reference: ?Store.pages.Reference, domain: Domain) !void {

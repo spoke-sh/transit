@@ -527,10 +527,7 @@ fn actionWithin(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: a
             var owned = true;
             errdefer if (owned) host.allocator.destroy(prepared);
             if (value.kind == .workload) {
-                const reference = try host.fresh(operationReference, .{ host, value.id });
-                if (reference.kind != .workload) return error.InvalidSqlOperationReference;
-                try host.fresh(selectOperation, .{ host, reference });
-                prepared.* = try g.StatementOperations.prepareResult(host, reference);
+                prepared.* = try prepareWorkloadResult(host, value.id);
             } else prepared.* = try g.StatementOperations.prepareResult(host, .{ .id = value.id, .kind = .captured, .nonce = @splat(0) });
             errdefer if (owned) switch (prepared.*) {
                 .workload => |*body| body.deinit(),
@@ -539,7 +536,10 @@ fn actionWithin(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: a
             };
             var id: api.Id = undefined;
             try self.io.randomSecure(&id);
+            host.fresh_prepared = prepared;
+            defer host.fresh_prepared = null;
             const read = try host.openRead(prepared, &.{});
+            read.validated_open = true;
             slot.cursor = .{ .id = id, .prepared = prepared, .owned = true, .read = read, .arena = .init(slot.memory.allocator()), .batch_arena = .init(slot.memory.allocator()) };
             owned = false;
             return .{ .batch = try self.batch(slot, 0) };
@@ -643,7 +643,9 @@ fn execute(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: @Field
             else => return error.SqlParameterTypeMismatch,
         };
     }
-    try host.bind(prepared, values);
+    if (!(owned and prepared.* == .native and prepared.mutation() and host.transaction.handle == null)) {
+        try host.bind(prepared, values);
+    }
     try g.SessionTransaction.require(host, prepared);
     if (prepared.empty()) {
         try host.validate(prepared);
@@ -839,6 +841,35 @@ fn control(self: *Self, allocator: std.mem.Allocator, working: std.mem.Allocator
         },
     }
     return self.response(allocator, .{ .operation = try operationStatus(host, reference) });
+}
+fn selectWorkloadDatabase(host: *g.Session, reference: g.catalog.DirectWorkloadIntent.Reference) !void {
+    if (!g.database.WorkloadOperations.supported(reference)) return error.UnsupportedSqlWorkload;
+    const connection = reference.connection;
+    const database = for (host.account.databases) |candidate| {
+        const b = candidate.binding;
+        if (b.resource == connection.scope.resource and b.catalog == connection.scope.catalog and b.owner == connection.audience and b.namespace == reference.namespace and b.role == connection.role) break candidate.name;
+    } else return error.GatewayDatabaseDenied;
+    if (!std.mem.eql(u8, host.database, database) or host.source != null) {
+        try host.selectDatabase(database);
+    }
+    if (reference.namespace != host.namespace) return error.SqlOperationBindingChanged;
+}
+fn lookupWorkloadReference(host: *g.Session, id: u64) !g.catalog.DirectWorkloadIntent.Reference {
+    var reader = try host.observer.source();
+    const state = try reader.operation(id);
+    if (state.receipt.binding.intent != .workload) return error.InvalidSqlOperationReference;
+    return state.receipt.binding.intent.workload;
+}
+fn prepareWorkloadResult(host: *g.Session, id: u64) !g.Session.Prepared {
+    if (host.takeRetainedWorkload(id)) |retained_value| {
+        var retained = retained_value;
+        errdefer retained.deinit();
+        try selectWorkloadDatabase(host, retained.reference);
+        return .{ .workload = try g.database.WorkloadRead.Prepared.initOwned(host.table, retained.reference, retained.intent) };
+    }
+    const reference = try host.fresh(lookupWorkloadReference, .{ host, id });
+    try selectWorkloadDatabase(host, reference);
+    return .{ .workload = try g.database.WorkloadRead.Prepared.init(host.table, reference) };
 }
 fn selectOperation(host: *g.Session, ref: g.SessionOperations.Reference) !void {
     var reader = try host.observer.source();

@@ -262,7 +262,7 @@ class ConsoleLatencyGate(unittest.TestCase):
             for case in gate.STATEMENT_CASES:
                 repeats = (1 if cycle == 0 else 0) if case == 'select_cold' else (
                     (0 if cycle == 0 else 1) if case == 'select_empty' else (
-                        workload['warm_reads'] if case in ('select_empty_warm', 'select_one_warm') else 1
+                        workload['warm_reads'] if case in ('select_empty_warm', 'select_one_warm', 'stream_consume_warm') else 1
                     )
                 )
                 timer_ms = int(budgets['statement_classes'][class_by_case[case]])

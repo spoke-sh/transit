@@ -17,7 +17,8 @@ pub fn admitReviewed(host: *g.Session, prepared: *g.Session.Prepared, values: []
         .native => {
             const fresh = host.fresh_prepared == prepared;
             host.fresh_prepared = null;
-            return host.runtime.submitPrepared(host.allocator, &host.observer, &host.table, &prepared.native, values, token, fingerprint, host.deadline, &host.operation, acceptance_possible, fresh, true);
+            host.clearRetainedWorkload();
+            return host.runtime.submitPreparedRetained(host.allocator, &host.observer, &host.table, &prepared.native, values, token, fingerprint, host.deadline, &host.operation, acceptance_possible, fresh, true, &host.retained_workload);
         },
         .transaction, .probe, .settings, .inspection, .source, .captured, .workload, .connector => return error.SqlDurableStatementRequired,
     }

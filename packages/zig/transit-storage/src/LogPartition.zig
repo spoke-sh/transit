@@ -92,6 +92,8 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         encoded: []u8,
         key_buffer: []u8,
         options: Options,
+        declared: Declaration.Stored,
+        declaration: Declaration.Owned,
         root: Root,
         commitment: [32]u8,
         ready: bool = false,
@@ -105,6 +107,22 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         queue_timers: if (kind == .queue) *QueueSchedule.Workspace else void,
         queue_affinity: if (kind == .queue) QueueAffinity else void,
 
+        pub const LoadedDeclaration = struct {
+            declaration: Declaration.Owned,
+            owned: bool,
+            pub fn deinit(self: *LoadedDeclaration) void {
+                if (self.owned) self.declaration.deinit();
+            }
+        };
+
+        pub fn loadDeclaration(self: *Self, allocator: std.mem.Allocator, stored: Declaration.Stored) !LoadedDeclaration {
+            if (std.meta.eql(self.declared, stored)) {
+                try stored.validate();
+                return .{ .declaration = self.declaration, .owned = false };
+            }
+            return .{ .declaration = try Declaration.load(allocator, self.objects, stored), .owned = true };
+        }
+
         /// Opens the original initialization only. Recovery is explicit bounded work;
         /// a caller cannot serve reads or accept writes until recoverStep completes.
         pub fn open(allocator: std.mem.Allocator, log: Log.Log, objects: Objects.ObjectStore, request: Initialization.Request, guard: Guard, options: Options) !Self {
@@ -117,6 +135,8 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             if (options.segment_work_bytes == 0 or options.segment_work_bytes > 1024 * 1024 * 1024 or options.segment_rows_per_group == 0 or options.segment_rows_per_group > 1024) return error.InvalidStreamBudget;
             if (options.batch_bytes == 0 or options.batch_bytes > r.max_batch_bytes or options.key_bytes == 0 or options.key_bytes > 1024 * 1024 or options.index_work_bytes == 0 or options.tail.slot_bytes < options.batch_bytes or options.read_rows == 0 or options.read_rows > 65536 or options.read_bytes == 0 or options.read_bytes > 64 * 1024 * 1024) return error.InvalidStreamBudget;
             const initial = try Initialization.observe(allocator, log, objects, request, guard);
+            var declaration = try Declaration.load(allocator, objects, request.declared);
+            errdefer declaration.deinit();
             var store = try TreeStore.init(allocator, objects, options.resident_pages);
             errdefer store.deinit();
             var cache = try Tail.init(allocator, options.tail);
@@ -143,10 +163,11 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             errdefer if (kind == .queue) allocator.free(affinity_buckets);
             const affinity_slots = if (kind == .queue) try allocator.alloc(QueueAffinity.Slot, options.queue_affinity_rows * 2) else {};
             errdefer if (kind == .queue) allocator.free(affinity_slots);
-            return .{ .allocator = allocator, .log = log, .objects = objects, .store = store, .cache = cache, .scratch = .init(allocator), .encoded = encoded, .key_buffer = key_buffer, .options = options, .root = try Root.initial(request), .commitment = initial.record.sha256, .candidate_objects = candidates, .queue_container = if (kind == .queue) .{} else {}, .queue_leases = queue_leases, .queue_selection = queue_selection, .queue_deadlines = if (kind == .queue) .{ .heap = .{ .entries = deadline_entries } } else {}, .queue_visibility = if (kind == .queue) .{ .wheel = try QueueTimingWheel.init(visibility_entries, 0) } else {}, .queue_timers = queue_timers, .queue_affinity = if (kind == .queue) try QueueAffinity.init(affinity_buckets, affinity_slots) else {} };
+            return .{ .allocator = allocator, .log = log, .objects = objects, .store = store, .cache = cache, .scratch = .init(allocator), .encoded = encoded, .key_buffer = key_buffer, .options = options, .declared = request.declared, .declaration = declaration, .root = try Root.initial(request), .commitment = initial.record.sha256, .candidate_objects = candidates, .queue_container = if (kind == .queue) .{} else {}, .queue_leases = queue_leases, .queue_selection = queue_selection, .queue_deadlines = if (kind == .queue) .{ .heap = .{ .entries = deadline_entries } } else {}, .queue_visibility = if (kind == .queue) .{ .wheel = try QueueTimingWheel.init(visibility_entries, 0) } else {}, .queue_timers = queue_timers, .queue_affinity = if (kind == .queue) try QueueAffinity.init(affinity_buckets, affinity_slots) else {} };
         }
         pub fn deinit(self: *Self) !void {
             try self.cache.deinit();
+            self.declaration.deinit();
             self.store.deinit();
             self.scratch.deinit();
             if (kind == .queue) {
@@ -696,9 +717,9 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             if (request.kind != append_kind) return error.LogPartitionConflict;
             if (payload.len > self.options.batch_bytes) return error.LogAppendLimitExceeded;
             _ = try self.nextProducer(request);
-            var declaration = try Declaration.load(self.allocator, self.objects, declared);
+            var declaration = try self.loadDeclaration(self.allocator, declared);
             defer declaration.deinit();
-            try Batch.validate(payload, &declaration, request, &self.scratch, self.key_buffer);
+            try Batch.validate(payload, &declaration.declaration, request, &self.scratch, self.key_buffer);
             const observed_ms = try Time.observe(self.options.clock, self.root.clock_ms, declared.declaration.configuration.retention.max_age_ms != null);
             const receipt: q.AppendReceipt = .{ .append = request, .first = self.root.next_offset, .next = std.math.add(u64, self.root.next_offset, request.rows) catch return error.LogOffsetExhausted, .accepted = try self.nextPosition(), .observed_ms = observed_ms };
             try self.publish(.{ .declared = declared, .outcome = .{ .append = receipt } }, payload, guard);
@@ -981,10 +1002,10 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             if (evidence.outcome != .claim) return error.LogOperationConflict;
             try cursor.requireReceipt(evidence.outcome.claim.receipt);
             if (try self.claimReadReleased(cursor.receipt)) return error.QueueReadReleased;
-            var declaration = try Declaration.load(self.allocator, self.objects, evidence.declared);
+            var declaration = try self.loadDeclaration(self.allocator, evidence.declared);
             defer declaration.deinit();
             if (!std.meta.eql(declared, evidence.declared)) {
-                var current = try Declaration.load(self.allocator, self.objects, declared);
+                var current = try self.loadDeclaration(self.allocator, declared);
                 current.deinit();
             }
             const now: ?Time.Sample = self.queueTime(self.root.clock_ms) catch |err| switch (err) {
@@ -1012,7 +1033,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                     const observed = try leaseObservation(lease, item, try index.state(self.root.queue.?, item), basis, cursor.receipt);
                     var borrowed = try self.borrowAt(cut, source.batches, source.segments, .empty, lease.offset, guard) orelse return error.QueueItemMissing;
                     defer borrowed.deinit();
-                    var rows = try borrowed.iterator(declaration.definition.schema);
+                    var rows = try borrowed.iterator(declaration.declaration.definition.schema);
                     var found: ?Batch.EncodedRow = null;
                     while (try rows.next()) |row| if (row.ordinal == lease.offset - borrowed.receipt.first) {
                         found = row;
@@ -1164,11 +1185,16 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             const action: @FieldType(@FieldType(r.Record, "action"), "queue_expire") = .{ .lease = expired, .observed = now };
             const ordinary = self.enterControl(true);
             defer self.leaveControl(ordinary);
+            const provenance = self.store.load_provenance;
             try self.candidate_objects.reset(self.objects);
             self.objects = self.candidate_objects.objectStore();
             self.store.store = self.objects;
-            self.store.clearCache();
-            defer self.store.clearCache();
+            self.store.clearDerived();
+            self.store.load_provenance = .{ .context = &self.candidate_objects, .is_private = privateIndexObject };
+            defer {
+                self.store.clearDerived();
+                self.store.load_provenance = provenance;
+            }
             try self.store.begin(self.options.index_work_bytes);
             defer self.store.end();
             const next = try self.candidateQueueExpiry(declared, action);
@@ -1223,7 +1249,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
 
         fn candidateQueueExpiry(self: *Self, declared: Declaration.Stored, action: @FieldType(@FieldType(r.Record, "action"), "queue_expire")) !Root {
             try self.root.requireControlDeclaration(declared);
-            var declaration = try Declaration.load(self.allocator, self.objects, declared);
+            var declaration = try self.loadDeclaration(self.allocator, declared);
             defer declaration.deinit();
             var next = self.root;
             next.clock_ms = try Time.advance(self.root.clock_ms, action.observed.latest_ms);
@@ -1248,11 +1274,16 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             if (maximum == 0 or maximum > @import("QueueTimeRun.zig").max_rows or maximum > declared.declaration.limits.timer_steps) return error.InvalidQueueTimerBudget;
             const ordinary = self.enterControl(true);
             defer self.leaveControl(ordinary);
+            const provenance = self.store.load_provenance;
             try self.candidate_objects.reset(self.objects);
             self.objects = self.candidate_objects.objectStore();
             self.store.store = self.objects;
-            self.store.clearCache();
-            defer self.store.clearCache();
+            self.store.clearDerived();
+            self.store.load_provenance = .{ .context = &self.candidate_objects, .is_private = privateIndexObject };
+            defer {
+                self.store.clearDerived();
+                self.store.load_provenance = provenance;
+            }
             try self.store.begin(self.options.index_work_bytes);
             defer self.store.end();
             const first = self.root.queue.?.timer_next;
@@ -1271,7 +1302,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         fn candidateQueueSchedule(self: *Self, declared: Declaration.Stored, action: @FieldType(@FieldType(r.Record, "action"), "queue_schedule")) !?Root {
             try self.root.requireControlDeclaration(declared);
             if (action.steps == 0 or action.steps > declared.declaration.limits.timer_steps or action.steps > @import("QueueTimeRun.zig").max_rows) return error.InvalidQueueTimerBudget;
-            var declaration = try Declaration.load(self.allocator, self.objects, declared);
+            var declaration = try self.loadDeclaration(self.allocator, declared);
             defer declaration.deinit();
             const current = self.root.queue.?;
             var bitmap: Bitmap = undefined;
@@ -1451,8 +1482,8 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 try self.root.requireDeclaration(evidence.declared);
             try self.requireTarget(evidence.target());
             if (!std.meta.eql(evidence.accepted(), try self.nextPosition()) or try self.original(evidence.operation()) != null) return error.InvalidLogHistory;
-            var queue_declaration: if (kind == .queue) Declaration.Owned else void = if (kind == .queue)
-                try Declaration.load(self.allocator, self.objects, evidence.declared)
+            var queue_declaration: if (kind == .queue) LoadedDeclaration else void = if (kind == .queue)
+                try self.loadDeclaration(self.allocator, evidence.declared)
             else {};
             defer if (kind == .queue) queue_declaration.deinit();
             const reference = try Evidence.stage(self.objects, evidence);
@@ -1499,7 +1530,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                     if (kind == .queue) {
                         var bitmap: Bitmap = .{ .store = &self.store, .objects = self.objects };
                         const index = self.queueIndex(&bitmap);
-                        result.queue = try index.enqueue(self.root.queue.?, &queue_declaration, receipt, payload);
+                        result.queue = try index.enqueue(self.root.queue.?, &queue_declaration.declaration, receipt, payload);
                     }
                 },
                 .assignment => |receipt| {
@@ -1533,24 +1564,32 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             };
             const ordinary = self.enterControl(reserve);
             defer self.leaveControl(ordinary);
+            const provenance = self.store.load_provenance;
             if (kind == .queue) {
                 try self.candidate_objects.reset(self.objects);
                 self.objects = self.candidate_objects.objectStore();
                 self.store.store = self.objects;
-                self.store.clearCache();
+                self.store.clearDerived();
+                self.store.load_provenance = .{ .context = &self.candidate_objects, .is_private = privateIndexObject };
             }
-            defer if (kind == .queue) self.store.clearCache();
-            try self.store.begin(self.options.index_work_bytes);
+            defer if (kind == .queue) {
+                self.store.clearDerived();
+                self.store.load_provenance = provenance;
+            };
+            var index_batch: if (kind == .stream) TreeStore.Batch else void = if (kind == .stream) .{} else {};
+            if (kind == .stream) try self.store.beginBatch(self.options.index_work_bytes, &index_batch) else try self.store.begin(self.options.index_work_bytes);
             defer self.store.end();
+            errdefer if (kind == .stream) self.store.clearDerived();
             var next = try self.candidate(evidence, payload, guard);
             if (self.private_position != null and evidence.outcome == .append) {
-                var declaration = try Declaration.load(self.allocator, self.objects, evidence.declared);
+                var declaration = try self.loadDeclaration(self.allocator, evidence.declared);
                 defer declaration.deinit();
-                const segment = try Segment.stage(self.allocator, self.objects, &declaration, evidence, payload, self.options.segment_rows_per_group);
+                const segment = try Segment.stage(self.allocator, self.objects, &declaration.declaration, evidence, payload, self.options.segment_rows_per_group);
                 next.segments = try self.tree().put(next.segments, try r.integerKey(evidence.outcome.append.next), try segment.encode());
                 if (next.sealed_through == evidence.outcome.append.first) next.sealed_through = evidence.outcome.append.next;
             }
             const record: r.Record = .{ .definition = p.Growth.current_definition, .previous = self.commitment, .root = next, .action = .{ .operation = evidence } };
+            if (kind == .stream) try self.store.flush();
             if (kind == .queue) try self.persistQueue(next);
             try self.publishRecord(record, payload, guard);
             // Cache admission is optional after acceptance. Pressure cannot turn an
@@ -2582,7 +2621,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             const declared_limits = retained.basis.declared.declaration.limits;
             if (limits.scanned_rows == 0 or limits.scanned_rows > self.options.read_scan_rows) return error.InvalidStreamReadBudget;
             if (limits.rows == 0 or limits.rows > @min(declared_limits.read_rows, self.options.read_rows) or limits.encoded_bytes == 0 or limits.encoded_bytes > @min(declared_limits.read_bytes, self.options.read_bytes)) return error.InvalidStreamReadBudget;
-            var declaration = try Declaration.load(self.allocator, self.objects, retained.basis.declared);
+            var declaration = try self.loadDeclaration(self.allocator, retained.basis.declared);
             defer declaration.deinit();
             var result: ReadPage = .{ .allocator = output, .storage = try output.alloc(ReadRow, if (cursor.coverage.complete) 0 else limits.rows), .count = 0, .encoded_bytes = 0, .cursor = cursor };
             errdefer result.deinit();
@@ -2607,7 +2646,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 }
                 var batch = (try self.borrowAt(retained.basis.cut, retained.basis.batches, retained.basis.segments, retained.basis.hidden, coverage.through, guard)) orelse return error.LogHistoryUnavailable;
                 defer batch.deinit();
-                var iterator = try batch.iterator(declaration.definition.schema);
+                var iterator = try batch.iterator(declaration.declaration.definition.schema);
                 var advanced = false;
                 while (try iterator.next()) |row| {
                     const offset = try std.math.add(u64, batch.receipt.first, row.ordinal);
@@ -2630,8 +2669,8 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                         continue;
                     }
                     if (retained.basis.request.timestamp) |range| {
-                        const ci = try declaration.definition.schema.index(declaration.definition.configuration.policy.stream.timestamp_column.?);
-                        if (!try self.timestampMatches(row, declaration.definition.schema, batch.receipt.append.operation, ci, range)) {
+                        const ci = try declaration.declaration.definition.schema.index(declaration.declaration.definition.configuration.policy.stream.timestamp_column.?);
+                        if (!try self.timestampMatches(row, declaration.declaration.definition.schema, batch.receipt.append.operation, ci, range)) {
                             coverage.through += 1;
                             result.examined += 1;
                             coverage.complete = coverage.through == coverage.until;

@@ -188,6 +188,20 @@ verified_dml_intents: [8]?c.DirectTableIntent.Reference = @splat(null),
 verified_dml_intent_next: usize = 0,
 verified_data_bindings: [8]?d.Binding = @splat(null),
 verified_data_binding_next: usize = 0,
+verified_stream_bindings: [8]?c.DirectStreamMutation.Binding = @splat(null),
+verified_stream_binding_next: usize = 0,
+verified_queue_bindings: [8]?c.DirectQueueMutation.Binding = @splat(null),
+verified_queue_binding_next: usize = 0,
+verified_workload_intents: [8]?VerifiedWorkloadIntent = @splat(null),
+verified_workload_intent_next: usize = 0,
+
+pub const VerifiedWorkloadIntent = struct {
+    reference: c.DirectWorkloadIntent.Reference,
+    work: union(enum) {
+        stream: p.LogWorkload.StreamRequest,
+        queue: p.LogWorkload.QueueRequest,
+    },
+};
 
 pub fn init(allocator: std.mem.Allocator, configuration: Configuration, control_log: s.TransitLog.Log, control_objects: s.TransitObjectStore.ObjectStore, data_log: s.TransitLog.Log, data_objects: s.TransitObjectStore.ObjectStore, options: Options) !Self {
     if (options.index_work_bytes == 0 or options.client_token_quota == 0) return error.InvalidStorageBudget;
@@ -201,6 +215,9 @@ pub fn recover(self: *Self) !void {
     self.verified_records = @splat(null);
     self.verified_dml_intents = @splat(null);
     self.verified_data_bindings = @splat(null);
+    self.verified_stream_bindings = @splat(null);
+    self.verified_queue_bindings = @splat(null);
+    self.verified_workload_intents = @splat(null);
     try self.store.recover();
 }
 
@@ -271,6 +288,157 @@ fn claimDataBinding(self: *Self, binding: d.Binding) !void {
     };
     try c.OperationBinding.claim(self.allocator, self.data_objects, binding);
     self.rememberVerifiedDataBinding(binding);
+}
+pub fn rememberVerifiedStreamBinding(self: *Self, binding: c.DirectStreamMutation.Binding) void {
+    for (self.verified_stream_bindings) |slot| if (slot) |known| {
+        if (std.meta.eql(known, binding)) return;
+    };
+    self.verified_stream_bindings[self.verified_stream_binding_next] = binding;
+    self.verified_stream_binding_next = (self.verified_stream_binding_next + 1) % self.verified_stream_bindings.len;
+}
+pub fn claimStreamBinding(self: *Self, allocator: std.mem.Allocator, objects: s.TransitObjectStore.ObjectStore, binding: c.DirectStreamMutation.Binding) !void {
+    for (self.verified_stream_bindings) |slot| if (slot) |known| {
+        if (std.meta.eql(known.operation, binding.operation)) {
+            var name: [96]u8 = undefined;
+            const object_key = try c.OperationBinding.key(binding.operation, &name);
+            if (try objects.head(object_key)) |metadata| {
+                var buf: [c.OperationBinding.max_bytes]u8 = undefined;
+                const expected = try c.OperationBinding.encodeStream(known, &buf);
+                if (metadata.size == expected.bytes.len and std.mem.eql(u8, &metadata.sha256, &expected.sha256)) {
+                    try known.requireSame(binding);
+                    return;
+                }
+            }
+            break;
+        }
+    };
+    try c.OperationBinding.claimStream(allocator, objects, binding);
+    self.rememberVerifiedStreamBinding(binding);
+}
+pub fn verifyStreamBinding(self: *Self, allocator: std.mem.Allocator, objects: s.TransitObjectStore.ObjectStore, binding: c.DirectStreamMutation.Binding) !void {
+    for (self.verified_stream_bindings) |slot| if (slot) |known| {
+        if (std.meta.eql(known.operation, binding.operation)) {
+            var name: [96]u8 = undefined;
+            const object_key = try c.OperationBinding.key(binding.operation, &name);
+            if (try objects.head(object_key)) |metadata| {
+                var buf: [c.OperationBinding.max_bytes]u8 = undefined;
+                const expected = try c.OperationBinding.encodeStream(known, &buf);
+                if (metadata.size == expected.bytes.len and std.mem.eql(u8, &metadata.sha256, &expected.sha256)) {
+                    try known.requireSame(binding);
+                    return;
+                }
+            }
+            break;
+        }
+    };
+    if (try c.OperationBinding.lookupStream(allocator, objects, binding.operation)) |known| {
+        try known.requireSame(binding);
+        self.rememberVerifiedStreamBinding(known);
+    }
+}
+pub fn rememberVerifiedQueueBinding(self: *Self, binding: c.DirectQueueMutation.Binding) void {
+    for (self.verified_queue_bindings) |slot| if (slot) |known| {
+        if (std.meta.eql(known, binding)) return;
+    };
+    self.verified_queue_bindings[self.verified_queue_binding_next] = binding;
+    self.verified_queue_binding_next = (self.verified_queue_binding_next + 1) % self.verified_queue_bindings.len;
+}
+pub fn claimQueueBinding(self: *Self, allocator: std.mem.Allocator, objects: s.TransitObjectStore.ObjectStore, binding: c.DirectQueueMutation.Binding) !void {
+    for (self.verified_queue_bindings) |slot| if (slot) |known| {
+        if (std.meta.eql(known.operation, binding.operation)) {
+            var name: [96]u8 = undefined;
+            const object_key = try c.OperationBinding.key(binding.operation, &name);
+            if (try objects.head(object_key)) |metadata| {
+                var buf: [c.OperationBinding.max_bytes]u8 = undefined;
+                const expected = try c.OperationBinding.encodeQueue(known, &buf);
+                if (metadata.size == expected.bytes.len and std.mem.eql(u8, &metadata.sha256, &expected.sha256)) {
+                    try known.requireSame(binding);
+                    return;
+                }
+            }
+            break;
+        }
+    };
+    try c.OperationBinding.claimQueue(allocator, objects, binding);
+    self.rememberVerifiedQueueBinding(binding);
+}
+pub fn verifyQueueBinding(self: *Self, allocator: std.mem.Allocator, objects: s.TransitObjectStore.ObjectStore, binding: c.DirectQueueMutation.Binding) !void {
+    for (self.verified_queue_bindings) |slot| if (slot) |known| {
+        if (std.meta.eql(known.operation, binding.operation)) {
+            var name: [96]u8 = undefined;
+            const object_key = try c.OperationBinding.key(binding.operation, &name);
+            if (try objects.head(object_key)) |metadata| {
+                var buf: [c.OperationBinding.max_bytes]u8 = undefined;
+                const expected = try c.OperationBinding.encodeQueue(known, &buf);
+                if (metadata.size == expected.bytes.len and std.mem.eql(u8, &metadata.sha256, &expected.sha256)) {
+                    try known.requireSame(binding);
+                    return;
+                }
+            }
+            break;
+        }
+    };
+    if (try c.OperationBinding.lookupQueue(allocator, objects, binding.operation)) |known| {
+        try known.requireSame(binding);
+        self.rememberVerifiedQueueBinding(known);
+    }
+}
+pub fn rememberVerifiedWorkloadIntent(self: *Self, entry_value: VerifiedWorkloadIntent) void {
+    for (self.verified_workload_intents) |slot| if (slot) |known| {
+        if (std.meta.eql(known.reference, entry_value.reference)) return;
+    };
+    self.verified_workload_intents[self.verified_workload_intent_next] = entry_value;
+    self.verified_workload_intent_next = (self.verified_workload_intent_next + 1) % self.verified_workload_intents.len;
+    self.rememberVerifiedRecord(entry_value.reference.record);
+}
+pub fn verifiedWorkloadWork(self: *Self, allocator: std.mem.Allocator, reference: c.DirectWorkloadIntent.Reference) !c.DirectWorkloadIntent.Work {
+    try reference.validate();
+    for (self.verified_workload_intents) |slot| if (slot) |known| {
+        if (std.meta.eql(known.reference, reference)) {
+            var name: [96]u8 = undefined;
+            const path = try c.DirectRecord.key(reference.record, &name);
+            if (try self.data_objects.head(path)) |metadata| {
+                if (metadata.size == reference.record.content.bytes and std.mem.eql(u8, &metadata.sha256, &reference.record.content.sha256)) {
+                    return switch (known.work) {
+                        .stream => |v| .{ .stream = .{ .work = v, .payload = null } },
+                        .queue => |v| .{ .queue = .{ .work = v, .payload = null } },
+                    };
+                }
+            }
+            break;
+        }
+    };
+    var intent = try c.DirectWorkloadIntent.load(allocator, self.data_objects, reference);
+    defer intent.deinit();
+    const work = intent.parsed.value.work;
+    self.rememberVerifiedWorkloadIntent(.{
+        .reference = reference,
+        .work = switch (work) {
+            .stream => |v| .{ .stream = v.work },
+            .queue => |v| .{ .queue = v.work },
+        },
+    });
+    return switch (work) {
+        .stream => |v| .{ .stream = .{ .work = v.work, .payload = null } },
+        .queue => |v| .{ .queue = .{ .work = v.work, .payload = null } },
+    };
+}
+pub fn loadWorkloadIntent(self: *Self, allocator: std.mem.Allocator, reference: c.DirectWorkloadIntent.Reference) !c.DirectWorkloadIntent {
+    try reference.validate();
+    for (self.verified_workload_intents) |slot| if (slot) |known| {
+        if (std.meta.eql(known.reference, reference)) {
+            return c.DirectWorkloadIntent.loadVerified(allocator, self.data_objects, reference);
+        }
+    };
+    const intent = try c.DirectWorkloadIntent.load(allocator, self.data_objects, reference);
+    self.rememberVerifiedWorkloadIntent(.{
+        .reference = reference,
+        .work = switch (intent.parsed.value.work) {
+            .stream => |v| .{ .stream = v.work },
+            .queue => |v| .{ .queue = v.work },
+        },
+    });
+    return intent;
 }
 
 /// Reuse only a prefix validated by this same live owner and immutable log.
@@ -1717,9 +1885,7 @@ fn intentGuardWithRowState(self: *Self, allocator: std.mem.Allocator, reference:
             break :blk try self.logGuard(allocator, request, policy, true, true);
         },
         .workload => |value| blk: {
-            var intent = try c.DirectWorkloadIntent.load(allocator, self.data_objects, value);
-            defer intent.deinit();
-            const work = intent.parsed.value.work;
+            const work = try self.verifiedWorkloadWork(allocator, value);
             const authorized = try self.logAuthorization(allocator, if (work == .stream) .stream else .queue, work.target(), work.access(), policy);
             break :blk authorized.guard;
         },
@@ -1860,8 +2026,8 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
             // cancellation routes consult this same global identity owner.
             try check(current);
             switch (value.binding) {
-                .stream => |original_binding| try c.OperationBinding.claimStream(self.allocator, self.data_objects, original_binding),
-                .queue => |original_binding| try c.OperationBinding.claimQueue(self.allocator, self.data_objects, original_binding),
+                .stream => |original_binding| try self.claimStreamBinding(self.allocator, self.data_objects, original_binding),
+                .queue => |original_binding| try self.claimQueueBinding(self.allocator, self.data_objects, original_binding),
             }
         },
         .namespace_change => |value| try c.OperationBinding.claimNamespaceInTree(self.allocator, &self.store.index, value.binding),

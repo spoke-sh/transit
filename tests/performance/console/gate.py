@@ -41,6 +41,20 @@ STATEMENT_CASES = (
     'select_after_delete',
     'delete_empty',
     'select_json_after_delete',
+    'stream_consume_empty',
+    'stream_produce',
+    'stream_consume_after_produce',
+    'stream_consume_warm',
+    'stream_consume_json',
+    'queue_claim_empty',
+    'queue_enqueue',
+    'queue_claim',
+    'queue_extend_lease',
+    'queue_ack',
+    'queue_enqueue_nack',
+    'queue_claim_nack',
+    'queue_nack',
+    'queue_claim_after_ack',
 )
 STATEMENT_CLASSES = {
     'warm_read': (
@@ -64,6 +78,28 @@ STATEMENT_CLASSES = {
         'update_empty',
         'delete',
         'delete_empty',
+    ),
+    'stream_read': (
+        'stream_consume_empty',
+        'stream_consume_after_produce',
+        'stream_consume_warm',
+        'stream_consume_json',
+    ),
+    'stream_write': (
+        'stream_produce',
+    ),
+    'queue_read': (
+        'queue_claim_empty',
+        'queue_claim',
+        'queue_claim_nack',
+        'queue_claim_after_ack',
+    ),
+    'queue_write': (
+        'queue_enqueue',
+        'queue_extend_lease',
+        'queue_ack',
+        'queue_enqueue_nack',
+        'queue_nack',
     ),
 }
 
@@ -94,6 +130,7 @@ def expected_statement_samples(workload):
     expected['select_empty'] = cycles - 1
     expected['select_empty_warm'] = cycles * warm_reads
     expected['select_one_warm'] = cycles * warm_reads
+    expected['stream_consume_warm'] = cycles * warm_reads
     return expected
 
 

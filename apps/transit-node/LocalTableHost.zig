@@ -141,7 +141,12 @@ fn target(action: w.Action) ?u64 {
         inline .scan, .column_scan, .filter_scan, .read_key, .key_range, .history, .projection_definitions, .projection_locations => |value| value.snapshot.object.object,
         inline .snapshot, .history_start, .history_source, .release => |value| value.object.object,
         .history_scan => |value| value.source.object.object,
-        .client_token => |value| if (value == .bind and value.bind.intent == .table) value.bind.intent.table.binding.target.object else null,
+        .client_token => |value| if (value == .bind) switch (value.bind.intent) {
+            .table => |t_ref| t_ref.binding.target.object,
+            .workload => |w_ref| w_ref.binding.target().interpretation.object.object,
+            .log => |l_ref| l_ref.binding.target.object,
+            else => null,
+        } else null,
         else => null,
     };
 }
@@ -152,7 +157,7 @@ fn stripe(action: w.Action) ?usize {
         // already tolerates concurrent row acceptance; this lock serializes
         // only its disposable hint. Catalog changes still require directory's
         // exclusive side, and DirectCatalog verifies identity and current rights.
-        inline .lookup, .kv_lookup => |value| @intCast(std.hash.Wyhash.hash(value.namespace, value.name) % stripe_count),
+        inline .lookup, .kv_lookup, .log_lookup => |value| @intCast(std.hash.Wyhash.hash(value.namespace, value.name) % stripe_count),
         else => null,
     };
 }
@@ -231,7 +236,7 @@ fn executeResult(self: *Self, comptime format: Service.Output, io: std.Io, engin
     }
 }
 fn residentMatches(resident: *const Service.Resident, action: w.Action) bool {
-    if (target(action)) |object| return resident.hasTable(object);
+    if (target(action)) |object| return resident.hasObject(object);
     return switch (action) {
         inline .lookup, .kv_lookup => |value| resident.hasTableName(value.namespace, value.name),
         else => false,

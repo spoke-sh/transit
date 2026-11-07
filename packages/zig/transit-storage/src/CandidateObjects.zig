@@ -68,6 +68,9 @@ pub fn reset(self: *Self, underlying: Objects.ObjectStore) !void {
 fn key(self: Self, entry: Entry) []const u8 {
     return self.buffer[entry.key_from..][0..entry.key_len];
 }
+pub fn keyAt(self: Self, index: usize) []const u8 {
+    return self.key(self.entries[index]);
+}
 fn bytes(self: Self, entry: Entry) []const u8 {
     return self.buffer[entry.from..][0..entry.len];
 }

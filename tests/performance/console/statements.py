@@ -78,10 +78,15 @@ def run(fixture, repeat, probes, *, config=None, resource_observer=None, cpu_obs
                                       **resource_observer(shell.process.pid))), flush=True)
             return value
 
-        def typed_readback(case):
-            shell.process.stdin.write(b'.mode json\n')
+        def set_mode(mode):
+            if shell.mode == mode:
+                return
+            shell.process.stdin.write(f'.mode {mode}\n'.encode())
             shell.process.stdin.flush()
-            shell.mode = 'json'
+            shell.mode = mode
+
+        def typed_readback(case):
+            set_mode('json')
             value = call(case, 'SELECT * FROM items;')
             actual = sorted(tuple(int(cell['value']['atom']['signed']) for cell in row)
                             for row in value['rows'])
@@ -89,11 +94,30 @@ def run(fixture, repeat, probes, *, config=None, resource_observer=None, cpu_obs
             assert int(value['complete']['rows']) == len(expected), value
             assert [field['name'] for field in value['schema']['type']['structure']] == ['id', 'value']
             assert all(field['type'] == {'int64': {}} for field in value['schema']['type']['structure'])
-            shell.process.stdin.write(b'.mode table\n')
-            shell.process.stdin.flush()
-            shell.mode = 'table'
+            set_mode('table')
 
-        # Each cycle returns to the verified empty table in the same session.
+        def claim_row(case, sql, expected_pair):
+            set_mode('json')
+            value = call(case, sql)
+            assert int(value['complete']['rows']) == 1 and len(value['rows']) == 1, value
+            row = value['rows'][0]
+            actual_pair = (int(row[0]['value']['atom']['signed']), int(row[1]['value']['atom']['signed']))
+            assert actual_pair == expected_pair, (actual_pair, expected_pair)
+            receipt_hex = row[2]['value']['atom']['binary']
+            assert len(receipt_hex) == 336 and bytes.fromhex(receipt_hex)[:4] == b'QLH1', receipt_hex
+            set_mode('table')
+            return receipt_hex
+
+        for setup_sql in (
+            'CREATE STREAM events (id INT64, value INT64);',
+            "CREATE QUEUE tasks (id INT64, value INT64) WITH (max_lease_duration='5m', max_attempts=1);",
+        ):
+            setup_value, setup_measurement = shell.call(setup_sql)
+            assert setup_value == 'Statement completed. Matched 0; changed 0.\n', setup_value
+            print(json.dumps(dict(phase='workload_setup', sql=setup_sql, **setup_measurement)), flush=True)
+
+        stream_next_offset = 0
+        # Each cycle returns to the verified empty table and settled queue in the same session.
         # With repeat=1 this keeps every steady-state case at zero or one row.
         for cycle in range(cycles):
             verify_table(call('select_cold' if cycle == 0 else 'select_empty', 'SELECT * FROM items;'), expected)
@@ -127,6 +151,61 @@ def run(fixture, repeat, probes, *, config=None, resource_observer=None, cpu_obs
             output = call('delete_empty', 'DELETE FROM items WHERE id = -1;')
             assert output == 'Statement completed. Matched 0; changed 0.\n', output
             typed_readback('select_json_after_delete')
+
+            cycle_stream_start = stream_next_offset
+            for index in range(1, repeat + 1):
+                verify_table(
+                    call('stream_consume_empty', f'CONSUME id, value FROM events WHERE _offset >= {stream_next_offset} LIMIT 1;'),
+                    [],
+                )
+                output = call('stream_produce', f'PRODUCE INTO events (id, value) VALUES ({index}, {index * 10});')
+                assert output == 'Statement completed. Matched 1; changed 1.\n', output
+                offset = stream_next_offset
+                stream_next_offset += 1
+                verify_table(
+                    call('stream_consume_after_produce', f'CONSUME id, value FROM events WHERE _offset >= {offset} LIMIT 1;'),
+                    [(index, index * 10)],
+                )
+                for _ in range(warm_reads):
+                    verify_table(
+                        call('stream_consume_warm', f'CONSUME id, value FROM events WHERE _offset >= {offset} LIMIT 1;'),
+                        [(index, index * 10)],
+                    )
+            set_mode('json')
+            stream_json = call('stream_consume_json', f'CONSUME id, value FROM events WHERE _offset >= {cycle_stream_start} LIMIT {repeat};')
+            actual_stream = [tuple(int(cell['value']['atom']['signed']) for cell in row) for row in stream_json['rows']]
+            expected_stream = [(index, index * 10) for index in range(1, repeat + 1)]
+            assert actual_stream == expected_stream, (actual_stream, expected_stream)
+            assert int(stream_json['complete']['rows']) == repeat, stream_json
+            set_mode('table')
+
+            for index in range(1, repeat + 1):
+                verify_table(call('queue_claim_empty', "CLAIM id, value FROM tasks LIMIT 1 WITH LEASE '30s';"), [])
+                output = call('queue_enqueue', f'ENQUEUE INTO tasks (id, value) VALUES ({index}, {index * 10});')
+                assert output == 'Statement completed. Matched 1; changed 1.\n', output
+                receipt_hex = claim_row(
+                    'queue_claim',
+                    "CLAIM id, value, _receipt_handle FROM tasks LIMIT 1 WITH LEASE '30s';",
+                    (index, index * 10),
+                )
+                set_mode('json')
+                renewed = call('queue_extend_lease', f"EXTEND LEASE ON QUEUE tasks RECEIPT X'{receipt_hex}' BY '30s';")
+                assert int(renewed['complete']['rows']) == 1 and len(renewed['rows']) == 1, renewed
+                renewed_hex = renewed['rows'][0][0]['value']['atom']['binary']
+                assert len(renewed_hex) == 336 and renewed_hex[:320] == receipt_hex[:320] and renewed_hex != receipt_hex, (receipt_hex, renewed_hex)
+                set_mode('table')
+                output = call('queue_ack', f"ACK ON QUEUE tasks RECEIPT X'{renewed_hex}';")
+                assert output == 'Statement completed.\n', output
+                output = call('queue_enqueue_nack', f'ENQUEUE INTO tasks (id, value) VALUES ({-index}, {-index * 10});')
+                assert output == 'Statement completed. Matched 1; changed 1.\n', output
+                nack_hex = claim_row(
+                    'queue_claim_nack',
+                    "CLAIM id, value, _receipt_handle FROM tasks LIMIT 1 WITH LEASE '30s';",
+                    (-index, -index * 10),
+                )
+                output = call('queue_nack', f"NACK ON QUEUE tasks RECEIPT X'{nack_hex}';")
+                assert output == 'Statement completed.\n', output
+                verify_table(call('queue_claim_after_ack', "CLAIM id, value FROM tasks LIMIT 1 WITH LEASE '30s';"), [])
         print(json.dumps(dict(phase='statement_summary', distributions={
             case: distribution(values) for case, values in samples.items()})), flush=True)
     finally:

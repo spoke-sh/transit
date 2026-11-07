@@ -27,8 +27,13 @@ pub const DeadLetterCandidate = Owner.DeadLetterCandidate;
 pub const DeadLetterCursor = Owner.DeadLetterCursor;
 pub const DeadLetterPage = Owner.DeadLetterPage;
 pub const DeadLetterWork = Owner.DeadLetterWork;
+pub const LoadedDeclaration = Owner.LoadedDeclaration;
 
 owner: Owner,
+
+pub fn loadDeclaration(self: *Self, allocator: std.mem.Allocator, stored: Declaration.Stored) !LoadedDeclaration {
+    return self.owner.loadDeclaration(allocator, stored);
+}
 
 pub fn open(allocator: std.mem.Allocator, log: Log.Log, objects: Objects.ObjectStore, request: Initialization.Request, guard: Guard, options: Options) !Self {
     return .{ .owner = try Owner.open(allocator, log, objects, request, guard, options) };
