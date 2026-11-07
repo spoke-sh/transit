@@ -19,6 +19,7 @@ pub const DataLifecycle = @import("DataLifecycle.zig");
 pub const Migration = @import("Migration.zig");
 pub const Dataflow = @import("Dataflow.zig");
 pub const Source = @import("Source.zig");
+pub const SourceCapture = @import("SourceCapture.zig");
 pub const Transaction = @import("Transaction.zig");
 pub const Branch = @import("Branch.zig");
 pub const IndexLifecycle = @import("IndexLifecycle.zig");
@@ -85,6 +86,7 @@ test {
     _ = Migration;
     _ = Dataflow;
     _ = Source;
+    _ = SourceCapture;
     _ = Transaction;
     _ = Branch;
     _ = IndexLifecycle;

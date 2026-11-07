@@ -171,6 +171,26 @@ def generated():
         transaction_definition(source)
         results[source_path] = source
         lifecycle['source'] = source
+        capture_evidence = dict(
+            definition=definition, poll=copy.deepcopy(source['poll']),
+            connection=copy.deepcopy(source['declaration']['connection']),
+            destination=copy.deepcopy(source['declaration']['destination']),
+            columns=copy.deepcopy(source['declaration']['columns']),
+            attempt=copy.deepcopy(source['poll']['operation']),
+            exchange=dict(bytes=127, sha256=list(hashlib.sha256(b'sealed finite exchange').digest())),
+            terminal=dict(bytes=23, sha256=list(hashlib.sha256(b'verified HTTP terminal').digest())),
+            verifier=copy.deepcopy(source['declaration']['interpretation']),
+            observed_at_ms=source['capture']['observed_at_ms'], http_status=204,
+            body=dict(bytes=0, sha256=list(hashlib.sha256(b'').digest())))
+        capture_evidence['attempt']['operation'] += 1
+        capture_evidence['verifier']['object']['object'] += 100
+        capture_reference = dict(
+            definition=definition, destination=copy.deepcopy(capture_evidence['destination']),
+            candidate=list(hashlib.sha256(b'original capture candidate').digest()),
+            manifest=dict(bytes=413, sha256=list(hashlib.sha256(b'empty verified manifest').digest())))
+        capture_fixture = dict(evidence=capture_evidence, reference=capture_reference)
+        results[FIXTURES / 'source-capture-v1.json'] = capture_fixture
+        lifecycle['source_capture'] = capture_fixture
         revision_scope = transaction['cut']['begin']['identity']['begin']['scope']
         def revision_definition(object_id, digest):
             return dict(object=dict(scope=copy.deepcopy(revision_scope), branch=1, object=object_id),
