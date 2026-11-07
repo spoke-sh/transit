@@ -487,8 +487,10 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
         # The CLI lifecycle has its own history so expanding it does not change
         # the existing wide-row measurement's retained state or observation bound.
         # Both schedules must pass for the complete gateway task to succeed.
-        run(node,catalog,ledger,host,gateway,configuration_host,console,'cli')
-        run(node,catalog,ledger,host,gateway,configuration_host,console,'types')
+        # Recreate role links from the original executables: this installation's
+        # node/host/gateway aliases were removed with its directory above.
+        run(**binaries, slice='cli')
+        run(**binaries, slice='types')
 
 
 if __name__ == '__main__':
