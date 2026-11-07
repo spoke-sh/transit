@@ -19,6 +19,7 @@ pub fn Importer(comptime Origin: type) type {
         origin: *Origin,
         journal: Journal,
         admission: *Capture.Admission,
+        active: Capture.Admission = .{ .limit = Capture.resident_bytes },
         memory: c.fuze.MemoryBudget,
         scratch: std.heap.ArenaAllocator,
         replay: ?Replay = null,
@@ -35,12 +36,18 @@ pub fn Importer(comptime Origin: type) type {
         pub fn init(self: *Self, allocator: std.mem.Allocator, saved: Saved, origin: *Origin, journal: Journal, admission: *Capture.Admission) !void {
             try saved.validate();
             try admission.acquire();
+            errdefer admission.release();
+            // Reserve the adapter and its nested candidate operation together.
+            // Accepted active owners cannot exhaust the pool and deadlock while
+            // each waits to acquire its own staging/verification workspace.
+            try admission.acquire();
             self.* = .{ .saved = saved, .origin = origin, .journal = journal, .admission = admission, .memory = .{ .parent = allocator, .limit = scratch_bytes }, .scratch = undefined };
             self.scratch = .init(self.memory.allocator());
         }
         pub fn deinit(self: *Self) void {
             self.resetPass();
             self.scratch.deinit();
+            self.admission.release();
             self.admission.release();
             std.debug.assert(self.memory.used == 0);
             self.* = undefined;
@@ -67,7 +74,7 @@ pub fn Importer(comptime Origin: type) type {
             return self.origin.guard(allocator, required, self.saved);
         }
         fn destination(self: *Self) root.data.CaptureOwner {
-            return .{ .catalog = self.journal.catalog, .policy = self.journal.policy, .authority = .{ .context = self, .admission = self.admission, .verify_original = verifyOriginal, .make_guard = guard } };
+            return .{ .catalog = self.journal.catalog, .policy = self.journal.policy, .authority = .{ .context = self, .admission = &self.active, .verify_original = verifyOriginal, .make_guard = guard } };
         }
         pub fn inspect(self: *Self) !?Journal.Observation {
             _ = self.scratch.reset(.retain_capacity);
@@ -137,7 +144,7 @@ pub fn Importer(comptime Origin: type) type {
                     next.phase = .copying;
                 },
                 .copied => {
-                    if (self.verifier == null) self.verifier = try Capture.Verifier.init(self.saved.candidate.key, self.admission);
+                    if (self.verifier == null) self.verifier = try Capture.Verifier.init(self.saved.candidate.key, &self.active);
                     const capture = try self.destination().verify(&self.verifier.?, .{ .bytes = Capture.storage.chunk_bytes, .pages = 64 });
                     if (capture.state.phase != .verified) return next;
                     next.manifest = capture.state.manifest;

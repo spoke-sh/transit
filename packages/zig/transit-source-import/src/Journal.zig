@@ -18,7 +18,12 @@ pub const State = struct {
     outcome: @FieldType(c.DirectSourceCapture.State, "outcome") = null,
     pub fn validate(self: State, saved: Saved) !void {
         if (self.definition != p.Growth.current_definition or self.work_bytes > saved.work.bytes or self.work_parts > saved.work.parts) return error.InvalidSourceHandoff;
-        if (self.evidence) |value| try value.requireSource(saved.source);
+        if (self.evidence) |value| {
+            try value.requireSource(saved.source);
+            if (!std.meta.eql(value.poll, saved.poll) or !std.meta.eql(value.attempt, saved.attempt) or
+                !std.meta.eql(value.verifier, saved.verifier) or value.observed_at_ms != saved.observed_at_ms)
+                return error.InvalidSourceHandoff;
+        }
         if (self.manifest) |value| try value.validate();
         if (self.outcome) |value| {
             try value.decision.validate();
