@@ -2067,10 +2067,14 @@ pub fn clientProgressWithWorkloads(self: *Self, request: c.DirectClientToken.Pro
     try check(database);
     if (request == .stage_original) return .{ .state = try self.stageOriginal(arena.allocator(), request.stage_original, policy) };
     if (request == .list) {
-        const page = try self.store.clientPage(request.list);
-        for (page.entries) |slot| if (slot) |state| {
-            if (state.capture != null) return error.SourceCaptureOperationRequired;
-            if (state.source != null) return error.DocumentSourceOperationRequired;
+        var page = try self.store.clientPage(request.list);
+        for (&page.entries) |*slot| if (slot.*) |state| {
+            // Typed private owners have their own guarded discovery. Preserve
+            // the bounded scan cursor so unrelated account work stays discoverable.
+            if (state.capture != null or state.source != null) {
+                slot.* = null;
+                continue;
+            }
             try check(try self.intentGuard(arena.allocator(), state.receipt.binding.intent, policy));
         };
         try check(database);
@@ -2672,7 +2676,19 @@ pub fn captureAdvance(self: *Self, key: c.DirectClientToken.Key, command: c.Dire
     const plan = source.publication orelse return error.SourceCapturePublicationRequired;
     const current = try self.captureGuard(scratch.allocator(), key.scope(), source.descriptor.evidence, policy, authority);
     if (source.phase != .publishing) return Capture.Observation.from(state);
-    if (try self.store.clientToken(plan.key) == null) return self.capturePublish(plan, policy, authority);
+    if (try self.store.clientToken(plan.key) == null) {
+        // Before any common transaction reservation, the serialized capture
+        // owner can fence its frozen plan permanently. A saved transaction
+        // binding is uncertain accepted work and must take the normal path.
+        if (command == .abort and try c.OperationBinding.lookupTransaction(scratch.allocator(), self.data_objects, plan.operation) == null) {
+            state.capture.?.phase = .closed;
+            state.original.?.phase = .closed;
+            state.pending = false;
+            state.cancel = true;
+            return Capture.Observation.from(try self.publishCapture(state, current, null));
+        }
+        return self.capturePublish(plan, policy, authority);
+    }
     const authorization = try self.logAuthorization(scratch.allocator(), .stream, source.descriptor.target(), .append, policy);
     var checked: CapturePolicy = .{ .original = policy, .authority = authority, .evidence = source.descriptor.evidence, .destination = authorization.requirements };
     const publication_policy = checked.policy();

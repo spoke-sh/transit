@@ -41,6 +41,7 @@ pub const Attempt = struct {
                 .source => |value| if (value == .declaration) value.declaration.request.binding.identity else null,
                 .descriptor => |value| if (value == .declaration) value.declaration.request.binding.identity else null,
                 .stream => |value| value.identity(),
+                .capture_read => |value| value.identity(),
                 .queue => |value| value.identity(),
                 .kv => |value| value.identity(),
                 .kv_declaration => |value| value.declaration.binding.identity,

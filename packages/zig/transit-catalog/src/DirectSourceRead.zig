@@ -98,6 +98,13 @@ pub const Request = union(enum) {
     pub fn mutation(self: Request) bool {
         return self == .open or self == .cancel_open or self == .close;
     }
+    pub fn identity(self: Request) ?d.Operation {
+        return switch (self) {
+            .open, .cancel_open => |value| value.operation,
+            .close => |value| value.operation,
+            else => null,
+        };
+    }
     pub fn control(self: Request) bool {
         return self == .inspect or self == .inspect_open or self == .cancel_open or self == .close;
     }

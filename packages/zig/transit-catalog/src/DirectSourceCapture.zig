@@ -137,8 +137,11 @@ pub const State = struct {
         if (self.manifest) |manifest| try manifest.validate();
         if ((self.phase == .publishing or self.phase == .published or self.phase == .aborted) != (self.publication != null) and self.phase != .closed) return error.InvalidSourceCaptureState;
         if (self.publication) |publication| try publication.requireCandidate(self);
-        const settled = self.phase == .published or self.phase == .aborted or (self.phase == .closed and self.publication != null);
-        if (settled != (self.outcome != null)) return error.InvalidSourceCaptureState;
+        const settled = self.phase == .published or self.phase == .aborted;
+        // A protected plan can be fenced closed before transaction admission.
+        // It retains the planned originals without manufacturing a decision.
+        if ((settled and self.outcome == null) or (!settled and self.phase != .closed and self.outcome != null) or
+            (self.outcome != null and self.publication == null)) return error.InvalidSourceCaptureState;
         if (self.outcome) |outcome| {
             try outcome.decision.validate();
             const publication = self.publication orelse return error.InvalidSourceCaptureState;
@@ -170,7 +173,7 @@ pub const State = struct {
             after.ready_bytes < before.ready_bytes or after.charged_bytes < before.charged_bytes or
             after.work_bytes < before.work_bytes or after.work_pages < before.work_pages) return error.InvalidSourceCaptureTransition;
         if (after.phase == .closed) {
-            if (before.phase == .publishing or before.phase == .published) return error.InvalidSourceCaptureTransition;
+            if (before.phase == .published) return error.InvalidSourceCaptureTransition;
             var expected = before;
             expected.phase = .closed;
             expected.staged = null;
