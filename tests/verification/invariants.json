@@ -2874,6 +2874,37 @@
       "model": null,
       "qualification": "Registration is a required schedule, not a pass; retain source-specific installed lifecycle and clean-lane run evidence.",
       "required_tier": "ordinary"
+    },
+    {
+      "id": "SOURCE-CAPTURE-01",
+      "claim": "One verified finite capture publishes one original Stream envelope; retained readers and current Stream rights govern its bytes",
+      "owner": "contracts/SOURCE_V1.md",
+      "implementation": [
+        "packages/zig/transit-catalog/src/DirectSourceCapture.zig",
+        "packages/zig/transit-catalog/src/DirectSourcePublication.zig",
+        "packages/zig/transit-catalog/src/DirectSourceRead.zig",
+        "packages/zig/transit-data-client/src/CaptureReader.zig",
+        "packages/zig/transit-source-import/src/Importer.zig"
+      ],
+      "profile": "Current-v1, branch-one, same-Catalog, one-partition Stream; explicitly trusted sealed HTTP input host",
+      "tasks": [
+        "test::source-capture",
+        "test::local-catalog",
+        "test::packages-build",
+        "test::source-declarations"
+      ],
+      "scenarios": [
+        "Empty, one-byte, 64 KiB boundaries, 4 MiB and over-budget complete HTTP bodies with original hold recovery",
+        "Seven SIGKILL boundaries recover the same candidate, transaction decision and offset from disk",
+        "32 paged candidates, full aggregate importer admission, separately bounded adapter and destination memory",
+        "Protected commit/abort, forged attachment refusal, two retained pins, explicit expiry and final-pin collection",
+        "Signed native reader without source/connection rights, revocation after buffering and on terminal reads, original pin recovery after lost replies",
+        "Installed ordinary declarations emit zero HTTP requests and zero capture rows"
+      ],
+      "limits": "Component admission authenticates the configured original; it is not a public upload route. No scheduler, live HTTP attempt, activation, JSON interpretation, current-Table replacement or power-loss claim. Common transaction decisions reuse their existing owner; this entry claims no formal refinement of the composed handoff.",
+      "model": null,
+      "qualification": "Commands and source-specific completed evidence belong in docs/history/qualification/catalog.md; registration alone establishes no pass.",
+      "required_tier": "ordinary"
     }
   ]
 }
