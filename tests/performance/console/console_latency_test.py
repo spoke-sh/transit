@@ -260,9 +260,9 @@ class ConsoleLatencyGate(unittest.TestCase):
         }
         for cycle in range(workload['cycles']):
             for case in gate.STATEMENT_CASES:
-                repeats = (1 if cycle == 0 else 0) if case == 'select_cold' else (
-                    (0 if cycle == 0 else 1) if case == 'select_empty' else (
-                        workload['warm_reads'] if case in ('select_empty_warm', 'select_one_warm', 'stream_consume_warm') else 1
+                repeats = (1 if cycle == 0 else 0) if case in ('select_cold', 'document_select_cold') else (
+                    (0 if cycle == 0 else 1) if case in ('select_empty', 'document_select_empty') else (
+                        workload['warm_reads'] if case in ('select_empty_warm', 'select_one_warm', 'document_select_empty_warm', 'document_select_warm', 'stream_consume_warm') else 1
                     )
                 )
                 timer_ms = int(budgets['statement_classes'][class_by_case[case]])
