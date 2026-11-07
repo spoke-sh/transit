@@ -135,8 +135,11 @@ The shared reading experience lives in
 [`src/css/handbook.css`](src/css/handbook.css). Wrappers for `DocItem/Layout`,
 `DocItem/Footer` and `MDXComponents/Heading` retain Docusaurus navigation, anchors,
 metadata and source links while adding chapter markers, editorial typography,
-quieter tables and task-oriented onward paths. The route lookup uses the existing
-catalog; it creates no second page inventory. These styles cover guides,
+quieter tables and task-oriented onward paths. `MDXComponents` makes Markdown
+tables keyboard-focusable in server-rendered HTML, so readers can use arrow keys
+to scroll wide tables on narrow screens, including with JavaScript disabled.
+The route lookup uses the existing catalog; it creates no second page inventory.
+These styles cover guides,
 reference, SDKs and Internals, including narrow screens and dark mode.
 The introduction reuses the original light/dark artwork as a quiet chapter
 illustration. The Prism themes in `docusaurus.config.ts` use matching paper and
@@ -327,6 +330,7 @@ TRANSIT_DOCS_BASE_URL=/handbook/ just transit-docs::browser
 
 The browser proof builds and serves real output, checking desktop/mobile navigation,
 search, generated references, exact spec downloads, diagrams and accessibility.
+It checks keyboard focus and horizontal table scrolling with and without JavaScript.
 It checks light-mode scroll motion, dark-mode perspective and exact reversal,
 pause/resume, native theme changes, static fallbacks and no-JavaScript navigation,
 and the introduction’s vector architecture figure.
