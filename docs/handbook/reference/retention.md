@@ -114,6 +114,16 @@ dependency-aware; a delayed delete cannot target a replacement identity. An
 adapter's delete acknowledgement does not prove removal from every backup or
 external copy. Broad physical-erasure guarantees need a contract for those copies.
 
+Published SOURCE bodies follow their destination Stream's retention. The Stream
+envelope, existing read pins and uncertain publication work retain the complete
+manifest/chunk graph. Explicit age expiry prevents new pins below the retained
+boundary; existing readers keep their original bytes. After the last pin and
+recovery root release them, collection may remove the body while preserving its
+original publication receipt. Dropping SOURCE or CONNECTION metadata does not
+release destination-owned captures. A descriptor alone is not a retention pin.
+This capture-specific lifetime does not change unrelated committed transaction
+record retention. See [owned captures](streams.md#owned-source-captures).
+
 The [local native maintenance API](../../../packages/zig/transit-backend-local/docs/maintenance.md)
 marks retained roots and live captured versions before deleting immutable pages
 and blocks. It requires an accepted epoch fence and a persisted time fence after

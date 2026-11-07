@@ -488,7 +488,8 @@ checks the exact published SOURCE and destination definitions. A caller's captur
 state or declaration executor is insufficient authority.
 
 Mandatory nullable `Progress.capture` is separate from Document source ownership.
-Its states are uploading, sealing, verified, failed and closed. Sequential chunk
+Its states are uploading, sealing, verified, publishing, published, aborted,
+failed and closed. Sequential chunk
 reservation precedes creation; readiness publishes a paged contiguous inventory.
 Verification freezes the canonical manifest commitment before its immutable put,
 then publishes verified readiness. `SCM1` (`0x53434d31`) manifests bind the original
@@ -502,7 +503,31 @@ late writes and releases private reachability without deleting the original
 receipt. Generic staging, records, progress and token routes reject this owner.
 These component operations do not install SOURCE activation or public mutation
 routes. [SOURCE_V1](SOURCE_V1.md#owned-capture-representation) specifies disclosure,
-body/reference bounds and the later accepted-attachment boundary.
+body/reference bounds and the accepted-attachment boundary.
+
+`SCP1` freezes the complete original publication plan before transaction admission.
+The protected `source_capture` transaction accepts one exact seven-column envelope
+with its `SourceCapture.Attachment`; ordinary transaction calls cannot construct,
+advance or settle that owner. The common decision publishes the Stream row and
+capture graph together. Recovering an uncertain decision returns the original
+append receipt and offset. Unadmitted plans can be permanently closed without
+fabricating a decision; an existing transaction binding requires normal recovery.
+
+Published bodies are retained by Stream batches and live original read pins;
+uncertain transactions retain their staged graph. Permanent append receipts retain
+provenance without retaining expired bodies forever. Capture manifests are
+content-addressed independently of the producing account. Generic progress listing
+skips private capture/Document originals while preserving its bounded continuation;
+explicit generic access to those originals still rejects.
+
+The signed `capture_read` action implements inspect, open, inspect_open,
+cancel_open, next and close through the native Stream owner. It validates exact
+publication/decision/offset evidence, uses the installed Stream authority to sign
+continuations, and checks current destination READ, database CONNECT and schema
+USAGE after buffering. Readers acquire and release saved original Stream pins.
+Each response owns at most one 64 KiB raw chunk; the shared reader verifies the
+whole body before reporting completion. See the
+[reader contract](SOURCE_V1.md#published-capture-reader).
 
 ### Protected Document sources
 

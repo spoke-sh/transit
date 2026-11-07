@@ -329,6 +329,8 @@ insufficient. Neither replay can dispatch or resolve credentials.
 
 Each step advances one durable phase or at most 256 Exchange parts. The transcript
 limit is 8 MiB/65,536 members, body limit 4 MiB, and adapter scratch limit 2 MiB.
+Each importer reserves 16 MiB of the shared 64 MiB capture admission budget,
+including nested candidate/verifier headroom, before accepting active work.
 Every pass, including a restarted pass, charges its entire transcript byte/part
 bound before reading. Source-candidate verification separately charges its own
 work. Exhaustion preserves the original and control capacity for observation and

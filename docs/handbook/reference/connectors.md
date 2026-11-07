@@ -12,6 +12,14 @@ executor, support retirement and restricted DROP, and report `never_run`.
 They do not yet schedule HTTP requests or capture bodies. The recorded effect
 profiles below have their own execution contracts.
 
+The [sealed HTTP import component](../../../packages/zig/transit-source-import/README.md)
+can retain an already complete, authenticated Exchange and copy its raw response
+into destination-owned [SOURCE capture storage](streams.md#owned-source-captures).
+It verifies complete HTTP coverage, status, body length and SHA-256 before
+publication, records the original destination outcome before releasing its hold,
+and performs no network dispatch. This component seam does not activate SQL
+SOURCE declarations or install an upload endpoint.
+
 ## Intent, attempt and outcome
 
 An intent binds destination, operation, request content, credential references,

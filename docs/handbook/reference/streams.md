@@ -52,6 +52,27 @@ profile below remains separate.
 See the [caller package](../../../packages/zig/transit-data-client/README.md) and
 [exact lifecycle contract](../../../contracts/DIRECT_TABLE_V1.md#stream-and-queue-lifecycle).
 
+### Owned SOURCE captures
+
+A trusted capture owner can attach a complete finite HTTP observation to one
+Stream envelope in a protected transaction. Its `body_ref` is a bounded opaque
+descriptor; the raw body lives in immutable 64 KiB chunks with a paged inventory,
+up to 4 MiB. An ordinary append containing a similar binary value does not install
+capture ownership. Publication preserves the original poll, attempt, body digest,
+transaction decision and exact Stream offset.
+
+The shared `CaptureReader` reads an accepted publication through the native signed
+boundary. It requires current Stream READ, database CONNECT and schema USAGE;
+connector credentials and SOURCE control rights are unnecessary. Open acquires
+an original Stream pin, next returns independently owned chunks, and explicit
+close releases that pin. A prefix is incomplete until terminal coverage and the
+whole-body digest agree. Lost replies retain the same saved acquisition/release
+identities. See [SOURCE v1](../../../contracts/SOURCE_V1.md#published-capture-reader).
+
+Capture ingestion currently starts from an already sealed input in an explicitly
+trusted component host. Installed capture mutation and SOURCE activation remain
+unavailable pending the original-attempt and schedule/output owners.
+
 Database callers can also save complete workload intents with
 `DirectWorkloadIntent` and bind them through `DirectClientToken`. The saved body
 includes the exact definition/schema, native request and payload, within a 4 MiB
