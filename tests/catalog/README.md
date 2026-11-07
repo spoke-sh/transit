@@ -10,6 +10,7 @@ authorization contracts. Read the [catalog package](../../packages/zig/transit-c
 | Document profile commitment and offline grammar interpretation | [Contract fixture](tables/document_profile_contract.py), [JSON/Expat/MIME oracles](tables/document_profiles.py); `zig build test-document-profiles` (also under `test-fixtures`) |
 | Independent Table schema bytes | [Schema](tables/table_schema.py) |
 | Signed direct declarations and policy | [Envelope validator](tables/direct_table_contract.py), [catalog fixtures](tables/table_catalog.py) |
+| Retained sealed HTTP capture through real process death | [Capture schedule](source_capture_process.py), [trusted fixture host](../../packages/zig/transit-source-import/src/process_fixture.zig); `just test::source-capture` |
 | Definition/dependency and index lifecycle fixtures | [Catalog](tables/catalog_fixture.py), [indexes](tables/index_lifecycle_contract.py) |
 | Native/port result ownership and rejection | [Catalog ABI](tables/catalog_abi.py), [direct ABI](tables/direct_catalog_abi.py) |
 | Current authorization through native operations | [Authority schedule](authorization/authorization_native.py) |

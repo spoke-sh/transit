@@ -2009,6 +2009,10 @@ fn sourceRegistrationSchedule(service: *@import("LocalTableService.zig"), owner_
 
 test "shared refusals distinguish current denial from storage and missing-owner failures" {
     const failure = @import("ServiceFailure.zig");
+    try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.SourceCaptureCursorUnauthenticated).code);
+    try t.expectEqual(p.ErrorCode.NotFound, failure.table(error.SourceCaptureNotPublished).code);
+    try t.expectEqual(p.ErrorCode.Conflict, failure.table(error.SourceCapturePublicationPending).code);
+    try t.expectEqual(p.ErrorCode.AuthorityUnavailable, failure.table(error.SourceCaptureReadUnavailable).code);
     try t.expectEqual(p.ErrorCode.QueryExpired, failure.table(error.HistoricalSnapshotReleased).code);
     try t.expectEqual(p.ErrorCode.AuthorityUnavailable, failure.table(error.HistoricalArtifactUnavailable).code);
     try t.expectEqual(p.ErrorCode.AuthorityUnavailable, failure.table(error.InvalidHistoricalArtifact).code);
@@ -3121,4 +3125,132 @@ fn originalRecordsDispatch(service: *@import("LocalTableService.zig"), _: u64) !
     defer late.deinit();
     try t.expectEqualDeep(closed, late.value.result.client_progress.state.?);
     try t.expect(try data.objects().head(try c.DirectRecord.key(requests[0].binding.intent.external.record, &path)) == null);
+}
+
+// Capture mutation is deliberately supplied by this trusted component host;
+// readers enter the installed service implementation with native credentials.
+test "SOURCE published capture reads cross the native signed service boundary" {
+    try dataSchedule(sourceCaptureReadSchedule);
+}
+fn sourceCaptureReadSchedule(service: *@import("LocalTableService.zig"), owner_role: u64) !void {
+    const Capture = c.DirectSourceCapture;
+    const config = service.configuration;
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+    var ddl = try c.fuze.LogDdl.compile(t.allocator, "CREATE STREAM captures (capture_id UUID NOT NULL, source_sequence UINT64 NOT NULL, observed_at TIMESTAMPTZ NOT NULL, http_status INTEGER NOT NULL, body_ref BINARY NOT NULL, body_bytes UINT64 NOT NULL, body_sha256 BINARY NOT NULL)", .transit, null);
+    defer ddl.deinit();
+    const intent: c.DirectLog.Intent = .{ .kind = .stream, .namespace = 1, .name = try .init("captures"), .action = .{ .create = .{
+        .owner = owner_role,
+        .schema = try ddl.statement.action.create.bind(300),
+        .configuration = .{ .partitioning = .{ .count = 1, .key_column = null, .hash = .sha256_64 }, .retention = .{ .max_age_ms = null }, .policy = .{ .stream = .{ .compact_key_column = null, .timestamp_column = null } } },
+        .limits = .{ .append_rows = 128, .append_bytes = 1024 * 1024, .claim_rows = 16, .read_rows = 128, .read_bytes = 1024 * 1024, .active_leases = 64, .waiters = 64, .timer_steps = 64 },
+    } } };
+    const binding: p.DataLifecycle.Binding = .{ .definition = g.current_definition, .identity = .{ .scope = config.scope, .principal = 101, .operation = 300 }, .target = .{ .scope = config.scope, .branch = 1, .object = 300 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(alloc) };
+    (try dispatch(service, .{ .log_admit = try c.DirectLogProtocol.Ddl.encode(alloc, .{ .binding = binding, .intent = intent }) })).deinit();
+    const created = try dispatch(service, .{ .log_operation = .{ .binding = binding, .command = .execute, .steps = 32 } });
+    defer created.deinit();
+    const stream = created.value.result.log_operation.operation.resulting.?;
+    const Helper = struct {
+        fn declaration(current: *@import("LocalTableService.zig"), role: u64, object: u64, name: []const u8, payload: c.SourceDeclaration.Payload) !c.DirectSource.State {
+            const value: c.DirectSource.Intent = .{ .kind = std.meta.activeTag(payload), .namespace = 1, .name = try .init(name), .action = .{ .create = .{ .owner = role, .payload = payload } } };
+            const request: c.DirectSource.Request = .{ .intent = value, .binding = .{ .definition = g.current_definition, .identity = .{ .scope = current.configuration.scope, .principal = 101, .operation = object }, .target = .{ .scope = current.configuration.scope, .branch = 1, .object = object }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try value.digest(t.allocator) } };
+            (try dispatch(current, .{ .source = .{ .declaration = .{ .request = request, .command = .reserve, .steps = 1 } } })).deinit();
+            const result = try dispatch(current, .{ .source = .{ .declaration = .{ .request = request, .command = .execute, .steps = 32 } } });
+            defer result.deinit();
+            return result.value.result.source.observation.operation.resulting.?;
+        }
+    };
+    const connection = try Helper.declaration(service, owner_role, 301, "upstream", .{ .connection = .{ .endpoint = "https://example.com" } });
+    const source_payload: c.SourceDeclaration.Payload = .{ .source = .{ .connection = connection.declaration.interpretation, .destination = stream.stored.declaration.interpretation, .executor = 99, .http = .{ .method = .GET, .path = "/feed", .poll_interval_ms = 1000, .request_timeout_ms = 500, .response_max_bytes = 4 * 1024 * 1024 }, .columns = .{ 1, 2, 3, 4, 5, 6, 7 } } };
+    const source = try Helper.declaration(service, owner_role, 302, "earthquakes", source_payload);
+    const digest: [32]u8 = @splat(91);
+    var policy = try Policy.init(service.engine, config, try proof(service.engine, digest), digest, null);
+    var control: backend.DataStore = .{ .backend = service.engine.journal.backend, .control = true };
+    var data: backend.DataStore = .{ .backend = service.engine.journal.backend };
+    var catalog = try D.init(t.allocator, config, control.log(), control.objects(), data.log(), data.objects(), .{ .resident_pages = 1 });
+    defer catalog.deinit();
+    try catalog.recover();
+    var body: [65537]u8 = undefined;
+    for (&body, 0..) |*byte, i| byte.* = @truncate(i *% 73 +% 19);
+    var hash: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(&body, &hash, .{});
+    const operation: p.DataLifecycle.Operation = .{ .scope = config.scope, .principal = 101, .operation = 90000 };
+    const descriptor: Capture.Descriptor = .{
+        .key = .{ .definition = g.current_definition, .connection = .{ .scope = config.scope, .branch = 1, .audience = config.audience, .principal = 101, .role = null }, .account = @splat(98), .token = @splat(1) },
+        .operation = operation,
+        .namespace = 1,
+        .evidence = .{ .definition = g.current_definition, .poll = .{ .definition = g.current_definition, .source = source.declaration.interpretation, .operation = operation, .capture_id = @splat(1), .sequence = 1, .control_epoch = 1, .due_ms = 100, .state = .captured }, .connection = connection.declaration.interpretation, .destination = stream.stored.declaration.interpretation, .columns = .{ 1, 2, 3, 4, 5, 6, 7 }, .attempt = .{ .scope = config.scope, .principal = 99, .operation = 92000 }, .exchange = .{ .bytes = 200, .sha256 = @splat(1) }, .terminal = .{ .bytes = 100, .sha256 = @splat(2) }, .verifier = source.declaration.interpretation, .observed_at_ms = 200, .http_status = 200, .body = .{ .bytes = body.len, .sha256 = hash } },
+        .budget = .{ .bytes = 32 * 1024 * 1024 },
+        .limits = .{ .work_bytes = 128 * 1024 * 1024, .work_pages = 100000 },
+    };
+    const Host = struct {
+        policy: D.Policy,
+        expected: p.SourceCapture.Evidence,
+        fn verify(raw: *anyopaque, evidence: p.SourceCapture.Evidence) !void {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            if (!std.meta.eql(self.expected, evidence)) return error.SourceOriginalUnverified;
+        }
+        fn guard(raw: *anyopaque, allocator: std.mem.Allocator, required: a.Guard, evidence: p.SourceCapture.Evidence) !c.storage.PublicationGuard {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            try verify(raw, evidence);
+            return self.policy.make_guard(self.policy.context, allocator, required, null);
+        }
+    };
+    var host: Host = .{ .policy = policy.policy(), .expected = descriptor.evidence };
+    var admission: Capture.Admission = .{};
+    const authority: Capture.Authority = .{ .context = &host, .admission = &admission, .verify_original = Host.verify, .make_guard = Host.guard };
+    var observed = try catalog.captureReserve(descriptor, policy.policy(), authority);
+    var offset: usize = 0;
+    while (offset < body.len) {
+        const chunk = body[offset..@min(body.len, offset + Capture.storage.chunk_bytes)];
+        observed = try catalog.captureUpload(.{ .control = .{ .key = descriptor.key, .expected = observed.revision }, .chunk = .{ .offset = offset, .content = c.storage.LogBatch.content(chunk) }, .bytes = chunk }, policy.policy(), authority);
+        offset += chunk.len;
+    }
+    var verifier = try Capture.Verifier.init(descriptor.key, &admission);
+    defer verifier.deinit();
+    while (!verifier.done) observed = try catalog.captureVerify(&verifier, .{ .bytes = Capture.storage.chunk_bytes, .pages = 64 }, policy.policy(), authority);
+    var output_key = descriptor.key;
+    output_key.token = @splat(2);
+    var begin = operation;
+    begin.operation += 1;
+    var append = operation;
+    append.operation += 2;
+    var settlement = operation;
+    settlement.operation += 3;
+    const plan: c.DirectSourcePublication = .{ .definition = g.current_definition, .candidate = descriptor.key, .key = output_key, .reference = .{ .definition = g.current_definition, .candidate = try descriptor.key.digest(), .destination = descriptor.evidence.destination, .manifest = observed.state.manifest.? }, .namespace = 1, .operation = begin, .append = append, .settlement = settlement, .limits = .{ .resident_bytes = 8 * 1024 * 1024, .workspace_bytes = 16 * 1024 * 1024, .participants = 1, .statements = 1, .savepoints = 1 }, .budget = .{ .bytes = 16 * 1024 * 1024 } };
+    observed = try catalog.capturePublish(plan, policy.policy(), authority);
+    while (observed.state.phase == .publishing) observed = try catalog.captureAdvance(plan.candidate, .commit, 8, policy.policy(), authority);
+    try t.expectEqual(0, observed.state.outcome.?.append.?.first);
+    // Withhold source/connection permissions and all Stream mutation rights.
+    for ([_]u64{ source.declaration.properties.authorization, connection.declaration.properties.authorization, stream.properties.authorization }) |id| {
+        _ = try change(service.engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(id), .owner = 0 } });
+    }
+    _ = try change(service.engine, .{ .grant = .{ .object = c.TableAuthority.reference(stream.properties.authorization), .grantee = owner_role, .privileges = c.LogAuthority.read } });
+    try t.expectError(error.Forbidden, dispatch(service, .{ .source = .{ .inspect = source.declaration.interpretation } }));
+    var open_operation = operation;
+    open_operation.operation = 100000;
+    const opened = try dispatch(service, .{ .capture_read = .{ .open = .{ .reference = plan.reference, .operation = open_operation } } });
+    defer opened.deinit();
+    const original = opened.value.result.capture_read.opened;
+    try t.expectEqual(owner_role, original.handle.role.?);
+    var cursor = original;
+    offset = 0;
+    while (true) {
+        const response = try dispatch(service, .{ .capture_read = .{ .next = cursor } });
+        defer response.deinit();
+        const page = response.value.result.capture_read.page;
+        const bytes = try page.bytes.decode(t.allocator, Capture.storage.chunk_bytes);
+        defer t.allocator.free(bytes);
+        try t.expectEqualSlices(u8, body[offset..][0..bytes.len], bytes);
+        offset += bytes.len;
+        cursor = page.next;
+        if (page.complete) break;
+    }
+    try t.expectEqual(body.len, offset);
+    _ = try change(service.engine, .{ .revoke_privileges = .{ .object = c.TableAuthority.reference(stream.properties.authorization), .grantee = owner_role, .privileges = c.LogAuthority.read } });
+    try t.expectError(error.Forbidden, dispatch(service, .{ .capture_read = .{ .next = cursor } }));
+    _ = try change(service.engine, .{ .grant = .{ .object = c.TableAuthority.reference(stream.properties.authorization), .grantee = owner_role, .privileges = c.LogAuthority.read } });
+    open_operation.operation += 1;
+    (try dispatch(service, .{ .capture_read = .{ .close = .{ .handle = original.handle, .operation = open_operation } } })).deinit();
 }

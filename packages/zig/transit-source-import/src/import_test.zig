@@ -1,5 +1,6 @@
 const std = @import("std");
 const t = std.testing;
+const runtime = @import("fixture_runtime.zig");
 const root = @import("root.zig");
 const c = root.data.catalog;
 const p = c.protocol;
@@ -14,7 +15,7 @@ const Source = struct {
         return self.origin.store.state.get(key);
     }
 };
-const Origin = struct {
+pub const Origin = struct {
     store: *exchange.Store,
     access: *f.Access,
     expected: ?root.Saved = null,
@@ -22,7 +23,7 @@ const Origin = struct {
     lose_hold: bool = false,
     lose_release: bool = false,
     reads: usize = 0,
-    fn source(self: *Origin) Source {
+    pub fn source(self: *Origin) Source {
         return .{ .origin = self, .view = .{ .revision = self.store.revision, .position = self.store.input } };
     }
     pub fn authorize(self: *Origin, saved: root.Saved) !void {
@@ -54,9 +55,11 @@ const Origin = struct {
     }
     pub fn retain(self: *Origin, saved: root.Saved) !void {
         try self.authorize(saved);
+        try runtime.hit("reservation");
         var turn = try self.store.capture();
         _ = try (x.Exchange{ .resource = saved.origin.reference.resource, .id = saved.origin.reference.exchange }).retain(&turn, saved.origin.token, saved.origin.holder);
         try self.store.commit(turn);
+        try runtime.hit("hold");
         if (self.lose_hold) {
             self.lose_hold = false;
             return error.LostAcknowledgement;
@@ -65,9 +68,11 @@ const Origin = struct {
     pub fn release(self: *Origin, saved: root.Saved) !void {
         if (self.denied) return error.CatalogDenied;
         try t.expectEqualDeep(self.expected.?.origin, saved.origin);
+        try runtime.hit("release_pending");
         var turn = try self.store.capture();
         _ = try (x.Exchange{ .resource = saved.origin.reference.resource, .id = saved.origin.reference.exchange }).release(&turn, saved.origin.token, saved.origin.holder);
         try self.store.commit(turn);
+        try runtime.hit("release_accepted");
         if (self.lose_release) {
             self.lose_release = false;
             return error.LostAcknowledgement;
@@ -96,7 +101,7 @@ const Origin = struct {
     }
 };
 
-fn original(store: *exchange.Store, length: usize, status: u16, omit_completion: bool) !x.Descriptor {
+pub fn original(store: *exchange.Store, length: usize, status: u16, omit_completion: bool) !x.Descriptor {
     var turn = try store.capture();
     const ex = try x.Exchange.create(&turn, 1, .{ .caller = 9, .input = 8, .protocol = root.http.protocol_format }, .{ .segment_bytes = 4096, .capture_bytes = 8 * 1024 * 1024, .segments = 65536 }, 10000);
     try store.commit(turn);
@@ -136,7 +141,7 @@ fn original(store: *exchange.Store, length: usize, status: u16, omit_completion:
     turn = try store.capture();
     return ex.inspect(&turn);
 }
-fn savedInput(source: p.Source.Definition, descriptor: x.Descriptor) root.Saved {
+pub fn savedInput(source: p.Source.Definition, descriptor: x.Descriptor) root.Saved {
     const key: c.DirectClientToken.Key = .{ .definition = p.Growth.current_definition, .connection = .{ .scope = f.scope, .branch = 1, .audience = 3, .principal = 1, .role = null }, .account = @splat(98), .token = @splat(1) };
     var candidate = key;
     candidate.token = @splat(2);
@@ -186,7 +191,7 @@ const DestinationReader = struct {
         return .{ .value = .{ .result = result }, .attempt = .{} };
     }
 };
-fn readPublished(catalog: *c.DirectCatalog, access: *f.Access, input: root.Saved, state: root.Journal.State) !void {
+pub fn readPublished(catalog: *c.DirectCatalog, access: *f.Access, input: root.Saved, state: root.Journal.State) !void {
     const previous = access.principal;
     defer access.principal = previous;
     access.principal = 2;
@@ -195,7 +200,7 @@ fn readPublished(catalog: *c.DirectCatalog, access: *f.Access, input: root.Saved
     var transport: DestinationReader = .{ .catalog = catalog, .access = access, .connection = connection };
     defer if (transport.cached) |*cached| cached.deinit();
     var reader: root.data.CaptureReader = undefined;
-    try reader.init(t.allocator, .{
+    try reader.init(runtime.allocator(), .{
         .definition = p.Growth.current_definition,
         .connection = connection,
         .open = .{ .reference = (try input.plan(state.manifest.?)).reference, .operation = .{ .scope = f.scope, .principal = 2, .operation = 100000 } },
@@ -207,8 +212,8 @@ fn readPublished(catalog: *c.DirectCatalog, access: *f.Access, input: root.Saved
     _ = try reader.open();
     var offset: u64 = 0;
     while (true) {
-        const page = try reader.next(t.allocator);
-        defer t.allocator.free(page.bytes);
+        const page = try reader.next(runtime.allocator());
+        defer runtime.allocator().free(page.bytes);
         try t.expectEqual(offset, page.offset);
         for (page.bytes, 0..) |byte, i| try t.expectEqual(@as(u8, @truncate((offset + i) *% 73 +% 19)), byte);
         offset += page.bytes.len;
@@ -224,9 +229,9 @@ test "sealed HTTP handoff copies complete responses with restart and original ho
     for ([_]struct { bytes: usize, status: u16 }{ .{ .bytes = 0, .status = 204 }, .{ .bytes = 65537, .status = 200 }, .{ .bytes = 1, .status = 404 }, .{ .bytes = 65535, .status = 200 }, .{ .bytes = 65536, .status = 503 }, .{ .bytes = 4 * 1024 * 1024, .status = 200 } }) |case| {
         var tmp = t.tmpDir(.{});
         defer tmp.cleanup();
-        var wal = try c.storage.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        var wal = try c.storage.LocalWal.LocalWal.openDiskWithOptions(runtime.allocator(), runtime.io(), tmp.dir, "wal", .{});
         defer wal.deinit();
-        var objects = try c.storage.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        var objects = try c.storage.LocalSegmentStore.LocalSegmentStore.openDiskAt(runtime.allocator(), runtime.io(), tmp.dir, "objects");
         defer objects.deinit();
         var catalog = try f.owner(&wal, &objects);
         defer catalog.deinit();
@@ -239,7 +244,7 @@ test "sealed HTTP handoff copies complete responses with restart and original ho
         var origin: Origin = .{ .store = &store, .access = &access, .expected = input, .lose_hold = true, .lose_release = true };
         var admission: c.DirectSourceCapture.Admission = .{};
         var importer: root.Importer(Origin) = undefined;
-        try importer.init(t.allocator, input, &origin, .{ .catalog = &catalog, .policy = access.policy() }, &admission);
+        try importer.init(runtime.allocator(), input, &origin, .{ .catalog = &catalog, .policy = access.policy() }, &admission);
         defer importer.deinit();
         var previous: root.Journal.State = .{};
         var faults: usize = 0;
@@ -262,6 +267,12 @@ test "sealed HTTP handoff copies complete responses with restart and original ho
                 try t.expectEqual(case.status, state.evidence.?.http_status);
                 try t.expectEqual(0, state.outcome.?.append.?.first);
                 try t.expectEqual(1, state.outcome.?.append.?.next);
+                var changed = state;
+                changed.evidence.?.poll.capture_id[0] ^= 1;
+                try t.expectError(error.InvalidSourceHandoff, changed.validate(input));
+                changed = state;
+                changed.evidence.?.attempt.operation += 1;
+                try t.expectError(error.InvalidSourceHandoff, changed.validate(input));
                 break;
             }
             if (state.phase != previous.phase) {
@@ -269,7 +280,7 @@ test "sealed HTTP handoff copies complete responses with restart and original ho
                 importer.deinit();
                 catalog.deinit();
                 catalog = try f.owner(&wal, &objects);
-                try importer.init(t.allocator, input, &origin, .{ .catalog = &catalog, .policy = access.policy() }, &admission);
+                try importer.init(runtime.allocator(), input, &origin, .{ .catalog = &catalog, .policy = access.policy() }, &admission);
             }
         } else return error.TestUnexpectedResult;
         try t.expect(faults >= 2);
@@ -285,7 +296,7 @@ test "sealed HTTP handoff copies complete responses with restart and original ho
         origin.denied = true;
         try readPublished(&catalog, &access, input, (try importer.inspect()).?.state);
         origin.denied = false;
-        var arena: std.heap.ArenaAllocator = .init(t.allocator);
+        var arena: std.heap.ArenaAllocator = .init(runtime.allocator());
         defer arena.deinit();
         var selection: c.DirectClientToken.Selection = .{ .scope = input.key.scope(), .after = null, .pending = false };
         var found = false;
@@ -303,9 +314,9 @@ test "sealed HTTP handoff copies complete responses with restart and original ho
 
 test "HTTP handoff incomplete replay and exhausted recovery preserve originals for explicit close" {
     for ([_]bool{ false, true }) |incomplete| {
-        var wal = c.storage.LocalWal.LocalWal.initMemory(t.allocator);
+        var wal = c.storage.LocalWal.LocalWal.initMemory(runtime.allocator());
         defer wal.deinit();
-        var objects = c.storage.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+        var objects = c.storage.LocalSegmentStore.LocalSegmentStore.initMemory(runtime.allocator());
         defer objects.deinit();
         var catalog = try f.owner(&wal, &objects);
         defer catalog.deinit();
@@ -320,7 +331,7 @@ test "HTTP handoff incomplete replay and exhausted recovery preserve originals f
         var origin: Origin = .{ .store = &store, .access = &access, .expected = input };
         var admission: c.DirectSourceCapture.Admission = .{};
         var importer: root.Importer(Origin) = undefined;
-        try importer.init(t.allocator, input, &origin, .{ .catalog = &catalog, .policy = access.policy() }, &admission);
+        try importer.init(runtime.allocator(), input, &origin, .{ .catalog = &catalog, .policy = access.policy() }, &admission);
         defer importer.deinit();
         _ = try importer.step(); // Hold is accepted after the original is saved.
         if (incomplete) {
@@ -334,7 +345,7 @@ test "HTTP handoff incomplete replay and exhausted recovery preserve originals f
             for (0..2) |_| {
                 _ = try importer.step(); // A bounded incomplete first pass.
                 importer.deinit();
-                try importer.init(t.allocator, input, &origin, .{ .catalog = &catalog, .policy = access.policy() }, &admission);
+                try importer.init(runtime.allocator(), input, &origin, .{ .catalog = &catalog, .policy = access.policy() }, &admission);
             }
             try t.expectError(error.SourceHandoffWorkLimit, importer.step());
         }
@@ -354,9 +365,9 @@ test "HTTP handoff incomplete replay and exhausted recovery preserve originals f
 }
 
 test "HTTP handoff refuses source revocation during copy and closes only its candidate" {
-    var wal = c.storage.LocalWal.LocalWal.initMemory(t.allocator);
+    var wal = c.storage.LocalWal.LocalWal.initMemory(runtime.allocator());
     defer wal.deinit();
-    var objects = c.storage.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    var objects = c.storage.LocalSegmentStore.LocalSegmentStore.initMemory(runtime.allocator());
     defer objects.deinit();
     var catalog = try f.owner(&wal, &objects);
     defer catalog.deinit();
@@ -369,7 +380,7 @@ test "HTTP handoff refuses source revocation during copy and closes only its can
     var origin: Origin = .{ .store = &store, .access = &access, .expected = input };
     var admission: c.DirectSourceCapture.Admission = .{};
     var importer: root.Importer(Origin) = undefined;
-    try importer.init(t.allocator, input, &origin, .{ .catalog = &catalog, .policy = access.policy() }, &admission);
+    try importer.init(runtime.allocator(), input, &origin, .{ .catalog = &catalog, .policy = access.policy() }, &admission);
     defer importer.deinit();
     for (0..16) |_| {
         if ((try importer.step()).phase == .copying) break;
@@ -385,4 +396,69 @@ test "HTTP handoff refuses source revocation during copy and closes only its can
     const state = (try catalog.store.clientTokenState(input.candidate.key)).?.capture.?;
     try t.expectEqual(.closed, state.phase);
     try t.expectEqual(null, try catalog.store.clientToken(input.publication.key));
+}
+
+test "full importer admission leaves reserved nested workspace for accepted progress" {
+    var wal = c.storage.LocalWal.LocalWal.initMemory(runtime.allocator());
+    defer wal.deinit();
+    var objects = c.storage.LocalSegmentStore.LocalSegmentStore.initMemory(runtime.allocator());
+    defer objects.deinit();
+    var catalog = try f.owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: f.Access = .{ .exclusive = true };
+    try catalog.initialize(access.policy());
+    const source = try f.captureSetup(&catalog, &access);
+    var store: exchange.Store = .{};
+    defer store.deinit();
+    const input = savedInput(source, try original(&store, 65537, 200, false));
+    var origin: Origin = .{ .store = &store, .access = &access, .expected = input };
+    var admission: c.DirectSourceCapture.Admission = .{};
+    const Importer = root.Importer(Origin);
+    var active: [4]Importer = undefined;
+    var count: usize = 0;
+    defer for (active[0..count]) |*importer| importer.deinit();
+    for (&active) |*importer| {
+        try importer.init(runtime.allocator(), input, &origin, .{ .catalog = &catalog, .policy = access.policy() }, &admission);
+        count += 1;
+    }
+    var rejected: Importer = undefined;
+    try t.expectError(error.SourceCaptureResidentLimit, rejected.init(runtime.allocator(), input, &origin, .{ .catalog = &catalog, .policy = access.policy() }, &admission));
+    try t.expectEqual(admission.limit, admission.used);
+    // Other owners are admitted but idle. Finishing this original must not
+    // require spare aggregate capacity for staging, verification or closure.
+    for (0..128) |_| {
+        if ((try active[0].step()).phase == .released) break;
+    } else return error.TestUnexpectedResult;
+    try t.expectEqual(admission.limit, admission.used);
+}
+
+test "complete HTTP body one byte beyond the capture limit never admits a candidate" {
+    var wal = c.storage.LocalWal.LocalWal.initMemory(runtime.allocator());
+    defer wal.deinit();
+    var objects = c.storage.LocalSegmentStore.LocalSegmentStore.initMemory(runtime.allocator());
+    defer objects.deinit();
+    var catalog = try f.owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: f.Access = .{ .exclusive = true };
+    try catalog.initialize(access.policy());
+    const source = try f.captureSetup(&catalog, &access);
+    var store: exchange.Store = .{};
+    defer store.deinit();
+    const input = savedInput(source, try original(&store, 4 * 1024 * 1024 + 1, 200, false));
+    var origin: Origin = .{ .store = &store, .access = &access, .expected = input };
+    var admission: c.DirectSourceCapture.Admission = .{};
+    var importer: root.Importer(Origin) = undefined;
+    try importer.init(runtime.allocator(), input, &origin, .{ .catalog = &catalog, .policy = access.policy() }, &admission);
+    defer importer.deinit();
+    for (0..128) |_| {
+        _ = importer.step() catch |err| {
+            try t.expectEqual(error.SourceCaptureWorkLimit, err);
+            break;
+        };
+    } else return error.TestUnexpectedResult;
+    try t.expectEqual(null, try catalog.store.clientToken(input.candidate.key));
+    try t.expectEqual(null, try catalog.store.clientToken(input.publication.key));
+    _ = try importer.cancel();
+    try t.expectEqual(.settled, (try importer.step()).phase);
+    try t.expectEqual(.released, (try importer.step()).phase);
 }

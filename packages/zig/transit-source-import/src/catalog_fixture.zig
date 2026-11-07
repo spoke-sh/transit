@@ -1,6 +1,7 @@
 // Component fixture using real Catalog and Stream owners under explicit test policy.
 const std = @import("std");
 const t = std.testing;
+const runtime = @import("fixture_runtime.zig");
 const c = @import("root.zig").data.catalog;
 const p = c.protocol;
 const s = c.storage;
@@ -119,7 +120,10 @@ fn configuration() !D.Configuration {
     return .{ .scope = scope, .branch = 1, .partition = 1, .audience = 3, .authority = profile, .database_name = try a.Name.init("main"), .initial_schema_name = try a.Name.init("public") };
 }
 pub fn owner(wal: *s.LocalWal.LocalWal, objects: *s.LocalSegmentStore.LocalSegmentStore) !D {
-    var result = try D.init(t.allocator, try configuration(), wal.log(), objects.objectStore(), wal.log(), objects.objectStore(), .{ .resident_pages = 1, .table = .{ .resident_pages = 1 } });
+    return ownerWith(runtime.allocator(), wal, objects);
+}
+pub fn ownerWith(allocator: std.mem.Allocator, wal: *s.LocalWal.LocalWal, objects: *s.LocalSegmentStore.LocalSegmentStore) !D {
+    var result = try D.init(allocator, try configuration(), wal.log(), objects.objectStore(), wal.log(), objects.objectStore(), .{ .resident_pages = 1, .table = .{ .resident_pages = 1 } });
     errdefer result.deinit();
     try result.recover();
     return result;
@@ -132,11 +136,11 @@ fn logCreation(kind: c.DirectLog.Kind, object: u64, operation: u64, name: []cons
         .configuration = .{ .partitioning = .{ .count = partitions, .key_column = null, .hash = .sha256_64 }, .retention = .{ .max_age_ms = null }, .policy = if (kind == .stream) .{ .stream = .{ .compact_key_column = null, .timestamp_column = null } } else .{ .queue = .{ .ordering = .unordered, .key_column = null, .lease_ms = 100, .maximum_lease_ms = 1000, .maximum_attempts = 5, .backoff = .{ .initial_ms = 10, .maximum_ms = 1000, .multiplier = 2 }, .dead_letter = null } } },
         .limits = .{ .append_rows = 128, .append_bytes = 1024 * 1024, .claim_rows = 16, .read_rows = 128, .read_bytes = 1024 * 1024, .active_leases = 64, .waiters = 64, .timer_steps = 64 },
     } } };
-    return .{ .intent = intent, .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = operation }, .target = .{ .scope = scope, .branch = 1, .object = object }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(t.allocator) } };
+    return .{ .intent = intent, .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = operation }, .target = .{ .scope = scope, .branch = 1, .object = object }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(runtime.allocator()) } };
 }
 fn connectorCreation(object: u64, operation: u64, name: []const u8, payload: c.SourceDeclaration.Payload) !c.DirectSource.Request {
     const intent: c.DirectSource.Intent = .{ .kind = std.meta.activeTag(payload), .namespace = 1, .name = try .init(name), .action = .{ .create = .{ .owner = 0, .payload = payload } } };
-    return .{ .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = operation }, .target = .{ .scope = scope, .branch = 1, .object = object }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(t.allocator) }, .intent = intent };
+    return .{ .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = operation }, .target = .{ .scope = scope, .branch = 1, .object = object }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(runtime.allocator()) }, .intent = intent };
 }
 fn connectorExecute(catalog: *D, access: *Access, request: c.DirectSource.Request) !c.DirectSource.Operation {
     var observed = (try catalog.sourceOperation(request, .reserve, access.policy())).operation;
@@ -151,12 +155,12 @@ pub fn captureSetup(catalog: *D, access: *Access) !p.Source.Definition {
     return captureSetupRetention(catalog, access, null);
 }
 fn captureSetupRetention(catalog: *D, access: *Access, max_age_ms: ?u64) !p.Source.Definition {
-    var ddl = try c.fuze.LogDdl.compile(t.allocator, "CREATE STREAM captures (capture_id UUID NOT NULL, source_sequence UINT64 NOT NULL, observed_at TIMESTAMPTZ NOT NULL, http_status INTEGER NOT NULL, body_ref BINARY NOT NULL, body_bytes UINT64 NOT NULL, body_sha256 BINARY NOT NULL)", .transit, null);
+    var ddl = try c.fuze.LogDdl.compile(runtime.allocator(), "CREATE STREAM captures (capture_id UUID NOT NULL, source_sequence UINT64 NOT NULL, observed_at TIMESTAMPTZ NOT NULL, http_status INTEGER NOT NULL, body_ref BINARY NOT NULL, body_bytes UINT64 NOT NULL, body_sha256 BINARY NOT NULL)", .transit, null);
     defer ddl.deinit();
     var request = try logCreation(.stream, 50, 50, "captures", 1);
     request.intent.action.create.schema = try ddl.statement.action.create.bind(50);
     request.intent.action.create.configuration.retention.max_age_ms = max_age_ms;
-    request.binding.intent = try request.intent.digest(t.allocator);
+    request.binding.intent = try request.intent.digest(runtime.allocator());
     _ = try catalog.admitLog(request, access.policy());
     const log = (try catalog.logOperation(request.binding, .execute, access.policy())).operation.resulting.?;
     const connection = (try connectorExecute(catalog, access, try connectorCreation(77, 100, "upstream", .{ .connection = .{ .endpoint = "http://127.0.0.1:1" } }))).resulting.?;

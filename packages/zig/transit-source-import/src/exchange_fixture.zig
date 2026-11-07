@@ -1,5 +1,6 @@
 const std = @import("std");
 const t = std.testing;
+const runtime = @import("fixture_runtime.zig");
 const root = @import("root.zig");
 const x = root.http.exchange;
 const p = x.p;
@@ -13,8 +14,33 @@ pub const Store = struct {
     input: u64 = 1,
     reads: usize = 0,
     fail_read: bool = false,
+    wal: ?*root.data.catalog.storage.LocalWal.LocalWal = null,
+    next_lsn: u64 = 0,
+    const Record = struct { definition: p.Growth.Definition, revision: u64, input: u64, mutations: @FieldType(@FieldType(Turn, "decision"), "mutations") };
+    pub fn reopen(wal: *root.data.catalog.storage.LocalWal.LocalWal) !Store {
+        var self: Store = .{ .wal = wal };
+        errdefer self.deinit();
+        var scratch: std.heap.ArenaAllocator = .init(runtime.allocator());
+        defer scratch.deinit();
+        while (true) {
+            _ = scratch.reset(.retain_capacity);
+            var batch = try wal.log().read(runtime.allocator(), 1, self.next_lsn, 1);
+            defer batch.deinit();
+            if (batch.frames.len == 0) break;
+            const frame = batch.frames[0];
+            const record = (try p.Json.parseFromSlice(Record, scratch.allocator(), frame.payload)).value;
+            if (record.definition != p.Growth.current_definition or record.revision != self.revision + 1 or frame.header.kind != .process_turn) return error.InvalidFixtureJournal;
+            for (record.mutations) |slot| if (slot) |mutation| {
+                if (mutation.value) |value| try self.state.put(runtime.allocator(), mutation.key, value) else _ = self.state.remove(mutation.key);
+            };
+            self.revision = record.revision;
+            self.input = record.input;
+            self.next_lsn = frame.header.lsn + 1;
+        }
+        return self;
+    }
     pub fn deinit(self: *Store) void {
-        self.state.deinit(t.allocator);
+        self.state.deinit(runtime.allocator());
     }
     pub fn capture(self: *Store) !Turn {
         self.input += 1;
@@ -29,8 +55,14 @@ pub const Store = struct {
     }
     pub fn commit(self: *Store, turn: Turn) !void {
         try turn.validate();
+        if (self.wal) |wal| {
+            const bytes = try p.Json.valueAllocBounded(runtime.allocator(), Record{ .definition = p.Growth.current_definition, .revision = self.revision + 1, .input = self.input, .mutations = turn.decision.mutations }, 16 * 1024);
+            defer runtime.allocator().free(bytes);
+            const accepted = try wal.log().append(1, self.next_lsn, 1, 1, .process_turn, bytes);
+            self.next_lsn = accepted.next_lsn;
+        }
         for (turn.decision.mutations) |slot| if (slot) |mutation| {
-            if (mutation.value) |value| try self.state.put(t.allocator, mutation.key, value) else _ = self.state.remove(mutation.key);
+            if (mutation.value) |value| try self.state.put(runtime.allocator(), mutation.key, value) else _ = self.state.remove(mutation.key);
         };
         self.revision += 1;
     }
