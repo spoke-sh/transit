@@ -223,7 +223,7 @@ pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.
         else => null,
     } else null;
     const reserved = if (private_observation) |work| try c.OperationBinding.transactionLogObservation(scratch, catalog.data_objects, work) else false;
-    if (!reserved) if (binding) |original| if (try c.OperationBinding.lookupStream(scratch, catalog.data_objects, original.operation)) |known| try known.requireSame(original);
+    if (!reserved) if (binding) |original| try catalog.verifyStreamBinding(scratch, catalog.data_objects, original);
     const initial = try current.definition.genesis(request.target().partition);
     if (slot.*) |*cached| if (!std.meta.eql(cached.initialization, initial)) {
         cached.deinit();
@@ -287,7 +287,7 @@ pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.
         .wait => unreachable,
         .cancel => |value| blk: {
             try authorize(current.guard);
-            try c.OperationBinding.claimStream(scratch, catalog.store.objects, binding.?);
+            try catalog.claimStreamBinding(scratch, catalog.store.objects, binding.?);
             break :blk .{ .operation = try originalReceipt(value, try owner.cancel(current.definition.stored, value, current.guard)) };
         },
         .observe => .{ .cut = try owner.observe(current.definition.stored, current.guard) },
@@ -331,7 +331,7 @@ pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.
             if (value.work == .append and !std.meta.eql(s.LogBatch.content(payload), value.work.append.payload)) return error.LogPayloadConflict;
             try authorize(current.guard);
             const objects = if (value.work.control()) catalog.store.objects else catalog.data_objects;
-            try c.OperationBinding.claimStream(scratch, objects, binding.?);
+            try catalog.claimStreamBinding(scratch, objects, binding.?);
             const accepted = mutate(owner, current.definition.stored, value.work, payload, environment, current.guard, request == .wait) catch |err| failure: {
                 // The mutation owner already checks original success. Only its
                 // closed/conflicting path needs another receipt lookup.

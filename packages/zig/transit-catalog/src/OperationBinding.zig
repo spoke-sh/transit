@@ -129,6 +129,26 @@ pub fn encodeData(binding: d.Binding, output: *[max_bytes]u8) !struct { bytes: [
     const encoded = output[0 .. header_bytes + writer.end];
     return .{ .bytes = encoded, .sha256 = hash(encoded) };
 }
+pub fn encodeStream(binding: c.DirectStreamMutation.Binding, output: *[max_bytes]u8) !struct { bytes: []const u8, sha256: [32]u8 } {
+    const stored: Stored = .{ .stream = binding };
+    try stored.validate();
+    output[0..8].* = "TOPBIND1".*;
+    output[8..40].* = p.Growth.definition_bytes;
+    var writer: std.Io.Writer = .fixed(output[header_bytes..]);
+    try std.json.Stringify.value(stored, .{}, &writer);
+    const encoded = output[0 .. header_bytes + writer.end];
+    return .{ .bytes = encoded, .sha256 = hash(encoded) };
+}
+pub fn encodeQueue(binding: c.DirectQueueMutation.Binding, output: *[max_bytes]u8) !struct { bytes: []const u8, sha256: [32]u8 } {
+    const stored: Stored = .{ .queue = binding };
+    try stored.validate();
+    output[0..8].* = "TOPBIND1".*;
+    output[8..40].* = p.Growth.definition_bytes;
+    var writer: std.Io.Writer = .fixed(output[header_bytes..]);
+    try std.json.Stringify.value(stored, .{}, &writer);
+    const encoded = output[0 .. header_bytes + writer.end];
+    return .{ .bytes = encoded, .sha256 = hash(encoded) };
+}
 pub fn claimOwned(allocator: std.mem.Allocator, objects: Objects.ObjectStore, value: Owned) !void {
     return claimStored(allocator, objects, .{ .owned = value });
 }

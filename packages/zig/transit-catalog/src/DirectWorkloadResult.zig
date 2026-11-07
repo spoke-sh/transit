@@ -104,8 +104,12 @@ cursor: union(enum) { append: s.LogBatch.Iterator, consume: p.StreamRead.Cursor,
 /// Reopening starts a separate delivery at the original selection's beginning.
 /// It does not splice a new selection into an incomplete previous delivery.
 pub fn open(allocator: std.mem.Allocator, catalog: *c.DirectCatalog, intent_reference: Intent.Reference, limits: Limits, policy: c.DirectCatalog.Policy, native: Native) !Self {
+    return openInternal(allocator, catalog, intent_reference, limits, policy, native, null);
+}
+
+fn openInternal(allocator: std.mem.Allocator, catalog: *c.DirectCatalog, intent_reference: Intent.Reference, limits: Limits, policy: c.DirectCatalog.Policy, native: Native, initial_position: ?Position) !Self {
     try limits.validate();
-    var intent = try Intent.load(allocator, catalog.data_objects, intent_reference);
+    var intent = try catalog.loadWorkloadIntent(allocator, intent_reference);
     errdefer intent.deinit();
     var scratch: std.heap.ArenaAllocator = .init(allocator);
     defer scratch.deinit();
@@ -130,17 +134,23 @@ pub fn open(allocator: std.mem.Allocator, catalog: *c.DirectCatalog, intent_refe
             self.cursor = .{ .append = try s.LogBatch.Iterator.init(self.payload.?, declared.definition.schema, if (receipt.append.kind == .stream) .stream else .queue, receipt.append.rows) };
         },
         .consume => |receipt| {
-            const request: c.DirectStream.Request = .{ .cursor = .{ .target = receipt.request.target, .read = receipt.handle() } };
-            const result = try native.stream(native.context, allocator, catalog, policy, request);
-            defer result.deinit(allocator);
-            try c.DirectStreamResponse.validate(allocator, intent_reference.connection, request, result);
-            if (result == .recovering) return error.ClientOperationPending;
-            try result.cursor.requireReceipt(receipt);
-            self.cursor = .{ .consume = result.cursor };
+            if (initial_position) |at| {
+                try at.validate(selected);
+                self.cursor = .{ .consume = at.consume };
+            } else {
+                const request: c.DirectStream.Request = .{ .cursor = .{ .target = receipt.request.target, .read = receipt.handle() } };
+                const result = try native.stream(native.context, allocator, catalog, policy, request);
+                defer result.deinit(allocator);
+                try c.DirectStreamResponse.validate(allocator, intent_reference.connection, request, result);
+                if (result == .recovering) return error.ClientOperationPending;
+                try result.cursor.requireReceipt(receipt);
+                self.cursor = .{ .consume = result.cursor };
+            }
         },
         .claim => |receipt| self.cursor = .{ .claim = .{ .receipt = receipt, .next = 0 } },
         .renewal => self.cursor = .{ .renewal = 0 },
     }
+    if (initial_position) |at| if (selected != .consume) try self.seek(at);
     try authorize(scratch.allocator(), catalog, intent.parsed.value.work, policy);
     return self;
 }
@@ -148,6 +158,14 @@ pub fn open(allocator: std.mem.Allocator, catalog: *c.DirectCatalog, intent_refe
 pub fn reopen(allocator: std.mem.Allocator, catalog: *c.DirectCatalog, expected: Reference, policy: c.DirectCatalog.Policy, native: Native) !Self {
     try expected.validate();
     var self = try open(allocator, catalog, expected.intent, expected.limits, policy, native);
+    errdefer self.deinit();
+    try expected.requireSame(self.reference);
+    return self;
+}
+
+pub fn reopenAt(allocator: std.mem.Allocator, catalog: *c.DirectCatalog, expected: Reference, at: Position, policy: c.DirectCatalog.Policy, native: Native) !Self {
+    try expected.validate();
+    var self = try openInternal(allocator, catalog, expected.intent, expected.limits, policy, native, at);
     errdefer self.deinit();
     try expected.requireSame(self.reference);
     return self;
@@ -241,11 +259,17 @@ pub fn next(self: *Self, scratch_arena: *std.heap.ArenaAllocator, output: std.me
 /// A caller may lower one page's row budget without changing the frozen result
 /// identity. This bounds the traversal frontier for a logical LIMIT.
 pub fn nextRows(self: *Self, scratch_arena: *std.heap.ArenaAllocator, output: std.mem.Allocator, catalog: *c.DirectCatalog, policy: c.DirectCatalog.Policy, native: Native, row_budget: u32) !Page {
+    return self.nextRowsVerified(scratch_arena, output, catalog, policy, native, row_budget, false);
+}
+
+pub fn nextRowsVerified(self: *Self, scratch_arena: *std.heap.ArenaAllocator, output: std.mem.Allocator, catalog: *c.DirectCatalog, policy: c.DirectCatalog.Policy, native: Native, row_budget: u32, already_observed: bool) !Page {
     if (row_budget == 0 or row_budget > self.reference.limits.rows) return error.InvalidWorkloadResultBudget;
     const scratch = scratch_arena.allocator();
     if (scratch.ptr == output.ptr) return error.InvalidWorkloadResultBudget;
-    try authorize(scratch, catalog, self.intent.parsed.value.work, policy);
-    if (!std.meta.eql(self.reference.selection, try observe(scratch, catalog, self.intent, policy, native))) return error.WorkloadResultConflict;
+    if (!already_observed) {
+        try authorize(scratch, catalog, self.intent.parsed.value.work, policy);
+        if (!std.meta.eql(self.reference.selection, try observe(scratch, catalog, self.intent, policy, native))) return error.WorkloadResultConflict;
+    }
     var limits = self.reference.limits;
     limits.rows = row_budget;
     var cursor = self.cursor;

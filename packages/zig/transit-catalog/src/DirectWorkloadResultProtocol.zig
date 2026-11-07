@@ -58,7 +58,7 @@ pub fn apply(output: std.mem.Allocator, catalog: *c.DirectCatalog, policy: c.Dir
     try request.validate(request.intentReference().connection);
     var owned = switch (request) {
         .open => |value| try r.open(catalog.allocator, catalog, value.intent, value.limits, policy, native),
-        .page => |value| try r.reopen(catalog.allocator, catalog, value.reference, policy, native),
+        .page => |value| try r.reopenAt(catalog.allocator, catalog, value.reference, value.position, policy, native),
     };
     defer owned.deinit();
     var scratch: std.heap.ArenaAllocator = .init(catalog.allocator);
@@ -70,8 +70,7 @@ pub fn apply(output: std.mem.Allocator, catalog: *c.DirectCatalog, policy: c.Dir
             break :blk .{ .opened = .{ .reference = owned.reference, .position = owned.position(), .source = source } };
         },
         .page => |value| blk: {
-            try owned.seek(value.position);
-            const page = try owned.nextRows(&scratch, output, catalog, policy, native, value.rows);
+            const page = try owned.nextRowsVerified(&scratch, output, catalog, policy, native, value.rows, true);
             break :blk .{ .page = .{ .reference = owned.reference, .position = owned.position(), .page = page } };
         },
     };

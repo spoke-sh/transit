@@ -69,9 +69,7 @@ pub const Reader = struct {
     inspect: *const fn (*anyopaque, std.mem.Allocator, *c.DirectCatalog, c.DirectCatalog.Policy, Work) anyerror!Result,
 
     pub fn requireTerminal(self: Reader, allocator: std.mem.Allocator, catalog: *c.DirectCatalog, policy: c.DirectCatalog.Policy, expected: Reference) !void {
-        var intent = try load(allocator, catalog.data_objects, expected);
-        defer intent.deinit();
-        const work = intent.parsed.value.work;
+        const work = try catalog.verifiedWorkloadWork(allocator, expected);
         const observed = try self.inspect(self.context, allocator, catalog, policy, work);
         switch (observed) {
             .stream => |result| {
@@ -258,13 +256,15 @@ pub fn deinit(self: *Self) void {
 }
 pub fn restore(allocator: std.mem.Allocator, bytes: []const u8) !Self {
     if (bytes.len == 0 or bytes.len > c.DirectRecord.max_bytes) return error.InvalidWorkloadIntent;
-    const parsed = try p.Json.parseFromSlice(Saved, allocator, bytes);
-    defer parsed.deinit();
+    const owned = try allocator.dupe(u8, bytes);
+    errdefer allocator.free(owned);
+    var parsed = try p.Json.parseFromSlice(Saved, allocator, owned);
+    errdefer parsed.deinit();
     try parsed.value.validate(allocator);
-    var result = try createWaited(allocator, parsed.value.connection, parsed.value.source, parsed.value.work, parsed.value.projection, parsed.value.wait_ms);
-    errdefer result.deinit();
-    if (!std.mem.eql(u8, bytes, result.bytes)) return error.InvalidWorkloadIntent;
-    return result;
+    const canonical = p.Json.valueAllocBounded(allocator, parsed.value, c.DirectRecord.max_bytes) catch |err| return if (err == error.WriteFailed) error.CatalogRecordTooLarge else err;
+    defer allocator.free(canonical);
+    if (!std.mem.eql(u8, owned, canonical)) return error.InvalidWorkloadIntent;
+    return .{ .allocator = allocator, .bytes = owned, .parsed = parsed };
 }
 pub fn reference(self: *const Self, account: [32]u8) !Reference {
     const value = self.parsed.value;
@@ -292,6 +292,12 @@ pub fn load(allocator: std.mem.Allocator, objects: s.TransitObjectStore.ObjectSt
     errdefer intent.deinit();
     try expected.requireSame(try intent.reference(expected.record.scope.account));
     return intent;
+}
+pub fn loadVerified(allocator: std.mem.Allocator, objects: s.TransitObjectStore.ObjectStore, expected: Reference) !Self {
+    try expected.validate();
+    const bytes = try c.DirectRecord.load(allocator, objects, expected.record);
+    errdefer allocator.free(bytes);
+    return .{ .allocator = allocator, .bytes = bytes, .parsed = try p.Json.parseFromSlice(Saved, allocator, bytes) };
 }
 
 test "workload token verifies independent signed references and exact commitments" {
