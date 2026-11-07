@@ -115,6 +115,16 @@ pub const Reference = struct {
     }
 };
 
+pub const Attachment = struct {
+    reference: Reference,
+    transaction: p.Transaction.Identity,
+    pub fn validate(self: Attachment) !void {
+        try self.reference.validate();
+        try self.transaction.validate();
+        if (self.transaction.branch != self.reference.destination.object.branch or
+            !std.meta.eql(self.transaction.begin.scope, self.reference.destination.object.scope)) return error.InvalidSourceCapture;
+    }
+};
 pub const SchemaTypes = struct { evidence: Evidence, reference: Reference };
 
 test "capture evidence binds finite original and reference stays below the row budget" {

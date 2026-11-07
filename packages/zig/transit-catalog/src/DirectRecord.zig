@@ -95,6 +95,8 @@ pub fn reference(scope: Scope, format: u32, bytes: []const u8) !Reference {
 }
 pub fn key(value: Reference, output: *[96]u8) ![]const u8 {
     try value.validate();
+    if (value.format == c.DirectSourceCapture.manifest_format)
+        return c.DirectSourceCapture.Manifest.key(value.content, output);
     var bytes: [2048]u8 = undefined;
     var writer: std.Io.Writer = .fixed(&bytes);
     var encoder: std.json.Stringify = .{ .writer = &writer };

@@ -209,6 +209,7 @@ fn mutate(owner: *Stream, declared: s.LogDeclaration.Stored, request: Mutation.R
 /// scratch may reset immediately after this call and must differ from output.
 pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.DirectCatalog, slot: *?Cached, options: Stream.Options, environment: Environment, request: Request, policy: c.DirectCatalog.Policy) !Result {
     try request.validate(policy.subject.principal(), catalog.store.root.configuration.scope);
+    if (request == .mutate and request.mutate.work == .append and request.mutate.work.append.capture != null) return error.SourceCaptureOperationRequired;
     if (environment.recovery_steps == 0 or environment.recovery_steps > 256) return error.InvalidLogRecoveryBudget;
     var current = try catalog.logAuthorization(scratch, .stream, request.target(), request.access(), policy);
     const binding: ?Mutation.Binding = switch (request) {

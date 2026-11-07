@@ -1065,7 +1065,7 @@ persist(root / "packages/zig/transit-catalog/src/fixtures/direct-transaction-kv-
 log_work = {"append": {
     "target": stream_work["consume"]["target"],
     "operation": {**log_binding["identity"], "operation": 2**64 - 2},
-    "kind": "stream", "producer": None, "rows": 1,
+    "kind": "stream", "producer": None, "rows": 1, "capture": None,
     "payload": {"bytes": 3, "sha256": list(hashlib.sha256(b"abc").digest())},
 }}
 log_work_digest = hashlib.sha256(b"transit.catalog.transaction.log.work.v1\0" + bytes.fromhex(definition) + canonical(log_work)).digest()

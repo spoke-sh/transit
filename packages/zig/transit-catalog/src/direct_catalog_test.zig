@@ -10798,6 +10798,148 @@ fn capturePattern(output: []u8, offset: usize) void {
     for (output, 0..) |*byte, i| byte.* = @truncate((offset + i) *% 73 +% 19);
 }
 
+fn capturePublication(observation: Capture.Observation) !c.DirectSourcePublication {
+    const descriptor = observation.descriptor;
+    var key = descriptor.key;
+    key.token[0] ^= 128;
+    var begin = descriptor.operation;
+    begin.operation += 10000;
+    var append = begin;
+    append.operation += 10000;
+    var settlement = append;
+    settlement.operation += 10000;
+    return .{ .definition = p.Growth.current_definition, .candidate = descriptor.key, .key = key, .reference = .{ .definition = p.Growth.current_definition, .candidate = try descriptor.key.digest(), .destination = descriptor.evidence.destination, .manifest = observation.state.manifest.? }, .namespace = descriptor.namespace, .operation = begin, .append = append, .settlement = settlement, .limits = .{ .resident_bytes = 8 * 1024 * 1024, .workspace_bytes = 16 * 1024 * 1024, .participants = 1, .statements = 1, .savepoints = 1 }, .budget = .{ .bytes = 16 * 1024 * 1024 } };
+}
+
+test "SOURCE capture publication recovers one protected transaction and exact original offset" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{ .exclusive = true };
+    try catalog.initialize(access.policy());
+    const source = try captureSetup(&catalog, &access);
+    var host: CaptureHost = .{ .access = &access };
+    const bytes = "complete retained observation";
+    var digest: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
+    for ([_]c.DirectTransactionControl.Command{ .commit, .abort }, 1..) |command, id| {
+        const descriptor = captureDescriptor(source, @intCast(id), bytes.len, digest);
+        host.expected = descriptor.evidence;
+        var observed = try catalog.captureReserve(descriptor, access.policy(), host.authority());
+        observed = try catalog.captureUpload(.{ .control = .{ .key = descriptor.key, .expected = observed.revision }, .chunk = .{ .offset = 0, .content = .{ .bytes = bytes.len, .sha256 = digest } }, .bytes = bytes }, access.policy(), host.authority());
+        var verifier = try Capture.Verifier.init(descriptor.key, &host.admission);
+        defer verifier.deinit();
+        observed = try catalog.captureVerify(&verifier, .{ .bytes = 64, .pages = 64 }, access.policy(), host.authority());
+        const plan = try capturePublication(observed);
+        // The importer may append without destination raw-byte disclosure.
+        access.denied_privileges = .{ .id = 50, .mask = c.LogAuthority.read };
+        catalog.store.lose_reply = true;
+        try t.expectError(error.LostAcknowledgement, catalog.capturePublish(plan, access.policy(), host.authority()));
+        catalog.store.lose_reply = false;
+        catalog.deinit();
+        catalog = try owner(&wal, &objects);
+        observed = try catalog.capturePublish(plan, access.policy(), host.authority());
+        try t.expectEqual(.publishing, observed.state.phase);
+        var alternate = plan;
+        alternate.key.token[1] ^= 1;
+        try t.expectError(error.ClientTokenConflict, catalog.capturePublish(alternate, access.policy(), host.authority()));
+        var targets: [1]p.Transaction.Target = undefined;
+        try t.expectError(error.TransactionOperationRequired, catalog.beginTransaction(try plan.begin(&targets), access.policy()));
+        try t.expectError(error.TransactionOperationRequired, catalog.settleTransaction(plan.key, plan.settlement, .commit, 1, access.policy()));
+        try t.expectError(error.SourceCapturePublicationRequired, catalog.captureClose(.{ .key = descriptor.key, .expected = observed.revision }, access.policy(), host.authority()));
+        var steps: usize = 0;
+        var lost: usize = 0;
+        while (observed.state.phase == .publishing) : (steps += 1) {
+            if (steps > 64) return error.TestUnexpectedResult;
+            // Every accepted boundary is reopened. Repeated commit work keeps
+            // the same operation, common decision and partition offset.
+            catalog.lose_transaction_reply = true;
+            observed = catalog.captureAdvance(descriptor.key, command, 1, access.policy(), host.authority()) catch |err| blk: {
+                if (err != error.LostAcknowledgement) return err;
+                lost += 1;
+                break :blk (try catalog.captureInspect(.{ .key = descriptor.key }, access.policy(), host.authority())).?;
+            };
+            catalog.lose_transaction_reply = false;
+            catalog.deinit();
+            catalog = try owner(&wal, &objects);
+        }
+        try t.expect(lost != 0);
+        try t.expectEqual(@as(@FieldType(Capture.State, "phase"), if (command == .commit) .published else .aborted), observed.state.phase);
+        const original = observed.state.outcome.?;
+        if (command == .commit) {
+            try t.expectEqual(0, original.append.?.first);
+            try t.expectEqual(1, original.append.?.next);
+            try t.expectEqualDeep(plan.reference, original.append.?.append.capture.?.reference);
+        } else try t.expectEqual(null, original.append);
+        observed = try catalog.captureAdvance(descriptor.key, .commit, 1, access.policy(), host.authority());
+        try t.expectEqualDeep(original, observed.state.outcome.?);
+        access.denied_privileges = null;
+        var cached: ?c.DirectStream.Cached = null;
+        defer if (cached) |*value| value.deinit();
+        const cut = (try streamCall(&catalog, &access, &cached, .{ .observe = descriptor.target() }, 256)).cut;
+        try t.expectEqual(1, cut.next);
+    }
+}
+
+fn captureSmall(catalog: *D, access: *Access, host: *CaptureHost, source: p.Source.Definition, id: u8, bytes: []const u8) !Capture.Observation {
+    var digest: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
+    const descriptor = captureDescriptor(source, id, bytes.len, digest);
+    host.expected = descriptor.evidence;
+    var observed = try catalog.captureReserve(descriptor, access.policy(), host.authority());
+    if (bytes.len != 0) observed = try catalog.captureUpload(.{ .control = .{ .key = descriptor.key, .expected = observed.revision }, .chunk = .{ .offset = 0, .content = .{ .bytes = bytes.len, .sha256 = digest } }, .bytes = bytes }, access.policy(), host.authority());
+    var verifier = try Capture.Verifier.init(descriptor.key, &host.admission);
+    defer verifier.deinit();
+    return catalog.captureVerify(&verifier, .{ .bytes = Capture.storage.chunk_bytes, .pages = 64 }, access.policy(), host.authority());
+}
+
+test "SOURCE capture publication graph retains committed and uncertain bodies and releases aborted bytes" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{ .exclusive = true };
+    try catalog.initialize(access.policy());
+    const source = try captureSetup(&catalog, &access);
+    var host: CaptureHost = .{ .access = &access };
+    for ([_]c.DirectTransactionControl.Command{ .commit, .abort }, 1..) |command, id| {
+        var observed = try captureSmall(&catalog, &access, &host, source, @intCast(id), "original");
+        const plan = try capturePublication(observed);
+        observed = try catalog.capturePublish(plan, access.policy(), host.authority());
+        try collectHistoricalFixture(&catalog, &wal, &objects, &access, &.{});
+        var output: [64]u8 = undefined;
+        try t.expectEqualStrings("original", try catalog.captureRead(plan.candidate, 0, &output, access.policy(), host.authority()));
+        var steps: usize = 0;
+        while (observed.state.phase == .publishing) : (steps += 1) {
+            if (steps > 64) return error.TestUnexpectedResult;
+            observed = try catalog.captureAdvance(plan.candidate, command, 1, access.policy(), host.authority());
+        }
+        try collectHistoricalFixture(&catalog, &wal, &objects, &access, &.{});
+        if (command == .commit) {
+            const manifest = try Capture.Manifest.load(t.allocator, objects.objectStore(), plan.reference);
+            const chunk = try Capture.storage.lookup(&catalog.store.index, manifest.inventory, 0, manifest.evidence.body.bytes);
+            try t.expectEqualStrings("original", try Capture.storage.read(objects.objectStore(), plan.reference.candidate, chunk, &output));
+            var cached: ?c.DirectStream.Cached = null;
+            defer if (cached) |*value| value.deinit();
+            var forged = observed.state.outcome.?.append.?.append;
+            forged.operation.operation += 1;
+            const binary = try c.DirectTableProtocol.Binary.encode(t.allocator, "unrelated row");
+            defer t.allocator.free(binary.base64);
+            try t.expectError(error.SourceCaptureOperationRequired, streamCall(&catalog, &access, &cached, .{ .mutate = .{ .work = .{ .append = forged }, .payload = binary } }, 256));
+        } else {
+            try t.expectError(error.SourceCaptureMissing, Capture.Manifest.load(t.allocator, objects.objectStore(), plan.reference));
+            try t.expectEqual(.aborted, (try catalog.captureInspect(.{ .key = plan.candidate }, access.policy(), host.authority())).?.state.phase);
+        }
+    }
+}
+
 test "SOURCE capture disk candidates retain empty and four MiB bodies with original recovery" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
