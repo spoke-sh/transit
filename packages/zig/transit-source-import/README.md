@@ -34,8 +34,11 @@ Each step advances one durable phase or at most 256 Exchange parts. The input
 transcript is bounded to 8 MiB/65,536 members and the body to 4 MiB. Each pass and
 restart reserves its entire transcript byte/part work before reading; exhaustion
 preserves the original for inspection and explicit cancellation. Scratch has a
-2 MiB budget, raw staging uses one reusable 64 KiB buffer, and active owners use
-the shared capture admission budget. Stored history has no resident collection.
+2 MiB budget and raw staging uses one reusable 64 KiB buffer. Each active importer
+reserves 16 MiB from the shared 64 MiB admission budget, including headroom for its
+nested staging/verifier owner. Admission refuses before accepting another owner;
+existing owners can finish without competing for that reserved workspace.
+Stored history has no resident collection.
 
 Publication uses `CaptureOwner` and the protected original Stream transaction.
 Only its authoritative common result permits the journal to record settlement;
@@ -48,4 +51,8 @@ original and pending directory entry until explicit terminal release.
 The [test index](../../../tests/README.md) links the component proof.
 Its fixture explicitly supplies the trusted original owner, executes real Exchange
 coverage/hold operations and Catalog/Stream storage, and introduces no network
-dispatch capability. Component tests do not qualify live HTTP polling or activation.
+dispatch capability. A separate process fixture journals those Exchange turns in
+TransitLog and survives SIGKILL at reservation, hold, readiness, seal, decision and
+release boundaries. Its upstream fixture materialization is separate from the
+measured destination and importer budgets. Component tests do not qualify live
+HTTP polling, activation or physical power-loss recovery.

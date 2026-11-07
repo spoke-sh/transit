@@ -4667,7 +4667,7 @@
         "ClientOperationPending": 9,
         "ClientTokenBudget": 3,
         "ClientTokenCapacity": 1,
-        "ClientTokenConflict": 9,
+        "ClientTokenConflict": 10,
         "ColumnReferencedByCheckConstraint": 1,
         "ColumnReferencedByForeignKey": 1,
         "ConflictingRetry": 1,
@@ -4676,7 +4676,7 @@
         "DataflowRevisionNotFound": 1,
         "DirectRecordMissing": 1,
         "DocumentSourceMissing": 1,
-        "DocumentSourceOperationRequired": 8,
+        "DocumentSourceOperationRequired": 7,
         "DocumentSourceWorkLimit": 1,
         "DuplicatePrimaryKey": 1,
         "Forbidden": 10,
@@ -4735,6 +4735,7 @@
         "InvalidSourceCaptureCursor": 1,
         "InvalidSourceCaptureState": 1,
         "InvalidSourceDeclaration": 5,
+        "InvalidSourcePublication": 10,
         "InvalidStorageBudget": 1,
         "InvalidStreamReadAuthority": 2,
         "InvalidTableAccessRequest": 1,
@@ -4748,7 +4749,7 @@
         "InvalidTransactionRead": 6,
         "InvalidTransactionRecord": 2,
         "InvalidTransactionTransfer": 1,
-        "InvalidTransactionWork": 8,
+        "InvalidTransactionWork": 9,
         "InvalidTransactionWorkspace": 9,
         "LogCatalogRequestRequired": 1,
         "LogDeclarationConflict": 12,
@@ -4773,7 +4774,7 @@
         "OwnedRecordAttached": 2,
         "OwnedRecordClosed": 8,
         "OwnedRecordOperationRequired": 3,
-        "OwnedRecordPending": 8,
+        "OwnedRecordPending": 9,
         "OwnedRecordRetained": 1,
         "QueueDependencyRetained": 1,
         "QueueDestinationChanged": 1,
@@ -4783,7 +4784,10 @@
         "QueueTimeUnavailable": 2,
         "ReadOnlyTransaction": 5,
         "SourceCaptureMissing": 1,
-        "SourceCaptureOperationRequired": 8,
+        "SourceCaptureNotPublished": 6,
+        "SourceCaptureOperationRequired": 9,
+        "SourceCapturePublicationPending": 4,
+        "SourceCapturePublicationRequired": 3,
         "SourceCaptureWorkLimit": 1,
         "SourceDeclarationQuota": 2,
         "SourceReservationRequired": 2,
@@ -4807,10 +4811,10 @@
         "TransactionControlPending": 6,
         "TransactionCutNotAcquired": 3,
         "TransactionFrozen": 1,
-        "TransactionIdentityConflict": 15,
+        "TransactionIdentityConflict": 16,
         "TransactionMemoryLimit": 11,
         "TransactionObjectNotSelected": 5,
-        "TransactionOperationRequired": 27,
+        "TransactionOperationRequired": 26,
         "TransactionPreparationMissing": 3,
         "TransactionPrepared": 5,
         "TransactionReadChanged": 5,
@@ -4880,6 +4884,8 @@
       "error_sets": {},
       "error_returns": {
         "AccessRequest.validate()": "<inferred>",
+        "CapturePolicy.make()": "<inferred>",
+        "CapturePolicy.registered()": "<inferred>",
         "CutFence.acquire()": "<inferred>",
         "HistoryEpoch.acquire()": "<inferred>",
         "HistoryPublication.requirePublished()": "<inferred>",
@@ -4931,10 +4937,13 @@
         "cancel()": "<inferred>",
         "cancelRows()": "<inferred>",
         "candidate()": "<inferred>",
+        "captureAdvance()": "<inferred>",
         "captureClose()": "<inferred>",
         "captureGuard()": "<inferred>",
         "captureInspect()": "<inferred>",
         "captureList()": "<inferred>",
+        "capturePublication()": "<inferred>",
+        "capturePublish()": "<inferred>",
         "captureRead()": "<inferred>",
         "captureReserve()": "<inferred>",
         "captureRowsDefined()": "<inferred>",
@@ -5136,6 +5145,7 @@
         "requireClientTerminal()": "anyerror",
         "requireInitialized()": "<inferred>",
         "requireTransactionMutation()": "<inferred>",
+        "requireTransactionPurpose()": "<inferred>",
         "requireTransactionRecord()": "<inferred>",
         "requireUnreservedBranchPin()": "<inferred>",
         "requirements()": "<inferred>",
@@ -5228,7 +5238,7 @@
       },
       "open_error_set_uses": 13,
       "propagation": {
-        "try": 2739,
+        "try": 2811,
         "catch": 31
       },
       "imports": [
@@ -5837,7 +5847,7 @@
         "CatalogRecordTooLarge": 1,
         "CatalogRecoveryRequired": 1,
         "ClientTokenConflict": 1,
-        "DataIdentityConflict": 21,
+        "DataIdentityConflict": 22,
         "HistoricalRetentionPending": 2,
         "IncompatibleDefinition": 1,
         "InvalidBranchState": 2,
@@ -5853,6 +5863,7 @@
         "InvalidPartitionLease": 1,
         "InvalidSourceCaptureTransition": 2,
         "InvalidSourceDeclaration": 2,
+        "InvalidSourcePublication": 3,
         "InvalidTransactionControl": 1,
         "LostAcknowledgement": 1
       },
@@ -5870,6 +5881,7 @@
         "clientPage()": "<inferred>",
         "clientToken()": "<inferred>",
         "clientTokenAt()": "<inferred>",
+        "clientTokenDigest()": "<inferred>",
         "clientTokenIdentity()": "<inferred>",
         "clientTokenState()": "<inferred>",
         "clientTokenTransition()": "<inferred>",
@@ -5932,7 +5944,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 428,
+        "try": 436,
         "catch": 1
       },
       "imports": [
@@ -5944,7 +5956,7 @@
     "packages/zig/transit-catalog/src/DirectCatalogWalk.zig": {
       "errors": {
         "InvalidDirectCatalogEntry": 6,
-        "InvalidDirectCatalogHistory": 11
+        "InvalidDirectCatalogHistory": 12
       },
       "outcomes": {
         "Edge": [
@@ -7733,10 +7745,11 @@
       "errors": {
         "ClientTokenBudget": 1,
         "IncompatibleDefinition": 1,
-        "InvalidSourceCapture": 3,
+        "InvalidSourceCapture": 7,
         "InvalidSourceCaptureLimits": 1,
-        "InvalidSourceCaptureState": 5,
-        "InvalidSourceCaptureTransition": 8,
+        "InvalidSourceCaptureState": 10,
+        "InvalidSourceCaptureTransition": 11,
+        "SourceCaptureMissing": 1,
         "SourceCaptureOperationRequired": 1,
         "SourceCaptureResidentLimit": 1,
         "SourceCaptureWorkLimit": 1
@@ -7750,6 +7763,9 @@
           "uploading",
           "sealing",
           "verified",
+          "publishing",
+          "published",
+          "aborted",
           "failed",
           "closed"
         ]
@@ -7764,6 +7780,8 @@
         "Descriptor.requireBinding()": "<inferred>",
         "Descriptor.validate()": "<inferred>",
         "Manifest.encode()": "<inferred>",
+        "Manifest.key()": "<inferred>",
+        "Manifest.load()": "<inferred>",
         "Manifest.validate()": "<inferred>",
         "Observation.from()": "<inferred>",
         "Selection.validate()": "<inferred>",
@@ -7775,7 +7793,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 27,
+        "try": 37,
         "catch": 0
       },
       "imports": [
@@ -7801,6 +7819,108 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 8,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectSourcePublication.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidSourceCapture": 1,
+        "InvalidSourcePublication": 17
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "begin()": "<inferred>",
+        "digest()": "<inferred>",
+        "encode()": "<inferred>",
+        "envelope()": "<inferred>",
+        "load()": "<inferred>",
+        "requireCandidate()": "<inferred>",
+        "requireProgress()": "<inferred>",
+        "requireReceipt()": "<inferred>",
+        "store()": "<inferred>",
+        "stored()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 35,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectSourceRead.zig": {
+      "errors": {
+        "CatalogDenied": 3,
+        "IncompatibleDefinition": 1,
+        "InvalidSourceCapture": 1,
+        "InvalidSourceCaptureReader": 23,
+        "InvalidSourcePublication": 2,
+        "InvalidStreamReadAuthority": 1,
+        "SourceCaptureCursorUnauthenticated": 1
+      },
+      "outcomes": {
+        "Request": [
+          "inspect",
+          "open",
+          "inspect_open",
+          "cancel_open",
+          "next",
+          "close"
+        ],
+        "Result": [
+          "publication",
+          "opened",
+          "original",
+          "abandoned",
+          "page",
+          "closed",
+          "recovering"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Cursor.issue()": "<inferred>",
+        "Cursor.signature()": "<inferred>",
+        "Cursor.validate()": "<inferred>",
+        "Cursor.verify()": "<inferred>",
+        "Handle.validate()": "<inferred>",
+        "Publication.validate()": "<inferred>",
+        "Request.validate()": "<inferred>",
+        "apply()": "<inferred>",
+        "check()": "<inferred>",
+        "validateResult()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 55,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectSourceReadClient.zig": {
+      "errors": {
+        "InvalidSourceCaptureReader": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "apply()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 2,
         "catch": 0
       },
       "imports": [
@@ -7884,8 +8004,10 @@
           "historical_walk",
           "transaction",
           "queue_transfer_plan",
+          "capture_plan",
           "document_source",
           "capture_source",
+          "capture_manifest",
           "workload_intent",
           "transaction_walk",
           "transaction_intent",
@@ -7972,7 +8094,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 652,
+        "try": 669,
         "catch": 1
       },
       "imports": [
@@ -7998,6 +8120,7 @@
         "LogOperationConflict": 7,
         "LogPayloadConflict": 1,
         "LogRangeExpired": 1,
+        "SourceCaptureOperationRequired": 1,
         "StreamReadConflict": 2,
         "StreamReadMissing": 1,
         "StreamWaitCapacity": 1,
@@ -8315,12 +8438,14 @@
         "LogCatalogExecutionUnavailable": 1,
         "NamedResourceNativeUnavailable": 1,
         "QueueServiceUnavailable": 2,
+        "SourceCaptureReadUnavailable": 2,
         "StreamServiceUnavailable": 2,
         "TableDelegationDenied": 1
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "Execution.capture_read()": "anyerror",
         "Execution.ddl()": "anyerror",
         "Execution.descriptor()": "anyerror",
         "Execution.log()": "anyerror",
@@ -8343,9 +8468,9 @@
         "workloadQueue()": "<inferred>",
         "workloadStream()": "<inferred>"
       },
-      "open_error_set_uses": 12,
+      "open_error_set_uses": 13,
       "propagation": {
-        "try": 247,
+        "try": 248,
         "catch": 0
       },
       "imports": [
@@ -8587,6 +8712,7 @@
           "key_range",
           "release",
           "stream",
+          "capture_read",
           "queue",
           "kv",
           "kv_declaration",
@@ -8695,6 +8821,7 @@
           "key_range",
           "released",
           "stream",
+          "capture_read",
           "queue",
           "kv",
           "kv_declaration",
@@ -8743,7 +8870,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 179,
+        "try": 180,
         "catch": 6
       },
       "imports": [
@@ -8823,7 +8950,7 @@
         "DataIdentityConflict": 3,
         "IncompatibleDefinition": 1,
         "InvalidKVResponse": 1,
-        "InvalidTableResponse": 169
+        "InvalidTableResponse": 170
       },
       "outcomes": {},
       "error_sets": {},
@@ -8849,7 +8976,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 236,
+        "try": 237,
         "catch": 10
       },
       "imports": [
@@ -8980,6 +9107,7 @@
     "packages/zig/transit-catalog/src/DirectTransaction.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
+        "InvalidSourcePublication": 1,
         "InvalidTransactionBegin": 3,
         "InvalidTransactionCut": 5,
         "InvalidTransactionDirectory": 2,
@@ -8992,7 +9120,8 @@
       "outcomes": {
         "Reference.purpose": [
           "interactive",
-          "queue_transfer"
+          "queue_transfer",
+          "source_capture"
         ]
       },
       "error_sets": {},
@@ -9006,7 +9135,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 26,
+        "try": 27,
         "catch": 0
       },
       "imports": [
@@ -10974,6 +11103,9 @@
         "DirectSource.zig",
         "DirectSourceCapture.zig",
         "DirectSourceClient.zig",
+        "DirectSourcePublication.zig",
+        "DirectSourceRead.zig",
+        "DirectSourceReadClient.zig",
         "DirectStorageGraph.zig",
         "DirectStream.zig",
         "DirectStreamClient.zig",
@@ -12036,12 +12168,83 @@
         "std"
       ]
     },
+    "packages/zig/transit-data-client/src/CaptureOwner.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "advance()": "<inferred>",
+        "close()": "<inferred>",
+        "inspect()": "<inferred>",
+        "publish()": "<inferred>",
+        "reserve()": "<inferred>",
+        "upload()": "<inferred>",
+        "verify()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "transit_catalog"
+      ]
+    },
+    "packages/zig/transit-data-client/src/CaptureReader.zig": {
+      "errors": {
+        "CatalogIdentityConflict": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidSourceCaptureReader": 7,
+        "SourceCaptureDigestMismatch": 1,
+        "SourceCaptureReadRecovering": 1,
+        "SourceCaptureReaderClosed": 1,
+        "SourceCaptureReaderState": 2
+      },
+      "outcomes": {
+        "state": [
+          "unopened",
+          "active",
+          "complete",
+          "failed",
+          "closing",
+          "closed"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Saved.load()": "<inferred>",
+        "Saved.save()": "<inferred>",
+        "Saved.validate()": "<inferred>",
+        "Transport.call()": "anyerror",
+        "Transport.nativeCall()": "<inferred>",
+        "call()": "<inferred>",
+        "close()": "<inferred>",
+        "init()": "<inferred>",
+        "next()": "<inferred>",
+        "observe()": "<inferred>",
+        "open()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 14,
+        "catch": 0
+      },
+      "imports": [
+        "Catalog.zig",
+        "std",
+        "transit_catalog"
+      ]
+    },
     "packages/zig/transit-data-client/src/Catalog.zig": {
       "errors": {
-        "Busy": 6,
+        "Busy": 7,
         "InvalidArgument": 1
       },
       "outcomes": {
+        "CaptureOutcome.value": [
+          "result",
+          "failure"
+        ],
         "KVOutcome.value": [
           "result",
           "failure"
@@ -12071,6 +12274,9 @@
         "call().<error>": [
           "Busy"
         ],
+        "callCapture().<error>": [
+          "Busy"
+        ],
         "callKV().<error>": [
           "Busy"
         ],
@@ -12089,6 +12295,7 @@
       },
       "error_returns": {
         "call()": "error { Busy }",
+        "callCapture()": "error { Busy }",
         "callKV()": "error { Busy }",
         "callLog()": "error { Busy }",
         "callQueue()": "error { Busy }",
@@ -12099,7 +12306,7 @@
       "open_error_set_uses": 1,
       "propagation": {
         "try": 4,
-        "catch": 13
+        "catch": 15
       },
       "imports": [
         "std",
@@ -12330,6 +12537,8 @@
       },
       "imports": [
         "Admission.zig",
+        "CaptureOwner.zig",
+        "CaptureReader.zig",
         "Catalog.zig",
         "Context.zig",
         "KVRecovery.zig",
@@ -24954,11 +25163,12 @@
     "packages/zig/transit-protocol/src/SourceCapture.zig": {
       "errors": {
         "IncompatibleDefinition": 2,
-        "InvalidSourceCapture": 8
+        "InvalidSourceCapture": 9
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "Attachment.validate()": "<inferred>",
         "Body.validate()": "<inferred>",
         "Evidence.capture()": "<inferred>",
         "Evidence.requireSource()": "<inferred>",
@@ -24968,7 +25178,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 15,
+        "try": 17,
         "catch": 0
       },
       "imports": [
@@ -25105,6 +25315,7 @@
         "InvalidQueueLease": 1,
         "InvalidQueueSettlement": 2,
         "InvalidQueueSettlementReceipt": 1,
+        "InvalidSourceCapture": 1,
         "LogAppendConflict": 1,
         "LogGroupAssignmentConflict": 2,
         "LogGroupFenced": 1,
@@ -25189,7 +25400,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 74,
+        "try": 75,
         "catch": 2
       },
       "imports": [
@@ -37731,19 +37942,19 @@
         "WrongExchangeProtocol": 1
       },
       "outcomes": {
-        "Policy": [
+        "ReplayPolicy": [
           "captured",
           "require_unredacted"
         ]
       },
       "error_sets": {},
       "error_returns": {
-        "Validator.end()": "<inferred>",
-        "Validator.finish()": "<inferred>",
-        "Validator.push()": "<inferred>",
-        "headers()": "<inferred>",
-        "open()": "<inferred>",
-        "read()": "<inferred>"
+        "ReplayValidator.end()": "<inferred>",
+        "ReplayValidator.finish()": "<inferred>",
+        "ReplayValidator.push()": "<inferred>",
+        "WithClient().<return>.open()": "<inferred>",
+        "WithClient().<return>.read()": "<inferred>",
+        "headers()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {

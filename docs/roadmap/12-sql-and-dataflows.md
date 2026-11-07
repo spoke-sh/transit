@@ -2879,9 +2879,11 @@ publication alone.
 
 ## Next SOURCE slice: owned capture storage and readers — 2026-11-07
 
-**Status: Planned.** Planning baseline: `origin/main` at
+**Status: In Progress.** Implementation baseline: `origin/main` at
 `d837992fe`, including [PR #410](https://github.com/spoke-sh/transit/pull/410).
-This delivers S2 above and advances **G2 — Governed capture** in
+P0–P4 are implemented; P5 has executed component, real process-death and signed
+native-service reader proofs, with committed-source integration qualification
+still pending. This slice delivers S2 above and advances **G2 — Governed capture** in
 [#398](https://github.com/spoke-sh/transit/issues/398). The application needs to
 retain one complete external observation, recover its original publication, and
 read its bytes under the destination's current policy. A 4 MiB body must fit that
