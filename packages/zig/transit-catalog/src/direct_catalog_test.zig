@@ -11076,6 +11076,35 @@ test "SOURCE capture expiry preserves existing pins and releases bodies without 
     for (objects.objects.items) |item| try t.expect(!std.mem.startsWith(u8, item.key, "source-captures/"));
 }
 
+test "SOURCE capture fences an unadmitted publication after a lost plan reply" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{ .exclusive = true };
+    try catalog.initialize(access.policy());
+    const source = try captureSetup(&catalog, &access);
+    var host: CaptureHost = .{ .access = &access };
+    const observed = try captureSmall(&catalog, &access, &host, source, 1, "unadmitted");
+    const plan = try capturePublication(observed);
+    catalog.store.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.capturePublish(plan, access.policy(), host.authority()));
+    catalog.store.lose_reply = false;
+    catalog.deinit();
+    catalog = try owner(&wal, &objects);
+    try t.expectEqual(null, try catalog.store.clientToken(plan.key));
+    const closed = try catalog.captureAdvance(plan.candidate, .abort, 8, access.policy(), host.authority());
+    try t.expectEqual(.closed, closed.state.phase);
+    try t.expectEqual(null, closed.state.outcome);
+    try t.expectEqualDeep(plan, closed.state.publication.?);
+    try t.expectEqualDeep(closed, try catalog.capturePublish(plan, access.policy(), host.authority()));
+    try t.expectEqual(null, try catalog.store.clientToken(plan.key));
+    try collectHistoricalFixture(&catalog, &wal, &objects, &access, &.{});
+    try t.expectError(error.SourceCaptureMissing, Capture.Manifest.load(t.allocator, objects.objectStore(), plan.reference));
+}
+
 test "SOURCE capture publication graph retains committed and uncertain bodies and releases aborted bytes" {
     var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
     defer wal.deinit();

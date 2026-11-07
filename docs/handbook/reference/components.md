@@ -37,6 +37,7 @@ the implementations listed below remain shared runtime libraries.
 | [transit-document-profiles](../../../packages/zig/transit-document-profiles/README.md) / `transit_document_profiles` | Offline bounded JSON/XML and MIME frame parsing/construction, raw event provenance and complete-part verification | transit-protocol |
 | [transit-station-document](../../../packages/zig/transit-station-document/README.md) / `transit_station_document` | structured merge, collaborative text and paged accepted-state publication | transit-station |
 | [transit-station-http](../../../packages/zig/transit-station-http/README.md) / `transit_station_http` | finite HTTP request construction, strict framing and durable capture | transit-exchange, transit-tls |
+| [transit-source-import](../../../packages/zig/transit-source-import/README.md) / `transit_source_import` | Retained sealed HTTP handoff into owned SOURCE captures | transit-station-http, transit-data-client |
 | [transit-tls](../../../packages/zig/transit-tls/README.md) / `transit_tls` | Compiler-pinned TLS client with bounded certificate-path verification | Pinned zig-libs certificate-validation snapshot |
 | [transit-tls-server](../../../packages/zig/transit-tls-server/README.md) / `transit_tls_server` | TLS 1.2/1.3 server sessions over bounded, deadline-controlled Zig I/O | Pinned OpenSSL 3.6.4 server API |
 | [transit-sql-results](../../../packages/zig/transit-sql-results/README.md) / `transit_sql_results` | Logical statement outcomes, result progress and observation evidence | transit-fuze, transit-protocol |

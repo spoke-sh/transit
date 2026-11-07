@@ -260,9 +260,11 @@ attach the graph and exactly one envelope; receipt metadata survives later
 authorized payload release. Unrelated committed transaction records retain their
 existing lifetime. Activation remains gated by the execution proofs below.
 
-Every raw record access and buffered, repeated or terminal reader response must
-check current destination Stream and capture-disclosure rights. Generic record
-reads cannot bypass them. Source-control rights alone disclose no raw body.
+Every published raw read and buffered, repeated or terminal reader response checks
+current destination Stream READ with database CONNECT and schema USAGE. Private
+candidate work additionally checks the importing owner and upstream disclosure
+authority. Generic record reads cannot bypass these checks. Source-control rights
+alone disclose no raw body.
 Inspection reports definitions, desired state, observed blocking reason, epoch,
 pending original attempt, last settlement and last complete publication separately.
 It performs no dispatch, cleanup or implicit read of response bodies.
@@ -306,3 +308,38 @@ Explicit Stream age expiry rejects new pins below the retained boundary with
 pin permits collection only after other recovery roots release it. SOURCE or
 CONNECTION retirement/drop does not remove destination-owned bytes. Original
 publication metadata remains attributable after payload collection.
+
+## Sealed HTTP handoff component
+
+`transit-source-import` composes above HTTP/Exchange and the data client. It accepts
+only an explicitly host-verified complete finite original, never live network
+work. SHI1 freezes the exact declarations, poll/attempt, Exchange descriptor and
+reference, consumer token/holder, verifier, candidate, output transaction originals
+and budgets. SOR1 reserves that input before acquiring a consumer hold. SHP1
+progress uses the reserved CPR1 owner and the paged original-token directory.
+The original caller hold is independent and is never disposed by this adapter.
+
+The first replay uses HTTP's current-authorized coverage validator to derive
+status, body length/digest and the HTC1 terminal commitment. A second complete
+replay copies sequential 64 KiB chunks and must reproduce that exact evidence.
+The exchange commitment is SHA-256 of the canonical EXD1 descriptor, retained
+with its exact reference in SHI1. The trusted host checks the original authenticated
+effect/attempt and terminal outcome separately; a complete descriptor alone is
+insufficient. Neither replay can dispatch or resolve credentials.
+
+Each step advances one durable phase or at most 256 Exchange parts. The transcript
+limit is 8 MiB/65,536 members, body limit 4 MiB, and adapter scratch limit 2 MiB.
+Every pass, including a restarted pass, charges its entire transcript byte/part
+bound before reading. Source-candidate verification separately charges its own
+work. Exhaustion preserves the original and control capacity for observation and
+closure. No accepted identity or charged work is reset by restart.
+
+The protected Stream transaction supplies the authoritative destination outcome.
+Only after the journal retains that outcome may the adapter release its original
+Exchange dependency; an uncertain release is retried with the same token/holder.
+Cancellation closes private storage or settles the original transaction. A frozen
+plan with no transaction reservation may be permanently fenced closed under the
+serialized owner; it retains the plan without inventing a transaction decision.
+A saved transaction binding requires ordinary recovery. Revocation, missing
+observations and timeouts never establish an abort. This component supplies no
+installed mutation route, SQL import verb or SOURCE activation.

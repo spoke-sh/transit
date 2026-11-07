@@ -1,0 +1,11 @@
+.{
+    .name = .transit_source_import,
+    .fingerprint = 0x36da2d8fb6351d23,
+    .version = "0.0.1",
+    .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
+    .dependencies = .{
+        .transit_data_client = .{ .path = "../transit-data-client" },
+        .transit_station_http = .{ .path = "../transit-station-http" },
+    },
+    .paths = .{ "build.zig", "build.zig.zon", "src" },
+}
