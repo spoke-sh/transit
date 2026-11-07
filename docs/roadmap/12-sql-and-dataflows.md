@@ -2607,9 +2607,10 @@ all gates above; general R8 and #398 remain open for their other workloads.
 
 ## Next SOURCE slice: durable declarations and inspection — 2026-11-06
 
-**Status: In Progress.** The durable declaration and native SQL implementation
-merged in [PR #410](https://github.com/spoke-sh/transit/pull/410); its complete
-combined qualification remains open. Merge status does not establish that proof.
+**Status: Completed (declarations and inspection).** The implementation merged
+in [PR #410](https://github.com/spoke-sh/transit/pull/410); its C6 proof is now
+recorded at the integrated SOURCE capture definition in the
+[combined qualification](../history/qualification/catalog.md#owned-source-capture-storage-and-readers--2026-11-07).
 Current behavior is described in
 [CREATE SOURCE](../handbook/reference/sql/create-source.md) and
 [CREATE CONNECTION](../handbook/reference/sql/create-connection.md); HTTP
@@ -2864,10 +2865,11 @@ dependent binding consumers. Preserve explicit adapter rejection tests without
 claiming those adapters now execute SOURCE. Record commands, revision, budgets,
 raw evidence and terminal results in the qualification owner.
 
-Implementation qualification includes the registered `source-declarations`
-installed journey and the Catalog's publication, fault, growth and collection
-controls. Keep M12 and this slice `In Progress` until the complete required
-qualification is recorded, and keep #398 open for the remaining workload.
+The registered `source-declarations` installed journey and Catalog publication,
+fault, growth and collection controls pass at the integrated revision in the
+[combined qualification](../history/qualification/catalog.md#owned-source-capture-storage-and-readers--2026-11-07). This closes C6 for the scoped
+declaration/inspection behavior; M12 remains `In Progress`, and #398 remains open
+for the remaining workload.
 
 After C1–C6, S2 implements owned paged captures and Stream-scoped disclosure;
 S3 implements the fenced original HTTP attempt and retained handoff. S4 joins
@@ -2879,22 +2881,24 @@ publication alone.
 
 ## Next SOURCE slice: owned capture storage and readers — 2026-11-07
 
-**Status: In Progress.** Implementation baseline: `origin/main` at
-`d837992fe`, including [PR #410](https://github.com/spoke-sh/transit/pull/410).
-P0–P4 are implemented; P5 has executed component, real process-death and signed
-native-service reader proofs, with committed-source integration qualification
-still pending. This slice delivers S2 above and advances **G2 — Governed capture** in
+**Status: Completed (owned capture storage and readers).** The planning baseline
+was `origin/main` at `d837992fe`, including
+[PR #410](https://github.com/spoke-sh/transit/pull/410). P0–P5 are implemented and
+qualified at `7f557aaf7`, rebased onto `87ccf4e15`; the
+[combined qualification](../history/qualification/catalog.md#owned-source-capture-storage-and-readers--2026-11-07)
+records component, process-death, signed native reader and dependent installed
+proofs. This slice delivers S2 above and advances **G2 — Governed capture** in
 [#398](https://github.com/spoke-sh/transit/issues/398). The application needs to
 retain one complete external observation, recover its original publication, and
 read its bytes under the destination's current policy. A 4 MiB body must fit that
 lifecycle without becoming a 4 MiB Stream cell or an actor message.
 
-The declaration implementation has landed; its C6 combined proof remains a
-prerequisite, with earlier evidence in the
-[qualification account](../history/qualification/catalog.md#durable-connection-and-source-declarations--2026-11-06).
-Finish that proof against the integrated source before claiming the new combined
-journey. Planning and storage component work can proceed meanwhile. This plan
-does not mark C6, S0–S6, R8, M12 or G2 complete.
+The declaration prerequisite C6 now passes at the same integrated definition;
+its earlier evidence remains in the
+[original account](../history/qualification/catalog.md#durable-connection-and-source-declarations--2026-11-06).
+The qualified capture importer starts from an already sealed finite response in
+an explicitly trusted host. S3/S4 admission, HTTP polling and activation remain
+future work; S0–S6 as a whole, R8, M12 and G2 remain incomplete.
 
 ### Deliverable and scope
 
@@ -3111,8 +3115,10 @@ counting-allocator controls for the steady-state storage loop. No allocation may
 scale with the full body or retained history. Exhaust data admission and prove
 inspection, original decision recovery and closure still have reserved capacity.
 
-Register new capture-specific tests in the existing runner/task inventories;
-their names and coverage are implementation work, not presently runnable commands.
+`just test::source-capture` now runs the importer components and real process-death
+oracle in the `interfaces-connectors` lane. `test::local-catalog` includes the
+signed native capture reader, and `test::source-declarations` preserves the
+installed declaration-only journey with zero HTTP requests and zero capture rows.
 Run focused storage/Catalog/HTTP/caller proofs, then affected committed-HEAD clean
 `core`, `storage-query`, `interfaces-sql`, `interfaces-connectors`,
 `installation-ui` and dependent SDK lanes according to the final changed surface. Extend model checks when ownership
@@ -3128,8 +3134,8 @@ SOURCE_V1, the direct contract, Stream/retention references and component/client
 guides. Keep future scheduling and M16's Document-backed exchange cutover in their
 owners; this raw-body representation does not complete either.
 
-For this planning-only change, run the source-link/fence and whitespace checks
-and the three repository baseline gates. No runtime suite is required and no new
-capture execution is claimed. Completion of P0–P5 enables the storage/read seam
-for S3's fenced original attempt and S4's common schedule/output decision. It
-does not itself enable activation, close G2 or make the earthquake script run.
+P0–P5 now qualify the bounded storage/read seam, with exact executed gates and
+limits in the [combined qualification](../history/qualification/catalog.md#owned-source-capture-storage-and-readers--2026-11-07).
+S3 must supply fenced original-attempt admission, and S4 must join schedule,
+progress and output through the common decision before activation is exposed.
+This completion does not close G2 or make the earthquake script run.
