@@ -39,9 +39,11 @@ pub const Reference = union(enum) {
     transaction_call: c.DirectTransactionCall,
     external: External,
     table: c.DirectTableIntent.Reference,
+    kv: c.DirectKVIntent.Reference,
     log: c.DirectLogIntent.Reference,
     workload: c.DirectWorkloadIntent.Reference,
     name_assertion: c.NameAssertion.Binding,
+    kv_name_assertion: c.NameAssertion.Binding,
     namespace_change: NamespaceChange,
     pub fn validate(self: Reference) !void {
         switch (self) {
@@ -64,14 +66,16 @@ pub const Reference = union(enum) {
             inline .history, .branch, .transaction, .transaction_call => |value| value.identity(),
             .external => |value| value.identity(),
             .table => |value| value.binding.identity,
+            .kv => |value| value.binding.identity,
             .log => |value| value.binding.identity,
             .workload => |value| value.identity(),
-            .name_assertion => |value| value.identity(),
+            .name_assertion, .kv_name_assertion => |value| value.identity(),
             .namespace_change => |value| value.binding.identity(),
         };
     }
     pub fn workBytes(self: Reference) !u64 {
         if (self == .table) return self.table.content.bytes;
+        if (self == .kv) return self.kv.record.content.bytes;
         if (self == .external) return self.external.record.content.bytes;
         if (self == .log) return self.log.record.content.bytes;
         if (self == .workload) return self.workload.record.content.bytes;
@@ -97,6 +101,13 @@ pub const Reference = union(enum) {
                 break :blk digest_value.finalResult();
             },
             .table => |value| bindingDigest(value.binding),
+            .kv => blk: {
+                var bytes: [max_bytes]u8 = undefined;
+                var digest_value = std.crypto.hash.sha2.Sha256.init(.{});
+                digest_value.update("transit.catalog.kv.binding.v1\x00");
+                digest_value.update(try encode(self, &bytes));
+                break :blk digest_value.finalResult();
+            },
             .log => blk: {
                 var bytes: [max_bytes]u8 = undefined;
                 var digest_value = std.crypto.hash.sha2.Sha256.init(.{});
@@ -111,7 +122,7 @@ pub const Reference = union(enum) {
                 hash.update(try encode(self, &bytes));
                 break :blk hash.finalResult();
             },
-            .name_assertion => |value| assertionDigest(value),
+            .name_assertion, .kv_name_assertion => |value| assertionDigest(value),
             .namespace_change => |value| namespaceDigest(value),
         };
     }
@@ -126,6 +137,7 @@ pub const Reference = union(enum) {
         if (self == .transaction or self == .transaction_call) return error.TransactionOperationRequired;
         if (self == .external) return error.ExternalOperationOwnerRequired;
         if (self == .table) return self.table.admit(client);
+        if (self == .kv) return self.kv.admit(client);
         if (self == .log) return self.log.admit(client);
         if (self == .workload) return self.workload.operation(client, .execute);
         if (self == .namespace_change) {
@@ -144,13 +156,14 @@ pub const Reference = union(enum) {
             .transaction, .transaction_call => error.TransactionOperationRequired,
             .external => error.ExternalOperationOwnerRequired,
             .table => |value| value.operation(client, command, steps),
+            .kv => |value| value.operation(client, command, steps),
             .log => |value| value.operation(client, command, steps),
             .workload => |value| value.operation(client, switch (command) {
                 .inspect => .inspect,
                 .execute => .execute,
                 .cancel => .cancel,
             }),
-            .name_assertion => |value| client.call(.{ .name_assertion = .{ .binding = value, .command = switch (command) {
+            .name_assertion, .kv_name_assertion => |value| client.call(.{ .name_assertion = .{ .binding = value, .command = switch (command) {
                 .inspect => .inspect,
                 .execute => .accept,
                 .cancel => .cancel,

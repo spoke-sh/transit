@@ -54,6 +54,21 @@ pub fn fromReference(reference: g.IntentReference.Reference, result: w.Result) !
     if (reference == .external) return error.ExternalOperationOwnerRequired;
     if (reference == .transaction or reference == .transaction_call) return error.TransactionOperationRequired;
     if (reference == .table) return fromResult(reference.table.binding, result);
+    if (reference == .kv) {
+        if (reference.kv.kind == .ddl) {
+            if (result != .kv_declaration or result.kv_declaration != .operation) return error.InvalidGatewayTerminal;
+            var projected = (try fromResult(reference.kv.binding, .{ .ddl = result.kv_declaration.operation })) orelse return null;
+            projected.identity = try reference.digest();
+            try projected.validate();
+            return projected;
+        }
+        if (result != .kv or result.kv != .operation) return error.InvalidGatewayTerminal;
+        const evidence = result.kv.operation orelse return null;
+        var projected = (try fromResult(reference.kv.binding, .{ .rows = .{ .committed = evidence } })) orelse return null;
+        projected.identity = try reference.digest();
+        try projected.validate();
+        return projected;
+    }
     if (reference == .log) {
         const evidence = switch (result) {
             .log_admitted => |value| value,
@@ -125,7 +140,7 @@ pub fn fromReference(reference: g.IntentReference.Reference, result: w.Result) !
         .not_observed => return null,
         .outcome => |value| value,
     };
-    const binding = reference.name_assertion;
+    const binding = if (reference == .kv_name_assertion) reference.kv_name_assertion else reference.name_assertion;
     try evidence.validate();
     try binding.requireSame(evidence.binding);
     const value: Self = .{
@@ -207,14 +222,47 @@ pub fn summary(self: Self) g.OperationRecords.Summary {
     };
 }
 
+pub fn rejectedKV(reference: c.DirectKVIntent.Reference, reason: c.storage.TablePartition.Reason) !Self {
+    try reference.validate();
+    const binding = reference.binding;
+    const value: Self = .{
+        .kind = .dml,
+        .identity = try (g.IntentReference.Reference{ .kv = reference }).digest(),
+        .resource = binding.identity.scope.resource,
+        .principal = binding.identity.principal,
+        .operation = binding.identity.operation,
+        .object = binding.target.object,
+        .state = .rejected,
+        .reason = @backingInt(reason),
+    };
+    try value.validate();
+    return value;
+}
+pub fn cancelledKV(reference: c.DirectKVIntent.Reference) !Self {
+    try reference.validate();
+    const binding = reference.binding;
+    const value: Self = .{
+        .kind = .dml,
+        .identity = try (g.IntentReference.Reference{ .kv = reference }).digest(),
+        .resource = binding.identity.scope.resource,
+        .principal = binding.identity.principal,
+        .operation = binding.identity.operation,
+        .object = binding.target.object,
+        .state = .cancelled,
+        .reason = 0,
+    };
+    try value.validate();
+    return value;
+}
+
 /// Project already verified owner evidence for native and database adapters.
 /// The SQL operation identity is distinct from the direct owner's operation.
 pub fn completion(self: Self, command: g.results.Command, operation: g.results.Operation) !g.results.CommandCompletion {
     try self.validate();
     const expected: @FieldType(Self, "kind") = switch (command) {
-        .insert, .update, .delete => .dml,
-        .create_table, .drop_table => if (self.kind == .catalog_assertion) .catalog_assertion else .ddl,
-        .alter_table => .ddl,
+        .insert, .update, .delete, .put => .dml,
+        .create_table, .drop_table, .create_kv, .drop_kv => if (self.kind == .catalog_assertion) .catalog_assertion else .ddl,
+        .alter_table, .alter_kv => .ddl,
         .create_schema, .alter_schema, .drop_schema => .namespace_change,
         .create_stream, .alter_stream, .drop_stream, .create_queue, .alter_queue, .drop_queue => .log_declaration,
         else => return error.InvalidGatewayTerminal,
